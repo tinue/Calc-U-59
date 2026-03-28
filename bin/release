@@ -1,0 +1,255 @@
+#!/bin/bash
+#
+# Release script for Calc-U-59
+#
+# Workflow:
+#   1. Iterate on the pre-release (may be run multiple times):
+#        bin/release               # build, sign, package DMG → GitHub pre-release (no notarization)
+#        bin/release --notarize    # same, plus notarize & staple the DMG
+#
+#   2. Promote to full release (run once, after the notarized pre-release looks good):
+#        bin/release --release     # flip the existing pre-release to a full release
+#                                  # (no build, no notes change, no DMG upload)
+#
+# Prerequisites:
+#   - Xcode selected:  sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+#   - GitHub CLI:      brew install gh   (and: gh auth login)
+#   - create-dmg:      brew install create-dmg
+#
+# Notarization:
+#   Store credentials once with:
+#     xcrun notarytool store-credentials "notarytool" \
+#       --apple-id "your@apple.id" \
+#       --team-id "7Q3QN9AV9J" \
+#       --password "<app-specific-password>"   # from appleid.apple.com → App-Specific Passwords
+#   Then notarization runs automatically.  Set NOTARYTOOL_PROFILE to use a different profile name.
+#
+
+set -euo pipefail
+
+# ── Configuration ─────────────────────────────────────────────────────────────
+
+PROJECT="Calc-U-59.xcodeproj"
+SCHEME="Calc-U-59"
+APP_NAME="Calc-U-59"
+BUILD_DIR="build/release"
+SIGN_IDENTITY="Developer ID Application: Martin Erzberger (7Q3QN9AV9J)"
+NOTARYTOOL_PROFILE="${NOTARYTOOL_PROFILE:-notarytool}"
+
+# ── Argument parsing ───────────────────────────────────────────────────────────
+
+DO_NOTARIZE=false
+DO_RELEASE=false
+for arg in "$@"; do
+    case "$arg" in
+        --notarize) DO_NOTARIZE=true ;;
+        --release)  DO_RELEASE=true ;;
+        *) echo "Unknown argument: $arg"; exit 1 ;;
+    esac
+done
+
+if $DO_RELEASE && $DO_NOTARIZE; then
+    echo "Error: --release and --notarize are mutually exclusive."
+    echo "  Promote an already-notarized pre-release with: bin/release --release"
+    exit 1
+fi
+
+# ── Sanity checks ──────────────────────────────────────────────────────────────
+
+if ! command -v gh &>/dev/null; then
+    echo "Error: 'gh' CLI not found. Install with: brew install gh"
+    exit 1
+fi
+
+if ! $DO_RELEASE; then
+    if ! xcode-select -p 2>/dev/null | grep -q "Xcode.app"; then
+        echo "Error: Xcode not selected. Run:"
+        echo "  sudo xcode-select -s /Applications/Xcode.app/Contents/Developer"
+        exit 1
+    fi
+    if ! command -v create-dmg &>/dev/null; then
+        echo "Error: 'create-dmg' not found. Install with: brew install create-dmg"
+        exit 1
+    fi
+fi
+
+# ── 1. Version ─────────────────────────────────────────────────────────────────
+
+VERSION=$(grep -m 1 'MARKETING_VERSION' "$PROJECT/project.pbxproj" \
+          | sed -E 's/.*MARKETING_VERSION = ([^;]+);.*/\1/' \
+          | tr -d '[:space:]')
+TAG="v$VERSION"
+DMG_NAME="${APP_NAME}-${VERSION}.dmg"
+DMG_PATH="$BUILD_DIR/$DMG_NAME"
+
+# ── 2. Promote pre-release → full release ─────────────────────────────────────
+#
+# --release only flips the pre-release flag on the existing GitHub release.
+# No build, no notes update, no DMG upload — the pre-release artifact is reused.
+
+if $DO_RELEASE; then
+    echo "Promoting ${TAG} to full release…"
+
+    # Verify a pre-release exists for this tag.
+    if ! gh release view "$TAG" &>/dev/null; then
+        echo "Error: no GitHub release found for ${TAG}."
+        echo "  Build and publish a pre-release first: bin/release --notarize"
+        exit 1
+    fi
+    if ! gh release view "$TAG" --json isPrerelease -q .isPrerelease | grep -q true; then
+        echo "Error: release ${TAG} exists but is not marked as a pre-release."
+        echo "  Nothing to promote."
+        exit 1
+    fi
+
+    gh release edit "$TAG" --prerelease=false
+    echo "Done.  Release ${TAG}: $(gh release view "${TAG}" --json url -q .url)"
+    exit 0
+fi
+
+# ── Pre-release build path ─────────────────────────────────────────────────────
+
+echo "Building $APP_NAME $VERSION (tag: ${TAG})…"
+
+# ── 3. Release notes ───────────────────────────────────────────────────────────
+
+CHANGELOG="CHANGELOG.md"
+if [ ! -f "$CHANGELOG" ]; then
+    echo "Warning: $CHANGELOG not found — release notes will be empty."
+    NOTES=""
+else
+    NOTES=$(sed -n "/## \[$VERSION\]/,/## /p" "$CHANGELOG" | sed '1d;$d' | sed '/^$/d')
+    if [ -z "$NOTES" ]; then
+        echo "Warning: No notes found for version $VERSION in $CHANGELOG — release notes will be empty."
+    fi
+fi
+
+# ── 4. Build (archive) ────────────────────────────────────────────────────────
+
+ARCHIVE_PATH="$BUILD_DIR/$APP_NAME.xcarchive"
+APP_PATH="$BUILD_DIR/${APP_NAME}.app"
+
+echo "Archiving…"
+rm -rf "$BUILD_DIR"
+mkdir -p "$BUILD_DIR"
+
+# arch=arm64 in the destination pins the build to Apple Silicon and eliminates
+# the "multiple matching destinations" warning that appears when Rosetta is present.
+# ARCHS=arm64 ensures the archive itself contains only the arm64 slice.
+xcodebuild archive \
+    -project "$PROJECT" \
+    -scheme "$SCHEME" \
+    -configuration Release \
+    -destination "platform=macOS,arch=arm64" \
+    -archivePath "$ARCHIVE_PATH" \
+    ARCHS=arm64 \
+    | grep -E "^(Build|Archive|error:|warning:)" \
+    | grep -v "provisioning profile" || true
+# Note: two-stage grep avoids the BSD grep "repetition-operator operand invalid"
+# error that occurs with PCRE lookaheads (?!...) under macOS grep -E.
+
+# ── 5. Export with Developer ID (sign + embed provisioning profile) ───────────
+#
+# xcodebuild -exportArchive re-signs the app with the Developer ID certificate
+# and embeds the matching Developer ID provisioning profile, which is required
+# to authorise the iCloud entitlements at runtime.  A plain `codesign --force`
+# re-signs the binary but keeps the development provisioning profile from the
+# archive, causing AMFI to reject the iCloud entitlements.
+#
+# -allowProvisioningUpdates lets Xcode automatically download the Developer ID
+# provisioning profile from Apple if it is not already installed locally.
+# ExportOptions.plist sets method=developer-id and signingStyle=automatic.
+
+EXPORT_DIR="$BUILD_DIR/export"
+echo "Exporting with Developer ID…"
+xcodebuild -exportArchive \
+    -archivePath "$ARCHIVE_PATH" \
+    -exportPath "$EXPORT_DIR" \
+    -exportOptionsPlist bin/ExportOptions.plist \
+    -allowProvisioningUpdates \
+    | grep -E "^(Export|error:|warning:)" \
+    | grep -v "provisioning profile" || true
+
+APP_EXPORTED="$EXPORT_DIR/${APP_NAME}.app"
+if [ ! -d "$APP_EXPORTED" ]; then
+    echo "Error: exported .app not found at $APP_EXPORTED"
+    echo "Export directory contents:"
+    find "$EXPORT_DIR" -maxdepth 3 2>/dev/null || true
+    exit 1
+fi
+
+cp -R "$APP_EXPORTED" "$APP_PATH"
+codesign --verify --deep --strict "$APP_PATH"
+echo "Exported and signed: $APP_PATH"
+
+# ── 6. Package as DMG ─────────────────────────────────────────────────────────
+
+echo "Creating DMG…"
+create-dmg \
+    --volname "$APP_NAME $VERSION" \
+    --volicon "$APP_PATH/Contents/Resources/AppIcon.icns" \
+    --window-pos 200 120 \
+    --window-size 660 400 \
+    --icon-size 128 \
+    --icon "${APP_NAME}.app" 165 185 \
+    --app-drop-link 495 185 \
+    --no-internet-enable \
+    "$DMG_PATH" \
+    "$APP_PATH"
+
+# Sign the DMG itself
+codesign --force --sign "$SIGN_IDENTITY" "$DMG_PATH"
+echo "DMG: $DMG_PATH"
+
+# ── 7. Notarize ───────────────────────────────────────────────────────────────
+#
+# Only runs when --notarize is passed.  Requires a stored notarytool credential
+# profile (see header for setup).
+
+if $DO_NOTARIZE; then
+    if ! xcrun notarytool history --keychain-profile "$NOTARYTOOL_PROFILE" &>/dev/null; then
+        echo "Error: Notarytool profile '$NOTARYTOOL_PROFILE' not found."
+        echo "  Run this once to set up:"
+        echo "    xcrun notarytool store-credentials \"$NOTARYTOOL_PROFILE\" \\"
+        echo "      --apple-id \"your@apple.id\" --team-id 7Q3QN9AV9J \\"
+        echo "      --password \"<app-specific-password>\""
+        exit 1
+    fi
+
+    echo "Notarizing (this may take a minute)…"
+    NOTARIZE_OUTPUT=$(xcrun notarytool submit "$DMG_PATH" \
+        --keychain-profile "$NOTARYTOOL_PROFILE" \
+        --wait 2>&1)
+    echo "$NOTARIZE_OUTPUT"
+
+    NOTARIZE_ID=$(echo "$NOTARIZE_OUTPUT" | grep '^ *id:' | head -1 | sed 's/.*id: *//')
+    NOTARIZE_STATUS=$(echo "$NOTARIZE_OUTPUT" | grep '^ *status:' | tail -1 | sed 's/.*status: *//')
+
+    if [ "$NOTARIZE_STATUS" != "Accepted" ]; then
+        echo "Notarization failed (status: $NOTARIZE_STATUS)."
+        if [ -n "$NOTARIZE_ID" ]; then
+            echo "Fetching rejection log for $NOTARIZE_ID…"
+            xcrun notarytool log "$NOTARIZE_ID" --keychain-profile "$NOTARYTOOL_PROFILE"
+        fi
+        exit 1
+    fi
+
+    xcrun stapler staple "$DMG_PATH"
+    echo "Notarized and stapled."
+fi
+
+# ── 8. GitHub pre-release ─────────────────────────────────────────────────────
+
+if gh release view "$TAG" &>/dev/null; then
+    echo "Pre-release ${TAG} exists — updating…"
+    gh release edit "$TAG" --notes "$NOTES" --prerelease
+    gh release upload "$TAG" "$DMG_PATH" --clobber
+else
+    echo "Creating GitHub pre-release ${TAG}…"
+    gh release create "$TAG" "$DMG_PATH" \
+        --title "$APP_NAME $VERSION" \
+        --notes "$NOTES" \
+        --prerelease
+fi
+
+echo "Done.  Pre-release ${TAG}: $(gh release view "${TAG}" --json url -q .url)"

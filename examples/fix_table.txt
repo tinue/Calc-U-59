@@ -1,0 +1,20 @@
+   0 1 2 3 4 5 6 7
+0    0 1 2 3 4 5 6
+1  7 8 9 A B C D E
+2  - F G H I J K L
+3  M N O P Q R S T
+4  . U V W X Y Z +
+5  x * s p e ( ) ,
+6  ^ % _ / = '   &
+7  z ? : ! ]   [ S
+
+
+   0 1 2 3 4 5 6 7
+0    0 1 2 3 4 5 6
+1  7 8 9 A B C D E
+2  - F G H I J K L
+3  M N O P Q R S T
+4  . U V W X Y Z +
+5  x * √ π e ( ) ,
+6  ↑ % ⇄ / = ' ˣ x̄
+7  ² ? ÷ ! Ⅱ ▴ ∏ ∑

@@ -1,0 +1,52 @@
+# printer-quirks.ti59 Program that demonstrates interrupting the printer while printing a row.
+#
+# Because the PC-100C is merely simulated, and not emulated on a hardware level, the program
+# will not work as expected.
+
+# These are the original notes in the article:
+#  The following program (reprinted with permission) by Dave Leising produces a print-code table with the characters
+#  printed as they appear normally and as they appear after an immediate interrupt. Note: all printers may not print the
+#  same portion of the characters. On our printers, they appear as shown.
+#
+#  Initialize the pseudo-code by pressing the sequence: [9] [2nd] [OP] [1] [7] [2nd] [Pgm] [1] [2] [SBR] [4] [4] [4]
+#  [R/S] [2nd] [P/R] [LRN] [2nd] [Ins] [LRN] [CLR] [RST].
+#  The display will begin flashing when [SBR] [4] [4] [4] is pressed. Press [A] and the print code table with full and inter-
+#  rupted characters will be printed.
+
+# For compactness, the program is only here as key codes. If you need the listing, load the program and LIST it on the printer.
+PROGRAM:
+92 76 11 61 00 17 69 05 23 53 00 00 00 00 00 00 98 22 58 25 22 57 01 69 01 02 00 00 00 03 00 00 69 02 04 00 00 00 05 00 00 00 06 69 03 07 00 00 00 08 00 00 69 04 69 05 69 00 69 05 01 52 06 22
+52 69 01 01 00 00 00 02 00 00 69 02 03 00 00 00 04 00 00 00 05 69 03 06 00 00 00 07 00 00 69 04 07 32 69 05 25 71 00 06 98 01 85 09 09 09 09 09 00 35 95 82 35 01 85 09 09 09 93 09 35 95 82 37
+22 59 55 01 00 00 85 01 95 82 36 82 38 69 05 25 71 00 06 98 82 18 59 22 77 01 06 25 92 61 11 00
+
+# To simplify things, the keystrokes outlined in the article are automated. When the Preset finished loading, the invalid
+# key code will be in memory.
+KEYSTROKES:
+61  GTO
+92  0
+92  0
+63  8
+64  9
+21  2nd
+64  OP
+82  1
+62  7
+21  2nd
+31  Pgm
+82  1
+83  2
+71  SBR
+72  4
+72  4
+72  4
+Wait: 1s
+91  R/S
+Wait: 5s
+21  2nd
+32  P/R
+31  LRN
+21  2nd
+41  Ins
+31  LRN
+25  CLR
+81  RST

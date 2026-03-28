@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Developer ID: distribute outside the App Store, notarize with Apple. -->
+    <key>method</key>
+    <string>developer-id</string>
+    <key>teamID</key>
+    <string>7Q3QN9AV9J</string>
+    <!-- signingStyle=automatic lets Xcode resolve the Developer ID provisioning
+         profile automatically, including downloading it if not locally installed. -->
+    <key>signingStyle</key>
+    <string>automatic</string>
+</dict>
+</plist>

@@ -1,0 +1,27 @@
+# sum.ti59 — Calculate the sum of n numbers the hard way.
+#
+# Comment from the original author:
+# I made a code that sums all the numbers from N down to 1. Just type 5A and you will get the answer 15.
+# You can also use the code to measure how fast your phone or calculator is. When I typed 10000A, the phone took about 6 seconds to show 50005000.
+PROGRAM:
+000 43 RCL
+001 00 00
+002 44 SUM
+003 01 01
+004 97 Dsz
+005 00 0
+006 00 0
+007 00 00
+008 43 RCL
+009 01 01
+010 91 R/S
+011 76 Lbl
+012 11 A
+013 42 STO
+014 00 00
+015 25 CLR
+016 42 STO
+017 01 01
+018 61 GTO
+019 00 0
+020 00 00

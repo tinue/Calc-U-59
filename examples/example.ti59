@@ -1,0 +1,52 @@
+# example.ti59 — TI-59 state file validation example
+# Demonstrates PARTITION, all three PROGRAM formats, REGISTERS and KEYSTROKES section.
+# Program: LBL A  *  π  =  R/S RST
+# Running: press A with x=2 → should display 6.28618...  (2π)
+
+PARTITION: 799.19   # 800 steps, 19 data registers (R00–R19) — "2 OP 17"
+
+PROGRAM:
+# --- Format 1: bare keycodes (no step numbers) ---
+76 11                   # LBL A
+
+# --- Format 2: step-number prefix (3-digit prefix stripped) ---
+002  65                 # x
+
+# --- Format 3: full printer-trace listing (mnemonic text stripped) ---
+003  89  π
+004  95  =
+005  91  R/S
+006  81  RST
+
+# --- Gap marker: steps 007-109 are zero (omitted from file) ---
+...
+110  76  11              # LBL B (a second sub-routine at step 110)
+
+REGISTERS:
+00 = 3.141592653589793   # π  (verify RCL 00 → 3.141592654)
+05 = 7.77E22             # large positive  (verify RCL 05 → 7.77  22)
+12 = -1.5e-3             # small negative  (verify RCL 12 → -0.0015)
+15 = 0                   # zero            (verify RCL 15 →  0.)
+
+# The keystrokes run the program, wait 2 seconds, show the three loaded registers, and then clear the display.
+KEYSTROKES:
+84   3
+11   A
+Wait: 2s
+43   RCL
+92   0
+92   0
+Wait: 1s
+43   RCL
+92   0
+73   5
+Wait: 1s
+43   RCL
+82   1
+83   2
+Wait: 1s
+43   RCL
+82   1
+73   5
+Wait: 1s
+25   CLR

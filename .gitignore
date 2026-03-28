@@ -1,0 +1,33 @@
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+
+# Xcode
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+UserInterfaceState.xcuserstate
+DerivedData/
+build/
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# CocoaPods
+Pods/
+__pycache__/
+
+# Debug output
+debug/
+
+# Generated tool outputs
+refs/
+
+# Local Claude Code settings (permissions only, no secrets — but local)
+.claude/settings.local.json
