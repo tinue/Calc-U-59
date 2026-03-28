@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.2.0] - Unreleased
+
+<!-- Add 0.2.0 changes here -->
+
 ## [0.1.0] - 2026-03-28
 
 Initial release.
