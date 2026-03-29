@@ -4,6 +4,10 @@
 
 <!-- Add 0.2.0 changes here -->
 
+## [0.1.1] - 2026-03-29
+
+Lowered deployment targets to macOS 15 (Sequoia) and iOS/iPadOS 18.
+
 ## [0.1.0] - 2026-03-28
 
 Initial release.
