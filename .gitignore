@@ -29,5 +29,8 @@ debug/
 # Generated tool outputs
 refs/
 
+# App Store release: generated release notes (committed metadata lives in appstore/metadata/)
+appstore/whatsnew.txt
+
 # Local Claude Code settings (permissions only, no secrets — but local)
 .claude/settings.local.json

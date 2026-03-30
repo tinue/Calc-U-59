@@ -1,0 +1,545 @@
+#!/bin/bash
+#
+# App Store release script for Calc-U-59 (iOS / iPadOS)
+#
+# Workflow (single mode — no promote step; App Store Connect handles staging):
+#
+#   1. Build-only (no metadata review, no upload):
+#        bin/release-ios --build-only
+#
+#   2. Full release (review metadata, build, validate, upload):
+#        bin/release-ios
+#        Pre-conditions: not on main, branch in sync with remote, branch can
+#        be fast-forward merged into main, CHANGELOG entry exists for version.
+#
+# Append --dry-run to any invocation to preview state-changing actions.
+#
+# Prerequisites:
+#   - Xcode selected:  sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+#
+# App Store Connect API key (one-time setup):
+#   1. App Store Connect → Users and Access → Integrations → App Store Connect API
+#   2. Create a key with the "App Manager" role; download AuthKey_KEYID.p8
+#   3. mkdir -p ~/.appstoreconnect/private_keys
+#      mv ~/Downloads/AuthKey_KEYID.p8 ~/.appstoreconnect/private_keys/
+#   4. export APP_STORE_API_KEY_ID=KEYID
+#      export APP_STORE_API_ISSUER_ID=<issuer-uuid>   # shown in App Store Connect
+#   Add both exports to your shell profile (~/.zshrc) to persist them.
+#
+# Editor note:
+#   The script opens metadata and release-notes files for review using $EDITOR.
+#   $EDITOR must be a blocking command, e.g.:
+#     export EDITOR="code --wait"    # VS Code
+#     export EDITOR="nano"           # terminal editor (always blocking)
+#   If $EDITOR is unset, the script falls back to: open -W <file>
+#   Caveat: open -W returns immediately if the target application (e.g. TextEdit)
+#   is already open with other documents. Set EDITOR to avoid this.
+#
+# Environment overrides:
+#   SCREENSHOT_MAX_AGE_DAYS   warn if screenshots older than N days (default 60)
+#   SKIP_VALIDATE=1           skip xcrun altool --validate-app before upload
+#   NOTARYTOOL_PROFILE        unused here (kept for parity with bin/release)
+#
+
+set -euo pipefail
+
+# ── Configuration ─────────────────────────────────────────────────────────────
+
+PROJECT="Calc-U-59.xcodeproj"
+SCHEME="Calc-U-59"
+APP_NAME="Calc-U-59"
+BUNDLE_ID="ch.erzberger.calcu59"
+TEAM_ID="7Q3QN9AV9J"
+BUILD_DIR="build/release-ios"
+SCREENSHOTS_DIR="appstore/screenshots"
+METADATA_DIR="appstore/metadata"
+WHATSNEW_FILE="appstore/whatsnew.txt"
+SCREENSHOT_MAX_AGE_DAYS="${SCREENSHOT_MAX_AGE_DAYS:-60}"
+APP_STORE_API_KEY_ID="${APP_STORE_API_KEY_ID:-}"
+APP_STORE_API_ISSUER_ID="${APP_STORE_API_ISSUER_ID:-}"
+SKIP_VALIDATE="${SKIP_VALIDATE:-0}"
+
+# ── Argument parsing ───────────────────────────────────────────────────────────
+
+DO_BUILD_ONLY=false
+DRY_RUN=false
+
+for arg in "$@"; do
+    case "$arg" in
+        --build-only) DO_BUILD_ONLY=true ;;
+        --dry-run)    DRY_RUN=true ;;
+        *) echo "Unknown argument: $arg"; exit 1 ;;
+    esac
+done
+
+# ── Dry-run helper ─────────────────────────────────────────────────────────────
+#
+# Wraps state-changing operations.
+# Prints the command instead of running it when --dry-run is active.
+
+run_cmd() {
+    if $DRY_RUN; then
+        echo "[dry-run] $*"
+    else
+        "$@"
+    fi
+}
+
+# ── Open-in-editor helper ──────────────────────────────────────────────────────
+#
+# Opens a file for interactive review. Blocks until the editor closes.
+# Prefers $EDITOR (must be a blocking command); falls back to open -W.
+
+open_for_review() {
+    local file="$1"
+    if [ -n "${EDITOR:-}" ]; then
+        "$EDITOR" "$file"
+    else
+        echo "  (Tip: set EDITOR=\"code --wait\" for a non-blocking editor fix)"
+        open -W "$file"
+    fi
+}
+
+# ── Sanity checks ──────────────────────────────────────────────────────────────
+
+if ! xcode-select -p 2>/dev/null | grep -q "Xcode.app"; then
+    echo "Error: Xcode not selected. Run:"
+    echo "  sudo xcode-select -s /Applications/Xcode.app/Contents/Developer"
+    exit 1
+fi
+
+if ! xcrun altool --version &>/dev/null; then
+    echo "Error: xcrun altool not found. Ensure Xcode is installed and selected."
+    exit 1
+fi
+
+if ! $DO_BUILD_ONLY; then
+    if [ -z "$APP_STORE_API_KEY_ID" ]; then
+        echo "Error: APP_STORE_API_KEY_ID is not set."
+        echo "  See the script header for setup instructions."
+        exit 1
+    fi
+    if [ -z "$APP_STORE_API_ISSUER_ID" ]; then
+        echo "Error: APP_STORE_API_ISSUER_ID is not set."
+        echo "  See the script header for setup instructions."
+        exit 1
+    fi
+    # Skip the key file existence check in dry-run mode so the script can be
+    # previewed without credentials installed.
+    if ! $DRY_RUN; then
+        KEY_FILE="$HOME/.appstoreconnect/private_keys/AuthKey_${APP_STORE_API_KEY_ID}.p8"
+        if [ ! -r "$KEY_FILE" ]; then
+            echo "Error: API key file not found or not readable: $KEY_FILE"
+            echo "  Download the .p8 file from App Store Connect and place it there."
+            exit 1
+        fi
+    fi
+fi
+
+# ── 1. Version ─────────────────────────────────────────────────────────────────
+
+VERSION=$(grep -m 1 'MARKETING_VERSION' "$PROJECT/project.pbxproj" \
+          | sed -E 's/.*MARKETING_VERSION = ([^;]+);.*/\1/' \
+          | tr -d '[:space:]')
+TAG="v$VERSION"
+ARCHIVE_PATH="$BUILD_DIR/$APP_NAME.xcarchive"
+EXPORT_DIR="$BUILD_DIR/export"
+# xcodebuild -exportArchive with method=app-store-connect places the IPA in
+# $EXPORT_DIR/Apps/ on Xcode 15+; some Xcode versions emit it directly.
+IPA_PRIMARY="$EXPORT_DIR/Apps/${APP_NAME}.ipa"
+IPA_FALLBACK="$EXPORT_DIR/${APP_NAME}.ipa"
+
+echo "Preparing $APP_NAME $VERSION (tag: ${TAG}) for App Store…"
+
+# ── 2. Pre-conditions (not --build-only) ──────────────────────────────────────
+
+NOTES=""
+
+if ! $DO_BUILD_ONLY; then
+    CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+
+    # Must not be on main
+    if [ "$CURRENT_BRANCH" = "main" ]; then
+        echo "Error: release must be run from a development branch, not 'main'."
+        exit 1
+    fi
+
+    # Branch must be clean
+    if ! git diff --quiet; then
+        echo "Error: unstaged changes present. Commit or stash them before releasing."
+        git status --short
+        exit 1
+    fi
+    if ! git diff --cached --quiet; then
+        echo "Error: staged but uncommitted changes present. Commit them before releasing."
+        git status --short
+        exit 1
+    fi
+
+    # Branch must be in sync with its remote tracking branch
+    UPSTREAM=$(git rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null || true)
+    if [ -z "$UPSTREAM" ]; then
+        echo "Error: branch '${CURRENT_BRANCH}' has no remote tracking branch."
+        echo "  Push to a remote first: git push -u origin ${CURRENT_BRANCH}"
+        exit 1
+    fi
+    LOCAL_SHA=$(git rev-parse HEAD)
+    REMOTE_SHA=$(git rev-parse "$UPSTREAM" 2>/dev/null || true)
+    if [ -z "$REMOTE_SHA" ]; then
+        echo "Error: could not resolve remote tracking branch '${UPSTREAM}'."
+        exit 1
+    fi
+    if [ "$LOCAL_SHA" != "$REMOTE_SHA" ]; then
+        AHEAD=$(git rev-list --count "${UPSTREAM}..HEAD")
+        BEHIND=$(git rev-list --count "HEAD..${UPSTREAM}")
+        if [ "$AHEAD" -gt 0 ]; then
+            echo "Error: ${AHEAD} unpushed commit(s) on '${CURRENT_BRANCH}'. Push before releasing."
+        else
+            echo "Error: branch '${CURRENT_BRANCH}' is ${BEHIND} commit(s) behind remote. Pull before releasing."
+        fi
+        exit 1
+    fi
+
+    # Branch must be fast-forward-mergeable into main
+    git fetch origin main --quiet
+    MAIN_SHA=$(git rev-parse origin/main)
+    MERGE_BASE=$(git merge-base HEAD origin/main)
+    if [ "$MERGE_BASE" != "$MAIN_SHA" ]; then
+        echo "Error: branch '${CURRENT_BRANCH}' cannot be fast-forward merged into main."
+        echo "  main has commits not present in this branch."
+        echo "  Merge or rebase: git merge origin/main"
+        exit 1
+    fi
+
+    # CHANGELOG must have an entry for this version
+    CHANGELOG="CHANGELOG.md"
+    if [ ! -f "$CHANGELOG" ]; then
+        echo "Error: $CHANGELOG not found."
+        exit 1
+    fi
+    NOTES=$(sed -n "/## \[$VERSION\]/,/## /p" "$CHANGELOG" | sed '1d;$d' | sed '/^$/d')
+    if [ -z "$NOTES" ]; then
+        echo "Error: No changelog entry found for version $VERSION in $CHANGELOG."
+        echo "  Add an entry before releasing."
+        exit 1
+    fi
+fi
+
+if $DRY_RUN; then
+    echo ""
+    echo "Pre-conditions passed.  [dry-run] Showing what would happen next:"
+    echo ""
+    if [ -n "$NOTES" ]; then
+        echo "── Draft release notes (whatsnew.txt) ──────────────────────"
+        echo "$NOTES"
+        echo "────────────────────────────────────────────────────────────"
+    fi
+    echo "[dry-run] Metadata review, build, validate, and upload skipped."
+    exit 0
+fi
+
+# ── 3. Metadata bootstrap + review (not --build-only) ─────────────────────────
+
+if ! $DO_BUILD_ONLY; then
+
+    # Bootstrap: create template files if any are missing
+    METADATA_REQUIRED=("description.txt" "support_url.txt" "privacy_url.txt")
+    METADATA_OPTIONAL=("keywords.txt" "subtitle.txt" "marketing_url.txt")
+    BOOTSTRAPPED=false
+
+    mkdir -p "$METADATA_DIR"
+
+    if [ ! -f "$METADATA_DIR/description.txt" ]; then
+        cat > "$METADATA_DIR/description.txt" <<'EOF'
+TODO: Write the App Store description here.
+
+Describe what the app does, its key features, and what makes it unique.
+This text appears on the App Store product page.
+EOF
+        BOOTSTRAPPED=true
+    fi
+
+    if [ ! -f "$METADATA_DIR/support_url.txt" ]; then
+        echo "https://github.com/tinue/Calc-U-59/issues" > "$METADATA_DIR/support_url.txt"
+        BOOTSTRAPPED=true
+    fi
+
+    if [ ! -f "$METADATA_DIR/privacy_url.txt" ]; then
+        cat > "$METADATA_DIR/privacy_url.txt" <<'EOF'
+TODO: Enter your privacy policy URL here.
+Example: https://example.com/privacy
+EOF
+        BOOTSTRAPPED=true
+    fi
+
+    if [ ! -f "$METADATA_DIR/keywords.txt" ]; then
+        cat > "$METADATA_DIR/keywords.txt" <<'EOF'
+TODO: Enter comma-separated keywords (max 100 characters total).
+Example: calculator, TI-59, vintage, scientific, emulator
+EOF
+        BOOTSTRAPPED=true
+    fi
+
+    if [ ! -f "$METADATA_DIR/subtitle.txt" ]; then
+        cat > "$METADATA_DIR/subtitle.txt" <<'EOF'
+TODO: Enter a subtitle (max 30 characters), or leave blank.
+EOF
+        BOOTSTRAPPED=true
+    fi
+
+    if [ ! -f "$METADATA_DIR/marketing_url.txt" ]; then
+        cat > "$METADATA_DIR/marketing_url.txt" <<'EOF'
+TODO: Enter a marketing/homepage URL, or leave blank.
+EOF
+        BOOTSTRAPPED=true
+    fi
+
+    if $BOOTSTRAPPED; then
+        echo ""
+        echo "Created App Store metadata templates in $METADATA_DIR/."
+        echo "Fill in all TODO entries, then re-run bin/release-ios."
+        echo ""
+        echo "Required files:"
+        for f in "${METADATA_REQUIRED[@]}"; do echo "  $METADATA_DIR/$f"; done
+        echo ""
+        echo "Optional files (can be left blank — remove the TODO line):"
+        for f in "${METADATA_OPTIONAL[@]}"; do echo "  $METADATA_DIR/$f"; done
+        exit 1
+    fi
+
+    # Validate required files: non-empty and TODO-free
+    ALL_METADATA_FILES=("${METADATA_REQUIRED[@]}" "${METADATA_OPTIONAL[@]}")
+    METADATA_ERRORS=0
+
+    for f in "${METADATA_REQUIRED[@]}"; do
+        path="$METADATA_DIR/$f"
+        if [ ! -s "$path" ]; then
+            echo "Error: $path is empty. Fill it in before releasing."
+            METADATA_ERRORS=$(( METADATA_ERRORS + 1 ))
+        elif grep -q "^TODO:" "$path"; then
+            echo "Error: $path still contains a TODO placeholder. Fill it in before releasing."
+            METADATA_ERRORS=$(( METADATA_ERRORS + 1 ))
+        fi
+    done
+
+    if [ "$METADATA_ERRORS" -gt 0 ]; then
+        exit 1
+    fi
+
+    # Validate URL fields (simple scheme check)
+    for url_file in "support_url.txt" "privacy_url.txt" "marketing_url.txt"; do
+        path="$METADATA_DIR/$url_file"
+        if [ -s "$path" ] && ! grep -q "^TODO:" "$path"; then
+            url=$(cat "$path" | tr -d '[:space:]')
+            if [ -n "$url" ] && ! echo "$url" | grep -qE "^https?://"; then
+                echo "Error: $path does not look like a URL (must start with http:// or https://)."
+                echo "  Current value: $url"
+                METADATA_ERRORS=$(( METADATA_ERRORS + 1 ))
+            fi
+        fi
+    done
+
+    if [ "$METADATA_ERRORS" -gt 0 ]; then
+        exit 1
+    fi
+
+    # Review: open each metadata file in editor
+    echo ""
+    echo "── Metadata review ──────────────────────────────────────────"
+    echo "Opening each metadata file for review. Save and close to continue."
+    echo ""
+
+    for f in "${ALL_METADATA_FILES[@]}"; do
+        path="$METADATA_DIR/$f"
+        echo "Reviewing: $path"
+        open_for_review "$path"
+        echo ""
+        echo "── $f ──"
+        cat "$path"
+        echo "────────────────────────────────────────────────────────────"
+        echo ""
+    done
+
+    read -r -p "Metadata looks good — continue? [y/N] " REPLY
+    [[ "$REPLY" =~ ^[Yy]$ ]] || exit 1
+fi
+
+# ── 3b. Screenshot check (not --build-only) ───────────────────────────────────
+
+if ! $DO_BUILD_ONLY; then
+
+    if [ ! -d "$SCREENSHOTS_DIR" ]; then
+        echo "Error: screenshots directory not found: $SCREENSHOTS_DIR"
+        echo "  Add screenshots before releasing."
+        exit 1
+    fi
+
+    # Collect image files (shallow — multi-locale subfolders not yet supported;
+    # extend the find pattern if your layout uses e.g. en-US/ subfolders)
+    SCREENSHOT_FILES=()
+    while IFS= read -r -d '' f; do
+        SCREENSHOT_FILES+=("$f")
+    done < <(find "$SCREENSHOTS_DIR" -maxdepth 1 -type f \( -iname "*.png" -o -iname "*.jpg" -o -iname "*.jpeg" \) -print0 | sort -z)
+
+    if [ ${#SCREENSHOT_FILES[@]} -eq 0 ]; then
+        echo "Error: no screenshots found in $SCREENSHOTS_DIR"
+        echo "  Add at least one .png / .jpg file and re-run."
+        exit 1
+    fi
+
+    NOW=$(date +%s)
+    STALE_COUNT=0
+
+    echo ""
+    echo "── Screenshots ──────────────────────────────────────────────"
+    for f in "${SCREENSHOT_FILES[@]}"; do
+        MTIME=$(stat -f %m "$f")
+        AGE_DAYS=$(( (NOW - MTIME) / 86400 ))
+        MOD_DATE=$(stat -f "%Sm" -t "%Y-%m-%d" "$f")
+        if [ "$AGE_DAYS" -gt "$SCREENSHOT_MAX_AGE_DAYS" ]; then
+            echo "  [STALE  ${AGE_DAYS}d]  $MOD_DATE  $(basename "$f")"
+            STALE_COUNT=$(( STALE_COUNT + 1 ))
+        else
+            echo "  [ok     ${AGE_DAYS}d]  $MOD_DATE  $(basename "$f")"
+        fi
+    done
+    echo "────────────────────────────────────────────────────────────"
+
+    if [ "$STALE_COUNT" -gt 0 ]; then
+        echo ""
+        echo "Warning: $STALE_COUNT screenshot(s) are older than ${SCREENSHOT_MAX_AGE_DAYS} days."
+        echo "  Consider updating them before submitting to the App Store."
+        read -r -p "Continue with existing screenshots? [y/N] " REPLY
+        [[ "$REPLY" =~ ^[Yy]$ ]] || exit 1
+    fi
+fi
+
+# ── 4. Draft release notes (not --build-only) ─────────────────────────────────
+
+if ! $DO_BUILD_ONLY; then
+    mkdir -p "$(dirname "$WHATSNEW_FILE")"
+    printf '%s\n' "$NOTES" > "$WHATSNEW_FILE"
+
+    echo ""
+    echo "Opening release notes for review: $WHATSNEW_FILE"
+    open_for_review "$WHATSNEW_FILE"
+
+    # Verify non-empty after editing
+    if [ ! -s "$WHATSNEW_FILE" ]; then
+        echo "Error: $WHATSNEW_FILE is empty after editing. Add release notes and re-run."
+        exit 1
+    fi
+
+    echo ""
+    echo "── What's New (whatsnew.txt) ────────────────────────────────"
+    cat "$WHATSNEW_FILE"
+    echo "────────────────────────────────────────────────────────────"
+    echo ""
+    read -r -p "Use these release notes? [y/N] " REPLY
+    [[ "$REPLY" =~ ^[Yy]$ ]] || exit 1
+fi
+
+# ── 5. Archive ────────────────────────────────────────────────────────────────
+
+echo ""
+echo "Archiving $APP_NAME $VERSION for iOS…"
+run_cmd rm -rf "$BUILD_DIR"
+run_cmd mkdir -p "$BUILD_DIR"
+
+# generic/platform=iOS produces a universal arm64 device archive.
+# -allowProvisioningUpdates lets Xcode download the App Store distribution
+# provisioning profile automatically if not already installed locally.
+run_cmd xcodebuild archive \
+    -project "$PROJECT" \
+    -scheme "$SCHEME" \
+    -configuration Release \
+    -destination "generic/platform=iOS" \
+    -archivePath "$ARCHIVE_PATH" \
+    -allowProvisioningUpdates \
+    | grep -E "^(Build|Archive|error:|warning:)" \
+    | grep -v "provisioning profile" || true
+
+# ── 6. Export IPA ─────────────────────────────────────────────────────────────
+
+echo "Exporting IPA…"
+run_cmd xcodebuild -exportArchive \
+    -archivePath "$ARCHIVE_PATH" \
+    -exportPath "$EXPORT_DIR" \
+    -exportOptionsPlist bin/AppStoreExportOptions.plist \
+    -allowProvisioningUpdates \
+    | grep -E "^(Export|error:|warning:)" \
+    | grep -v "provisioning profile" || true
+
+# Resolve IPA path (Xcode 15+: Apps/ subdir; older: flat)
+IPA_PATH=""
+if [ -f "$IPA_PRIMARY" ]; then
+    IPA_PATH="$IPA_PRIMARY"
+elif [ -f "$IPA_FALLBACK" ]; then
+    IPA_PATH="$IPA_FALLBACK"
+else
+    echo "Error: IPA not found after export."
+    echo "Export directory contents:"
+    find "$EXPORT_DIR" -maxdepth 3 2>/dev/null || true
+    exit 1
+fi
+echo "IPA: $IPA_PATH"
+
+if $DO_BUILD_ONLY; then
+    echo ""
+    echo "Done.  Build-only: IPA at ${IPA_PATH}"
+    exit 0
+fi
+
+# ── 7. Validate ───────────────────────────────────────────────────────────────
+#
+# --validate-app contacts App Store Connect to check signing, entitlements, and
+# bundle ID before consuming an upload slot.  Skip with SKIP_VALIDATE=1 if
+# you are offline or Apple's validation service is unavailable.
+
+if [ "$SKIP_VALIDATE" = "1" ]; then
+    echo "Skipping validation (SKIP_VALIDATE=1)."
+else
+    echo "Validating IPA against App Store Connect…"
+    xcrun altool --validate-app \
+        -f "$IPA_PATH" \
+        --type ios \
+        --apiKey "$APP_STORE_API_KEY_ID" \
+        --apiIssuer "$APP_STORE_API_ISSUER_ID" \
+        --output-format normal
+    echo "Validation passed."
+fi
+
+# ── 8. Upload ─────────────────────────────────────────────────────────────────
+#
+# Note: xcrun altool is deprecated in favour of the Transporter app and direct
+# App Store Connect API calls, but it remains functional as of Xcode 16.
+# The deprecation warning printed to stdout is expected and benign.
+
+echo "Uploading to App Store Connect (this may take a minute)…"
+xcrun altool --upload-app \
+    -f "$IPA_PATH" \
+    --type ios \
+    --apiKey "$APP_STORE_API_KEY_ID" \
+    --apiIssuer "$APP_STORE_API_ISSUER_ID" \
+    --output-format normal
+
+# ── 9. Summary ────────────────────────────────────────────────────────────────
+
+echo ""
+echo "══════════════════════════════════════════════════════════════"
+echo "  Upload complete: $APP_NAME $VERSION"
+echo "══════════════════════════════════════════════════════════════"
+echo ""
+echo "Next steps in App Store Connect:"
+echo "  1. Wait ~5–15 minutes for Apple to process the build"
+echo "     (App Store Connect → My Apps → $APP_NAME → TestFlight)"
+echo "  2. Go to: My Apps → $APP_NAME → iOS → Prepare for Submission"
+echo "  3. Paste release notes:    $(pwd)/$WHATSNEW_FILE"
+echo "  4. Paste description:      $(pwd)/$METADATA_DIR/description.txt"
+echo "  5. Verify metadata:        keywords, subtitle, support URL, privacy URL"
+echo "     (files in $(pwd)/$METADATA_DIR/)"
+echo "  6. Upload or verify screenshots in App Store Connect"
+echo "  7. Submit for review"
+echo ""
+echo "Note: if you need to re-upload a binary for the same $VERSION,"
+echo "  increment CFBundleVersion (build number) in project.pbxproj first."
