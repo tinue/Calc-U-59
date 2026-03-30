@@ -262,6 +262,11 @@ if ! $DO_BUILD_ONLY; then
     fi
 fi
 
+if $DRY_RUN; then
+    echo "Pre-conditions passed.  [dry-run] Build, notarize, and GitHub upload skipped."
+    exit 0
+fi
+
 # ── 4. Build (archive) ────────────────────────────────────────────────────────
 
 ARCHIVE_PATH="$BUILD_DIR/$APP_NAME.xcarchive"
@@ -380,18 +385,14 @@ echo "Notarized and stapled."
 
 if gh release view "$TAG" &>/dev/null; then
     echo "Pre-release ${TAG} exists — updating…"
-    run_cmd gh release edit "$TAG" --notes "$NOTES" --prerelease
-    run_cmd gh release upload "$TAG" "$DMG_PATH" --clobber
+    gh release edit "$TAG" --notes "$NOTES" --prerelease
+    gh release upload "$TAG" "$DMG_PATH" --clobber
 else
     echo "Creating GitHub pre-release ${TAG}…"
-    run_cmd gh release create "$TAG" "$DMG_PATH" \
+    gh release create "$TAG" "$DMG_PATH" \
         --title "$APP_NAME $VERSION" \
         --notes "$NOTES" \
         --prerelease
 fi
 
-if $DRY_RUN; then
-    echo "Done.  [dry-run] GitHub pre-release not published."
-else
-    echo "Done.  Pre-release ${TAG}: $(gh release view "${TAG}" --json url -q .url)"
-fi
+echo "Done.  Pre-release ${TAG}: $(gh release view "${TAG}" --json url -q .url)"
