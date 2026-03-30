@@ -7,12 +7,12 @@ MAGNETIC CARD READER
 Simulate the TI-59's magnetic card reader. Save and load programs and data registers as card files, stored on your device and synced via iCloud across your iPhone, iPad, and Mac.
 
 PAPER TAPE PRINTER
-A faithful recreation of the PC-100C thermal printer, with dot-matrix font rendering. Copy the output as plain text or as a high-resolution bitmap image.
+A functional recreation of the PC-100C thermal printer, with dot-matrix font rendering. Copy the output as plain text or as a high-resolution bitmap image.
 
 PRESET FILES
-Load .ti59 and .ti58 state files to instantly preset the calculator with a program and data registers — useful for sharing programs or picking up where you left off.
+Load .ti59 and .ti58 state files to instantly preset the calculator with a program and data registers — useful for sharing programs or bringing old listings back to life.
 
 DEBUGGER
-Inspect internal registers and inject keystrokes programmatically. Available on iPad (landscape) and Mac.
+Inspect program memory, variables and internal registers. Available on iPad (landscape) and Mac.
 
 Whether you are rediscovering programs you wrote decades ago, exploring the history of handheld computing, or just curious how these machines worked, Calc-U-59 brings the TI-59 era back to life.
