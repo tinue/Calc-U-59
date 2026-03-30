@@ -29,8 +29,9 @@ debug/
 # Generated tool outputs
 refs/
 
-# App Store release: generated release notes (committed metadata lives in appstore/metadata/)
-appstore/whatsnew.txt
+# App Store metadata lives in the appstore orphan branch, checked out as a worktree here.
+# One-time setup per clone: git worktree add appstore appstore
+appstore/
 
 # Local Claude Code settings (permissions only, no secrets — but local)
 .claude/settings.local.json

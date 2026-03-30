@@ -9,13 +9,24 @@
 #
 #   2. Full release (review metadata, build, validate, upload):
 #        bin/release-ios
-#        Pre-conditions: not on main, branch in sync with remote, branch can
-#        be fast-forward merged into main, CHANGELOG entry exists for version.
+#        Pre-conditions: not on main, branch in sync with remote,
+#        a macOS GitHub release (pre-release or full) exists for this version,
+#        CHANGELOG entry exists for version.
 #
 # Append --dry-run to any invocation to preview state-changing actions.
 #
 # Prerequisites:
 #   - Xcode selected:  sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
+#   - GitHub CLI:      brew install gh   (and: gh auth login)
+#
+# App Store metadata worktree (one-time setup per clone):
+#   git worktree add appstore appstore
+#
+#   The appstore/ directory is gitignored in the main branch — it is a checkout
+#   of the standalone appstore orphan branch.
+#   To update metadata between releases (no macOS release needed):
+#     edit files in appstore/
+#     cd appstore && git add -p && git commit && git push && cd ..
 #
 # App Store Connect API key (one-time setup):
 #   1. App Store Connect → Users and Access → Integrations → App Store Connect API
@@ -93,7 +104,7 @@ run_cmd() {
 open_for_review() {
     local file="$1"
     if [ -n "${EDITOR:-}" ]; then
-        "$EDITOR" "$file"
+        eval "$EDITOR" "$file"
     else
         echo "  (Tip: set EDITOR=\"code --wait\" for a non-blocking editor fix)"
         open -W "$file"
@@ -111,6 +122,23 @@ fi
 if ! xcrun altool --version &>/dev/null; then
     echo "Error: xcrun altool not found. Ensure Xcode is installed and selected."
     exit 1
+fi
+
+if ! $DO_BUILD_ONLY; then
+    if ! command -v gh &>/dev/null; then
+        echo "Error: 'gh' CLI not found. Install with: brew install gh"
+        exit 1
+    fi
+fi
+
+# The appstore/ directory must be a git worktree of the appstore orphan branch.
+if ! $DO_BUILD_ONLY; then
+    if [ ! -d "$METADATA_DIR" ] || [ ! -f "$METADATA_DIR/description.txt" ]; then
+        echo "Error: App Store metadata worktree not found at 'appstore/'."
+        echo "  Set it up once with:"
+        echo "    git worktree add appstore appstore"
+        exit 1
+    fi
 fi
 
 if ! $DO_BUILD_ONLY; then
@@ -200,14 +228,11 @@ if ! $DO_BUILD_ONLY; then
         exit 1
     fi
 
-    # Branch must be fast-forward-mergeable into main
-    git fetch origin main --quiet
-    MAIN_SHA=$(git rev-parse origin/main)
-    MERGE_BASE=$(git merge-base HEAD origin/main)
-    if [ "$MERGE_BASE" != "$MAIN_SHA" ]; then
-        echo "Error: branch '${CURRENT_BRANCH}' cannot be fast-forward merged into main."
-        echo "  main has commits not present in this branch."
-        echo "  Merge or rebase: git merge origin/main"
+    # A macOS GitHub release (pre-release or full) must exist for this version tag.
+    # This ensures iOS and macOS always ship from the same code.
+    if ! gh release view "$TAG" &>/dev/null; then
+        echo "Error: no GitHub release found for ${TAG}."
+        echo "  Build and publish a macOS pre-release first: bin/release"
         exit 1
     fi
 
@@ -238,74 +263,16 @@ if $DRY_RUN; then
     exit 0
 fi
 
-# ── 3. Metadata bootstrap + review (not --build-only) ─────────────────────────
+# ── 3. Metadata review (not --build-only) ─────────────────────────────────────
+#
+# Metadata files live in the appstore orphan branch, checked out as a worktree
+# at appstore/ (verified above). Edit them there and commit to the appstore branch
+# independently of any macOS release.
 
 if ! $DO_BUILD_ONLY; then
 
-    # Bootstrap: create template files if any are missing
     METADATA_REQUIRED=("description.txt" "support_url.txt" "privacy_url.txt")
     METADATA_OPTIONAL=("keywords.txt" "subtitle.txt" "marketing_url.txt")
-    BOOTSTRAPPED=false
-
-    mkdir -p "$METADATA_DIR"
-
-    if [ ! -f "$METADATA_DIR/description.txt" ]; then
-        cat > "$METADATA_DIR/description.txt" <<'EOF'
-TODO: Write the App Store description here.
-
-Describe what the app does, its key features, and what makes it unique.
-This text appears on the App Store product page.
-EOF
-        BOOTSTRAPPED=true
-    fi
-
-    if [ ! -f "$METADATA_DIR/support_url.txt" ]; then
-        echo "https://github.com/tinue/Calc-U-59/issues" > "$METADATA_DIR/support_url.txt"
-        BOOTSTRAPPED=true
-    fi
-
-    if [ ! -f "$METADATA_DIR/privacy_url.txt" ]; then
-        cat > "$METADATA_DIR/privacy_url.txt" <<'EOF'
-TODO: Enter your privacy policy URL here.
-Example: https://example.com/privacy
-EOF
-        BOOTSTRAPPED=true
-    fi
-
-    if [ ! -f "$METADATA_DIR/keywords.txt" ]; then
-        cat > "$METADATA_DIR/keywords.txt" <<'EOF'
-TODO: Enter comma-separated keywords (max 100 characters total).
-Example: calculator, TI-59, vintage, scientific, emulator
-EOF
-        BOOTSTRAPPED=true
-    fi
-
-    if [ ! -f "$METADATA_DIR/subtitle.txt" ]; then
-        cat > "$METADATA_DIR/subtitle.txt" <<'EOF'
-TODO: Enter a subtitle (max 30 characters), or leave blank.
-EOF
-        BOOTSTRAPPED=true
-    fi
-
-    if [ ! -f "$METADATA_DIR/marketing_url.txt" ]; then
-        cat > "$METADATA_DIR/marketing_url.txt" <<'EOF'
-TODO: Enter a marketing/homepage URL, or leave blank.
-EOF
-        BOOTSTRAPPED=true
-    fi
-
-    if $BOOTSTRAPPED; then
-        echo ""
-        echo "Created App Store metadata templates in $METADATA_DIR/."
-        echo "Fill in all TODO entries, then re-run bin/release-ios."
-        echo ""
-        echo "Required files:"
-        for f in "${METADATA_REQUIRED[@]}"; do echo "  $METADATA_DIR/$f"; done
-        echo ""
-        echo "Optional files (can be left blank — remove the TODO line):"
-        for f in "${METADATA_OPTIONAL[@]}"; do echo "  $METADATA_DIR/$f"; done
-        exit 1
-    fi
 
     # Validate required files: non-empty and TODO-free
     ALL_METADATA_FILES=("${METADATA_REQUIRED[@]}" "${METADATA_OPTIONAL[@]}")
@@ -343,24 +310,15 @@ EOF
         exit 1
     fi
 
-    # Review: open each metadata file in editor
     echo ""
     echo "── Metadata review ──────────────────────────────────────────"
-    echo "Opening each metadata file for review. Save and close to continue."
-    echo ""
-
+    echo "Metadata files in $METADATA_DIR/:"
     for f in "${ALL_METADATA_FILES[@]}"; do
-        path="$METADATA_DIR/$f"
-        echo "Reviewing: $path"
-        open_for_review "$path"
-        echo ""
-        echo "── $f ──"
-        cat "$path"
-        echo "────────────────────────────────────────────────────────────"
-        echo ""
+        echo "  $f"
     done
-
-    read -r -p "Metadata looks good — continue? [y/N] " REPLY
+    echo "────────────────────────────────────────────────────────────"
+    echo ""
+    read -r -p "Have you updated the metadata files? Continue? [y/N] " REPLY
     [[ "$REPLY" =~ ^[Yy]$ ]] || exit 1
 fi
 
