@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.0] - tbd
+
+**UI:** Card reader bar buttons show icon-only on narrow portrait screens (all iPhones; wide iPads are unaffected).
+
+**Samples:** Added memory test preset files `ram_test.ti59` and `ram_test_full_fast.ti59`.
+
 ## [0.1.2] - 2026-03-30
 
 Lowered deployment targets to macOS 15 (Sequoia) and iOS/iPadOS 18.
