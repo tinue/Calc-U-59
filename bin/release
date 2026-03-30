@@ -3,13 +3,19 @@
 # Release script for Calc-U-59
 #
 # Workflow:
-#   1. Iterate on the pre-release (may be run multiple times):
-#        bin/release               # build, sign, package DMG → GitHub pre-release (no notarization)
-#        bin/release --notarize    # same, plus notarize & staple the DMG
+#   1. Build-only (no notarization, no GitHub interaction, no branch checks):
+#        bin/release --build-only
 #
-#   2. Promote to full release (run once, after the notarized pre-release looks good):
-#        bin/release --release     # flip the existing pre-release to a full release
-#                                  # (no build, no notes change, no DMG upload)
+#   2. Pre-release (build, notarize, upload to GitHub as pre-release):
+#        bin/release
+#        Pre-conditions: not on main, branch in sync with remote, branch can
+#        be fast-forward merged into main, CHANGELOG entry exists for version.
+#
+#   3. Full release (merge dev → main, push, promote GitHub pre-release):
+#        bin/release --release
+#        Pre-conditions: not on main, clean working tree, notarized DMG present.
+#
+# Append --dry-run to any invocation to preview state-changing actions.
 #
 # Prerequisites:
 #   - Xcode selected:  sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
@@ -38,27 +44,44 @@ NOTARYTOOL_PROFILE="${NOTARYTOOL_PROFILE:-notarytool}"
 
 # ── Argument parsing ───────────────────────────────────────────────────────────
 
-DO_NOTARIZE=false
+DO_BUILD_ONLY=false
 DO_RELEASE=false
+DRY_RUN=false
+
 for arg in "$@"; do
     case "$arg" in
-        --notarize) DO_NOTARIZE=true ;;
-        --release)  DO_RELEASE=true ;;
+        --build-only) DO_BUILD_ONLY=true ;;
+        --release)    DO_RELEASE=true ;;
+        --dry-run)    DRY_RUN=true ;;
         *) echo "Unknown argument: $arg"; exit 1 ;;
     esac
 done
 
-if $DO_RELEASE && $DO_NOTARIZE; then
-    echo "Error: --release and --notarize are mutually exclusive."
-    echo "  Promote an already-notarized pre-release with: bin/release --release"
+if $DO_BUILD_ONLY && $DO_RELEASE; then
+    echo "Error: --build-only and --release are mutually exclusive."
     exit 1
 fi
 
+# ── Dry-run helper ─────────────────────────────────────────────────────────────
+#
+# Wraps state-changing operations (git branch manipulation, GitHub edits).
+# Prints the command instead of running it when --dry-run is active.
+
+run_cmd() {
+    if $DRY_RUN; then
+        echo "[dry-run] $*"
+    else
+        "$@"
+    fi
+}
+
 # ── Sanity checks ──────────────────────────────────────────────────────────────
 
-if ! command -v gh &>/dev/null; then
-    echo "Error: 'gh' CLI not found. Install with: brew install gh"
-    exit 1
+if ! $DO_BUILD_ONLY; then
+    if ! command -v gh &>/dev/null; then
+        echo "Error: 'gh' CLI not found. Install with: brew install gh"
+        exit 1
+    fi
 fi
 
 if ! $DO_RELEASE; then
@@ -82,22 +105,20 @@ TAG="v$VERSION"
 DMG_NAME="${APP_NAME}-${VERSION}.dmg"
 DMG_PATH="$BUILD_DIR/$DMG_NAME"
 
-# ── 2. Promote pre-release → full release ─────────────────────────────────────
+# ── 2. Full release: merge dev → main, push, promote GitHub pre-release ────────
 #
-# --release only flips the pre-release flag on the existing GitHub release.
-# No build, no notes update, no DMG upload — the pre-release artifact is reused.
+# --release does not rebuild; it promotes an already-notarized pre-release.
 
 if $DO_RELEASE; then
-    # ── Sanity check 1: git state ──────────────────────────────────────────────
-    #
-    # Must be on main, with no uncommitted changes and no unpushed commits.
-
     CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-    if [ "$CURRENT_BRANCH" != "main" ]; then
-        echo "Error: must be on the 'main' branch to release (currently on '${CURRENT_BRANCH}')."
+
+    # Pre-condition: must not be on main
+    if [ "$CURRENT_BRANCH" = "main" ]; then
+        echo "Error: --release must be run from a development branch, not 'main'."
         exit 1
     fi
 
+    # Pre-condition: working tree must be clean (heuristic: a pre-release was done)
     if ! git diff --quiet; then
         echo "Error: unstaged changes present. Commit or stash them before releasing."
         git status --short
@@ -109,9 +130,93 @@ if $DO_RELEASE; then
         exit 1
     fi
 
+    # Pre-condition: notarized DMG must exist (heuristic: a pre-release was done)
+    if [ ! -f "$DMG_PATH" ]; then
+        echo "Error: DMG not found at ${DMG_PATH}."
+        echo "  Build and publish a pre-release first: bin/release"
+        exit 1
+    fi
+    echo "Verifying DMG notarization (${DMG_NAME})…"
+    if ! xcrun stapler validate "$DMG_PATH" 2>/dev/null; then
+        echo "Error: ${DMG_NAME} has not been notarized and stapled."
+        echo "  Run: bin/release"
+        exit 1
+    fi
+    echo "DMG notarization OK."
+
+    # Pre-condition: a pre-release must exist on GitHub for this tag
+    if ! gh release view "$TAG" &>/dev/null; then
+        echo "Error: no GitHub release found for ${TAG}."
+        echo "  Build and publish a pre-release first: bin/release"
+        exit 1
+    fi
+    if ! gh release view "$TAG" --json isPrerelease -q .isPrerelease | grep -q true; then
+        echo "Error: release ${TAG} exists but is not marked as a pre-release."
+        echo "  Nothing to promote."
+        exit 1
+    fi
+
+    # Read CHANGELOG entry for the squash-merge commit message
+    CHANGELOG="CHANGELOG.md"
+    COMMIT_MSG="Release ${TAG}"
+    if [ -f "$CHANGELOG" ]; then
+        CHANGELOG_NOTES=$(sed -n "/## \[$VERSION\]/,/## /p" "$CHANGELOG" | sed '1d;$d' | sed '/^$/d')
+        if [ -n "$CHANGELOG_NOTES" ]; then
+            COMMIT_MSG="${COMMIT_MSG}"$'\n\n'"${CHANGELOG_NOTES}"
+        fi
+    fi
+
+    echo "Merging ${CURRENT_BRANCH} into main (squash)…"
+    run_cmd git checkout main
+    run_cmd git merge --squash "$CURRENT_BRANCH"
+    run_cmd git commit -m "$COMMIT_MSG"
+    run_cmd git push origin main
+    run_cmd git checkout "$CURRENT_BRANCH"
+
+    echo "Promoting ${TAG} to full release…"
+    run_cmd gh release edit "$TAG" --prerelease=false
+    if $DRY_RUN; then
+        echo "Done.  [dry-run] No changes made."
+    else
+        echo "Done.  Release ${TAG}: $(gh release view "${TAG}" --json url -q .url)"
+    fi
+    exit 0
+fi
+
+# ── From here: pre-release or build-only ──────────────────────────────────────
+
+echo "Building $APP_NAME $VERSION (tag: ${TAG})…"
+
+# ── 3. Pre-release pre-conditions ─────────────────────────────────────────────
+
+NOTES=""
+
+if ! $DO_BUILD_ONLY; then
+    CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+
+    # Must not be on main
+    if [ "$CURRENT_BRANCH" = "main" ]; then
+        echo "Error: pre-release must be run from a development branch, not 'main'."
+        exit 1
+    fi
+
+    # Branch must be clean
+    if ! git diff --quiet; then
+        echo "Error: unstaged changes present. Commit or stash them before releasing."
+        git status --short
+        exit 1
+    fi
+    if ! git diff --cached --quiet; then
+        echo "Error: staged but uncommitted changes present. Commit them before releasing."
+        git status --short
+        exit 1
+    fi
+
+    # Branch must be in sync with its remote tracking branch
     UPSTREAM=$(git rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null || true)
     if [ -z "$UPSTREAM" ]; then
-        echo "Error: 'main' has no remote tracking branch. Push to a remote first."
+        echo "Error: branch '${CURRENT_BRANCH}' has no remote tracking branch."
+        echo "  Push to a remote first: git push -u origin ${CURRENT_BRANCH}"
         exit 1
     fi
     LOCAL_SHA=$(git rev-parse HEAD)
@@ -122,58 +227,38 @@ if $DO_RELEASE; then
     fi
     if [ "$LOCAL_SHA" != "$REMOTE_SHA" ]; then
         AHEAD=$(git rev-list --count "${UPSTREAM}..HEAD")
-        echo "Error: ${AHEAD} unpushed commit(s) on main. Push before releasing."
+        BEHIND=$(git rev-list --count "HEAD..${UPSTREAM}")
+        if [ "$AHEAD" -gt 0 ]; then
+            echo "Error: ${AHEAD} unpushed commit(s) on '${CURRENT_BRANCH}'. Push before releasing."
+        else
+            echo "Error: branch '${CURRENT_BRANCH}' is ${BEHIND} commit(s) behind remote. Pull before releasing."
+        fi
         exit 1
     fi
 
-    # ── Sanity check 2: DMG must be notarized (staple ticket present) ──────────
-
-    if [ ! -f "$DMG_PATH" ]; then
-        echo "Error: DMG not found at ${DMG_PATH}."
-        echo "  Build and notarize a pre-release first: bin/release --notarize"
-        exit 1
-    fi
-    echo "Verifying DMG notarization (${DMG_NAME})…"
-    if ! xcrun stapler validate "$DMG_PATH" 2>/dev/null; then
-        echo "Error: ${DMG_NAME} has not been notarized and stapled."
-        echo "  Run: bin/release --notarize"
-        exit 1
-    fi
-    echo "DMG notarization OK."
-
-    echo "Promoting ${TAG} to full release…"
-
-    # Verify a pre-release exists for this tag.
-    if ! gh release view "$TAG" &>/dev/null; then
-        echo "Error: no GitHub release found for ${TAG}."
-        echo "  Build and publish a pre-release first: bin/release --notarize"
-        exit 1
-    fi
-    if ! gh release view "$TAG" --json isPrerelease -q .isPrerelease | grep -q true; then
-        echo "Error: release ${TAG} exists but is not marked as a pre-release."
-        echo "  Nothing to promote."
+    # Branch must be fast-forward-mergeable into main
+    # (fails if e.g. a patch was merged to main but not back into this branch)
+    git fetch origin main --quiet
+    MAIN_SHA=$(git rev-parse origin/main)
+    MERGE_BASE=$(git merge-base HEAD origin/main)
+    if [ "$MERGE_BASE" != "$MAIN_SHA" ]; then
+        echo "Error: branch '${CURRENT_BRANCH}' cannot be fast-forward merged into main."
+        echo "  main has commits not present in this branch (e.g. an unmerged patch)."
+        echo "  Merge or rebase onto main: git merge origin/main"
         exit 1
     fi
 
-    gh release edit "$TAG" --prerelease=false
-    echo "Done.  Release ${TAG}: $(gh release view "${TAG}" --json url -q .url)"
-    exit 0
-fi
-
-# ── Pre-release build path ─────────────────────────────────────────────────────
-
-echo "Building $APP_NAME $VERSION (tag: ${TAG})…"
-
-# ── 3. Release notes ───────────────────────────────────────────────────────────
-
-CHANGELOG="CHANGELOG.md"
-if [ ! -f "$CHANGELOG" ]; then
-    echo "Warning: $CHANGELOG not found — release notes will be empty."
-    NOTES=""
-else
+    # CHANGELOG must have an entry for this version
+    CHANGELOG="CHANGELOG.md"
+    if [ ! -f "$CHANGELOG" ]; then
+        echo "Error: $CHANGELOG not found."
+        exit 1
+    fi
     NOTES=$(sed -n "/## \[$VERSION\]/,/## /p" "$CHANGELOG" | sed '1d;$d' | sed '/^$/d')
     if [ -z "$NOTES" ]; then
-        echo "Warning: No notes found for version $VERSION in $CHANGELOG — release notes will be empty."
+        echo "Error: No changelog entry found for version $VERSION in $CHANGELOG."
+        echo "  Add an entry before releasing."
+        exit 1
     fi
 fi
 
@@ -254,55 +339,59 @@ create-dmg \
 codesign --force --sign "$SIGN_IDENTITY" "$DMG_PATH"
 echo "DMG: $DMG_PATH"
 
-# ── 7. Notarize ───────────────────────────────────────────────────────────────
-#
-# Only runs when --notarize is passed.  Requires a stored notarytool credential
-# profile (see header for setup).
-
-if $DO_NOTARIZE; then
-    if ! xcrun notarytool history --keychain-profile "$NOTARYTOOL_PROFILE" &>/dev/null; then
-        echo "Error: Notarytool profile '$NOTARYTOOL_PROFILE' not found."
-        echo "  Run this once to set up:"
-        echo "    xcrun notarytool store-credentials \"$NOTARYTOOL_PROFILE\" \\"
-        echo "      --apple-id \"your@apple.id\" --team-id 7Q3QN9AV9J \\"
-        echo "      --password \"<app-specific-password>\""
-        exit 1
-    fi
-
-    echo "Notarizing (this may take a minute)…"
-    NOTARIZE_OUTPUT=$(xcrun notarytool submit "$DMG_PATH" \
-        --keychain-profile "$NOTARYTOOL_PROFILE" \
-        --wait 2>&1)
-    echo "$NOTARIZE_OUTPUT"
-
-    NOTARIZE_ID=$(echo "$NOTARIZE_OUTPUT" | grep '^ *id:' | head -1 | sed 's/.*id: *//')
-    NOTARIZE_STATUS=$(echo "$NOTARIZE_OUTPUT" | grep '^ *status:' | tail -1 | sed 's/.*status: *//')
-
-    if [ "$NOTARIZE_STATUS" != "Accepted" ]; then
-        echo "Notarization failed (status: $NOTARIZE_STATUS)."
-        if [ -n "$NOTARIZE_ID" ]; then
-            echo "Fetching rejection log for $NOTARIZE_ID…"
-            xcrun notarytool log "$NOTARIZE_ID" --keychain-profile "$NOTARYTOOL_PROFILE"
-        fi
-        exit 1
-    fi
-
-    xcrun stapler staple "$DMG_PATH"
-    echo "Notarized and stapled."
+if $DO_BUILD_ONLY; then
+    echo "Done.  Build-only: DMG at ${DMG_PATH}"
+    exit 0
 fi
+
+# ── 7. Notarize ───────────────────────────────────────────────────────────────
+
+if ! xcrun notarytool history --keychain-profile "$NOTARYTOOL_PROFILE" &>/dev/null; then
+    echo "Error: Notarytool profile '$NOTARYTOOL_PROFILE' not found."
+    echo "  Run this once to set up:"
+    echo "    xcrun notarytool store-credentials \"$NOTARYTOOL_PROFILE\" \\"
+    echo "      --apple-id \"your@apple.id\" --team-id 7Q3QN9AV9J \\"
+    echo "      --password \"<app-specific-password>\""
+    exit 1
+fi
+
+echo "Notarizing (this may take a minute)…"
+NOTARIZE_OUTPUT=$(xcrun notarytool submit "$DMG_PATH" \
+    --keychain-profile "$NOTARYTOOL_PROFILE" \
+    --wait 2>&1)
+echo "$NOTARIZE_OUTPUT"
+
+NOTARIZE_ID=$(echo "$NOTARIZE_OUTPUT" | grep '^ *id:' | head -1 | sed 's/.*id: *//')
+NOTARIZE_STATUS=$(echo "$NOTARIZE_OUTPUT" | grep '^ *status:' | tail -1 | sed 's/.*status: *//')
+
+if [ "$NOTARIZE_STATUS" != "Accepted" ]; then
+    echo "Notarization failed (status: $NOTARIZE_STATUS)."
+    if [ -n "$NOTARIZE_ID" ]; then
+        echo "Fetching rejection log for $NOTARIZE_ID…"
+        xcrun notarytool log "$NOTARIZE_ID" --keychain-profile "$NOTARYTOOL_PROFILE"
+    fi
+    exit 1
+fi
+
+xcrun stapler staple "$DMG_PATH"
+echo "Notarized and stapled."
 
 # ── 8. GitHub pre-release ─────────────────────────────────────────────────────
 
 if gh release view "$TAG" &>/dev/null; then
     echo "Pre-release ${TAG} exists — updating…"
-    gh release edit "$TAG" --notes "$NOTES" --prerelease
-    gh release upload "$TAG" "$DMG_PATH" --clobber
+    run_cmd gh release edit "$TAG" --notes "$NOTES" --prerelease
+    run_cmd gh release upload "$TAG" "$DMG_PATH" --clobber
 else
     echo "Creating GitHub pre-release ${TAG}…"
-    gh release create "$TAG" "$DMG_PATH" \
+    run_cmd gh release create "$TAG" "$DMG_PATH" \
         --title "$APP_NAME $VERSION" \
         --notes "$NOTES" \
         --prerelease
 fi
 
-echo "Done.  Pre-release ${TAG}: $(gh release view "${TAG}" --json url -q .url)"
+if $DRY_RUN; then
+    echo "Done.  [dry-run] GitHub pre-release not published."
+else
+    echo "Done.  Pre-release ${TAG}: $(gh release view "${TAG}" --json url -q .url)"
+fi
