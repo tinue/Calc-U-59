@@ -88,6 +88,59 @@ DMG_PATH="$BUILD_DIR/$DMG_NAME"
 # No build, no notes update, no DMG upload — the pre-release artifact is reused.
 
 if $DO_RELEASE; then
+    # ── Sanity check 1: git state ──────────────────────────────────────────────
+    #
+    # Must be on main, with no uncommitted changes and no unpushed commits.
+
+    CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+    if [ "$CURRENT_BRANCH" != "main" ]; then
+        echo "Error: must be on the 'main' branch to release (currently on '${CURRENT_BRANCH}')."
+        exit 1
+    fi
+
+    if ! git diff --quiet; then
+        echo "Error: unstaged changes present. Commit or stash them before releasing."
+        git status --short
+        exit 1
+    fi
+    if ! git diff --cached --quiet; then
+        echo "Error: staged but uncommitted changes present. Commit them before releasing."
+        git status --short
+        exit 1
+    fi
+
+    UPSTREAM=$(git rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null || true)
+    if [ -z "$UPSTREAM" ]; then
+        echo "Error: 'main' has no remote tracking branch. Push to a remote first."
+        exit 1
+    fi
+    LOCAL_SHA=$(git rev-parse HEAD)
+    REMOTE_SHA=$(git rev-parse "$UPSTREAM" 2>/dev/null || true)
+    if [ -z "$REMOTE_SHA" ]; then
+        echo "Error: could not resolve remote tracking branch '${UPSTREAM}'."
+        exit 1
+    fi
+    if [ "$LOCAL_SHA" != "$REMOTE_SHA" ]; then
+        AHEAD=$(git rev-list --count "${UPSTREAM}..HEAD")
+        echo "Error: ${AHEAD} unpushed commit(s) on main. Push before releasing."
+        exit 1
+    fi
+
+    # ── Sanity check 2: DMG must be notarized (staple ticket present) ──────────
+
+    if [ ! -f "$DMG_PATH" ]; then
+        echo "Error: DMG not found at ${DMG_PATH}."
+        echo "  Build and notarize a pre-release first: bin/release --notarize"
+        exit 1
+    fi
+    echo "Verifying DMG notarization (${DMG_NAME})…"
+    if ! xcrun stapler validate "$DMG_PATH" 2>/dev/null; then
+        echo "Error: ${DMG_NAME} has not been notarized and stapled."
+        echo "  Run: bin/release --notarize"
+        exit 1
+    fi
+    echo "DMG notarization OK."
+
     echo "Promoting ${TAG} to full release…"
 
     # Verify a pre-release exists for this tag.
