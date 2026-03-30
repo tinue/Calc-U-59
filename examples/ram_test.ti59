@@ -1,0 +1,204 @@
+# run pressing A
+# text "598-TEST-1" is printed
+# runs 2:55
+# shows default memory partitioning
+# in case of faulty RAM, "strange" info is printed:
+# (example from program output for TI-58)
+#     1212.   ?  99
+#     1211.   ?  98
+#     1210.   ?  97
+#     1207.   ?  96
+# ...
+#      401.   ?  30
+# on TI-58, it finishes with 0.59 blinking...
+# ------------------------
+
+
+PROGRAM:
+000	76	LBL
+001	11	 A
+002	00	 0
+003	06	 6
+004	01	 1
+005	02	 2
+006	01	 1
+007	01	 1
+008	02	 2
+009	00	 0
+010	03	 3
+011	07	 7
+# "598-T"
+012	69	OP
+013	02	 02
+014	01	 1
+015	07	 7
+016	03	 3
+017	06	 6
+018	03	 3
+019	07	 7
+020	02	 2
+021	00	 0
+022	00	 0
+023	02	 2
+# "EST-1"
+024	69	OP
+025	03	 03
+# print buffer
+026	69	OP
+027	05	 05
+# set memory partitioning: 100 registers, 160 program steps
+# TI-58: not accepted#  239.29 shows blinking on display
+#        4 Op 17 (or 04 Op 17) should be here
+028	01	 1
+029	00	 0
+030	69	OP
+031	17	 17
+# clear memories
+032	47	CMS
+# initialize variables
+# starting register index - 1
+033	03	 3
+034	42	STO
+035	00	 00
+# initialization value to be stored and checked again
+036	09	 9
+037	35	1/X
+038	42	STO
+039	01	 01
+# register count
+# TI-58: 36 registers has to be tested
+040	09	 9
+041	06	 6
+042	42	STO
+043	02	 02
+044	42	STO
+045	03	 03
+# initialize print register
+046	69	OP
+047	00	 00
+# initialization loop
+048	76	LBL
+049	12	 B
+# increment register 0 (used for register index)
+050	69	OP
+051	20	 20
+# save initialization value to register
+052	43	RCL
+053	01	 01
+054	72	ST*	# store indirect
+055	00	 00
+# decrement register count
+056	97	DSZ
+057	02	 02
+058	12	 B
+# test loop
+059	76	LBL
+060	13	 C
+061	43	RCL
+062	01	 01
+063	94	+/-
+064	74	SM*	# add indirect
+065	00	 00
+066	73	RC*	# recall indirect
+067	00	 00
+068	69	OP
+069	10	 10	# signum function
+070	67	 EQ	# x=t
+071	14	 D	# go to D
+# memory register is not the same as initialization value
+# test message will be printed
+072	43	RCL
+073	00	 00
+074	65	 x
+075	93	 .
+076	01	 1
+077	54	 )
+078	22	INV
+079	59	INT	# Frac
+080	65	 x
+081	01	 1
+082	00	 0
+083	75	 -
+084	07	 7
+085	54	 )
+086	77	 GE	# x>=t
+087	15	 E	# go to E
+088	85	 +
+089	08	 8
+090	54	 )
+# return from E here
+091	42	STO
+092	02	 02
+093	43	RCL
+094	00	 00
+095	65	 x
+096	93	 .
+097	01	 1
+098	54	 )
+099	59	INT
+100	75	 -
+101	07	 7
+102	54	 )
+103	77	 GE	# x>=t
+104	10	E'	# go to E'
+105	85	 +
+106	08	 8
+107	54	 )
+# return from E' here
+108	65	 x
+109	01	 1
+110	00	 0
+111	00	 0
+112	54	 )
+113	44	SUM
+114	02	 02
+115	43	RCL
+116	02	 02
+# print last 5 digits
+117	69	OP
+118	04	 04
+119	73	RC*	# recall indirect
+120	00	 00
+# print last 4 digits from OP 04 with current display value
+# i.e. remainder in register is printed
+# the question is what number is printed in case there is not such register for TI-58
+121	69	OP
+122	06	 06
+# ----------------------
+# continue with test loop
+123	76	LBL
+124	14	 D
+# decrement register 0
+125	69	OP
+126	30	 30
+127	97	DSZ
+128	03	 03
+129	13	 C
+# ----------------------
+# set default memory partitioning (for TI-59)
+# TI-58: 3 Op 17 should be here
+130	06	 6
+131	69	OP
+132	17	 17
+# stop execution
+133	91	R/S
+# ======================
+134	76	LBL
+135	15	 E
+136	85	 +
+137	01	 1
+138	00	 0
+139	54	 )
+140	61	GTO
+141	00	 00
+142	91	 91
+# ======================
+143	76	LBL
+144	10	E'
+145	85	 +
+146	01	 1
+147	00	 0
+148	54	 )
+149	61	GTO
+150	01	 01
+151	08	 08
