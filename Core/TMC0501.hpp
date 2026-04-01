@@ -21,7 +21,7 @@ struct DisplaySnapshot {
     uint8_t digits[12]{};        ///< A[2..13] — BCD digit values (0–9, A–F)
     uint8_t ctrl[12]{};          ///< B[2..13] — display-control nibbles (select digit vs. minus/degree/blank)
     uint8_t dpPos{0};            ///< R5 — decimal-point position within the mantissa
-    bool    calcIndicator{false};///< fA[14] — "C" (calculating) annunciator, driven by pin SH
+    bool    calcIndicator{false};///< pin SH: in IDLE = fA[14]; in compute = (fA != 0)
 };
 
 // ── Internal CPU flags ────────────────────────────────────────────────────────
@@ -173,7 +173,7 @@ public:
     /// reaches 0.  If the CPU has been active (not idling) for 3+ consecutive
     /// digit-counter cycles the display is blanked — matching the hardware
     /// behaviour where the LEDs go dark during heavy computation.
-    /// calcIndicator is always read live from fA[14].
+    /// calcIndicator follows pin SH: in IDLE mode = fA[14]; in compute mode = (fA != 0).
     DisplaySnapshot getDisplay() const;
 
     uint16_t pc()       const { return addr; }

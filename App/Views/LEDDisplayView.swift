@@ -6,7 +6,7 @@ struct LEDDisplayView: View, Equatable {
     let digits:    [UInt8]   // 12 elements: A[2..13]
     let ctrl:      [UInt8]   // 12 elements: B[2..13]
     let dpPos:     UInt8
-    let calcIndicator: Bool
+    let calcIndicatorOpacity: Double
 
     var body: some View {
         Canvas { ctx, size in
@@ -49,23 +49,26 @@ struct LEDDisplayView: View, Equatable {
                 let rect = CGRect(x: x, y: 0, width: digitWidth, height: height)
 
                 let segs: UInt8
-                if i == 11 && calcIndicator {
+                let cOpacity: Double   // 1.0 for normal segments; fades for "C" afterglow
+                if i == 11 && calcIndicatorOpacity > 0 {
                     segs = segmentsC
+                    cOpacity = calcIndicatorOpacity
                 } else {
                     let ch = suppressed[i] ? DisplayChar.space
                                            : displayChar(digit: digits[i], ctrl: ctrl[i])
                     segs = segmentMask(for: ch)
+                    cOpacity = 1.0
                 }
-                
+
                 // Slant transform for the digit (around 8 degrees)
                 let slant: CGFloat = 0.14
                 var digitCtx = ctx
                 digitCtx.translateBy(x: rect.minX, y: rect.minY)
                 // Shear: x' = x + slant * (height - y). To fix bottom, we shift right by slant*height.
                 digitCtx.concatenate(CGAffineTransform(1, 0, -slant, 1, height * slant, 0))
-                
+
                 let digitRect = CGRect(origin: .zero, size: rect.size)
-                drawSegments(ctx: &digitCtx, rect: digitRect, segments: segs)
+                drawSegments(ctx: &digitCtx, rect: digitRect, segments: segs, segmentOpacity: cOpacity)
                 
                 if Int(dpPos) >= 2 && Int(dpPos) - 2 == i {
                     // Decimal point is usually NOT slanted or handled separately
@@ -128,7 +131,7 @@ struct LEDDisplayView: View, Equatable {
 
     // MARK: - Drawing
 
-    private func drawSegments(ctx: inout GraphicsContext, rect: CGRect, segments: UInt8) {
+    private func drawSegments(ctx: inout GraphicsContext, rect: CGRect, segments: UInt8, segmentOpacity: Double = 1.0) {
         let padX = rect.width * 0.22
         let padY = rect.height * 0.10
         let r = rect.insetBy(dx: padX, dy: padY)
@@ -155,13 +158,13 @@ struct LEDDisplayView: View, Equatable {
             if active {
                 var glow = ctx
                 glow.addFilter(.blur(radius: sw * 0.8))
-                glow.fill(Path(path), with: .color(activeColor.opacity(0.6)))
-                
+                glow.fill(Path(path), with: .color(activeColor.opacity(0.6 * segmentOpacity)))
+
                 var bloom = ctx
                 bloom.addFilter(.blur(radius: sw * 0.2))
-                bloom.fill(Path(path), with: .color(activeColor))
+                bloom.fill(Path(path), with: .color(activeColor.opacity(segmentOpacity)))
             }
-            ctx.fill(Path(path), with: .color(active ? activeColor : inactiveColor))
+            ctx.fill(Path(path), with: .color(active ? activeColor.opacity(segmentOpacity) : inactiveColor))
         }
     }
 
@@ -214,7 +217,7 @@ struct LEDDisplayView: View, Equatable {
         digits:        [8,8,8,8,8,8,8,8,8,8,8,8],
         ctrl:          [0,0,0,0,0,0,0,0,0,0,0,0],
         dpPos:         4,
-        calcIndicator: true
+        calcIndicatorOpacity: 1.0
     )
     .frame(width: 360, height: 50)
 }

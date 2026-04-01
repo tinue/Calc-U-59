@@ -7,6 +7,7 @@ class EmulatorViewModel {
     var displayCtrl:   [UInt8]  = Array(repeating: 0, count: 12)
     var dpPos:          UInt8   = 0
     var calcIndicator:  Bool    = false
+    var calcIndicatorOpacity: Double = 0.0
     var model: MachineModel     = .ti59
     var errorMessage: String?
 
@@ -189,6 +190,16 @@ class EmulatorViewModel {
         if displayCtrl      != c               { displayCtrl      = c }
         if dpPos            != snap.dpPos      { dpPos            = snap.dpPos }
         if calcIndicator    != snap.calcIndicator { calcIndicator = snap.calcIndicator }
+        // The real TI-59 "C" LED is multiplexed at ~6% duty cycle; afterglow
+        // averages this to a faint perceived glow.  Simulate this by:
+        //   • rising slowly  (brief presses barely register)
+        //   • capping at 0.4 (long calculations appear faint, not solid)
+        //   • fading quickly (matches LED afterglow decay)
+        if snap.calcIndicator {
+            calcIndicatorOpacity = min(0.4, calcIndicatorOpacity + 0.05)
+        } else if calcIndicatorOpacity > 0 {
+            calcIndicatorOpacity = max(0.0, calcIndicatorOpacity - 0.10)
+        }
     }
 
     func stop() {
