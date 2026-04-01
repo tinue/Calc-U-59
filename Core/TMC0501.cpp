@@ -678,7 +678,7 @@ int TMC0501::step() {
                         m_prnCodeLines.push_back(codes);
                     }
                     flags |= FLG_BUSY;
-                    m_prnBusyCycles = 2133;  // (150ms * 455kHz) / 2 / 16 / 1000
+                    m_prnBusyCycles = 2808;  // (197.5ms * 455kHz) / 2 / 16 / 1000
                 }
                 break;
             }
@@ -690,7 +690,7 @@ int TMC0501::step() {
                     m_prnCodeLines.push_back(std::array<uint8_t,20>{});  // zero-filled
                 }
                 flags |= FLG_BUSY;
-                m_prnBusyCycles = 2133;  // (150ms * 455kHz) / 2 / 16 / 1000
+                m_prnBusyCycles = 2808;  // (197.5ms * 455kHz) / 2 / 16 / 1000
                 break;
             case 0xF0: flags |= FLG_RAM_OP; break; // RAM_OP — next Sout is a RAM opcode
             default: break;
