@@ -684,6 +684,11 @@ int TMC0501::step() {
             }
             case 0xB0: // PRT_FEED — advance paper (blank line)
                 // ADV button sends PRT_FEED continuously while held; BUSY gates the rate.
+                // Measured on real PC-100C hardware: 40 ADV lines in 7.9s → 197.5ms/line.
+                // Note: 40 LIST lines take 12.7s → 317.5ms/line; the extra 120ms/line is
+                // communication overhead (serial transfer of ~13 characters at ~9.5ms each).
+                // That overhead is not yet modelled — it requires per-output BUSY pulses that
+                // only fire when the ROM polls TST BUSY between characters.
                 {
                     std::lock_guard<std::mutex> lk(m_prnMutex);
                     m_prnLines.push_back(std::string{});
