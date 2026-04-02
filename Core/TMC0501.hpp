@@ -21,7 +21,8 @@ struct DisplaySnapshot {
     uint8_t digits[12]{};        ///< A[2..13] — BCD digit values (0–9, A–F)
     uint8_t ctrl[12]{};          ///< B[2..13] — display-control nibbles (select digit vs. minus/degree/blank)
     uint8_t dpPos{0};            ///< R5 — decimal-point position within the mantissa
-    bool    calcIndicator{false};///< true whenever the CPU is not in IDLE/display mode
+    float   calcIndicator{0.0f}; ///< fraction of the last poll interval where C LED was driven:
+                                 ///<   RUN mode: any fA≠0; IDLE mode: fA bit 14 (SH pin, per HW guide). (0.0–1.0)
 };
 
 // ── Internal CPU flags ────────────────────────────────────────────────────────
@@ -68,7 +69,8 @@ enum : uint16_t {
 
     // ── Miscellaneous ───────────────────────────────────────────────────
     FLG_DISP      = 0x1000, // Display active flag (set at reset alongside FLG_COND).
-    FLG_DISP_C    = 0x4000, // Display C-indicator state mirror.
+    FLG_DISP_C    = 0x4000, // (Unused internal mirror — same bit value as fA[14], the hardware
+                            //  SH-pin driver in IDLE mode per TI-58/59 HW guide §digit-12.)
     FLG_BUSY      = 0x8000, // Printer / peripheral busy signal; tested by TST BUSY.
 };
 
@@ -268,8 +270,9 @@ private:
                                        // at the next digit=0 boundary.
     uint8_t  m_dispFilter{};   // Counts digit-counter wrap-arounds since the last IDLE.
                                 // At 3, the display is blanked (CPU is busy computing).
-    mutable std::atomic<bool> m_calcLatch{false}; // Set whenever fA[14] is high; cleared by getDisplay().
-                                                   // mutable: exchange() is called inside const getDisplay().
+    mutable std::atomic<bool>     m_calcLatch{false};   // Fired on CLR IDL; consumed by getDisplay() (legacy, kept for reset).
+    mutable std::atomic<uint32_t> m_cSteps{0};          // Steps (IDLE or non-IDLE) where fA≠0 since last getDisplay().
+    mutable std::atomic<uint32_t> m_pollSteps{0};       // Weighted step count since last getDisplay() (non-IDLE=1, IDLE=4).
 
     // ── Keyboard matrix ───────────────────────────────────────────────
     // key[col] holds a bitmask of which rows are pressed for that digit-counter

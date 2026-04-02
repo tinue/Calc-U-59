@@ -261,20 +261,37 @@ void TMC0501::releaseKey(int row, int col) {
 
 DisplaySnapshot TMC0501::getDisplay() const {
     std::lock_guard<std::mutex> lock(m_displayMutex);
-    // "C" follows fA != 0 in compute mode, producing natural variation
-    // (flicker) that matches the real hardware's LED multiplexing effect.
-    // The CLR-IDL latch guarantees at least one true frame for any computation,
-    // including brief ones where fA never becomes non-zero (e.g. digit entry).
-    const bool cOn = m_calcLatch.exchange(false, std::memory_order_relaxed)
-                  || (!(flags & FLG_IDLE) && (fA != 0));
+    // Integrate the SH-pin (C indicator) signal over the polling interval rather
+    // than sampling a boolean at one instant.
+    //
+    // Per the TI-58/59 hardware guide (Sladký 2014), the SH output at digit 12:
+    //   • IDLE mode  — driven by fA bit 14 (0x4000) only.  The other fA bits
+    //     are used for display state (e.g. bits 1–4 hold the decimal-point
+    //     position loaded by MOV fA[1..4],R5) and must NOT light the C LED.
+    //   • RUN mode   — driven by all fA bits (any fA ≠ 0 lights C).
+    //
+    // m_cSteps counts every step() call where that condition holds.
+    // m_pollSteps counts all steps weighted by cycle cost (non-IDLE=1, IDLE=4).
+    // The ratio is the fraction of real time the C LED was driven — matching
+    // the hardware's kHz-rate duty cycle averaged down to the 60 Hz UI poll.
+    // This naturally handles:
+    //   • brief sub-frame computations      → small but non-zero duty cycle
+    //   • long computations (e.g. 1/x)     → duty cycle near 1.0
+    //   • IDLE with only decimal-point bits → duty cycle = 0.0 (no false C)
+    //   • "A" blink bright phase in IDLE   → fA[14] set → duty cycle ≈ 0.25
+    m_calcLatch.exchange(false, std::memory_order_relaxed);  // consume (kept for reset logic)
+    const uint32_t cSteps    = m_cSteps.exchange(0, std::memory_order_relaxed);
+    const uint32_t pollSteps = m_pollSteps.exchange(0, std::memory_order_relaxed);
+    const float cLevel = pollSteps ? (float)cSteps / (float)pollSteps : 0.0f;
+
     if (m_dispFilter >= 3) {
         DisplaySnapshot blank{};
         for (int i=0; i<12; ++i) blank.ctrl[i] = 7;
-        blank.calcIndicator = cOn;
+        blank.calcIndicator = cLevel;
         return blank;
     }
     DisplaySnapshot s = m_display;
-    s.calcIndicator = cOn;
+    s.calcIndicator = cLevel;
     return s;
 }
 
@@ -450,6 +467,8 @@ int TMC0501::step() {
         }
         int w = (flags & FLG_IDLE) ? 4 : 1;
         if (tf != TRACE_NONE) [[unlikely]] { tracePostStep(tf, snapIdx, w); }
+        if ((flags & FLG_IDLE) ? (fA & 0x4000u) : fA) m_cSteps.fetch_add(1, std::memory_order_relaxed);
+        m_pollSteps.fetch_add((uint32_t)w, std::memory_order_relaxed);
         return w;
     }
 
@@ -789,6 +808,8 @@ int TMC0501::step() {
     }
     int w = (flags & FLG_IDLE) ? 4 : 1;
     if (tf != TRACE_NONE) [[unlikely]] { tracePostStep(tf, snapIdx, w); }
+    if ((flags & FLG_IDLE) ? (fA & 0x4000u) : fA) m_cSteps.fetch_add(1, std::memory_order_relaxed);
+    m_pollSteps.fetch_add((uint32_t)w, std::memory_order_relaxed);
     return w;
 }
 

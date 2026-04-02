@@ -6,7 +6,6 @@ class EmulatorViewModel {
     var displayDigits: [UInt8]  = Array(repeating: 0, count: 12)
     var displayCtrl:   [UInt8]  = Array(repeating: 0, count: 12)
     var dpPos:          UInt8   = 0
-    var calcIndicator:  Bool    = false
     var calcIndicatorOpacity: Double = 0.0
     var model: MachineModel     = .ti59
     var errorMessage: String?
@@ -16,6 +15,13 @@ class EmulatorViewModel {
     var printerCodeLines: [Data] = []  // parallel to printerLines; 20 raw codes per line
     var printerClearID: Int = 0   // incremented on cut to reset Text identity and drop selection
     var printerTrace: Bool = false
+
+    // ── C indicator drop debugger ─────────────────────────────────────────────
+    // When enabled, prints one line per drop event — not 60 lines/s.
+    // Watches snap.calcIndicator (raw C++ duty cycle, before Swift smoothing).
+    var cIndicatorDebug: Bool = false
+    private var cDropDebugger = CDropDebugger()
+    private var cZeroFrames: Int = 0   // consecutive frames where fA was zero the entire frame
 
     // ── Debug panel state ────────────────────────────────────────────────────
     var debugEnabled: Bool = false
@@ -189,19 +195,42 @@ class EmulatorViewModel {
         if displayDigits    != d               { displayDigits    = d }
         if displayCtrl      != c               { displayCtrl      = c }
         if dpPos            != snap.dpPos      { dpPos            = snap.dpPos }
-        if calcIndicator    != snap.calcIndicator { calcIndicator = snap.calcIndicator }
-        // Simulate the TI-59 "C" LED appearance:
-        //   • latching to peak (0.65) on any pulse — rise ≥ cap ensures 1-pulse and
-        //     2-pulse keypresses both land at the same brightness (no dimmer single-pulse keys)
-        //   • capping at 0.65 — brighter than before; matches perceived LED intensity
-        //   • fading at 0.12/frame — ~90 ms afterglow from peak to zero; fast enough
-        //     that off-frames during computation drop noticeably (visible flicker)
-        // fA-based flicker (fA varies during computation) produces natural opacity
-        // oscillation during longer programs; the fast rise keeps each pulse at full peak.
-        if snap.calcIndicator {
-            calcIndicatorOpacity = min(0.65, calcIndicatorOpacity + 0.65)
-        } else if calcIndicatorOpacity > 0 {
-            calcIndicatorOpacity = max(0.0, calcIndicatorOpacity - 0.12)
+        // C indicator opacity driven by the integrated duty cycle from the C++ core.
+        //
+        // Hardware model (per Sladký 2014 HW guide):
+        //   • IDLE mode: C driven by fA[14] only (other fA bits = display state)
+        //   • RUN mode:  C driven by any fA bit
+        //
+        // 60 Hz aliasing: the ROM's IDLE display-update scan lasts ~4.5 ms
+        // (16 IDLE steps × 281 µs/step).  The 60 Hz poll (16.7 ms window) can
+        // capture the entire IDLE phase as a single zero-duty frame even though
+        // the real C darkness is <4.5 ms.  On hardware that gap is imperceptible.
+        //
+        // Three-mode update:
+        //   • target > current  → instant rise
+        //   • target = 0, first zero frame → hold (aliasing artefact; see below)
+        //   • target = 0, frame 2+         → rapid decay (genuine dark phase)
+        //   • 0 < target < current → proportional-alpha fall
+        if cIndicatorDebug { cDropDebugger.update(snap.calcIndicator) }
+        let target = Double(snap.calcIndicator) * 0.65
+        if target < 0.001 {
+            cZeroFrames += 1
+            if cZeroFrames >= 2 {
+                // Genuine sustained dark phase (error blink, computation with fA
+                // cleared).  Decay rapidly — hardware LED has near-zero persistence.
+                let decay = min(0.65, 0.35 * Double(cZeroFrames - 1))
+                calcIndicatorOpacity = max(0.0, calcIndicatorOpacity - decay)
+            }
+            // cZeroFrames == 1: hold opacity unchanged.  A single zero frame is
+            // a 60 Hz aliasing artefact of the ~4.5 ms IDLE scan (fA[14]=0 for
+            // one digit cycle) — too brief to perceive on real hardware.
+        } else if target >= calcIndicatorOpacity {
+            cZeroFrames = 0
+            calcIndicatorOpacity = target
+        } else {
+            cZeroFrames = 0
+            let alpha = min(0.5, target / max(0.001, calcIndicatorOpacity))
+            calcIndicatorOpacity += alpha * (target - calcIndicatorOpacity)
         }
     }
 
@@ -624,5 +653,58 @@ class EmulatorViewModel {
                 try? await Task.sleep(nanoseconds: UInt64(t * 1_000_000_000))
             }
         }
+    }
+}
+
+// ── C indicator drop debugger ─────────────────────────────────────────────────
+//
+// Watches the raw duty-cycle float (snap.calcIndicator) at 60 Hz and emits one
+// console line per drop event.  A "drop" starts when duty falls to less than
+// 40 % of the previous frame's value (and previous was meaningfully non-zero).
+// It ends when duty recovers to at least 60 % of the pre-drop value.
+// Each log line shows: time since last drop, pre-drop level, minimum during
+// drop, frame count, elapsed ms, and recovery level — enough to see whether
+// drops are isolated 1-frame aliasing or sustained 2–3-frame sequences, and
+// whether they repeat at a regular (blink-rate) period.
+
+private struct CDropDebugger {
+    private var prev:        Float = 0
+    private var inDrop:      Bool  = false
+    private var dropFrom:    Float = 0
+    private var dropMin:     Float = 0
+    private var dropFrames:  Int   = 0
+    private var dropStart:   Double = 0          // CACurrentMediaTime()
+    private var lastDropEnd: Double = 0
+
+    mutating func update(_ duty: Float) {
+        let now = CACurrentMediaTime()
+
+        if !inDrop {
+            // Start a drop when duty falls below 40 % of the previous value
+            // and the previous value was above the noise floor.
+            if prev > 0.04 && duty < prev * 0.40 {
+                inDrop     = true
+                dropFrom   = prev
+                dropMin    = duty
+                dropFrames = 1
+                dropStart  = now
+            }
+        } else {
+            if duty >= dropFrom * 0.60 {
+                // Recovered — emit one summary line.
+                let elapsed   = (now - dropStart) * 1000
+                let sinceStr  = lastDropEnd > 0
+                    ? String(format: "+%.0f ms since last", (dropStart - lastDropEnd) * 1000)
+                    : "first drop"
+                print(String(format: "[C-DBG] DROP  from %.3f  min %.3f  %d frame(s)  %.0f ms  → %.3f   (%@)",
+                             dropFrom, dropMin, dropFrames, elapsed, duty, sinceStr))
+                lastDropEnd = now
+                inDrop      = false
+            } else {
+                dropMin    = min(dropMin, duty)
+                dropFrames += 1
+            }
+        }
+        prev = duty
     }
 }
