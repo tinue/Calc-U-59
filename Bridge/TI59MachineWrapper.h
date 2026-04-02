@@ -8,7 +8,7 @@ typedef struct {
     uint8_t digits[12];      ///< A[2..13] BCD digit values
     uint8_t ctrl[12];        ///< B[2..13] display control nibbles
     uint8_t dpPos;           ///< R5 — decimal-point position index
-    bool    calcIndicator;   ///< fA bit 14 — "C" annunciator
+    bool    calcIndicator;   ///< true whenever the CPU is not in IDLE/display mode
 } TIDisplaySnapshot;
 
 // ── Trace / debug types ───────────────────────────────────────────────────────

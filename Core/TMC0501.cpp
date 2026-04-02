@@ -261,13 +261,12 @@ void TMC0501::releaseKey(int row, int col) {
 
 DisplaySnapshot TMC0501::getDisplay() const {
     std::lock_guard<std::mutex> lock(m_displayMutex);
-    // Pin SH drives the "C" (calculating) annunciator with two distinct modes:
-    //   IDLE mode:    SH = fA[14]  — only bit 14 controls C
-    //   Compute mode: SH = (fA != 0) — C is on whenever any fA bit is set
-    // During a long calculation fA carries working flags and is rarely zero,
-    // so C glows most of the time with natural variation.  During a brief
-    // keypress fA may be zero for most of the short computation → barely visible.
-    const bool cOn = (flags & FLG_IDLE) ? ((fA >> 14) & 1) : (fA != 0);
+    // "C" follows fA != 0 in compute mode, producing natural variation
+    // (flicker) that matches the real hardware's LED multiplexing effect.
+    // The CLR-IDL latch guarantees at least one true frame for any computation,
+    // including brief ones where fA never becomes non-zero (e.g. digit entry).
+    const bool cOn = m_calcLatch.exchange(false, std::memory_order_relaxed)
+                  || (!(flags & FLG_IDLE) && (fA != 0));
     if (m_dispFilter >= 3) {
         DisplaySnapshot blank{};
         for (int i=0; i<12; ++i) blank.ctrl[i] = 7;
@@ -540,7 +539,13 @@ int TMC0501::step() {
             }
             break;
 
-        case 0x1: flags &= ~FLG_IDLE; break;  // CLR IDL — exit idle/display mode; resume full speed
+        case 0x1:  // CLR IDL — exit idle/display mode; resume full speed
+            flags &= ~FLG_IDLE;
+            // Latch fires on every CLR IDL so getDisplay() (60 Hz) always sees
+            // at least one frame of C=true, even for brief computations where
+            // fA stays 0 throughout (e.g. simple digit entry like "1").
+            m_calcLatch.store(true, std::memory_order_relaxed);
+            break;
 
         case 0x2: fA = 0; break;  // CLR fA — clear all 16 fA flag bits at once
 

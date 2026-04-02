@@ -21,7 +21,7 @@ struct DisplaySnapshot {
     uint8_t digits[12]{};        ///< A[2..13] — BCD digit values (0–9, A–F)
     uint8_t ctrl[12]{};          ///< B[2..13] — display-control nibbles (select digit vs. minus/degree/blank)
     uint8_t dpPos{0};            ///< R5 — decimal-point position within the mantissa
-    bool    calcIndicator{false};///< pin SH: in IDLE = fA[14]; in compute = (fA != 0)
+    bool    calcIndicator{false};///< true whenever the CPU is not in IDLE/display mode
 };
 
 // ── Internal CPU flags ────────────────────────────────────────────────────────
@@ -173,7 +173,7 @@ public:
     /// reaches 0.  If the CPU has been active (not idling) for 3+ consecutive
     /// digit-counter cycles the display is blanked — matching the hardware
     /// behaviour where the LEDs go dark during heavy computation.
-    /// calcIndicator follows pin SH: in IDLE mode = fA[14]; in compute mode = (fA != 0).
+    /// calcIndicator is true whenever the CPU is not in IDLE/display mode.
     DisplaySnapshot getDisplay() const;
 
     uint16_t pc()       const { return addr; }
@@ -268,6 +268,8 @@ private:
                                        // at the next digit=0 boundary.
     uint8_t  m_dispFilter{};   // Counts digit-counter wrap-arounds since the last IDLE.
                                 // At 3, the display is blanked (CPU is busy computing).
+    mutable std::atomic<bool> m_calcLatch{false}; // Set whenever fA[14] is high; cleared by getDisplay().
+                                                   // mutable: exchange() is called inside const getDisplay().
 
     // ── Keyboard matrix ───────────────────────────────────────────────
     // key[col] holds a bitmask of which rows are pressed for that digit-counter
