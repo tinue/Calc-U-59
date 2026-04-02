@@ -191,16 +191,17 @@ class EmulatorViewModel {
         if dpPos            != snap.dpPos      { dpPos            = snap.dpPos }
         if calcIndicator    != snap.calcIndicator { calcIndicator = snap.calcIndicator }
         // Simulate the TI-59 "C" LED appearance:
-        //   • rising at 0.15/frame — one latch-fired frame reaches 0.15, which is
-        //     perceptible (~67 ms visible glow after a brief keypress)
-        //   • capping at 0.4 — long calculations appear faint, not solid (6% duty cycle)
-        //   • fading at 0.10/frame — matches LED afterglow decay
+        //   • latching to peak (0.65) on any pulse — rise ≥ cap ensures 1-pulse and
+        //     2-pulse keypresses both land at the same brightness (no dimmer single-pulse keys)
+        //   • capping at 0.65 — brighter than before; matches perceived LED intensity
+        //   • fading at 0.12/frame — ~90 ms afterglow from peak to zero; fast enough
+        //     that off-frames during computation drop noticeably (visible flicker)
         // fA-based flicker (fA varies during computation) produces natural opacity
-        // oscillation during longer programs; the faster rise keeps it visible.
+        // oscillation during longer programs; the fast rise keeps each pulse at full peak.
         if snap.calcIndicator {
-            calcIndicatorOpacity = min(0.4, calcIndicatorOpacity + 0.15)
+            calcIndicatorOpacity = min(0.65, calcIndicatorOpacity + 0.65)
         } else if calcIndicatorOpacity > 0 {
-            calcIndicatorOpacity = max(0.0, calcIndicatorOpacity - 0.10)
+            calcIndicatorOpacity = max(0.0, calcIndicatorOpacity - 0.12)
         }
     }
 
