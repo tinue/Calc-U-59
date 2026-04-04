@@ -224,6 +224,23 @@ def fmt_full(e, label):
     ]
     return '\n'.join(lines)
 
+# ── Value-diff reporter ───────────────────────────────────────────────────────
+
+def _print_value_diffs(vdl):
+    """Print a block for each value-only difference (no PC/OP change)."""
+    if not vdl:
+        return
+    print(f"\n{bold(yellow(f'Value differences ({len(vdl)}) — execution path continues:'))}")
+    for (i, r, m, diffs) in vdl:
+        print(f"  {dim(fmt_short(r, '~', i + 1))}")
+        for field, (rv, mv) in diffs.items():
+            if field in NIBBLE_FIELDS:
+                hr, hm = highlight_nibbles(rv, mv)
+                print(f"    {field:8}  ref={hr}")
+                print(f"    {'':8}  mne={hm}")
+            else:
+                print(f"    {field:8}  ref={red(rv)}   mine={green(mv)}")
+
 # ── Main analysis ─────────────────────────────────────────────────────────────
 
 CONTEXT_BEFORE = 6    # matching instructions to show before the divergence
@@ -260,40 +277,50 @@ def analyse(ref_path, mine_path):
           + (f", skipped {m_skip}" if m_skip else "") + ")")
     print(sep)
 
-    # ── Walk forward, find first divergence ───────────────────────────────────
+    # ── Walk forward: collect value diffs, stop only on path divergence ──────
     n = min(len(ref_active), len(mine_active))
+    value_diffs_list = []   # (idx, r, m, diffs) for value-only differences
     div_idx = None
     for i in range(n):
-        if diff_entries(ref_active[i], mine_active[i]):
+        diffs = diff_entries(ref_active[i], mine_active[i])
+        if not diffs:
+            continue
+        if 'PC/OP' in diffs:
             div_idx = i
             break
+        else:
+            value_diffs_list.append((i, ref_active[i], mine_active[i], diffs))
+
+    _print_value_diffs(value_diffs_list)
 
     if div_idx is None:
         if len(ref_active) == len(mine_active):
-            print(f"\n{green('✓ PERFECT MATCH')} — all {n} active instructions identical.")
+            label = '✓ PATHS MATCH' if value_diffs_list else '✓ PERFECT MATCH'
+            print(f"\n{green(label)} — all {n} active instructions identical in execution path.")
         else:
             shorter = 'reference' if len(ref_active) < len(mine_active) else 'emulator'
-            print(f"\n{yellow('⚠ PARTIAL MATCH')} — first {n} instructions match, "
+            print(f"\n{yellow('⚠ PARTIAL MATCH')} — first {n} instructions match on path, "
                   f"then {shorter} file ends.")
         return
 
-    # ── Context: last CONTEXT_BEFORE matching instructions ────────────────────
+    # ── Context: last CONTEXT_BEFORE instructions before path divergence ─────
     match_count = div_idx
-    print(f"\n{bold('Common preamble:')}"
-          f"  {match_count} instruction(s) match before first divergence\n")
+    print(f"\n{bold('Common path preamble:')}"
+          f"  {match_count} instruction(s) share the same PC before path divergence\n")
 
     ctx_start = max(0, div_idx - CONTEXT_BEFORE)
     if ctx_start > 0:
-        print(dim(f"  … {ctx_start} earlier matching instructions omitted …"))
+        print(dim(f"  … {ctx_start} earlier instructions omitted …"))
     for i in range(ctx_start, div_idx):
-        print(dim(fmt_short(ref_active[i], '=', i + 1)))
+        marker = yellow(' ≠values') if any(j == i for (j, *_) in value_diffs_list) else ''
+        print(dim(fmt_short(ref_active[i], '=', i + 1)) + marker)
 
-    # ── Divergence ────────────────────────────────────────────────────────────
+    # ── Path divergence ───────────────────────────────────────────────────────
     r = ref_active[div_idx]
     m = mine_active[div_idx]
     diffs = diff_entries(r, m)
 
-    print(f"\n{bold(red(f'FIRST DIVERGENCE — instruction #{div_idx + 1}'))}\n")
+    print(f"\n{bold(red(f'PATH DIVERGENCE — instruction #{div_idx + 1}'))}\n")
 
     # Full state for both sides
     print(fmt_full(r, bold('REF ')))
@@ -440,36 +467,46 @@ def _analyse_preloaded(ref_path, mine_path, ref_all, mine_all):
     print(sep)
 
     n = min(len(ref_active), len(mine_active))
+    value_diffs_list = []   # (idx, r, m, diffs) for value-only differences
     div_idx = None
     for i in range(n):
-        if diff_entries(ref_active[i], mine_active[i]):
+        diffs = diff_entries(ref_active[i], mine_active[i])
+        if not diffs:
+            continue
+        if 'PC/OP' in diffs:
             div_idx = i
             break
+        else:
+            value_diffs_list.append((i, ref_active[i], mine_active[i], diffs))
+
+    _print_value_diffs(value_diffs_list)
 
     if div_idx is None:
         if len(ref_active) == len(mine_active):
-            print(f"\n{green('✓ PERFECT MATCH')} — all {n} active instructions identical.")
+            label = '✓ PATHS MATCH' if value_diffs_list else '✓ PERFECT MATCH'
+            print(f"\n{green(label)} — all {n} active instructions identical in execution path.")
         else:
             shorter = 'reference' if len(ref_active) < len(mine_active) else 'emulator'
-            print(f"\n{yellow('⚠ PARTIAL MATCH')} — first {n} instructions match, "
+            print(f"\n{yellow('⚠ PARTIAL MATCH')} — first {n} instructions match on path, "
                   f"then {shorter} file ends.")
         return
 
     match_count = div_idx
-    print(f"\n{bold('Common preamble:')}"
-          f"  {match_count} instruction(s) match before first divergence\n")
+    print(f"\n{bold('Common path preamble:')}"
+          f"  {match_count} instruction(s) share the same PC before path divergence\n")
 
     ctx_start = max(0, div_idx - CONTEXT_BEFORE)
     if ctx_start > 0:
-        print(dim(f"  … {ctx_start} earlier matching instructions omitted …"))
+        print(dim(f"  … {ctx_start} earlier instructions omitted …"))
     for i in range(ctx_start, div_idx):
-        print(dim(fmt_short(ref_active[i], '=', i + 1)))
+        marker = yellow(' ≠values') if any(j == i for (j, *_) in value_diffs_list) else ''
+        print(dim(fmt_short(ref_active[i], '=', i + 1)) + marker)
 
     r = ref_active[div_idx]
     m = mine_active[div_idx]
     diffs = diff_entries(r, m)
 
-    print(f"\n{bold(red(f'FIRST DIVERGENCE — instruction #{div_idx + 1}'))}\n")
+    print(f"\n{bold(red(f'PATH DIVERGENCE — instruction #{div_idx + 1}'))}\n")
     print(fmt_full(r, bold('REF ')))
     print(fmt_full(m, bold('MINE')))
 
