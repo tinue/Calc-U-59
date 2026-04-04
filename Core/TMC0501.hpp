@@ -166,6 +166,7 @@ public:
     void pressPrinterPrint(bool pressed);
     void pressPrinterAdv(bool pressed);
     void setPrinterTrace(bool enabled);
+    void setPrinterConnected(bool connected);   ///< Controls KP.D0 (printer-present sense line)
 
     /// Return the content currently held in the printer character buffer.
     std::string printerBufferContent() const;
@@ -298,8 +299,8 @@ private:
     uint16_t m_tracePC{};
     uint16_t m_traceOpcode{};
 
-    void tracePreStep(uint32_t tf, uint16_t opcode, uint8_t& snapIdx);
-    void tracePostStep(uint32_t tf, uint8_t snapIdx, int weight);
+    void tracePreStep(uint32_t tf, uint16_t opcode, bool& snapCaptured);
+    void tracePostStep(uint32_t tf, bool snapCaptured, int weight);
 
     // ── ALU support tables ────────────────────────────────────────────
 

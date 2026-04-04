@@ -114,6 +114,11 @@ typedef struct {
 /// Enable or disable TRACE mode on the printer.
 - (void)setPrinterTrace:(BOOL)enabled;
 
+/// Attach or detach the printer.  When detached the ROM's printer-present
+/// sense (KP.D0) reads low, so the ROM will not attempt to print.
+- (void)setPrinterConnected:(BOOL)connected;
+@property (nonatomic, readonly) BOOL isPrinterConnected;
+
 // ── Trace / debug API ─────────────────────────────────────────────────────────
 
 @property (nonatomic) TITraceFlags traceFlags;

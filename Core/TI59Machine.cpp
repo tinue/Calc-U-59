@@ -11,7 +11,7 @@ TI59Machine::TI59Machine(MachineVariant variant)
     int col = cardSwitchCol();
     m_cpu.setCardSwitchCol((uint8_t)col);
     m_cpu.pressKey(4, col);
-    m_cpu.pressKey(2, 0);  // PRN_CONNECTED: KP bit at digit-counter slot 0
+    m_cpu.setPrinterConnected(m_printerConnected);
 }
 
 void TI59Machine::loadROM(const uint16_t* data, size_t count) {
@@ -26,7 +26,7 @@ void TI59Machine::reset() {
     std::lock_guard<std::mutex> lock(m_keyMutex);
     m_cpu.reset();
     m_cpu.pressKey(4, cardSwitchCol());  // restore card-absent state after key[] wipe
-    m_cpu.pressKey(2, 0);               // restore PRN_CONNECTED after key[] wipe
+    m_cpu.setPrinterConnected(m_printerConnected);
 }
 
 uint32_t TI59Machine::step() {
@@ -145,6 +145,12 @@ void TI59Machine::pressPrinterAdv(bool pressed) {
 void TI59Machine::setPrinterTrace(bool enabled) {
     std::lock_guard<std::mutex> lock(m_keyMutex);
     m_cpu.setPrinterTrace(enabled);
+}
+
+void TI59Machine::setPrinterConnected(bool connected) {
+    std::lock_guard<std::mutex> lock(m_keyMutex);
+    m_printerConnected = connected;
+    m_cpu.setPrinterConnected(connected);
 }
 
 // ── Trace / debug API ──────────────────────────────────────────────────────────

@@ -98,6 +98,24 @@ One record per *surviving* instruction execution after deduplication (see §6).
 `read_trace.py` reverses the order when producing human-readable output to match the
 MSN-first convention of the reference TI59E.LOG format.
 
+**Snapshot timing — post-auto-restore, pre-instruction-body**
+
+All register and flag fields in a TRACE_EVENT record reflect CPU state **after** the
+COND auto-restore but **before** the instruction body has executed.  This matches the
+convention used by the reference TI59E.LOG emulator and is essential for correct
+comparison with it.
+
+Background: after a run of branch instructions, the TMC0501 automatically sets COND=1
+on the first non-branch instruction (the "auto-restore").  The reference emulator
+captures its snapshot at that point — after the restore, before the instruction modifies
+any state.  Consequently, COND-clearing instructions such as `?TFKR` and `?TST fA[b]`
+record COND=1 in the snapshot even though COND is 0 after they finish.
+
+Exception: **branch instructions** (opcode bit 12 set) capture their snapshot
+post-execution because they return early before the auto-restore point.  This is
+consistent with the reference; branches do not modify registers or COND in a way that
+would be affected by timing.
+
 **Excluded fields:**
 - `SCOM[16][16]` — internal calculator memory, not useful for instruction-level debugging.
 - RAM array contents — excluded per design; `RAM_ADDR`/`RAM_OP` metadata is sufficient.

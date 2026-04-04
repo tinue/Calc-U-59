@@ -30,7 +30,8 @@ struct TraceEvent {
     uint16_t KR, SR, fA, fB, cpuFlags;
     uint8_t  R5;
 
-    // Index into the parallel CPUSnapshot ring (UINT8_MAX = no snapshot captured)
+    // Snapshot presence flag: 0x00 = snapshot in parallel snapRing slot, 0xFF = none.
+    // Not used as an actual ring index; the drain uses (m_traceTail & kTraceRingMask).
     uint8_t  snapshotIndex;
 };
 

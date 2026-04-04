@@ -385,7 +385,13 @@ int TMC0501::step() {
     // ── Trace gate ────────────────────────────────────────────────────
     // One relaxed atomic load per step; falls through at zero cost when disabled.
     const uint32_t tf = m_traceFlags.load(std::memory_order_relaxed);
-    uint8_t snapIdx = 0xFF;
+    // snapCaptured: true when the mid-step snapshot was already written to the
+    // snap ring (after COND auto-restore, before instruction body).  tracePostStep
+    // checks this flag to skip re-capturing for non-branch instructions.
+    // Using bool avoids the 0xFF sentinel conflict: with a 512-slot ring, slot 255
+    // and slot 511 both have (idx & 0xFF) == 0xFF, which would falsely signal
+    // "not captured" if the ring-slot index were used as the sentinel.
+    bool snapCaptured = false;
 
     // ── Printer busy countdown ────────────────────────────────────────
     if (m_prnBusyCycles > 0) {
@@ -395,7 +401,7 @@ int TMC0501::step() {
     uint16_t opcode = rom.read(addr);
 
     // Capture pre-execution state for the trace ring.
-    if (tf != TRACE_NONE) [[unlikely]] { tracePreStep(tf, opcode, snapIdx); }
+    if (tf != TRACE_NONE) [[unlikely]] { tracePreStep(tf, opcode, snapCaptured); }
 
     // ── Digit counter ─────────────────────────────────────────────────
     // 4-bit counter cycling 15→14→…→1→0→15.  One step per instruction.
@@ -466,7 +472,7 @@ int TMC0501::step() {
             addr++;
         }
         int w = (flags & FLG_IDLE) ? 4 : 1;
-        if (tf != TRACE_NONE) [[unlikely]] { tracePostStep(tf, snapIdx, w); }
+        if (tf != TRACE_NONE) [[unlikely]] { tracePostStep(tf, snapCaptured, w); }
         if ((flags & FLG_IDLE) ? (fA & 0x4000u) : fA) m_cSteps.fetch_add(1, std::memory_order_relaxed);
         m_pollSteps.fetch_add((uint32_t)w, std::memory_order_relaxed);
         return w;
@@ -478,6 +484,33 @@ int TMC0501::step() {
     if (flags & FLG_JUMP) {
         flags &= ~FLG_JUMP;
         flags |=  FLG_COND;
+    }
+
+    // ── Pre-instruction-body snapshot ─────────────────────────────────
+    // The reference emulator records CPU state HERE — after COND auto-restore
+    // but before the instruction body runs.  This means that for instructions
+    // that clear COND (e.g. ?TFKR, ?TST fA[b]), the trace shows COND=1
+    // (the freshly-restored value) rather than COND=0 (the post-execution
+    // value).  Branch instructions are unaffected: they return before reaching
+    // this point and always capture their snapshot post-execution (above).
+    //
+    // snapCaptured is set here to signal tracePostStep to skip re-capturing the
+    // snapshot (it would overwrite the pre-body values with post-body values).
+    if (tf != TRACE_NONE && (tf & TRACE_REGS_FULL)) [[unlikely]] {
+        uint32_t idx = m_traceHead & kTraceRingMask;
+        CPUSnapshot& s = m_snapRing[idx];
+        memcpy(s.A,    A,    16);
+        memcpy(s.B,    B,    16);
+        memcpy(s.C,    C,    16);
+        memcpy(s.D,    D,    16);
+        memcpy(s.E,    E,    16);
+        memcpy(s.SCOM, SCOM, 16 * 16);
+        memcpy(s.Sout, Sout, 16);
+        s.KR = KR; s.SR = SR; s.fA = fA; s.fB = fB;
+        s.EXT = EXT; s.PREG = PREG; s.flags = flags;
+        s.R5 = R5; s.digit = digit;
+        s.REG_ADDR = REG_ADDR; s.RAM_ADDR = RAM_ADDR; s.RAM_OP = RAM_OP;
+        snapCaptured = true;  // signal tracePostStep to skip re-capture
     }
 
     switch (opcode & 0x0F00) {
@@ -530,8 +563,12 @@ int TMC0501::step() {
         if (kmask & (kmask - 1u)) kmask = 0;
 
         if (!(opcode & 0x0008u)) {
-            // Scan-all mode: hold and scan until digit 0 or key found
-            if (key[digit] & kmask) {
+            // Scan-all mode: hold and scan until digit 0 or key found.
+            // Digit 0 is the termination sentinel only — it is NOT checked for
+            // key state.  Signals wired at D0 (e.g. KP.D0 = PRN_CONNECTED) are
+            // intentionally invisible to scan-all; the ROM detects them with a
+            // dedicated test-row ?KEY executed when digit == 0.
+            if (digit && (key[digit] & kmask)) {
                 uint8_t bit = 0, m2 = kmask;
                 while (!(m2 & 1)) { bit++; m2 >>= 1; }
                 flags &= ~FLG_COND;
@@ -807,7 +844,7 @@ int TMC0501::step() {
         addr++;
     }
     int w = (flags & FLG_IDLE) ? 4 : 1;
-    if (tf != TRACE_NONE) [[unlikely]] { tracePostStep(tf, snapIdx, w); }
+    if (tf != TRACE_NONE) [[unlikely]] { tracePostStep(tf, snapCaptured, w); }
     if ((flags & FLG_IDLE) ? (fA & 0x4000u) : fA) m_cSteps.fetch_add(1, std::memory_order_relaxed);
     m_pollSteps.fetch_add((uint32_t)w, std::memory_order_relaxed);
     return w;
@@ -1030,6 +1067,14 @@ void TMC0501::setPrinterTrace(bool enabled) {
     else         key[15] &= ~(1u << 2);
 }
 
+void TMC0501::setPrinterConnected(bool connected) {
+    // KP.D0: the line the ROM tests (via test-row ?KEY at digit==0) to detect
+    // whether a PC-100C is attached.  Invisible to scan-all ?KEY (digit 0 is
+    // the scan-all termination sentinel, not a key-check slot).
+    if (connected) key[0] |=  (1u << 2);
+    else           key[0] &= ~(1u << 2);
+}
+
 // ── Trace / debug API ──────────────────────────────────────────────────────────
 
 void TMC0501::setTraceFlags(uint32_t f) {
@@ -1067,30 +1112,14 @@ bool TMC0501::consumeBreakpointHit() {
 // ── tracePreStep ──────────────────────────────────────────────────────────────
 //
 // Called at the top of step() when any trace flag is active.
-// Saves pc, opcode, and digit for use by tracePostStep.
-// If TRACE_REGS_FULL: writes a CPUSnapshot to the snap ring and returns its
-// index in snapIdx; otherwise snapIdx remains 0xFF.
+// Records pc and opcode for use by tracePostStep.  snapCaptured starts false
+// and is set to true by the mid-step snapshot capture (after COND auto-restore,
+// before instruction body) for non-branch instructions.  Branch instructions
+// leave it false and capture post-execution in their own return path.
 
-void TMC0501::tracePreStep(uint32_t tf, uint16_t opcode, uint8_t& snapIdx) {
+void TMC0501::tracePreStep(uint32_t tf, uint16_t opcode, bool& snapCaptured) {
     m_tracePC     = addr;
     m_traceOpcode = opcode;
-
-    if (tf & TRACE_REGS_FULL) {
-        uint32_t idx = m_traceHead & kTraceRingMask;
-        CPUSnapshot& s = m_snapRing[idx];
-        memcpy(s.A,    A,    16);
-        memcpy(s.B,    B,    16);
-        memcpy(s.C,    C,    16);
-        memcpy(s.D,    D,    16);
-        memcpy(s.E,    E,    16);
-        memcpy(s.SCOM, SCOM, 16 * 16);
-        memcpy(s.Sout, Sout, 16);
-        s.KR = KR; s.SR = SR; s.fA = fA; s.fB = fB;
-        s.EXT = EXT; s.PREG = PREG; s.flags = flags;
-        s.R5 = R5; s.digit = digit;
-        s.REG_ADDR = REG_ADDR; s.RAM_ADDR = RAM_ADDR; s.RAM_OP = RAM_OP;
-        snapIdx = (uint8_t)(idx & 0xFF);
-    }
 
     if (tf & TRACE_BREAKPOINTS) {
         std::lock_guard<std::mutex> lk(m_traceMutex);
@@ -1107,17 +1136,46 @@ void TMC0501::tracePreStep(uint32_t tf, uint16_t opcode, uint8_t& snapIdx) {
 // Called at every return site in step() when tracing is active.
 // Writes a TraceEvent to the ring.  Ring overflow: head advances unconditionally;
 // seqno gaps in the output signal dropped events to the caller.
+//
+// Snapshot timing (matches reference-emulator convention):
+//   • Non-branch instructions: snapshot was already captured mid-step (after COND
+//     auto-restore, before instruction body).  snapCaptured=true signals this; the
+//     capture below is skipped so the pre-body values are preserved.
+//   • Branch instructions: snapCaptured=false; snapshot is captured here, after
+//     the branch logic runs (post-execution).  Branches do not modify COND or
+//     registers visible in the snapshot, so timing does not matter for them.
 
-void TMC0501::tracePostStep(uint32_t tf, uint8_t snapIdx, int weight) {
+void TMC0501::tracePostStep(uint32_t tf, bool snapCaptured, int weight) {
     uint32_t idx = m_traceHead & kTraceRingMask;
-    TraceEvent& ev = m_traceRing[idx];
 
+    // Capture snapshot only for branch instructions (!snapCaptured).
+    // Non-branch instructions already wrote their snapshot after COND auto-restore.
+    if ((tf & TRACE_REGS_FULL) && !snapCaptured) {
+        CPUSnapshot& s = m_snapRing[idx];
+        memcpy(s.A,    A,    16);
+        memcpy(s.B,    B,    16);
+        memcpy(s.C,    C,    16);
+        memcpy(s.D,    D,    16);
+        memcpy(s.E,    E,    16);
+        memcpy(s.SCOM, SCOM, 16 * 16);
+        memcpy(s.Sout, Sout, 16);
+        s.KR = KR; s.SR = SR; s.fA = fA; s.fB = fB;
+        s.EXT = EXT; s.PREG = PREG; s.flags = flags;
+        s.R5 = R5; s.digit = digit;
+        s.REG_ADDR = REG_ADDR; s.RAM_ADDR = RAM_ADDR; s.RAM_OP = RAM_OP;
+    }
+
+    TraceEvent& ev = m_traceRing[idx];
     ev.pc          = m_tracePC;
     ev.opcode      = m_traceOpcode;
-    ev.digit       = digit;  // post-decrement: matches digit seen during execution
+    ev.digit       = digit;
     ev.cycleWeight = (uint8_t)weight;
     ev.seqno       = m_traceSeqno++;
-    ev.snapshotIndex = snapIdx;
+    // 0x00 = snapshot present in parallel snapRing slot; 0xFF = no snapshot.
+    // Not used as an actual array index — the drain uses (m_traceTail & kTraceRingMask)
+    // directly — so a plain present/absent flag is correct and avoids the collision
+    // that arose when (idx & 0xFF) == 0xFF (ring slots 255 and 511).
+    ev.snapshotIndex = (tf & TRACE_REGS_FULL) ? 0x00u : 0xFFu;
 
     if (tf & TRACE_REGS_LIGHT) {
         ev.KR       = KR;

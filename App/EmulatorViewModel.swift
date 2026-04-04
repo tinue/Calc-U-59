@@ -15,6 +15,7 @@ class EmulatorViewModel {
     var printerCodeLines: [Data] = []  // parallel to printerLines; 20 raw codes per line
     var printerClearID: Int = 0   // incremented on cut to reset Text identity and drop selection
     var printerTrace: Bool = false
+    var printerConnected: Bool = true
 
     // ── C indicator drop debugger ─────────────────────────────────────────────
     // When enabled, prints one line per drop event — not 60 lines/s.
@@ -286,6 +287,10 @@ class EmulatorViewModel {
     func togglePrinterTrace() {
         printerTrace.toggle()
         machine?.setPrinterTrace(printerTrace)
+    }
+    func setPrinterConnected(_ connected: Bool) {
+        printerConnected = connected
+        machine?.setPrinterConnected(connected)
     }
     func cutPaper() { printerLines = []; printerCodeLines = []; printerClearID &+= 1 }
 

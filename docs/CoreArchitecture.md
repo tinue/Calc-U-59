@@ -279,7 +279,7 @@ Special keys assigned outside the main matrix:
 | col | bit | Signal |
 |---|---|---|
 | 10 (TI-59) or 7 (TI-58/58C) | 4 | Card-switch (high = card absent) |
-| 0 | 2 | PRN_CONNECTED (printer present) |
+| 0 | 2 | PRN_CONNECTED (printer present — KP.D0; checked by test-row ?KEY at digit=0; **invisible to scan-all**) |
 | 12 | 2 | Printer PRINT button |
 | 12 | 0 | Printer ADV button |
 | 15 | 2 | Printer TRACE mode |
