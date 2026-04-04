@@ -19,9 +19,25 @@ class EmulatorViewModel {
     // ── C indicator drop debugger ─────────────────────────────────────────────
     // When enabled, prints one line per drop event — not 60 lines/s.
     // Watches snap.calcIndicator (raw C++ duty cycle, before Swift smoothing).
-    var cIndicatorDebug: Bool = false
+    // Also writes TI59_TRACE.bin (binary format — see DebugAPI.md).
+    var cIndicatorDebug: Bool = false {
+        didSet {
+            if cIndicatorDebug {
+                traceWriter.open()
+                machine?.traceFlags = [.pc, .regsFull]
+            } else {
+                emulQueue.async { [weak self] in
+                    guard let self, let m = machine else { return }
+                    drainTraceEvents(machine: m)
+                    traceWriter.close()
+                }
+                machine?.traceFlags = .flagsNone
+            }
+        }
+    }
     private var cDropDebugger = CDropDebugger()
     private var cZeroFrames: Int = 0   // consecutive frames where fA was zero the entire frame
+    private let traceWriter = TraceWriter()
 
     // ── Debug panel state ────────────────────────────────────────────────────
     var debugEnabled: Bool = false
@@ -211,7 +227,10 @@ class EmulatorViewModel {
         //   • target = 0, first zero frame → hold (aliasing artefact; see below)
         //   • target = 0, frame 2+         → rapid decay (genuine dark phase)
         //   • 0 < target < current → proportional-alpha fall
-        if cIndicatorDebug { cDropDebugger.update(snap.calcIndicator) }
+        if cIndicatorDebug {
+            cDropDebugger.update(snap.calcIndicator)
+            drainTraceEvents(machine: machine)
+        }
         let target = Double(snap.calcIndicator) * 0.65
         if target < 0.001 {
             cZeroFrames += 1
@@ -251,10 +270,12 @@ class EmulatorViewModel {
     // MARK: - Key input
 
     func pressKey(row: Int, col: Int) {
+        traceWriter.writeKeyDown(row: UInt8(row), col: UInt8(col))
         machine?.pressMatrixKey(UInt8((row + 1) * 10 + (col + 1)))
     }
 
     func releaseKey(row: Int, col: Int) {
+        traceWriter.writeKeyUp(row: UInt8(row), col: UInt8(col))
         machine?.releaseMatrixKey(UInt8((row + 1) * 10 + (col + 1)))
     }
 
@@ -303,6 +324,7 @@ class EmulatorViewModel {
     private func beginSwipe(data: Data) {
         guard let machine, cardState == .noCard else { return }
         cardState = .swiping
+        traceWriter.writeCardInsert()
         machine.insertCard(data)
     }
 
@@ -349,6 +371,7 @@ class EmulatorViewModel {
 
     func ejectCard() {
         guard let machine, cardState == .swiping else { cardState = .noCard; return }
+        traceWriter.writeCardEject()
         let written = machine.cardEject() as Data
         cardState = .noCard
         guard !written.isEmpty else { return }
@@ -652,6 +675,25 @@ class EmulatorViewModel {
             case .wait(let t):
                 try? await Task.sleep(nanoseconds: UInt64(t * 1_000_000_000))
             }
+        }
+    }
+
+    // ── Binary trace file (TI59_TRACE.bin) ───────────────────────────────────
+    // Drain the CPU ring buffer and forward each event+snapshot to TraceWriter.
+    // Called from tick() (main thread, 60 Hz) and from the emulQueue close path.
+
+    private func drainTraceEvents(machine m: TI59MachineWrapper) {
+        var snapsOut: NSArray? = nil
+        guard let eventsNS = m.drainTraceEvents(max: 2000, snapshots: &snapsOut) as? [NSValue],
+              !eventsNS.isEmpty else { return }
+        let snapsNS = (snapsOut as? [NSValue]) ?? []
+
+        for (i, ev) in eventsNS.enumerated() {
+            var e = TITraceEvent()
+            ev.getValue(&e)
+            var snap = TICPUSnapshot()
+            if i < snapsNS.count { snapsNS[i].getValue(&snap) }
+            traceWriter.write(event: e, snapshot: snap)
         }
     }
 }
