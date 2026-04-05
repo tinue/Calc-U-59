@@ -282,3 +282,32 @@ python3 tools/compare_trace.py --bin 1x.LOG 1x.bin
 
 `compare_trace.py` imports `read_trace` from the same `tools/` directory; no
 `PYTHONPATH` changes are needed when both files are present.
+
+---
+
+## 9  Reference Traces (TI59E.LOG)
+
+Reference `.LOG` files (e.g. `1.LOG`, `1x.LOG`, `OP09RS.LOG`) are captured
+using **TI59E**, a cycle-accurate TI-59 emulator by Hrastprogrammer:
+
+> https://www.hrastprogrammer.com/emulators.htm
+
+TI59E is a **Windows application** and cannot run natively on macOS.  To
+capture a new reference trace on a Mac you need either a Windows VM or Wine.
+
+**Capturing a reference trace with TI59E:**
+
+1. Run TI59E on Windows (or Wine/VM).
+2. Enable its execution log — the output file is named `TI59E.LOG` by default.
+3. Reproduce the scenario you want to trace (power-on, key presses, etc.).
+4. Copy the resulting `.LOG` file to the project root alongside the `.bin`
+   capture from Calc-U-59.
+5. Run `compare_trace.py`:
+   ```
+   python3 tools/compare_trace.py --bin <reference>.LOG TI59_TRACE.bin
+   ```
+
+**Log format** produced by TI59E: four lines per instruction, blank line
+separator.  `read_trace.py` (text output mode) and `compare_trace.py` both
+emit and consume this same layout so that `.LOG` files from TI59E and
+`.LOG`-formatted output from `read_trace.py` are interchangeable.
