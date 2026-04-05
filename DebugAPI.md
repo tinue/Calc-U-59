@@ -290,7 +290,8 @@ python3 tools/compare_trace.py --bin 1x.LOG 1x.bin
 Reference `.LOG` files (e.g. `1.LOG`, `1x.LOG`, `OP09RS.LOG`) are captured
 using **TI59E**, a cycle-accurate TI-59 emulator by Hrastprogrammer:
 
-> https://www.hrastprogrammer.com/emulators.htm
+> Info: https://www.hrastprogrammer.com/ti59e/index.htm
+> Download: https://www.hrastprogrammer.com/ti59e/ti59epc.zip
 
 TI59E is a **Windows application** and cannot run natively on macOS.  To
 capture a new reference trace on a Mac you need either a Windows VM or Wine.
