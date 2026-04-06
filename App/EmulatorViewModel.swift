@@ -45,6 +45,10 @@ class EmulatorViewModel {
     var debugLines: [String] = []
     var debugClearID: Int = 0   // incremented on clear to reset Text identity and drop selection
 
+    // ── Live debug panel state (60 Hz real-time) ──────────────────────────────
+    var liveDebugEnabled: Bool = false
+    var liveDebugSnapshot: LiveDebugSnapshot = .empty
+
     // ── Trace / debug state ──────────────────────────────────────────────────
     var traceEnabled: Bool = false
     var traceEvents: [TITraceEvent] = []          // sliding window, last 512
@@ -228,6 +232,12 @@ class EmulatorViewModel {
         //   • target = 0, first zero frame → hold (aliasing artefact; see below)
         //   • target = 0, frame 2+         → rapid decay (genuine dark phase)
         //   • 0 < target < current → proportional-alpha fall
+        // Live debug snapshot — sampled at 60 Hz when the panel is open.
+        if liveDebugEnabled {
+            let s = buildLiveSnapshot(machine: machine)
+            if s != liveDebugSnapshot { liveDebugSnapshot = s }
+        }
+
         if cIndicatorDebug {
             cDropDebugger.update(snap.calcIndicator)
             drainTraceEvents(machine: machine)
@@ -522,6 +532,186 @@ class EmulatorViewModel {
                             printerBuffer: m.printerBufferContent, cpu: cpu)
     }
 
+    /// Build a real-time debug snapshot for the live debug view.
+    /// Called from tick() at 60 Hz only when liveDebugEnabled.
+    private func buildLiveSnapshot(machine m: TI59MachineWrapper) -> LiveDebugSnapshot {
+        let programRegs = Int(m.partitionProgramRegs)
+        let dataRegCount = max(0, 120 - programRegs)
+        var snap = LiveDebugSnapshot()
+        snap.programRegCount = programRegs
+        snap.dataRegCount = dataRegCount
+
+        // Data registers (use optimized batch scan from bridge)
+        let nonZeroIdx = m.nonZeroDataRegisterIndices()
+        nonZeroIdx.forEach { regNum in
+            snap.nonZeroRegs.append(.init(num: Int(regNum), value: m.dataRegister(Int(regNum))))
+        }
+
+        // CPU snapshot (single ~370-byte memcpy)
+        var cpu = m.snapshotCPU()
+
+        // HIR registers 1–8 (stored in SCOM[1..8]; decode as Double)
+        // Each HIR is 16 BCD nibbles: bits 15–3 = mantissa, 2–1 = exponent, 0 = sign
+        withUnsafeBytes(of: cpu.SCOM) { bytes in
+            for hirNum in 1...8 {
+                let scomRow = hirNum  // HIR N lives in SCOM[N]
+                let scomBytes = Data(bytes[(scomRow * 16)..<((scomRow + 1) * 16)])
+                let value = TI59MachineWrapper.decodeBCD(scomBytes)
+                switch hirNum {
+                case 1: snap.hir1 = value
+                case 2: snap.hir2 = value
+                case 3: snap.hir3 = value
+                case 4: snap.hir4 = value
+                case 5: snap.hir5 = value
+                case 6: snap.hir6 = value
+                case 7: snap.hir7 = value
+                case 8: snap.hir8 = value
+                default: break
+                }
+            }
+        }
+
+        // T register (stored in SCOM[11]; the stack top / last-X equivalent)
+        withUnsafeBytes(of: cpu.SCOM) { bytes in
+            let tBytes = Data(bytes[(11 * 16)..<(12 * 16)])
+            snap.tRegister = TI59MachineWrapper.decodeBCD(tBytes)
+        }
+
+        // Degree/Radian/Grad mode (SCOM[13][0], nibble 0; per SCOM map)
+        // Encoding: 0=DEG, 1=GRAD, 12(C)=RAD
+        withUnsafeBytes(of: cpu.SCOM) { bytes in
+            let modeNibble = bytes[13 * 16 + 0] & 0x0F
+            snap.angleMode = {
+                switch modeNibble {
+                case 0x0: return .deg
+                case 0x1: return .grad
+                case 0xC: return .rad
+                default: return nil
+                }
+            }()
+        }
+
+        // Pending operations count (SCOM[13], bit 1 area; exact position TBD)
+        withUnsafeBytes(of: cpu.SCOM) { bytes in
+            let scom13 = bytes[13 * 16..<(14 * 16)]
+            // Per SCOM map: "No. of pending ops" is in SCOM[13]
+            // Assuming it's in nibble 0 or bits within the row
+            snap.pendingOpsCount = Int(bytes[13 * 16 + 0])  // TBD: exact bit position
+        }
+
+        // Calculator flags 0–9 (stored in SCOM; mapping TBD)
+        snap.calcFlags = Array(repeating: nil, count: 10)
+
+        // Program steps window
+        let steps = Array(m.allProgramSteps() as Data)
+        snap.currentStep = decodeProgramCounter(from: cpu)
+        if !steps.isEmpty {
+            let center = snap.currentStep >= 0 ? snap.currentStep : 0
+            let lo = max(0, center - 5)
+            let hi = min(steps.count - 1, center + 5)
+            if lo <= hi {
+                for i in lo...hi {
+                    let kc = steps[i]
+                    snap.programWindow.append(.init(
+                        stepNum: i,
+                        keycode: kc,
+                        mnemonic: TI59KeyNames.mnemonic(for: kc),
+                        isCurrent: i == snap.currentStep
+                    ))
+                }
+            }
+        }
+
+        // SCOM rows (all 16, plus extract rows 0–3 for printer)
+        withUnsafeBytes(of: cpu.SCOM) { bytes in
+            snap.scomRows = (0..<16).map { row in
+                (0..<16).map { String(bytes[row * 16 + $0], radix: 16, uppercase: false) }.joined()
+            }
+        }
+        snap.printerSCOM = Array(snap.scomRows.prefix(4))
+
+        return snap
+    }
+
+    /// Decode the program counter from SCOM[0] positions 4-7.
+    /// Encoding has three ranges with different formulas:
+    ///
+    /// Range 1: PC 0–791 (original formula)
+    ///   T' = T + 2×H  (H=hundreds, T=tens, U=units)
+    ///   pos 4 = ((T'×2) mod 8) + U
+    ///   pos 5 = T' if T'<4 else T'+1
+    ///   pos 6 = H
+    ///   pos 7 = 0
+    ///
+    /// Range 2: PC 792–799 (special case for T=9)
+    ///   pos 4 = U - 2
+    ///   pos 5 = 9
+    ///   pos 6 = 9
+    ///   pos 7 = 0
+    ///
+    /// Range 3: PC 800–959 (high page, uses pos 7 = 1)
+    ///   pos 4-5 encode (T mod 100, U), using original formula
+    ///   pos 6 = (H - 8) for 800–899, 1 for 900–959
+    ///   pos 7 = 1
+    private func decodeProgramCounter(from cpu: TICPUSnapshot) -> Int {
+        let n4 = Int(cpu.SCOM.0.4)
+        let n5 = Int(cpu.SCOM.0.5)
+        let n6 = Int(cpu.SCOM.0.6)
+        let n7 = Int(cpu.SCOM.0.7)
+
+        // Check for page flag (pos 7)
+        if n7 == 1 {
+            // PC 800–959: pos 6 indicates which 100-block
+            // pos 6 = 0 for 800–899, pos 6 = 1 for 900–959
+            if n6 == 0 {
+                // PC 800–899: encode as PC 0–99
+                let tPrime = (n5 < 4) ? n5 : (n5 - 1)
+                let baseTwice = (tPrime * 2) % 8
+                let u = (n4 - baseTwice + 10) % 10
+                let t = tPrime - 0  // H = 0 for this sub-range
+                let pc = 800 + t * 10 + u
+                if pc >= 800 && pc <= 899 {
+                    return pc
+                }
+            } else if n6 == 1 {
+                // PC 900–959: uses T' = T + 2 (same as H=1 range)
+                let tPrime = (n5 < 4) ? n5 : (n5 - 1)
+                let baseTwice = (tPrime * 2) % 8
+                let u = (n4 - baseTwice + 10) % 10
+                let t = tPrime - 2
+                let pc = 900 + t * 10 + u
+                if pc >= 900 && pc <= 959 {
+                    return pc
+                }
+            }
+        } else if n7 == 0 {
+            // PC 0–799: check for special case at T=9
+            if n5 == 9 && n6 == 9 {
+                // PC 792–799: special case
+                let u = n4 + 2
+                let t = 9
+                let h = 7
+                let pc = h * 100 + t * 10 + u
+                if pc >= 792 && pc <= 799 {
+                    return pc
+                }
+            }
+
+            // PC 0–791: original formula
+            let h = n6
+            let tPrime = (n5 < 4) ? n5 : (n5 - 1)
+            let baseTwice = (tPrime * 2) % 8
+            let u = (n4 - baseTwice + 10) % 10
+            let t = tPrime - (2 * h)
+            let pc = h * 100 + t * 10 + u
+            if pc >= 0 && pc <= 791 {
+                return pc
+            }
+        }
+
+        return -1
+    }
+
     func toggleDebug() {
         debugEnabled.toggle()
     }
@@ -586,6 +776,54 @@ class EmulatorViewModel {
             lines.append(String(format: "R%02d: %@", reg, pairs))
         }
         debugLines.append(contentsOf: lines)
+    }
+
+    /// Debug helper: dump step counter encoding from SCOM[0] and surrounding rows.
+    /// Used to identify the nibble pattern for the program counter.
+    func debugDumpStepCounterAnalysis() {
+        guard let m = machine else { return }
+        var lines: [String] = ["── Step Counter Analysis (SCOM) ──"]
+
+        let cpu = m.snapshotCPU()
+
+        // Format SCOM[0] with position numbers
+        var row0Hex = ""
+        withUnsafeBytes(of: cpu.SCOM.0) { bytes in
+            row0Hex = (0..<16).map { String(bytes[$0], radix: 16) }.joined()
+        }
+        lines.append("SCOM[0]  (positions 0–15):")
+        lines.append("values:  " + row0Hex)
+        lines.append("pos:     0123456789abcdef")
+
+        // Highlight the varying segment (positions 4-6)
+        lines.append("note:    ----VARYING---")
+
+        // Extract and show SCOM[15][0] as indicator
+        let row15Hex0 = String(Int(cpu.SCOM.15.0), radix: 16)
+        lines.append(String(format: "SCOM[15][0]: %@ (expected: 0=PC=0, 9=PC>0)", row15Hex0))
+
+        // Show first 16 hex chars of SCOM[10] and [13] as alternatives
+        var row10Hex = ""
+        withUnsafeBytes(of: cpu.SCOM.10) { bytes in
+            row10Hex = (0..<16).map { String(bytes[$0], radix: 16) }.joined()
+        }
+        var row13Hex = ""
+        withUnsafeBytes(of: cpu.SCOM.13) { bytes in
+            row13Hex = (0..<16).map { String(bytes[$0], radix: 16) }.joined()
+        }
+        lines.append("SCOM[10]: " + row10Hex)
+        lines.append("SCOM[13]: " + row13Hex)
+
+        // Known reference data
+        lines.append("")
+        lines.append("Known mappings (for reference):")
+        lines.append("PC=100 → SCOM[0] pos 4-6 = '421'")
+        lines.append("PC=200 → SCOM[0] pos 4-6 = '052'")
+        lines.append("PC=300 → SCOM[0] pos 4-6 = '473'")
+        lines.append("PC=400 → SCOM[0] pos 4-6 = '425'")
+        lines.append("Pattern: nibbles don't decode as BCD or simple hex")
+
+        debugAppend(lines)
     }
 
     /// Read a raw 16-nibble RAM register (reg 0–119).
@@ -701,6 +939,66 @@ class EmulatorViewModel {
             traceWriter.write(event: e, snapshot: snap)
         }
     }
+}
+
+// ── Live Debug Snapshot ───────────────────────────────────────────────────────
+//
+// Real-time (60 Hz) view of calculator state: registers, flags, SCOM, program steps.
+// Stores decoded/formatted values to minimize work on render thread.
+
+struct LiveDebugSnapshot: Equatable {
+    // Data registers — only non-zero values
+    struct RegEntry: Equatable {
+        var num: Int      // user-visible register number (R00–R99)
+        var value: Double
+    }
+    var nonZeroRegs: [RegEntry] = []
+    var dataRegCount: Int = 0
+    var programRegCount: Int = 0
+
+    // Program steps window — ±5 around current step
+    struct StepEntry: Equatable {
+        var stepNum: Int       // 000–479
+        var keycode: UInt8     // raw 2-digit code
+        var mnemonic: String   // e.g. "STO 00", "GTO 27"
+        var isCurrent: Bool
+    }
+    var programWindow: [StepEntry] = []
+    var currentStep: Int = -1   // -1 = unknown (SCOM location TBD)
+
+    // HIR registers (stored in SCOM[1..8]; decoded as Double)
+    // Each HIR is 16 BCD nibbles: bits 15–3 = mantissa, 2–1 = exponent, 0 = sign
+    var hir1: Double = 0
+    var hir2: Double = 0
+    var hir3: Double = 0
+    var hir4: Double = 0
+    var hir5: Double = 0
+    var hir6: Double = 0
+    var hir7: Double = 0
+    var hir8: Double = 0
+
+    // T register (SCOM[11]; decoded as Double; stack top / last-X equivalent)
+    var tRegister: Double = 0
+
+    // Calculator flags 0–9 (stored in SCOM; bit mapping TBD experimentally)
+    var calcFlags: [Bool?] = Array(repeating: nil, count: 10)
+
+    // Calculator-level status (from SCOM)
+    var isINV: Bool? = nil
+    var is2nd: Bool? = nil
+    var angleMode: AngleMode? = nil
+    enum AngleMode: Equatable { case deg, rad, grad }
+
+    // SCOM-derived control state
+    var pendingOpsCount: Int = 0  // Number of pending operations in hierarchy stack (SCOM 13)
+
+    // Printer SCOM rows 0–3
+    var printerSCOM: [String] = []
+
+    // All 16 SCOM rows
+    var scomRows: [String] = []
+
+    static let empty = LiveDebugSnapshot()
 }
 
 // ── C indicator drop debugger ─────────────────────────────────────────────────

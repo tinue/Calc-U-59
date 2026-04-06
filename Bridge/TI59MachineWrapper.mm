@@ -257,6 +257,22 @@ static const int kbits[] = {0, 1, 2, 3, 5, 6};  // index 0 unused; index col
     return data;
 }
 
+- (NSIndexSet*)nonZeroDataRegisterIndices {
+    NSMutableIndexSet* result = [NSMutableIndexSet indexSet];
+    int programRegs = (int)_machine->partitionProgramRegs();
+    int dataRegCount = MAX(0, 120 - programRegs);
+    for (int regNum = 0; regNum < dataRegCount; regNum++) {
+        const uint8_t* n = _machine->readRAMReg(119 - regNum);
+        for (int i = 0; i < 16; i++) {
+            if (n[i] != 0) {
+                [result addIndex:regNum];
+                break;
+            }
+        }
+    }
+    return result;
+}
+
 - (TICPUSnapshot)snapshotCPU {
     CPUSnapshot s = _machine->snapshotCPU();
     TICPUSnapshot out;

@@ -2,6 +2,42 @@ import SwiftUI
 
 struct DebugView: View {
     @Environment(EmulatorViewModel.self) var vm
+    @State private var tab: DebugTab = .log
+    enum DebugTab { case log, live }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Tab bar
+            HStack(spacing: 0) {
+                tabButton("LOG", .log)
+                tabButton("LIVE", .live)
+                Spacer()
+            }
+            .background(Color(white: 0.07))
+
+            // Tab content
+            switch tab {
+            case .log:  StaticDebugContent()
+            case .live: LiveDebugView()
+            }
+        }
+        .background(Color(white: 0.10))
+    }
+
+    private func tabButton(_ label: String, _ tab_: DebugTab) -> some View {
+        Button(label) { tab = tab_ }
+            .font(.system(size: 10, weight: .bold))
+            .foregroundStyle(tab == tab_ ? .white : .white.opacity(0.4))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 5)
+            .background(tab == tab_ ? Color(white: 0.20) : Color.clear)
+    }
+}
+
+// MARK: - Static Debug Content (original DebugView body)
+
+private struct StaticDebugContent: View {
+    @Environment(EmulatorViewModel.self) var vm
 
     var body: some View {
         VStack(spacing: 0) {
@@ -15,7 +51,7 @@ struct DebugView: View {
     // MARK: - Header
 
     private var header: some View {
-        Text("DEBUG")
+        Text("DEBUG LOG")
             .font(.caption.bold())
             .foregroundStyle(.white.opacity(0.6))
             .frame(maxWidth: .infinity)
@@ -59,6 +95,11 @@ struct DebugView: View {
             Button("SCOM") { vm.debugDumpSCOM() }
 
             Button("Prog") { vm.debugDumpProg() }
+
+            Button("PC") {
+                if !vm.debugEnabled { vm.debugEnabled = true }
+                vm.debugDumpStepCounterAnalysis()
+            }
 
             Spacer()
 
