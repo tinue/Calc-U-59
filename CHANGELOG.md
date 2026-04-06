@@ -1,10 +1,16 @@
 # Changelog
 
-## [0.2.0] - tbd
+## [0.2.0] - 2026-04-06
+
+**Emulation:** TI-58C accurate ROM support, 2nd Op 40 works now. 'C' indicator now uses hardware-accurate SH-pin duty-cycle emulation with proper latch behavior and realistic afterglow. Printer mechanical busy timing matches real PC-100C hardware behavior.
+
+**Debugging:** Binary execution trace facility (`TI59_TRACE.bin`) for advanced program analysis and verification against reference traces.
+
+**Files:** iOS users can now access calculator state files via the public iCloud Drive folder; easier file management on iPad and iPhone.
 
 **UI:** Card reader bar buttons show icon-only on narrow portrait screens (all iPhones; wide iPads are unaffected).
 
-**Samples:** Added memory test preset files `ram_test.ti59` and `ram_test_full_fast.ti59`.
+**Samples:** Added more samples, for example memory test preset files `ram_test.ti59` and `ram_test_full_fast.ti59` for hardware validation.
 
 ## [0.1.2] - 2026-03-30
 
