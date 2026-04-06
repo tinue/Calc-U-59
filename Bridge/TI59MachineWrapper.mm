@@ -131,9 +131,11 @@ static const int kbits[] = {0, 1, 2, 3, 5, 6};  // index 0 unused; index col
     return result;
 }
 
-- (void)pressPrinterPrint:(BOOL)pressed { _machine->pressPrinterPrint(pressed == YES); }
-- (void)pressPrinterAdv:(BOOL)pressed   { _machine->pressPrinterAdv(pressed == YES); }
-- (void)setPrinterTrace:(BOOL)enabled   { _machine->setPrinterTrace(enabled == YES); }
+- (void)pressPrinterPrint:(BOOL)pressed       { _machine->pressPrinterPrint(pressed == YES); }
+- (void)pressPrinterAdv:(BOOL)pressed         { _machine->pressPrinterAdv(pressed == YES); }
+- (void)setPrinterTrace:(BOOL)enabled         { _machine->setPrinterTrace(enabled == YES); }
+- (void)setPrinterConnected:(BOOL)connected   { _machine->setPrinterConnected(connected == YES); }
+- (BOOL)isPrinterConnected                    { return _machine->isPrinterConnected() ? YES : NO; }
 
 // ── Trace / debug API ─────────────────────────────────────────────────────────
 

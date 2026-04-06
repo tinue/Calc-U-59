@@ -82,7 +82,7 @@ struct KeyboardView: View {
                     digits:        viewModel.displayDigits,
                     ctrl:          viewModel.displayCtrl,
                     dpPos:         viewModel.dpPos,
-                    calcIndicator: viewModel.calcIndicator
+                    calcIndicatorOpacity: viewModel.calcIndicatorOpacity
                 )
                 .equatable()
                 .frame(width:  w * Self.displayRect.width,

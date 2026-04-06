@@ -60,7 +60,7 @@ struct CalculatorView: View {
         // macOS: calculator | printer | debug
         // Calculator uses its intrinsic width; debug panel absorbs extra space.
         HStack(spacing: 0) {
-            calculatorBody
+            calculatorBody()
                 .fixedSize(horizontal: true, vertical: false)
             Divider()
             PrinterView()
@@ -72,9 +72,13 @@ struct CalculatorView: View {
         #else
         // iOS/iPadOS: side-by-side when wide, button-navigated pages when portrait
         GeometryReader { geo in
+            // In portrait, hide button labels when the calculator is too narrow to
+            // fit them comfortably (all iPhones; wide iPads always have room).
+            let isPortrait = geo.size.height >= geo.size.width
+            let showLabels = !isPortrait || geo.size.width >= 500
             if geo.size.width > geo.size.height {
                 HStack(spacing: 0) {
-                    calculatorBody
+                    calculatorBody(showLabels: showLabels)
                         .fixedSize(horizontal: true, vertical: false)
                     Divider()
                     PrinterView()
@@ -95,7 +99,7 @@ struct CalculatorView: View {
                                 }
                             }
                     } else {
-                        calculatorBody
+                        calculatorBody(showLabels: showLabels)
                             .overlay(alignment: .topTrailing) {
                                 pageArrow(systemImage: "chevron.right") {
                                     showingPrinter = true
@@ -108,10 +112,10 @@ struct CalculatorView: View {
         #endif
     }
 
-    private var calculatorBody: some View {
+    private func calculatorBody(showLabels: Bool = true) -> some View {
         VStack(spacing: 0) {
             KeyboardView()
-            cardReaderBar
+            cardReaderBar(showLabels: showLabels)
         }
         .background(Color(white: 0.08))
     }
@@ -124,7 +128,7 @@ struct CalculatorView: View {
 
     // MARK: - Card reader bar
 
-    private var cardReaderBar: some View {
+    private func cardReaderBar(showLabels: Bool = true) -> some View {
         HStack(spacing: 16) {
             Button("", systemImage: "arrow.counterclockwise") {
                 #if os(macOS)
@@ -162,15 +166,18 @@ struct CalculatorView: View {
                     Button("Crd", systemImage: "square.and.arrow.down") {
                         viewModel.cardPickerMode = .load
                     }
+                    .labelStyle(showLabel: showLabels)
                     .controlSize(.large)
                     Button("Crd", systemImage: "plus.rectangle") {
                         viewModel.cardPickerMode = .save
                     }
+                    .labelStyle(showLabel: showLabels)
                     .controlSize(.large)
                 } else {
                     Button("Eject Card", systemImage: "eject") {
                         viewModel.ejectIfSwiping()
                     }
+                    .labelStyle(showLabel: showLabels)
                 }
             }
             #if os(macOS)
@@ -190,6 +197,7 @@ struct CalculatorView: View {
             Button("Preset", systemImage: "doc.badge.arrow.up") {
                 showingStateFilePicker = true
             }
+            .labelStyle(showLabel: showLabels)
             .controlSize(.large)
             #endif
         }
@@ -226,6 +234,17 @@ struct CalculatorView: View {
         .padding(8)
     }
     #endif
+}
+
+// MARK: - Helpers
+
+private extension View {
+    /// Applies `.titleAndIcon` when `showLabel` is true, `.iconOnly` otherwise.
+    @ViewBuilder
+    func labelStyle(showLabel: Bool) -> some View {
+        if showLabel { self.labelStyle(.titleAndIcon) }
+        else { self.labelStyle(.iconOnly) }
+    }
 }
 
 #Preview {

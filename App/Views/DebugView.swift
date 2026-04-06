@@ -71,6 +71,23 @@ struct DebugView: View {
             }
             .disabled(vm.debugLines.isEmpty)
 
+            // C indicator drop logger — prints one line per drop event to console
+            Button { vm.cIndicatorDebug.toggle() } label: {
+                HStack(spacing: 4) {
+                    Text("C-DBG")
+                    Circle()
+                        .fill(vm.cIndicatorDebug ? Color.orange : Color.gray.opacity(0.4))
+                        .frame(width: 8, height: 8)
+                }
+                .font(.caption.bold())
+                .foregroundStyle(.white)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Color(white: 0.25))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+            }
+            .buttonStyle(.plain)
+
             // DEBUG enable toggle — styled like the TRACE button
             Button { vm.toggleDebug() } label: {
                 HStack(spacing: 4) {

@@ -1,0 +1,241 @@
+# ram_test_full_fast.ti59 — Full RAM test for TI-59 with PC-100A printer output
+#
+# Tests all 100 data registers (R00–R99) using indirect store/recall via the
+# HIR (high/internal register) instruction to cycle through multiple test patterns.
+# Each pass fills every register with a pattern value, reads back, and prints
+# any mismatches on the PC-100A or PC-100C printer.
+#
+# Originally published in TI PPC Notes V9N5P3 by George Thomson.
+# Uses the STF fast-mode trick documented in TI PPC Notes V9N3P5.
+#
+# Usage:
+#   1. Press [A] — display flashes "10"
+#   2. Press [7] [EE] — fast mode starts; sit back and wait
+#   Requires PC-100A or PC-100C printer attached.
+#
+# Note: HIR (code 82) is an undocumented instruction. Enter it by keying
+#   [STO] [8] [2] in learn mode, then back-stepping and deleting the STO.
+#   ST* / SM* / RC* are the merged indirect-address forms of STO / SUM / RCL.
+#
+# If everythinbg checks out, the printer will output this:
+#      MEM. TEST
+#
+#          0.     (?)
+#
+# .1111111111     (?)
+#
+# .2222222222     (?)
+#
+# .3333333333     (?)
+#
+# .4444444444     (?)
+#
+# .5555555556     (?)
+#
+# .6666666667     (?)
+#
+# .7777777778     (?)
+#
+# .8888888889     (?)
+
+PARTITION: 159.99    # 160 steps (000–159), 100 data registers (R00–R99)
+
+PROGRAM:
+# ── Entry point — fast mode jumps over this to step 001 ──────────────────────
+000  91  R/S         # halts in normal run; fast mode execution begins at 001
+
+# ── Print title banner to PC-100A ────────────────────────────────────────────
+# Each digit after an Op-00/Op-02 call is a printer character code:
+#   code 01='0', 02='1', … 07='6', 10='7'; code 00 = space
+001  69  Op
+002  00   00         # clear print buffer
+003  03   3          # char '2'
+004  08   8          # char '7'
+005  01   1          # char '0'
+006  07   7          # char '6'
+007  03   3          # char '2'
+008  00   0          # space
+009  04   4          # char '3'
+010  00   0          # space
+011  69  Op
+012  02   02         # load print buffer positions 5–9
+013  03   3
+014  07   7
+015  01   1
+016  07   7
+017  03   3
+018  06   6
+019  03   3
+020  07   7
+021  69  Op
+022  03   03         # load print buffer positions 10–14
+023  69  Op
+024  05   05         # advance printer paper (Op 05 = ADV)
+
+# ── One-time initialization ───────────────────────────────────────────────────
+025  25  CLR         # zero the display (X = 0)
+026  82  HIR         # undocumented HIR instruction — stores 0 into internal
+027  07   07         #   register 7, which seeds the first test-pattern value
+
+# ── Main test loop (one pass per test pattern) ───────────────────────────────
+028  47  CMs         # clear all data registers R00–R99 to 0
+029  32  x:t         # swap X ↔ T (saves current pattern value in T)
+030  98  Adv         # advance printer paper one line
+031  09   9
+032  09   9
+033  42  STO
+034  00   00         # R00 = 99  (loop counter: tests registers 99 down to 0)
+035  05   5
+036  05   5
+037  07   7
+038  01   1
+039  05   5
+040  06   6          # display = 557156 (column-header label for this pass)
+041  69  Op
+042  04   04         # load right print buffer with 557156
+043  32  x:t         # swap: display = T (the test pattern value), T = 557156
+044  69  Op
+045  06   06         # print right buffer (column header) — Op 06 = PRT
+
+# ── Initialization loop: fill R99..R00 with test pattern ─────────────────────
+# On entry: X = test pattern value, R00 = current register index (99→0)
+046  72  ST*
+047  00   00         # store X into register[R00]  (STO [Ind] R00)
+048  94  +/-         # negate X
+049  74  SM*
+050  00   00         # add −X to register[R00] → net 0 in register[R00]
+                     #   (this init pass zeroes each register via indirect write)
+051  97  Dsz
+052  00   00         # decrement R00
+053  00   00         # address high byte (hundreds = 0)
+054  46   46         # address low byte  → jump to 046 if R00 ≠ 0
+
+# ── Verification loop: read back R99..R00, compare against expected value ─────
+055  25  CLR         # X = 0
+056  68  Nop
+057  09   9
+058  09   9
+059  42  STO
+060  00   00         # R00 = 99  (reset loop counter for read-back pass)
+
+# Loop top — also the DSZ jump-back target
+061  73  RC*
+062  00   00         # X = register[R00]  (RCL [Ind] R00)
+063  29  CP          # zero T register (expected value = 0 for this pass)
+064  67  x=t
+065  01   01         # if X = T (register holds correct value)…
+066  18   18         #   …jump to 118, skip error reporting
+
+# ── Error reporting: compute print-column position for failing register ────────
+# On entry: X = read-back value (wrong), T = expected value (0), R00 = bad register #
+067  32  x:t         # X = expected (0), T = actual (wrong value — for reference)
+068  43  RCL
+069  00   00         # X = R00 (failing register number)
+# Compute two-digit column position from register number:
+#   col = INT(R00/10) + 1 + INT(log(INT(R00/10)+1)) * 2
+070  55   ÷
+071  01   1
+072  00   0
+073  95   =          # X = R00 / 10
+074  59  Int         # X = INT(R00/10)  (tens digit of register number)
+075  85   +
+076  01   1
+077  85   +
+078  28  log
+079  59  Int
+080  65   ×
+081  02   2
+082  95   =          # column offset from tens digit
+083  65   ×
+084  01   1
+085  00   0
+086  00   0
+087  95   =          # × 100
+088  85   +
+089  53   (
+090  53   (
+091  53   (
+092  43  RCL
+093  00   00         # R00 again (units digit contribution)
+094  55   ÷
+095  01   1
+096  00   0
+097  54   )
+098  22  INV
+099  59  Int         # INV Int = fractional part (units digit / 10)
+100  65   ×
+101  01   1
+102  00   0
+103  54   )
+104  85   +
+105  01   1
+106  85   +
+107  28  log
+108  59  Int
+109  65   ×
+110  02   2
+111  54   )
+112  95   =          # final column position for error marker
+
+# ── Print error marker at computed column ─────────────────────────────────────
+113  69  Op
+114  04   04         # load right print buffer with column position
+115  32  x:t         # restore T
+116  69  Op
+117  06   06         # print error line (Op 06 = PRT)
+
+# ── Loop counter: test next register ──────────────────────────────────────────
+118  97  Dsz
+119  00   00         # decrement R00
+120  00   00         # address high byte (hundreds = 0)
+121  61   61         # address low byte  → jump to 061 if R00 ≠ 0
+
+# ── Update test pattern via HIR, check if all patterns done ───────────────────
+122  01   1
+123  82  HIR
+124  37   37         # HIR 37: recall current test value from internal register 7
+125  32  x:t         # save retrieved value in T
+126  82  HIR
+127  17   17         # HIR 17: store incremented value back to internal register 7
+128  55   ÷
+129  09   9
+130  95   =          # X = new_pattern / 9  (scaling for termination check)
+131  22  INV
+132  77  x≥t         # INV x≥t = "if X < T": if more patterns remain…
+133  00   00         # address high byte (hundreds = 0)
+134  28   28         #   …jump to 028 (main test loop) for next pattern
+
+# ── All test patterns done — restore printer format and reset ─────────────────
+135  06   6
+136  69  Op
+137  17   17         # Op 17 with 6: restore printer column format
+138  25  CLR
+139  81  RST         # reset program pointer to 000
+
+# ── NOP padding (aligns LBL A to a clean boundary) ────────────────────────────
+140  68  Nop
+141  68  Nop
+142  68  Nop
+143  68  Nop
+144  68  Nop
+145  68  Nop
+
+# ══ Fast-mode initialization — press [A] from keyboard to start ══════════════
+146  76  LBL
+147  11    A
+148  22  INV
+149  58  Fix
+150  01   1          # INV Fix 1: set scientific-notation display
+                     #   (so the "10" produced below renders as a clean "10")
+151  00   0
+152  69  Op
+153  17   17         # Op 17 with 0: initialize printer column format
+154  93   .
+155  01   1          # enter 0.1
+156  34  √x          # √0.1 ≈ 0.316227766…  (introduces guard-digit rounding)
+157  33  x²          # (√0.1)² ≈ 0.10000000000000002  (not exactly 0.1)
+158  35  1/x         # 1 / 0.10000000000000002 ≈ 9.999999999999998 ≈ "10"
+                     #   displayed as "1.0 01" in sci mode → looks like "10"
+159  86  StF         # STF at last step of partition triggers fast mode:
+                     #   display flashes; press [7][EE] to begin fast-mode
+                     #   execution at step 001

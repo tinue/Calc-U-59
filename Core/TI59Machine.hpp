@@ -63,6 +63,8 @@ public:
     void pressPrinterPrint(bool pressed);
     void pressPrinterAdv(bool pressed);
     void setPrinterTrace(bool enabled);
+    void setPrinterConnected(bool connected);
+    bool isPrinterConnected() const { return m_printerConnected; }
 
     // ── Trace / debug API ─────────────────────────────────────────────────────
     void     setTraceFlags(uint32_t flags);
@@ -115,6 +117,7 @@ private:
     RAM            m_ram;
     TMC0501        m_cpu;
     mutable std::mutex m_keyMutex;
+    bool           m_printerConnected = true;
 
     int cardSwitchCol() const; // Digit-counter column for the card-switch key.
 };

@@ -97,6 +97,10 @@ The file [`prompt/ti59-agent-prompt.md`](prompt/ti59-agent-prompt.md) is a syste
 
 ## Releases
 
+### 0.2.0 (Unreleased)
+
+<!-- Add 0.2.0 release notes here -->
+
 ### 0.1.0 (2026-03-28)
 
 Initial release. Core TMC0501 emulation, debugger, printer functional simulation, and `.ti59` state file support.

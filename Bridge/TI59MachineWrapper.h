@@ -8,7 +8,8 @@ typedef struct {
     uint8_t digits[12];      ///< A[2..13] BCD digit values
     uint8_t ctrl[12];        ///< B[2..13] display control nibbles
     uint8_t dpPos;           ///< R5 — decimal-point position index
-    bool    calcIndicator;   ///< fA bit 14 — "C" annunciator
+    float   calcIndicator;   ///< fraction of last poll interval where C LED was driven (0.0–1.0)
+                             ///<   RUN mode: any fA≠0; IDLE mode: fA bit 14 only (SH pin)
 } TIDisplaySnapshot;
 
 // ── Trace / debug types ───────────────────────────────────────────────────────
@@ -112,6 +113,11 @@ typedef struct {
 
 /// Enable or disable TRACE mode on the printer.
 - (void)setPrinterTrace:(BOOL)enabled;
+
+/// Attach or detach the printer.  When detached the ROM's printer-present
+/// sense (KP.D0) reads low, so the ROM will not attempt to print.
+- (void)setPrinterConnected:(BOOL)connected;
+@property (nonatomic, readonly) BOOL isPrinterConnected;
 
 // ── Trace / debug API ─────────────────────────────────────────────────────────
 

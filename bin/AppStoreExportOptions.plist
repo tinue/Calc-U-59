@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- App Store Connect: distribute through the App Store. -->
+    <key>method</key>
+    <string>app-store-connect</string>
+    <key>teamID</key>
+    <string>7Q3QN9AV9J</string>
+    <!-- signingStyle=automatic lets Xcode resolve the App Store distribution
+         provisioning profile automatically, including downloading it if not
+         locally installed. Requires -allowProvisioningUpdates at the
+         xcodebuild call site. -->
+    <key>signingStyle</key>
+    <string>automatic</string>
+    <!-- Upload symbols so crash reports are symbolicated in App Store Connect Organizer. -->
+    <key>uploadSymbols</key>
+    <true/>
+    <!-- Do not let xcodebuild overwrite the version numbers; project.pbxproj owns them. -->
+    <key>manageAppVersionAndBuildNumber</key>
+    <false/>
+</dict>
+</plist>

@@ -1,0 +1,47 @@
+# firmware.ti59 Keystrokes to enable firmware listing
+#
+# In early 1980 a personal letter from Maurice Swinnen, the editor of TI PPC Notes, explained that the TI-59 firmware could be
+# observed by performing the following unusual keyboard sequence while disregarding the flashing displays:
+# Step              Display
+# Turnon            0
+# 2nd-0p-09         Flashing 0.
+# 2nd-Pgm-24        Flashing 0.
+# R/S               Flashing 0
+# R/S               Flashing 1
+# R/S               Flashing 00
+# 9-2nd-Op-17       Flashing 239.89
+# GTO-0             Flashing 239.89
+# R/S               Flashing 0. 00
+# 2nd-DMS           Flashing 0
+# LRN               000 82
+#
+# The emulator differs from the real hardware: After the 2nd R/S, it still blinks zero. So far it's unclear why this is happening.
+
+# These are the above keystrokes
+KEYSTROKES:
+21  2nd
+64  9
+64  9
+21  2nd
+31  LRN
+83  2
+72  4
+91  R/S
+Wait: 5s
+91  R/S
+Wait: 5s
+91  R/S
+Wait: 5s
+64  9
+21  2nd
+64  9
+82  1
+62  7
+61  GTO
+92  0
+91  R/S
+Wait: 1s
+21  2nd
+83  2
+Wait: 2s
+31 LRN
