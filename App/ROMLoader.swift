@@ -30,9 +30,11 @@ struct ROMLoader {
         return Data(bytes)
     }
 
-    /// Load rom-59.hex from the app bundle and return a [UInt16] array of 13-bit words.
+    /// Load the appropriate ROM file from the app bundle and return a [UInt16] array of 13-bit words.
+    /// TI-58C uses rom-58C.hex; TI-59 and TI-58 use rom-59.hex.
     static func load(model: MachineModel) throws -> [UInt16] {
-        guard let url = Bundle.main.url(forResource: "rom-59", withExtension: "hex") else {
+        let romName = model == .ti58c ? "rom-58C" : "rom-59"
+        guard let url = Bundle.main.url(forResource: romName, withExtension: "hex") else {
             throw ROMLoaderError.fileNotFound
         }
         let text = try String(contentsOf: url, encoding: .utf8)

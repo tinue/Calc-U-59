@@ -9,12 +9,14 @@
 /* Begin PBXBuildFile section */
 		8C7285732F69626400D5F025 /* roms/rom-59.hex in Resources */ = {isa = PBXBuildFile; fileRef = 8C7285722F69626400D5F025 /* roms/rom-59.hex */; };
 		8C7285742F69626400D5F025 /* roms/MasterLibrary.hex in Resources */ = {isa = PBXBuildFile; fileRef = 8C7285752F69626400D5F025 /* roms/MasterLibrary.hex */; };
+		8C7285762F69626400D5F025 /* roms/rom-58C.hex in Resources */ = {isa = PBXBuildFile; fileRef = 8C7285772F69626400D5F025 /* roms/rom-58C.hex */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		8C7285592F69626400D5F025 /* Calc-U-59.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Calc-U-59.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		8C7285722F69626400D5F025 /* roms/rom-59.hex */ = {isa = PBXFileReference; lastKnownFileType = text; path = "roms/rom-59.hex"; sourceTree = "<group>"; };
 		8C7285752F69626400D5F025 /* roms/MasterLibrary.hex */ = {isa = PBXFileReference; lastKnownFileType = text; path = roms/MasterLibrary.hex; sourceTree = "<group>"; };
+		8C7285772F69626400D5F025 /* roms/rom-58C.hex */ = {isa = PBXFileReference; lastKnownFileType = text; path = "roms/rom-58C.hex"; sourceTree = "<group>"; };
 		8CC614992F6C2E370041355E /* Calc-U-59.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Calc-U-59.entitlements"; sourceTree = "<group>"; };
 		8CF668232F7ED56C006116D2 /* Calc-U-59-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "Calc-U-59-Info.plist"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -58,6 +60,7 @@
 				8C7285712F69626400D5F025 /* Bridge */,
 				8C7285722F69626400D5F025 /* roms/rom-59.hex */,
 				8C7285752F69626400D5F025 /* roms/MasterLibrary.hex */,
+				8C7285772F69626400D5F025 /* roms/rom-58C.hex */,
 				8C72855A2F69626400D5F025 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -138,6 +141,7 @@
 			files = (
 				8C7285732F69626400D5F025 /* roms/rom-59.hex in Resources */,
 				8C7285742F69626400D5F025 /* roms/MasterLibrary.hex in Resources */,
+				8C7285762F69626400D5F025 /* roms/rom-58C.hex in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -277,7 +281,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "Calc-U-59.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = 7Q3QN9AV9J;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -338,7 +342,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "Calc-U-59.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_TEAM = 7Q3QN9AV9J;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
