@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.3.0] - TBD
+
+[Placeholder for upcoming release]
+
 ## [0.2.0] - 2026-04-06
 
 **Emulation:** TI-58C accurate ROM support, 2nd Op 40 works now. 'C' indicator now uses hardware-accurate SH-pin duty-cycle emulation with proper latch behavior and realistic afterglow. Printer mechanical busy timing matches real PC-100C hardware behavior.
