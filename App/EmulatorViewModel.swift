@@ -555,13 +555,26 @@ class EmulatorViewModel {
         }
         if cpuDebugEnabled, let m = machine {
             cpuDebugSnapshot = buildCPUDebugSnapshot(machine: m)
-            // Build inspector history from current trace (last 32 instructions)
-            let instructionsToShow = min(32, cpuTraceWindow.count)
+            // Build inspector history by draining fresh trace with snapshots (last 32 instructions)
+            var snapshotArray: NSArray?
+            let eventsNS = m.drainTraceEvents(max: 64, snapshots: &snapshotArray)
+            let events = (eventsNS as? [NSValue] ?? []).map { v -> TITraceEvent in
+                var e = TITraceEvent()
+                v.getValue(&e)
+                return e
+            }
+            let snapshots = (snapshotArray as? [NSValue] ?? []).map { v -> TICPUSnapshot in
+                var snap = TICPUSnapshot()
+                v.getValue(&snap)
+                return snap
+            }
+
+            let instructionsToShow = min(32, events.count, snapshots.count)
             cpuInspectorHistory = []
-            for i in (cpuTraceWindow.count - instructionsToShow)..<cpuTraceWindow.count {
-                let event = cpuTraceWindow[i]
-                let snapshotIndex = Int(event.snapshotIndex)
-                let cpu = (snapshotIndex < cpuTraceSnapshots.count) ? cpuTraceSnapshots[snapshotIndex] : TICPUSnapshot()
+            for i in (events.count - instructionsToShow)..<events.count {
+                let snapshotIdx = i - (events.count - snapshots.count)
+                let event = events[i]
+                let cpu = (snapshotIdx >= 0 && snapshotIdx < snapshots.count) ? snapshots[snapshotIdx] : TICPUSnapshot()
                 let disasm = TI59MachineWrapper.disassemblePC(event.pc, opcode: event.opcode)
                 cpuInspectorHistory.append(InspectorSnapshot(
                     pc: event.pc,

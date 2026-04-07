@@ -5,6 +5,7 @@ import SwiftUI
 struct CPUInspectorView: View {
     @Environment(EmulatorViewModel.self) var vm
     @State private var selectedIndex: Int? = nil
+    @FocusState private var isFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
@@ -30,12 +31,42 @@ struct CPUInspectorView: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
             .background(Color(white: 0.15))
+            .focusable()
+            .focused($isFocused)
+            .onAppear {
+                isFocused = true
+            }
+            .onKeyPress(.upArrow) {
+                guard !vm.cpuInspectorHistory.isEmpty else { return .ignored }
+                if let idx = selectedIndex {
+                    if idx > 0 {
+                        selectedIndex = idx - 1
+                    }
+                } else {
+                    selectedIndex = vm.cpuInspectorHistory.count - 1
+                }
+                return .handled
+            }
+            .onKeyPress(.downArrow) {
+                guard !vm.cpuInspectorHistory.isEmpty else { return .ignored }
+                if let idx = selectedIndex {
+                    if idx < vm.cpuInspectorHistory.count - 1 {
+                        selectedIndex = idx + 1
+                    } else {
+                        selectedIndex = nil
+                    }
+                }
+                return .handled
+            }
 
             // Instructions list with scrollbar
             ScrollView {
                 ScrollViewReader { proxy in
                     VStack(alignment: .leading, spacing: 0) {
                         ForEach(Array(vm.cpuInspectorHistory.enumerated()), id: \.offset) { offset, snapshot in
+                            let isCurrentPC = (snapshot.pc == vm.cpuDebugSnapshot.currentPC)
+                            let isSelected = (selectedIndex == offset)
+
                             HStack(spacing: 8) {
                                 Text(String(format: "0x%04X", snapshot.pc))
                                     .font(.system(size: 11, design: .monospaced))
@@ -56,10 +87,10 @@ struct CPUInspectorView: View {
                             }
                             .padding(.horizontal, 6)
                             .padding(.vertical, 3)
-                            .background(selectedIndex == offset ? Color(white: 0.20) : Color.clear)
+                            .background(isCurrentPC ? Color.green.opacity(0.25) : (isSelected ? Color(white: 0.20) : Color.clear))
                             .contentShape(Rectangle())
                             .onTapGesture {
-                                selectedIndex = (selectedIndex == offset ? nil : offset)
+                                selectedIndex = (isSelected ? nil : offset)
                             }
                             .id(offset)
                         }
