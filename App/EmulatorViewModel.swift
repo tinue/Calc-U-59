@@ -186,15 +186,18 @@ class EmulatorViewModel {
             ejectCard()
         }
 
-        if let lines = machine.drainPrinterLines() as? [String], !lines.isEmpty {
+        let lines = machine.drainPrinterLines()
+        if !lines.isEmpty {
             printerLines.append(contentsOf: lines)
         }
-        if let codes = machine.drainPrinterCodeLines() as? [Data], !codes.isEmpty {
+        let codes = machine.drainPrinterCodeLines()
+        if !codes.isEmpty {
             printerCodeLines.append(contentsOf: codes)
         }
 
         // Drain trace events (60 Hz, same cadence as display refresh).
-        if traceEnabled, let evs = machine.drainTraceEvents(max: 512) as? [NSValue] {
+        if traceEnabled {
+            let evs = machine.drainTraceEvents(max: 512)
             let newEvents = evs.map { v -> TITraceEvent in
                 var e = TITraceEvent()
                 v.getValue(&e)
@@ -548,7 +551,7 @@ class EmulatorViewModel {
         }
 
         // CPU snapshot (single ~370-byte memcpy)
-        var cpu = m.snapshotCPU()
+        let cpu = m.snapshotCPU()
 
         // HIR registers 1–8 (stored in SCOM[1..8]; decode as Double)
         // Each HIR is 16 BCD nibbles: bits 15–3 = mantissa, 2–1 = exponent, 0 = sign
@@ -593,7 +596,6 @@ class EmulatorViewModel {
 
         // Pending operations count (SCOM[13], bit 1 area; exact position TBD)
         withUnsafeBytes(of: cpu.SCOM) { bytes in
-            let scom13 = bytes[13 * 16..<(14 * 16)]
             // Per SCOM map: "No. of pending ops" is in SCOM[13]
             // Assuming it's in nibble 0 or bits within the row
             snap.pendingOpsCount = Int(bytes[13 * 16 + 0])  // TBD: exact bit position
@@ -829,7 +831,7 @@ class EmulatorViewModel {
         // (master-clear, display init) completes in well under 100k steps.
         // Skipping this would leave SCOM in an uninitialised state that confuses
         // the AOS stack and display driver when we write program/data below.
-        emulQueue.sync { m.stepN(300_000) }
+        _ = emulQueue.sync { m.stepN(300_000) }
 
         // Set partition directly in SCOM (SCOM[9][0] and SCOM[13][8..9]).
         // For TI-58, programRegs is capped at 60; the rounding above ensures this.
@@ -879,8 +881,8 @@ class EmulatorViewModel {
 
     private func drainTraceEvents(machine m: TI59MachineWrapper) {
         var snapsOut: NSArray? = nil
-        guard let eventsNS = m.drainTraceEvents(max: 2000, snapshots: &snapsOut) as? [NSValue],
-              !eventsNS.isEmpty else { return }
+        let eventsNS = m.drainTraceEvents(max: 2000, snapshots: &snapsOut)
+        guard !eventsNS.isEmpty else { return }
         let snapsNS = (snapsOut as? [NSValue]) ?? []
 
         for (i, ev) in eventsNS.enumerated() {
