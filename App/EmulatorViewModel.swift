@@ -593,21 +593,11 @@ class EmulatorViewModel {
                 ))
             }
 
-            // If last event is different from currentPC, add currentPC as a future instruction
-            if events.last?.pc != currentPC {
-                cpuInspectorHistory.append(InspectorSnapshot(
-                    pc: currentPC,
-                    opcode: 0x0000,
-                    disasm: "???",
-                    cpuState: TICPUSnapshot(),
-                    isHistory: false,
-                    isCurrent: false
-                ))
-            }
-
-            // Add next 3 speculative instructions (ROM ahead, unknown opcodes)
-            for offset in 1...3 {
-                let nextPC = currentPC &+ UInt16(offset)
+            // Add next 5 speculative instructions (ROM ahead, unknown opcodes)
+            // Start from currentPC if it's different from last executed, otherwise from lastPC+1
+            let startPC = (events.last?.pc != currentPC) ? currentPC : (events.last?.pc ?? 0) &+ 1
+            for offset in 0..<5 {
+                let nextPC = startPC &+ UInt16(offset)
                 cpuInspectorHistory.append(InspectorSnapshot(
                     pc: nextPC,
                     opcode: 0x0000,
