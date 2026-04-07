@@ -28,6 +28,30 @@ struct CPUDebugView: View {
         .onDisappear {
             vm.cpuDebugEnabled = false
         }
+        .onKeyPress(.upArrow) {
+            // Navigate up through instruction history
+            guard vm.isFrozen else { return .ignored }
+            if selectedInstructionIndex == nil {
+                // Start from the most recent (bottom)
+                selectedInstructionIndex = vm.cpuDebugSnapshot.recentInstructions.count - 1
+            } else if let idx = selectedInstructionIndex, idx > 0 {
+                selectedInstructionIndex = idx - 1
+            }
+            return .handled
+        }
+        .onKeyPress(.downArrow) {
+            // Navigate down through instruction history
+            guard vm.isFrozen else { return .ignored }
+            if let idx = selectedInstructionIndex {
+                if idx < vm.cpuDebugSnapshot.recentInstructions.count - 1 {
+                    selectedInstructionIndex = idx + 1
+                } else {
+                    // Clear selection to show current
+                    selectedInstructionIndex = nil
+                }
+            }
+            return .handled
+        }
     }
 
     // MARK: - Control Bar

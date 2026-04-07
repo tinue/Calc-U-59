@@ -520,7 +520,7 @@ class EmulatorViewModel {
     }
 
     func singleStep() {
-        guard isPausedOnBreakpoint else { return }
+        guard isFrozen else { return }
         guard let m = machine else { return }
         emulQueue.async { [weak self, m] in
             guard let self else { return }
@@ -543,6 +543,9 @@ class EmulatorViewModel {
         // Capture one fresh snapshot so the panel reflects the exact freeze state
         if liveDebugEnabled, let m = machine {
             liveDebugSnapshot = buildLiveSnapshot(machine: m)
+        }
+        if cpuDebugEnabled, let m = machine {
+            cpuDebugSnapshot = buildCPUDebugSnapshot(machine: m)
         }
     }
 
