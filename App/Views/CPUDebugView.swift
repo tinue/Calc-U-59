@@ -22,6 +22,7 @@ struct CPUDebugView: View {
             }
         }
         .background(Color(white: 0.10))
+        .focusable()  // Enable keyboard input on macOS
         .onAppear {
             vm.cpuDebugEnabled = true
         }
