@@ -87,6 +87,9 @@ enum : uint16_t {
 
 class TMC0501 {
 public:
+    // Field mask descriptor (moved here for use in member variables)
+    struct MaskInfo { uint8_t start, end, cpos, cval; };
+
     explicit TMC0501(ROM& rom, RAM& ram);
 
     void reset();
@@ -239,6 +242,7 @@ private:
     uint8_t  REG_ADDR{};  // SCOM register address latched by STO/RCL instructions.
     uint8_t  RAM_ADDR{};  // User-RAM register address decoded from Sout (Sout[3]*10 + Sout[2]).
     uint8_t  RAM_OP{};    // RAM operation code from Sout[0] (0=read, 1=write, 2=clear, 4=clear×10).
+    MaskInfo RAM_MASK{0xFF, 0, 0, 0};  // Field mask for current RAM read/write operation.
 
     // ── Library module state ──────────────────────────────────────────
     uint16_t m_libAddr{};       // Current read position within the loaded library image.
@@ -310,15 +314,20 @@ private:
     void tracePreStep(uint32_t tf, uint16_t opcode, bool& snapCaptured);
     void tracePostStep(uint32_t tf, bool snapCaptured, int weight);
 
+    // ── Helper methods for masked RAM operations ──────────────────────
+    // Read only the nibbles specified by the field mask from RAM
+    void readRegMasked(uint8_t* dst, int addr, const MaskInfo& m);
+    // Write only the nibbles specified by the field mask to RAM
+    void writeRegMasked(int addr, const uint8_t* src, const MaskInfo& m);
+
     // ── ALU support tables ────────────────────────────────────────────
 
-    // Field mask descriptor.  Each ALU instruction carries a 4-bit field-mask
+    // Field mask descriptor table.  Each ALU instruction carries a 4-bit field-mask
     // index that selects a contiguous range of digits to operate on.
     // start/end: first and last digit index updated in the destination register.
     // cpos/cval: digit position and value of an implicit BCD constant injected
     //            into every operation (e.g. "#1" in "ADD C.DPT, C, #1").
     //            start=0xFF marks an invalid/unused mask entry.
-    struct MaskInfo { uint8_t start, end, cpos, cval; };
     static const MaskInfo mask_info[16];
 
     // 64 × 16-digit BCD constant table, stored in the SCOM chip (TMC0571).

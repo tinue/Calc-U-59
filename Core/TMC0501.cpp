@@ -237,6 +237,34 @@ void TMC0501::loadLibrary(const uint8_t* data, size_t count) {
     memcpy(m_libData, data, count);
 }
 
+// ── Masked RAM read/write helpers ──────────────────────────────────────────────
+
+void TMC0501::readRegMasked(uint8_t* dst, int addr, const MaskInfo& m) {
+    // Read only the nibbles in the masked range from RAM, zero out others
+    auto src = ram.readReg(addr);
+    memset(dst, 0, 16);
+    if (src && m.start != 0xFF) {
+        for (int i = (int)m.start; i <= (int)m.end && i < 16; i++) {
+            dst[i] = src[i];
+        }
+    }
+}
+
+void TMC0501::writeRegMasked(int addr, const uint8_t* src, const MaskInfo& m) {
+    // Write only the nibbles in the masked range to RAM, preserve others
+    if (m.start != 0xFF && addr < ram.size()) {
+        auto current = ram.readReg(addr);
+        if (current) {
+            uint8_t temp[16];
+            memcpy(temp, current, 16);
+            for (int i = (int)m.start; i <= (int)m.end && i < 16; i++) {
+                temp[i] = src[i];
+            }
+            ram.writeReg(addr, temp);
+        }
+    }
+}
+
 // ── Key matrix ────────────────────────────────────────────────────────────────
 
 void TMC0501::pressKey(int row, int col) {
@@ -948,9 +976,12 @@ void TMC0501::execALU(uint16_t opcode) {
             flags &= ~FLG_RECALL;
             alu(dst, nullptr, SCOM[REG_ADDR], m, ALU_ADD);
         } else if ((flags & FLG_RAM_READ) && RAM_ADDR < ram.size()) {
-            // RAM read: deliver RAM[RAM_ADDR] as srcY (set up by preceding RAM_OP)
+            // RAM read: deliver RAM[RAM_ADDR] as srcY (set up by preceding MEMRD)
+            // Only read the nibbles specified by the field mask
             flags &= ~FLG_RAM_READ;
-            alu(dst, nullptr, ram.readReg(RAM_ADDR), m, ALU_ADD);
+            uint8_t masked[16]{};
+            readRegMasked(masked, RAM_ADDR, m);
+            alu(dst, nullptr, masked, m, ALU_ADD);
         } else {
             alu(dst, nullptr, nullptr, m, ALU_ADD);  // plain zero-load
         }
@@ -982,6 +1013,13 @@ void TMC0501::execALU(uint16_t opcode) {
     case 7: xch(A, E, m); break;
     }
 
+    // ── Capture field mask for deferred RAM operations ────────────────
+    // When an ALU instruction executes after MEMWR/MEMRD, capture its
+    // field mask for use when the deferred write/read actually completes.
+    if ((flags & FLG_RAM_WRITE) || (flags & FLG_RAM_READ)) {
+        RAM_MASK = m;
+    }
+
     // ── Deferred memory write-back ────────────────────────────────────
     // SCOM store: write Sout (the IO bus) into the SCOM register selected
     // by the preceding STO instruction.
@@ -1005,8 +1043,10 @@ void TMC0501::execALU(uint16_t opcode) {
         }
     } else if (flags & FLG_RAM_WRITE) {
         flags &= ~FLG_RAM_WRITE;
-        if (RAM_ADDR < ram.size())
-            ram.writeReg(RAM_ADDR, Sout);
+        if (RAM_ADDR < ram.size()) {
+            // Write only the nibbles specified by the captured field mask
+            writeRegMasked(RAM_ADDR, Sout, RAM_MASK);
+        }
     }
 
     // Keep Sout zeroed between cycles unless FLG_IO_VALID is still active
