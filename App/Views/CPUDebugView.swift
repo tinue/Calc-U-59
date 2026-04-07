@@ -238,7 +238,7 @@ struct CPUDebugView: View {
                 .frame(width: 40, alignment: .leading)
 
             HStack(spacing: 2) {
-                ForEach(array, id: \.self) { n in
+                ForEach(Array(array.enumerated()), id: \.offset) { offset, n in
                     Text(String(format: "%X", n))
                         .font(.system(size: 10, design: .monospaced))
                         .foregroundStyle(.white.opacity(0.85))
@@ -304,7 +304,7 @@ struct CPUDebugView: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 ForEach(0..<16, id: \.self) { row in
-                    let nibbles = withUnsafeBytes(of: cpu.SCOM.0) { bytes -> [UInt8] in
+                    let nibbles = withUnsafeBytes(of: cpu.SCOM) { bytes -> [UInt8] in
                         var arr: [UInt8] = []
                         for col in 0..<16 {
                             arr.append(bytes[row * 16 + col])
@@ -319,7 +319,7 @@ struct CPUDebugView: View {
                             .frame(width: 30, alignment: .leading)
 
                         HStack(spacing: 0) {
-                            ForEach(nibbles, id: \.self) { n in
+                            ForEach(Array(nibbles.enumerated()), id: \.offset) { col, n in
                                 Text(String(format: "%X", n))
                                     .font(.system(size: 9, design: .monospaced))
                                     .foregroundStyle(.white.opacity(0.85))
