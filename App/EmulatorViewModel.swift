@@ -1,6 +1,13 @@
 import Foundation
 import SwiftUI
 
+enum FreezeReason {
+    case manual
+    case breakpointPC(Int)     // future: breakpoint on program step
+    case keycode(UInt8)        // future: freeze when specific keycode executes next
+    case variable(Int, Double) // future: freeze when register matches value
+}
+
 @Observable
 class EmulatorViewModel {
     var displayDigits: [UInt8]  = Array(repeating: 0, count: 12)
@@ -48,6 +55,8 @@ class EmulatorViewModel {
     // ── Live debug panel state (60 Hz real-time) ──────────────────────────────
     var liveDebugEnabled: Bool = false
     var liveDebugSnapshot: LiveDebugSnapshot = .empty
+    var freezeReason: FreezeReason? = nil
+    var isFrozen: Bool { freezeReason != nil }
 
     // ── Trace / debug state ──────────────────────────────────────────────────
     var traceEnabled: Bool = false
@@ -235,8 +244,8 @@ class EmulatorViewModel {
         //   • target = 0, first zero frame → hold (aliasing artefact; see below)
         //   • target = 0, frame 2+         → rapid decay (genuine dark phase)
         //   • 0 < target < current → proportional-alpha fall
-        // Live debug snapshot — sampled at 60 Hz when the panel is open.
-        if liveDebugEnabled {
+        // Live debug snapshot — sampled at 60 Hz when the panel is open (unless frozen).
+        if liveDebugEnabled && !isFrozen {
             let s = buildLiveSnapshot(machine: machine)
             if s != liveDebugSnapshot { liveDebugSnapshot = s }
         }
@@ -502,6 +511,20 @@ class EmulatorViewModel {
     private func onBreakpointHit(pc: UInt16) {
         isPausedOnBreakpoint = true
         breakpointPC = pc
+    }
+
+    func freeze(reason: FreezeReason = .manual) {
+        isRunning = false
+        freezeReason = reason
+        // Capture one fresh snapshot so the panel reflects the exact freeze state
+        if liveDebugEnabled, let m = machine {
+            liveDebugSnapshot = buildLiveSnapshot(machine: m)
+        }
+    }
+
+    func unfreeze() {
+        freezeReason = nil
+        startEmulationLoop()
     }
 
     // MARK: - Calculator-level snapshot

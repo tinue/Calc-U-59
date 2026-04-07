@@ -31,6 +31,11 @@ struct LiveDebugView: View {
                 .font(.caption.bold())
                 .foregroundStyle(.white.opacity(0.6))
             Spacer()
+            Button(vm.isFrozen ? "RESUME" : "FREEZE") {
+                vm.isFrozen ? vm.unfreeze() : vm.freeze()
+            }
+            .font(.system(size: 9, weight: .bold, design: .monospaced))
+            .foregroundStyle(vm.isFrozen ? Color.orange : Color(white: 0.6))
             Circle()
                 .fill(vm.liveDebugEnabled ? Color.green : Color.gray.opacity(0.4))
                 .frame(width: 8, height: 8)
