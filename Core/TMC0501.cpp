@@ -619,9 +619,28 @@ int TMC0501::step() {
             if (KR & (1u << ((opcode >> 4) & 0x000Fu))) flags &= ~FLG_COND;
             break;
 
-        case 0x6:  // MOV R5,fA[1..4] or fB[1..4] — copy flag bits into R5
-            R5 = (uint8_t)(((opcode & 0x0010u) ? fB : fA) >> 1) & 0x0Fu;
+        case 0x6: {
+            // TI-58C uses 0xA76 (MEMWR) and 0xA86 (MEMRD); reserve bits 7:4 = 0x7/0x8
+            // TI-59/58 use these bits for MOV R5 operand selection (bit 4 = fA/fB choice)
+            uint8_t bits_7_4 = (uint8_t)((opcode >> 4) & 0x000Fu);
+            if (m_variant == MachineVariant::TI58C && bits_7_4 == 0x7) {
+                // MEMWR — write Sout to RAM[RAM_ADDR] (set up by preceding ALU opcode)
+                // Address is encoded in Sout[1] (tens) and Sout[0] (units) as 2-digit BCD
+                RAM_ADDR = (uint8_t)(Sout[1] * 10u + Sout[0]);
+                if (RAM_ADDR < ram.size())
+                    flags |= FLG_RAM_WRITE;
+            } else if (m_variant == MachineVariant::TI58C && bits_7_4 == 0x8) {
+                // MEMRD — read RAM[RAM_ADDR] into next MOV #0 as srcY (set up by preceding ALU opcode)
+                // Address is encoded in Sout[1] (tens) and Sout[0] (units) as 2-digit BCD
+                RAM_ADDR = (uint8_t)(Sout[1] * 10u + Sout[0]);
+                if (RAM_ADDR < ram.size())
+                    flags |= FLG_RAM_READ;
+            } else {
+                // MOV R5,fA[1..4] or fB[1..4] — copy flag bits into R5
+                R5 = (uint8_t)(((opcode & 0x0010u) ? fB : fA) >> 1) & 0x0Fu;
+            }
             break;
+        }
 
         case 0x7:  // MOV R5,#n — load 4-bit immediate into R5
             R5 = (uint8_t)((opcode >> 4) & 0x000Fu);
@@ -1323,7 +1342,14 @@ std::string TMC0501::disassemble(uint16_t pc, uint16_t opcode) {
         case 0x3: return "WAIT_BUSY";
         case 0x4: return "INC KR";
         case 0x5: snprintf(buf, sizeof(buf), "TST KR[%u]", arg); return buf;
-        case 0x6: snprintf(buf, sizeof(buf), "MOV R5,%s[1..4]", (opcode & 0x10) ? "fB" : "fA"); return buf;
+        case 0x6: {
+            // TI-58C uses 0xA76 (MEMWR, bits 7:4=0x7) and 0xA86 (MEMRD, bits 7:4=0x8)
+            // Reserve these patterns; TI-59/58 use them for MOV R5 with different arg meanings
+            if (arg == 0x7) return "MEMWR";
+            if (arg == 0x8) return "MEMRD";
+            snprintf(buf, sizeof(buf), "MOV R5,%s[1..4]", (opcode & 0x10) ? "fB" : "fA");
+            return buf;
+        }
         case 0x7: snprintf(buf, sizeof(buf), "MOV R5,#%u", arg); return buf;
         case 0x8: {
             // Peripheral I/O — sub-decoded by opcode bits 7:4

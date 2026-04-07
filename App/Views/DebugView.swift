@@ -96,6 +96,8 @@ private struct StaticDebugContent: View {
 
             Button("Prog") { vm.debugDumpProg() }
 
+            Button("Memory") { vm.debugDumpMemory() }
+
             Spacer()
 
             // Clear button

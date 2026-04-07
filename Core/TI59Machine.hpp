@@ -2,11 +2,10 @@
 #include "ROM.hpp"
 #include "RAM.hpp"
 #include "TMC0501.hpp"
+#include "MachineVariant.hpp"
 #include <cstdint>
 #include <mutex>
 #include <vector>
-
-enum class MachineVariant { TI59, TI58, TI58C };
 
 class TI59Machine {
 public:

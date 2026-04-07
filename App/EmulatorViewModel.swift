@@ -573,15 +573,16 @@ class EmulatorViewModel {
     /// Called from tick() at 60 Hz only when liveDebugEnabled.
     private func buildLiveSnapshot(machine m: TI59MachineWrapper) -> LiveDebugSnapshot {
         let programRegs = Int(m.partitionProgramRegs)
-        // For TI-58: total 60 registers, for TI-59: total 120 registers
-        let dataRegCount = max(0, (model == .ti58 ? 60 : 120) - programRegs)
+        // For TI-58/58C: total 60 registers, for TI-59: total 120 registers
+        let isTI58Family = (model == .ti58 || model == .ti58c)
+        let dataRegCount = max(0, (isTI58Family ? 60 : 120) - programRegs)
         var snap = LiveDebugSnapshot()
         snap.programRegCount = programRegs
         snap.dataRegCount = dataRegCount
 
         // Data registers (use optimized batch scan from bridge)
-        // For TI-58, register indices are offset by 60 (memory starts at index 60)
-        let registerOffset = (model == .ti58) ? 60 : 0
+        // For TI-58/58C, register indices are offset by 60 (memory starts at index 60)
+        let registerOffset = isTI58Family ? 60 : 0
         let nonZeroIdx = m.nonZeroDataRegisterIndices()
         nonZeroIdx.forEach { regNum in
             let regIdx = Int(regNum)
@@ -776,9 +777,10 @@ class EmulatorViewModel {
     func debugDumpVars() {
         guard let m = machine else { return }
         let programRegs = Int(m.partitionProgramRegs)
-        // For TI-58: total 60 registers, so data count is (60 - programRegs)
+        // For TI-58/58C: total 60 registers, so data count is (60 - programRegs)
         // For TI-59: total 120 registers, so data count is (120 - programRegs)
-        let dataRegCount = (model == .ti58) ? (60 - programRegs) : (120 - programRegs)
+        let isTI58Family = (model == .ti58 || model == .ti58c)
+        let dataRegCount = isTI58Family ? (60 - programRegs) : (120 - programRegs)
         let maxRegNum = dataRegCount - 1
         guard maxRegNum >= 0 else {
             debugLines.append("── Vars: no data registers in current partition ──")
@@ -786,9 +788,9 @@ class EmulatorViewModel {
         }
         var lines: [String] = [String(format: "── Vars R00–R%02d ──", maxRegNum)]
         for regNum in 0...maxRegNum {
-            // For TI-58: data registers start at end of 60-register memory (index 59)
+            // For TI-58/58C: data registers start at end of 60-register memory (index 59)
             // For TI-59: data registers start at end of 120-register memory (index 119)
-            let maxIndex = (model == .ti58) ? 59 : 119
+            let maxIndex = isTI58Family ? 59 : 119
             let raw = m.rawRegister(maxIndex - regNum) as Data
             if raw.contains(where: { $0 != 0 }) {
                 let v = TI59MachineWrapper.decodeBCD(raw)
@@ -825,6 +827,26 @@ class EmulatorViewModel {
                 .map { String(format: "%X%X", n[$0], n[$0 + 1]) }
                 .joined(separator: " ")
             lines.append(String(format: "R%02d: %@", reg, pairs))
+        }
+        debugLines.append(contentsOf: lines)
+    }
+
+    /// Dump entire RAM memory with address information.
+    /// Shows only non-zero registers as raw nibble pairs.
+    /// Useful for tracking where saved values end up in memory.
+    func debugDumpMemory() {
+        guard let m = machine else { return }
+        var lines: [String] = ["── Memory (non-zero registers) ──"]
+
+        for reg in 0..<120 {
+            let n = Array(m.rawRegister(reg) as Data)
+            // Skip if all zeros
+            if n.allSatisfy({ $0 == 0 }) { continue }
+
+            let pairs = stride(from: 0, to: 16, by: 2)
+                .map { String(format: "%X%X", n[$0], n[$0 + 1]) }
+                .joined(separator: " ")
+            lines.append(String(format: "R%03d: %@", reg, pairs))
         }
         debugLines.append(contentsOf: lines)
     }

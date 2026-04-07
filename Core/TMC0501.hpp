@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 #include "TraceTypes.hpp"
+#include "MachineVariant.hpp"
 
 class ROM;
 class RAM;
@@ -119,6 +120,10 @@ public:
     /// Tell the CPU which digit-counter slot the card-switch occupies.
     /// Must be called once at machine construction before any step().
     void setCardSwitchCol(uint8_t col) { m_cardSwitchCol = col; }
+
+    /// Tell the CPU which machine variant is running (TI-59, TI-58, or TI-58C).
+    /// Must be called once at machine construction before any step().
+    void setMachineVariant(MachineVariant v) { m_variant = v; }
 
     /// Insert a card immediately.  data/count non-zero → read card (IN CRD
     /// feeds those bytes); zero → blank card (write-only, OUT CRD captured).
@@ -238,6 +243,9 @@ private:
     // ── Library module state ──────────────────────────────────────────
     uint16_t m_libAddr{};       // Current read position within the loaded library image.
     uint8_t  m_libData[5000]{}; // Library module byte image (up to 5,000 bytes).
+
+    // ── Machine variant ───────────────────────────────────────────────
+    MachineVariant       m_variant{};           // TI-59, TI-58, or TI-58C (affects instruction decoding).
 
     // ── Magnetic card reader ──────────────────────────────────────────
     // Each OUT CRD stores the current KR value (2 bytes, little-endian).
