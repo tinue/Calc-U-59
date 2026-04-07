@@ -581,47 +581,31 @@ class EmulatorViewModel {
                 let event = events[i]
                 let cpu = (snapshotIdx >= 0 && snapshotIdx < snapshots.count) ? snapshots[snapshotIdx] : TICPUSnapshot()
                 let disasm = TI59MachineWrapper.disassemblePC(event.pc, opcode: event.opcode)
+                let isCurrent = (event.pc == (events.last?.pc ?? 0xFFFF))  // Mark the last executed instruction
                 cpuInspectorHistory.append(InspectorSnapshot(
                     pc: event.pc,
                     opcode: event.opcode,
                     disasm: disasm,
                     cpuState: cpu,
                     isHistory: true,
+                    isCurrent: isCurrent
+                ))
+            }
+
+            // If last event is different from currentPC, add currentPC as a future instruction
+            if events.last?.pc != currentPC {
+                cpuInspectorHistory.append(InspectorSnapshot(
+                    pc: currentPC,
+                    opcode: 0x0000,
+                    disasm: "???",
+                    cpuState: TICPUSnapshot(),
+                    isHistory: false,
                     isCurrent: false
                 ))
             }
 
-            // Add current instruction (frozen at currentPC)
-            let currentSnapshot = m.snapshotCPU()
-            if let lastEvent = events.last, lastEvent.pc == currentPC {
-                // Current PC was just executed, update last history entry
-                let disasm = TI59MachineWrapper.disassemblePC(currentPC, opcode: lastEvent.opcode)
-                if !cpuInspectorHistory.isEmpty {
-                    cpuInspectorHistory[cpuInspectorHistory.count - 1] = InspectorSnapshot(
-                        pc: currentPC,
-                        opcode: lastEvent.opcode,
-                        disasm: disasm,
-                        cpuState: currentSnapshot,
-                        isHistory: true,
-                        isCurrent: true
-                    )
-                }
-            } else {
-                // Current PC hasn't been executed yet (still frozen before execution)
-                // Show it without opcode (unknown until executed)
-                let disasm = "???"
-                cpuInspectorHistory.append(InspectorSnapshot(
-                    pc: currentPC,
-                    opcode: 0x0000,
-                    disasm: disasm,
-                    cpuState: currentSnapshot,
-                    isHistory: false,
-                    isCurrent: true
-                ))
-            }
-
-            // Add next 4 speculative instructions (ROM ahead, unknown opcodes)
-            for offset in 1...4 {
+            // Add next 3 speculative instructions (ROM ahead, unknown opcodes)
+            for offset in 1...3 {
                 let nextPC = currentPC &+ UInt16(offset)
                 cpuInspectorHistory.append(InspectorSnapshot(
                     pc: nextPC,
