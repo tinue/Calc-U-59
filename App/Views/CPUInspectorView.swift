@@ -63,8 +63,8 @@ struct CPUInspectorView: View {
             ScrollView {
                 ScrollViewReader { proxy in
                     VStack(alignment: .leading, spacing: 0) {
-                        ForEach(Array(vm.cpuInspectorHistory.enumerated()), id: \.offset) { offset, snapshot in
-                            let isSelected = (selectedIndex == offset)
+                        ForEach(Array(vm.cpuInspectorHistory.enumerated()), id: \.offset) { idx, snapshot in
+                            let isSelected = (selectedIndex == idx)
                             let opacity = snapshot.isHistory ? 1.0 : 0.4  // Dim speculative instructions
                             let bgColor: Color = snapshot.isCurrent ? Color.green.opacity(0.35) : (isSelected ? Color(white: 0.20) : Color.clear)
 
@@ -91,9 +91,9 @@ struct CPUInspectorView: View {
                             .background(bgColor)
                             .contentShape(Rectangle())
                             .onTapGesture {
-                                selectedIndex = (isSelected ? nil : offset)
+                                selectedIndex = (isSelected ? nil : idx)
                             }
-                            .id(offset)
+                            .id(idx)
                         }
                     }
                     .onChange(of: selectedIndex) { _, newValue in

@@ -594,25 +594,25 @@ class EmulatorViewModel {
             // Add current instruction (frozen at currentPC)
             let currentSnapshot = m.snapshotCPU()
             if let lastEvent = events.last, lastEvent.pc == currentPC {
-                // Current PC was just executed, update it
+                // Current PC was just executed, update last history entry
                 let disasm = TI59MachineWrapper.disassemblePC(currentPC, opcode: lastEvent.opcode)
-                cpuInspectorHistory[cpuInspectorHistory.count - 1] = InspectorSnapshot(
-                    pc: currentPC,
-                    opcode: lastEvent.opcode,
-                    disasm: disasm,
-                    cpuState: currentSnapshot,
-                    isHistory: true,
-                    isCurrent: true
-                )
+                if !cpuInspectorHistory.isEmpty {
+                    cpuInspectorHistory[cpuInspectorHistory.count - 1] = InspectorSnapshot(
+                        pc: currentPC,
+                        opcode: lastEvent.opcode,
+                        disasm: disasm,
+                        cpuState: currentSnapshot,
+                        isHistory: true,
+                        isCurrent: true
+                    )
+                }
             } else {
                 // Current PC hasn't been executed yet (still frozen before execution)
-                // Read next opcode from ROM
-                let nextOpcodeData = m.rawRegister(Int(currentPC) / 8)  // Rough estimation, may need adjustment
-                let nextOpcode = (nextOpcodeData as NSData).bytes.withMemoryRebound(to: UInt16.self, capacity: 1) { $0.pointee }
-                let disasm = TI59MachineWrapper.disassemblePC(currentPC, opcode: nextOpcode)
+                // Show it without opcode (unknown until executed)
+                let disasm = "???"
                 cpuInspectorHistory.append(InspectorSnapshot(
                     pc: currentPC,
-                    opcode: nextOpcode,
+                    opcode: 0x0000,
                     disasm: disasm,
                     cpuState: currentSnapshot,
                     isHistory: false,
@@ -620,15 +620,13 @@ class EmulatorViewModel {
                 ))
             }
 
-            // Add next 5 instructions (speculative, from ROM)
-            for offset in 1...5 {
+            // Add next 4 speculative instructions (ROM ahead, unknown opcodes)
+            for offset in 1...4 {
                 let nextPC = currentPC &+ UInt16(offset)
-                // Try to read opcode from ROM - simplified, may need proper ROM access
-                let disasm = TI59MachineWrapper.disassemblePC(nextPC, opcode: 0x0000)
                 cpuInspectorHistory.append(InspectorSnapshot(
                     pc: nextPC,
                     opcode: 0x0000,
-                    disasm: disasm,
+                    disasm: "???",
                     cpuState: TICPUSnapshot(),
                     isHistory: false,
                     isCurrent: false
