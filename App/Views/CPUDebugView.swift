@@ -29,6 +29,12 @@ struct CPUDebugView: View {
         .onDisappear {
             vm.cpuDebugEnabled = false
         }
+        .onChange(of: vm.isFrozen) { oldValue, newValue in
+            // When freeze is pressed, select the most recent instruction
+            if newValue && !oldValue {
+                selectedInstructionIndex = vm.cpuDebugSnapshot.recentInstructions.count - 1
+            }
+        }
         .onKeyPress(.upArrow) {
             // Navigate up through instruction history
             guard vm.isFrozen else { return .ignored }
@@ -226,6 +232,14 @@ struct CPUDebugView: View {
                         if !vm.cpuDebugSnapshot.recentInstructions.isEmpty {
                             withAnimation(.easeOut(duration: 0.1)) {
                                 proxy.scrollTo(vm.cpuDebugSnapshot.recentInstructions.count - 1, anchor: .bottom)
+                            }
+                        }
+                    }
+                    .onChange(of: selectedInstructionIndex) {
+                        // Scroll to selected instruction when navigating with arrow keys
+                        if let idx = selectedInstructionIndex {
+                            withAnimation(.easeOut(duration: 0.05)) {
+                                proxy.scrollTo(idx, anchor: .center)
                             }
                         }
                     }
