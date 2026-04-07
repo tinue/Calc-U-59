@@ -9,6 +9,7 @@ struct LiveDebugView: View {
             ScrollView {
                 VStack(spacing: 1) {
                     partitionSection
+                    prSourceFlagSection
                     programStepsSection
                     statusIndicatorsSection
                     calcFlagsSection
@@ -246,6 +247,19 @@ struct LiveDebugView: View {
         }
     }
 
+    // MARK: - Program Source Flag Section
+
+    private var prSourceFlagSection: some View {
+        let snap = vm.liveDebugSnapshot
+        return SectionBox(title: "") {
+            Text(String(format: "Prg Source: %X", snap.prSourceFlag))
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(Color(white: 0.85))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+        }
+    }
+
 }
 
 // MARK: - Section Container
@@ -300,6 +314,7 @@ private struct SectionBox<Content: View>: View {
             snap.hir7 = 0
             snap.hir8 = 0
             snap.tRegister = 2.71828
+            snap.prSourceFlag = 0xA
             snap.pendingOpsCount = 2
             snap.angleMode = .deg
             snap.dataRegCount = 60

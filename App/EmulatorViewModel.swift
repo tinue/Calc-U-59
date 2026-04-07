@@ -57,6 +57,8 @@ class EmulatorViewModel {
     var liveDebugSnapshot: LiveDebugSnapshot = .empty
     var freezeReason: FreezeReason? = nil
     var isFrozen: Bool { freezeReason != nil }
+    private var lastPrSourceFlag: UInt8 = 0
+    private var frozenProgramCounter: Int? = nil
 
     // ── Trace / debug state ──────────────────────────────────────────────────
     var traceEnabled: Bool = false
@@ -603,6 +605,9 @@ class EmulatorViewModel {
             snap.tRegister = TI59MachineWrapper.decodeBCD(tBytes)
         }
 
+        // Program Source Flag (SCOM[0], nibble 3; per SCOM map)
+        snap.prSourceFlag = UInt8(cpu.SCOM.0.3)
+
         // Degree/Radian/Grad mode (SCOM[13][0], nibble 0; per SCOM map)
         // Encoding: 0=DEG, 1=GRAD, 12(C)=RAD
         withUnsafeBytes(of: cpu.SCOM) { bytes in
@@ -624,23 +629,72 @@ class EmulatorViewModel {
             snap.pendingOpsCount = Int(bytes[13 * 16 + 0])  // TBD: exact bit position
         }
 
-        // Calculator flags 0–9 (stored in SCOM; mapping TBD)
-        snap.calcFlags = Array(repeating: nil, count: 10)
+        // Calculator flags 0–9 (stored in SCOM[0], nibbles 11–15)
+        // Encoding: flags 0-4 use bit 1 (value 1), flags 5-9 use bit 2 (value 2) in their respective nibbles
+        // Flag N maps to nibble (11 + N%5) and bit (1 if N<5 else 2)
+        let n11 = Int(cpu.SCOM.0.11)
+        let n12 = Int(cpu.SCOM.0.12)
+        let n13 = Int(cpu.SCOM.0.13)
+        let n14 = Int(cpu.SCOM.0.14)
+        let n15 = Int(cpu.SCOM.0.15)
+
+        snap.calcFlags = [
+            (n11 & 1) != 0,  // Flag 0
+            (n12 & 1) != 0,  // Flag 1
+            (n13 & 1) != 0,  // Flag 2
+            (n14 & 1) != 0,  // Flag 3
+            (n15 & 1) != 0,  // Flag 4
+            (n11 & 2) != 0,  // Flag 5
+            (n12 & 2) != 0,  // Flag 6
+            (n13 & 2) != 0,  // Flag 7
+            (n14 & 2) != 0,  // Flag 8
+            (n15 & 2) != 0,  // Flag 9
+        ]
 
         // Program steps window
         let steps = Array(m.allProgramSteps() as Data)
         snap.currentStep = decodeProgramCounter(from: cpu)
+
+        // Freeze program counter when prSourceFlag transitions from 0 to non-zero
+        if lastPrSourceFlag == 0 && snap.prSourceFlag != 0 {
+            frozenProgramCounter = snap.currentStep
+        } else if snap.prSourceFlag == 0 {
+            frozenProgramCounter = nil
+        }
+        lastPrSourceFlag = snap.prSourceFlag
+
+        // Use frozen counter if available, otherwise use current
+        if let frozen = frozenProgramCounter {
+            snap.currentStep = frozen
+        }
+
         if !steps.isEmpty {
             let center = snap.currentStep >= 0 ? snap.currentStep : 0
             let lo = max(0, center - 5)
             let hi = min(steps.count - 1, center + 5)
             if lo <= hi {
+                // Build set of argument step indices (not keycodes)
+                var argSteps = Set<Int>()
+                for i in lo...hi {
+                    let stepsAfter = TI59KeyNames.stepsAfter(for: steps[i])
+                    if stepsAfter > 0 {
+                        for j in 1...stepsAfter {
+                            if i + j <= hi {
+                                argSteps.insert(i + j)
+                            }
+                        }
+                    }
+                }
+
                 for i in lo...hi {
                     let kc = steps[i]
+                    let isArgument = argSteps.contains(i)
+                    let mnemonic = isArgument ? String(format: "%02d", kc) : TI59KeyNames.mnemonic(for: kc)
+
                     snap.programWindow.append(.init(
                         stepNum: i,
                         keycode: kc,
-                        mnemonic: TI59KeyNames.mnemonic(for: kc),
+                        mnemonic: mnemonic,
                         isCurrent: i == snap.currentStep
                     ))
                 }
@@ -967,6 +1021,7 @@ struct LiveDebugSnapshot: Equatable {
     enum AngleMode: Equatable { case deg, rad, grad }
 
     // SCOM-derived control state
+    var prSourceFlag: UInt8 = 0   // Program Source Flag (SCOM[0] nibble 3)
     var pendingOpsCount: Int = 0  // Number of pending operations in hierarchy stack (SCOM 13)
 
     // Printer SCOM rows 0–3
