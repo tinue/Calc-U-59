@@ -993,8 +993,8 @@ private struct CDropDebugger {
                 let sinceStr  = lastDropEnd > 0
                     ? String(format: "+%.0f ms since last", (dropStart - lastDropEnd) * 1000)
                     : "first drop"
-                print(String(format: "[C-DBG] DROP  from %.3f  min %.3f  %d frame(s)  %.0f ms  → %.3f   (%@)",
-                             dropFrom, dropMin, dropFrames, elapsed, duty, sinceStr))
+                print(String(format: "[C-DBG] DROP  from %.3f  min %.3f  %lld frame(s)  %.0f ms  → %.3f   (%@)",
+                             dropFrom, dropMin, Int64(dropFrames), elapsed, duty, sinceStr as NSString))
                 lastDropEnd = now
                 inDrop      = false
             } else {
