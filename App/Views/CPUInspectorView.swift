@@ -103,13 +103,11 @@ struct CPUInspectorView: View {
                             }
                         }
                     }
-                    .onChange(of: vm.cpuInspectorHistory.count) {
-                        // When history is loaded, scroll to the frozen instruction (isCurrent)
+                    .onAppear {
+                        // Scroll to frozen instruction when view appears
                         if let currentIdx = vm.cpuInspectorHistory.firstIndex(where: { $0.isCurrent }) {
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                                withAnimation(.easeInOut(duration: 0.2)) {
-                                    proxy.scrollTo(currentIdx, anchor: .bottom)
-                                }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                                proxy.scrollTo(currentIdx, anchor: .bottom)
                             }
                         }
                     }

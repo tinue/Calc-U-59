@@ -576,19 +576,20 @@ class EmulatorViewModel {
 
             // Add history: last 32 executed instructions
             let historyCount = min(32, events.count)
-            for i in (events.count - historyCount)..<events.count {
+            let historyStartIdx = events.count - historyCount
+            for i in historyStartIdx..<events.count {
                 let snapshotIdx = i - (events.count - snapshots.count)
                 let event = events[i]
                 let cpu = (snapshotIdx >= 0 && snapshotIdx < snapshots.count) ? snapshots[snapshotIdx] : TICPUSnapshot()
                 let disasm = TI59MachineWrapper.disassemblePC(event.pc, opcode: event.opcode)
-                let isCurrent = (event.pc == (events.last?.pc ?? 0xFFFF))  // Mark the last executed instruction
+                let isLastInstruction = (i == events.count - 1)  // Only the very last instruction
                 cpuInspectorHistory.append(InspectorSnapshot(
                     pc: event.pc,
                     opcode: event.opcode,
                     disasm: disasm,
                     cpuState: cpu,
                     isHistory: true,
-                    isCurrent: isCurrent
+                    isCurrent: isLastInstruction
                 ))
             }
 
