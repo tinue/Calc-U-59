@@ -77,7 +77,7 @@ struct LiveDebugView: View {
 
     private var programStepsSection: some View {
         SectionBox(title: "PROGRAM STEPS") {
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: 0) {
                 let window = vm.liveDebugSnapshot.programWindow
                 ForEach(0..<11, id: \.self) { i in
                     if i < window.count {
@@ -114,7 +114,7 @@ struct LiveDebugView: View {
         }
     }
 
-    // MARK: - Status Indicators Section (INV, 2nd)
+    // MARK: - Status Indicators Section (INV, 2nd, Angle Mode)
 
     private var statusIndicatorsSection: some View {
         let snap = vm.liveDebugSnapshot
@@ -122,8 +122,16 @@ struct LiveDebugView: View {
             HStack(spacing: 12) {
                 statusIndicator("INV", snap.isINV)
                 statusIndicator("2nd", snap.is2nd)
+                if let mode = snap.angleMode {
+                    Text(modeStr(mode))
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(Color(white: 0.85))
+                } else {
+                    Text("?")
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(Color(white: 0.4))
+                }
             }
-            .font(.system(size: 11, design: .monospaced))
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
         }
@@ -135,19 +143,17 @@ struct LiveDebugView: View {
         let snap = vm.liveDebugSnapshot
         return SectionBox(title: "HIR") {
             VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 16) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        hirRow("1", snap.hir1)
-                        hirRow("2", snap.hir2)
-                        hirRow("3", snap.hir3)
-                        hirRow("4", snap.hir4)
-                    }
-                    VStack(alignment: .leading, spacing: 2) {
-                        hirRow("5", snap.hir5)
-                        hirRow("6", snap.hir6)
-                        hirRow("7", snap.hir7)
-                        hirRow("8", snap.hir8)
-                    }
+                HStack(spacing: 12) {
+                    hirRow("1", snap.hir1)
+                    hirRow("2", snap.hir2)
+                    hirRow("3", snap.hir3)
+                    hirRow("4", snap.hir4)
+                }
+                HStack(spacing: 12) {
+                    hirRow("5", snap.hir5)
+                    hirRow("6", snap.hir6)
+                    hirRow("7", snap.hir7)
+                    hirRow("8", snap.hir8)
                 }
             }
             .padding(.horizontal, 8)
@@ -169,14 +175,10 @@ struct LiveDebugView: View {
     }
 
     private func hirRow(_ label: String, _ value: Double) -> some View {
-        HStack(spacing: 4) {
-            Text(label + ":")
-                .foregroundStyle(Color(white: 0.5))
-                .frame(width: 12, alignment: .leading)
-            Text(String(format: "%.10g", value))
-                .foregroundStyle(Color(white: 0.85))
-        }
-        .font(.system(size: 11, design: .monospaced))
+        Text("HIR \(label): \(String(format: "%.5g", value))")
+            .font(.system(size: 11, design: .monospaced))
+            .foregroundStyle(Color(white: 0.85))
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: - Calc Flags Section
@@ -229,8 +231,9 @@ struct LiveDebugView: View {
     private var partitionSection: some View {
         let snap = vm.liveDebugSnapshot
         let totalSteps = snap.programRegCount * 8
+        let maxPC = snap.programRegCount > 0 ? snap.programRegCount * 8 - 1 : 959
         return SectionBox(title: "PARTITION") {
-            Text("Regs: \(snap.programRegCount)  Data: \(snap.dataRegCount)  Max: \(totalSteps)")
+            Text("Steps: \(totalSteps), Registers: \(snap.programRegCount) (\(maxPC))")
                 .font(.system(size: 11, design: .monospaced))
                 .foregroundStyle(Color(white: 0.75))
                 .padding(.horizontal, 8)
