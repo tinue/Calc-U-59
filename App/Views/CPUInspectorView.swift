@@ -64,30 +64,31 @@ struct CPUInspectorView: View {
                 ScrollViewReader { proxy in
                     VStack(alignment: .leading, spacing: 0) {
                         ForEach(Array(vm.cpuInspectorHistory.enumerated()), id: \.offset) { offset, snapshot in
-                            let isCurrentPC = (snapshot.pc == vm.cpuDebugSnapshot.currentPC)
                             let isSelected = (selectedIndex == offset)
+                            let opacity = snapshot.isHistory ? 1.0 : 0.4  // Dim speculative instructions
+                            let bgColor: Color = snapshot.isCurrent ? Color.green.opacity(0.35) : (isSelected ? Color(white: 0.20) : Color.clear)
 
                             HStack(spacing: 8) {
                                 Text(String(format: "0x%04X", snapshot.pc))
                                     .font(.system(size: 11, design: .monospaced))
-                                    .foregroundStyle(.white.opacity(0.9))
+                                    .foregroundStyle(.white.opacity(0.9 * opacity))
                                     .frame(width: 50, alignment: .leading)
 
                                 Text(String(format: "%04X", snapshot.opcode))
                                     .font(.system(size: 11, design: .monospaced))
-                                    .foregroundStyle(.white.opacity(0.7))
+                                    .foregroundStyle(.white.opacity(0.7 * opacity))
                                     .frame(width: 50, alignment: .leading)
 
                                 Text(snapshot.disasm)
                                     .font(.system(size: 11, design: .monospaced))
-                                    .foregroundStyle(.white.opacity(0.85))
+                                    .foregroundStyle(.white.opacity(0.85 * opacity))
                                     .lineLimit(1)
 
                                 Spacer()
                             }
                             .padding(.horizontal, 6)
                             .padding(.vertical, 3)
-                            .background(isCurrentPC ? Color.green.opacity(0.25) : (isSelected ? Color(white: 0.20) : Color.clear))
+                            .background(bgColor)
                             .contentShape(Rectangle())
                             .onTapGesture {
                                 selectedIndex = (isSelected ? nil : offset)

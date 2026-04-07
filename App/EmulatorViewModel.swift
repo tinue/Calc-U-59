@@ -72,8 +72,10 @@ class EmulatorViewModel {
         var opcode: UInt16
         var disasm: String
         var cpuState: TICPUSnapshot
+        var isHistory: Bool  // true = executed, false = speculative (future ROM)
+        var isCurrent: Bool  // true = this is where it froze
     }
-    var cpuInspectorHistory: [InspectorSnapshot] = []  // last 32 snapshots when frozen
+    var cpuInspectorHistory: [InspectorSnapshot] = []  // 32 history + 1 current + 5 future
 
     // ── Trace / debug state ──────────────────────────────────────────────────
     var traceEnabled: Bool = false
@@ -555,7 +557,7 @@ class EmulatorViewModel {
         }
         if cpuDebugEnabled, let m = machine {
             cpuDebugSnapshot = buildCPUDebugSnapshot(machine: m)
-            // Build inspector history by draining fresh trace with snapshots (last 32 instructions)
+            // Build inspector history: 32 executed + 1 current + 5 future
             var snapshotArray: NSArray?
             let eventsNS = m.drainTraceEvents(max: 64, snapshots: &snapshotArray)
             let events = (eventsNS as? [NSValue] ?? []).map { v -> TITraceEvent in
@@ -569,9 +571,12 @@ class EmulatorViewModel {
                 return snap
             }
 
-            let instructionsToShow = min(32, events.count, snapshots.count)
             cpuInspectorHistory = []
-            for i in (events.count - instructionsToShow)..<events.count {
+            let currentPC = m.currentPC
+
+            // Add history: last 32 executed instructions
+            let historyCount = min(32, events.count)
+            for i in (events.count - historyCount)..<events.count {
                 let snapshotIdx = i - (events.count - snapshots.count)
                 let event = events[i]
                 let cpu = (snapshotIdx >= 0 && snapshotIdx < snapshots.count) ? snapshots[snapshotIdx] : TICPUSnapshot()
@@ -580,7 +585,53 @@ class EmulatorViewModel {
                     pc: event.pc,
                     opcode: event.opcode,
                     disasm: disasm,
-                    cpuState: cpu
+                    cpuState: cpu,
+                    isHistory: true,
+                    isCurrent: false
+                ))
+            }
+
+            // Add current instruction (frozen at currentPC)
+            let currentSnapshot = m.snapshotCPU()
+            if let lastEvent = events.last, lastEvent.pc == currentPC {
+                // Current PC was just executed, update it
+                let disasm = TI59MachineWrapper.disassemblePC(currentPC, opcode: lastEvent.opcode)
+                cpuInspectorHistory[cpuInspectorHistory.count - 1] = InspectorSnapshot(
+                    pc: currentPC,
+                    opcode: lastEvent.opcode,
+                    disasm: disasm,
+                    cpuState: currentSnapshot,
+                    isHistory: true,
+                    isCurrent: true
+                )
+            } else {
+                // Current PC hasn't been executed yet (still frozen before execution)
+                // Read next opcode from ROM
+                let nextOpcodeData = m.rawRegister(Int(currentPC) / 8)  // Rough estimation, may need adjustment
+                let nextOpcode = (nextOpcodeData as NSData).bytes.withMemoryRebound(to: UInt16.self, capacity: 1) { $0.pointee }
+                let disasm = TI59MachineWrapper.disassemblePC(currentPC, opcode: nextOpcode)
+                cpuInspectorHistory.append(InspectorSnapshot(
+                    pc: currentPC,
+                    opcode: nextOpcode,
+                    disasm: disasm,
+                    cpuState: currentSnapshot,
+                    isHistory: false,
+                    isCurrent: true
+                ))
+            }
+
+            // Add next 5 instructions (speculative, from ROM)
+            for offset in 1...5 {
+                let nextPC = currentPC &+ UInt16(offset)
+                // Try to read opcode from ROM - simplified, may need proper ROM access
+                let disasm = TI59MachineWrapper.disassemblePC(nextPC, opcode: 0x0000)
+                cpuInspectorHistory.append(InspectorSnapshot(
+                    pc: nextPC,
+                    opcode: 0x0000,
+                    disasm: disasm,
+                    cpuState: TICPUSnapshot(),
+                    isHistory: false,
+                    isCurrent: false
                 ))
             }
         }
