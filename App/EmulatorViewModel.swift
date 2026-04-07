@@ -60,13 +60,12 @@ class EmulatorViewModel {
     private var lastPrSourceFlag: UInt8 = 0
     private var frozenProgramCounter: Int? = nil
 
-    // ── CPU debug panel state (60 Hz real-time) ───────────────────────────────
-    var cpuDebugEnabled: Bool = false
+    // ── Live CPU view state (60 Hz real-time, runs while emulating) ────────────
     var cpuDebugSnapshot: CPUDebugSnapshot = .empty
-    private var cpuTraceWindow: [TITraceEvent] = []  // rolling window for display
+    private var cpuTraceWindow: [TITraceEvent] = []  // rolling window of recent instructions
     private var cpuTraceSnapshots: [TICPUSnapshot] = []  // parallel snapshots
 
-    // ── CPU inspector state (frozen, static) ──────────────────────────────────
+    // ── Frozen CPU inspector state (static snapshot when paused) ───────────────
     struct InspectorSnapshot {
         var pc: UInt16
         var opcode: UInt16
@@ -269,12 +268,10 @@ class EmulatorViewModel {
             if s != liveDebugSnapshot { liveDebugSnapshot = s }
         }
 
-        // CPU debug snapshot — sampled at 60 Hz when the panel is open.
-        // Updates even when frozen to capture results of stepping.
-        if cpuDebugEnabled {
-            let s = buildCPUDebugSnapshot(machine: machine)
-            if s != cpuDebugSnapshot { cpuDebugSnapshot = s }
-        }
+        // CPU debug snapshot — sampled at 60 Hz to keep instruction history current.
+        // Always update so SimpleLiveCPUView gets fresh data after freeze/resume.
+        let s = buildCPUDebugSnapshot(machine: machine)
+        if s != cpuDebugSnapshot { cpuDebugSnapshot = s }
 
         if cIndicatorDebug {
             cDropDebugger.update(snap.calcIndicator)
@@ -543,6 +540,26 @@ class EmulatorViewModel {
         }
     }
 
+    /// Step once while frozen and refresh the inspector view with the new state.
+    func stepFrozen() {
+        guard isFrozen else { return }
+        guard let m = machine else { return }
+        // Execute one step on the background queue, then refresh the snapshot on main
+        emulQueue.async { [weak self, m] in
+            guard let self else { return }
+            let result = m.step()
+            if result & 0x8000_0000 != 0 {
+                let hitPC = m.currentPC
+                DispatchQueue.main.async { self.onBreakpointHit(pc: hitPC) }
+            }
+            // After step completes, refresh the frozen inspector snapshot
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.captureInspectorSnapshot(machine: m)
+            }
+        }
+    }
+
     private func onBreakpointHit(pc: UInt16) {
         isPausedOnBreakpoint = true
         breakpointPC = pc
@@ -551,78 +568,85 @@ class EmulatorViewModel {
     func freeze(reason: FreezeReason = .manual) {
         isRunning = false
         freezeReason = reason
-        // Capture one fresh snapshot so the panel reflects the exact freeze state
+        // Capture calculator state if live debug is enabled
         if liveDebugEnabled, let m = machine {
             liveDebugSnapshot = buildLiveSnapshot(machine: m)
         }
-        if cpuDebugEnabled, let m = machine {
-            cpuDebugSnapshot = buildCPUDebugSnapshot(machine: m)
-            // Build inspector history: 32 executed + 1 current + 5 future
-            var snapshotArray: NSArray?
-            let eventsNS = m.drainTraceEvents(max: 64, snapshots: &snapshotArray)
-            let events = (eventsNS as? [NSValue] ?? []).map { v -> TITraceEvent in
-                var e = TITraceEvent()
-                v.getValue(&e)
-                return e
-            }
-            let snapshots = (snapshotArray as? [NSValue] ?? []).map { v -> TICPUSnapshot in
-                var snap = TICPUSnapshot()
-                v.getValue(&snap)
-                return snap
-            }
+        // Capture CPU inspector snapshot from current machine state
+        if let m = machine {
+            captureInspectorSnapshot(machine: m)
+        }
+    }
 
-            cpuInspectorHistory = []
-            let currentPC = m.currentPC
+    /// Capture the current CPU state and last 32 executed instructions for the frozen inspector view.
+    /// Reads (without draining) the ring buffer to preserve history across steps.
+    private func captureInspectorSnapshot(machine m: TI59MachineWrapper) {
+        // Read (without draining) all available events from the ring buffer
+        var snapshotArray: NSArray?
+        let eventsNS = m.readTraceEvents(max: 512, snapshots: &snapshotArray)
+        let newEvents = (eventsNS as? [NSValue] ?? []).map { v -> TITraceEvent in
+            var e = TITraceEvent()
+            v.getValue(&e)
+            return e
+        }
+        let snapshots = (snapshotArray as? [NSValue] ?? []).map { v -> TICPUSnapshot in
+            var snap = TICPUSnapshot()
+            v.getValue(&snap)
+            return snap
+        }
 
-            // Add history: last 32 executed instructions
-            let historyCount = min(32, events.count)
-            let historyStartIdx = events.count - historyCount
-            for i in historyStartIdx..<events.count {
-                let snapshotIdx = i - (events.count - snapshots.count)
-                let event = events[i]
-                let cpu = (snapshotIdx >= 0 && snapshotIdx < snapshots.count) ? snapshots[snapshotIdx] : TICPUSnapshot()
-                let disasm = TI59MachineWrapper.disassemblePC(event.pc, opcode: event.opcode)
-                let isLastInstruction = (i == events.count - 1)  // Only the very last instruction
-                cpuInspectorHistory.append(InspectorSnapshot(
-                    pc: event.pc,
-                    opcode: event.opcode,
-                    disasm: disasm,
-                    cpuState: cpu,
-                    isHistory: true,
-                    isCurrent: isLastInstruction
-                ))
-            }
+        cpuInspectorHistory = []
+        let currentPC = m.currentPC
 
-            // If last event is different from currentPC, add currentPC as a future instruction
-            if events.last?.pc != currentPC {
-                cpuInspectorHistory.append(InspectorSnapshot(
-                    pc: currentPC,
-                    opcode: 0x0000,
-                    disasm: "???",
-                    cpuState: TICPUSnapshot(),
-                    isHistory: false,
-                    isCurrent: false
-                ))
-            }
+        // Add history: last 32 executed instructions from the ring buffer
+        let historyCount = min(32, newEvents.count)
+        let historyStartIdx = newEvents.count - historyCount
+        for i in historyStartIdx..<newEvents.count {
+            let event = newEvents[i]
+            let snapshotIdx = i - (newEvents.count - snapshots.count)
+            let cpu = (snapshotIdx >= 0 && snapshotIdx < snapshots.count) ? snapshots[snapshotIdx] : TICPUSnapshot()
+            let disasm = TI59MachineWrapper.disassemblePC(event.pc, opcode: event.opcode)
+            let isLastInstruction = (i == newEvents.count - 1)
+            cpuInspectorHistory.append(InspectorSnapshot(
+                pc: event.pc,
+                opcode: event.opcode,
+                disasm: disasm,
+                cpuState: cpu,
+                isHistory: true,
+                isCurrent: isLastInstruction
+            ))
+        }
 
-            // Add next 4 speculative instructions (ROM ahead, unknown opcodes)
-            for offset in 1...4 {
-                let nextPC = currentPC &+ UInt16(offset)
-                cpuInspectorHistory.append(InspectorSnapshot(
-                    pc: nextPC,
-                    opcode: 0x0000,
-                    disasm: "???",
-                    cpuState: TICPUSnapshot(),
-                    isHistory: false,
-                    isCurrent: false
-                ))
-            }
+        // If last event is different from currentPC, add currentPC as a future instruction
+        if newEvents.last?.pc != currentPC {
+            cpuInspectorHistory.append(InspectorSnapshot(
+                pc: currentPC,
+                opcode: 0x0000,
+                disasm: "???",
+                cpuState: TICPUSnapshot(),
+                isHistory: false,
+                isCurrent: false
+            ))
+        }
+
+        // Add next 4 speculative instructions (ROM ahead, unknown opcodes)
+        for offset in 1...4 {
+            let nextPC = currentPC &+ UInt16(offset)
+            cpuInspectorHistory.append(InspectorSnapshot(
+                pc: nextPC,
+                opcode: 0x0000,
+                disasm: "???",
+                cpuState: TICPUSnapshot(),
+                isHistory: false,
+                isCurrent: false
+            ))
         }
     }
 
     func unfreeze() {
         freezeReason = nil
         startEmulationLoop()
+        startDisplayRefresh()
     }
 
     // MARK: - Calculator-level snapshot
@@ -823,37 +847,30 @@ class EmulatorViewModel {
         snap.isPaused = isPausedOnBreakpoint
         snap.pausedPC = breakpointPC
 
-        // Ensure trace flags are set to capture full CPU state with each instruction
-        // TRACE_PC = 0x0001, TRACE_REGS_FULL = 0x0004
+        // Ensure trace flags are set so the CPU generates events
         let requiredFlags: TITraceFlags = [.pc, .regsFull]
         if !m.traceFlags.contains(requiredFlags) {
             m.traceFlags = m.traceFlags.union(requiredFlags)
         }
 
-        // Drain trace events with snapshots
+        // Read (without draining) all recent events from the ring buffer
         var snapshotArray: NSArray?
-        let eventsNS = m.drainTraceEvents(max: 64, snapshots: &snapshotArray)
+        let eventsNS = m.readTraceEvents(max: 512, snapshots: &snapshotArray)
         let newEvents = (eventsNS as? [NSValue] ?? []).map { v -> TITraceEvent in
             var e = TITraceEvent()
             v.getValue(&e)
             return e
         }
 
-        cpuTraceWindow.append(contentsOf: newEvents)
-        if cpuTraceWindow.count > 64 {
-            cpuTraceWindow.removeFirst(cpuTraceWindow.count - 64)
+        // Accumulate new events in the rolling window
+        cpuTraceWindow = newEvents  // Replace with all current events from ring buffer
+        cpuTraceSnapshots = (snapshotArray as? [NSValue] ?? []).map { v -> TICPUSnapshot in
+            var snap = TICPUSnapshot()
+            v.getValue(&snap)
+            return snap
         }
 
-        // Extract snapshots (parallel array from drainTraceEvents)
-        if let snapshotArray = snapshotArray as? [NSValue] {
-            cpuTraceSnapshots = snapshotArray.map { v -> TICPUSnapshot in
-                var snap = TICPUSnapshot()
-                v.getValue(&snap)
-                return snap
-            }
-        }
-
-        // Build recent instructions from trace window (keep last 32)
+        // Build recent instructions from the accumulated window (show last 32)
         let instructionsToShow = min(32, cpuTraceWindow.count)
         snap.recentInstructions = []
         for i in (cpuTraceWindow.count - instructionsToShow)..<cpuTraceWindow.count {

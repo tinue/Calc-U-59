@@ -1268,6 +1268,26 @@ uint32_t TMC0501::drainTraceEvents(TraceEvent* out, CPUSnapshot* outSnaps, uint3
     return count;
 }
 
+uint32_t TMC0501::readTraceEvents(TraceEvent* out, CPUSnapshot* outSnaps, uint32_t max) const {
+    std::lock_guard<std::mutex> lk(m_traceMutex);
+    uint32_t head = m_traceHead;
+    if (max == 0 || head == 0) return 0;
+
+    // Return the last 'count' events from the ring buffer, ignoring the drain tail.
+    // This gives a snapshot of the most recent events without removing them.
+    uint32_t count = (head < max) ? head : max;  // Can't read more than we have
+
+    // Read the last 'count' events (starting from head - count)
+    uint32_t startIdx = (head - count) & kTraceRingMask;
+    for (uint32_t i = 0; i < count; i++) {
+        uint32_t idx = (startIdx + i) & kTraceRingMask;
+        out[i] = m_traceRing[idx];
+        if (outSnaps && out[i].snapshotIndex != 0xFF)
+            outSnaps[i] = m_snapRing[idx];
+    }
+    return count;
+}
+
 bool TMC0501::peekLastEvent(TraceEvent& out, CPUSnapshot* outSnap) const {
     std::lock_guard<std::mutex> lk(m_traceMutex);
     if (m_traceHead == m_traceTail) return false;

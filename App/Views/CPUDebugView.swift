@@ -25,12 +25,6 @@ struct CPUDebugView: View {
         .background(Color(white: 0.10))
         .focusable()
         .focused($isFocused)
-        .onAppear {
-            vm.cpuDebugEnabled = true
-        }
-        .onDisappear {
-            vm.cpuDebugEnabled = false
-        }
         .onChange(of: vm.isFrozen) { oldValue, newValue in
             // When freeze is pressed, select the most recent instruction and focus for keyboard input
             if newValue && !oldValue {

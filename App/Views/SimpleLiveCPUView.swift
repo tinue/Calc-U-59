@@ -81,11 +81,5 @@ struct SimpleLiveCPUView: View {
             Spacer()
         }
         .background(Color(white: 0.10))
-        .onAppear {
-            vm.cpuDebugEnabled = true
-        }
-        .onDisappear {
-            vm.cpuDebugEnabled = false
-        }
     }
 }

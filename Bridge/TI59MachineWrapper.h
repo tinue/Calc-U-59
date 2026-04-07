@@ -139,6 +139,16 @@ typedef struct {
 - (NSArray<NSValue*>*)drainTraceEventsMax:(NSUInteger)max
     NS_SWIFT_NAME(drainTraceEvents(max:));
 
+/// Read (without draining) up to `max` most recent events and their CPU snapshots.
+/// Does not remove events from the ring buffer; safe to call repeatedly.
+- (NSArray<NSValue*>*)readTraceEventsMax:(NSUInteger)max
+                               snapshots:(NSArray<NSValue*>* _Nullable * _Nullable)outSnaps
+    NS_SWIFT_NAME(readTraceEvents(max:snapshots:));
+
+/// Convenience: read up to `max` events without capturing CPU register snapshots.
+- (NSArray<NSValue*>*)readTraceEventsMax:(NSUInteger)max
+    NS_SWIFT_NAME(readTraceEvents(max:));
+
 + (NSString*)disassemblePC:(uint16_t)pc opcode:(uint16_t)opcode;
 
 // ── Calculator-level API ──────────────────────────────────────────────────────

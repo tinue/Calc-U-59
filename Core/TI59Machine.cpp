@@ -182,6 +182,11 @@ uint32_t TI59Machine::drainTraceEvents(TraceEvent* out, CPUSnapshot* outSnaps, u
     return m_cpu.drainTraceEvents(out, outSnaps, max);
 }
 
+uint32_t TI59Machine::readTraceEvents(TraceEvent* out, CPUSnapshot* outSnaps, uint32_t max) const {
+    std::lock_guard<std::mutex> lock(m_keyMutex);
+    return m_cpu.readTraceEvents(out, outSnaps, max);
+}
+
 bool TI59Machine::peekLastEvent(TraceEvent& out, CPUSnapshot* outSnap) const {
     return m_cpu.peekLastEvent(out, outSnap);
 }

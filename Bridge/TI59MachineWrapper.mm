@@ -219,6 +219,68 @@ static const int kbits[] = {0, 1, 2, 3, 5, 6};  // index 0 unused; index col
     return result;
 }
 
+- (NSArray<NSValue*>*)readTraceEventsMax:(NSUInteger)max {
+    return [self readTraceEventsMax:max snapshots:nil];
+}
+
+- (NSArray<NSValue*>*)readTraceEventsMax:(NSUInteger)max
+                               snapshots:(NSArray<NSValue*>* _Nullable * _Nullable)outSnaps {
+    if (max == 0) return @[];
+
+    const uint32_t cap = (uint32_t)MIN(max, 512u);
+    std::vector<TraceEvent>   evBuf(cap);
+    std::vector<CPUSnapshot>  snapBuf(cap);
+
+    uint32_t n = _machine->readTraceEvents(evBuf.data(), outSnaps ? snapBuf.data() : nullptr, cap);
+    if (n == 0) {
+        if (outSnaps) *outSnaps = @[];
+        return @[];
+    }
+
+    NSMutableArray<NSValue*>* result  = [NSMutableArray arrayWithCapacity:n];
+    NSMutableArray<NSValue*>* snaps   = outSnaps ? [NSMutableArray arrayWithCapacity:n] : nil;
+
+    for (uint32_t i = 0; i < n; i++) {
+        TITraceEvent te;
+        te.pc           = evBuf[i].pc;
+        te.opcode       = evBuf[i].opcode;
+        te.digit        = evBuf[i].digit;
+        te.cycleWeight  = evBuf[i].cycleWeight;
+        te.seqno        = evBuf[i].seqno;
+        te.KR           = evBuf[i].KR;
+        te.SR           = evBuf[i].SR;
+        te.fA           = evBuf[i].fA;
+        te.fB           = evBuf[i].fB;
+        te.cpuFlags     = evBuf[i].cpuFlags;
+        te.R5           = evBuf[i].R5;
+        te.snapshotIndex = (outSnaps ? 0xFF : i);  // Mark which snapshots are valid
+        [result addObject:[NSValue valueWithBytes:&te objCType:@encode(TITraceEvent)]];
+
+        if (outSnaps) {
+            const CPUSnapshot& s = snapBuf[i];
+            TICPUSnapshot ts;
+            memcpy(ts.A,    s.A,    16);
+            memcpy(ts.B,    s.B,    16);
+            memcpy(ts.C,    s.C,    16);
+            memcpy(ts.D,    s.D,    16);
+            memcpy(ts.E,    s.E,    16);
+            memcpy(ts.SCOM, s.SCOM, 16 * 16);
+            memcpy(ts.Sout, s.Sout, 16);
+            ts.KR = s.KR; ts.SR = s.SR; ts.fA = s.fA; ts.fB = s.fB;
+            ts.EXT = s.EXT; ts.PREG = s.PREG; ts.flags = s.flags;
+            ts.R5 = s.R5; ts.digit = s.digit;
+            ts.REG_ADDR = s.REG_ADDR; ts.RAM_ADDR = s.RAM_ADDR; ts.RAM_OP = s.RAM_OP;
+            [snaps addObject:[NSValue valueWithBytes:&ts objCType:@encode(TICPUSnapshot)]];
+        } else if (snaps) {
+            TICPUSnapshot empty{};
+            [snaps addObject:[NSValue valueWithBytes:&empty objCType:@encode(TICPUSnapshot)]];
+        }
+    }
+
+    if (outSnaps) *outSnaps = snaps;
+    return result;
+}
+
 + (NSString*)disassemblePC:(uint16_t)pc opcode:(uint16_t)opcode {
     std::string s = TI59Machine::disassemble(pc, opcode);
     return [NSString stringWithUTF8String:s.c_str()];

@@ -163,6 +163,7 @@ public:
     /// outSnaps may be nullptr if TRACE_REGS_FULL snapshots are not needed.
     /// Returns the number of events written.
     uint32_t drainTraceEvents(TraceEvent* out, CPUSnapshot* outSnaps, uint32_t max);
+    uint32_t readTraceEvents(TraceEvent* out, CPUSnapshot* outSnaps, uint32_t max) const;
 
     /// Peek at the last event written without consuming it (thread-safe).
     bool peekLastEvent(TraceEvent& out, CPUSnapshot* outSnap) const;

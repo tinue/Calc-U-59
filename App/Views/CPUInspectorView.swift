@@ -22,6 +22,19 @@ struct CPUInspectorView: View {
                 }
                 .buttonStyle(.plain)
 
+                Button(action: {
+                    vm.stepFrozen()
+                }) {
+                    Text("STEP")
+                        .font(.caption.bold())
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color(white: 0.25))
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                }
+                .buttonStyle(.plain)
+
                 Text("PAUSED")
                     .font(.caption.bold())
                     .foregroundStyle(.orange)

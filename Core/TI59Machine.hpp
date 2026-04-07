@@ -74,6 +74,7 @@ public:
     void clearBreakpoints();
 
     uint32_t drainTraceEvents(TraceEvent* out, CPUSnapshot* outSnaps, uint32_t max);
+    uint32_t readTraceEvents(TraceEvent* out, CPUSnapshot* outSnaps, uint32_t max) const;
     bool     peekLastEvent(TraceEvent& out, CPUSnapshot* outSnap) const;
 
     /// Run up to n steps under a single mutex lock; returns count actually executed.
