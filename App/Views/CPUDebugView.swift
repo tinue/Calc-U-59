@@ -69,7 +69,16 @@ struct CPUDebugView: View {
     private var controlBar: some View {
         HStack(spacing: 12) {
             // Freeze/Resume button
-            Button(action: vm.isFrozen ? vm.unfreeze : { vm.freeze(reason: .manual) }) {
+            Button(action: {
+                if vm.isFrozen {
+                    vm.unfreeze()
+                } else {
+                    vm.freeze(reason: .manual)
+                    // Explicitly select current instruction and request focus
+                    selectedInstructionIndex = vm.cpuDebugSnapshot.recentInstructions.count - 1
+                    isFocused = true
+                }
+            }) {
                 Text(vm.isFrozen ? "RESUME" : "FREEZE")
                     .font(.caption.bold())
                     .foregroundStyle(.white)
@@ -241,10 +250,8 @@ struct CPUDebugView: View {
                     .onChange(of: selectedInstructionIndex) {
                         // Scroll to selected instruction when navigating with arrow keys
                         if let idx = selectedInstructionIndex {
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
-                                withAnimation(.easeOut(duration: 0.05)) {
-                                    proxy.scrollTo(idx, anchor: .top)
-                                }
+                            withAnimation(.easeInOut(duration: 0.1)) {
+                                proxy.scrollTo(idx, anchor: .top)
                             }
                         }
                     }
