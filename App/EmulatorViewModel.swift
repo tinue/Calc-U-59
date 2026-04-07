@@ -60,6 +60,12 @@ class EmulatorViewModel {
     private var lastPrSourceFlag: UInt8 = 0
     private var frozenProgramCounter: Int? = nil
 
+    // ── CPU debug panel state (60 Hz real-time) ───────────────────────────────
+    var cpuDebugEnabled: Bool = false
+    var cpuDebugSnapshot: CPUDebugSnapshot = .empty
+    private var cpuTraceWindow: [TITraceEvent] = []  // rolling window for display
+    private var cpuTraceSnapshots: [TICPUSnapshot] = []  // parallel snapshots
+
     // ── Trace / debug state ──────────────────────────────────────────────────
     var traceEnabled: Bool = false
     var traceEvents: [TITraceEvent] = []          // sliding window, last 512
@@ -250,6 +256,13 @@ class EmulatorViewModel {
         if liveDebugEnabled && !isFrozen {
             let s = buildLiveSnapshot(machine: machine)
             if s != liveDebugSnapshot { liveDebugSnapshot = s }
+        }
+
+        // CPU debug snapshot — sampled at 60 Hz when the panel is open.
+        // Updates even when frozen to capture results of stepping.
+        if cpuDebugEnabled {
+            let s = buildCPUDebugSnapshot(machine: machine)
+            if s != cpuDebugSnapshot { cpuDebugSnapshot = s }
         }
 
         if cIndicatorDebug {
@@ -727,6 +740,64 @@ class EmulatorViewModel {
         return snap
     }
 
+    /// Build CPU debug snapshot with disassembled trace history.
+    /// Drains last 32 instructions from trace ring with their pre-execution CPU snapshots.
+    /// Enables TRACE_REGS_FULL automatically so every instruction has a snapshot.
+    private func buildCPUDebugSnapshot(machine m: TI59MachineWrapper) -> CPUDebugSnapshot {
+        var snap = CPUDebugSnapshot()
+        snap.currentPC = m.currentPC
+        snap.isPaused = isPausedOnBreakpoint
+        snap.pausedPC = breakpointPC
+
+        // Ensure trace flags are set to capture full CPU state with each instruction
+        // TRACE_PC = 0x0001, TRACE_REGS_FULL = 0x0004
+        let requiredFlags: TITraceFlags = [.pc, .regsFull]
+        if !m.traceFlags.contains(requiredFlags) {
+            m.traceFlags = m.traceFlags.union(requiredFlags)
+        }
+
+        // Drain trace events with snapshots
+        var snapshotArray: NSArray?
+        let eventsNS = m.drainTraceEvents(max: 64, snapshots: &snapshotArray)
+        let newEvents = (eventsNS as? [NSValue] ?? []).map { v -> TITraceEvent in
+            var e = TITraceEvent()
+            v.getValue(&e)
+            return e
+        }
+
+        cpuTraceWindow.append(contentsOf: newEvents)
+        if cpuTraceWindow.count > 64 {
+            cpuTraceWindow.removeFirst(cpuTraceWindow.count - 64)
+        }
+
+        // Extract snapshots (parallel array from drainTraceEvents)
+        if let snapshotArray = snapshotArray as? [NSValue] {
+            cpuTraceSnapshots = snapshotArray.map { v -> TICPUSnapshot in
+                var snap = TICPUSnapshot()
+                v.getValue(&snap)
+                return snap
+            }
+        }
+
+        // Build recent instructions from trace window (keep last 32)
+        let instructionsToShow = min(32, cpuTraceWindow.count)
+        snap.recentInstructions = []
+        for i in (cpuTraceWindow.count - instructionsToShow)..<cpuTraceWindow.count {
+            let event = cpuTraceWindow[i]
+            let snapshotIndex = Int(event.snapshotIndex)
+            let cpu = (snapshotIndex < cpuTraceSnapshots.count) ? cpuTraceSnapshots[snapshotIndex] : TICPUSnapshot()
+            let disasm = TI59MachineWrapper.disassemblePC(event.pc, opcode: event.opcode)
+            snap.recentInstructions.append(CPUDebugSnapshot.Instruction(
+                pc: event.pc,
+                opcode: event.opcode,
+                disasm: disasm,
+                cpuBefore: cpu
+            ))
+        }
+
+        return snap
+    }
+
     /// Decode the program counter from SCOM[0] positions 4-7.
     /// Encoding has three ranges with different formulas:
     ///
@@ -1080,6 +1151,32 @@ struct LiveDebugSnapshot: Equatable {
     var scomRows: [String] = []
 
     static let empty = LiveDebugSnapshot()
+}
+
+// ── CPU-level debugger snapshot ───────────────────────────────────────────────
+//
+// Deep CPU state at each instruction: registers A–E, SCOM, Sout, control registers.
+// Each instruction entry carries its pre-execution CPU snapshot, enabling back-stepping.
+
+struct CPUDebugSnapshot: Equatable {
+    struct Instruction: Equatable {
+        var pc: UInt16
+        var opcode: UInt16
+        var disasm: String
+        var cpuBefore: TICPUSnapshot  // CPU state BEFORE this instruction executed
+
+        static func == (lhs: Instruction, rhs: Instruction) -> Bool {
+            // Compare only the instruction data, not the snapshot (which can't be compared)
+            return lhs.pc == rhs.pc && lhs.opcode == rhs.opcode && lhs.disasm == rhs.disasm
+        }
+    }
+
+    var recentInstructions: [Instruction] = []  // last ~32 instructions with snapshots
+    var currentPC: UInt16 = 0
+    var isPaused: Bool = false
+    var pausedPC: UInt16? = nil
+
+    static let empty = CPUDebugSnapshot()
 }
 
 // ── C indicator drop debugger ─────────────────────────────────────────────────

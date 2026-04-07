@@ -3,7 +3,7 @@ import SwiftUI
 struct DebugView: View {
     @Environment(EmulatorViewModel.self) var vm
     @State private var tab: DebugTab = .log
-    enum DebugTab { case log, live }
+    enum DebugTab { case log, live, cpu }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -11,6 +11,7 @@ struct DebugView: View {
             HStack(spacing: 0) {
                 tabButton("LOG", .log)
                 tabButton("LIVE", .live)
+                tabButton("CPU", .cpu)
                 Spacer()
             }
             .background(Color(white: 0.07))
@@ -19,6 +20,7 @@ struct DebugView: View {
             switch tab {
             case .log:  StaticDebugContent()
             case .live: LiveDebugView()
+            case .cpu:  CPUDebugView()
             }
         }
         .background(Color(white: 0.10))
