@@ -7,6 +7,29 @@ struct SimpleLiveCPUView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            // Control bar
+            HStack(spacing: 12) {
+                Button(action: { vm.freeze(reason: .manual) }) {
+                    Text("FREEZE")
+                        .font(.caption.bold())
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color(white: 0.25))
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                }
+                .buttonStyle(.plain)
+
+                Text("RUNNING")
+                    .font(.caption.bold())
+                    .foregroundStyle(.green)
+
+                Spacer()
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(Color(white: 0.15))
+
             // Current instruction
             HStack(spacing: 8) {
                 Text(String(format: "PC: 0x%04X", vm.cpuDebugSnapshot.currentPC))
