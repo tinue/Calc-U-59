@@ -654,62 +654,14 @@ class EmulatorViewModel {
     ///   pos 6 = (H - 8) for 800–899, 1 for 900–959
     ///   pos 7 = 1
     private func decodeProgramCounter(from cpu: TICPUSnapshot) -> Int {
+        // PC encoding formula
         let n4 = Int(cpu.SCOM.0.4)
         let n5 = Int(cpu.SCOM.0.5)
         let n6 = Int(cpu.SCOM.0.6)
         let n7 = Int(cpu.SCOM.0.7)
 
-        // Check for page flag (pos 7)
-        if n7 == 1 {
-            // PC 800–959: pos 6 indicates which 100-block
-            // pos 6 = 0 for 800–899, pos 6 = 1 for 900–959
-            if n6 == 0 {
-                // PC 800–899: encode as PC 0–99
-                let tPrime = (n5 < 4) ? n5 : (n5 - 1)
-                let baseTwice = (tPrime * 2) % 8
-                let u = (n4 - baseTwice + 10) % 10
-                let t = tPrime - 0  // H = 0 for this sub-range
-                let pc = 800 + t * 10 + u
-                if pc >= 800 && pc <= 899 {
-                    return pc
-                }
-            } else if n6 == 1 {
-                // PC 900–959: uses T' = T + 2 (same as H=1 range)
-                let tPrime = (n5 < 4) ? n5 : (n5 - 1)
-                let baseTwice = (tPrime * 2) % 8
-                let u = (n4 - baseTwice + 10) % 10
-                let t = tPrime - 2
-                let pc = 900 + t * 10 + u
-                if pc >= 900 && pc <= 959 {
-                    return pc
-                }
-            }
-        } else if n7 == 0 {
-            // PC 0–799: check for special case at T=9
-            if n5 == 9 && n6 == 9 {
-                // PC 792–799: special case
-                let u = n4 + 2
-                let t = 9
-                let h = 7
-                let pc = h * 100 + t * 10 + u
-                if pc >= 792 && pc <= 799 {
-                    return pc
-                }
-            }
-
-            // PC 0–791: original formula
-            let h = n6
-            let tPrime = (n5 < 4) ? n5 : (n5 - 1)
-            let baseTwice = (tPrime * 2) % 8
-            let u = (n4 - baseTwice + 10) % 10
-            let t = tPrime - (2 * h)
-            let pc = h * 100 + t * 10 + u
-            if pc >= 0 && pc <= 791 {
-                return pc
-            }
-        }
-
-        return -1
+        let pc = n7 * 800 + n6 * 80 + n5 * 8 + n4
+        return pc
     }
 
     func toggleDebug() {

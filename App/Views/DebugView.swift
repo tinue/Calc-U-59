@@ -96,11 +96,6 @@ private struct StaticDebugContent: View {
 
             Button("Prog") { vm.debugDumpProg() }
 
-            Button("PC") {
-                if !vm.debugEnabled { vm.debugEnabled = true }
-                vm.debugDumpStepCounterAnalysis()
-            }
-
             Spacer()
 
             // Clear button
