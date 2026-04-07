@@ -66,6 +66,15 @@ class EmulatorViewModel {
     private var cpuTraceWindow: [TITraceEvent] = []  // rolling window for display
     private var cpuTraceSnapshots: [TICPUSnapshot] = []  // parallel snapshots
 
+    // ── CPU inspector state (frozen, static) ──────────────────────────────────
+    struct InspectorSnapshot {
+        var pc: UInt16
+        var opcode: UInt16
+        var disasm: String
+        var cpuState: TICPUSnapshot
+    }
+    var cpuInspectorHistory: [InspectorSnapshot] = []  // last 32 snapshots when frozen
+
     // ── Trace / debug state ──────────────────────────────────────────────────
     var traceEnabled: Bool = false
     var traceEvents: [TITraceEvent] = []          // sliding window, last 512
@@ -546,6 +555,21 @@ class EmulatorViewModel {
         }
         if cpuDebugEnabled, let m = machine {
             cpuDebugSnapshot = buildCPUDebugSnapshot(machine: m)
+            // Build inspector history from current trace (last 32 instructions)
+            let instructionsToShow = min(32, cpuTraceWindow.count)
+            cpuInspectorHistory = []
+            for i in (cpuTraceWindow.count - instructionsToShow)..<cpuTraceWindow.count {
+                let event = cpuTraceWindow[i]
+                let snapshotIndex = Int(event.snapshotIndex)
+                let cpu = (snapshotIndex < cpuTraceSnapshots.count) ? cpuTraceSnapshots[snapshotIndex] : TICPUSnapshot()
+                let disasm = TI59MachineWrapper.disassemblePC(event.pc, opcode: event.opcode)
+                cpuInspectorHistory.append(InspectorSnapshot(
+                    pc: event.pc,
+                    opcode: event.opcode,
+                    disasm: disasm,
+                    cpuState: cpu
+                ))
+            }
         }
     }
 

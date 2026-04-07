@@ -20,7 +20,12 @@ struct DebugView: View {
             switch tab {
             case .log:  StaticDebugContent()
             case .live: LiveDebugView()
-            case .cpu:  CPUDebugView()
+            case .cpu:
+                if vm.isFrozen {
+                    CPUInspectorView()
+                } else {
+                    SimpleLiveCPUView()
+                }
             }
         }
         .background(Color(white: 0.10))
