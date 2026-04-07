@@ -573,7 +573,8 @@ class EmulatorViewModel {
     /// Called from tick() at 60 Hz only when liveDebugEnabled.
     private func buildLiveSnapshot(machine m: TI59MachineWrapper) -> LiveDebugSnapshot {
         let programRegs = Int(m.partitionProgramRegs)
-        let dataRegCount = max(0, 120 - programRegs)
+        // For TI-58: total 60 registers, for TI-59: total 120 registers
+        let dataRegCount = max(0, (model == .ti58 ? 60 : 120) - programRegs)
         var snap = LiveDebugSnapshot()
         snap.programRegCount = programRegs
         snap.dataRegCount = dataRegCount
@@ -775,14 +776,20 @@ class EmulatorViewModel {
     func debugDumpVars() {
         guard let m = machine else { return }
         let programRegs = Int(m.partitionProgramRegs)
-        let maxRegNum = 119 - programRegs   // last addressable data register
+        // For TI-58: total 60 registers, so data count is (60 - programRegs)
+        // For TI-59: total 120 registers, so data count is (120 - programRegs)
+        let dataRegCount = (model == .ti58) ? (60 - programRegs) : (120 - programRegs)
+        let maxRegNum = dataRegCount - 1
         guard maxRegNum >= 0 else {
             debugLines.append("── Vars: no data registers in current partition ──")
             return
         }
         var lines: [String] = [String(format: "── Vars R00–R%02d ──", maxRegNum)]
         for regNum in 0...maxRegNum {
-            let raw = m.rawRegister(119 - regNum) as Data
+            // For TI-58: data registers start at end of 60-register memory (index 59)
+            // For TI-59: data registers start at end of 120-register memory (index 119)
+            let maxIndex = (model == .ti58) ? 59 : 119
+            let raw = m.rawRegister(maxIndex - regNum) as Data
             if raw.contains(where: { $0 != 0 }) {
                 let v = TI59MachineWrapper.decodeBCD(raw)
                 lines.append(String(format: "R%02d = %.10g", regNum, v))
