@@ -4,6 +4,7 @@ struct CPUDebugView: View {
     @Environment(EmulatorViewModel.self) var vm
     @State private var breakpointHexInput: String = ""
     @State private var selectedInstructionIndex: Int? = nil
+    @FocusState private var isFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
@@ -22,7 +23,8 @@ struct CPUDebugView: View {
             }
         }
         .background(Color(white: 0.10))
-        .focusable()  // Enable keyboard input on macOS
+        .focusable()
+        .focused($isFocused)
         .onAppear {
             vm.cpuDebugEnabled = true
         }
@@ -30,9 +32,10 @@ struct CPUDebugView: View {
             vm.cpuDebugEnabled = false
         }
         .onChange(of: vm.isFrozen) { oldValue, newValue in
-            // When freeze is pressed, select the most recent instruction
+            // When freeze is pressed, select the most recent instruction and focus for keyboard input
             if newValue && !oldValue {
                 selectedInstructionIndex = vm.cpuDebugSnapshot.recentInstructions.count - 1
+                isFocused = true
             }
         }
         .onKeyPress(.upArrow) {
@@ -238,8 +241,10 @@ struct CPUDebugView: View {
                     .onChange(of: selectedInstructionIndex) {
                         // Scroll to selected instruction when navigating with arrow keys
                         if let idx = selectedInstructionIndex {
-                            withAnimation(.easeOut(duration: 0.05)) {
-                                proxy.scrollTo(idx, anchor: .center)
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
+                                withAnimation(.easeOut(duration: 0.05)) {
+                                    proxy.scrollTo(idx, anchor: .top)
+                                }
                             }
                         }
                     }
@@ -253,7 +258,10 @@ struct CPUDebugView: View {
 
     private var registersSection: some View {
         SectionBox(title: "REGISTERS") {
-            let cpu = selectedInstructionIndex.flatMap { vm.cpuDebugSnapshot.recentInstructions[$0].cpuBefore } ?? vm.cpuDebugSnapshot.recentInstructions.last?.cpuBefore ?? TICPUSnapshot()
+            let cpu = selectedInstructionIndex.flatMap { idx in
+                guard idx >= 0 && idx < vm.cpuDebugSnapshot.recentInstructions.count else { return nil }
+                return vm.cpuDebugSnapshot.recentInstructions[idx].cpuBefore
+            } ?? vm.cpuDebugSnapshot.recentInstructions.last?.cpuBefore ?? TICPUSnapshot()
 
             VStack(alignment: .leading, spacing: 6) {
                 registerRow("A", cpu.A)
@@ -291,7 +299,10 @@ struct CPUDebugView: View {
 
     private var controlRegistersSection: some View {
         SectionBox(title: "CONTROL REGISTERS") {
-            let cpu = selectedInstructionIndex.flatMap { vm.cpuDebugSnapshot.recentInstructions[$0].cpuBefore } ?? vm.cpuDebugSnapshot.recentInstructions.last?.cpuBefore ?? TICPUSnapshot()
+            let cpu = selectedInstructionIndex.flatMap { idx in
+                guard idx >= 0 && idx < vm.cpuDebugSnapshot.recentInstructions.count else { return nil }
+                return vm.cpuDebugSnapshot.recentInstructions[idx].cpuBefore
+            } ?? vm.cpuDebugSnapshot.recentInstructions.last?.cpuBefore ?? TICPUSnapshot()
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
@@ -339,7 +350,10 @@ struct CPUDebugView: View {
 
     private var scomSection: some View {
         SectionBox(title: "SCOM") {
-            let cpu = selectedInstructionIndex.flatMap { vm.cpuDebugSnapshot.recentInstructions[$0].cpuBefore } ?? vm.cpuDebugSnapshot.recentInstructions.last?.cpuBefore ?? TICPUSnapshot()
+            let cpu = selectedInstructionIndex.flatMap { idx in
+                guard idx >= 0 && idx < vm.cpuDebugSnapshot.recentInstructions.count else { return nil }
+                return vm.cpuDebugSnapshot.recentInstructions[idx].cpuBefore
+            } ?? vm.cpuDebugSnapshot.recentInstructions.last?.cpuBefore ?? TICPUSnapshot()
 
             VStack(alignment: .leading, spacing: 2) {
                 ForEach(0..<16, id: \.self) { row in
