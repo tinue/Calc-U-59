@@ -323,6 +323,15 @@ class EmulatorViewModel {
     func resetMachine() {
         cardState = .noCard
         machine?.reset()
+
+        // Clear out-of-range registers for the current model
+        let programRegs = Int(machine?.partitionProgramRegs ?? 60)
+        let dataRegCount = max(0, 120 - programRegs)
+        let zeroNibbles = Array(repeating: UInt8(0), count: 16)
+        for regNum in dataRegCount..<120 {
+            machine?.setRawRegister(regNum, nibbles: Data(zeroNibbles))
+        }
+
         debugAppend(["Calculator Reset"])
     }
 
@@ -570,9 +579,13 @@ class EmulatorViewModel {
         snap.dataRegCount = dataRegCount
 
         // Data registers (use optimized batch scan from bridge)
+        // For TI-58, register indices are offset by 60 (memory starts at index 60)
+        let registerOffset = (model == .ti58) ? 60 : 0
         let nonZeroIdx = m.nonZeroDataRegisterIndices()
         nonZeroIdx.forEach { regNum in
-            snap.nonZeroRegs.append(.init(num: Int(regNum), value: m.dataRegister(Int(regNum))))
+            let regIdx = Int(regNum)
+            let displayRegNum = regIdx - registerOffset
+            snap.nonZeroRegs.append(.init(num: displayRegNum, value: m.dataRegister(regIdx)))
         }
 
         // CPU snapshot (single ~370-byte memcpy)
@@ -924,6 +937,13 @@ class EmulatorViewModel {
         m.writeProgramSteps(Data(programArray))
         for (regNum, nibbles) in parsed.registers {
             m.writeDataRegister(regNum, nibbles: Data(nibbles))
+        }
+
+        // Clear out-of-range data registers to prevent corruption from stale state files
+        let dataRegCount = 120 - programRegs
+        let zeroNibbles = Data(repeating: UInt8(0), count: 16)
+        for regNum in dataRegCount..<120 {
+            m.setRawRegister(regNum, nibbles: zeroNibbles)
         }
 
         startEmulationLoop()
