@@ -1,0 +1,127 @@
+# TI-59 / TMC0501 Mnemonic Table
+# Single source of truth for both disasm.py and TMC0501.cpp.
+# Format: CATEGORY  HEX_INDEX  MNEMONIC_OR_TEMPLATE
+# Templates use {b} = bit number, {a} = arg nibble.
+# Run: python3 tools/disasm.py --emit-cpp  to regenerate C++ arrays.
+
+# ── MASK ─────────────────────────────────────────────────────────────────────
+# Field mask names, indexed 0..F by opcode bits 11-8.
+# Entries marked <...> are handled by special-case branches in the disassembler.
+MASK	0	<flag>
+MASK	1	ALL
+MASK	2	DP
+MASK	3	DP
+MASK	4	DP
+MASK	5	LO
+MASK	6	EXP
+MASK	7	EXP
+MASK	8	<keyboard>
+MASK	9	MANT
+MASK	A	<wait>
+MASK	B	MID
+MASK	C	MX
+MASK	D	MID
+MASK	E	HI
+MASK	F	MX
+
+# ── DST ──────────────────────────────────────────────────────────────────────
+# Destination / exchange register names, indexed 0..7 by opcode bits 2-0.
+# Entries containing '<>' denote exchange (XCH) destinations.
+DST	0	A
+DST	1	IO
+DST	2	A<>B
+DST	3	B
+DST	4	C
+DST	5	C<>D
+DST	6	D
+DST	7	A<>E
+
+# ── N ────────────────────────────────────────────────────────────────────────
+# BCD immediate constant N associated with each field mask, indexed 0..F.
+# Used in immediate-operand ALU instructions.
+N	0	?
+N	1	0
+N	2	0
+N	3	1
+N	4	xC
+N	5	1
+N	6	0
+N	7	1
+N	8	?
+N	9	0
+N	A	?
+N	B	5
+N	C	0
+N	D	1
+N	E	1
+N	F	1
+
+# ── BRANCH ───────────────────────────────────────────────────────────────────
+# Branch mnemonic indexed by carry condition bit (bit 11).
+BRANCH	0	JNC
+BRANCH	1	JC
+
+# ── FLAG ─────────────────────────────────────────────────────────────────────
+# Flag-register operations, indexed 0..F by opcode bits 3-0.
+# Hi nibble of opcode is the bit number {b}.
+FLAG	0	TST fA[{b}]
+FLAG	1	SET fA[{b}]
+FLAG	2	CLR fA[{b}]
+FLAG	3	TOG fA[{b}]
+FLAG	4	SWAP fA[{b}],fB[{b}]
+FLAG	5	SET KR[{b}]
+FLAG	6	MOV fA[{b}],fB[{b}]
+FLAG	7	MOV fA[1..4],R5
+FLAG	8	TST fB[{b}]
+FLAG	9	SET fB[{b}]
+FLAG	A	CLR fB[{b}]
+FLAG	B	TOG fB[{b}]
+FLAG	C	CMP fA[{b}],fB[{b}]
+FLAG	D	CLR KR[{b}]
+FLAG	E	MOV fB[{b}],fA[{b}]
+FLAG	F	MOV fB[1..4],R5
+
+# ── CTRL ─────────────────────────────────────────────────────────────────────
+# Control / wait operations when hi nibble = A; lo nibble = index; {a} = arg nibble.
+# Indices 6, 8, E, F are handled by dedicated branches — not listed here.
+CTRL	0	WAIT D{a}
+CTRL	1	CLR.IDLE
+CTRL	2	CLR fA
+CTRL	3	WAIT.BUSY
+CTRL	4	INC KR
+CTRL	5	TST KR[{a}]
+CTRL	7	MOV R5,#{a}
+CTRL	9	SET.IDLE
+CTRL	A	CLR fB
+CTRL	B	TST.BUSY
+CTRL	C	MOV KR,EXT[4..15]
+CTRL	D	SWAP KR,SR
+
+# ── PRN ──────────────────────────────────────────────────────────────────────
+# Printer / card-reader operations; lo nibble = 8, hi nibble = A; index = bits 7-4.
+PRN	0	MOV R5,KR[4..7]
+PRN	1	MOV KR[4..7],R5
+PRN	2	CRD.IN
+PRN	3	CRD.OUT
+PRN	4	CRD.OFF
+PRN	5	CRD.RD
+PRN	6	PRT.OUT
+PRN	7	PRT.FUNC
+PRN	8	PRT.CLR
+PRN	9	PRT.STEP
+PRN	A	PRT.GO
+PRN	B	PRT.FEED
+PRN	C	CRD.WR
+PRN	F	RAM.OP
+
+# ── LIB ──────────────────────────────────────────────────────────────────────
+# Library / no-op operations; lo nibble = E, hi nibble = A; index = bits 7-4.
+LIB	0	LIB.IN
+LIB	1	LIB.PC
+LIB	2	LIB.PC.IN
+LIB	3	LIB.HI
+
+# ── MEM ──────────────────────────────────────────────────────────────────────
+# Hardware store / recall; lo nibble = F, hi nibble = A; index = bit 4.
+MEM	0	STOF
+MEM	1	RCLF
