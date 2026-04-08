@@ -138,12 +138,11 @@ def disasm(addr: int, opcode: int, model: str = "59") -> str:
             return _PRN.get(arg, f"PRN {arg:X}")
 
         if lo == 0x6:                          # FLGR5: copy fA or fB[1..4] → R5
-            # TI-58C: opcodes 0x0A76 and 0x0A86 are special MEMWR/MEMRD ops
-            if model == "58C":
-                if opcode == 0x0A76:
-                    return "MEMWR"
-                if opcode == 0x0A86:
-                    return "MEMRD"
+            # Opcodes 0x0A76 and 0x0A86 are special MEMWR/MEMRD ops (TI-58C)
+            if opcode == 0x0A76:
+                return "MEMWR"
+            if opcode == 0x0A86:
+                return "MEMRD"
             reg = "fB" if (opcode & 0xF0) else "fA"
             return f"MOV R5,{reg}[1..4]"
 

@@ -18,7 +18,7 @@ The mnemonic disassembly uses mnemonics.tsv from the same directory.
 import sys
 import struct
 import json
-from pathlib import Path
+from disasm import disasm
 
 # ── Constants (must match DebugAPI.md) ────────────────────────────────────────
 
@@ -34,101 +34,6 @@ USER_KIND = {0x01: 'KEY DOWN', 0x02: 'KEY UP',
              0x03: 'CARD INSERT', 0x04: 'CARD EJECT'}
 
 BANNER = '-' * 80
-
-# ── Disassembler (minimal version for mnemonic lookup) ────────────────────────
-
-def _load_mnemonics_tsv(path):
-    """Parse mnemonics.tsv into {CATEGORY: {hex_index: template_string}}."""
-    tables = {}
-    try:
-        for line in Path(path).read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            parts = line.split("\t", 2)
-            if len(parts) != 3:
-                continue
-            cat, idx_str, mnem = parts
-            tables.setdefault(cat, {})[int(idx_str, 16)] = mnem
-        return tables
-    except FileNotFoundError:
-        # Fallback: return empty tables if mnemonics.tsv not found
-        return {'MASK': {}, 'FLAG': {}, 'BRANCH': {}, 'CTRL': {}, 'PRN': {}, 'LIB': {}, 'MEM': {}}
-
-# Load mnemonics from the same directory as this script
-_SCRIPT_DIR = Path(__file__).resolve().parent
-try:
-    _TSV = _load_mnemonics_tsv(_SCRIPT_DIR / "mnemonics.tsv")
-    _BRANCH = [_TSV.get("BRANCH", {}).get(i, f"BR.{i}") for i in range(2)]
-    _FLAG = [_TSV.get("FLAG", {}).get(i, f"FLAG.{i}") for i in range(16)]
-    _MASK = [_TSV.get("MASK", {}).get(i, "?") for i in range(16)]
-    _N = [_TSV.get("N", {}).get(i, "0") for i in range(16)]
-    _DST = [_TSV.get("DST", {}).get(i, f"R{i}") for i in range(8)]
-    _CTRL = _TSV.get("CTRL", {})
-    _PRN = _TSV.get("PRN", {})
-    _LIB = _TSV.get("LIB", {})
-    _MEM = _TSV.get("MEM", {})
-except Exception:
-    _BRANCH = ["JNC", "JC"]
-    _FLAG = ["TST fA[{b}]"] * 16
-    _MASK = ["ALL"] * 16
-    _N = ["0"] * 16
-    _DST = ["A", "IO", "A<>B", "B", "C", "C<>D", "D", "A<>E"]
-    _CTRL = {}
-    _PRN = {}
-    _LIB = {}
-    _MEM = {}
-
-def _disasm(addr, opcode, model="59"):
-    """Disassemble one 13-bit opcode at address `addr`."""
-    # Branch (bit 12 set)
-    if opcode & 0x1000:
-        offset = (opcode >> 1) & 0x03FF
-        dest = addr - offset if (opcode & 1) else addr + offset
-        cond = 1 if (opcode & 0x0800) else 0
-        return _BRANCH[cond]
-
-    hi = (opcode >> 8) & 0x0F
-
-    # Flag operations (hi = 0x0)
-    if hi == 0x0:
-        subop = opcode & 0x0F
-        bit = (opcode >> 4) & 0x0F
-        if subop < len(_FLAG):
-            return _FLAG[subop].format(b=bit)
-        return f"FLAG.{subop}"
-
-    # Keyboard scan (hi = 0x8)
-    if hi == 0x8:
-        return f"KEY"
-
-    # Wait / control (hi = 0xA)
-    if hi == 0xA:
-        lo = opcode & 0x0F
-        arg = (opcode >> 4) & 0x0F
-
-        if lo == 0x8:  # PRN / CRD ops
-            return _PRN.get(arg, f"PRN.{arg:X}")
-
-        if lo == 0x6:  # FLGR5: copy fA or fB[1..4] → R5
-            if model == "58C":
-                if opcode == 0x0A76:
-                    return "MEMWR"
-                if opcode == 0x0A86:
-                    return "MEMRD"
-            reg = "fB" if (opcode & 0xF0) else "fA"
-            return f"MOV"
-
-        if lo == 0xF:  # STOF / RCLF
-            return _MEM.get((opcode >> 4) & 1, f"MEM.{arg:X}")
-
-        if lo == 0xE:  # LIB / NOP variants
-            return _LIB.get(arg, f"NOP.{arg:X}")
-
-        return _CTRL.get(lo, f"CTRL.{lo:X}")
-
-    # ALU (all remaining hi values) - return generic ALU indicator
-    return "ALU"
 
 # ── Low-level reader ──────────────────────────────────────────────────────────
 
@@ -326,7 +231,7 @@ def format_as_log(records):
             # Disassemble the mnemonic
             addr = int(r['pc'], 16)
             opcode = int(r['opcode'], 16)
-            mnemonic = _disasm(addr, opcode)
+            mnemonic = disasm(addr, opcode)
             line1 = f"{r['pc']} {r['opcode']} {mnemonic}"
             line2 = (f"A={r['A']} B={r['B']} C={r['C']} "
                      f"D={r['D']} E={r['E']}")
