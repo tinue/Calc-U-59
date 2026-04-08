@@ -1326,38 +1326,74 @@ CPUSnapshot TMC0501::snapshotCPU() const {
 // ── disassemble() ─────────────────────────────────────────────────────────────
 //
 // Pure function: converts a 13-bit opcode to a mnemonic string.
-// Mnemonic conventions follow the TMC0501 instruction set encoding.
+// Mnemonic names follow tools/mnemonics.tsv in the ti59-research project.
+// Regenerate the generated tables with: python3 tools/disasm.py --emit-cpp
+
+// ── Generated tables (update via --emit-cpp) ─────────────────────────────────
 
 static const char* const kMaskName[16] = {
-    "INV","ALL","DPT","DPT,#1","DPT,#C","LLSD,#1",
-    "EXP","EXP,#1","INV","MANT","INV","MLSD,#5",
-    "MAEX","MAEX/MLSD,#1","MMSD,#1","MAEX,#1"
+    "<flag>", "ALL", "DP", "DP", "DP", "LO", "EXP", "EXP",
+    "<keyboard>", "MANT", "<wait>", "MID", "MX", "MID", "HI", "MX"
 };
 
-// ALU source-pair names: index → "srcX,srcY" or "srcX" or "srcY"
-static const char* const kALUSrc[24] = {
+static const char* const kFlagFmt[16] = {
+    "TST fA[%u]", "SET fA[%u]", "CLR fA[%u]", "TOG fA[%u]",
+    "SWAP fA[%u],fB[%u]", "SET KR[%u]", "MOV fA[%u],fB[%u]", "MOV fA[1..4],R5",
+    "TST fB[%u]", "SET fB[%u]", "CLR fB[%u]", "TOG fB[%u]",
+    "CMP fA[%u],fB[%u]", "CLR KR[%u]", "MOV fB[%u],fA[%u]", "MOV fB[1..4],R5"
+};
+
+static const char* const kBranch[2] = { "JNC", "JC" };
+
+static const char* const kPrn[16] = {
+    "MOV R5,KR[4..7]", "MOV KR[4..7],R5", "CRD.IN",  "CRD.OUT",
+    "CRD.OFF",         "CRD.RD",           "PRT.OUT",  "PRT.FUNC",
+    "PRT.CLR",         "PRT.STEP",         "PRT.GO",   "PRT.FEED",
+    "CRD.WR",          "",                 "",         "RAM.OP"
+};
+
+static const char* const kLib[16] = {
+    "LIB.IN", "LIB.PC", "LIB.PC.IN", "LIB.HI",
+    "", "", "", "", "", "", "", "", "", "", "", ""
+};
+
+static const char* const kMem[2] = { "STOF", "RCLF" };
+
+// ── Fixed ALU tables ──────────────────────────────────────────────────────────
+
+// BCD constant N associated with each field mask (bits 11-8)
+static const char* const kN[16] = {
+    "?","0","0","1","xC","1","0","1",
+    "?","0","?","5","0","1","1","1"
+};
+
+// Primary source register per ALU index 0-23
+static const char* const kSrc1[24] = {
     "A","A","B","B","C","C","D","D",
     "A","A","B","B","C","C","D","D",
-    "A,B","A,B","C,B","C,B","C,D","C,D","A,D","A,D"
+    "A","A","C","C","C","C","A","A"
 };
-static const char* const kALUOp[24] = {
-    "ADD","SUB","ADD","SUB","ADD","SUB","ADD","SUB",
-    "SHL","SHR","SHL","SHR","SHL","SHR","SHL","SHR",
-    "ADD","SUB","ADD","SUB","ADD","SUB","ADD","SUB"
+// Secondary source for two-register entries (indices 16-23); empty otherwise
+static const char* const kSrc2[24] = {
+    "","","","","","","","",
+    "","","","","","","","",
+    "B","B","B","B","D","D","D","D"
 };
-static const char* const kDst[8] = { "A","IO","AxB","B","C","CxD","D","AxE" };
+
+// Destination base name; kDstXch is the exchange partner ("" if not an XCH dest)
+static const char* const kDstBase[8] = { "A","IO","A","B","C","C","D","A" };
+static const char* const kDstXch[8]  = { "","","B","","","D","","E" };
 
 std::string TMC0501::disassemble(uint16_t pc, uint16_t opcode) {
     char buf[64];
 
     // ── Branch ────────────────────────────────────────────────────────
     if (opcode & 0x1000) {
-        uint16_t offs  = (opcode >> 1) & 0x3FFu;
-        bool     back  = (opcode & 0x0001) != 0;
-        bool     cond  = (opcode & FLG_COND) != 0; // bit 11 of opcode
+        uint16_t offs   = (opcode >> 1) & 0x3FFu;
+        bool     back   = (opcode & 0x0001) != 0;
+        bool     cond   = (opcode & FLG_COND) != 0; // bit 11 of opcode
         uint16_t target = back ? (uint16_t)(pc - offs) : (uint16_t)(pc + offs);
-        snprintf(buf, sizeof(buf), "%s %04X",
-                 cond ? "BR_C" : "BR_NC", target);
+        snprintf(buf, sizeof(buf), "%s %04X", kBranch[cond ? 1 : 0], target);
         return buf;
     }
 
@@ -1365,26 +1401,19 @@ std::string TMC0501::disassemble(uint16_t pc, uint16_t opcode) {
 
     // ── Flag / control ops (hi nibble = 0) ────────────────────────────
     if (hi == 0x0) {
-        static const char* const fOp[16] = {
-            "TST","SET","CLR","INV","XCH","SET_KR","MOV","MOV_R5",
-            "TST","SET","CLR","INV","CMP","CLR_KR","MOV","MOV_R5"
-        };
-        static const char* const fReg[16] = {
-            "fA","fA","fA","fA","fA/fB","KR","fA<-fB","fA[1:4]",
-            "fB","fB","fB","fB","fA,fB","KR","fB<-fA","fB[1:4]"
-        };
         unsigned bit = (opcode >> 4) & 0x0Fu;
         unsigned op  = opcode & 0x0Fu;
-        snprintf(buf, sizeof(buf), "%s %s[%u]", fOp[op], fReg[op], bit);
+        // Pass bit twice; SWAP/CMP/MOV templates use %u in both positions
+        snprintf(buf, sizeof(buf), kFlagFmt[op], bit, bit);
         return buf;
     }
 
     // ── Keyboard scan (hi nibble = 8) ─────────────────────────────────
     if (hi == 0x8) {
-        bool single = (opcode & 0x0008) != 0;
-        uint8_t kmask = (uint8_t)((opcode >> 4) & 0x0Fu);
+        bool    single = (opcode & 0x0008) != 0;
+        uint8_t kmask  = (uint8_t)((opcode >> 4) & 0x0Fu);
         if (single) {
-            snprintf(buf, sizeof(buf), "KEY %u,D%u", kmask, opcode & 7);
+            snprintf(buf, sizeof(buf), "KEY %u,D%u", kmask, opcode & 7u);
         } else {
             snprintf(buf, sizeof(buf), "KEY_ALL %u", kmask);
         }
@@ -1397,9 +1426,9 @@ std::string TMC0501::disassemble(uint16_t pc, uint16_t opcode) {
         uint8_t arg   = (uint8_t)((opcode >> 4) & 0x000Fu);
         switch (loNib) {
         case 0x0: snprintf(buf, sizeof(buf), "WAIT D%u", arg); return buf;
-        case 0x1: return "CLR IDL";
+        case 0x1: return "CLR.IDLE";
         case 0x2: return "CLR fA";
-        case 0x3: return "WAIT_BUSY";
+        case 0x3: return "WAIT.BUSY";
         case 0x4: return "INC KR";
         case 0x5: snprintf(buf, sizeof(buf), "TST KR[%u]", arg); return buf;
         case 0x6: {
@@ -1412,45 +1441,27 @@ std::string TMC0501::disassemble(uint16_t pc, uint16_t opcode) {
         }
         case 0x7: snprintf(buf, sizeof(buf), "MOV R5,#%u", arg); return buf;
         case 0x8: {
-            // Peripheral I/O — sub-decoded by opcode bits 7:4
-            switch (opcode & 0x00F0u) {
-            case 0x00: return "MOV R5,KR[4..7]";
-            case 0x10: return "MOV KR[4..7],R5";
-            case 0x20: return "IN CRD";
-            case 0x30: return "OUT CRD";
-            case 0x40: return "CRD_OFF";
-            case 0x50: return "CRD_READ";
-            case 0x60: return "OUT PRT";
-            case 0x70: return "OUT PRT_FUNC";
-            case 0x80: return "PRT_CLEAR";
-            case 0x90: return "PRT_STEP";
-            case 0xA0: return "PRT_PRINT";
-            case 0xB0: return "PRT_FEED";
-            case 0xC0: return "CRD_WRITE";
-            case 0xF0: return "RAM_OP";
-            default: snprintf(buf, sizeof(buf), "IO_%02X", (uint8_t)(opcode & 0x00FFu)); return buf;
-            }
+            uint8_t prn = (uint8_t)((opcode & 0x00F0u) >> 4);
+            const char* s = kPrn[prn];
+            if (s && *s) return s;
+            snprintf(buf, sizeof(buf), "IO_%02X", (uint8_t)(opcode & 0x00FFu));
+            return buf;
         }
-        case 0x9: return "SET IDL";
+        case 0x9: return "SET.IDLE";
         case 0xA: return "CLR fB";
-        case 0xB: return "TST BUSY";
-        case 0xC: return "MOV KR,EXT";
-        case 0xD: return "XCH KR,SR";
+        case 0xB: return "TST.BUSY";
+        case 0xC: return "MOV KR,EXT[4..15]";
+        case 0xD: return "SWAP KR,SR";
         case 0xE: {
-            switch (opcode & 0x00F0u) {
-            case 0x00: return "IN LIB";
-            case 0x10: return "OUT LIB_PC";
-            case 0x20: return "IN LIB_PC";
-            case 0x30: return "IN LIB_HIGH";
-            default:   snprintf(buf, sizeof(buf), "LIB_%02X", (uint8_t)(opcode >> 4 & 0xF)); return buf;
-            }
+            uint8_t lib = (uint8_t)((opcode & 0x00F0u) >> 4);
+            const char* s = kLib[lib];
+            if (s && *s) return s;
+            snprintf(buf, sizeof(buf), "LIB_%02X", lib);
+            return buf;
         }
         case 0xF: {
-            switch (opcode & 0x00F0u) {
-            case 0x00: return "STO";
-            case 0x10: return "RCL";
-            default:   snprintf(buf, sizeof(buf), "MEM_%02X", (uint8_t)(opcode >> 4 & 0xF)); return buf;
-            }
+            uint8_t m = (opcode & 0x0010u) ? 1 : 0;
+            return kMem[m];
         }
         default: break;
         }
@@ -1458,28 +1469,59 @@ std::string TMC0501::disassemble(uint16_t pc, uint16_t opcode) {
         return buf;
     }
 
-    // ── ALU (everything else) ─────────────────────────────────────────
-    const char* maskStr = kMaskName[hi];
-    int aluIdx = (opcode >> 3) & 0x1Fu;
-    int dstIdx = opcode & 0x07;
-    const char* dstStr = kDst[dstIdx];
+    // ── ALU (everything else) — assignment notation ───────────────────
+    const char* fld    = kMaskName[hi];
+    int         aluIdx = (opcode >> 3) & 0x1Fu;
+    int         dstIdx = opcode & 0x07;
+    const char* dstB   = kDstBase[dstIdx];
+    const char* dstX   = kDstXch[dstIdx];
+    const char* n      = kN[hi];
 
-    // Special-case ops 24–31
-    uint8_t spOp = (uint8_t)(opcode & 0x00F8u);
-    if (spOp == 0xC0) { snprintf(buf, sizeof(buf), "ADD.%s %s,A,const", maskStr, dstStr); return buf; }
-    if (spOp == 0xC8) { snprintf(buf, sizeof(buf), "SUB.%s %s,A,const", maskStr, dstStr); return buf; }
-    if (spOp == 0xD0) { snprintf(buf, sizeof(buf), "MOV.%s %s,#0/RCL", maskStr, dstStr); return buf; }
-    if (spOp == 0xD8) { snprintf(buf, sizeof(buf), "NEG.%s %s", maskStr, dstStr); return buf; }
-    if (spOp == 0xE0) { snprintf(buf, sizeof(buf), "ADD.%s %s,C,const", maskStr, dstStr); return buf; }
-    if (spOp == 0xE8) { snprintf(buf, sizeof(buf), "SUB.%s %s,C,const", maskStr, dstStr); return buf; }
-    if (spOp == 0xF0 || spOp == 0xF8) { snprintf(buf, sizeof(buf), "MOV.%s %s,R5", maskStr, dstStr); return buf; }
-
-    if (aluIdx < 24) {
-        snprintf(buf, sizeof(buf), "%s.%s %s,%s",
-                 kALUOp[aluIdx], maskStr, dstStr, kALUSrc[aluIdx]);
+    // Exchange: kDstXch is non-empty and bits 7:4 == 0xD
+    if (*dstX && (opcode & 0xF0u) == 0xD0u) {
+        snprintf(buf, sizeof(buf), "%s<>%s %s", dstB, dstX, fld);
         return buf;
     }
 
-    snprintf(buf, sizeof(buf), "ALU %04X", opcode);
+    const char* dst = dstB;
+
+    // Special-case entries 24-31 (opcode bits 7:3 = 11xxx)
+    uint8_t spOp = (uint8_t)(opcode & 0x00F8u);
+    if (spOp == 0xC0) { snprintf(buf, sizeof(buf), "%s=A+CON %s", dst, fld); return buf; }
+    if (spOp == 0xC8) { snprintf(buf, sizeof(buf), "%s=A-CON %s", dst, fld); return buf; }
+    if (spOp == 0xD0) { snprintf(buf, sizeof(buf), "%s=LOAD %s",  dst, fld); return buf; }
+    if (spOp == 0xD8) { snprintf(buf, sizeof(buf), "%s=-%s %s",   dst, n,   fld); return buf; }
+    if (spOp == 0xE0) { snprintf(buf, sizeof(buf), "%s=C+CON %s", dst, fld); return buf; }
+    if (spOp == 0xE8) { snprintf(buf, sizeof(buf), "%s=C-CON %s", dst, fld); return buf; }
+    if (spOp == 0xF0) { snprintf(buf, sizeof(buf), "%s=R5 %s",    dst, fld); return buf; }
+    if (spOp == 0xF8) { snprintf(buf, sizeof(buf), "%s=-R5 %s",   dst, fld); return buf; }
+
+    if (aluIdx >= 24) {
+        snprintf(buf, sizeof(buf), "ALU %04X", opcode);
+        return buf;
+    }
+
+    const char* s1 = kSrc1[aluIdx];
+    const char* s2 = kSrc2[aluIdx];
+
+    if (*s2) {
+        // Two-register arithmetic (indices 16-23): D=S1±S2 FLD
+        bool isAdd = (aluIdx & 1) == 0;
+        snprintf(buf, sizeof(buf), "%s=%s%s%s %s", dst, s1, isAdd ? "+" : "-", s2, fld);
+    } else if (aluIdx >= 8 && aluIdx <= 15) {
+        // Shift (indices 8-15): D=SL/SRx FLD
+        bool isShl = (aluIdx & 1) == 0;
+        snprintf(buf, sizeof(buf), "%s=S%c%s %s", dst, isShl ? 'L' : 'R', s1, fld);
+    } else if (aluIdx == 3 || aluIdx == 7) {
+        // Negate: D=-S FLD
+        snprintf(buf, sizeof(buf), "%s=-%s %s", dst, s1, fld);
+    } else if (aluIdx == 2 || aluIdx == 6) {
+        // Move register: D=S FLD
+        snprintf(buf, sizeof(buf), "%s=%s %s", dst, s1, fld);
+    } else {
+        // Immediate ADD/SUB (indices 0,1,4,5): D=S±N FLD
+        bool isAdd = (aluIdx == 0 || aluIdx == 4);
+        snprintf(buf, sizeof(buf), "%s=%s%s%s %s", dst, s1, isAdd ? "+" : "-", n, fld);
+    }
     return buf;
 }
