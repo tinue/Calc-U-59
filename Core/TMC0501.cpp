@@ -651,20 +651,20 @@ int TMC0501::step() {
             // TI-58C uses 0xA76 (MEMWR) and 0xA86 (MEMRD); reserve bits 7:4 = 0x7/0x8
             // TI-59/58 use these bits for MOV R5 operand selection (bit 4 = fA/fB choice)
             uint8_t bits_7_4 = (uint8_t)((opcode >> 4) & 0x000Fu);
-            if (m_variant == MachineVariant::TI58C && bits_7_4 == 0x7) {
+            if (hasConstantMemory(m_variant) && bits_7_4 == 0x7) {
                 // MEMWR — deferred write: capture address from Sout now; the
                 // actual data comes from the IO bus at the END of the next
                 // instruction.  If that instruction drives IO as output
                 // (FLG_IO_VALID), Sout carries the data.  Otherwise the bus
                 // is in input mode and reads as zero — so zero is written.
-                // Address is encoded in Sout[1:0] as 2-digit BCD.
-                RAM_ADDR = (uint8_t)(Sout[1] * 10u + Sout[0]);
+                // Address is encoded in Sout[1:0] as two hex nibbles.
+                RAM_ADDR = (uint8_t)(Sout[1] * 16u + Sout[0]);
                 if (RAM_ADDR < ram.size())
                     flags |= FLG_RAM_WRITE;
-            } else if (m_variant == MachineVariant::TI58C && bits_7_4 == 0x8) {
+            } else if (hasConstantMemory(m_variant) && bits_7_4 == 0x8) {
                 // MEMRD — read RAM[RAM_ADDR] into next MOV #0 as srcY (set up by preceding ALU opcode)
-                // Address is encoded in Sout[1] (tens) and Sout[0] (units) as 2-digit BCD
-                RAM_ADDR = (uint8_t)(Sout[1] * 10u + Sout[0]);
+                // Address is encoded in Sout[1:0] as two hex nibbles.
+                RAM_ADDR = (uint8_t)(Sout[1] * 16u + Sout[0]);
                 if (RAM_ADDR < ram.size())
                     flags |= FLG_RAM_READ;
             } else {
@@ -1140,7 +1140,7 @@ void TMC0501::setPrinterConnected(bool connected) {
     // TI-58C uses WAIT D11 + KEY FB → executes at digit 10 (KP.D10).
     // The printer connector is physically identical on both models, but the
     // TI-58C PCB routes the detection pin to a different digit-counter line.
-    int d = (m_variant == MachineVariant::TI58C) ? 10 : 0;
+    int d = hasConstantMemory(m_variant) ? 10 : 0;
     if (connected) key[d] |=  (1u << 2);
     else           key[d] &= ~(1u << 2);
 }
