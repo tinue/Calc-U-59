@@ -346,10 +346,11 @@ class EmulatorViewModel {
         machine?.reset()
 
         // Clear out-of-range registers for the current model
-        let programRegs = Int(machine?.partitionProgramRegs ?? 60)
-        let dataRegCount = max(0, 120 - programRegs)
-        let zeroNibbles = Array(repeating: UInt8(0), count: 16)
-        for regNum in dataRegCount..<120 {
+        let programRegs  = Int(machine?.partitionProgramRegs ?? 60)
+        let totalRegs    = Int(machine?.ramRegisterCount ?? (model.hasLargeMemory ? 120 : 60))
+        let dataRegCount = max(0, totalRegs - programRegs)
+        let zeroNibbles  = Array(repeating: UInt8(0), count: 16)
+        for regNum in dataRegCount..<totalRegs {
             machine?.setRawRegister(regNum, nibbles: Data(zeroNibbles))
         }
 
@@ -568,13 +569,36 @@ class EmulatorViewModel {
     func freeze(reason: FreezeReason = .manual) {
         isRunning = false
         freezeReason = reason
-        // Capture calculator state if live debug is enabled
-        if liveDebugEnabled, let m = machine {
-            liveDebugSnapshot = buildLiveSnapshot(machine: m)
+        guard let m = machine else { return }
+        // Advance to the next keycode boundary on the emulation queue (runs after the
+        // running loop exits, since emulQueue is serial). Then capture state.
+        emulQueue.async { [weak self, m] in
+            _ = m.stepUntilNextKeycode()
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                if self.liveDebugEnabled {
+                    self.liveDebugSnapshot = self.buildLiveSnapshot(machine: m)
+                }
+                self.captureInspectorSnapshot(machine: m)
+            }
         }
-        // Capture CPU inspector snapshot from current machine state
-        if let m = machine {
-            captureInspectorSnapshot(machine: m)
+    }
+
+    /// Step one keycode while frozen. Advances to the next keycode boundary and
+    /// refreshes the live debug and CPU inspector snapshots.
+    func stepKeycode() {
+        guard isFrozen else { return }
+        guard let m = machine else { return }
+        emulQueue.async { [weak self, m] in
+            guard let self else { return }
+            _ = m.stepUntilNextKeycode()
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                if self.liveDebugEnabled {
+                    self.liveDebugSnapshot = self.buildLiveSnapshot(machine: m)
+                }
+                self.captureInspectorSnapshot(machine: m)
+            }
         }
     }
 
@@ -684,21 +708,19 @@ class EmulatorViewModel {
     /// Called from tick() at 60 Hz only when liveDebugEnabled.
     private func buildLiveSnapshot(machine m: TI59MachineWrapper) -> LiveDebugSnapshot {
         let programRegs = Int(m.partitionProgramRegs)
-        // For TI-58/58C: total 60 registers, for TI-59: total 120 registers
-        let isTI58Family = (model == .ti58 || model == .ti58c)
-        let dataRegCount = max(0, (isTI58Family ? 60 : 120) - programRegs)
+        let totalRegs   = Int(m.ramRegisterCount)   // 60 (TI-58/58C) or 120 (TI-59)
+        let dataRegCount = max(0, totalRegs - programRegs)
         var snap = LiveDebugSnapshot()
         snap.programRegCount = programRegs
         snap.dataRegCount = dataRegCount
 
-        // Data registers (use optimized batch scan from bridge)
-        // For TI-58/58C, register indices are offset by 60 (memory starts at index 60)
-        let registerOffset = isTI58Family ? 60 : 0
+        // Data registers (use optimized batch scan from bridge).
+        // nonZeroDataRegisterIndices() returns 0-based register numbers (R00=0, R01=1, …)
+        // relative to the top of the model's RAM, so no offset adjustment is needed.
         let nonZeroIdx = m.nonZeroDataRegisterIndices()
         nonZeroIdx.forEach { regNum in
             let regIdx = Int(regNum)
-            let displayRegNum = regIdx - registerOffset
-            snap.nonZeroRegs.append(.init(num: displayRegNum, value: m.dataRegister(regIdx)))
+            snap.nonZeroRegs.append(.init(num: regIdx, value: m.dataRegister(regIdx)))
         }
 
         // CPU snapshot (single ~370-byte memcpy)
@@ -939,10 +961,8 @@ class EmulatorViewModel {
     func debugDumpVars() {
         guard let m = machine else { return }
         let programRegs = Int(m.partitionProgramRegs)
-        // For TI-58/58C: total 60 registers, so data count is (60 - programRegs)
-        // For TI-59: total 120 registers, so data count is (120 - programRegs)
-        let isTI58Family = (model == .ti58 || model == .ti58c)
-        let dataRegCount = isTI58Family ? (60 - programRegs) : (120 - programRegs)
+        let totalRegs   = Int(m.ramRegisterCount)   // 60 (TI-58/58C) or 120 (TI-59)
+        let dataRegCount = totalRegs - programRegs
         let maxRegNum = dataRegCount - 1
         guard maxRegNum >= 0 else {
             debugLines.append("── Vars: no data registers in current partition ──")
@@ -950,10 +970,7 @@ class EmulatorViewModel {
         }
         var lines: [String] = [String(format: "── Vars R00–R%02d ──", maxRegNum)]
         for regNum in 0...maxRegNum {
-            // For TI-58/58C: data registers start at end of 60-register memory (index 59)
-            // For TI-59: data registers start at end of 120-register memory (index 119)
-            let maxIndex = isTI58Family ? 59 : 119
-            let raw = m.rawRegister(maxIndex - regNum) as Data
+            let raw = m.rawRegister(totalRegs - 1 - regNum) as Data
             if raw.contains(where: { $0 != 0 }) {
                 let v = TI59MachineWrapper.decodeBCD(raw)
                 lines.append(String(format: "R%02d = %.10g", regNum, v))
@@ -1086,8 +1103,7 @@ class EmulatorViewModel {
         if !parsed.errors.isEmpty { errorMessage = parsed.errors.joined(separator: "\n") }
 
         // TI-58/58C: 60 RAM registers → max 480 steps (last step 479).
-        let isTI58 = (model == .ti58 || model == .ti58c)
-        if isTI58 {
+        if !model.hasLargeMemory {
             if parsed.partitionWasExplicit && parsed.partitionMaxStep > 479 {
                 errorMessage = "State file partition (\(parsed.partitionMaxStep)) exceeds TI-58 maximum (479) — load aborted."
                 return

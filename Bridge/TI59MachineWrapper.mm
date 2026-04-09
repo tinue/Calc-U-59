@@ -47,6 +47,10 @@ static const int kbits[] = {0, 1, 2, 3, 5, 6};  // index 0 unused; index col
     return _machine->stepN(n);
 }
 
+- (uint32_t)stepUntilNextKeycode {
+    return _machine->stepUntilNextKeycode();
+}
+
 - (void)pressKeyRow:(int)row col:(int)col {
     _machine->pressKey(row, col);
 }
@@ -322,9 +326,10 @@ static const int kbits[] = {0, 1, 2, 3, 5, 6};  // index 0 unused; index col
 - (NSIndexSet*)nonZeroDataRegisterIndices {
     NSMutableIndexSet* result = [NSMutableIndexSet indexSet];
     int programRegs = (int)_machine->partitionProgramRegs();
-    int dataRegCount = MAX(0, 120 - programRegs);
+    int totalRegs   = _machine->ramRegCount();
+    int dataRegCount = MAX(0, totalRegs - programRegs);
     for (int regNum = 0; regNum < dataRegCount; regNum++) {
-        const uint8_t* n = _machine->readRAMReg(119 - regNum);
+        const uint8_t* n = _machine->readRAMReg(totalRegs - 1 - regNum);
         for (int i = 0; i < 16; i++) {
             if (n[i] != 0) {
                 [result addIndex:regNum];

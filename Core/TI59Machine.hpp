@@ -81,6 +81,10 @@ public:
     /// Stops early if a breakpoint is hit (when TRACE_BREAKPOINTS is set).
     uint32_t stepN(uint32_t n, bool stopOnBreakpoint = true);
 
+    /// Run steps until SCOM[0][4:7] changes (keycode boundary) or maxSteps is reached.
+    /// Returns number of steps executed. Works for both RAM and master-library programs.
+    uint32_t stepUntilNextKeycode(uint32_t maxSteps = 50000);
+
     /// Current program counter (for CLI inspection between stepN calls).
     uint16_t pc() const;
 

@@ -57,6 +57,11 @@ typedef struct {
 /// Execute up to n CPU instructions under a single mutex lock. Returns count executed.
 - (uint32_t)stepN:(uint32_t)n;
 
+/// Execute steps until the program-step counter (SCOM[0][4:7]) changes (keycode boundary).
+/// Returns the number of steps executed. Stops at ~50,000 steps if no boundary is found.
+- (uint32_t)stepUntilNextKeycode
+    NS_SWIFT_NAME(stepUntilNextKeycode());
+
 /// Key input. row 0–6, col 0–15.
 - (void)pressKeyRow:(int)row col:(int)col;
 - (void)releaseKeyRow:(int)row col:(int)col;

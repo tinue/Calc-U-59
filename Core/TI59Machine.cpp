@@ -5,7 +5,7 @@
 TI59Machine::TI59Machine(MachineVariant variant)
     : m_variant(variant), m_cpu(m_rom, m_ram)
 {
-    if (variant == MachineVariant::TI58 || variant == MachineVariant::TI58C)
+    if (!hasLargeMemory(variant))
         m_ram.setLimit(60);
     std::cerr << "[DEBUG] TI59Machine constructor: variant=" << (int)variant
               << " m_ram.size()=" << m_ram.size() << std::endl;
@@ -77,8 +77,8 @@ void TI59Machine::writeProgram(const uint8_t* keycodes, int count) {
 }
 
 void TI59Machine::writeDataRegister(int regNum, const uint8_t* nibbles16) {
-    // Data registers descend from the top of RAM: R00=RAM[119], R01=RAM[118], ...
-    m_ram.writeReg(RAM::TOTAL_REGS - 1 - regNum, nibbles16);
+    // Data registers descend from the top of RAM: R00=RAM[size-1], R01=RAM[size-2], ...
+    m_ram.writeReg(m_ram.size() - 1 - regNum, nibbles16);
 }
 
 int TI59Machine::partitionProgramRegs() const {
@@ -107,7 +107,7 @@ void TI59Machine::setPartitionProgramRegs(int programRAMregs) {
 // ── Magnetic card reader ───────────────────────────────────────────────────────
 
 int TI59Machine::cardSwitchCol() const {
-    return (m_variant == MachineVariant::TI59) ? 10 : 7;
+    return hasLargeMemory(m_variant) ? 10 : 7;
 }
 
 void TI59Machine::insertCard(const uint8_t* data, size_t count) {
@@ -204,6 +204,23 @@ uint32_t TI59Machine::stepN(uint32_t n, bool stopOnBreakpoint) {
     return done;
 }
 
+uint32_t TI59Machine::stepUntilNextKeycode(uint32_t maxSteps) {
+    std::lock_guard<std::mutex> lock(m_keyMutex);
+    uint8_t n4 = m_cpu.scomNibble(0, 4);
+    uint8_t n5 = m_cpu.scomNibble(0, 5);
+    uint8_t n6 = m_cpu.scomNibble(0, 6);
+    uint8_t n7 = m_cpu.scomNibble(0, 7);
+    uint32_t done = 0;
+    while (done < maxSteps) {
+        m_cpu.step();
+        done++;
+        if (m_cpu.consumeBreakpointHit()) break;
+        if (m_cpu.scomNibble(0, 4) != n4 || m_cpu.scomNibble(0, 5) != n5 ||
+            m_cpu.scomNibble(0, 6) != n6 || m_cpu.scomNibble(0, 7) != n7) break;
+    }
+    return done;
+}
+
 uint16_t TI59Machine::pc() const {
     return m_cpu.pc();
 }
@@ -241,8 +258,8 @@ double TI59Machine::decodeBCD(const uint8_t* n) {
 }
 
 double TI59Machine::readDataReg(int regNum) const {
-    // Data registers descend from the top of RAM: R00=RAM[119], R01=RAM[118], ...
-    return decodeBCD(m_ram.readReg(RAM::TOTAL_REGS - 1 - regNum));
+    // Data registers descend from the top of RAM: R00=RAM[size-1], R01=RAM[size-2], ...
+    return decodeBCD(m_ram.readReg(m_ram.size() - 1 - regNum));
 }
 
 uint8_t TI59Machine::readProgramStep(int stepAddr) const {

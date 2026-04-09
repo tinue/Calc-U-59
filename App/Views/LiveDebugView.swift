@@ -32,6 +32,11 @@ struct LiveDebugView: View {
                 .font(.caption.bold())
                 .foregroundStyle(.white.opacity(0.6))
             Spacer()
+            if vm.isFrozen {
+                Button("STEP") { vm.stepKeycode() }
+                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    .foregroundStyle(Color.cyan)
+            }
             Button(vm.isFrozen ? "RESUME" : "FREEZE") {
                 vm.isFrozen ? vm.unfreeze() : vm.freeze()
             }

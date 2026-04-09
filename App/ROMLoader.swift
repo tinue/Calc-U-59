@@ -33,7 +33,7 @@ struct ROMLoader {
     /// Load the appropriate ROM file from the app bundle and return a [UInt16] array of 13-bit words.
     /// TI-58C uses rom-58C.hex; TI-59 and TI-58 use rom-59.hex.
     static func load(model: MachineModel) throws -> [UInt16] {
-        let romName = model == .ti58c ? "rom-58C" : "rom-59"
+        let romName = model.hasConstantMemory ? "rom-58C" : "rom-59"
         guard let url = Bundle.main.url(forResource: romName, withExtension: "hex") else {
             throw ROMLoaderError.fileNotFound
         }
@@ -55,7 +55,7 @@ struct ROMLoader {
         guard words.count == model.romWordCount else {
             throw ROMLoaderError.wrongWordCount(words.count)
         }
-        if model == .ti59 {
+        if model.hasLargeMemory {
             // Sentinel values from the known-good TI-59 ROM image.
             // words[0]    = 0x0A01 — the first instruction at address 0 (CLR IDL)
             // words[6143] = 0x1987 — the last instruction; the value also encodes

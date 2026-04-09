@@ -34,7 +34,12 @@ enum MachineModel: Int, CaseIterable, Identifiable {
     }
 
     /// TI-58C only: RAM contents survive power-off (persisted to UserDefaults).
+    /// Also governs MEMRD/MEMWR instruction decoding and ROM loading.
     var hasConstantMemory: Bool { self == .ti58c }
+
+    /// TI-59 only: full 120-register RAM.
+    /// Governs data-register addressing, accessible memory size, and state loading.
+    var hasLargeMemory: Bool { self == .ti59 }
 
     /// Only the TI-59 has a magnetic card reader slot.
     var hasCardReader: Bool { self == .ti59 }
