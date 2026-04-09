@@ -652,8 +652,12 @@ int TMC0501::step() {
             // TI-59/58 use these bits for MOV R5 operand selection (bit 4 = fA/fB choice)
             uint8_t bits_7_4 = (uint8_t)((opcode >> 4) & 0x000Fu);
             if (m_variant == MachineVariant::TI58C && bits_7_4 == 0x7) {
-                // MEMWR — write Sout to RAM[RAM_ADDR] (set up by preceding ALU opcode)
-                // Address is encoded in Sout[1] (tens) and Sout[0] (units) as 2-digit BCD
+                // MEMWR — deferred write: capture address from Sout now; the
+                // actual data comes from the IO bus at the END of the next
+                // instruction.  If that instruction drives IO as output
+                // (FLG_IO_VALID), Sout carries the data.  Otherwise the bus
+                // is in input mode and reads as zero — so zero is written.
+                // Address is encoded in Sout[1:0] as 2-digit BCD.
                 RAM_ADDR = (uint8_t)(Sout[1] * 10u + Sout[0]);
                 if (RAM_ADDR < ram.size())
                     flags |= FLG_RAM_WRITE;
@@ -1044,8 +1048,12 @@ void TMC0501::execALU(uint16_t opcode) {
     } else if (flags & FLG_RAM_WRITE) {
         flags &= ~FLG_RAM_WRITE;
         if (RAM_ADDR < ram.size()) {
-            // Write only the nibbles specified by the captured field mask
-            writeRegMasked(RAM_ADDR, Sout, RAM_MASK);
+            // IO bus is in OUTPUT mode only when this instruction targets IO
+            // (FLG_IO_VALID set).  All other instructions leave the bus in
+            // INPUT mode, which reads as zero on hardware.
+            uint8_t io_data[16] = {};
+            if (flags & FLG_IO_VALID) memcpy(io_data, Sout, sizeof(io_data));
+            writeRegMasked(RAM_ADDR, io_data, RAM_MASK);
         }
     }
 
@@ -1127,11 +1135,14 @@ void TMC0501::setPrinterTrace(bool enabled) {
 }
 
 void TMC0501::setPrinterConnected(bool connected) {
-    // KP.D0: the line the ROM tests (via test-row ?KEY at digit==0) to detect
-    // whether a PC-100C is attached.  Invisible to scan-all ?KEY (digit 0 is
-    // the scan-all termination sentinel, not a key-check slot).
-    if (connected) key[0] |=  (1u << 2);
-    else           key[0] &= ~(1u << 2);
+    // Printer-connected detection line: KP at the digit the ROM tests via
+    // test-row ?KEY.  TI-59 uses WAIT D1 + KEY FB → executes at digit 0 (KP.D0).
+    // TI-58C uses WAIT D11 + KEY FB → executes at digit 10 (KP.D10).
+    // The printer connector is physically identical on both models, but the
+    // TI-58C PCB routes the detection pin to a different digit-counter line.
+    int d = (m_variant == MachineVariant::TI58C) ? 10 : 0;
+    if (connected) key[d] |=  (1u << 2);
+    else           key[d] &= ~(1u << 2);
 }
 
 // ── Trace / debug API ──────────────────────────────────────────────────────────
