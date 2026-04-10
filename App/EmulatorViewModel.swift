@@ -957,33 +957,23 @@ class EmulatorViewModel {
     }
 
     /// Dump non-zero data variables within the current partition.
-    /// Shows visible registers as R00–Rnn; hidden/extra registers as H00–Hnn.
+    /// Shows register numbers as R00–Rnn (not raw RAM indices).
     func debugDumpVars() {
         guard let m = machine else { return }
         let programRegs = Int(m.partitionProgramRegs)
         let totalRegs   = Int(m.ramRegisterCount)   // 60 (TI-58), 64 (TI-58C), or 120 (TI-59)
         let dataRegCount = totalRegs - programRegs
-        let maxVisibleReg = dataRegCount - 1
-        guard maxVisibleReg >= 0 else {
+        let maxRegNum = dataRegCount - 1
+        guard maxRegNum >= 0 else {
             debugLines.append("── Vars: no data registers in current partition ──")
             return
         }
-        var lines: [String] = [String(format: "── Vars R00–R%02d ──", maxVisibleReg)]
-
-        // Iterate through RAM indices, skip program memory, show data registers
-        for ramIdx in programRegs..<totalRegs {
-            let raw = m.rawRegister(ramIdx) as Data
+        var lines: [String] = [String(format: "── Vars R00–R%02d ──", maxRegNum)]
+        for regNum in 0...maxRegNum {
+            let raw = m.rawRegister(totalRegs - 1 - regNum) as Data
             if raw.contains(where: { $0 != 0 }) {
                 let v = TI59MachineWrapper.decodeBCD(raw)
-                // Calculate which register this RAM index maps to
-                let regNum = totalRegs - 1 - ramIdx
-                if regNum < dataRegCount {
-                    lines.append(String(format: "R%02d = %.10g", regNum, v))
-                } else {
-                    // Hidden register (extra ones beyond partition)
-                    let hiddenNum = regNum - dataRegCount
-                    lines.append(String(format: "H%02d = %.10g", hiddenNum, v))
-                }
+                lines.append(String(format: "R%02d = %.10g", regNum, v))
             }
         }
         debugLines.append(contentsOf: lines)
@@ -1023,43 +1013,19 @@ class EmulatorViewModel {
     /// Dump entire RAM memory with address information.
     /// Shows only non-zero registers as raw nibble pairs.
     /// Useful for tracking where saved values end up in memory.
-    /// Displays all non-zero RAM, labeling visible data registers as Rnn and
-    /// hidden/extra registers as Hnn.
     func debugDumpMemory() {
         guard let m = machine else { return }
         var lines: [String] = ["── Memory (non-zero registers) ──"]
 
-        let programRegs = Int(m.partitionProgramRegs)
-        let totalRegs   = Int(m.ramRegisterCount)
-        let dataRegCount = totalRegs - programRegs
-
-        for idx in 0..<totalRegs {
-            let n = Array(m.rawRegister(idx) as Data)
+        for reg in 0..<120 {
+            let n = Array(m.rawRegister(reg) as Data)
             // Skip if all zeros
             if n.allSatisfy({ $0 == 0 }) { continue }
 
             let pairs = stride(from: 0, to: 16, by: 2)
                 .map { String(format: "%X%X", n[$0], n[$0 + 1]) }
                 .joined(separator: " ")
-
-            // Label based on whether this RAM index maps to visible or hidden registers
-            let label: String
-            if idx < programRegs {
-                // Program memory: show raw index for reference
-                label = String(format: "P%03d", idx)
-            } else {
-                // Data memory: calculate register number
-                let regNum = totalRegs - 1 - idx
-                if regNum < dataRegCount {
-                    // Visible data register
-                    label = String(format: "R%03d", regNum)
-                } else {
-                    // Hidden register (beyond current partition)
-                    let hiddenNum = regNum - dataRegCount
-                    label = String(format: "H%03d", hiddenNum)
-                }
-            }
-            lines.append(String(format: "%@: %@", label, pairs))
+            lines.append(String(format: "R%03d: %@", reg, pairs))
         }
         debugLines.append(contentsOf: lines)
     }
