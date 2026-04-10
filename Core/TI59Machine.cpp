@@ -66,12 +66,17 @@ void TI59Machine::deserialiseRAM(const uint8_t* src) {
 
 void TI59Machine::writeProgram(const uint8_t* keycodes, int count) {
     for (int stepAddr = 0; stepAddr < count; stepAddr++) {
+        // Guard against quirky partitions that claim more steps than physically exist
+        int regIdx = stepAddr >> 3;
+        if (regIdx < 0 || regIdx >= (int)m_ram.size()) {
+            continue;  // Skip out-of-bounds steps
+        }
         uint8_t keycode = keycodes[stepAddr];
         // Keycodes are 2-digit decimal (00-99); ROM stores/reads them as BCD decimal digits.
         // nibble at (step&7)*2   = units digit (BCD LSD)
         // nibble at (step&7)*2+1 = tens  digit (BCD MSD)
-        m_ram.write(stepAddr >> 3, (stepAddr & 7) * 2,     keycode % 10);
-        m_ram.write(stepAddr >> 3, (stepAddr & 7) * 2 + 1, keycode / 10);
+        m_ram.write(regIdx, (stepAddr & 7) * 2,     keycode % 10);
+        m_ram.write(regIdx, (stepAddr & 7) * 2 + 1, keycode / 10);
     }
 }
 
@@ -262,8 +267,13 @@ double TI59Machine::readDataReg(int regNum) const {
 }
 
 uint8_t TI59Machine::readProgramStep(int stepAddr) const {
-    uint8_t tens  = m_ram.read(stepAddr >> 3, (stepAddr & 7) * 2 + 1);
-    uint8_t units = m_ram.read(stepAddr >> 3, (stepAddr & 7) * 2);
+    // Guard against quirky partitions that claim more steps than physically exist
+    int regIdx = stepAddr >> 3;  // Each register holds 8 steps (2 nibbles per step)
+    if (regIdx < 0 || regIdx >= (int)m_ram.size()) {
+        return 0x00;  // Return NOP (0x00) for out-of-bounds steps
+    }
+    uint8_t tens  = m_ram.read(regIdx, (stepAddr & 7) * 2 + 1);
+    uint8_t units = m_ram.read(regIdx, (stepAddr & 7) * 2);
     return (uint8_t)(tens * 10 + units);
 }
 
