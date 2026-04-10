@@ -243,12 +243,20 @@ struct LiveDebugView: View {
     private var partitionSection: some View {
         let snap = vm.liveDebugSnapshot
         let totalSteps = snap.programRegCount * 8
-        // Show displayable register count: 60 for TI-58/58C, 120 for TI-59
-        let displayableRegs = vm.model.hasConstantMemory ? 60 : (snap.programRegCount + snap.dataRegCount)
-        let maxReg = displayableRegs > 0 ? displayableRegs - 1 : 0
-        let partitionStr = "0.\(maxReg)"
+        let dataRegs = snap.dataRegCount
+
+        // Format partition as (lastStep.lastDataReg)
+        let lastStep = totalSteps > 0 ? totalSteps - 1 : 0
+        let partitionStr: String
+        if dataRegs > 0 {
+            let lastDataReg = dataRegs - 1
+            partitionStr = "(\(lastStep).\(lastDataReg))"
+        } else {
+            partitionStr = "(\(lastStep).)"
+        }
+
         return SectionBox(title: "PARTITION") {
-            Text("Steps: \(totalSteps), Registers: \(displayableRegs) (\(partitionStr))")
+            Text("Steps: \(totalSteps), Registers: \(dataRegs) \(partitionStr)")
                 .font(.system(size: 11, design: .monospaced))
                 .foregroundStyle(Color(white: 0.75))
                 .padding(.horizontal, 8)
