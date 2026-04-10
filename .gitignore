@@ -35,3 +35,9 @@ appstore/
 
 # Local Claude Code settings (permissions only, no secrets — but local)
 .claude/settings.local.json
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
