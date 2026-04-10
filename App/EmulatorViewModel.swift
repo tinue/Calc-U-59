@@ -957,23 +957,40 @@ class EmulatorViewModel {
     }
 
     /// Dump non-zero data variables within the current partition.
-    /// Shows register numbers as R00–Rnn (not raw RAM indices).
+    /// Displays as if the calculator is a TI-58 (60 registers max), with H00–Hnn
+    /// for hidden registers beyond that (TI-58C's extra 4 regs).
     func debugDumpVars() {
         guard let m = machine else { return }
         let programRegs = Int(m.partitionProgramRegs)
         let totalRegs   = Int(m.ramRegisterCount)   // 60 (TI-58), 64 (TI-58C), or 120 (TI-59)
-        let dataRegCount = totalRegs - programRegs
-        let maxRegNum = dataRegCount - 1
-        guard maxRegNum >= 0 else {
+        let model = self.model
+
+        // For TI-58/58C, treat as 60-register address space; TI-59 uses full 120
+        let displayableRegs = model.hasConstantMemory ? 60 : totalRegs
+        let visibleDataRegCount = displayableRegs - programRegs
+
+        guard visibleDataRegCount > 0 else {
             debugLines.append("── Vars: no data registers in current partition ──")
             return
         }
-        var lines: [String] = [String(format: "── Vars R00–R%02d ──", maxRegNum)]
-        for regNum in 0...maxRegNum {
-            let raw = m.rawRegister(totalRegs - 1 - regNum) as Data
+        var lines: [String] = [String(format: "── Vars R00–R%02d ──", visibleDataRegCount - 1)]
+
+        // Iterate through physical RAM data region (starts at programRegs)
+        for ramIdx in programRegs..<totalRegs {
+            let raw = m.rawRegister(ramIdx) as Data
             if raw.contains(where: { $0 != 0 }) {
                 let v = TI59MachineWrapper.decodeBCD(raw)
-                lines.append(String(format: "R%02d = %.10g", regNum, v))
+
+                // Calculate register label based on displayable address space
+                if ramIdx < displayableRegs {
+                    // Visible register: map to Rnn
+                    let dataIdx = displayableRegs - 1 - ramIdx
+                    lines.append(String(format: "R%02d = %.10g", dataIdx, v))
+                } else {
+                    // Hidden register (beyond displayable space): map to Hnn
+                    let hiddenIdx = ramIdx - displayableRegs
+                    lines.append(String(format: "H%02d = %.10g", hiddenIdx, v))
+                }
             }
         }
         debugLines.append(contentsOf: lines)
@@ -1012,12 +1029,16 @@ class EmulatorViewModel {
 
     /// Dump entire RAM memory with address information.
     /// Shows only non-zero registers as raw nibble pairs.
-    /// Useful for tracking where saved values end up in memory.
+    /// Displays as if TI-58 (60 register space), with H## for hidden extras (TI-58C).
     func debugDumpMemory() {
         guard let m = machine else { return }
         var lines: [String] = ["── Memory (non-zero registers) ──"]
 
-        for reg in 0..<120 {
+        let totalRegs = Int(m.ramRegisterCount)
+        let model = self.model
+        let displayableRegs = model.hasConstantMemory ? 60 : totalRegs
+
+        for reg in 0..<totalRegs {
             let n = Array(m.rawRegister(reg) as Data)
             // Skip if all zeros
             if n.allSatisfy({ $0 == 0 }) { continue }
@@ -1025,7 +1046,18 @@ class EmulatorViewModel {
             let pairs = stride(from: 0, to: 16, by: 2)
                 .map { String(format: "%X%X", n[$0], n[$0 + 1]) }
                 .joined(separator: " ")
-            lines.append(String(format: "R%03d: %@", reg, pairs))
+
+            // Label based on displayable address space
+            let label: String
+            if reg < displayableRegs {
+                // Visible address space
+                label = String(format: "R%03d", reg)
+            } else {
+                // Hidden address space (beyond displayable range)
+                let hiddenIdx = reg - displayableRegs
+                label = String(format: "H%03d", hiddenIdx)
+            }
+            lines.append(String(format: "%@: %@", label, pairs))
         }
         debugLines.append(contentsOf: lines)
     }
