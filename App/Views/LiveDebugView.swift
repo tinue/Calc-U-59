@@ -72,8 +72,9 @@ struct LiveDebugView: View {
                     .padding(.vertical, 4)
             } else {
                 LazyVStack(alignment: .leading, spacing: 2) {
-                    ForEach(snap.nonZeroRegs, id: \.num) { entry in
-                        Text(String(format: "R%02d = %.10g", entry.num, entry.value))
+                    ForEach(Array(snap.nonZeroRegs.enumerated()), id: \.offset) { _, entry in
+                        let label = entry.isHidden ? String(format: "H%02d", entry.num) : String(format: "R%02d", entry.num)
+                        Text(String(format: "%@ = %.10g", label, entry.value))
                             .font(.system(size: 11, design: .monospaced))
                             .foregroundStyle(Color(white: 0.85))
                     }

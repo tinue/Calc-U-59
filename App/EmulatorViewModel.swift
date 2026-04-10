@@ -709,18 +709,29 @@ class EmulatorViewModel {
     private func buildLiveSnapshot(machine m: TI59MachineWrapper) -> LiveDebugSnapshot {
         let programRegs = Int(m.partitionProgramRegs)
         let totalRegs   = Int(m.ramRegisterCount)   // 60 (TI-58), 64 (TI-58C), or 120 (TI-59)
+        let displayableRegs = model.hasConstantMemory ? 60 : totalRegs
         let dataRegCount = max(0, totalRegs - programRegs)
         var snap = LiveDebugSnapshot()
         snap.programRegCount = programRegs
         snap.dataRegCount = dataRegCount
 
-        // Data registers (use optimized batch scan from bridge).
-        // nonZeroDataRegisterIndices() returns 0-based register numbers (R00=0, R01=1, …)
-        // relative to the top of the model's RAM, so no offset adjustment is needed.
-        let nonZeroIdx = m.nonZeroDataRegisterIndices()
-        nonZeroIdx.forEach { regNum in
-            let regIdx = Int(regNum)
-            snap.nonZeroRegs.append(.init(num: regIdx, value: m.dataRegister(regIdx)))
+        // Data registers: check all non-zero values in the data region
+        // Visible registers (programRegs to displayableRegs-1) shown as R##
+        // Hidden registers (displayableRegs to totalRegs-1) shown as H##
+        for ramIdx in programRegs..<totalRegs {
+            let raw = m.rawRegister(ramIdx) as Data
+            if raw.contains(where: { $0 != 0 }) {
+                let value = TI59MachineWrapper.decodeBCD(raw)
+                if ramIdx < displayableRegs {
+                    // Visible register
+                    let regNum = displayableRegs - 1 - ramIdx
+                    snap.nonZeroRegs.append(.init(num: regNum, value: value, isHidden: false))
+                } else {
+                    // Hidden register
+                    let hiddenNum = ramIdx - displayableRegs
+                    snap.nonZeroRegs.append(.init(num: hiddenNum, value: value, isHidden: true))
+                }
+            }
         }
 
         // CPU snapshot (single ~370-byte memcpy)
@@ -957,8 +968,8 @@ class EmulatorViewModel {
     }
 
     /// Dump non-zero data variables within the current partition.
-    /// Displays as if the calculator is a TI-58 (60 registers max), with H00–Hnn
-    /// for hidden registers beyond that (TI-58C's extra 4 regs).
+    /// Displays visible registers as R00–Rnn, hidden ones (beyond 60) as H00–Hnn.
+    /// Sorted by label for consistent output.
     func debugDumpVars() {
         guard let m = machine else { return }
         let programRegs = Int(m.partitionProgramRegs)
@@ -975,24 +986,35 @@ class EmulatorViewModel {
         }
         var lines: [String] = [String(format: "── Vars R00–R%02d ──", visibleDataRegCount - 1)]
 
-        // Iterate through physical RAM data region (starts at programRegs)
-        for ramIdx in programRegs..<totalRegs {
+        // Collect all non-zero registers with labels, then sort for consistent output
+        var regEntries: [(label: String, value: Double)] = []
+
+        // Check hidden registers first (RAM[displayableRegs..totalRegs-1])
+        for ramIdx in displayableRegs..<totalRegs {
             let raw = m.rawRegister(ramIdx) as Data
             if raw.contains(where: { $0 != 0 }) {
                 let v = TI59MachineWrapper.decodeBCD(raw)
-
-                // Calculate register label based on displayable address space
-                if ramIdx < displayableRegs {
-                    // Visible register: map to Rnn
-                    let dataIdx = displayableRegs - 1 - ramIdx
-                    lines.append(String(format: "R%02d = %.10g", dataIdx, v))
-                } else {
-                    // Hidden register (beyond displayable space): map to Hnn
-                    let hiddenIdx = ramIdx - displayableRegs
-                    lines.append(String(format: "H%02d = %.10g", hiddenIdx, v))
-                }
+                let hiddenIdx = ramIdx - displayableRegs
+                regEntries.append((label: String(format: "H%02d", hiddenIdx), value: v))
             }
         }
+
+        // Check visible data registers (RAM[programRegs..displayableRegs-1])
+        for ramIdx in programRegs..<displayableRegs {
+            let raw = m.rawRegister(ramIdx) as Data
+            if raw.contains(where: { $0 != 0 }) {
+                let v = TI59MachineWrapper.decodeBCD(raw)
+                let dataIdx = displayableRegs - 1 - ramIdx
+                regEntries.append((label: String(format: "R%02d", dataIdx), value: v))
+            }
+        }
+
+        // Sort by label and add to output
+        regEntries.sort { $0.label < $1.label }
+        for entry in regEntries {
+            lines.append(String(format: "%@ = %.10g", entry.label, entry.value))
+        }
+
         debugLines.append(contentsOf: lines)
     }
 
@@ -1028,15 +1050,12 @@ class EmulatorViewModel {
     }
 
     /// Dump entire RAM memory with address information.
-    /// Shows only non-zero registers as raw nibble pairs.
-    /// Displays as if TI-58 (60 register space), with H## for hidden extras (TI-58C).
+    /// Shows only non-zero registers as raw nibble pairs using raw indices.
     func debugDumpMemory() {
         guard let m = machine else { return }
         var lines: [String] = ["── Memory (non-zero registers) ──"]
 
         let totalRegs = Int(m.ramRegisterCount)
-        let model = self.model
-        let displayableRegs = model.hasConstantMemory ? 60 : totalRegs
 
         for reg in 0..<totalRegs {
             let n = Array(m.rawRegister(reg) as Data)
@@ -1046,18 +1065,7 @@ class EmulatorViewModel {
             let pairs = stride(from: 0, to: 16, by: 2)
                 .map { String(format: "%X%X", n[$0], n[$0 + 1]) }
                 .joined(separator: " ")
-
-            // Label based on displayable address space
-            let label: String
-            if reg < displayableRegs {
-                // Visible address space
-                label = String(format: "R%03d", reg)
-            } else {
-                // Hidden address space (beyond displayable range)
-                let hiddenIdx = reg - displayableRegs
-                label = String(format: "H%03d", hiddenIdx)
-            }
-            lines.append(String(format: "%@: %@", label, pairs))
+            lines.append(String(format: "R%03d: %@", reg, pairs))
         }
         debugLines.append(contentsOf: lines)
     }
@@ -1240,8 +1248,9 @@ class EmulatorViewModel {
 struct LiveDebugSnapshot: Equatable {
     // Data registers — only non-zero values
     struct RegEntry: Equatable {
-        var num: Int      // user-visible register number (R00–R99)
+        var num: Int      // register number (0–99 for R, 0–3 for H)
         var value: Double
+        var isHidden: Bool = false  // true for H##, false for R##
     }
     var nonZeroRegs: [RegEntry] = []
     var dataRegCount: Int = 0
