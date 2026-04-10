@@ -695,7 +695,10 @@ class EmulatorViewModel {
         guard let m = machine else { return nil }
         // Number of accessible data registers depends on the current partition:
         // programRAMregs occupy RAM[0..(n-1)]; data regs fill RAM[n..totalRegs-1] top-down.
-        let numRegs = max(0, Int(m.ramRegisterCount) - Int(m.partitionProgramRegs))
+        let partitionProgramRegs = Int(m.partitionProgramRegs)
+        let totalRegs = Int(m.ramRegisterCount)
+        let programRegs = min(partitionProgramRegs, totalRegs)
+        let numRegs = max(0, totalRegs - programRegs)
         var regs = [Double](repeating: 0, count: numRegs)
         for i in 0..<numRegs { regs[i] = m.dataRegister(i) }
         let steps = Array(m.allProgramSteps() as Data)
@@ -975,12 +978,15 @@ class EmulatorViewModel {
     /// Sorted by label for consistent output.
     func debugDumpVars() {
         guard let m = machine else { return }
-        let programRegs = Int(m.partitionProgramRegs)
+        let partitionProgramRegs = Int(m.partitionProgramRegs)
         let totalRegs   = Int(m.ramRegisterCount)   // 60 (TI-58), 64 (TI-58C), or 120 (TI-59)
         let model = self.model
 
         // For TI-58/58C, treat as 60-register address space; TI-59 uses full 120
         let displayableRegs = model.hasConstantMemory ? 60 : totalRegs
+
+        // Clamp to physical RAM; quirky partitions may claim more than exists
+        let programRegs = min(partitionProgramRegs, totalRegs)
         let visibleDataRegCount = displayableRegs - programRegs
 
         guard visibleDataRegCount > 0 else {
