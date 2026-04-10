@@ -697,8 +697,17 @@ class EmulatorViewModel {
         // programRAMregs occupy RAM[0..(n-1)]; data regs fill RAM[n..totalRegs-1] top-down.
         let partitionProgramRegs = Int(m.partitionProgramRegs)
         let totalRegs = Int(m.ramRegisterCount)
-        let programRegs = min(partitionProgramRegs, totalRegs)
-        let numRegs = max(0, totalRegs - programRegs)
+
+        // If partition is invalid (claims more than physically exists), return empty registers
+        guard partitionProgramRegs <= totalRegs else {
+            var regs = [Double](repeating: 0, count: 0)
+            let steps = Array(m.allProgramSteps() as Data)
+            let cpu = m.snapshotCPU()
+            return CalcSnapshot(registers: regs, programSteps: steps,
+                                printerBuffer: m.printerBufferContent, cpu: cpu)
+        }
+
+        let numRegs = max(0, totalRegs - partitionProgramRegs)
         var regs = [Double](repeating: 0, count: numRegs)
         for i in 0..<numRegs { regs[i] = m.dataRegister(i) }
         let steps = Array(m.allProgramSteps() as Data)
@@ -724,7 +733,10 @@ class EmulatorViewModel {
         // Data registers: check all non-zero values in the data region
         // Visible registers (programRegs to displayableRegs-1) shown as R##
         // Hidden registers (displayableRegs to totalRegs-1) shown as H##
+        // Guard against quirky partitions: only access what physically exists
+        guard programRegs <= totalRegs else { return snap }
         for ramIdx in programRegs..<totalRegs {
+            guard ramIdx < totalRegs else { break }
             let raw = m.rawRegister(ramIdx) as Data
             if raw.contains(where: { $0 != 0 }) {
                 let value = TI59MachineWrapper.decodeBCD(raw)
