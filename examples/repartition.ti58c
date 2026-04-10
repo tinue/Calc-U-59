@@ -1,0 +1,136 @@
+# repartition.ti58c — TI-58C Repartitioning Reference
+# from: TI PPC NOTES v5n7, 1980
+#
+# REPARTITIONING THE TI-58C:
+#
+# By now you have heard of the extra 32 steps (480–511) or four memories in the
+# TI-58C. Unfortunately these steps are usually accessible only from the keyboard
+# using the STF IND ... sequence. But in the TI-58C, the memory corresponding to
+# steps 480 to 487 is used by the constant memory feature to set the partition, the
+# FIX n display mode, and to check for memory loss at turn-on. By changing the
+# contents of this memory the TI-58C can be repartitioned so that these 32 steps or
+# four memories are directly accessible.
+#
+# The first 13 digits of this memory store an unscaled ln(10). If this number is
+# not present at turn-on, the calculator erases all data and program memory to
+# protect the user from unsuspected memory loss. Instead the user suffers from
+# known memory loss.
+#
+# The next two digits of the memory (i.e. the first digit of step 480 and the last
+# digit of step 481) set the partition at turn-on. By writing the proper key-codes
+# in these steps, the TI-58C can be partitioned like a TI-59 or entirely new
+# partitions may be generated. First, steps 480–481 must be accessed. To do this,
+# write in program memory LBL A FIX 0 R/S, enter 609.000000609 into the display,
+# and press A. Then press STF IND 7 INV LRN. You should be at step 480. Write
+# |x| RCL in steps 480–481. Then cycle the on-off switch, press OP 16 and you
+# will see a partition of 0.09. This partition means you have no memories and 1200
+# program steps. Of course there is no hardware beyond step 511—any code you see
+# in these steps seems to be miscellaneous garbage (electrons that got lost in the
+# circuits, perhaps). Now you can repartition to any of the primary partitions in
+# the table by simply going to steps 480–481, entering the proper code and cycling
+# the on-off switch.
+#
+# However, the most useful partitions are those pseudo-59 partitions in the table.
+# To access them, get into one of the first four primary partitions then simply
+# repartition from the keyboard via OP 17 as you would with a TI-59. These give
+# the TI-58C user an extra 32 steps (480–511) or an extra four memories. For
+# instance, a partition of 479.59 gives 480 program steps and four valid
+# (hardware-backed) memories numbered 56 to 59. Memory 59 (or steps 480,481) must
+# be used with care since any change in FIX n or partitioning will alter the
+# contents (but note that the reverse is true only if the on-off switch is cycled)
+# and ln(10) must be restored before turn-off or the calculator will be cleared at
+# turn-on. Also, at turn-off, a pseudo-59 partition will revert to the corresponding
+# primary partition.
+#
+# The last digit of step 480 stores the FIX n display mode. This digit will equal
+# n+2 in a FIX n display for 0≤n≤7. In FIX 9 or FIX 8 this digit will be a zero,
+# but in FIX 8 the first digit of step 480 will be increased by one without
+# affecting the partition. This brings up an important point. A partition of 0.39 in
+# FIX 9 and a partition of 0.49 in FIX 8 both store code 20 41 in steps 480 and
+# 481, but the calculator goes into the correct partition and FIX n at turn-on. How
+# does the calculator determine which partition and FIX n is correct? Well, in the
+# FIX 8 case the keycode 20 is actually the hexadecimal keycode 1A. (This was
+# determined through other means. None of the hex keycodes ending in A do anything
+# new). Putting a 1 in the last digit of step 480 gives a sort of FIX -1 display.
+# This rounds off the display (but not the display register) to the tens' place and
+# adds a negative sign. Thus, a 5 is displayed as -10 in the last three places of
+# the display and a 2.3 is displayed as -00. In an exponential display, if the most
+# significant digit (MSD) is less than 5, the display shows 0.00; if the MSD is
+# greater than or equal to 5, the display will show a.xx where XX is the exponent +1.
+#
+# That's about all there is to repartitioning the TI-58C. Doing something useful
+# with all this is left as an exercise for the reader.
+#
+# —Patrick W. Acosta
+#
+# REPARTITIONING TABLE:
+#
+#   Code in    Primary          Pseudo-59
+#   480/481  Partition  Memories  Steps  Partition
+#   ────────────────────────────────────────────────
+#   90 41    239.89*        90     240
+#   80 41    159.99*       100     160
+#   70 41     79.09*       110      80
+#   60 41      0.19*       120       0
+#   50 41      0.09         0    1200
+#   40 41      0.19         0    1120
+#   30 41      0.29         0    1040
+#   20 41      0.39         0     960      959.00
+#   10 41      0.49         0     880      879.09
+#   00 41      0.59         0     800      799.19
+#   90 40      0.69         0     720      719.29
+#   80 40      0.79         0     640      639.39
+#   70 40      0.89         0     560      559.49
+#   60 40    479.00         0     480      479.59
+#   50 40    399.09        10     400      399.69
+#   40 40    319.19        20     320      319.79
+#   30 40    239.29        30     240      239.89
+#   20 40    159.39        40     160      159.99
+#   10 40     79.49        50      80
+#   00 40      0.59        60       0
+#
+# * These partitions allow pseudo-59 partitions to be accessed via OP 17.
+# ** Any keycode from 42 to 49 may be substituted for 41 with identical results.
+# *** Pseudo-59 partitions have the usual number of memories and program steps.
+
+# Be sure to have the default partition
+PARTITION: 239.29
+
+PROGRAM:
+# The tiny program as outlined in the article
+000  76 LBL
+001  11  A
+002  58 FIX
+003  00  00
+004  91 R/S
+
+KEYSTROKES:
+# The keystrokes as outlined in the article
+92  0
+93  .
+92  0
+92  0
+92  0
+92  0
+92  0
+92  0
+74  6
+92  0
+64  9
+85  +
+74  6
+92  0
+64  9
+95  =
+11  A
+21  2nd
+81  STF
+21  2nd
+45  IND
+62  7
+22  INV
+31  LRN
+21  2nd
+55  |x|
+43  RCL
+31  LRN
