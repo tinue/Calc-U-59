@@ -707,12 +707,15 @@ class EmulatorViewModel {
     /// Build a real-time debug snapshot for the live debug view.
     /// Called from tick() at 60 Hz only when liveDebugEnabled.
     private func buildLiveSnapshot(machine m: TI59MachineWrapper) -> LiveDebugSnapshot {
-        let programRegs = Int(m.partitionProgramRegs)
-        let totalRegs   = Int(m.ramRegisterCount)   // 60 (TI-58), 64 (TI-58C), or 120 (TI-59)
+        let partitionProgramRegs = Int(m.partitionProgramRegs)
+        let totalRegs = Int(m.ramRegisterCount)   // 60 (TI-58), 64 (TI-58C), or 120 (TI-59)
         let displayableRegs = model.hasConstantMemory ? 60 : totalRegs
+
+        // Clamp programRegs to physical RAM; quirky partitions may claim more than exists
+        let programRegs = min(partitionProgramRegs, totalRegs)
         let dataRegCount = max(0, displayableRegs - programRegs)
         var snap = LiveDebugSnapshot()
-        snap.programRegCount = programRegs
+        snap.programRegCount = partitionProgramRegs  // Store the claimed partition, not the clamped value
         snap.dataRegCount = dataRegCount
 
         // Data registers: check all non-zero values in the data region
