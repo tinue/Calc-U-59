@@ -710,7 +710,7 @@ class EmulatorViewModel {
         let programRegs = Int(m.partitionProgramRegs)
         let totalRegs   = Int(m.ramRegisterCount)   // 60 (TI-58), 64 (TI-58C), or 120 (TI-59)
         let displayableRegs = model.hasConstantMemory ? 60 : totalRegs
-        let dataRegCount = max(0, totalRegs - programRegs)
+        let dataRegCount = max(0, displayableRegs - programRegs)
         var snap = LiveDebugSnapshot()
         snap.programRegCount = programRegs
         snap.dataRegCount = dataRegCount
