@@ -10,7 +10,7 @@ PAPER TAPE PRINTER
 A functional recreation of the PC-100C thermal printer, with dot-matrix font rendering. Copy the output as plain text or as a high-resolution bitmap image.
 
 PRESET FILES
-Load .ti59 and .ti58 state files to instantly preset the calculator with a program and data registers — useful for sharing programs or bringing old listings back to life.
+Load .ti59 and .ti58(c) state files to instantly preset the calculator with a program and data registers — useful for sharing programs or bringing old listings back to life.
 
 DEBUGGER
 Inspect program memory, variables and internal registers. Available on iPad (landscape) and Mac.
