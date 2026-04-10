@@ -736,7 +736,7 @@ class EmulatorViewModel {
         // Guard against quirky partitions: only access what physically exists
         guard programRegs <= totalRegs else { return snap }
         for ramIdx in programRegs..<totalRegs {
-            guard ramIdx < totalRegs else { break }
+            guard ramIdx >= 0 && ramIdx < totalRegs else { continue }
             let raw = m.rawRegister(ramIdx) as Data
             if raw.contains(where: { $0 != 0 }) {
                 let value = TI59MachineWrapper.decodeBCD(raw)
@@ -1011,7 +1011,9 @@ class EmulatorViewModel {
         var regEntries: [(label: String, value: Double)] = []
 
         // Check hidden registers first (RAM[displayableRegs..totalRegs-1])
+        // Only iterate through physically existing registers
         for ramIdx in displayableRegs..<totalRegs {
+            guard ramIdx >= 0 && ramIdx < totalRegs else { continue }
             let raw = m.rawRegister(ramIdx) as Data
             if raw.contains(where: { $0 != 0 }) {
                 let v = TI59MachineWrapper.decodeBCD(raw)
@@ -1021,7 +1023,10 @@ class EmulatorViewModel {
         }
 
         // Check visible data registers (RAM[programRegs..displayableRegs-1])
-        for ramIdx in programRegs..<displayableRegs {
+        // Clamp upper bound to physical RAM limit
+        let visibleEnd = min(displayableRegs, totalRegs)
+        for ramIdx in programRegs..<visibleEnd {
+            guard ramIdx < totalRegs else { break }
             let raw = m.rawRegister(ramIdx) as Data
             if raw.contains(where: { $0 != 0 }) {
                 let v = TI59MachineWrapper.decodeBCD(raw)
@@ -1079,6 +1084,7 @@ class EmulatorViewModel {
         let totalRegs = Int(m.ramRegisterCount)
 
         for reg in 0..<totalRegs {
+            guard reg >= 0 && reg < totalRegs else { continue }
             let n = Array(m.rawRegister(reg) as Data)
             // Skip if all zeros
             if n.allSatisfy({ $0 == 0 }) { continue }
