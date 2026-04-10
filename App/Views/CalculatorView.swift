@@ -30,7 +30,8 @@ struct CalculatorView: View {
             isPresented: $showingStateFilePicker,
             allowedContentTypes: [
                 UTType(filenameExtension: "ti59") ?? .data,
-                UTType(filenameExtension: "ti58") ?? .data
+                UTType(filenameExtension: "ti58") ?? .data,
+                UTType(filenameExtension: "ti58c") ?? .data
             ],
             allowsMultipleSelection: false
         ) { result in
@@ -185,9 +186,10 @@ struct CalculatorView: View {
             Button("Preset") {
                 let panel = NSOpenPanel()
                 panel.allowedContentTypes = [UTType(filenameExtension: "ti59") ?? .data,
-                                             UTType(filenameExtension: "ti58") ?? .data]
+                                             UTType(filenameExtension: "ti58") ?? .data,
+                                             UTType(filenameExtension: "ti58c") ?? .data]
                 panel.allowsOtherFileTypes = true
-                panel.message = "Select a .ti59 state file"
+                panel.message = "Select a .ti59, .ti58, or .ti58c state file"
                 if panel.runModal() == .OK, let url = panel.url {
                     viewModel.loadStateFile(url)
                 }

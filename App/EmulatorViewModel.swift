@@ -347,7 +347,7 @@ class EmulatorViewModel {
 
         // Clear out-of-range registers for the current model
         let programRegs  = Int(machine?.partitionProgramRegs ?? 60)
-        let totalRegs    = Int(machine?.ramRegisterCount ?? (model.hasLargeMemory ? 120 : 60))
+        let totalRegs    = Int(machine?.ramRegisterCount ?? (model.hasLargeMemory ? 120 : model.hasConstantMemory ? 64 : 60))
         let dataRegCount = max(0, totalRegs - programRegs)
         let zeroNibbles  = Array(repeating: UInt8(0), count: 16)
         for regNum in dataRegCount..<totalRegs {
@@ -694,8 +694,8 @@ class EmulatorViewModel {
     func getCalcSnapshot() -> CalcSnapshot? {
         guard let m = machine else { return nil }
         // Number of accessible data registers depends on the current partition:
-        // programRAMregs occupy RAM[0..(n-1)]; data regs fill RAM[n..119] top-down.
-        let numRegs = max(0, 120 - Int(m.partitionProgramRegs))
+        // programRAMregs occupy RAM[0..(n-1)]; data regs fill RAM[n..totalRegs-1] top-down.
+        let numRegs = max(0, Int(m.ramRegisterCount) - Int(m.partitionProgramRegs))
         var regs = [Double](repeating: 0, count: numRegs)
         for i in 0..<numRegs { regs[i] = m.dataRegister(i) }
         let steps = Array(m.allProgramSteps() as Data)
@@ -708,7 +708,7 @@ class EmulatorViewModel {
     /// Called from tick() at 60 Hz only when liveDebugEnabled.
     private func buildLiveSnapshot(machine m: TI59MachineWrapper) -> LiveDebugSnapshot {
         let programRegs = Int(m.partitionProgramRegs)
-        let totalRegs   = Int(m.ramRegisterCount)   // 60 (TI-58/58C) or 120 (TI-59)
+        let totalRegs   = Int(m.ramRegisterCount)   // 60 (TI-58), 64 (TI-58C), or 120 (TI-59)
         let dataRegCount = max(0, totalRegs - programRegs)
         var snap = LiveDebugSnapshot()
         snap.programRegCount = programRegs
@@ -961,7 +961,7 @@ class EmulatorViewModel {
     func debugDumpVars() {
         guard let m = machine else { return }
         let programRegs = Int(m.partitionProgramRegs)
-        let totalRegs   = Int(m.ramRegisterCount)   // 60 (TI-58/58C) or 120 (TI-59)
+        let totalRegs   = Int(m.ramRegisterCount)   // 60 (TI-58), 64 (TI-58C), or 120 (TI-59)
         let dataRegCount = totalRegs - programRegs
         let maxRegNum = dataRegCount - 1
         guard maxRegNum >= 0 else {
@@ -1099,18 +1099,19 @@ class EmulatorViewModel {
             errorMessage = "Cannot read file."
             return
         }
-        var parsed = parseStateFile(text)
+        let maxStepAddr = model.hasConstantMemory ? 511 : (model.hasLargeMemory ? 959 : 479)
+        var parsed = parseStateFile(text, maxStepAddr: maxStepAddr)
         if !parsed.errors.isEmpty { errorMessage = parsed.errors.joined(separator: "\n") }
 
-        // TI-58/58C: 60 RAM registers → max 480 steps (last step 479).
         if !model.hasLargeMemory {
-            if parsed.partitionWasExplicit && parsed.partitionMaxStep > 479 {
-                errorMessage = "State file partition (\(parsed.partitionMaxStep)) exceeds TI-58 maximum (479) — load aborted."
+            let maxStep = model.hasConstantMemory ? 511 : 479  // TI-58C: 64 regs×8=512; TI-58: 60×8=480
+            if parsed.partitionWasExplicit && parsed.partitionMaxStep > maxStep {
+                errorMessage = "State file partition (\(parsed.partitionMaxStep)) exceeds \(model.displayName) maximum (\(maxStep)) — load aborted."
                 return
             }
-            // Apply TI-58 default partition when the file has none.
+            // Apply default partition when the file has none.
             if !parsed.partitionWasExplicit {
-                parsed.partitionMaxStep = 239   // 30 program regs, 30 data regs (R00–R29)
+                parsed.partitionMaxStep = model.hasConstantMemory ? 479 : 239
             }
         }
 
@@ -1131,7 +1132,7 @@ class EmulatorViewModel {
         _ = emulQueue.sync { m.stepN(300_000) }
 
         // Set partition directly in SCOM (SCOM[9][0] and SCOM[13][8..9]).
-        // For TI-58, programRegs is capped at 60; the rounding above ensures this.
+        // For TI-58, programRegs capped at 60; for TI-58C at 64; rounding above ensures this.
         let programRegs = (parsed.partitionMaxStep + 1) / 8
         m.partitionProgramRegs = programRegs
 

@@ -81,7 +81,7 @@ struct LoadStateResult {
 
 private enum ParseSection { case none, partition, program, registers, keystrokes }
 
-func parseStateFile(_ text: String) -> LoadStateResult {
+func parseStateFile(_ text: String, maxStepAddr: Int = 479) -> LoadStateResult {
     var result = LoadStateResult()
     var section: ParseSection = .none
     var currentStep = 0
@@ -138,7 +138,7 @@ func parseStateFile(_ text: String) -> LoadStateResult {
             break
         case .program:
             if line == "..." { break }  // gap marker — steps in between remain 00
-            let (maybeStart, codes) = parseProgLine(line)
+            let (maybeStart, codes) = parseProgLine(line, maxStepAddr: maxStepAddr)
             if let start = maybeStart { currentStep = start }
             for code in codes {
                 result.programSteps.append((stepAddr: currentStep, keycode: code))
@@ -165,13 +165,13 @@ func parseStateFile(_ text: String) -> LoadStateResult {
 /// Parse one program line. Returns the step address set by a prefix (if any) and
 /// the keycodes found on the line. A 3-or-more-digit token that is a valid step
 /// address (0–479) is treated as a position prefix, not a keycode.
-private func parseProgLine(_ line: String) -> (stepAddr: Int?, keycodes: [UInt8]) {
+private func parseProgLine(_ line: String, maxStepAddr: Int = 479) -> (stepAddr: Int?, keycodes: [UInt8]) {
     let tokens = line.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
     var startStep: Int? = nil
     var keycodes: [UInt8] = []
 
     for token in tokens {
-        if startStep == nil && token.count >= 3, let n = Int(token), n >= 0, n <= 479 {
+        if startStep == nil && token.count >= 3, let n = Int(token), n >= 0, n <= maxStepAddr {
             startStep = n   // step-address prefix: sets position, not a keycode
             continue
         }

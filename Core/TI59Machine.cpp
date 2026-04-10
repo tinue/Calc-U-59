@@ -1,14 +1,13 @@
 #include "TI59Machine.hpp"
 #include <cmath>
-#include <iostream>
 
 TI59Machine::TI59Machine(MachineVariant variant)
     : m_variant(variant), m_cpu(m_rom, m_ram)
 {
-    if (!hasLargeMemory(variant))
-        m_ram.setLimit(60);
-    std::cerr << "[DEBUG] TI59Machine constructor: variant=" << (int)variant
-              << " m_ram.size()=" << m_ram.size() << std::endl;
+    if (hasConstantMemory(variant))
+        m_ram.setLimit(64);   // TI-58C: 60 normal regs + 4 extra (reg 60 = OS control reg)
+    else if (!hasLargeMemory(variant))
+        m_ram.setLimit(60);   // TI-58: 60 regs
     m_cpu.setMachineVariant(variant);
     // Card-reader switch: pressed = card absent (normal startup state).
     // TI-59 uses digit-counter slot 10; TI-58/58C uses slot 7; bit 4 in both.

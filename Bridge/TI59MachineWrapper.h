@@ -187,7 +187,7 @@ typedef struct {
 
 // ── Raw RAM access ────────────────────────────────────────────────────────────
 
-/// Number of accessible RAM registers (120 for TI-59, 60 for TI-58/58C).
+/// Number of accessible RAM registers (120 for TI-59, 64 for TI-58C, 60 for TI-58).
 @property (readonly) NSInteger ramRegisterCount;
 
 /// Read a complete 16-nibble RAM register.  reg must be in [0, ramRegisterCount).
