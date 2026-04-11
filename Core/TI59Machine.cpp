@@ -273,6 +273,10 @@ uint8_t TI59Machine::readProgramStep(int stepAddr) const {
     return (uint8_t)(tens * 10 + units);
 }
 
+uint8_t TI59Machine::readROMKeycode(int addr) const {
+    return m_cpu.romKeycode(addr);
+}
+
 CPUSnapshot TI59Machine::snapshotCPU() const {
     return m_cpu.snapshotCPU();
 }

@@ -201,6 +201,17 @@ public:
     uint8_t  scomNibble(int row, int col) const { return SCOM[row][col]; }
     void setSCOMNibble(int row, int col, uint8_t val) { SCOM[row][col] = val & 0xF; }
 
+    /// Read a ROM keycode (PRG SOURCE = 8) by address 0–383.
+    /// Returns 0 for out-of-range addresses.
+    uint8_t romKeycode(int addr) const {
+        if (addr < 0 || addr >= 384) return 0;
+        int row = 16 + (addr / 8);
+        int offset = (addr % 8) * 2;
+        uint8_t units = m_constant[row][offset];
+        uint8_t tens = m_constant[row][offset + 1];
+        return (uint8_t)(tens * 10 + units);
+    }
+
 private:
     ROM& rom;
     RAM& ram;

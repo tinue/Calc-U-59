@@ -176,6 +176,10 @@ typedef struct {
 /// The returned data length is partitionProgramRegs × 8 (e.g. 480 bytes for OP 17).
 - (NSData*)allProgramSteps;
 
+/// Read a ROM keycode at address 0–383.
+- (uint8_t)romKeycodeAt:(NSInteger)addr
+    NS_SWIFT_NAME(romKeycode(at:));
+
 /// Returns an index set of register numbers (0-based, user-visible) whose raw nibbles are non-zero.
 /// Scans only within the current partition's data register range.
 - (NSIndexSet*)nonZeroDataRegisterIndices

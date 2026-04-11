@@ -329,6 +329,10 @@ static const int kbits[] = {0, 1, 2, 3, 5, 6};  // index 0 unused; index col
     return data;
 }
 
+- (uint8_t)romKeycodeAt:(NSInteger)addr {
+    return _machine->readROMKeycode((int)addr);
+}
+
 - (NSIndexSet*)nonZeroDataRegisterIndices {
     NSMutableIndexSet* result = [NSMutableIndexSet indexSet];
     int programRegs = (int)_machine->partitionProgramRegs();

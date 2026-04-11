@@ -12,6 +12,7 @@ struct LiveDebugView: View {
                     prSourceFlagSection
                     programStepsSection
                     statusIndicatorsSection
+                    returnAddressSection
                     calcFlagsSection
                     hirRegistersSection
                     tRegisterSection
@@ -58,6 +59,20 @@ struct LiveDebugView: View {
         .background(Color(white: 0.07))
     }
 
+    // MARK: - Return Address Section
+
+    private var returnAddressSection: some View {
+        let snap = vm.liveDebugSnapshot
+        return SectionBox(title: "RETURN ADDRESS") {
+            Text(snap.returnAddress)
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundStyle(Color(white: 0.75))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .lineLimit(2)
+        }
+    }
+
     // MARK: - Data Registers Section (Variables)
 
     private var dataRegistersSection: some View {
@@ -88,9 +103,15 @@ struct LiveDebugView: View {
     // MARK: - Program Steps Section
 
     private var programStepsSection: some View {
-        SectionBox(title: "PROGRAM STEPS") {
+        let snap = vm.liveDebugSnapshot
+        // Determine current line color based on PRG SOURCE
+        let currentLineColor: Color = snap.prSourceFlag == 8
+            ? Color(red: 0.35, green: 0.28, blue: 0.10)  // Darker yellow for ROM
+            : Color(red: 0.10, green: 0.30, blue: 0.10)  // Green for RAM
+
+        return SectionBox(title: "PROGRAM STEPS") {
             VStack(alignment: .leading, spacing: 0) {
-                let window = vm.liveDebugSnapshot.programWindow
+                let window = snap.programWindow
                 ForEach(0..<11, id: \.self) { i in
                     if i < window.count {
                         let entry = window[i]
@@ -109,9 +130,7 @@ struct LiveDebugView: View {
                         .font(.system(size: 11, design: .monospaced))
                         .padding(.horizontal, 8)
                         .padding(.vertical, 1)
-                        .background(entry.isCurrent
-                            ? Color(red: 0.10, green: 0.30, blue: 0.10)
-                            : Color.clear)
+                        .background(entry.isCurrent ? currentLineColor : Color.clear)
                     } else {
                         HStack(spacing: 0) {
                             Spacer()

@@ -57,8 +57,6 @@ class EmulatorViewModel {
     var liveDebugSnapshot: LiveDebugSnapshot = .empty
     var freezeReason: FreezeReason? = nil
     var isFrozen: Bool { freezeReason != nil }
-    private var lastPrSourceFlag: UInt8 = 0
-    private var frozenProgramCounter: Int? = nil
 
     // ── Live CPU view state (60 Hz real-time, runs while emulating) ────────────
     var cpuDebugSnapshot: CPUDebugSnapshot = .empty
@@ -908,54 +906,112 @@ class EmulatorViewModel {
             (n15 & 2) != 0,  // Flag 9
         ]
 
-        // Program steps window
-        let steps = Array(m.allProgramSteps() as Data)
+        // Program steps window — source depends on PRG SOURCE flag
         snap.currentStep = decodeProgramCounter(from: cpu)
 
-        // Freeze program counter when prSourceFlag transitions from 0 to non-zero
-        if lastPrSourceFlag == 0 && snap.prSourceFlag != 0 {
-            frozenProgramCounter = snap.currentStep
-        } else if snap.prSourceFlag == 0 {
-            frozenProgramCounter = nil
-        }
-        lastPrSourceFlag = snap.prSourceFlag
-
-        // Use frozen counter if available, otherwise use current
-        if let frozen = frozenProgramCounter {
-            snap.currentStep = frozen
-        }
-
-        if !steps.isEmpty {
-            let center = snap.currentStep >= 0 ? snap.currentStep : 0
-            let lo = max(0, center - 5)
-            let hi = min(steps.count - 1, center + 5)
-            if lo <= hi {
-                // Build set of argument step indices (not keycodes)
-                var argSteps = Set<Int>()
-                for i in lo...hi {
-                    let stepsAfter = TI59KeyNames.stepsAfter(for: steps[i])
-                    if stepsAfter > 0 {
-                        for j in 1...stepsAfter {
-                            if i + j <= hi {
-                                argSteps.insert(i + j)
+        switch snap.prSourceFlag {
+        case 0:
+            // User RAM — existing behavior
+            let steps = Array(m.allProgramSteps() as Data)
+            if !steps.isEmpty {
+                let center = snap.currentStep >= 0 ? snap.currentStep : 0
+                let lo = max(0, center - 5)
+                let hi = min(steps.count - 1, center + 5)
+                if lo <= hi {
+                    // Build set of argument step indices (not keycodes)
+                    var argSteps = Set<Int>()
+                    for i in lo...hi {
+                        let stepsAfter = TI59KeyNames.stepsAfter(for: steps[i])
+                        if stepsAfter > 0 {
+                            for j in 1...stepsAfter {
+                                if i + j <= hi {
+                                    argSteps.insert(i + j)
+                                }
                             }
                         }
                     }
-                }
 
-                for i in lo...hi {
-                    let kc = steps[i]
-                    let isArgument = argSteps.contains(i)
-                    let mnemonic = isArgument ? String(format: "%02d", kc) : TI59KeyNames.mnemonic(for: kc)
+                    for i in lo...hi {
+                        let kc = steps[i]
+                        let isArgument = argSteps.contains(i)
+                        let mnemonic = isArgument ? String(format: "%02d", kc) : TI59KeyNames.mnemonic(for: kc)
 
-                    snap.programWindow.append(.init(
-                        stepNum: i,
-                        keycode: kc,
-                        mnemonic: mnemonic,
-                        isCurrent: i == snap.currentStep
-                    ))
+                        snap.programWindow.append(.init(
+                            stepNum: i,
+                            keycode: kc,
+                            mnemonic: mnemonic,
+                            isCurrent: i == snap.currentStep
+                        ))
+                    }
                 }
             }
+
+        case 8:
+            // Main ROM (384 keycode programs from constants)
+            let romCenter = snap.currentStep
+            let lo = max(0, romCenter - 5)
+            let hi = min(383, romCenter + 5)
+
+            // Build array of keycodes for this range
+            var keycodes: [UInt8] = []
+            for addr in lo...hi {
+                keycodes.append(m.romKeycode(at: addr))
+            }
+
+            // Detect argument step indices
+            var argSteps = Set<Int>()
+            for i in 0..<keycodes.count {
+                let stepsAfter = TI59KeyNames.stepsAfter(for: keycodes[i])
+                if stepsAfter > 0 {
+                    for j in 1...stepsAfter {
+                        if i + j < keycodes.count {
+                            argSteps.insert(i + j)
+                        }
+                    }
+                }
+            }
+
+            // Display steps with proper argument handling
+            for (idx, keycode) in keycodes.enumerated() {
+                let addr = lo + idx
+                let isArgument = argSteps.contains(idx)
+                if isArgument {
+                    // For arguments, show simple mnemonics (digits/letters) only
+                    let simpleMnemo = TI59KeyNames.mnemonic(for: keycode)
+                    // Keep only short mnemonics (digits and letters)
+                    let mnemonic = simpleMnemo.count <= 2 && !simpleMnemo.contains("?") ? simpleMnemo : String(format: "%02d", keycode)
+                    snap.programWindow.append(.init(
+                        stepNum: addr, keycode: keycode, mnemonic: mnemonic,
+                        isCurrent: addr == romCenter))
+                } else {
+                    let mnemonic = TI59KeyNames.mnemonic(for: keycode)
+                    snap.programWindow.append(.init(
+                        stepNum: addr, keycode: keycode, mnemonic: mnemonic,
+                        isCurrent: addr == romCenter))
+                }
+            }
+
+        default:
+            // PRG SOURCE = 1 (library) or other: TBD
+            break
+        }
+
+        // Return address stack (SCOM[14:15]) — 6 levels of subroutine return addresses
+        // Each level is a 3-digit BCD-encoded program counter (000-959)
+        withUnsafeBytes(of: cpu.SCOM) { bytes in
+            let baseOffset14 = 14 * 16
+            let baseOffset15 = 15 * 16
+
+            // Decode 6 return address levels from SCOM[14:15]
+            // Each level occupies 3 nibbles; nibbles are stored in reverse order
+            let l6 = Int(bytes[baseOffset14 + 2] & 0xF) * 100 + Int(bytes[baseOffset14 + 1] & 0xF) * 10 + Int(bytes[baseOffset14 + 0] & 0xF)
+            let l5 = Int(bytes[baseOffset14 + 5] & 0xF) * 100 + Int(bytes[baseOffset14 + 4] & 0xF) * 10 + Int(bytes[baseOffset14 + 3] & 0xF)
+            let l4 = Int(bytes[baseOffset14 + 8] & 0xF) * 100 + Int(bytes[baseOffset14 + 7] & 0xF) * 10 + Int(bytes[baseOffset14 + 6] & 0xF)
+            let l3 = Int(bytes[baseOffset14 + 11] & 0xF) * 100 + Int(bytes[baseOffset14 + 10] & 0xF) * 10 + Int(bytes[baseOffset14 + 9] & 0xF)
+            let l2 = Int(bytes[baseOffset14 + 14] & 0xF) * 100 + Int(bytes[baseOffset14 + 13] & 0xF) * 10 + Int(bytes[baseOffset14 + 12] & 0xF)
+            let l1 = Int(bytes[baseOffset15 + 1] & 0xF) * 100 + Int(bytes[baseOffset15 + 0] & 0xF) * 10 + Int(bytes[baseOffset14 + 15] & 0xF)
+
+            snap.returnAddress = String(format: "L6:%03d L5:%03d L4:%03d L3:%03d L2:%03d L1:%03d", l6, l5, l4, l3, l2, l1)
         }
 
         // SCOM rows (all 16, plus extract rows 0–3 for printer)
@@ -1411,6 +1467,9 @@ struct LiveDebugSnapshot: Equatable {
 
     // All 16 SCOM rows
     var scomRows: [String] = []
+
+    // Return address stack (from SCOM[14:15]) — 6 levels of subroutine return addresses
+    var returnAddress: String = ""
 
     static let empty = LiveDebugSnapshot()
 }

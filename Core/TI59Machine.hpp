@@ -102,6 +102,9 @@ public:
     /// Read program step stepAddr (0–479) as 2-digit keycode (0–99).
     uint8_t readProgramStep(int stepAddr) const;
 
+    /// Read a ROM keycode at address 0–383.
+    uint8_t readROMKeycode(int addr) const;
+
     /// Capture a snapshot of all CPU registers at the current instant.
     CPUSnapshot snapshotCPU() const;
 
