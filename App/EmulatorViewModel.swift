@@ -190,9 +190,14 @@ class EmulatorViewModel {
                 // Check if pending freeze on PC change should activate
                 // Wait a few batches (~100ms) before checking to give user time to press R/S
                 if self.pendingFreezeOnPCChange {
+                    let currentPC = m.currentPC
+
                     self.freezeOnStartCounter += 1
-                    if self.freezeOnStartCounter > 5 {
-                        let currentPC = m.currentPC
+                    if self.freezeOnStartCounter <= 5 {
+                        // During delay period: update lastObservedPC to track current idle state
+                        self.lastObservedPC = currentPC
+                    } else {
+                        // After delay: check if PC has changed from what it was at end of delay
                         if currentPC != self.lastObservedPC {
                             // PC has changed — freeze now
                             self.isRunning = false
