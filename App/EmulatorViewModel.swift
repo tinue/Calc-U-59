@@ -190,15 +190,17 @@ class EmulatorViewModel {
                 // Check if pending freeze on PC change should activate
                 // Wait a few batches (~100ms) before checking to give user time to press R/S
                 if self.pendingFreezeOnPCChange {
-                    let currentPC = m.currentPC
+                    // Get the user-visible PC (decoded from SCOM), not the raw CPU PC
+                    let cpu = m.snapshotCPU()
+                    let currentPC = self.decodeProgramCounter(from: cpu)
 
                     self.freezeOnStartCounter += 1
                     if self.freezeOnStartCounter <= 5 {
                         // During delay period: update lastObservedPC to track current idle state
-                        self.lastObservedPC = currentPC
+                        self.lastObservedPC = UInt16(currentPC)
                     } else {
                         // After delay: check if PC has changed from what it was at end of delay
-                        if currentPC != self.lastObservedPC {
+                        if UInt16(currentPC) != self.lastObservedPC {
                             // PC has changed — freeze now
                             self.isRunning = false
                             self.pendingFreezeOnPCChange = false
@@ -678,8 +680,11 @@ class EmulatorViewModel {
     func freezeOnNextPCChange() {
         // Prepare to freeze as soon as the program counter changes (first instruction executes)
         // Use a counter to delay checking, giving user time to press R/S before we start monitoring
+        // Track the decoded PC (from SCOM), not the raw CPU PC
         pendingFreezeOnPCChange = true
-        lastObservedPC = machine?.currentPC ?? 0
+        guard let m = machine else { return }
+        let cpu = m.snapshotCPU()
+        lastObservedPC = UInt16(decodeProgramCounter(from: cpu))
         freezeOnStartCounter = 0
     }
 
