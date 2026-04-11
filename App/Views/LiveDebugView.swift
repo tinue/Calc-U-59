@@ -73,13 +73,36 @@ struct LiveDebugView: View {
     private var returnAddressSection: some View {
         let snap = vm.liveDebugSnapshot
         return SectionBox(title: "RETURN ADDRESS") {
-            Text(snap.returnAddress)
-                .font(.system(size: 10, design: .monospaced))
-                .foregroundStyle(Color(white: 0.75))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .lineLimit(2)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 8) {
+                    levelWithColor("L6", 5, snap)
+                    levelWithColor("L5", 4, snap)
+                    levelWithColor("L4", 3, snap)
+                }
+                HStack(spacing: 8) {
+                    levelWithColor("L3", 2, snap)
+                    levelWithColor("L2", 1, snap)
+                    levelWithColor("L1", 0, snap)
+                }
+            }
+            .font(.system(size: 10, design: .monospaced))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
         }
+    }
+
+    private func levelWithColor(_ label: String, _ index: Int, _ snap: LiveDebugSnapshot) -> some View {
+        let sourceFlag = index < snap.returnAddressSourceFlags.count ? snap.returnAddressSourceFlags[index] : 0
+        let color: Color
+        switch sourceFlag {
+        case 0: color = Color(red: 0.10, green: 0.30, blue: 0.10)    // Green for RAM
+        case 1: color = Color(red: 0.30, green: 0.10, blue: 0.30)    // Purple for library
+        case 8: color = Color(red: 0.35, green: 0.28, blue: 0.10)    // Yellow for ROM
+        default: color = Color(white: 0.5)                            // Gray for unknown
+        }
+        // Extract address value from snap.returnAddress (rough parsing)
+        return Text("\(label):●")
+            .foregroundStyle(color)
     }
 
     // MARK: - Data Registers Section (Variables)
