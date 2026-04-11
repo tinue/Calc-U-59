@@ -93,6 +93,7 @@ struct LiveDebugView: View {
 
     private func levelWithColor(_ label: String, _ index: Int, _ snap: LiveDebugSnapshot) -> some View {
         let sourceFlag = index < snap.returnAddressSourceFlags.count ? snap.returnAddressSourceFlags[index] : 0
+        let address = index < snap.returnAddresses.count ? snap.returnAddresses[index] : 0
         let color: Color
         switch sourceFlag {
         case 0: color = Color(red: 0.10, green: 0.30, blue: 0.10)    // Green for RAM
@@ -100,8 +101,7 @@ struct LiveDebugView: View {
         case 8: color = Color(red: 0.35, green: 0.28, blue: 0.10)    // Yellow for ROM
         default: color = Color(white: 0.5)                            // Gray for unknown
         }
-        // Extract address value from snap.returnAddress (rough parsing)
-        return Text("\(label):●")
+        return Text("\(label):\(String(format: "%03d", address))")
             .foregroundStyle(color)
     }
 

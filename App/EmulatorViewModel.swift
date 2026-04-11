@@ -1032,7 +1032,7 @@ class EmulatorViewModel {
         }
 
         // Return address stack (SCOM[14:15]) — 6 levels of subroutine return addresses
-        // Each level: 5 nibbles (4 for Base 80 address + 1 for PRG SOURCE flag)
+        // Each level: 5 nibbles (1 PRG SOURCE + 4 address in Base 80, read right-to-left)
         // Format: Nibble 0 = count, then Level 1-3 (5 nibbles each) in SCOM[15], Level 4-6 in SCOM[14]
         withUnsafeBytes(of: cpu.SCOM) { bytes in
             let baseOffset14 = 14 * 16
@@ -1053,34 +1053,35 @@ class EmulatorViewModel {
             // Count from first nibble of SCOM[15]
             let count = Int(nibbles15[0])
 
-            // Decode levels: address (Base 80) at positions 0-3, PRG SOURCE at position 4
-            // Level 1: positions 1-4 (address), position 5 (prg source)
-            let l1 = Int(nibbles15[1]) * 800 + Int(nibbles15[2]) * 80 + Int(nibbles15[3]) * 8 + Int(nibbles15[4])
-            let l1_src = nibbles15[5]
+            // Decode levels: PRG SOURCE at position 0, address (Base 80) at positions 1-4 (read right-to-left)
+            // Level 1: positions 1-5
+            let l1_src = nibbles15[1]
+            let l1 = Int(nibbles15[5]) * 800 + Int(nibbles15[4]) * 80 + Int(nibbles15[3]) * 8 + Int(nibbles15[2])
 
-            // Level 2: positions 6-9 (address), position 10 (prg source)
-            let l2 = Int(nibbles15[6]) * 800 + Int(nibbles15[7]) * 80 + Int(nibbles15[8]) * 8 + Int(nibbles15[9])
-            let l2_src = nibbles15[10]
+            // Level 2: positions 6-10
+            let l2_src = nibbles15[6]
+            let l2 = Int(nibbles15[10]) * 800 + Int(nibbles15[9]) * 80 + Int(nibbles15[8]) * 8 + Int(nibbles15[7])
 
-            // Level 3: positions 11-14 (address), position 15 (prg source)
-            let l3 = Int(nibbles15[11]) * 800 + Int(nibbles15[12]) * 80 + Int(nibbles15[13]) * 8 + Int(nibbles15[14])
-            let l3_src = nibbles15[15]
+            // Level 3: positions 11-15
+            let l3_src = nibbles15[11]
+            let l3 = Int(nibbles15[15]) * 800 + Int(nibbles15[14]) * 80 + Int(nibbles15[13]) * 8 + Int(nibbles15[12])
 
-            // Level 4: positions 1-4 (address), position 5 (prg source)
-            let l4 = Int(nibbles14[1]) * 800 + Int(nibbles14[2]) * 80 + Int(nibbles14[3]) * 8 + Int(nibbles14[4])
-            let l4_src = nibbles14[5]
+            // Level 4: positions 1-5
+            let l4_src = nibbles14[1]
+            let l4 = Int(nibbles14[5]) * 800 + Int(nibbles14[4]) * 80 + Int(nibbles14[3]) * 8 + Int(nibbles14[2])
 
-            // Level 5: positions 6-9 (address), position 10 (prg source)
-            let l5 = Int(nibbles14[6]) * 800 + Int(nibbles14[7]) * 80 + Int(nibbles14[8]) * 8 + Int(nibbles14[9])
-            let l5_src = nibbles14[10]
+            // Level 5: positions 6-10
+            let l5_src = nibbles14[6]
+            let l5 = Int(nibbles14[10]) * 800 + Int(nibbles14[9]) * 80 + Int(nibbles14[8]) * 8 + Int(nibbles14[7])
 
-            // Level 6: positions 11-14 (address), position 15 (prg source)
-            let l6 = Int(nibbles14[11]) * 800 + Int(nibbles14[12]) * 80 + Int(nibbles14[13]) * 8 + Int(nibbles14[14])
-            let l6_src = nibbles14[15]
+            // Level 6: positions 11-15
+            let l6_src = nibbles14[11]
+            let l6 = Int(nibbles14[15]) * 800 + Int(nibbles14[14]) * 80 + Int(nibbles14[13]) * 8 + Int(nibbles14[12])
 
             snap.returnAddress = String(format: "L6:%03d L5:%03d L4:%03d L3:%03d L2:%03d L1:%03d (count=%d)",
                 l6, l5, l4, l3, l2, l1, count)
             snap.returnAddressSourceFlags = [l1_src, l2_src, l3_src, l4_src, l5_src, l6_src]
+            snap.returnAddresses = [l1, l2, l3, l4, l5, l6]
         }
 
         // SCOM rows (all 16, plus extract rows 0–3 for printer)
@@ -1522,6 +1523,7 @@ struct LiveDebugSnapshot: Equatable {
     // Return address stack (from SCOM[14:15]) — 6 levels of subroutine return addresses
     var returnAddress: String = ""
     var returnAddressSourceFlags: [UInt8] = Array(repeating: 0, count: 6)  // PRG SOURCE for each level (L1-L6)
+    var returnAddresses: [Int] = Array(repeating: 0, count: 6)  // Decoded address values for each level (L1-L6)
 
     static let empty = LiveDebugSnapshot()
 }
