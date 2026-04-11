@@ -1166,19 +1166,19 @@ class EmulatorViewModel {
             errorMessage = "Cannot read file."
             return
         }
-        let maxStepAddr = model.hasConstantMemory ? 511 : (model.hasLargeMemory ? 959 : 479)
-        var parsed = parseStateFile(text, maxStepAddr: maxStepAddr)
+        let maxStepAddr = model.hasLargeMemory ? 959 : 479
+        var parsed = parseStateFile(text, maxStepAddr: maxStepAddr, allowHiddenRegisters: model.hasConstantMemory)
         if !parsed.errors.isEmpty { errorMessage = parsed.errors.joined(separator: "\n") }
 
         if !model.hasLargeMemory {
-            let maxStep = model.hasConstantMemory ? 511 : 479  // TI-58C: 64 regs×8=512; TI-58: 60×8=480
+            let maxStep = 479  // TI-58 and TI-58C: both use up to 480 steps
             if parsed.partitionWasExplicit && parsed.partitionMaxStep > maxStep {
                 errorMessage = "State file partition (\(parsed.partitionMaxStep)) exceeds \(model.displayName) maximum (\(maxStep)) — load aborted."
                 return
             }
             // Apply default partition when the file has none.
             if !parsed.partitionWasExplicit {
-                parsed.partitionMaxStep = model.hasConstantMemory ? 479 : 239
+                parsed.partitionMaxStep = 239
             }
         }
 
@@ -1211,7 +1211,13 @@ class EmulatorViewModel {
         }
         m.writeProgramSteps(Data(programArray))
         for (regNum, nibbles) in parsed.registers {
-            m.writeDataRegister(regNum, nibbles: Data(nibbles))
+            if regNum >= 60 {
+                // Hidden registers (H00-H03): write directly to RAM slots 60-63
+                m.setRawRegister(regNum, nibbles: Data(nibbles))
+            } else {
+                // Normal data registers: use the reversed mapping
+                m.writeDataRegister(regNum, nibbles: Data(nibbles))
+            }
         }
 
         // Clear out-of-range data registers to prevent corruption from stale state files
