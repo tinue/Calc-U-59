@@ -604,8 +604,9 @@ int TMC0501::step() {
                 if (RAM_ADDR < ram.size())
                     flags |= FLG_RAM_READ;
             } else {
-                // MOV R5,fA[1..4] or fB[1..4] — copy flag bits into R5
-                R5 = (uint8_t)(((opcode & 0x0010u) ? fB : fA) >> 1) & 0x0Fu;
+                // MOV R5,fA[1..4] or fB[1..4] — copy bits 1-4 into R5
+                uint16_t flags = (opcode & 0x0010u) ? fB : fA;
+                R5 = (uint8_t)((flags >> 1) & 0x0Fu);
             }
             break;
         }
