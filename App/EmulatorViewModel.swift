@@ -59,6 +59,7 @@ class EmulatorViewModel {
     var isFrozen: Bool { freezeReason != nil }
     var pendingFreezeOnPCChange: Bool = false  // Freeze as soon as PC changes (first instruction)
     private var lastObservedPC: UInt16 = 0     // Track PC to detect changes
+    private var freezeOnStartCounter: Int = 0  // Delay before checking (let user press R/S)
 
     // ── Live CPU view state (60 Hz real-time, runs while emulating) ────────────
     var cpuDebugSnapshot: CPUDebugSnapshot = .empty
@@ -187,21 +188,25 @@ class EmulatorViewModel {
                 cyclesDone -= targetBatchCycles
 
                 // Check if pending freeze on PC change should activate
+                // Wait a few batches (~100ms) before checking to give user time to press R/S
                 if self.pendingFreezeOnPCChange {
-                    let currentPC = m.currentPC
-                    if currentPC != self.lastObservedPC {
-                        // PC has changed — freeze now
-                        self.isRunning = false
-                        self.pendingFreezeOnPCChange = false
-                        self.freezeReason = .manual
-                        DispatchQueue.main.async { [weak self] in
-                            guard let self else { return }
-                            if self.liveDebugEnabled {
-                                self.liveDebugSnapshot = self.buildLiveSnapshot(machine: m)
+                    self.freezeOnStartCounter += 1
+                    if self.freezeOnStartCounter > 5 {
+                        let currentPC = m.currentPC
+                        if currentPC != self.lastObservedPC {
+                            // PC has changed — freeze now
+                            self.isRunning = false
+                            self.pendingFreezeOnPCChange = false
+                            self.freezeReason = .manual
+                            DispatchQueue.main.async { [weak self] in
+                                guard let self else { return }
+                                if self.liveDebugEnabled {
+                                    self.liveDebugSnapshot = self.buildLiveSnapshot(machine: m)
+                                }
+                                self.captureInspectorSnapshot(machine: m)
                             }
-                            self.captureInspectorSnapshot(machine: m)
+                            return
                         }
-                        return
                     }
                 }
 
@@ -667,8 +672,10 @@ class EmulatorViewModel {
 
     func freezeOnNextPCChange() {
         // Prepare to freeze as soon as the program counter changes (first instruction executes)
+        // Use a counter to delay checking, giving user time to press R/S before we start monitoring
         pendingFreezeOnPCChange = true
         lastObservedPC = machine?.currentPC ?? 0
+        freezeOnStartCounter = 0
     }
 
     func freeze(reason: FreezeReason = .manual) {

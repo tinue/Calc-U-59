@@ -2,23 +2,22 @@ import SwiftUI
 
 struct DebugView: View {
     @Environment(EmulatorViewModel.self) var vm
-    @State private var tab: DebugTab = .log
-    enum DebugTab { case log, live, cpu }
+    @State private var tab: DebugTab = .live
+    enum DebugTab { case live, cpu, log }
 
     var body: some View {
         VStack(spacing: 0) {
             // Tab bar
             HStack(spacing: 0) {
-                tabButton("LOG", .log)
                 tabButton("LIVE", .live)
                 tabButton("CPU", .cpu)
+                tabButton("LOG", .log)
                 Spacer()
             }
             .background(Color(white: 0.07))
 
             // Tab content
             switch tab {
-            case .log:  StaticDebugContent()
             case .live: LiveDebugView()
             case .cpu:
                 if vm.isFrozen {
@@ -26,6 +25,7 @@ struct DebugView: View {
                 } else {
                     SimpleLiveCPUView()
                 }
+            case .log:  StaticDebugContent()
             }
         }
         .background(Color(white: 0.10))
