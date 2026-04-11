@@ -250,6 +250,7 @@ PROGRAM:
 REGISTERS:
 00 = 3.141592653589793
 05 = -1.5e-3
+H01 = 7.77E22           # TI-58C only: hidden register (loads into RAM slot 061)
 
 KEYSTROKES:
 21 84 65 83 95           # [2nd][π] × 2 =  (0.5 s between each key)
@@ -257,7 +258,18 @@ Wait: 1s                 # pause 1 s before next line
 42 92 92                 # STO 0 0
 ```
 
-Matrix code format: `row*10 + col`, row 1–9 (top→bottom), col 1–5 (left→right).
+**REGISTERS section:**
+
+- **Normal registers:** `NN = value` where NN is 00–99 (valid for all models)
+- **Hidden registers (TI-58C only):** `HNN = value` where NN is 00–03
+  - Maps to RAM slots 060–063 (the TI-58C's special constant-memory registers)
+  - `H00` → slot 060, `H01` → slot 061, `H02` → slot 062, `H03` → slot 063
+  - Used to store partition settings, ln(10) validation byte, and FIX mode
+  - Using H00–H03 in `.ti59` or `.ti58` files generates a parse error
+
+Any register (normal or hidden) not listed defaults to zero on load.
+
+**Matrix code format:** `row*10 + col`, row 1–9 (top→bottom), col 1–5 (left→right).
 Valid range: 11–95.  These are **physical key positions**, not TI manual keycodes
 (which are program-memory values like π=89, STO=42).  Mnemonic labels are silently
 ignored (e.g. `21 2nd` presses the 2nd key; `21` alone is sufficient).
@@ -270,3 +282,33 @@ Loading sequence (in `EmulatorViewModel.loadStateFile`):
 4. `machine.writeProgramSteps(…)` — writes zero-padded step array
 5. `machine.writeDataRegister(…)` per register — writes BCD nibbles
 6. KEYSTROKES played back asynchronously via `playKeystrokes(_:)` — 0.5 s per key
+
+---
+
+## TI-58C Constant Memory File Format (`ti58c.mem`)
+
+The TI-58C emulator persists RAM contents between sessions in a human-readable text file called `ti58c.mem`.
+This file is stored in the app's Application Support directory and is automatically loaded on startup.
+
+**Format:**
+```
+── Memory (non-zero registers) ──
+R000: 67 11 96 00 10 00 00 96
+R001: 10 20 00 00 00 30 00 00
+R003: 60 00 00 96 30 70 00 00
+R063: 24 00 79 10 21 19 00 00
+```
+
+**Rules:**
+
+- Each line represents one 16-nibble register (8 bytes in hex)
+- Format: `RXXX: HH HH HH HH HH HH HH HH` where XXX is the register number (000–063)
+- Only non-zero registers are written to keep file size small
+- Registers are specified in any order; gaps are initialized to zero on load
+- All-zero registers can be omitted entirely
+- Unspecified registers (0–63) silently initialize to zero
+
+**Backward compatibility:**
+
+Old binary `.mem` files (exactly 120 × 16 = 1920 bytes) are automatically detected and loaded.
+If a load error occurs for any reason, the file is silently ignored and RAM initializes to all zeros.

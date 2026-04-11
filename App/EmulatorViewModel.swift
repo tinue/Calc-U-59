@@ -515,7 +515,7 @@ class EmulatorViewModel {
 
             // Format: RXXX: HH HH HH HH HH HH HH HH
             let hexBytes = nibbles.map { String(format: "%02X", $0) }.joined(separator: " ")
-            lines.append(String(format: "R%03d: %s", regNum, hexBytes))
+            lines.append(String(format: "R%03d: %@", regNum, hexBytes as NSString))
         }
 
         return lines.joined(separator: "\n")
