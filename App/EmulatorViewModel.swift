@@ -464,23 +464,99 @@ class EmulatorViewModel {
 
     func persistConstantMemory() {
         guard model.hasConstantMemory, let data = machine?.serialiseRAM() else { return }
+        let text = encodeConstantMemoryToText(data)
         let url = Self.constantMemoryURL
         let coordinator = NSFileCoordinator()
         var err: NSError?
         coordinator.coordinate(writingItemAt: url, options: .forReplacing, error: &err) { dst in
-            try? data.write(to: dst, options: .atomic)
+            try? text.write(to: dst, atomically: true, encoding: .utf8)
         }
     }
 
     private func loadConstantMemory() -> Data? {
         let url = Self.constantMemoryURL
-        var result: Data?
+        var rawFileData: Data?
         let coordinator = NSFileCoordinator()
         var err: NSError?
         coordinator.coordinate(readingItemAt: url, options: [], error: &err) { src in
-            result = try? Data(contentsOf: src)
+            rawFileData = try? Data(contentsOf: src)
         }
-        return result
+        guard let rawData = rawFileData else { return nil }
+
+        // Try to decode as text format (new format)
+        if let text = String(data: rawData, encoding: .utf8),
+           let decodedData = decodeConstantMemoryFromText(text) {
+            return decodedData
+        }
+
+        // Fallback: if file is exactly 120*16 bytes, treat as old binary format
+        if rawData.count == 120 * 16 {
+            return rawData
+        }
+
+        // Otherwise, silently fail and return nil (RAM will be initialized to zeros)
+        return nil
+    }
+
+    /// Encode RAM data (120 regs × 16 nibbles) as human-readable text.
+    /// Only includes non-zero registers.
+    private func encodeConstantMemoryToText(_ data: Data) -> String {
+        var lines: [String] = []
+        lines.append("── Memory (non-zero registers) ──")
+
+        for regNum in 0..<120 {
+            let offset = regNum * 16
+            guard offset + 16 <= data.count else { break }
+
+            let nibbles = Array(data.subdata(in: offset..<(offset + 16)))
+
+            // Check if register is all zeros
+            if nibbles.allSatisfy({ $0 == 0 }) { continue }
+
+            // Format: RXXX: HH HH HH HH HH HH HH HH
+            let hexBytes = nibbles.map { String(format: "%02X", $0) }.joined(separator: " ")
+            lines.append(String(format: "R%03d: %s", regNum, hexBytes))
+        }
+
+        return lines.joined(separator: "\n")
+    }
+
+    /// Decode human-readable text format back to RAM data (120 regs × 16 nibbles).
+    /// Returns nil on parse error (which triggers fallback to old binary format).
+    /// All registers are initialized to zero; only those in the text are updated.
+    private func decodeConstantMemoryFromText(_ text: String) -> Data? {
+        var resultBytes = [UInt8](repeating: 0, count: 120 * 16)
+
+        for line in text.components(separatedBy: .newlines) {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+
+            // Skip empty lines and header line
+            if trimmed.isEmpty || trimmed.hasPrefix("──") { continue }
+
+            // Expected format: "RXXX: HH HH HH HH HH HH HH HH"
+            guard trimmed.hasPrefix("R") else { continue }
+
+            // Split on colon
+            let parts = trimmed.components(separatedBy: ":")
+            guard parts.count == 2 else { return nil }
+
+            let regStr = String(parts[0].dropFirst())  // Remove "R" prefix
+            guard let regNum = Int(regStr), regNum >= 0, regNum < 120 else { return nil }
+
+            // Parse hex bytes from the second part
+            let hexPart = parts[1].trimmingCharacters(in: .whitespaces)
+            let hexTokens = hexPart.components(separatedBy: " ").filter { !$0.isEmpty }
+
+            guard hexTokens.count == 16 else { return nil }
+
+            let offset = regNum * 16
+            for (i, hexToken) in hexTokens.enumerated() {
+                guard let byte = UInt8(hexToken, radix: 16) else { return nil }
+                resultBytes[offset + i] = byte
+            }
+        }
+
+        return Data(resultBytes)
     }
 
     // MARK: - Trace / debug
