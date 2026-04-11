@@ -57,6 +57,8 @@ class EmulatorViewModel {
     var liveDebugSnapshot: LiveDebugSnapshot = .empty
     var freezeReason: FreezeReason? = nil
     var isFrozen: Bool { freezeReason != nil }
+    var pendingFreezeOnPCChange: Bool = false  // Freeze as soon as PC changes (first instruction)
+    private var lastObservedPC: UInt16 = 0     // Track PC to detect changes
 
     // ── Live CPU view state (60 Hz real-time, runs while emulating) ────────────
     var cpuDebugSnapshot: CPUDebugSnapshot = .empty
@@ -183,6 +185,25 @@ class EmulatorViewModel {
                 // Subtract rather than reset to zero: carry the overshoot into
                 // the next batch so long-term average speed stays exact.
                 cyclesDone -= targetBatchCycles
+
+                // Check if pending freeze on PC change should activate
+                if self.pendingFreezeOnPCChange {
+                    let currentPC = m.currentPC
+                    if currentPC != self.lastObservedPC {
+                        // PC has changed — freeze now
+                        self.isRunning = false
+                        self.pendingFreezeOnPCChange = false
+                        self.freezeReason = .manual
+                        DispatchQueue.main.async { [weak self] in
+                            guard let self else { return }
+                            if self.liveDebugEnabled {
+                                self.liveDebugSnapshot = self.buildLiveSnapshot(machine: m)
+                            }
+                            self.captureInspectorSnapshot(machine: m)
+                        }
+                        return
+                    }
+                }
 
                 let end = DispatchTime.now()
                 let elapsed = Double(end.uptimeNanoseconds - start.uptimeNanoseconds) / 1e9
@@ -644,9 +665,16 @@ class EmulatorViewModel {
         breakpointPC = pc
     }
 
+    func freezeOnNextPCChange() {
+        // Prepare to freeze as soon as the program counter changes (first instruction executes)
+        pendingFreezeOnPCChange = true
+        lastObservedPC = machine?.currentPC ?? 0
+    }
+
     func freeze(reason: FreezeReason = .manual) {
         isRunning = false
         freezeReason = reason
+        pendingFreezeOnPCChange = false  // Cancel any pending freeze
         guard let m = machine else { return }
         // Advance to the next keycode boundary on the emulation queue (runs after the
         // running loop exits, since emulQueue is serial). Then capture state.

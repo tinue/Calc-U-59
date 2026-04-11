@@ -23,22 +23,6 @@ struct LiveDebugView: View {
             .background(Color(white: 0.10))
         }
         .background(Color(white: 0.10))
-        .onKeyPress(.space) {
-            // Space: step when frozen
-            if vm.isFrozen {
-                vm.stepKeycode()
-            }
-            return .handled
-        }
-        .onKeyPress("f") {
-            // F: toggle freeze/resume
-            if vm.isFrozen {
-                vm.unfreeze()
-            } else {
-                vm.freeze()
-            }
-            return .handled
-        }
     }
 
     // MARK: - Header
@@ -53,6 +37,15 @@ struct LiveDebugView: View {
                 Button("STEP") { vm.stepKeycode() }
                     .font(.system(size: 9, weight: .bold, design: .monospaced))
                     .foregroundStyle(Color.cyan)
+            }
+            if vm.pendingFreezeOnPCChange {
+                Button("ARMED") { vm.pendingFreezeOnPCChange = false }
+                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    .foregroundStyle(Color.yellow)
+            } else {
+                Button("FREEZE ON START") { vm.freezeOnNextPCChange() }
+                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    .foregroundStyle(Color(white: 0.5))
             }
             Button(vm.isFrozen ? "RESUME" : "FREEZE") {
                 vm.isFrozen ? vm.unfreeze() : vm.freeze()
