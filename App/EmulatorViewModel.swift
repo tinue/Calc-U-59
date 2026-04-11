@@ -1032,8 +1032,8 @@ class EmulatorViewModel {
         }
 
         // Return address stack (SCOM[14:15]) — 6 levels of subroutine return addresses
-        // Each level is a 3-digit BCD-encoded program counter (000-959)
-        // Format: Nibble 0 = count, then for each level: skip 1, take 3 (reversed), skip 1
+        // Levels are encoded in Base 80: a*800 + b*80 + c*8 + d
+        // Format: Nibble 0 = count, then 4 nibbles per level (l1-l6)
         withUnsafeBytes(of: cpu.SCOM) { bytes in
             let baseOffset14 = 14 * 16
             let baseOffset15 = 15 * 16
@@ -1053,16 +1053,16 @@ class EmulatorViewModel {
             // Count from first nibble of SCOM[15]
             let count = Int(nibbles15[0])
 
-            // Extract 3 levels from SCOM[15]: skip 1, take 3 (reversed), skip 1 per level
-            // Positions 2-4 (reversed), 7-9 (reversed), 12-14 (reversed)
-            let l1 = Int(nibbles15[4]) * 100 + Int(nibbles15[3]) * 10 + Int(nibbles15[2])
-            let l2 = Int(nibbles15[9]) * 100 + Int(nibbles15[8]) * 10 + Int(nibbles15[7])
-            let l3 = Int(nibbles15[14]) * 100 + Int(nibbles15[13]) * 10 + Int(nibbles15[12])
+            // Decode using Base 80: a*800 + b*80 + c*8 + d
+            // 3 levels from SCOM[15]: positions 1-4, 5-8, 9-12
+            let l1 = Int(nibbles15[1]) * 800 + Int(nibbles15[2]) * 80 + Int(nibbles15[3]) * 8 + Int(nibbles15[4])
+            let l2 = Int(nibbles15[5]) * 800 + Int(nibbles15[6]) * 80 + Int(nibbles15[7]) * 8 + Int(nibbles15[8])
+            let l3 = Int(nibbles15[9]) * 800 + Int(nibbles15[10]) * 80 + Int(nibbles15[11]) * 8 + Int(nibbles15[12])
 
-            // Extract 3 levels from SCOM[14]: same pattern
-            let l4 = Int(nibbles14[4]) * 100 + Int(nibbles14[3]) * 10 + Int(nibbles14[2])
-            let l5 = Int(nibbles14[9]) * 100 + Int(nibbles14[8]) * 10 + Int(nibbles14[7])
-            let l6 = Int(nibbles14[14]) * 100 + Int(nibbles14[13]) * 10 + Int(nibbles14[12])
+            // 3 levels from SCOM[14]: positions 1-4, 5-8, 9-12
+            let l4 = Int(nibbles14[1]) * 800 + Int(nibbles14[2]) * 80 + Int(nibbles14[3]) * 8 + Int(nibbles14[4])
+            let l5 = Int(nibbles14[5]) * 800 + Int(nibbles14[6]) * 80 + Int(nibbles14[7]) * 8 + Int(nibbles14[8])
+            let l6 = Int(nibbles14[9]) * 800 + Int(nibbles14[10]) * 80 + Int(nibbles14[11]) * 8 + Int(nibbles14[12])
 
             snap.returnAddress = String(format: "L6:%03d L5:%03d L4:%03d L3:%03d L2:%03d L1:%03d (count=%d)",
                 l6, l5, l4, l3, l2, l1, count)
@@ -1131,25 +1131,7 @@ class EmulatorViewModel {
     }
 
     /// Decode the program counter from SCOM[0] positions 4-7.
-    /// Encoding has three ranges with different formulas:
-    ///
-    /// Range 1: PC 0–791 (original formula)
-    ///   T' = T + 2×H  (H=hundreds, T=tens, U=units)
-    ///   pos 4 = ((T'×2) mod 8) + U
-    ///   pos 5 = T' if T'<4 else T'+1
-    ///   pos 6 = H
-    ///   pos 7 = 0
-    ///
-    /// Range 2: PC 792–799 (special case for T=9)
-    ///   pos 4 = U - 2
-    ///   pos 5 = 9
-    ///   pos 6 = 9
-    ///   pos 7 = 0
-    ///
-    /// Range 3: PC 800–959 (high page, uses pos 7 = 1)
-    ///   pos 4-5 encode (T mod 100, U), using original formula
-    ///   pos 6 = (H - 8) for 800–899, 1 for 900–959
-    ///   pos 7 = 1
+    /// It's encoded in base-80, so to speak.
     private func decodeProgramCounter(from cpu: TICPUSnapshot) -> Int {
         // PC encoding formula
         let n4 = Int(cpu.SCOM.0.4)
