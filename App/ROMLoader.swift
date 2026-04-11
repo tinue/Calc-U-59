@@ -59,6 +59,9 @@ struct ROMLoader {
             guard !s.isEmpty else { continue }
             let parts = s.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
             guard parts.count == 2 else { continue }
+            let addrStr = String(parts[0]).trimmingCharacters(in: .whitespaces)
+            // Verify the address part is exactly 4 hex digits
+            guard addrStr.count == 4, UInt16(addrStr, radix: 16) != nil else { continue }
             let wordParts = parts[1].split(separator: " ")
             for wordStr in wordParts {
                 guard let word = UInt16(wordStr, radix: 16) else {
@@ -112,6 +115,9 @@ struct ROMLoader {
             guard inNumberSection && !s.isEmpty else { continue }
             let parts = s.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
             guard parts.count == 2 else { continue }
+            let addrStr = String(parts[0]).trimmingCharacters(in: .whitespaces)
+            // Verify the address part is 1-3 decimal digits (0-63 for 64 entries)
+            guard !addrStr.isEmpty, Int(addrStr) != nil else { continue }
             let hexStr = String(parts[1]).trimmingCharacters(in: .whitespaces)
             guard hexStr.count == 16 else { continue }
             var nibbles = [UInt8]()
