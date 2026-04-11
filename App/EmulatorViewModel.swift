@@ -1033,32 +1033,39 @@ class EmulatorViewModel {
 
         // Return address stack (SCOM[14:15]) — 6 levels of subroutine return addresses
         // Each level is a 3-digit BCD-encoded program counter (000-959)
-        // Format: rightmost nibble = count, then 3 BCD nibbles per level (l1-l6)
+        // Format: Nibble 0 = count, then for each level: skip 1, take 3 (reversed), skip 1
         withUnsafeBytes(of: cpu.SCOM) { bytes in
             let baseOffset14 = 14 * 16
             let baseOffset15 = 15 * 16
 
-            // Collect all 16 bytes from SCOM[15] and SCOM[14], then reverse them
-            var reversed: [UInt8] = []
-            // Add SCOM[15] bytes in reverse order
-            for i in stride(from: 15, through: 0, by: -1) {
-                reversed.append(bytes[baseOffset15 + i])
-            }
-            // Add SCOM[14] bytes in reverse order
-            for i in stride(from: 15, through: 0, by: -1) {
-                reversed.append(bytes[baseOffset14 + i])
+            // Collect all 16 nibbles from SCOM[15] (left to right)
+            var nibbles15: [UInt8] = []
+            for i in 0..<16 {
+                nibbles15.append(bytes[baseOffset15 + i] & 0xF)
             }
 
-            // Extract levels from reversed data (each level = 3 BCD nibbles)
-            // Nibble 0 = count (ignored), then 3 nibbles per level
-            let l1 = nibblesToBCD(reversed, start: 1)    // nibbles 1-3
-            let l2 = nibblesToBCD(reversed, start: 4)    // nibbles 4-6
-            let l3 = nibblesToBCD(reversed, start: 7)    // nibbles 7-9
-            let l4 = nibblesToBCD(reversed, start: 10)   // nibbles 10-12
-            let l5 = nibblesToBCD(reversed, start: 13)   // nibbles 13-15
-            let l6 = nibblesToBCD(reversed, start: 16)   // nibbles 16-18
+            // Collect all 16 nibbles from SCOM[14] (left to right)
+            var nibbles14: [UInt8] = []
+            for i in 0..<16 {
+                nibbles14.append(bytes[baseOffset14 + i] & 0xF)
+            }
 
-            snap.returnAddress = String(format: "L6:%03d L5:%03d L4:%03d L3:%03d L2:%03d L1:%03d", l6, l5, l4, l3, l2, l1)
+            // Count from first nibble of SCOM[15]
+            let count = Int(nibbles15[0])
+
+            // Extract 3 levels from SCOM[15]: skip 1, take 3 (reversed), skip 1 per level
+            // Positions 2-4 (reversed), 7-9 (reversed), 12-14 (reversed)
+            let l1 = Int(nibbles15[4]) * 100 + Int(nibbles15[3]) * 10 + Int(nibbles15[2])
+            let l2 = Int(nibbles15[9]) * 100 + Int(nibbles15[8]) * 10 + Int(nibbles15[7])
+            let l3 = Int(nibbles15[14]) * 100 + Int(nibbles15[13]) * 10 + Int(nibbles15[12])
+
+            // Extract 3 levels from SCOM[14]: same pattern
+            let l4 = Int(nibbles14[4]) * 100 + Int(nibbles14[3]) * 10 + Int(nibbles14[2])
+            let l5 = Int(nibbles14[9]) * 100 + Int(nibbles14[8]) * 10 + Int(nibbles14[7])
+            let l6 = Int(nibbles14[14]) * 100 + Int(nibbles14[13]) * 10 + Int(nibbles14[12])
+
+            snap.returnAddress = String(format: "L6:%03d L5:%03d L4:%03d L3:%03d L2:%03d L1:%03d (count=%d)",
+                l6, l5, l4, l3, l2, l1, count)
         }
 
         // SCOM rows (all 16, plus extract rows 0–3 for printer)
@@ -1121,20 +1128,6 @@ class EmulatorViewModel {
         }
 
         return snap
-    }
-
-    /// Extract 3 BCD nibbles from a byte array and convert to decimal.
-    /// Nibbles are packed 2 per byte, LSB first.
-    private func nibblesToBCD(_ bytes: [UInt8], start: Int) -> Int {
-        let byte0 = start / 2
-        let byte1 = (start + 1) / 2
-        let byte2 = (start + 2) / 2
-
-        let nib0 = (bytes[byte0] >> ((start % 2) * 4)) & 0xF
-        let nib1 = (bytes[byte1] >> (((start + 1) % 2) * 4)) & 0xF
-        let nib2 = (bytes[byte2] >> (((start + 2) % 2) * 4)) & 0xF
-
-        return Int(nib0) * 100 + Int(nib1) * 10 + Int(nib2)
     }
 
     /// Decode the program counter from SCOM[0] positions 4-7.
