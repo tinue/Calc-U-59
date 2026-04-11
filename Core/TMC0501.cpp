@@ -310,7 +310,7 @@ void TMC0501::alu(uint8_t* dst, const uint8_t* srcX, const uint8_t* srcY,
         }
 
         if (i >= (int)m.start && i <= (int)m.end) {
-            if (i == (int)m.start) R5 = sum;  // R5 always captures the start digit
+            if (i == (int)m.cpos) R5 = sum;  // R5 captures result at constant position per manual
             if (dst) {
                 if      (op == ALU_SHL)                    dst[i]   = shl;
                 else if (op == ALU_SHR) {
