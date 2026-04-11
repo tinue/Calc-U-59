@@ -2,7 +2,7 @@
 
 ## [0.3.0] - TBD
 
-**TI-58C emulation:** Fixed MEMWR/MEMRD instruction address decoding (Sout[1:0] are hex nibbles, not BCD). Implemented full field-mask support for partial RAM writes. Fixed deferred-write behavior and printer-detection digit selection. Expanded RAM from 60 to 64 registers to properly support constant-memory access.
+**TI-58C emulation:** Add MEMWR/MEMRD support. Fixed address decoding (Sout[1:0] are hex nibbles, not BCD, not decimal). Implemented full field-mask support for partial RAM writes. Fixed deferred-write behavior and printer-detection digit selection. Expanded RAM from 60 to 64 registers. TI-58C now fully functional: programs can store and retrieve variables.
 
 **Preset files:** TI-58C files now support hidden register loading via H00–H03 syntax (e.g., `H01 = 7.77E22`), allowing direct access to the four special constant-memory registers (060–063) used for partition settings and validation. Quirky partition support (steps 480–511) removed; TI-58C now treats partition limits identically to TI-58 (max 479 steps, default 239).
 
@@ -14,7 +14,7 @@
 
 ## [0.2.0] - 2026-04-06
 
-**Emulation:** Added TI-58C ROM support and MEMWR/MEMRD constant-memory instructions (initial implementation; see 0.3.0 for critical bug fixes). Fixed 2nd Op 40 instruction. 'C' indicator now uses hardware-accurate SH-pin duty-cycle emulation with proper latch behavior and realistic afterglow. Printer mechanical busy timing matches real PC-100C hardware behavior.
+**Emulation:** Replaced TI-58C "cheat" with real TI-58C ROM and constant-memory support. Missing MEMWR/MEMRD instructions for RAM read/write lead the the calculator being able to "calculate", but not store variables or program steps. Fixed 2nd Op 40 instruction. 'C' indicator now uses hardware-accurate SH-pin duty-cycle emulation with proper latch behavior and realistic afterglow. Printer mechanical busy timing matches real PC-100C hardware behavior.
 
 **Debugging:** Binary execution trace facility (`TI59_TRACE.bin`) for advanced program analysis and verification against reference traces.
 
@@ -36,7 +36,7 @@ Broken, do not use
 
 Initial release.
 
-**Emulation:** Cycle-accurate TI-59, TI-58, and TI-58C emulation. TI-58C constant memory survives restarts. Master Library ROM included.
+**Emulation:** Cycle-accurate TI-59 and TI-58 emulation. TI-58C emulation provided as a variant of TI-58 with persistent RAM (a functional workaround, not proper TI-58C hardware emulation). Master Library ROM included.
 
 **Preset files:** Load `.ti59` / `.ti58` state files to preset the calculator with a program and data registers.
 
@@ -46,4 +46,4 @@ Initial release.
 
 **Debugger:** Register inspection and keystroke injection (macOS and iPad landscape).
 
-**Known limitations:** TI-58C emulation incomplete — MEMWR/MEMRD instructions not yet implemented; expect ROM hangs when TI-58C programs attempt constant-memory access. Printer output is functionally simulated — timing-sensitive printer interactions are not reproduced. The debug API is functional but early: expect the interface to evolve.
+**Known limitations:** TI-58C is not truly emulated — it runs TI-58 code with persistent RAM instead of proper TI-58C ROM and constant-memory support. Printer output is functionally simulated — timing-sensitive printer interactions are not reproduced. The debug API is functional but early: expect the interface to evolve.

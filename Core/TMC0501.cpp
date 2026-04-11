@@ -113,7 +113,7 @@ const TMC0501::MaskInfo TMC0501::mask_info[16] = {
 
 // ── SCOM mathematical and display constant table ──────────────────────────────
 //
-// 64 entries × 16 BCD digits, physically stored in the TMC0571 SCOM chip.
+// 64 entries × 16 BCD digits, physically stored in the TMC0582/83 chip, SCOM area.
 // Accessed by the CPU via ADD/SUB … const ALU instructions; the constant
 // index is encoded in KR bits 10:4 and loaded by running through the
 // INC KR chain at ROM addresses 0x139A–0x13A8.
@@ -128,10 +128,7 @@ const TMC0501::MaskInfo TMC0501::mask_info[16] = {
 //     [14] π      ≈ 3.141592653589…
 //     [15] 180/π  ≈ 57.2957795130…    (degree ↔ radian conversion)
 //
-// Entries 16–63: 6-bit keystroke display codes used in programming mode.
-//   When reviewing a stored program, the ROM reads these entries to convert
-//   internal key codes into LED character patterns showing the key's label
-//   (e.g. SIN, STO, RCL, LNX, x², …) on the 12-digit display.
+// Entries 16–63: Keycode programs for routines such as Polar->Rec coordinates
 
 const uint8_t TMC0501::CONSTANT[64][16] = {
   {0xc,0x0,0x0,0x4,0x9,0x9,0x2,0x9,0x0,0x5,0x8,0x5,0x2,0x0,0x3,0x2},
