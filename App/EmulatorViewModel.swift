@@ -135,6 +135,10 @@ class EmulatorViewModel {
                 wrapper.loadLibrary(libData)
             }
 
+            if let constData = try? ROMLoader.loadConstants(model: model) {
+                wrapper.loadConstants(constData)
+            }
+
             if model.hasConstantMemory, let saved = loadConstantMemory() {
                 // Restore RAM before the emulation loop starts so the ROM's startup
                 // routine sees the warm-start flag and skips its RAM clear —

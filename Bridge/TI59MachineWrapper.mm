@@ -35,6 +35,12 @@ static const int kbits[] = {0, 1, 2, 3, 5, 6};  // index 0 unused; index col
     _machine->loadLibrary(bytes, count);
 }
 
+- (void)loadConstants:(NSData*)constData {
+    const uint8_t* bytes = (const uint8_t*)constData.bytes;
+    size_t count = constData.length;
+    _machine->loadConstants(bytes, count);
+}
+
 - (void)reset {
     _machine->reset();
 }

@@ -25,6 +25,10 @@ void TI59Machine::loadLibrary(const uint8_t* data, size_t count) {
     m_cpu.loadLibrary(data, count);
 }
 
+void TI59Machine::loadConstants(const uint8_t* data, size_t count) {
+    m_cpu.loadConstants(data, count);
+}
+
 void TI59Machine::reset() {
     std::lock_guard<std::mutex> lock(m_keyMutex);
     m_cpu.reset();

@@ -13,6 +13,7 @@ public:
 
     void loadROM(const uint16_t* data, size_t count);
     void loadLibrary(const uint8_t* data, size_t count);
+    void loadConstants(const uint8_t* data, size_t count);
     void reset();
 
     /// Execute one CPU instruction.

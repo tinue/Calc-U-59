@@ -113,6 +113,9 @@ public:
     /// Used by the TI-59 magnetic card reader / solid-state library modules.
     void loadLibrary(const uint8_t* data, size_t count);
 
+    /// Load constants from data (must be 1024 bytes for 64×16 rows).
+    void loadConstants(const uint8_t* data, size_t count);
+
     // ── Magnetic card reader ─────────────────────────────────────────────────
     // The ROM polls TST BUSY in a tight loop after the user presses 2nd-Read
     // or 2nd-Write.  TST BUSY sets m_waitingForCard when it sees the card-switch
@@ -342,7 +345,7 @@ private:
     //
     // The constant is accessed by loading KR with the desired index via the
     // INC KR chain at 0x139A–0x13A8, then using an ADD/SUB…const opcode.
-    static const uint8_t CONSTANT[64][16];
+    uint8_t m_constant[64][16];
 
     // ALU operation selector passed to alu().
     // SUB and SHR are ≥ ALU_SUB, which the alu() function uses to choose

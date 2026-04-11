@@ -48,6 +48,9 @@ typedef struct {
 /// Load Library module (NSData containing 5000 uint8_t bytes).
 - (void)loadLibrary:(NSData*)libData;
 
+/// Load constants (NSData containing 64×16 uint8_t constant rows).
+- (void)loadConstants:(NSData*)constData;
+
 /// Reset the CPU to power-on state (PC=0, registers cleared, card absent).
 - (void)reset;
 

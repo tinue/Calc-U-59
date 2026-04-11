@@ -1,0 +1,39 @@
+ROM Files in this directory:
+
+TI-58 / TI-59
+These three ROM chips together make up the ROM of the TI-58/59 calculators. So far, this was the file "rom-59.hex"
+- TMC0582.txt: First 2.5k of ROM, "TMC0582NL IB7910"
+- TMC0583.txt: Second 2.5k of ROM, "TMC0583NL DBS7910"
+- TMC0571B.txt: Additional 1k of ROM, "TMC0571NL BP7849"
+
+TI-58C
+These three ROM chips together make up the ROM of the TI-58C calculator. So far, this was the file "rom-58C.hex"
+- CD2400.txt: First 2.5k of ROM, "TMC0580NL CD2400"
+- CD2401.txt: Second 2.5k of ROM, "TMC0580NL CD2401"
+- TMC0573.txt: Additional 1k of ROM, "TMC0573NL P8018K"
+
+
+Additional Constants in this directory:
+
+The ROM chips have two additional features:
+- A ROM constant section, containing 32 time 16 digits of BCD data
+- A RAM section, called "SCOM", with 8 registers of 16 digits BCD data
+
+The files mentioned contain the constants. Each file has the constants listed twice:
+- ADDR: CONSTANT ROM (NUMBER) -> This is a compact form
+- ADDR: CONSTANT ROM (KEY CODE) -> The same data, spelled out as keycodes
+
+There is an extra file, TMC0582-0583-PROGRAM.txt (or TMC0582-0583-PGMUTF8.txt for a better readable version) that contains the part of
+the constants of both ROMs that are used as keycode programs. This is eseentially a disassembled version for reading purposes, and does
+not need to be loaded (the data is contained in the files below).
+
+The constants are so far part of the core emulator, TMSC0501.cpp, "const uint8_t TMC0501::CONSTANT[64][16]"
+For the TI-58C, the TI-59 constants are used, which is a bug.
+
+TI-58 / TI-59
+- TMC0582-CONST-K.txt: Constants of the TMC0582 chip
+- TMC0583-CONST-K.txt: Constants of the TMC0583 chip
+
+TI-58C
+- CD2400-CONST-K.txt: Constants of the CD2400 chip
+- CD2401-CONST-K.txt: Constants of the CD2401 chip
