@@ -23,6 +23,22 @@ struct LiveDebugView: View {
             .background(Color(white: 0.10))
         }
         .background(Color(white: 0.10))
+        .onKeyPress(.space) {
+            // Space: step when frozen
+            if vm.isFrozen {
+                vm.stepKeycode()
+            }
+            return .handled
+        }
+        .onKeyPress("f") {
+            // F: toggle freeze/resume
+            if vm.isFrozen {
+                vm.unfreeze()
+            } else {
+                vm.freeze()
+            }
+            return .handled
+        }
     }
 
     // MARK: - Header
