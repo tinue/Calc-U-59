@@ -211,6 +211,7 @@ def format_as_log(records, skip_idle_loops=False):
 
     If skip_idle_loops=True, detects and collapses idle keyscan loop cycles.
     A cycle is detected when IDLE=1 and we return to the same PC.
+    When enabled, suppression markers are disabled to allow full pattern detection.
     """
     out = []
     i = 0
@@ -236,7 +237,8 @@ def format_as_log(records, skip_idle_loops=False):
             sup = r['suppressedBefore']
 
             # Last-of-run: don't expand — just show a compact skip marker.
-            if sup > 0:
+            # But skip this when looking for idle loops, as it interferes with detection.
+            if sup > 0 and not skip_idle_loops:
                 out.append(f"... {sup} ...")
                 i += 1
                 continue
