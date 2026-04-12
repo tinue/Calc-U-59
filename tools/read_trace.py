@@ -11,6 +11,11 @@ Parses TI59_TRACE.bin (format documented in DebugAPI.md) and either:
 Usage:
     python3 read_trace.py TI59_TRACE.bin
     python3 read_trace.py --json TI59_TRACE.bin
+    python3 read_trace.py --skip-idle-loops TI59_TRACE.bin
+
+Flags:
+    --json                 Output as JSON array (no idle loop filtering)
+    --skip-idle-loops      Collapse repeating keyscan loop cycles into summaries
 
 The mnemonic disassembly uses mnemonics.tsv from the same directory.
 """
@@ -198,24 +203,34 @@ def _user_banner(rec):
         label += f"  row={rec['row']}  col={rec['col']}"
     return f"\n{BANNER}\n{label}\n{BANNER}\n"
 
-def format_as_log(records):
+def format_as_log(records, skip_idle_loops=False):
     """
     Render records as TI59E.LOG-style text (4 lines + blank per instruction).
     USER_EVENT records are rendered as a prominent banner.
     SESSION_START/END are rendered as a brief comment line.
+
+    If skip_idle_loops=True, detects and collapses idle keyscan loop cycles.
+    A cycle is detected when IDLE=1 and we return to the same PC.
     """
     out = []
-    for rec in records:
+    i = 0
+
+    while i < len(records):
+        rec = records[i]
         t = rec['type']
+
         if t == 'session_start':
             import datetime
             ts = datetime.datetime.fromtimestamp(rec['timestamp'])
             out.append(f"\n; SESSION START  {ts.isoformat()}\n")
+            i += 1
         elif t == 'session_end':
             out.append(f"; SESSION END  events={rec['eventCount']}  "
                        f"suppressed={rec['suppressedTotal']}\n")
+            i += 1
         elif t == 'user':
             out.append(_user_banner(rec))
+            i += 1
         elif t == 'trace':
             r = rec
             sup = r['suppressedBefore']
@@ -223,12 +238,74 @@ def format_as_log(records):
             # Last-of-run: don't expand — just show a compact skip marker.
             if sup > 0:
                 out.append(f"... {sup} ...")
+                i += 1
                 continue
 
-            # RAMOP: show RAM_OP hex when flags bit 6 set, else '-'
-            ramop_str = (f"{r['RAM_OP']:X}" if (r['cpuFlags'] & 0x0040) else '-')
+            # Detect idle loop: when IDLE=1, look for when we return to this PC
+            if skip_idle_loops and r['IDLE'] == '1':
+                loop_start_pc = r['pc']
+                cycle_end = None
 
-            # Disassemble the mnemonic
+                # Find next occurrence of the same PC
+                for j in range(i + 1, min(i + 50, len(records))):
+                    if (records[j]['type'] == 'trace' and
+                        records[j]['pc'] == loop_start_pc):
+                        cycle_end = j
+                        break
+
+                # If we found a cycle and it repeats, compress it
+                if cycle_end and cycle_end > i:
+                    cycle_len = cycle_end - i
+                    # Check if this same cycle repeats at cycle_end
+                    repeats = False
+                    if cycle_end + cycle_len < len(records):
+                        if (records[cycle_end]['type'] == 'trace' and
+                            records[cycle_end + cycle_len]['type'] == 'trace' and
+                            records[cycle_end + cycle_len]['pc'] == loop_start_pc):
+                            repeats = True
+
+                    if repeats:
+                        # Count total repetitions
+                        num_reps = 1
+                        j = cycle_end + cycle_len
+                        while j + cycle_len <= len(records):
+                            if (records[j]['type'] == 'trace' and
+                                records[j]['pc'] == loop_start_pc):
+                                num_reps += 1
+                                j += cycle_len
+                            else:
+                                break
+
+                        # Output one full cycle, then compress the rest
+                        for idx in range(i, cycle_end):
+                            if records[idx]['type'] == 'trace' and records[idx]['suppressedBefore'] == 0:
+                                r_item = records[idx]
+                                ramop_str = (f"{r_item['RAM_OP']:X}" if (r_item['cpuFlags'] & 0x0040) else '-')
+                                addr = int(r_item['pc'], 16)
+                                opcode = int(r_item['opcode'], 16)
+                                mnemonic = disasm(addr, opcode)
+                                line1 = f"{r_item['pc']} {r_item['opcode']} {mnemonic}"
+                                line2 = (f"A={r_item['A']} B={r_item['B']} C={r_item['C']} "
+                                        f"D={r_item['D']} E={r_item['E']}")
+                                line3 = (f"FA={r_item['fA']} [{_bin16(int(r_item['fA'],16))}] "
+                                        f"KR={r_item['KR']} [{_bin16(int(r_item['KR'],16))}] "
+                                        f"EXT={r_item['EXT']} COND={r_item['COND']} IDLE={r_item['IDLE']} "
+                                        f"IO={r_item['IO']}")
+                                line4 = (f"FB={r_item['fB']} [{_bin16(int(r_item['fB'],16))}] "
+                                        f"SR={r_item['SR']} R5={r_item['R5']} PREG={r_item['PREG']} "
+                                        f"RAMOP={ramop_str} RAMREG={r_item['RAM_ADDR']:03d} "
+                                        f"ROMREG={r_item['REG_ADDR']:02d}")
+                                out.append(line1 + '\n' + line2 + '\n' + line3 + '\n' + line4 + '\n')
+                            elif records[idx]['type'] == 'trace' and records[idx]['suppressedBefore'] > 0:
+                                out.append(f"... {records[idx]['suppressedBefore']} ...\n")
+
+                        # Add marker for repeated cycles
+                        out.append(f"; [IDLE LOOP: PC {loop_start_pc}, repeated {num_reps} more times]\n")
+                        i = cycle_end + cycle_len * num_reps
+                        continue
+
+            # Normal output
+            ramop_str = (f"{r['RAM_OP']:X}" if (r['cpuFlags'] & 0x0040) else '-')
             addr = int(r['pc'], 16)
             opcode = int(r['opcode'], 16)
             mnemonic = disasm(addr, opcode)
@@ -244,6 +321,7 @@ def format_as_log(records):
                      f"RAMOP={ramop_str} RAMREG={r['RAM_ADDR']:03d} "
                      f"ROMREG={r['REG_ADDR']:02d}")
             out.append(line1 + '\n' + line2 + '\n' + line3 + '\n' + line4 + '\n')
+            i += 1
     return '\n'.join(out)
 
 # ── Entry point ───────────────────────────────────────────────────────────────
@@ -251,6 +329,7 @@ def format_as_log(records):
 def main():
     args = sys.argv[1:]
     as_json = '--json' in args
+    skip_idle_loops = '--skip-idle-loops' in args
     paths = [a for a in args if not a.startswith('--')]
     if not paths:
         print(__doc__)
@@ -261,7 +340,7 @@ def main():
         if as_json:
             print(json.dumps(records, indent=2))
         else:
-            print(format_as_log(records))
+            print(format_as_log(records, skip_idle_loops=skip_idle_loops))
 
 if __name__ == '__main__':
     main()
