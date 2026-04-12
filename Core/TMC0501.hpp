@@ -240,9 +240,10 @@ private:
     uint16_t fB{};      // Flag register B — second set of 16 ROM-visible flag bits.
     uint16_t EXT{};     // External data latch — holds one nibble read from the card
                         // reader or library module; valid for one cycle after IN CRD/LIB.
-    uint16_t PREG{};    // Computed-jump latch.  SET KR[1] loads a rotated KR here;
-                        // on the next step() call the PC is replaced with PREG>>3
-                        // and PREG is cleared (return value 0, no ROM fetch).
+    uint16_t PREG{};    // Computed-jump flag.  SET KR[1] sets this to 1.
+                        // When PREG=1 on the next step() call, PC is redirected
+                        // to address in PREG_ADDR and PREG is cleared.
+    uint16_t PREG_ADDR{};  // Latched program address from KR[15:4] when PREG is set.
     uint8_t  Sout[16]{}; // ALU output bus — 16 BCD digits written after every ALU op.
                          // Also serves as the IO bus for STO/RCL address encoding.
     uint16_t flags{};   // Internal emulator state flags (see FLG_* enum above).

@@ -143,7 +143,7 @@ void TMC0501::reset() {
     memset(SCOM, 0, sizeof(SCOM));
     memset(Sout, 0, sizeof(Sout));
     memset(key,  0, sizeof(key));
-    KR = SR = fA = fB = EXT = PREG = m_libAddr = 0;
+    KR = SR = fA = fB = EXT = PREG = PREG_ADDR = m_libAddr = 0;
     R5 = digit = RAM_ADDR = RAM_OP = REG_ADDR = 0;
     addr  = 0;
     flags = FLG_COND | FLG_DISP;  // COND starts true; display active
@@ -337,11 +337,11 @@ void TMC0501::xch(uint8_t* a, uint8_t* b, const MaskInfo& m) {
 
 int TMC0501::step() {
     // ── PREG computed-jump redirect ───────────────────────────────────
-    // SET KR[1] deposits a rotated KR value into PREG on the previous cycle.
-    // On the next call we redirect the PC without fetching a new opcode.
+    // SET KR[1] sets PREG flag and latches the address into PREG_ADDR.
+    // When PREG=1 on the next call, redirect PC to the latched address.
     // Returns 0 so this pseudo-cycle doesn't count toward the speed budget.
     if (PREG & 0x1) {
-        addr = PREG >> 3;
+        addr = PREG_ADDR;
         PREG = 0;
         return 0;
     }
@@ -402,10 +402,11 @@ int TMC0501::step() {
     flags &= ~FLG_HOLD;
 
     // ── PREG latch (deferred PC redirect) ────────────────────────────
-    // When KR bit 1 is set (by SET KR[1]), the current KR is rotated
-    // right by 1 and stored in PREG.  The redirect fires on the next step().
+    // When KR bit 1 is set (by SET KR[1]), the address is latched from KR[15:4]
+    // into PREG_ADDR and the flag is set to 1. The redirect fires on the next step().
     if (KR & 0x2) {
-        PREG = (uint16_t)((KR >> 1) | (KR << 15));
+        PREG_ADDR = KR >> 4;
+        PREG = 1;
         KR  &= ~(uint16_t)0x2;
     }
 
