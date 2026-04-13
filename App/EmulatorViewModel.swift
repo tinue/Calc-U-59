@@ -103,6 +103,7 @@ class EmulatorViewModel {
     private let emulQueue = DispatchQueue(label: "calc-u-59.emulation", qos: .userInteractive)
     private var displayTimer: Timer?
     private var isRunning = false
+    private var persistenceEnabled = true  // suspend during state file load
     private static let constantMemoryFileName = "ti58c.mem"
     private static var constantMemoryURL: URL {
         CardStorage.directoryURL.appendingPathComponent(constantMemoryFileName)
@@ -214,6 +215,13 @@ class EmulatorViewModel {
                 let remaining = batchMs - elapsed
                 if remaining > 0 {
                     Thread.sleep(forTimeInterval: remaining)
+                }
+
+                // Persist TI-58C state after each 20 ms batch if enabled
+                if self.persistenceEnabled && self.model.hasConstantMemory {
+                    DispatchQueue.global(qos: .background).async { [weak self] in
+                        self?.persistConstantMemory()
+                    }
                 }
             }
         }
@@ -385,12 +393,13 @@ class EmulatorViewModel {
     }
 
     /// Clean reset (all models): zero all RAM, then reset.
-    /// For TI-58C the zeroed RAM will be persisted on app close, so the save file
-    /// naturally reflects the clean state without needing to be deleted.
+    /// For TI-58C, writes the zeroed state immediately to the save file.
     func cleanResetMachine() {
         machine?.deserialiseRAM(Data(repeating: 0, count: 120 * 16))
         cardState = .noCard
         machine?.reset()
+        // Write zeroed state for TI-58C immediately
+        persistConstantMemory()
         debugAppend(["Clean Reset — all registers cleared"])
     }
 
@@ -1340,6 +1349,12 @@ class EmulatorViewModel {
     // MARK: - State file loading
 
     func loadStateFile(_ url: URL) {
+        persistenceEnabled = false  // suspend persistence during load
+        defer {
+            persistConstantMemory()  // write loaded state once after completion
+            persistenceEnabled = true
+        }
+
         let scoped = url.startAccessingSecurityScopedResource()
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
         guard let text = try? String(contentsOf: url, encoding: .utf8) else {
