@@ -240,7 +240,7 @@ struct LiveDebugView: View {
                         }
                     }
                 }
-                .frame(height: 165)
+                .frame(height: 165, alignment: .top)
             }
         }
     }
