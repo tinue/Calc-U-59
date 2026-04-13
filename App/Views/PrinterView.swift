@@ -162,14 +162,14 @@ struct PrinterView: View {
 
             Button { copyBoth() } label: {
                 Image(systemName: "doc.on.doc")
-                    .font(.system(size: 13))
+                    .font(.system(size: 11))
                     .foregroundStyle(.white)
             }
             .disabled(viewModel.printerLines.isEmpty)
 
             Button { copyBoth(); viewModel.cutPaper() } label: {
                 Image(systemName: "scissors")
-                    .font(.system(size: 13))
+                    .font(.system(size: 11))
                     .foregroundStyle(.white)
             }
             .disabled(viewModel.printerLines.isEmpty)
