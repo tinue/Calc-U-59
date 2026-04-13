@@ -60,6 +60,11 @@ class EmulatorViewModel {
     var pendingFreezeOnPCChange: Bool = false  // Freeze as soon as PC changes (first instruction)
     private var lastObservedPC: UInt16 = 0     // Track PC to detect changes
 
+    // Frozen program caches (built on freeze entry, reused until unfreeze)
+    private var frozenROMCache: [LiveDebugSnapshot.StepEntry]?
+    private var frozenRAMCache: [LiveDebugSnapshot.StepEntry]?
+    private var cachedPrSourceFlag: UInt8 = 0  // tracks which cache is currently valid
+
     // ── Live CPU view state (60 Hz real-time, runs while emulating) ────────────
     var cpuDebugSnapshot: CPUDebugSnapshot = .empty
     private var cpuTraceWindow: [TITraceEvent] = []  // rolling window of recent instructions
@@ -692,6 +697,16 @@ class EmulatorViewModel {
             _ = m.stepUntilNextKeycode()
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
+                // Build program caches on freeze entry
+                let cpu = m.snapshotCPU()
+                let currentStep = self.decodeProgramCounter(from: cpu)
+                let prSourceFlag = UInt8(cpu.SCOM.0.3)
+                self.cachedPrSourceFlag = prSourceFlag
+                if prSourceFlag == 0 {
+                    self.frozenRAMCache = self.buildFullProgram(machine: m, currentStep: currentStep, prSourceFlag: 0)
+                } else if prSourceFlag == 8 {
+                    self.frozenROMCache = self.buildFullProgram(machine: m, currentStep: currentStep, prSourceFlag: 8)
+                }
                 if self.liveDebugEnabled {
                     self.liveDebugSnapshot = self.buildLiveSnapshot(machine: m)
                 }
@@ -701,7 +716,8 @@ class EmulatorViewModel {
     }
 
     /// Step one keycode while frozen. Advances to the next keycode boundary and
-    /// refreshes the live debug and CPU inspector snapshots.
+    /// refreshes the live debug and CPU inspector snapshots. Updates frozen program
+    /// caches if Prg Source changed, and re-centers current step.
     func stepKeycode() {
         guard isFrozen else { return }
         guard let m = machine else { return }
@@ -710,6 +726,25 @@ class EmulatorViewModel {
             _ = m.stepUntilNextKeycode()
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
+                let cpu = m.snapshotCPU()
+                let currentStep = self.decodeProgramCounter(from: cpu)
+                let prSourceFlag = UInt8(cpu.SCOM.0.3)
+
+                // Check if Prg Source changed; if so, rebuild appropriate cache
+                if prSourceFlag != self.cachedPrSourceFlag {
+                    self.cachedPrSourceFlag = prSourceFlag
+                    if prSourceFlag == 0 {
+                        self.frozenRAMCache = self.buildFullProgram(machine: m, currentStep: currentStep, prSourceFlag: 0)
+                        self.frozenROMCache = nil
+                    } else if prSourceFlag == 8 {
+                        self.frozenROMCache = self.buildFullProgram(machine: m, currentStep: currentStep, prSourceFlag: 8)
+                        self.frozenRAMCache = nil
+                    }
+                } else {
+                    // Prg Source unchanged: update isCurrent markers in existing cache
+                    self.updateCachedProgramCurrent(to: currentStep, prSourceFlag: prSourceFlag)
+                }
+
                 if self.liveDebugEnabled {
                     self.liveDebugSnapshot = self.buildLiveSnapshot(machine: m)
                 }
@@ -783,8 +818,43 @@ class EmulatorViewModel {
         }
     }
 
+    /// Update isCurrent markers in the cached program for the given current step.
+    /// Clears old current marker and sets new one.
+    private func updateCachedProgramCurrent(to currentStep: Int, prSourceFlag: UInt8) {
+        if prSourceFlag == 0, var cache = frozenRAMCache {
+            for i in 0..<cache.count {
+                cache[i].isCurrent = (cache[i].stepNum == currentStep)
+            }
+            frozenRAMCache = cache
+        } else if prSourceFlag == 8, var cache = frozenROMCache {
+            for i in 0..<cache.count {
+                cache[i].isCurrent = (cache[i].stepNum == currentStep)
+            }
+            frozenROMCache = cache
+        }
+    }
+
+    /// Return the full cached program when frozen, or nil if not frozen.
+    var frozenCachedProgram: [LiveDebugSnapshot.StepEntry]? {
+        if cachedPrSourceFlag == 0 {
+            return frozenRAMCache
+        } else if cachedPrSourceFlag == 8 {
+            return frozenROMCache
+        }
+        return nil
+    }
+
+    /// Return the index of the current step in the cached program when frozen, or -1 if not frozen.
+    var frozenCachedCurrentIndex: Int {
+        guard let program = frozenCachedProgram else { return -1 }
+        return program.firstIndex(where: { $0.isCurrent }) ?? -1
+    }
+
     func unfreeze() {
         freezeReason = nil
+        frozenROMCache = nil
+        frozenRAMCache = nil
+        cachedPrSourceFlag = 0
         startEmulationLoop()
         startDisplayRefresh()
     }
@@ -830,6 +900,89 @@ class EmulatorViewModel {
         let cpu = m.snapshotCPU()
         return CalcSnapshot(registers: regs, programSteps: steps,
                             printerBuffer: m.printerBufferContent, cpu: cpu)
+    }
+
+    /// Build full program for a given source (RAM or ROM), used for freeze caching.
+    /// Returns all steps as StepEntry with mnemonics, marking currentStep as current.
+    private func buildFullProgram(machine m: TI59MachineWrapper, currentStep: Int, prSourceFlag: UInt8) -> [LiveDebugSnapshot.StepEntry] {
+        var result: [LiveDebugSnapshot.StepEntry] = []
+
+        switch prSourceFlag {
+        case 0:
+            // User RAM — all program steps
+            let steps = Array(m.allProgramSteps() as Data)
+            guard !steps.isEmpty else { return [] }
+
+            // Build set of argument step indices
+            var argSteps = Set<Int>()
+            for i in 0..<steps.count {
+                let stepsAfter = TI59KeyNames.stepsAfter(for: steps[i])
+                if stepsAfter > 0 {
+                    for j in 1...stepsAfter {
+                        if i + j < steps.count {
+                            argSteps.insert(i + j)
+                        }
+                    }
+                }
+            }
+
+            for i in 0..<steps.count {
+                let kc = steps[i]
+                let isArgument = argSteps.contains(i)
+                let mnemonic = isArgument ? String(format: "%02d", kc) : TI59KeyNames.mnemonic(for: kc)
+
+                result.append(.init(
+                    stepNum: i,
+                    keycode: kc,
+                    mnemonic: mnemonic,
+                    isCurrent: i == currentStep
+                ))
+            }
+
+        case 8:
+            // Main ROM (384 steps)
+            var keycodes: [UInt8] = []
+            for addr in 0..<384 {
+                keycodes.append(m.romKeycode(at: addr))
+            }
+
+            // Detect argument step indices
+            var argSteps = Set<Int>()
+            for i in 0..<keycodes.count {
+                let stepsAfter = TI59KeyNames.stepsAfter(for: keycodes[i])
+                if stepsAfter > 0 {
+                    for j in 1...stepsAfter {
+                        if i + j < keycodes.count {
+                            argSteps.insert(i + j)
+                        }
+                    }
+                }
+            }
+
+            for (idx, keycode) in keycodes.enumerated() {
+                let isArgument = argSteps.contains(idx)
+                let mnemonic: String
+                if isArgument {
+                    let simpleMnemo = TI59KeyNames.mnemonic(for: keycode)
+                    mnemonic = simpleMnemo.count <= 2 && !simpleMnemo.contains("?") ? simpleMnemo : String(format: "%02d", keycode)
+                } else {
+                    mnemonic = TI59KeyNames.mnemonic(for: keycode)
+                }
+
+                result.append(.init(
+                    stepNum: idx,
+                    keycode: keycode,
+                    mnemonic: mnemonic,
+                    isCurrent: idx == currentStep
+                ))
+            }
+
+        default:
+            // Library or other: TBD
+            break
+        }
+
+        return result
     }
 
     /// Build a real-time debug snapshot for the live debug view.

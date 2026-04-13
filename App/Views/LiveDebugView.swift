@@ -338,14 +338,52 @@ struct LiveDebugView: View {
 
     // MARK: - Program Source Flag Section
 
+    @ViewBuilder
     private func prSourceFlagSection(baseFontSize: CGFloat) -> some View {
         let snap = vm.liveDebugSnapshot
-        return SectionBox(title: "") {
-            Text(String(format: "Prg Source: %X", snap.prSourceFlag))
-                .font(.system(size: baseFontSize + 2, design: .monospaced))
-                .foregroundStyle(Color(white: 0.85))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
+
+        if vm.isFrozen, let program = vm.frozenCachedProgram {
+            // Frozen mode: show full scrollable program
+            let currentIdx = vm.frozenCachedCurrentIndex
+
+            SectionBox(title: "PRG SOURCE (FULL PROGRAM)") {
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 1) {
+                            ForEach(program, id: \.stepNum) { entry in
+                                HStack(spacing: 6) {
+                                    Text(String(format: "%03d", entry.stepNum))
+                                        .font(.system(size: baseFontSize, design: .monospaced))
+                                        .foregroundStyle(entry.isCurrent ? .cyan : Color(white: 0.5))
+                                    Text(entry.mnemonic)
+                                        .font(.system(size: baseFontSize, design: .monospaced))
+                                        .foregroundStyle(entry.isCurrent ? .cyan : Color(white: 0.7))
+                                    Spacer()
+                                }
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 2)
+                                .background(entry.isCurrent ? Color(white: 0.20) : Color.clear)
+                                .id(entry.stepNum)
+                            }
+                        }
+                    }
+                    .onAppear {
+                        if currentIdx >= 0 {
+                            proxy.scrollTo(program[currentIdx].stepNum, anchor: .center)
+                        }
+                    }
+                }
+                .frame(height: 200)
+            }
+        } else {
+            // Normal mode: show simple Prg Source indicator
+            SectionBox(title: "") {
+                Text(String(format: "Prg Source: %X", snap.prSourceFlag))
+                    .font(.system(size: baseFontSize + 2, design: .monospaced))
+                    .foregroundStyle(Color(white: 0.85))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+            }
         }
     }
 

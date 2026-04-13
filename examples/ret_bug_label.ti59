@@ -1,0 +1,14 @@
+# ret_bug_label.ti59 — Reproduce bug with lost return address, use to generate a trace
+#
+
+PROGRAM:
+
+000  76 LBL
+001  11 A
+002  01 1
+003  44 SUM
+004  00  00
+005  37 P/R
+008  43 RCL
+009  00  00
+010  91 R/S
