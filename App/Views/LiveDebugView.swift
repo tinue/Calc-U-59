@@ -153,44 +153,94 @@ struct LiveDebugView: View {
 
     private func programStepsSection(baseFontSize: CGFloat) -> some View {
         let snap = vm.liveDebugSnapshot
-        // Determine current line color based on PRG SOURCE
-        let currentLineColor: Color = snap.prSourceFlag == 8
-            ? Color(red: 0.35, green: 0.28, blue: 0.10)  // Darker yellow for ROM
-            : Color(red: 0.10, green: 0.30, blue: 0.10)  // Green for RAM
 
-        return SectionBox(title: "PROGRAM STEPS") {
-            VStack(alignment: .leading, spacing: 0) {
-                let window = snap.programWindow
-                ForEach(0..<11, id: \.self) { i in
-                    if i < window.count {
-                        let entry = window[i]
-                        HStack(spacing: 0) {
-                            Text(String(format: "%03d", entry.stepNum))
-                                .foregroundStyle(entry.isCurrent ? .white : Color(white: 0.55))
-                            Text("  ")
-                            Text(String(format: "%02d", entry.keycode))
-                                .foregroundStyle(entry.isCurrent ? Color(red: 0.6, green: 1.0, blue: 0.6)
-                                                                 : Color(white: 0.45))
-                            Text("  ")
-                            Text(entry.mnemonic)
-                                .foregroundStyle(entry.isCurrent ? .white : Color(white: 0.65))
-                            Spacer()
+        if vm.isFrozen, let program = vm.frozenCachedProgram {
+            // Frozen mode: show full scrollable program
+            let currentIdx = vm.frozenCachedCurrentIndex
+            let currentLineColor: Color = snap.prSourceFlag == 8
+                ? Color(red: 0.35, green: 0.28, blue: 0.10)  // Yellow for ROM
+                : Color(red: 0.10, green: 0.30, blue: 0.10)  // Green for RAM
+
+            return SectionBox(title: "PROGRAM STEPS") {
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 0) {
+                            ForEach(program, id: \.stepNum) { entry in
+                                HStack(spacing: 0) {
+                                    Text(String(format: "%03d", entry.stepNum))
+                                        .foregroundStyle(entry.isCurrent ? .white : Color(white: 0.55))
+                                    Text("  ")
+                                    Text(String(format: "%02d", entry.keycode))
+                                        .foregroundStyle(entry.isCurrent ? Color(red: 0.6, green: 1.0, blue: 0.6)
+                                                                         : Color(white: 0.45))
+                                    Text("  ")
+                                    Text(entry.mnemonic)
+                                        .foregroundStyle(entry.isCurrent ? .white : Color(white: 0.65))
+                                    Spacer()
+                                }
+                                .font(.system(size: baseFontSize + 2, design: .monospaced))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 1)
+                                .background(entry.isCurrent ? currentLineColor : Color.clear)
+                                .id(entry.stepNum)
+                            }
                         }
-                        .font(.system(size: baseFontSize + 2, design: .monospaced))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 1)
-                        .background(entry.isCurrent ? currentLineColor : Color.clear)
-                    } else {
-                        HStack(spacing: 0) {
-                            Spacer()
+                    }
+                    .onChange(of: currentIdx) {
+                        if currentIdx >= 0 {
+                            withAnimation(.easeInOut(duration: 0.1)) {
+                                proxy.scrollTo(program[currentIdx].stepNum, anchor: .center)
+                            }
                         }
-                        .font(.system(size: baseFontSize + 2, design: .monospaced))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 1)
+                    }
+                    .onAppear {
+                        if currentIdx >= 0 {
+                            proxy.scrollTo(program[currentIdx].stepNum, anchor: .center)
+                        }
                     }
                 }
+                .frame(height: 165)
             }
-            .frame(height: 165)
+        } else {
+            // Normal mode: show current step window (±5 around current)
+            let currentLineColor: Color = snap.prSourceFlag == 8
+                ? Color(red: 0.35, green: 0.28, blue: 0.10)  // Darker yellow for ROM
+                : Color(red: 0.10, green: 0.30, blue: 0.10)  // Green for RAM
+
+            return SectionBox(title: "PROGRAM STEPS") {
+                VStack(alignment: .leading, spacing: 0) {
+                    let window = snap.programWindow
+                    ForEach(0..<11, id: \.self) { i in
+                        if i < window.count {
+                            let entry = window[i]
+                            HStack(spacing: 0) {
+                                Text(String(format: "%03d", entry.stepNum))
+                                    .foregroundStyle(entry.isCurrent ? .white : Color(white: 0.55))
+                                Text("  ")
+                                Text(String(format: "%02d", entry.keycode))
+                                    .foregroundStyle(entry.isCurrent ? Color(red: 0.6, green: 1.0, blue: 0.6)
+                                                                     : Color(white: 0.45))
+                                Text("  ")
+                                Text(entry.mnemonic)
+                                    .foregroundStyle(entry.isCurrent ? .white : Color(white: 0.65))
+                                Spacer()
+                            }
+                            .font(.system(size: baseFontSize + 2, design: .monospaced))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 1)
+                            .background(entry.isCurrent ? currentLineColor : Color.clear)
+                        } else {
+                            HStack(spacing: 0) {
+                                Spacer()
+                            }
+                            .font(.system(size: baseFontSize + 2, design: .monospaced))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 1)
+                        }
+                    }
+                }
+                .frame(height: 165)
+            }
         }
     }
 
@@ -338,52 +388,14 @@ struct LiveDebugView: View {
 
     // MARK: - Program Source Flag Section
 
-    @ViewBuilder
     private func prSourceFlagSection(baseFontSize: CGFloat) -> some View {
         let snap = vm.liveDebugSnapshot
-
-        if vm.isFrozen, let program = vm.frozenCachedProgram {
-            // Frozen mode: show full scrollable program
-            let currentIdx = vm.frozenCachedCurrentIndex
-
-            SectionBox(title: "PRG SOURCE (FULL PROGRAM)") {
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 1) {
-                            ForEach(program, id: \.stepNum) { entry in
-                                HStack(spacing: 6) {
-                                    Text(String(format: "%03d", entry.stepNum))
-                                        .font(.system(size: baseFontSize, design: .monospaced))
-                                        .foregroundStyle(entry.isCurrent ? .cyan : Color(white: 0.5))
-                                    Text(entry.mnemonic)
-                                        .font(.system(size: baseFontSize, design: .monospaced))
-                                        .foregroundStyle(entry.isCurrent ? .cyan : Color(white: 0.7))
-                                    Spacer()
-                                }
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 2)
-                                .background(entry.isCurrent ? Color(white: 0.20) : Color.clear)
-                                .id(entry.stepNum)
-                            }
-                        }
-                    }
-                    .onAppear {
-                        if currentIdx >= 0 {
-                            proxy.scrollTo(program[currentIdx].stepNum, anchor: .center)
-                        }
-                    }
-                }
-                .frame(height: 200)
-            }
-        } else {
-            // Normal mode: show simple Prg Source indicator
-            SectionBox(title: "") {
-                Text(String(format: "Prg Source: %X", snap.prSourceFlag))
-                    .font(.system(size: baseFontSize + 2, design: .monospaced))
-                    .foregroundStyle(Color(white: 0.85))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-            }
+        return SectionBox(title: "") {
+            Text(String(format: "Prg Source: %X", snap.prSourceFlag))
+                .font(.system(size: baseFontSize + 2, design: .monospaced))
+                .foregroundStyle(Color(white: 0.85))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
         }
     }
 
