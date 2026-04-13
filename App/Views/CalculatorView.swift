@@ -143,25 +143,22 @@ struct CalculatorView: View {
     private func cardReaderBar(showLabels: Bool = true) -> some View {
         HStack(spacing: 16) {
             #if os(macOS)
-            let cleanReset = isCommandPressed
-            #else
-            let cleanReset = false
-            #endif
-            Button(cleanReset ? "Clean" : "Reset",
-                   systemImage: cleanReset ? "xmark.circle.fill" : "arrow.counterclockwise") {
-                #if os(macOS)
+            Button(isCommandPressed ? "Clean" : "Reset",
+                   systemImage: isCommandPressed ? "xmark.circle.fill" : "arrow.counterclockwise") {
                 if NSEvent.modifierFlags.contains(.command) {
                     viewModel.cleanResetMachine()
                 } else {
                     viewModel.resetMachine()
                 }
-                #else
-                viewModel.resetMachine()
-                #endif
             }
-            .foregroundStyle(cleanReset ? .red : .orange)
+            .foregroundStyle(isCommandPressed ? .red : .orange)
             .labelStyle(showLabel: showLabels)
-            #if !os(macOS)
+            #else
+            Button("Reset", systemImage: "arrow.counterclockwise") {
+                viewModel.resetMachine()
+            }
+            .foregroundStyle(.orange)
+            .labelStyle(showLabel: showLabels)
             .simultaneousGesture(
                 LongPressGesture(minimumDuration: 1.0).onEnded { _ in
                     viewModel.cleanResetMachine()
