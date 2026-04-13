@@ -162,12 +162,11 @@ struct PrinterView: View {
 
             Button { copyBoth() } label: {
                 Image(systemName: "doc.on.doc")
-                    .font(.caption.bold())
-                    .frame(width: 16)
-                    .foregroundStyle(.white.opacity(0.7))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(Color(white: 0.2))
+                    .font(.system(size: 13, design: .default))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color(white: 0.3))
                     .clipShape(RoundedRectangle(cornerRadius: 6))
             }
             .buttonStyle(.plain)
@@ -175,12 +174,11 @@ struct PrinterView: View {
 
             Button { copyBoth(); viewModel.cutPaper() } label: {
                 Image(systemName: "scissors")
-                    .font(.caption.bold())
-                    .frame(width: 16)
-                    .foregroundStyle(.white.opacity(0.7))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(Color(white: 0.2))
+                    .font(.system(size: 13, design: .default))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color(white: 0.3))
                     .clipShape(RoundedRectangle(cornerRadius: 6))
             }
             .buttonStyle(.plain)
