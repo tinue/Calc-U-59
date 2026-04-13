@@ -55,7 +55,7 @@ struct LiveDebugView: View {
             Circle()
                 .fill(vm.liveDebugEnabled ? Color.green : Color.gray.opacity(0.4))
                 .frame(width: 8, height: 8)
-            Toggle("", isOn: Binding(
+            Toggle("", isOn: .init(
                 get: { vm.liveDebugEnabled },
                 set: { vm.liveDebugEnabled = $0 }
             ))

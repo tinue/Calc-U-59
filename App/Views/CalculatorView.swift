@@ -10,7 +10,7 @@ struct CalculatorView: View {
 
     var body: some View {
         layout
-        .sheet(item: Binding(
+        .sheet(item: .init(
             get: { viewModel.cardPickerMode.map { PickerItem(mode: $0) } },
             set: { viewModel.cardPickerMode = $0?.mode }
         )) { item in
@@ -45,7 +45,7 @@ struct CalculatorView: View {
                 modelPicker
             }
         }
-        .alert("ROM load error", isPresented: Binding(
+        .alert("ROM load error", isPresented: .init(
             get: { viewModel.errorMessage != nil },
             set: { if !$0 { viewModel.errorMessage = nil } }
         )) {
@@ -131,7 +131,7 @@ struct CalculatorView: View {
 
     private func cardReaderBar(showLabels: Bool = true) -> some View {
         HStack(spacing: 16) {
-            Button("", systemImage: "arrow.counterclockwise") {
+            Button("Reset", systemImage: "arrow.counterclockwise") {
                 #if os(macOS)
                 if viewModel.model.hasConstantMemory && NSEvent.modifierFlags.contains(.command) {
                     viewModel.hardResetMachine()
@@ -143,6 +143,7 @@ struct CalculatorView: View {
                 #endif
             }
             .foregroundStyle(.red)
+            .labelStyle(showLabel: showLabels)
             #if !os(macOS)
             .simultaneousGesture(
                 LongPressGesture(minimumDuration: 1.0).onEnded { _ in
@@ -212,7 +213,7 @@ struct CalculatorView: View {
     // MARK: - Model picker
 
     private var modelPicker: some View {
-        Picker("Model", selection: Binding(
+        Picker("Model", selection: .init(
             get: { viewModel.model },
             set: { newModel in Task { await viewModel.start(model: newModel) } }
         )) {

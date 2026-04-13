@@ -721,7 +721,7 @@ class EmulatorViewModel {
         // Read (without draining) all available events from the ring buffer
         var snapshotArray: NSArray?
         let eventsNS = m.readTraceEvents(max: 512, snapshots: &snapshotArray)
-        let newEvents = (eventsNS as? [NSValue] ?? []).map { v -> TITraceEvent in
+        let newEvents = (eventsNS as [NSValue]).map { v -> TITraceEvent in
             var e = TITraceEvent()
             v.getValue(&e)
             return e
@@ -813,7 +813,7 @@ class EmulatorViewModel {
 
         // If partition is invalid (claims more than physically exists), return empty registers
         guard partitionProgramRegs <= totalRegs else {
-            var regs = [Double](repeating: 0, count: 0)
+            let regs = [Double](repeating: 0, count: 0)
             let steps = Array(m.allProgramSteps() as Data)
             let cpu = m.snapshotCPU()
             return CalcSnapshot(registers: regs, programSteps: steps,
@@ -1113,7 +1113,7 @@ class EmulatorViewModel {
         // Read (without draining) all recent events from the ring buffer
         var snapshotArray: NSArray?
         let eventsNS = m.readTraceEvents(max: 512, snapshots: &snapshotArray)
-        let newEvents = (eventsNS as? [NSValue] ?? []).map { v -> TITraceEvent in
+        let newEvents = (eventsNS as [NSValue]).map { v -> TITraceEvent in
             var e = TITraceEvent()
             v.getValue(&e)
             return e
