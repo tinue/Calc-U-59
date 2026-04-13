@@ -4,30 +4,46 @@ struct LiveDebugView: View {
     @Environment(EmulatorViewModel.self) var vm
 
     var body: some View {
-        VStack(spacing: 0) {
-            liveHeader
-            ScrollView {
-                VStack(spacing: 1) {
-                    partitionSection
-                    prSourceFlagSection
-                    programStepsSection
-                    statusIndicatorsSection
-                    returnAddressSection
-                    calcFlagsSection
-                    hirRegistersSection
-                    tRegisterSection
-                    dataRegistersSection
+        GeometryReader { geo in
+            let baseFontSize = adaptiveFontSize(width: geo.size.width)
+
+            VStack(spacing: 0) {
+                liveHeader(baseFontSize: baseFontSize)
+                ScrollView {
+                    VStack(spacing: 1) {
+                        partitionSection(baseFontSize: baseFontSize)
+                        prSourceFlagSection(baseFontSize: baseFontSize)
+                        programStepsSection(baseFontSize: baseFontSize)
+                        statusIndicatorsSection(baseFontSize: baseFontSize)
+                        returnAddressSection(baseFontSize: baseFontSize)
+                        calcFlagsSection(baseFontSize: baseFontSize)
+                        hirRegistersSection(baseFontSize: baseFontSize)
+                        tRegisterSection(baseFontSize: baseFontSize)
+                        dataRegistersSection(baseFontSize: baseFontSize)
+                    }
+                    .padding(4)
                 }
-                .padding(4)
+                .background(Color(white: 0.10))
             }
             .background(Color(white: 0.10))
         }
-        .background(Color(white: 0.10))
+    }
+
+    // MARK: - Adaptive Font Sizing
+
+    private func adaptiveFontSize(width: CGFloat) -> CGFloat {
+        if width < 350 {
+            return 9      // iPad Mini: compact
+        } else if width < 500 {
+            return 11     // iPad Air: normal
+        } else {
+            return 13     // Mac: large
+        }
     }
 
     // MARK: - Header
 
-    private var liveHeader: some View {
+    private func liveHeader(baseFontSize: CGFloat) -> some View {
         HStack {
             Text("LIVE DEBUG")
                 .font(.caption.bold())
@@ -35,22 +51,22 @@ struct LiveDebugView: View {
             Spacer()
             if vm.isFrozen {
                 Button("STEP") { vm.stepKeycode() }
-                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
                     .foregroundStyle(Color.cyan)
             }
             if vm.pendingFreezeOnPCChange {
                 Button("ARMED") { vm.pendingFreezeOnPCChange = false }
-                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
                     .foregroundStyle(Color.yellow)
             } else {
                 Button("FREEZE ON START") { vm.freezeOnNextPCChange() }
-                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
                     .foregroundStyle(Color(white: 0.5))
             }
             Button(vm.isFrozen ? "RESUME" : "FREEZE") {
                 vm.isFrozen ? vm.unfreeze() : vm.freeze()
             }
-            .font(.system(size: 9, weight: .bold, design: .monospaced))
+            .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
             .foregroundStyle(vm.isFrozen ? Color.orange : Color(white: 0.6))
             Circle()
                 .fill(vm.liveDebugEnabled ? Color.green : Color.gray.opacity(0.4))
@@ -70,7 +86,7 @@ struct LiveDebugView: View {
 
     // MARK: - Return Address Section
 
-    private var returnAddressSection: some View {
+    private func returnAddressSection(baseFontSize: CGFloat) -> some View {
         let snap = vm.liveDebugSnapshot
         return SectionBox(title: "RETURN ADDRESS") {
             VStack(alignment: .leading, spacing: 2) {
@@ -85,7 +101,7 @@ struct LiveDebugView: View {
                     levelWithColor("L1", 0, snap)
                 }
             }
-            .font(.system(size: 10, design: .monospaced))
+            .font(.system(size: baseFontSize + 1, design: .monospaced))
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
         }
@@ -107,12 +123,12 @@ struct LiveDebugView: View {
 
     // MARK: - Data Registers Section (Variables)
 
-    private var dataRegistersSection: some View {
+    private func dataRegistersSection(baseFontSize: CGFloat) -> some View {
         let snap = vm.liveDebugSnapshot
         return SectionBox(title: "VARIABLES") {
             if snap.nonZeroRegs.isEmpty {
                 Text("(all zero)")
-                    .font(.system(size: 11, design: .monospaced))
+                    .font(.system(size: baseFontSize + 2, design: .monospaced))
                     .foregroundStyle(.white.opacity(0.35))
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 8)
@@ -122,7 +138,7 @@ struct LiveDebugView: View {
                     ForEach(Array(snap.nonZeroRegs.enumerated()), id: \.offset) { _, entry in
                         let label = entry.isHidden ? String(format: "H%02d", entry.num) : String(format: "R%02d", entry.num)
                         Text(String(format: "%@ = %.10g", label, entry.value))
-                            .font(.system(size: 11, design: .monospaced))
+                            .font(.system(size: baseFontSize + 2, design: .monospaced))
                             .foregroundStyle(Color(white: 0.85))
                     }
                 }
@@ -134,7 +150,7 @@ struct LiveDebugView: View {
 
     // MARK: - Program Steps Section
 
-    private var programStepsSection: some View {
+    private func programStepsSection(baseFontSize: CGFloat) -> some View {
         let snap = vm.liveDebugSnapshot
         // Determine current line color based on PRG SOURCE
         let currentLineColor: Color = snap.prSourceFlag == 8
@@ -159,7 +175,7 @@ struct LiveDebugView: View {
                                 .foregroundStyle(entry.isCurrent ? .white : Color(white: 0.65))
                             Spacer()
                         }
-                        .font(.system(size: 11, design: .monospaced))
+                        .font(.system(size: baseFontSize + 2, design: .monospaced))
                         .padding(.horizontal, 8)
                         .padding(.vertical, 1)
                         .background(entry.isCurrent ? currentLineColor : Color.clear)
@@ -167,7 +183,7 @@ struct LiveDebugView: View {
                         HStack(spacing: 0) {
                             Spacer()
                         }
-                        .font(.system(size: 11, design: .monospaced))
+                        .font(.system(size: baseFontSize + 2, design: .monospaced))
                         .padding(.horizontal, 8)
                         .padding(.vertical, 1)
                     }
@@ -179,7 +195,7 @@ struct LiveDebugView: View {
 
     // MARK: - Status Indicators Section (INV, 2nd, Angle Mode)
 
-    private var statusIndicatorsSection: some View {
+    private func statusIndicatorsSection(baseFontSize: CGFloat) -> some View {
         let snap = vm.liveDebugSnapshot
         return SectionBox(title: "") {
             HStack(spacing: 12) {
@@ -187,11 +203,11 @@ struct LiveDebugView: View {
                 statusIndicator("2nd", snap.is2nd)
                 if let mode = snap.angleMode {
                     Text(modeStr(mode))
-                        .font(.system(size: 11, design: .monospaced))
+                        .font(.system(size: baseFontSize + 2, design: .monospaced))
                         .foregroundStyle(Color(white: 0.85))
                 } else {
                     Text("?")
-                        .font(.system(size: 11, design: .monospaced))
+                        .font(.system(size: baseFontSize + 2, design: .monospaced))
                         .foregroundStyle(Color(white: 0.4))
                 }
             }
@@ -202,21 +218,21 @@ struct LiveDebugView: View {
 
     // MARK: - Hierarchy & Stack Registers Section
 
-    private var hirRegistersSection: some View {
+    private func hirRegistersSection(baseFontSize: CGFloat) -> some View {
         let snap = vm.liveDebugSnapshot
         return SectionBox(title: "HIR") {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 12) {
-                    hirRow("1", snap.hir1)
-                    hirRow("2", snap.hir2)
-                    hirRow("3", snap.hir3)
-                    hirRow("4", snap.hir4)
+                    hirRow("1", snap.hir1, baseFontSize: baseFontSize)
+                    hirRow("2", snap.hir2, baseFontSize: baseFontSize)
+                    hirRow("3", snap.hir3, baseFontSize: baseFontSize)
+                    hirRow("4", snap.hir4, baseFontSize: baseFontSize)
                 }
                 HStack(spacing: 12) {
-                    hirRow("5", snap.hir5)
-                    hirRow("6", snap.hir6)
-                    hirRow("7", snap.hir7)
-                    hirRow("8", snap.hir8)
+                    hirRow("5", snap.hir5, baseFontSize: baseFontSize)
+                    hirRow("6", snap.hir6, baseFontSize: baseFontSize)
+                    hirRow("7", snap.hir7, baseFontSize: baseFontSize)
+                    hirRow("8", snap.hir8, baseFontSize: baseFontSize)
                 }
             }
             .padding(.horizontal, 8)
@@ -226,48 +242,48 @@ struct LiveDebugView: View {
 
     // MARK: - T Register Section
 
-    private var tRegisterSection: some View {
+    private func tRegisterSection(baseFontSize: CGFloat) -> some View {
         let snap = vm.liveDebugSnapshot
         return SectionBox(title: "") {
             Text(String(format: "T: %.10g", snap.tRegister))
-                .font(.system(size: 11, design: .monospaced))
+                .font(.system(size: baseFontSize + 2, design: .monospaced))
                 .foregroundStyle(Color(white: 0.85))
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
         }
     }
 
-    private func hirRow(_ label: String, _ value: Double) -> some View {
+    private func hirRow(_ label: String, _ value: Double, baseFontSize: CGFloat) -> some View {
         Text("HIR \(label): \(String(format: "%.5g", value))")
-            .font(.system(size: 11, design: .monospaced))
+            .font(.system(size: baseFontSize + 2, design: .monospaced))
             .foregroundStyle(Color(white: 0.85))
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: - Calc Flags Section
 
-    private var calcFlagsSection: some View {
+    private func calcFlagsSection(baseFontSize: CGFloat) -> some View {
         let snap = vm.liveDebugSnapshot
         return SectionBox(title: "FLAGS") {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 8) {
                     ForEach(0..<5, id: \.self) { i in
-                        flagIndicator(num: i, state: snap.calcFlags[i])
+                        flagIndicator(num: i, state: snap.calcFlags[i], baseFontSize: baseFontSize)
                     }
                 }
                 HStack(spacing: 8) {
                     ForEach(5..<10, id: \.self) { i in
-                        flagIndicator(num: i, state: snap.calcFlags[i])
+                        flagIndicator(num: i, state: snap.calcFlags[i], baseFontSize: baseFontSize)
                     }
                 }
             }
-            .font(.system(size: 11, design: .monospaced))
+            .font(.system(size: baseFontSize + 2, design: .monospaced))
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
         }
     }
 
-    private func flagIndicator(num: Int, state: Bool?) -> some View {
+    private func flagIndicator(num: Int, state: Bool?, baseFontSize: CGFloat) -> some View {
         let stateStr = state == nil ? "?" : (state! ? "1" : "0")
         let color = state == nil ? Color(white: 0.4) : (state! ? Color(white: 0.85) : Color(white: 0.5))
         return Text(String(format: "F%d:%@", num, stateStr))
@@ -291,7 +307,7 @@ struct LiveDebugView: View {
 
     // MARK: - Partition Section
 
-    private var partitionSection: some View {
+    private func partitionSection(baseFontSize: CGFloat) -> some View {
         let snap = vm.liveDebugSnapshot
         let totalSteps = snap.programRegCount * 8
         let dataRegs = snap.dataRegCount
@@ -308,7 +324,7 @@ struct LiveDebugView: View {
 
         return SectionBox(title: "PARTITION") {
             Text("Steps: \(totalSteps), Registers: \(dataRegs) \(partitionStr)")
-                .font(.system(size: 11, design: .monospaced))
+                .font(.system(size: baseFontSize + 2, design: .monospaced))
                 .foregroundStyle(Color(white: 0.75))
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
@@ -317,11 +333,11 @@ struct LiveDebugView: View {
 
     // MARK: - Program Source Flag Section
 
-    private var prSourceFlagSection: some View {
+    private func prSourceFlagSection(baseFontSize: CGFloat) -> some View {
         let snap = vm.liveDebugSnapshot
         return SectionBox(title: "") {
             Text(String(format: "Prg Source: %X", snap.prSourceFlag))
-                .font(.system(size: 11, design: .monospaced))
+                .font(.system(size: baseFontSize + 2, design: .monospaced))
                 .foregroundStyle(Color(white: 0.85))
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
