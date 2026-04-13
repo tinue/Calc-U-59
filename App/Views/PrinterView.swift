@@ -162,26 +162,16 @@ struct PrinterView: View {
 
             Button { copyBoth() } label: {
                 Image(systemName: "doc.on.doc")
-                    .font(.system(size: 13, design: .default))
+                    .font(.system(size: 13))
                     .foregroundStyle(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(Color(white: 0.3))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
             }
-            .buttonStyle(.plain)
             .disabled(viewModel.printerLines.isEmpty)
 
             Button { copyBoth(); viewModel.cutPaper() } label: {
                 Image(systemName: "scissors")
-                    .font(.system(size: 13, design: .default))
+                    .font(.system(size: 13))
                     .foregroundStyle(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(Color(white: 0.3))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
             }
-            .buttonStyle(.plain)
             .disabled(viewModel.printerLines.isEmpty)
         }
         .padding(.horizontal, 12)
