@@ -1101,15 +1101,18 @@ class EmulatorViewModel {
             (n15 & 2) != 0,  // Flag 9
         ]
 
-        // IO User Flags (SCOM[0], nibbles 15–11) and Last Key (SCOM[0], nibbles 2–1)
-        let io15 = Int(cpu.SCOM.0.0)
+        // FIX (SCOM[0].15 - 2 with rollover 0-9), IO User Flags (SCOM[0], nibbles 14–10), Last Key (SCOM[0], nibbles 2–1)
+        let fix_raw = Int(cpu.SCOM.0.0)
+        let fix = ((fix_raw - 2) % 10 + 10) % 10
         let io14 = Int(cpu.SCOM.0.1)
         let io13 = Int(cpu.SCOM.0.2)
         let io12 = Int(cpu.SCOM.0.3)
         let io11 = Int(cpu.SCOM.0.4)
+        let io10 = Int(cpu.SCOM.0.5)
         let key2 = Int(cpu.SCOM.0.13)
         let key1 = Int(cpu.SCOM.0.14)
-        snap.ioUserFlags = String(format: "%d%d%d%d%d", io15, io14, io13, io12, io11)
+        snap.fixIndicator = String(fix)
+        snap.ioUserFlags = String(format: "%d%d%d%d%d", io14, io13, io12, io11, io10)
         snap.lastKey = String(format: "%d%d", key2, key1)
 
         // Program steps window — source depends on PRG SOURCE flag
@@ -1682,7 +1685,8 @@ struct LiveDebugSnapshot: Equatable {
     var calcFlags: [Bool?] = Array(repeating: nil, count: 10)
 
     // SCOM[0] fields
-    var ioUserFlags: String = "00000"   // Nibbles 15–11 (5 digits)
+    var fixIndicator: String = "0"      // Nibble 15 (FIX = value - 2 mod 10)
+    var ioUserFlags: String = "00000"   // Nibbles 14–10 (5 digits)
     var lastKey: String = "00"          // Nibbles 2–1 (2 digits)
 
     // Calculator-level status (from SCOM)

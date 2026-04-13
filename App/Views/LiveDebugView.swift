@@ -251,6 +251,9 @@ struct LiveDebugView: View {
         let snap = vm.liveDebugSnapshot
         return SectionBox(title: "") {
             HStack(spacing: 12) {
+                Text("FIX:\(snap.fixIndicator)")
+                    .font(.system(size: baseFontSize + 2, design: .monospaced))
+                    .foregroundStyle(Color(white: 0.85))
                 Text("IO:\(snap.ioUserFlags)")
                     .font(.system(size: baseFontSize + 2, design: .monospaced))
                     .foregroundStyle(Color(white: 0.85))
@@ -457,8 +460,9 @@ private struct SectionBox<Content: View>: View {
             snap.dataRegCount = 60
             snap.programRegCount = 60
             snap.calcFlags = [false, true, nil, false, true, nil, false, nil, true, nil]
-            snap.ioUserFlags = "01234"
-            snap.lastKey = "56"
+            snap.fixIndicator = "5"
+            snap.ioUserFlags = "12345"
+            snap.lastKey = "67"
             snap.printerSCOM = ["0000000000000000", "0000000000000000", "0000000000000000", "0000000000000000"]
             snap.scomRows = Array(repeating: "0123456789abcdef", count: 16)
             vm.liveDebugSnapshot = snap
