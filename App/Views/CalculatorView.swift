@@ -159,7 +159,7 @@ struct CalculatorView: View {
                 viewModel.resetMachine()
                 #endif
             }
-            .foregroundStyle(cleanReset ? .orange : .red)
+            .foregroundStyle(cleanReset ? .red : .orange)
             .labelStyle(showLabel: showLabels)
             #if !os(macOS)
             .simultaneousGesture(
