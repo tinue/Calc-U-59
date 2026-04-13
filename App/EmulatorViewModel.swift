@@ -1101,8 +1101,9 @@ class EmulatorViewModel {
             (n15 & 2) != 0,  // Flag 9
         ]
 
-        // FIX (SCOM[0].15 - 2 with rollover 0-9, show dash if raw is 0), IO User Flags (SCOM[0], nibbles 14–10), Last Key (SCOM[0], nibbles 2–1)
+        // FIX (SCOM[0].15 - 2 with rollover 0-9, show dash if result is 0), IO User Flags (SCOM[0], nibbles 14–10), Last Key (SCOM[0], nibbles 2–1)
         let fix_raw = Int(cpu.SCOM.0.0)
+        let fix = ((fix_raw - 2) % 10 + 10) % 10
         let io14 = Int(cpu.SCOM.0.1)
         let io13 = Int(cpu.SCOM.0.2)
         let io12 = Int(cpu.SCOM.0.3)
@@ -1110,12 +1111,7 @@ class EmulatorViewModel {
         let io10 = Int(cpu.SCOM.0.5)
         let key2 = Int(cpu.SCOM.0.13)
         let key1 = Int(cpu.SCOM.0.14)
-        if fix_raw == 0 {
-            snap.fixIndicator = "-"
-        } else {
-            let fix = ((fix_raw - 2) % 10 + 10) % 10
-            snap.fixIndicator = String(fix)
-        }
+        snap.fixIndicator = fix == 0 ? "-" : String(fix)
         snap.ioUserFlags = String(format: "%d%d%d%d%d", io14, io13, io12, io11, io10)
         snap.lastKey = String(format: "%d%d", key2, key1)
 
