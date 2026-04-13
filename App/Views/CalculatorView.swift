@@ -94,7 +94,7 @@ struct CalculatorView: View {
                         .fixedSize(horizontal: true, vertical: false)
                     Divider()
                     PrinterView()
-                        .frame(minWidth: 260, maxWidth: 360)
+                        .frame(minWidth: 290, maxWidth: 360)
                     if UIDevice.current.userInterfaceIdiom == .pad {
                         Divider()
                         DebugView()
