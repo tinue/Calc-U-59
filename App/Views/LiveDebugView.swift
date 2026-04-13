@@ -187,7 +187,7 @@ struct LiveDebugView: View {
                         }
                     }
                     .onChange(of: currentIdx) {
-                        if currentIdx >= 0 {
+                        if currentIdx >= 0 && currentIdx < program.count {
                             withAnimation(.easeInOut(duration: 0.1)) {
                                 proxy.scrollTo(program[currentIdx].stepNum, anchor: .center)
                             }
