@@ -377,6 +377,7 @@ class EmulatorViewModel {
     // MARK: - Reset
 
     func resetMachine() {
+        unfreeze()  // exit freeze mode when resetting
         cardState = .noCard
         machine?.reset()
 
@@ -395,6 +396,7 @@ class EmulatorViewModel {
     /// Clean reset (all models): zero all RAM, then reset.
     /// For TI-58C, writes the zeroed state immediately to the save file.
     func cleanResetMachine() {
+        unfreeze()  // exit freeze mode when resetting
         machine?.deserialiseRAM(Data(repeating: 0, count: 120 * 16))
         cardState = .noCard
         machine?.reset()
@@ -721,7 +723,7 @@ class EmulatorViewModel {
     private func captureInspectorSnapshot(machine m: TI59MachineWrapper) {
         // Read (without draining) all available events from the ring buffer
         var snapshotArray: NSArray?
-        let eventsNS = m.readTraceEvents(max: 512, snapshots: &snapshotArray)
+        let eventsNS =  m.readTraceEvents(max: 512, snapshots: &snapshotArray)
         let newEvents = (eventsNS as [NSValue]).map { v -> TITraceEvent in
             var e = TITraceEvent()
             v.getValue(&e)
