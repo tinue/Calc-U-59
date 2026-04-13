@@ -189,7 +189,6 @@ struct PrinterView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(Color(white: 0.15))
-        }
     }
 
     // MARK: - Copy helper
