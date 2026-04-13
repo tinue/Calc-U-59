@@ -3,7 +3,9 @@ import UniformTypeIdentifiers
 
 struct CalculatorView: View {
     @Environment(EmulatorViewModel.self) var viewModel
-    #if !os(macOS)
+    #if os(macOS)
+    @State private var isCommandPressed = false
+    #else
     @State private var showingPrinter = false
     @State private var showingStateFilePicker = false
     #endif
@@ -53,6 +55,15 @@ struct CalculatorView: View {
         } message: {
             Text(viewModel.errorMessage ?? "")
         }
+        #if os(macOS)
+        .task {
+            while true {
+                try? await Task.sleep(for: .milliseconds(50))
+                let pressed = NSEvent.modifierFlags.contains(.command)
+                if isCommandPressed != pressed { isCommandPressed = pressed }
+            }
+        }
+        #endif
     }
 
     @ViewBuilder
@@ -131,10 +142,16 @@ struct CalculatorView: View {
 
     private func cardReaderBar(showLabels: Bool = true) -> some View {
         HStack(spacing: 16) {
-            Button("Reset", systemImage: "arrow.counterclockwise") {
+            #if os(macOS)
+            let cleanReset = isCommandPressed
+            #else
+            let cleanReset = false
+            #endif
+            Button(cleanReset ? "Clean" : "Reset",
+                   systemImage: cleanReset ? "arrow.counterclockwise.circle.fill" : "arrow.counterclockwise") {
                 #if os(macOS)
-                if viewModel.model.hasConstantMemory && NSEvent.modifierFlags.contains(.command) {
-                    viewModel.hardResetMachine()
+                if NSEvent.modifierFlags.contains(.command) {
+                    viewModel.cleanResetMachine()
                 } else {
                     viewModel.resetMachine()
                 }
@@ -142,14 +159,12 @@ struct CalculatorView: View {
                 viewModel.resetMachine()
                 #endif
             }
-            .foregroundStyle(.red)
+            .foregroundStyle(cleanReset ? .orange : .red)
             .labelStyle(showLabel: showLabels)
             #if !os(macOS)
             .simultaneousGesture(
                 LongPressGesture(minimumDuration: 1.0).onEnded { _ in
-                    if viewModel.model.hasConstantMemory {
-                        viewModel.hardResetMachine()
-                    }
+                    viewModel.cleanResetMachine()
                 }
             )
             #endif

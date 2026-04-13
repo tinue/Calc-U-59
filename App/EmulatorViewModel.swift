@@ -384,22 +384,14 @@ class EmulatorViewModel {
         debugAppend(["Calculator Reset"])
     }
 
-    /// Hard reset (TI-58C only): delete the persistent memory file, then reset.
-    /// The calculator starts fresh with no constant memory on the next load.
-    func hardResetMachine() {
-        guard model.hasConstantMemory else { return }
-        let url = Self.constantMemoryURL
-        let coordinator = NSFileCoordinator()
-        var err: NSError?
-        coordinator.coordinate(writingItemAt: url, options: .forDeleting, error: &err) { dst in
-            try? FileManager.default.removeItem(at: dst)
-        }
-        // Zero all RAM before reset so the ROM's startup sees no valid-memory flag
-        // and performs a full cold-start clear instead of preserving contents.
+    /// Clean reset (all models): zero all RAM, then reset.
+    /// For TI-58C the zeroed RAM will be persisted on app close, so the save file
+    /// naturally reflects the clean state without needing to be deleted.
+    func cleanResetMachine() {
         machine?.deserialiseRAM(Data(repeating: 0, count: 120 * 16))
         cardState = .noCard
         machine?.reset()
-        debugAppend(["Hard Reset — constant memory cleared"])
+        debugAppend(["Clean Reset — all registers cleared"])
     }
 
     // MARK: - Magnetic card reader
