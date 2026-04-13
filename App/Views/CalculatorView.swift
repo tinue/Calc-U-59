@@ -148,7 +148,7 @@ struct CalculatorView: View {
             let cleanReset = false
             #endif
             Button(cleanReset ? "Clean" : "Reset",
-                   systemImage: cleanReset ? "arrow.counterclockwise.circle.fill" : "arrow.counterclockwise") {
+                   systemImage: cleanReset ? "xmark.circle.fill" : "arrow.counterclockwise") {
                 #if os(macOS)
                 if NSEvent.modifierFlags.contains(.command) {
                     viewModel.cleanResetMachine()
