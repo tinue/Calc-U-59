@@ -113,10 +113,10 @@ struct LiveDebugView: View {
         let isZero = address == 0
         let color: Color
         switch sourceFlag {
-        case 0: color = isZero ? Color(red: 0.05, green: 0.15, blue: 0.05) : Color(red: 0.10, green: 0.30, blue: 0.10)    // Green for RAM
-        case 1: color = isZero ? Color(red: 0.15, green: 0.05, blue: 0.15) : Color(red: 0.30, green: 0.10, blue: 0.30)    // Purple for library
-        case 8: color = isZero ? Color(red: 0.18, green: 0.14, blue: 0.05) : Color(red: 0.35, green: 0.28, blue: 0.10)    // Yellow for ROM
-        default: color = isZero ? Color(white: 0.3) : Color(white: 0.6)                                                    // Gray for unknown
+        case 0: color = isZero ? Color(red: 0.05, green: 0.15, blue: 0.05) : Color(red: 0.3, green: 0.7, blue: 0.3)       // Green for RAM
+        case 1: color = isZero ? Color(red: 0.15, green: 0.05, blue: 0.15) : Color(red: 0.7, green: 0.3, blue: 0.7)       // Purple for library
+        case 8: color = isZero ? Color(red: 0.18, green: 0.14, blue: 0.05) : Color(red: 0.8, green: 0.7, blue: 0.2)       // Yellow for ROM
+        default: color = isZero ? Color(white: 0.3) : Color(white: 0.8)                                                    // Gray for unknown
         }
         return Text("\(label):\(String(format: "%03d", address))")
             .foregroundStyle(color)
