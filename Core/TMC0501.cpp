@@ -402,10 +402,14 @@ int TMC0501::step() {
     flags &= ~FLG_HOLD;
 
     // ── PREG latch (deferred PC redirect) ────────────────────────────
-    // When KR bit 1 is set (by SET KR[1]), the address is latched from KR[15:4]
-    // into PREG_ADDR and the flag is set to 1. The redirect fires on the next step().
+    // When KR bit 1 is set (by SET KR[1], PREG instruction), the address is latched
+    // from KR[0]KR[15:4] into PREG_ADDR and the flag is set to 1.
+    // The redirect fires on the next step().
+    // KR bit 1 is cleared after latching.
+    // KR is set up in a weird way, in that KR[0] is logically at the left of KR[15],
+    // and not right of KR[1]. Hence the strange formula below.
     if (KR & 0x2) {
-        PREG_ADDR = KR >> 4;
+        PREG_ADDR = (KR >> 4) | ((KR & 0x1) << 12);
         PREG = 1;
         KR  &= ~(uint16_t)0x2;
     }

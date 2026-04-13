@@ -181,12 +181,12 @@ struct CalculatorView: View {
                         viewModel.cardPickerMode = .load
                     }
                     .labelStyle(showLabel: showLabels)
-                    .controlSize(.large)
+                    .controlSize(.regular)
                     Button("Crd", systemImage: "plus.rectangle") {
                         viewModel.cardPickerMode = .save
                     }
                     .labelStyle(showLabel: showLabels)
-                    .controlSize(.large)
+                    .controlSize(.regular)
                 } else {
                     Button("Eject Card", systemImage: "eject") {
                         viewModel.ejectIfSwiping()
