@@ -384,6 +384,8 @@ class EmulatorViewModel {
     func resetMachine() {
         unfreeze()  // exit freeze mode when resetting
         cardState = .noCard
+        printerTrace = false
+        machine?.setPrinterTrace(false)
         machine?.reset()
 
         // Clear out-of-range registers for the current model
@@ -404,6 +406,8 @@ class EmulatorViewModel {
         unfreeze()  // exit freeze mode when resetting
         machine?.deserialiseRAM(Data(repeating: 0, count: 120 * 16))
         cardState = .noCard
+        printerTrace = false
+        machine?.setPrinterTrace(false)
         machine?.reset()
         // Write zeroed state for TI-58C immediately
         persistConstantMemory()
