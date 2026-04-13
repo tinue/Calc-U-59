@@ -101,7 +101,7 @@ struct LiveDebugView: View {
                     levelWithColor("L1", 0, snap)
                 }
             }
-            .font(.system(size: baseFontSize + 1, design: .monospaced))
+            .font(.system(size: baseFontSize + 2, design: .monospaced))
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
         }
@@ -251,8 +251,8 @@ struct LiveDebugView: View {
         let snap = vm.liveDebugSnapshot
         return SectionBox(title: "") {
             HStack(spacing: 12) {
-                statusIndicator("INV", snap.isINV)
-                statusIndicator("2nd", snap.is2nd)
+                statusIndicator("INV", snap.isINV, baseFontSize: baseFontSize)
+                statusIndicator("2nd", snap.is2nd, baseFontSize: baseFontSize)
                 if let mode = snap.angleMode {
                     Text(modeStr(mode))
                         .font(.system(size: baseFontSize + 2, design: .monospaced))
@@ -346,10 +346,11 @@ struct LiveDebugView: View {
             .foregroundStyle(color)
     }
 
-    private func statusIndicator(_ label: String, _ state: Bool?) -> some View {
+    private func statusIndicator(_ label: String, _ state: Bool?, baseFontSize: CGFloat) -> some View {
         let stateStr = state == nil ? "?" : (state! ? "●" : "○")
         let color = state == nil ? Color(white: 0.4) : (state! ? .white : Color(white: 0.5))
         return Text("\(label):\(stateStr)")
+            .font(.system(size: baseFontSize + 2, design: .monospaced))
             .foregroundStyle(color)
     }
 

@@ -15,7 +15,10 @@ struct PrinterView: View {
         VStack(spacing: 0) {
             header
             paperStrip
-            buttonBar
+            GeometryReader { geo in
+                buttonBar(width: geo.size.width)
+            }
+            .frame(height: 50)
         }
         .background(Color(white: 0.12))
         .overlay(alignment: .bottom) {
@@ -121,9 +124,10 @@ struct PrinterView: View {
 
     // MARK: - Hardware button bar
 
-    private var buttonBar: some View {
-        HStack(spacing: 12) {
-            printerButton("PRINT") {
+    private func buttonBar(width: CGFloat) -> some View {
+        let printLabel = width < 180 ? "PRN" : "PRINT"
+        return HStack(spacing: 12) {
+            printerButton(printLabel) {
                 viewModel.pressPrinterPrint(true)
             } onRelease: {
                 viewModel.pressPrinterPrint(false)
@@ -185,6 +189,7 @@ struct PrinterView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(Color(white: 0.15))
+        }
     }
 
     // MARK: - Copy helper
