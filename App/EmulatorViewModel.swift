@@ -1101,6 +1101,13 @@ class EmulatorViewModel {
             (n15 & 2) != 0,  // Flag 9
         ]
 
+        // Keyboard state (2nd and INV) from KR register — only when PREG is clear
+        // KR bit 5: 2nd modifier, KR bit 9: INV modifier
+        if cpu.PREG == 0 {
+            snap.is2nd = (cpu.KR & (1 << 5)) != 0
+            snap.isINV = (cpu.KR & (1 << 9)) != 0
+        }
+
         // Program steps window — source depends on PRG SOURCE flag
         snap.currentStep = decodeProgramCounter(from: cpu)
 
