@@ -143,7 +143,7 @@ void TMC0501::reset() {
     memset(SCOM, 0, sizeof(SCOM));
     memset(Sout, 0, sizeof(Sout));
     memset(key,  0, sizeof(key));
-    KR = SR = fA = fB = EXT = PREG = PREG_ADDR = m_libAddr = 0;
+    KR = SR = fA = fB = EXT = PREG = m_libAddr = 0;
     R5 = digit = RAM_ADDR = RAM_OP = REG_ADDR = 0;
     addr  = 0;
     flags = FLG_COND | FLG_DISP;  // COND starts true; display active
@@ -336,16 +336,6 @@ void TMC0501::xch(uint8_t* a, uint8_t* b, const MaskInfo& m) {
 // ── Main instruction dispatch ─────────────────────────────────────────────────
 
 int TMC0501::step() {
-    // ── PREG computed-jump redirect ───────────────────────────────────
-    // SET KR[1] sets PREG flag and latches the address into PREG_ADDR.
-    // When PREG=1 on the next call, redirect PC to the latched address.
-    // Returns 0 so this pseudo-cycle doesn't count toward the speed budget.
-    if (PREG & 0x1) {
-        addr = PREG_ADDR;
-        PREG = 0;
-        return 0;
-    }
-
     // ── Trace gate ────────────────────────────────────────────────────
     // One relaxed atomic load per step; falls through at zero cost when disabled.
     const uint32_t tf = m_traceFlags.load(std::memory_order_relaxed);
@@ -402,15 +392,13 @@ int TMC0501::step() {
     flags &= ~FLG_HOLD;
 
     // ── PREG latch (deferred PC redirect) ────────────────────────────
-    // When KR bit 1 is set (by SET KR[1], PREG instruction), the address is latched
-    // from KR[0]KR[15:4] into PREG_ADDR and the flag is set to 1.
-    // The redirect fires on the next step().
-    // KR bit 1 is cleared after latching.
-    // KR is set up in a weird way, in that KR[0] is logically at the left of KR[15],
-    // and not right of KR[1]. Hence the strange formula below.
+    // When KR bit 1 is set (by SET KR[1] instruction), store the address
+    // in PREG and clear KR[1] immediately (KR[1] is automatically cleared
+    // after PREG is sent on EXT bus).
+    // The next instruction executes and may modify KR, but the redirect
+    // address is already latched. Redirect fires at end of next instruction.
     if (KR & 0x2) {
-        PREG_ADDR = (KR >> 4) | ((KR & 0x1) << 12);
-        PREG = 1;
+        PREG = (KR >> 4) | ((KR & 0x1) << 12);  // Store address
         KR  &= ~(uint16_t)0x2;
     }
 
@@ -476,7 +464,7 @@ int TMC0501::step() {
         memcpy(s.SCOM, SCOM, 16 * 16);
         memcpy(s.Sout, Sout, 16);
         s.KR = KR; s.SR = SR; s.fA = fA; s.fB = fB;
-        s.EXT = EXT; s.PREG = PREG; s.flags = flags;
+        s.EXT = EXT; s.PREG = PREG ? 1 : 0; s.flags = flags;
         s.R5 = R5; s.digit = digit;
         s.REG_ADDR = REG_ADDR; s.RAM_ADDR = RAM_ADDR; s.RAM_OP = RAM_OP;
         snapCaptured = true;  // signal tracePostStep to skip re-capture
@@ -833,7 +821,14 @@ int TMC0501::step() {
         break;
     }
 
-    if (!(flags & FLG_HOLD)) {
+    // ── PREG redirect (after instruction execution) ───────────────────
+    // If PREG is set (SET KR[1] was executed in the previous instruction),
+    // the next instruction has now completed. Redirect PC to the latched
+    // address and clear PREG.
+    if (PREG) {
+        addr = PREG;
+        PREG = 0;
+    } else if (!(flags & FLG_HOLD)) {
         addr++;
     }
     int w = (flags & FLG_IDLE) ? 4 : 1;
@@ -1172,7 +1167,7 @@ void TMC0501::tracePostStep(uint32_t tf, bool snapCaptured, int weight) {
         memcpy(s.SCOM, SCOM, 16 * 16);
         memcpy(s.Sout, Sout, 16);
         s.KR = KR; s.SR = SR; s.fA = fA; s.fB = fB;
-        s.EXT = EXT; s.PREG = PREG; s.flags = flags;
+        s.EXT = EXT; s.PREG = PREG ? 1 : 0; s.flags = flags;
         s.R5 = R5; s.digit = digit;
         s.REG_ADDR = REG_ADDR; s.RAM_ADDR = RAM_ADDR; s.RAM_OP = RAM_OP;
     }
@@ -1270,7 +1265,7 @@ CPUSnapshot TMC0501::snapshotCPU() const {
     memcpy(s.SCOM, SCOM, 16 * 16);
     memcpy(s.Sout, Sout, 16);
     s.KR = KR; s.SR = SR; s.fA = fA; s.fB = fB;
-    s.EXT = EXT; s.PREG = PREG; s.flags = flags;
+    s.EXT = EXT; s.PREG = PREG ? 1 : 0; s.flags = flags;
     s.R5 = R5; s.digit = digit;
     s.REG_ADDR = REG_ADDR; s.RAM_ADDR = RAM_ADDR; s.RAM_OP = RAM_OP;
     return s;
