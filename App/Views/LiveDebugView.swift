@@ -200,7 +200,7 @@ struct LiveDebugView: View {
                         }
                     }
                 }
-                .frame(height: 165)
+                .frame(height: 165, alignment: .top)
             }
         } else {
             // Normal mode: show current step window (±5 around current)
