@@ -1102,10 +1102,15 @@ class EmulatorViewModel {
         ]
 
         // IO User Flags (SCOM[0], nibbles 15–11) and Last Key (SCOM[0], nibbles 2–1)
-        let n1 = Int(cpu.SCOM.0.1)
-        let n2 = Int(cpu.SCOM.0.2)
-        snap.ioUserFlags = String(format: "%d%d%d%d%d", n15, n14, n13, n12, n11)
-        snap.lastKey = String(format: "%d%d", n2, n1)
+        let io15 = Int(cpu.SCOM.0.0)
+        let io14 = Int(cpu.SCOM.0.1)
+        let io13 = Int(cpu.SCOM.0.2)
+        let io12 = Int(cpu.SCOM.0.3)
+        let io11 = Int(cpu.SCOM.0.4)
+        let key2 = Int(cpu.SCOM.0.13)
+        let key1 = Int(cpu.SCOM.0.14)
+        snap.ioUserFlags = String(format: "%d%d%d%d%d", io15, io14, io13, io12, io11)
+        snap.lastKey = String(format: "%d%d", key2, key1)
 
         // Program steps window — source depends on PRG SOURCE flag
         snap.currentStep = decodeProgramCounter(from: cpu)
