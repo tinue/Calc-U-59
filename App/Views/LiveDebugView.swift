@@ -110,12 +110,13 @@ struct LiveDebugView: View {
     private func levelWithColor(_ label: String, _ index: Int, _ snap: LiveDebugSnapshot) -> some View {
         let sourceFlag = index < snap.returnAddressSourceFlags.count ? snap.returnAddressSourceFlags[index] : 0
         let address = index < snap.returnAddresses.count ? snap.returnAddresses[index] : 0
+        let isZero = address == 0
         let color: Color
         switch sourceFlag {
-        case 0: color = Color(red: 0.10, green: 0.30, blue: 0.10)    // Green for RAM
-        case 1: color = Color(red: 0.30, green: 0.10, blue: 0.30)    // Purple for library
-        case 8: color = Color(red: 0.35, green: 0.28, blue: 0.10)    // Yellow for ROM
-        default: color = Color(white: 0.5)                            // Gray for unknown
+        case 0: color = isZero ? Color(red: 0.05, green: 0.15, blue: 0.05) : Color(red: 0.10, green: 0.30, blue: 0.10)    // Green for RAM
+        case 1: color = isZero ? Color(red: 0.15, green: 0.05, blue: 0.15) : Color(red: 0.30, green: 0.10, blue: 0.30)    // Purple for library
+        case 8: color = isZero ? Color(red: 0.18, green: 0.14, blue: 0.05) : Color(red: 0.35, green: 0.28, blue: 0.10)    // Yellow for ROM
+        default: color = isZero ? Color(white: 0.3) : Color(white: 0.6)                                                    // Gray for unknown
         }
         return Text("\(label):\(String(format: "%03d", address))")
             .foregroundStyle(color)
@@ -244,19 +245,23 @@ struct LiveDebugView: View {
 
     private func tRegisterSection(baseFontSize: CGFloat) -> some View {
         let snap = vm.liveDebugSnapshot
+        let isZero = snap.tRegister == 0
+        let color = isZero ? Color(white: 0.5) : Color(white: 0.85)
         return SectionBox(title: "") {
             Text(String(format: "T: %.10g", snap.tRegister))
                 .font(.system(size: baseFontSize + 2, design: .monospaced))
-                .foregroundStyle(Color(white: 0.85))
+                .foregroundStyle(color)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
         }
     }
 
     private func hirRow(_ label: String, _ value: Double, baseFontSize: CGFloat) -> some View {
-        Text("HIR \(label): \(String(format: "%.5g", value))")
+        let isZero = value == 0
+        let color = isZero ? Color(white: 0.5) : Color(white: 0.85)
+        return Text("HIR \(label): \(String(format: "%.5g", value))")
             .font(.system(size: baseFontSize + 2, design: .monospaced))
-            .foregroundStyle(Color(white: 0.85))
+            .foregroundStyle(color)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
