@@ -1101,12 +1101,11 @@ class EmulatorViewModel {
             (n15 & 2) != 0,  // Flag 9
         ]
 
-        // Keyboard state (2nd and INV) from KR register — only when PREG is clear
-        // KR bit 5: 2nd modifier, KR bit 9: INV modifier
-        if cpu.PREG == 0 {
-            snap.is2nd = (cpu.KR & (1 << 5)) != 0
-            snap.isINV = (cpu.KR & (1 << 9)) != 0
-        }
+        // IO User Flags (SCOM[0], nibbles 15–11) and Last Key (SCOM[0], nibbles 2–1)
+        let n1 = Int(cpu.SCOM.0.1)
+        let n2 = Int(cpu.SCOM.0.2)
+        snap.ioUserFlags = String(format: "%d%d%d%d%d", n15, n14, n13, n12, n11)
+        snap.lastKey = String(format: "%d%d", n2, n1)
 
         // Program steps window — source depends on PRG SOURCE flag
         snap.currentStep = decodeProgramCounter(from: cpu)
@@ -1677,9 +1676,11 @@ struct LiveDebugSnapshot: Equatable {
     // Calculator flags 0–9 (stored in SCOM; bit mapping TBD experimentally)
     var calcFlags: [Bool?] = Array(repeating: nil, count: 10)
 
+    // SCOM[0] fields
+    var ioUserFlags: String = "00000"   // Nibbles 15–11 (5 digits)
+    var lastKey: String = "00"          // Nibbles 2–1 (2 digits)
+
     // Calculator-level status (from SCOM)
-    var isINV: Bool? = nil
-    var is2nd: Bool? = nil
     var angleMode: AngleMode? = nil
     enum AngleMode: Equatable { case deg, rad, grad }
 

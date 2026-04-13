@@ -14,7 +14,7 @@ struct LiveDebugView: View {
                         partitionSection(baseFontSize: baseFontSize)
                         prSourceFlagSection(baseFontSize: baseFontSize)
                         programStepsSection(baseFontSize: baseFontSize)
-                        statusIndicatorsSection(baseFontSize: baseFontSize)
+                        scomFieldsSection(baseFontSize: baseFontSize)
                         returnAddressSection(baseFontSize: baseFontSize)
                         calcFlagsSection(baseFontSize: baseFontSize)
                         hirRegistersSection(baseFontSize: baseFontSize)
@@ -245,14 +245,18 @@ struct LiveDebugView: View {
         }
     }
 
-    // MARK: - Status Indicators Section (INV, 2nd, Angle Mode)
+    // MARK: - SCOM Fields Section (IO User Flags, Last Key, Angle Mode)
 
-    private func statusIndicatorsSection(baseFontSize: CGFloat) -> some View {
+    private func scomFieldsSection(baseFontSize: CGFloat) -> some View {
         let snap = vm.liveDebugSnapshot
         return SectionBox(title: "") {
             HStack(spacing: 12) {
-                statusIndicator("INV", snap.isINV, baseFontSize: baseFontSize)
-                statusIndicator("2nd", snap.is2nd, baseFontSize: baseFontSize)
+                Text("IO:\(snap.ioUserFlags)")
+                    .font(.system(size: baseFontSize + 2, design: .monospaced))
+                    .foregroundStyle(Color(white: 0.85))
+                Text("KEY:\(snap.lastKey)")
+                    .font(.system(size: baseFontSize + 2, design: .monospaced))
+                    .foregroundStyle(Color(white: 0.85))
                 if let mode = snap.angleMode {
                     Text(modeStr(mode))
                         .font(.system(size: baseFontSize + 2, design: .monospaced))
@@ -343,14 +347,6 @@ struct LiveDebugView: View {
         let stateStr = state == nil ? "?" : (state! ? "1" : "0")
         let color = state == nil ? Color(white: 0.4) : (state! ? Color(white: 0.85) : Color(white: 0.5))
         return Text(String(format: "F%d:%@", num, stateStr))
-            .foregroundStyle(color)
-    }
-
-    private func statusIndicator(_ label: String, _ state: Bool?, baseFontSize: CGFloat) -> some View {
-        let stateStr = state == nil ? "?" : (state! ? "●" : "○")
-        let color = state == nil ? Color(white: 0.4) : (state! ? .white : Color(white: 0.5))
-        return Text("\(label):\(stateStr)")
-            .font(.system(size: baseFontSize + 2, design: .monospaced))
             .foregroundStyle(color)
     }
 
@@ -461,8 +457,8 @@ private struct SectionBox<Content: View>: View {
             snap.dataRegCount = 60
             snap.programRegCount = 60
             snap.calcFlags = [false, true, nil, false, true, nil, false, nil, true, nil]
-            snap.isINV = nil
-            snap.is2nd = false
+            snap.ioUserFlags = "01234"
+            snap.lastKey = "56"
             snap.printerSCOM = ["0000000000000000", "0000000000000000", "0000000000000000", "0000000000000000"]
             snap.scomRows = Array(repeating: "0123456789abcdef", count: 16)
             vm.liveDebugSnapshot = snap
