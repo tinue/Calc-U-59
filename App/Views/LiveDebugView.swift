@@ -460,7 +460,7 @@ private struct SectionBox<Content: View>: View {
             snap.dataRegCount = 60
             snap.programRegCount = 60
             snap.calcFlags = [false, true, nil, false, true, nil, false, nil, true, nil]
-            snap.fixIndicator = "5"
+            snap.fixIndicator = "-"
             snap.ioUserFlags = "12345"
             snap.lastKey = "67"
             snap.printerSCOM = ["0000000000000000", "0000000000000000", "0000000000000000", "0000000000000000"]
