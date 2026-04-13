@@ -151,6 +151,7 @@ struct LiveDebugView: View {
 
     // MARK: - Program Steps Section
 
+    @ViewBuilder
     private func programStepsSection(baseFontSize: CGFloat) -> some View {
         let snap = vm.liveDebugSnapshot
 
@@ -161,7 +162,7 @@ struct LiveDebugView: View {
                 ? Color(red: 0.35, green: 0.28, blue: 0.10)  // Yellow for ROM
                 : Color(red: 0.10, green: 0.30, blue: 0.10)  // Green for RAM
 
-            return SectionBox(title: "PROGRAM STEPS") {
+            SectionBox(title: "PROGRAM STEPS") {
                 ScrollViewReader { proxy in
                     ScrollView {
                         VStack(alignment: .leading, spacing: 0) {
@@ -207,7 +208,7 @@ struct LiveDebugView: View {
                 ? Color(red: 0.35, green: 0.28, blue: 0.10)  // Darker yellow for ROM
                 : Color(red: 0.10, green: 0.30, blue: 0.10)  // Green for RAM
 
-            return SectionBox(title: "PROGRAM STEPS") {
+            SectionBox(title: "PROGRAM STEPS") {
                 VStack(alignment: .leading, spacing: 0) {
                     let window = snap.programWindow
                     ForEach(0..<11, id: \.self) { i in
