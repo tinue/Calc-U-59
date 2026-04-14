@@ -35,7 +35,7 @@ typedef struct {
     uint8_t  SCOM[16][16];
     uint8_t  Sout[16];
     uint16_t KR, SR, fA, fB, EXT, PREG, flags, m_libAddr;
-    uint8_t  R5, digit, REG_ADDR, RAM_ADDR, RAM_OP;
+    uint8_t  R5, digit, REG_ADDR, RAM_ADDR, RAM_OP, m_libAddrReadPos;
 } TICPUSnapshot;
 
 @interface TI59MachineWrapper : NSObject

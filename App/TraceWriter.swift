@@ -30,7 +30,7 @@ final class TraceWriter {
 
     // ── File header constants ─────────────────────────────────────────────────
     private static let magic: UInt32   = 0x54493539   // 'TI59' LE
-    private static let version: UInt16 = 2            // v2: added m_libAddr field
+    private static let version: UInt16 = 3            // v3: added m_libAddrReadPos field
     private static let headerSize      = 16
 
     // ── State ─────────────────────────────────────────────────────────────────
@@ -205,11 +205,11 @@ final class TraceWriter {
         return d
     }
 
-    // Full 122-byte TRACE_EVENT payload (v2: added m_libAddr field).
+    // Full 123-byte TRACE_EVENT payload (v3: added m_libAddrReadPos field).
     // suppressedBefore is embedded at offset 0 so the last-of-run can carry the count.
     private func makeEventPayload(event e: TITraceEvent, snapshot snap: TICPUSnapshot,
                                   suppressedBefore: UInt32) -> Data {
-        var d = Data(capacity: 122)
+        var d = Data(capacity: 123)
 
         // Dedup counter + control fields (34 bytes)
         d.appendLE(suppressedBefore)
@@ -229,6 +229,7 @@ final class TraceWriter {
         d.append(snap.RAM_ADDR)
         d.append(snap.RAM_OP)
         d.append(snap.REG_ADDR)
+        d.append(snap.m_libAddrReadPos)
         d.append(e.cycleWeight)
 
         // Registers A–E: one nibble per byte, index 0 = LSN (digit 0) — 80 bytes
@@ -247,7 +248,7 @@ final class TraceWriter {
             d.append(lo | (hi << 4))
         }
 
-        assert(d.count == 122)
+        assert(d.count == 123)
         return d
     }
 

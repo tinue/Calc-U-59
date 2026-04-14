@@ -143,7 +143,8 @@ void TMC0501::reset() {
     memset(SCOM, 0, sizeof(SCOM));
     memset(Sout, 0, sizeof(Sout));
     memset(key,  0, sizeof(key));
-    KR = SR = fA = fB = EXT = PREG = m_libAddr = 0;
+    KR = SR = fA = fB = EXT = PREG = m_libAddr = m_libAddrReadPos = 0;
+    m_libAddrWasWriting = false;
     R5 = digit = RAM_ADDR = RAM_OP = REG_ADDR = 0;
     addr  = 0;
     flags = FLG_COND | FLG_DISP;  // COND starts true; display active
@@ -465,7 +466,7 @@ int TMC0501::step() {
         memcpy(s.Sout, Sout, 16);
         s.KR = KR; s.SR = SR; s.fA = fA; s.fB = fB;
         s.EXT = EXT; s.PREG = PREG ? 1 : 0; s.flags = flags;
-        s.m_libAddr = m_libAddr;
+        s.m_libAddr = m_libAddr; s.m_libAddrReadPos = m_libAddrReadPos;
         s.R5 = R5; s.digit = digit;
         s.REG_ADDR = REG_ADDR; s.RAM_ADDR = RAM_ADDR; s.RAM_OP = RAM_OP;
         snapCaptured = true;  // signal tracePostStep to skip re-capture
@@ -786,7 +787,7 @@ int TMC0501::step() {
                 flags |= FLG_EXT_VALID;
                 m_libAddr %= 5000;
                 break;
-            case 0x10: // OUT LIB_PC — load library pointer tens digit from KR[7:4]
+            case 0x10: // OUT LIB_PC — load library pointer digit from KR[7:4]
                 // The library address is encoded in BCD-like decimal: the ROM
                 // shifts it one decimal digit at a time using OUT LIB_PC / IN LIB_PC
                 // pairs. OUT LIB_PC shifts the address right by one nibble, then
@@ -795,15 +796,22 @@ int TMC0501::step() {
                 //            + KR[7:4] * 1000          ← inject new MSN
                 // The ROM calls this instruction four times to load a full
                 // 4-digit address (once per BCD nibble, MSN first).
+                if (!m_libAddrWasWriting) m_libAddrReadPos = 0;  // Reset if switching from read to write
                 m_libAddr = (uint16_t)((m_libAddr / 10) + ((KR >> 4 & 0xFu) * 1000));
+                m_libAddrReadPos = (m_libAddrReadPos + 1) % 4;
+                m_libAddrWasWriting = true;
                 break;
-            case 0x20: // IN LIB_PC — read library pointer ones digit into EXT
-                // Pops the lowest decimal digit of m_libAddr into EXT, shifting
-                // the address right by one decimal place.  The ROM uses this to
-                // read back the address one digit at a time for display or storage.
-                EXT = (uint16_t)(m_libAddr % 10) << 4;
-                flags |= FLG_EXT_VALID;
-                m_libAddr /= 10;
+            case 0x20: // IN LIB_PC — read library pointer digit into EXT
+                // Reads the current digit of m_libAddr based on m_libAddrReadPos (0-3).
+                // Does not modify m_libAddr; only advances the read position counter.
+                {
+                    if (m_libAddrWasWriting) m_libAddrReadPos = 0;  // Reset if switching from write to read
+                    uint16_t divisors[4] = {1, 10, 100, 1000};
+                    EXT = (uint16_t)((m_libAddr / divisors[m_libAddrReadPos]) % 10) << 4;
+                    flags |= FLG_EXT_VALID;
+                    m_libAddrReadPos = (m_libAddrReadPos + 1) % 4;
+                    m_libAddrWasWriting = false;
+                }
                 break;
             case 0x30: // IN LIB_HIGH — fetch high nibble of current byte (no advance)
                 EXT = (uint16_t)(m_libData[m_libAddr] & 0xF0u);
@@ -1204,7 +1212,7 @@ void TMC0501::tracePostStep(uint32_t tf, bool snapCaptured, int weight) {
         memcpy(s.Sout, Sout, 16);
         s.KR = KR; s.SR = SR; s.fA = fA; s.fB = fB;
         s.EXT = EXT; s.PREG = PREG ? 1 : 0; s.flags = flags;
-        s.m_libAddr = m_libAddr;
+        s.m_libAddr = m_libAddr; s.m_libAddrReadPos = m_libAddrReadPos;
         s.R5 = R5; s.digit = digit;
         s.REG_ADDR = REG_ADDR; s.RAM_ADDR = RAM_ADDR; s.RAM_OP = RAM_OP;
     }

@@ -28,7 +28,7 @@ from disasm import disasm
 # ── Constants (must match DebugAPI.md) ────────────────────────────────────────
 
 MAGIC   = 0x54493539   # 'TI59' in LE memory
-VERSION = 2            # v2: added m_libAddr field
+VERSION = 3            # v3: added m_libAddrReadPos field (backward-compat reads v2 too)
 
 REC_SESSION_START = 0x01
 REC_TRACE_EVENT   = 0x02
@@ -53,19 +53,19 @@ def _parse_file_header(f):
     magic, version = struct.unpack_from('<IH', hdr, 0)
     if magic != MAGIC:
         raise ValueError(f"Bad magic: 0x{magic:08X} (expected 0x{MAGIC:08X})")
-    if version != VERSION:
+    if version not in (2, 3):
         raise ValueError(f"Unsupported version: {version}")
 
 def _parse_trace_event(payload):
-    """Parse a 122-byte TRACE_EVENT payload into a dict (v2: added m_libAddr)."""
-    if len(payload) != 122:
-        raise ValueError(f"TRACE_EVENT payload length {len(payload)}, expected 122")
+    """Parse a 123-byte TRACE_EVENT payload into a dict (v3: added m_libAddrReadPos)."""
+    if len(payload) != 123:
+        raise ValueError(f"TRACE_EVENT payload length {len(payload)}, expected 123")
 
-    # Fixed fields (34 bytes in v2, was 32 in v1)
+    # Fixed fields (35 bytes in v3: added m_libAddrReadPos)
     (suppressed, seqno, pc, opcode, fA, fB, KR, SR,
      EXT, PREG, cpu_flags, m_libAddr, R5, digit,
-     RAM_ADDR, RAM_OP, REG_ADDR, cycle_weight) = struct.unpack_from(
-        '<IIHHHHHHHHHH BBBBBB', payload, 0)
+     RAM_ADDR, RAM_OP, REG_ADDR, m_libAddrReadPos, cycle_weight) = struct.unpack_from(
+        '<IIHHHHHHHHHH BBBBBBB', payload, 0)
 
     # A–E registers: 16 unpacked nibbles each (index 0 = LSN)
     regs = {}
@@ -97,13 +97,13 @@ def _parse_trace_event(payload):
         'fB':           f'{fB:04X}',
         'KR':           f'{KR:04X}',
         'SR':           f'{SR:04X}',
-        'EXT':          f'{EXT & 0xFF:02X}',
+        'EXT':          f'{(EXT >> 4) & 0xFF:02X}',
         'PREG':         f'{PREG:X}',
         'cpuFlags':     cpu_flags,
         'COND':         str(cond),
         'IDLE':         str(idle),
         'R5':           f'{R5:X}',
-        'ROM':          f'{m_libAddr:04d}',
+        'ROM':          f'{m_libAddr:04d}.{m_libAddrReadPos}',
         'digit':        digit,
         'RAM_ADDR':     RAM_ADDR,
         'RAM_OP':       RAM_OP,

@@ -261,7 +261,9 @@ private:
     MaskInfo RAM_MASK{0xFF, 0, 0, 0};  // Field mask for current RAM read/write operation.
 
     // ── Library module state ──────────────────────────────────────────
-    uint16_t m_libAddr{};       // Current read position within the loaded library image.
+    uint16_t m_libAddr{};       // Current address within the loaded library image.
+    uint8_t  m_libAddrReadPos{}; // Position counter for reading address digits (0-3, cycles).
+    bool     m_libAddrWasWriting{}; // Track direction: true=writing (OUT), false=reading (IN)
     uint8_t  m_libData[5000]{}; // Library module byte image (up to 5,000 bytes).
 
     // ── Machine variant ───────────────────────────────────────────────

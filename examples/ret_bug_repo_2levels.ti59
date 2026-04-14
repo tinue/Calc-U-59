@@ -1,5 +1,7 @@
 # ret_bug_repo_2levels.ti59 — Reproduce bug with lost return address
 #
+# Note: The bug is fixed now, issue was in ALU/R5 interaction.
+#
 # The program is supposed to print this output and then stop:
           0.
          10.

@@ -215,7 +215,7 @@ static const int kbits[] = {0, 1, 2, 3, 5, 6};  // index 0 unused; index col
             memcpy(ts.SCOM, s.SCOM, 16 * 16);
             memcpy(ts.Sout, s.Sout, 16);
             ts.KR = s.KR; ts.SR = s.SR; ts.fA = s.fA; ts.fB = s.fB;
-            ts.EXT = s.EXT; ts.PREG = s.PREG; ts.flags = s.flags; ts.m_libAddr = s.m_libAddr;
+            ts.EXT = s.EXT; ts.PREG = s.PREG; ts.flags = s.flags; ts.m_libAddr = s.m_libAddr; ts.m_libAddrReadPos = s.m_libAddrReadPos;
             ts.R5 = s.R5; ts.digit = s.digit;
             ts.REG_ADDR = s.REG_ADDR; ts.RAM_ADDR = s.RAM_ADDR; ts.RAM_OP = s.RAM_OP;
             [snaps addObject:[NSValue valueWithBytes:&ts objCType:@encode(TICPUSnapshot)]];
@@ -277,7 +277,7 @@ static const int kbits[] = {0, 1, 2, 3, 5, 6};  // index 0 unused; index col
             memcpy(ts.SCOM, s.SCOM, 16 * 16);
             memcpy(ts.Sout, s.Sout, 16);
             ts.KR = s.KR; ts.SR = s.SR; ts.fA = s.fA; ts.fB = s.fB;
-            ts.EXT = s.EXT; ts.PREG = s.PREG; ts.flags = s.flags; ts.m_libAddr = s.m_libAddr;
+            ts.EXT = s.EXT; ts.PREG = s.PREG; ts.flags = s.flags; ts.m_libAddr = s.m_libAddr; ts.m_libAddrReadPos = s.m_libAddrReadPos;
             ts.R5 = s.R5; ts.digit = s.digit;
             ts.REG_ADDR = s.REG_ADDR; ts.RAM_ADDR = s.RAM_ADDR; ts.RAM_OP = s.RAM_OP;
             [snaps addObject:[NSValue valueWithBytes:&ts objCType:@encode(TICPUSnapshot)]];
@@ -358,7 +358,7 @@ static const int kbits[] = {0, 1, 2, 3, 5, 6};  // index 0 unused; index col
     memcpy(out.SCOM, s.SCOM, 16 * 16);
     memcpy(out.Sout, s.Sout, 16);
     out.KR = s.KR; out.SR = s.SR; out.fA = s.fA; out.fB = s.fB;
-    out.EXT = s.EXT; out.PREG = s.PREG; out.flags = s.flags; out.m_libAddr = s.m_libAddr;
+    out.EXT = s.EXT; out.PREG = s.PREG; out.flags = s.flags; out.m_libAddr = s.m_libAddr; out.m_libAddrReadPos = s.m_libAddrReadPos;
     out.R5 = s.R5; out.digit = s.digit;
     out.REG_ADDR = s.REG_ADDR; out.RAM_ADDR = s.RAM_ADDR; out.RAM_OP = s.RAM_OP;
     return out;

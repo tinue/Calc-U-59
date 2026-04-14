@@ -1,5 +1,7 @@
 # ret_bug_label.ti59 — Reproduce bug with lost return address, use to generate a trace
 #
+# The bug is fixed, and the emulator now correctlxy shows "1" at the end (used to be a "5").
+#
 
 PROGRAM:
 
