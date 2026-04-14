@@ -330,11 +330,13 @@ private:
     void tracePreStep(uint32_t tf, uint16_t opcode, bool& snapCaptured);
     void tracePostStep(uint32_t tf, bool snapCaptured, int weight);
 
-    // ── Helper methods for masked RAM operations ──────────────────────
+    // ── Helper methods for masked operations ──────────────────────────
     // Read only the nibbles specified by the field mask from RAM
     void readRegMasked(uint8_t* dst, int addr, const MaskInfo& m);
     // Write only the nibbles specified by the field mask to RAM
     void writeRegMasked(int addr, const uint8_t* src, const MaskInfo& m);
+    // Read only the nibbles specified by the field mask from SCOM
+    void readScomMasked(uint8_t* dst, int addr, const MaskInfo& m);
 
     // ── ALU support tables ────────────────────────────────────────────
 

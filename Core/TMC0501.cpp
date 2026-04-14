@@ -201,6 +201,16 @@ void TMC0501::writeRegMasked(int addr, const uint8_t* src, const MaskInfo& m) {
     }
 }
 
+void TMC0501::readScomMasked(uint8_t* dst, int addr, const MaskInfo& m) {
+    // Read only the nibbles in the masked range from SCOM, zero out others
+    memset(dst, 0, 16);
+    if (addr < 16 && m.start != 0xFF) {
+        for (int i = (int)m.start; i <= (int)m.end && i < 16; i++) {
+            dst[i] = SCOM[addr][i];
+        }
+    }
+}
+
 // ── Key matrix ────────────────────────────────────────────────────────────────
 
 void TMC0501::pressKey(int row, int col) {
@@ -923,8 +933,12 @@ void TMC0501::execALU(uint16_t opcode) {
     case 0x00D0:  // MOV dst, #0  — may be overridden by a pending recall
         if (flags & FLG_RECALL) {
             // SCOM recall: deliver SCOM[REG_ADDR] as srcY (set up by preceding RCL)
+            // Only read the nibbles specified by the field mask to prevent carry
+            // propagation from unmasked nibbles affecting the masked result.
             flags &= ~FLG_RECALL;
-            alu(dst, nullptr, SCOM[REG_ADDR], m, ALU_ADD);
+            uint8_t masked[16]{};
+            readScomMasked(masked, REG_ADDR, m);
+            alu(dst, nullptr, masked, m, ALU_ADD);
         } else if ((flags & FLG_RAM_READ) && RAM_ADDR < ram.size()) {
             // RAM read: deliver RAM[RAM_ADDR] as srcY (set up by preceding MEMRD)
             // Only read the nibbles specified by the field mask
