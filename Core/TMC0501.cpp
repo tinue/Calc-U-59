@@ -573,10 +573,10 @@ int TMC0501::step() {
             if (hasConstantMemory(m_variant) && bits_7_4 == 0x7) {
                 // MEMWR — deferred write: capture address from Sout now; the
                 // actual data comes from the IO bus at the END of the next
-                // instruction.  If that instruction drives IO as output
-                // (FLG_IO_VALID), Sout carries the data.  Otherwise the bus
-                // is in input mode and reads as zero — so zero is written.
-                // Address is encoded in Sout[1:0] as two hex nibbles.
+                // instruction cycle (deferred to FLG_RAM_WRITE handler below).
+                // If that instruction drives IO as output (FLG_IO_VALID), Sout
+                // carries the data. Otherwise the bus is in input mode and reads
+                // as zero — so zero is written. Address is Sout[1:0].
                 RAM_ADDR = (uint8_t)(Sout[1] * 16u + Sout[0]);
                 if (RAM_ADDR < ram.size())
                     flags |= FLG_RAM_WRITE;
@@ -729,7 +729,13 @@ int TMC0501::step() {
                 flags |= FLG_BUSY;
                 m_prnBusyCycles = 2808;  // (197.5ms * 455kHz) / 2 / 16 / 1000
                 break;
-            case 0xF0: flags |= FLG_RAM_OP; break; // RAM_OP — next Sout is a RAM opcode
+            case 0xF0: // RAM_OP — deferred decode: next Sout encodes operation + address
+                // Deferred operation: capture operation and address from Sout.
+                // Sout[0] = opcode (0=read, 1=write, 2=clear, 4=clear×10);
+                // Sout[3]*10 + Sout[2] = register address. If the next instruction
+                // drives IO as output (FLG_IO_VALID), Sout carries the data.
+                flags |= FLG_RAM_OP;
+                break;
             default: break;
             }
             break;
@@ -795,10 +801,13 @@ int TMC0501::step() {
             break;
 
         case 0xF:  // STO / RCL — SCOM register store or recall
-            // The register address was set by the preceding ALU IO operation
-            // (Sout[0] encodes the SCOM register number 0–15).
+            // Deferred write: capture register address from Sout now; the actual
+            // data comes from the IO bus at the END of the next instruction cycle
+            // (deferred to FLG_STORE handler below). Sout[0] encodes the register
+            // number 0–15. If that instruction drives IO as output (FLG_IO_VALID),
+            // Sout carries the data. Otherwise the bus reads as zero.
             switch (opcode & 0x00F0u) {
-            case 0x00: flags |= FLG_STORE;  REG_ADDR = Sout[0] & 0x0Fu; break; // STO
+            case 0x00: REG_ADDR = Sout[0] & 0x0Fu; flags |= FLG_STORE; break; // STO
             case 0x10: flags |= FLG_RECALL; REG_ADDR = Sout[0] & 0x0Fu; break; // RCL
             }
             break;
@@ -961,9 +970,10 @@ void TMC0501::execALU(uint16_t opcode) {
         RAM_MASK = m;
     }
 
-    // ── Deferred memory write-back ────────────────────────────────────
-    // SCOM store: write Sout (the IO bus) into the SCOM register selected
-    // by the preceding STO instruction.
+    // ── Deferred SCOM store (STO / STOF / STOG) ────────────────────────
+    // Write Sout (the IO bus) into the SCOM register selected by the
+    // preceding STO instruction. If the last instruction did not drive IO
+    // (FLG_IO_VALID not set), the bus reads as zero — so zero is written.
     if (flags & FLG_STORE) {
         flags &= ~FLG_STORE;
         uint8_t io_data[16] = {};
@@ -971,13 +981,20 @@ void TMC0501::execALU(uint16_t opcode) {
         memcpy(SCOM[REG_ADDR], io_data, 16);
     }
 
-    // RAM operation decode: Sout[0] = opcode (read/write/clear),
-    // Sout[3]*10 + Sout[2] = register address.  Sets up FLG_RAM_READ or
-    // FLG_RAM_WRITE for the following instruction.
+    // ── Deferred RAM operation decode ───────────────────────────────────
+    // Decode the operation and address from Sout. Sout[0] = opcode (read/write/
+    // clear); Sout[3]*10 + Sout[2] = register address. If the last instruction
+    // did not drive IO (FLG_IO_VALID not set), the bus reads as zero.
     if (flags & FLG_RAM_OP) {
         flags &= ~FLG_RAM_OP;
-        RAM_OP   = Sout[0] & 0x0Fu;
-        RAM_ADDR = (uint8_t)(Sout[3] * 10u + Sout[2]);
+        uint8_t op_nibble = 0, addr_tens = 0, addr_units = 0;
+        if (flags & FLG_IO_VALID) {
+            op_nibble = Sout[0] & 0x0Fu;
+            addr_tens = Sout[3];
+            addr_units = Sout[2];
+        }
+        RAM_OP = op_nibble;
+        RAM_ADDR = (uint8_t)(addr_tens * 10u + addr_units);
         if (RAM_ADDR < ram.size()) {
             if      (RAM_OP == 2) ram.clearReg(RAM_ADDR, 1);
             else if (RAM_OP == 4) ram.clearReg(RAM_ADDR, 10);
@@ -985,11 +1002,12 @@ void TMC0501::execALU(uint16_t opcode) {
             else if (RAM_OP == 0) flags |= FLG_RAM_READ;
         }
     } else if (flags & FLG_RAM_WRITE) {
+        // ── Deferred RAM write (MEMWR) ───────────────────────────────
+        // Write Sout (the IO bus) into RAM[RAM_ADDR] at the masked field.
+        // If the last instruction did not drive IO (FLG_IO_VALID not set),
+        // the bus reads as zero — so zero is written.
         flags &= ~FLG_RAM_WRITE;
         if (RAM_ADDR < ram.size()) {
-            // IO bus is in OUTPUT mode only when this instruction targets IO
-            // (FLG_IO_VALID set).  All other instructions leave the bus in
-            // INPUT mode, which reads as zero on hardware.
             uint8_t io_data[16] = {};
             if (flags & FLG_IO_VALID) memcpy(io_data, Sout, sizeof(io_data));
             writeRegMasked(RAM_ADDR, io_data, RAM_MASK);
