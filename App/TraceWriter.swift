@@ -30,7 +30,7 @@ final class TraceWriter {
 
     // ── File header constants ─────────────────────────────────────────────────
     private static let magic: UInt32   = 0x54493539   // 'TI59' LE
-    private static let version: UInt16 = 1
+    private static let version: UInt16 = 2            // v2: added m_libAddr field
     private static let headerSize      = 16
 
     // ── State ─────────────────────────────────────────────────────────────────
@@ -185,7 +185,7 @@ final class TraceWriter {
     // TITraceEvent light-register fields (fA, fB, KR, SR, cpuFlags) are only
     // populated when TRACE_REGS_LIGHT is set — which we do NOT enable.
     private func makeKey(event e: TITraceEvent, snapshot snap: TICPUSnapshot) -> Data {
-        var d = Data(capacity: 2+2+2+2+2+2+2+1+80)
+        var d = Data(capacity: 2+2+2+2+2+2+2+2+1+80)
         d.appendLE(e.pc)
         d.appendLE(e.opcode)
         // digit is excluded: the counter cycles 0–15 on every instruction,
@@ -195,6 +195,7 @@ final class TraceWriter {
         d.appendLE(snap.KR)
         d.appendLE(snap.SR)
         d.appendLE(snap.flags)
+        d.appendLE(snap.m_libAddr)
         d.append(snap.R5)
         var a2 = snap.A; d.append(contentsOf: tupleBytes(&a2))
         var b2 = snap.B; d.append(contentsOf: tupleBytes(&b2))
@@ -204,13 +205,13 @@ final class TraceWriter {
         return d
     }
 
-    // Full 120-byte TRACE_EVENT payload.
+    // Full 122-byte TRACE_EVENT payload (v2: added m_libAddr field).
     // suppressedBefore is embedded at offset 0 so the last-of-run can carry the count.
     private func makeEventPayload(event e: TITraceEvent, snapshot snap: TICPUSnapshot,
                                   suppressedBefore: UInt32) -> Data {
-        var d = Data(capacity: 120)
+        var d = Data(capacity: 122)
 
-        // Dedup counter + control fields (32 bytes)
+        // Dedup counter + control fields (34 bytes)
         d.appendLE(suppressedBefore)
         d.appendLE(e.seqno)
         d.appendLE(e.pc)
@@ -222,6 +223,7 @@ final class TraceWriter {
         d.appendLE(snap.EXT)
         d.appendLE(snap.PREG)
         d.appendLE(snap.flags)
+        d.appendLE(snap.m_libAddr)
         d.append(snap.R5)
         d.append(snap.digit)
         d.append(snap.RAM_ADDR)
@@ -245,7 +247,7 @@ final class TraceWriter {
             d.append(lo | (hi << 4))
         }
 
-        assert(d.count == 120)
+        assert(d.count == 122)
         return d
     }
 

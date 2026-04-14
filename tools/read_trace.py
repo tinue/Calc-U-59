@@ -28,7 +28,7 @@ from disasm import disasm
 # ── Constants (must match DebugAPI.md) ────────────────────────────────────────
 
 MAGIC   = 0x54493539   # 'TI59' in LE memory
-VERSION = 1
+VERSION = 2            # v2: added m_libAddr field
 
 REC_SESSION_START = 0x01
 REC_TRACE_EVENT   = 0x02
@@ -57,15 +57,15 @@ def _parse_file_header(f):
         raise ValueError(f"Unsupported version: {version}")
 
 def _parse_trace_event(payload):
-    """Parse a 120-byte TRACE_EVENT payload into a dict."""
-    if len(payload) != 120:
-        raise ValueError(f"TRACE_EVENT payload length {len(payload)}, expected 120")
+    """Parse a 122-byte TRACE_EVENT payload into a dict (v2: added m_libAddr)."""
+    if len(payload) != 122:
+        raise ValueError(f"TRACE_EVENT payload length {len(payload)}, expected 122")
 
-    # Fixed fields (32 bytes)
+    # Fixed fields (34 bytes in v2, was 32 in v1)
     (suppressed, seqno, pc, opcode, fA, fB, KR, SR,
-     EXT, PREG, cpu_flags, R5, digit,
+     EXT, PREG, cpu_flags, m_libAddr, R5, digit,
      RAM_ADDR, RAM_OP, REG_ADDR, cycle_weight) = struct.unpack_from(
-        '<IIHHHHHHHHH BBBBBB', payload, 0)
+        '<IIHHHHHHHHHH BBBBBB', payload, 0)
 
     # A–E registers: 16 unpacked nibbles each (index 0 = LSN)
     regs = {}
@@ -103,6 +103,7 @@ def _parse_trace_event(payload):
         'COND':         str(cond),
         'IDLE':         str(idle),
         'R5':           f'{R5:X}',
+        'ROM':          f'{m_libAddr:04X}',
         'digit':        digit,
         'RAM_ADDR':     RAM_ADDR,
         'RAM_OP':       RAM_OP,
@@ -294,7 +295,7 @@ def format_as_log(records, skip_idle_loops=False):
                                         f"EXT={r_item['EXT']} COND={r_item['COND']} IDLE={r_item['IDLE']} "
                                         f"IO={r_item['IO']}")
                                 line4 = (f"FB={r_item['fB']} [{_bin16(int(r_item['fB'],16))}] "
-                                        f"SR={r_item['SR']} R5={r_item['R5']} PREG={r_item['PREG']} "
+                                        f"SR={r_item['SR']} R5={r_item['R5']} ROM={r_item.get('ROM', '0000')} PREG={r_item['PREG']} "
                                         f"RAMOP={ramop_str} RAMREG={r_item['RAM_ADDR']:03d} "
                                         f"ROMREG={r_item['REG_ADDR']:02d}")
                                 out.append(line1 + '\n' + line2 + '\n' + line3 + '\n' + line4 + '\n')
@@ -319,7 +320,7 @@ def format_as_log(records, skip_idle_loops=False):
                      f"EXT={r['EXT']} COND={r['COND']} IDLE={r['IDLE']} "
                      f"IO={r['IO']}")
             line4 = (f"FB={r['fB']} [{_bin16(int(r['fB'],16))}] "
-                     f"SR={r['SR']} R5={r['R5']} PREG={r['PREG']} "
+                     f"SR={r['SR']} R5={r['R5']} ROM={r.get('ROM', '0000')} PREG={r['PREG']} "
                      f"RAMOP={ramop_str} RAMREG={r['RAM_ADDR']:03d} "
                      f"ROMREG={r['REG_ADDR']:02d}")
             out.append(line1 + '\n' + line2 + '\n' + line3 + '\n' + line4 + '\n')
