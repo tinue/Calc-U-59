@@ -465,6 +465,7 @@ int TMC0501::step() {
         memcpy(s.Sout, Sout, 16);
         s.KR = KR; s.SR = SR; s.fA = fA; s.fB = fB;
         s.EXT = EXT; s.PREG = PREG ? 1 : 0; s.flags = flags;
+        s.m_libAddr = m_libAddr;
         s.R5 = R5; s.digit = digit;
         s.REG_ADDR = REG_ADDR; s.RAM_ADDR = RAM_ADDR; s.RAM_OP = RAM_OP;
         snapCaptured = true;  // signal tracePostStep to skip re-capture
@@ -1203,6 +1204,7 @@ void TMC0501::tracePostStep(uint32_t tf, bool snapCaptured, int weight) {
         memcpy(s.Sout, Sout, 16);
         s.KR = KR; s.SR = SR; s.fA = fA; s.fB = fB;
         s.EXT = EXT; s.PREG = PREG ? 1 : 0; s.flags = flags;
+        s.m_libAddr = m_libAddr;
         s.R5 = R5; s.digit = digit;
         s.REG_ADDR = REG_ADDR; s.RAM_ADDR = RAM_ADDR; s.RAM_OP = RAM_OP;
     }
@@ -1301,6 +1303,7 @@ CPUSnapshot TMC0501::snapshotCPU() const {
     memcpy(s.Sout, Sout, 16);
     s.KR = KR; s.SR = SR; s.fA = fA; s.fB = fB;
     s.EXT = EXT; s.PREG = PREG ? 1 : 0; s.flags = flags;
+    s.m_libAddr = m_libAddr;
     s.R5 = R5; s.digit = digit;
     s.REG_ADDR = REG_ADDR; s.RAM_ADDR = RAM_ADDR; s.RAM_OP = RAM_OP;
     return s;
