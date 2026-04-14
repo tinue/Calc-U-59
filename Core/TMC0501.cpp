@@ -788,11 +788,12 @@ int TMC0501::step() {
             case 0x10: // OUT LIB_PC — load library pointer tens digit from KR[7:4]
                 // The library address is encoded in BCD-like decimal: the ROM
                 // shifts it one decimal digit at a time using OUT LIB_PC / IN LIB_PC
-                // pairs.  OUT LIB_PC replaces the thousands+hundreds group:
-                //   new_addr = (old_addr % 10)   ← preserve units digit already there
-                //            + digit * 1000       ← inject new thousands digit
-                // The ROM calls this instruction twice (tens then thousands) to load
-                // a full 4-digit address.
+                // pairs. OUT LIB_PC shifts the address right by one nibble, then
+                // injects the new nibble into the most significant position:
+                //   new_addr = (old_addr / 10)         ← shift right (discard LSN)
+                //            + KR[7:4] * 1000          ← inject new MSN
+                // The ROM calls this instruction four times to load a full
+                // 4-digit address (once per BCD nibble, MSN first).
                 m_libAddr = (uint16_t)((m_libAddr / 10) + ((KR >> 4 & 0xFu) * 1000));
                 break;
             case 0x20: // IN LIB_PC — read library pointer ones digit into EXT
