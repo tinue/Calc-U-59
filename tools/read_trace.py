@@ -294,7 +294,7 @@ def format_as_log(records, skip_idle_loops=False):
                                         f"KR={r_item['KR']} [{_bin16(int(r_item['KR'],16))}] "
                                         f"EXT={r_item['EXT']} COND={r_item['COND']} IDLE={r_item['IDLE']} "
                                         f"IO={r_item['IO']}")
-                                rom_str = f"{r_item.get('ROM', '0000')}.{r_item['digit']}"
+                                rom_str = r_item.get('ROM', '0000')
                                 line4 = (f"FB={r_item['fB']} [{_bin16(int(r_item['fB'],16))}] "
                                         f"SR={r_item['SR']} R5={r_item['R5']} ROM={rom_str} PREG={r_item['PREG']} "
                                         f"RAMOP={ramop_str} RAMREG={r_item['RAM_ADDR']:03d} "
@@ -320,7 +320,7 @@ def format_as_log(records, skip_idle_loops=False):
                      f"KR={r['KR']} [{_bin16(int(r['KR'],16))}] "
                      f"EXT={r['EXT']} COND={r['COND']} IDLE={r['IDLE']} "
                      f"IO={r['IO']}")
-            rom_str = f"{r.get('ROM', '0000')}.{r['digit']}"
+            rom_str = r.get('ROM', '0000')
             line4 = (f"FB={r['fB']} [{_bin16(int(r['fB'],16))}] "
                      f"SR={r['SR']} R5={r['R5']} ROM={rom_str} PREG={r['PREG']} "
                      f"RAMOP={ramop_str} RAMREG={r['RAM_ADDR']:03d} "
