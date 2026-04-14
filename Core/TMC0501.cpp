@@ -391,16 +391,6 @@ int TMC0501::step() {
     // condition isn't yet satisfied; clearing it here is the default.
     flags &= ~FLG_HOLD;
 
-    // ── PREG latch (deferred PC redirect) ────────────────────────────
-    // When KR bit 1 is set (by SET KR[1] instruction), store the address
-    // in PREG and clear KR[1] immediately (KR[1] is automatically cleared
-    // after PREG is sent on EXT bus).
-    // The next instruction executes and may modify KR, but the redirect
-    // address is already latched. Redirect fires at end of next instruction.
-    if (KR & 0x2) {
-        PREG = (KR >> 4) | ((KR & 0x1) << 12);  // Store address
-        KR  &= ~(uint16_t)0x2;
-    }
 
     // ── One-cycle validity windows ────────────────────────────────────
     // EXT and Sout are only valid for the single cycle after they are written.
@@ -835,6 +825,16 @@ int TMC0501::step() {
     if (tf != TRACE_NONE) [[unlikely]] { tracePostStep(tf, snapCaptured, w); }
     if ((flags & FLG_IDLE) ? (fA & 0x4000u) : fA) m_cSteps.fetch_add(1, std::memory_order_relaxed);
     m_pollSteps.fetch_add((uint32_t)w, std::memory_order_relaxed);
+
+    // ── PREG latch (after instruction execution) ─────────────────────────
+    // When KR bit 1 is set (by SET KR[1] instruction), store the address
+    // in PREG and clear KR[1] immediately. The redirect will fire at the end
+    // of the next instruction cycle.
+    if (KR & 0x2) {
+        PREG = (KR >> 4) | ((KR & 0x1) << 12);  // Store address
+        KR  &= ~(uint16_t)0x2;
+    }
+
     return w;
 }
 
@@ -966,7 +966,9 @@ void TMC0501::execALU(uint16_t opcode) {
     // by the preceding STO instruction.
     if (flags & FLG_STORE) {
         flags &= ~FLG_STORE;
-        memcpy(SCOM[REG_ADDR], Sout, 16);
+        uint8_t io_data[16] = {};
+        if (flags & FLG_IO_VALID) memcpy(io_data, Sout, sizeof(io_data));
+        memcpy(SCOM[REG_ADDR], io_data, 16);
     }
 
     // RAM operation decode: Sout[0] = opcode (read/write/clear),
