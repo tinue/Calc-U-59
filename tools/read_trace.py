@@ -103,7 +103,7 @@ def _parse_trace_event(payload):
         'COND':         str(cond),
         'IDLE':         str(idle),
         'R5':           f'{R5:X}',
-        'ROM':          f'{m_libAddr:04X}',
+        'ROM':          f'{m_libAddr:04d}',
         'digit':        digit,
         'RAM_ADDR':     RAM_ADDR,
         'RAM_OP':       RAM_OP,
