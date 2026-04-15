@@ -95,15 +95,9 @@ The file [`prompt/ti59-agent-prompt.md`](prompt/ti59-agent-prompt.md) is a syste
 
 **Token cost:** The prompt is large (~15 000 tokens). Every conversation turn carries this overhead. Use a model with a generous context window and be aware that costs add up quickly in long sessions.
 
-## Releases
+## Changelog
 
-### 0.2.0 (Unreleased)
-
-<!-- Add 0.2.0 release notes here -->
-
-### 0.1.0 (2026-03-28)
-
-Initial release. Core TMC0501 emulation, debugger, printer functional simulation, and `.ti59` state file support.
+See [CHANGELOG.md](CHANGELOG.md) for version history and release notes.
 
 ## License
 

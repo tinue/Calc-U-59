@@ -147,6 +147,25 @@ static const int kbits[] = {0, 1, 2, 3, 5, 6};  // index 0 unused; index col
 - (void)setPrinterConnected:(BOOL)connected   { _machine->setPrinterConnected(connected == YES); }
 - (BOOL)isPrinterConnected                    { return _machine->isPrinterConnected() ? YES : NO; }
 
+// ── Debug event log ───────────────────────────────────────────────────────────
+
+- (void)setDebugLevel:(uint8_t)level {
+    _machine->setDebugLevel(level);
+}
+
+- (NSArray<NSString*>*)drainDebugMessages {
+    auto events = _machine->drainDebugEvents();
+    if (events.empty()) return @[];
+    NSMutableArray<NSString*>* result = [NSMutableArray arrayWithCapacity:events.size()];
+    for (const auto& ev : events) {
+        // Prefix: "I:" for INFO (1), "D:" for DEBUG (2).
+        char prefix = (ev.level == 1) ? 'I' : 'D';
+        NSString* s = [NSString stringWithFormat:@"%c:%s", prefix, ev.msg];
+        [result addObject:s];
+    }
+    return result;
+}
+
 // ── Trace / debug API ─────────────────────────────────────────────────────────
 
 - (TITraceFlags)traceFlags {

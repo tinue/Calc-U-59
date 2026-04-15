@@ -8,6 +8,22 @@ enum FreezeReason {
     case variable(Int, Double) // future: freeze when register matches value
 }
 
+enum DebugLevel: Int, Comparable {
+    case off   = 0
+    case info  = 1
+    case debug = 2
+
+    static func < (lhs: DebugLevel, rhs: DebugLevel) -> Bool { lhs.rawValue < rhs.rawValue }
+
+    mutating func cycle() {
+        self = switch self {
+        case .off:   .info
+        case .info:  .debug
+        case .debug: .off
+        }
+    }
+}
+
 @Observable
 class EmulatorViewModel {
     var displayDigits: [UInt8]  = Array(repeating: 0, count: 12)
@@ -48,7 +64,8 @@ class EmulatorViewModel {
     private let traceWriter = TraceWriter()
 
     // ── Debug panel state ────────────────────────────────────────────────────
-    var debugEnabled: Bool = false
+    var debugLevel: DebugLevel = .off
+    var debugEnabled: Bool { debugLevel != .off }   // convenience for existing callers
     var debugLines: [String] = []
     var debugClearID: Int = 0   // incremented on clear to reset Text identity and drop selection
 
@@ -257,6 +274,21 @@ class EmulatorViewModel {
         if !lines.isEmpty {
             printerLines.append(contentsOf: lines)
         }
+
+        // Drain C-core debug messages into the debug panel.
+        if debugLevel != .off {
+            let dbgMsgs = machine.drainDebugMessages()
+            if !dbgMsgs.isEmpty {
+                for msg in dbgMsgs {
+                    guard msg.count >= 2 else { continue }
+                    let levelChar = msg.first!
+                    let msgLevel: DebugLevel = (levelChar == "I") ? .info : .debug
+                    let text = String(msg.dropFirst(2))
+                    debugAppend([text], level: msgLevel)
+                }
+            }
+        }
+
         let codes = machine.drainPrinterCodeLines()
         if !codes.isEmpty {
             printerCodeLines.append(contentsOf: codes)
@@ -1321,7 +1353,8 @@ class EmulatorViewModel {
     }
 
     func toggleDebug() {
-        debugEnabled.toggle()
+        debugLevel.cycle()
+        machine?.setDebugLevel(UInt8(debugLevel.rawValue))
     }
 
     func clearDebug() {
@@ -1329,8 +1362,8 @@ class EmulatorViewModel {
         debugClearID &+= 1
     }
 
-    private func debugAppend(_ lines: [String]) {
-        guard debugEnabled else { return }
+    private func debugAppend(_ lines: [String], level: DebugLevel = .info) {
+        guard debugLevel >= level else { return }
         debugLines.append(contentsOf: lines)
     }
 
@@ -1400,7 +1433,7 @@ class EmulatorViewModel {
         var lines: [String] = ["── SCOM ──"]
         withUnsafeBytes(of: &cpu.SCOM) { bytes in
             for s in 0..<16 {
-                let nibbles = (0..<16).map { String(bytes[s * 16 + $0], radix: 16) }.joined()
+                let nibbles = (0..<16).reversed().map { String(bytes[s * 16 + $0], radix: 16) }.joined()
                 lines.append(String(format: "S%02d %@", s, nibbles))
             }
         }

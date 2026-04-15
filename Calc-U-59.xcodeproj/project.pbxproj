@@ -7,9 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		8C7285732F69626400D5F025 /* roms/rom-59.hex in Resources */ = {isa = PBXBuildFile; fileRef = 8C7285722F69626400D5F025 /* roms/rom-59.hex */; };
 		8C7285742F69626400D5F025 /* roms/MasterLibrary.hex in Resources */ = {isa = PBXBuildFile; fileRef = 8C7285752F69626400D5F025 /* roms/MasterLibrary.hex */; };
-		8C7285762F69626400D5F025 /* roms/rom-58C.hex in Resources */ = {isa = PBXBuildFile; fileRef = 8C7285772F69626400D5F025 /* roms/rom-58C.hex */; };
 		E492E897460954A16FFCE97D /* roms/TMC0582.txt in Resources */ = {isa = PBXBuildFile; fileRef = 067A301B08617C3C718CAD6B /* roms/TMC0582.txt */; };
 		7BAEB40743290D11F6AC8AB9 /* roms/TMC0583.txt in Resources */ = {isa = PBXBuildFile; fileRef = 922A6D0E64ED7C6A5E52CCD5 /* roms/TMC0583.txt */; };
 		ABC5638C64E47FADBF40BFEA /* roms/TMC0571B.txt in Resources */ = {isa = PBXBuildFile; fileRef = 4E36B672AB3C06A1BC192AA5 /* roms/TMC0571B.txt */; };
@@ -24,9 +22,7 @@
 
 /* Begin PBXFileReference section */
 		8C7285592F69626400D5F025 /* Calc-U-59.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Calc-U-59.app"; sourceTree = BUILT_PRODUCTS_DIR; };
-		8C7285722F69626400D5F025 /* roms/rom-59.hex */ = {isa = PBXFileReference; lastKnownFileType = text; path = "roms/rom-59.hex"; sourceTree = "<group>"; };
 		8C7285752F69626400D5F025 /* roms/MasterLibrary.hex */ = {isa = PBXFileReference; lastKnownFileType = text; path = roms/MasterLibrary.hex; sourceTree = "<group>"; };
-		8C7285772F69626400D5F025 /* roms/rom-58C.hex */ = {isa = PBXFileReference; lastKnownFileType = text; path = "roms/rom-58C.hex"; sourceTree = "<group>"; };
 		067A301B08617C3C718CAD6B /* roms/TMC0582.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "roms/TMC0582.txt"; sourceTree = "<group>"; };
 		922A6D0E64ED7C6A5E52CCD5 /* roms/TMC0583.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "roms/TMC0583.txt"; sourceTree = "<group>"; };
 		4E36B672AB3C06A1BC192AA5 /* roms/TMC0571B.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "roms/TMC0571B.txt"; sourceTree = "<group>"; };
@@ -78,9 +74,7 @@
 				8C72855B2F69626400D5F025 /* App */,
 				8C7285702F69626400D5F025 /* Core */,
 				8C7285712F69626400D5F025 /* Bridge */,
-				8C7285722F69626400D5F025 /* roms/rom-59.hex */,
 				8C7285752F69626400D5F025 /* roms/MasterLibrary.hex */,
-				8C7285772F69626400D5F025 /* roms/rom-58C.hex */,
 				067A301B08617C3C718CAD6B /* roms/TMC0582.txt */,
 				922A6D0E64ED7C6A5E52CCD5 /* roms/TMC0583.txt */,
 				4E36B672AB3C06A1BC192AA5 /* roms/TMC0571B.txt */,
@@ -169,9 +163,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				8C7285732F69626400D5F025 /* roms/rom-59.hex in Resources */,
 				8C7285742F69626400D5F025 /* roms/MasterLibrary.hex in Resources */,
-				8C7285762F69626400D5F025 /* roms/rom-58C.hex in Resources */,
 				E492E897460954A16FFCE97D /* roms/TMC0582.txt in Resources */,
 				7BAEB40743290D11F6AC8AB9 /* roms/TMC0583.txt in Resources */,
 				ABC5638C64E47FADBF40BFEA /* roms/TMC0571B.txt in Resources */,

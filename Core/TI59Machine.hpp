@@ -70,6 +70,9 @@ public:
     void     setTraceFlags(uint32_t flags);
     uint32_t traceFlags() const;
 
+    void setDebugLevel(uint8_t level);
+    std::vector<DebugEvent> drainDebugEvents();
+
     void addBreakpoint(uint16_t pc);
     void removeBreakpoint(uint16_t pc);
     void clearBreakpoints();

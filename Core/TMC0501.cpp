@@ -2,6 +2,7 @@
 #include "ROM.hpp"
 #include "RAM.hpp"
 #include <algorithm>
+#include <cstdarg>
 #include <cstdio>
 #include <cstring>
 #include <mutex>
@@ -210,6 +211,34 @@ void TMC0501::readScomMasked(uint8_t* dst, int addr, const MaskInfo& m) {
             dst[i] = SCOM[addr][i];
         }
     }
+}
+
+// ── Debug event log ───────────────────────────────────────────────────────────
+
+// Format 16 nibbles as a 16-character hex string into buf (must be ≥17 bytes).
+// reverse=true outputs nibble[15] first (MSD first, matching SCOM display convention).
+static const char* fmtNibs(const uint8_t* d, char* buf, bool reverse = false) {
+    static const char H[] = "0123456789abcdef";
+    for (int i = 0; i < 16; i++) buf[i] = H[d[reverse ? 15 - i : i] & 0xF];
+    buf[16] = '\0';
+    return buf;
+}
+
+void TMC0501::emitDebug(uint8_t level, const char* fmt, ...) {
+    if (level > m_debugLevel) return;
+    DebugEvent ev;
+    ev.level = level;
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(ev.msg, sizeof(ev.msg), fmt, args);
+    va_end(args);
+    m_debugEvents.push_back(std::move(ev));
+}
+
+std::vector<DebugEvent> TMC0501::drainDebugEvents() {
+    std::vector<DebugEvent> result;
+    result.swap(m_debugEvents);
+    return result;
 }
 
 // ── Key matrix ────────────────────────────────────────────────────────────────
@@ -1003,6 +1032,8 @@ void TMC0501::execALU(uint16_t opcode) {
         uint8_t io_data[16] = {};
         if (flags & FLG_IO_VALID) memcpy(io_data, Sout, sizeof(io_data));
         memcpy(SCOM[REG_ADDR], io_data, 16);
+        char nb[17];
+        emitDebug(2, "STO SCOM[%02d] = %s", REG_ADDR, fmtNibs(io_data, nb, true));
     }
 
     // ── Deferred RAM operation decode ───────────────────────────────────
@@ -1020,13 +1051,13 @@ void TMC0501::execALU(uint16_t opcode) {
         RAM_OP = op_nibble;
         RAM_ADDR = (uint8_t)(addr_tens * 10u + addr_units);
         if (RAM_ADDR < ram.size()) {
-            if      (RAM_OP == 2) ram.clearReg(RAM_ADDR, 1);
-            else if (RAM_OP == 4) ram.clearReg(RAM_ADDR, 10);
+            if      (RAM_OP == 2) { ram.clearReg(RAM_ADDR, 1);  emitDebug(2, "RAM_OP CLR1 RAM[%03d]",  RAM_ADDR); }
+            else if (RAM_OP == 4) { ram.clearReg(RAM_ADDR, 10); emitDebug(2, "RAM_OP CLR10 RAM[%03d]", RAM_ADDR); }
             else if (RAM_OP == 1) flags |= FLG_RAM_WRITE;
             else if (RAM_OP == 0) flags |= FLG_RAM_READ;
         }
     } else if (flags & FLG_RAM_WRITE) {
-        // ── Deferred RAM write (MEMWR) ───────────────────────────────
+        // ── Deferred RAM write (MEMWR / RAM_OP write) ────────────────
         // Write Sout (the IO bus) into RAM[RAM_ADDR] at the masked field.
         // If the last instruction did not drive IO (FLG_IO_VALID not set),
         // the bus reads as zero — so zero is written.
@@ -1035,6 +1066,8 @@ void TMC0501::execALU(uint16_t opcode) {
             uint8_t io_data[16] = {};
             if (flags & FLG_IO_VALID) memcpy(io_data, Sout, sizeof(io_data));
             writeRegMasked(RAM_ADDR, io_data, RAM_MASK);
+            char nb[17];
+            emitDebug(2, "MEMWR RAM[%03d] = %s", RAM_ADDR, fmtNibs(io_data, nb));
         }
     }
 

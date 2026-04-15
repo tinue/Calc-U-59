@@ -166,6 +166,13 @@ void TI59Machine::setPrinterConnected(bool connected) {
 void TI59Machine::setTraceFlags(uint32_t f) { m_cpu.setTraceFlags(f); }
 uint32_t TI59Machine::traceFlags() const    { return m_cpu.traceFlags(); }
 
+void TI59Machine::setDebugLevel(uint8_t level) { m_cpu.setDebugLevel(level); }
+
+std::vector<DebugEvent> TI59Machine::drainDebugEvents() {
+    std::lock_guard<std::mutex> lock(m_keyMutex);
+    return m_cpu.drainDebugEvents();
+}
+
 void TI59Machine::addBreakpoint(uint16_t pc) {
     std::lock_guard<std::mutex> lock(m_keyMutex);
     m_cpu.addBreakpoint(pc);

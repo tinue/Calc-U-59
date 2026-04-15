@@ -133,12 +133,18 @@ private struct StaticDebugContent: View {
             }
             .buttonStyle(.plain)
 
-            // DEBUG enable toggle — styled like the TRACE button
+            // DEBUG level toggle: OFF (gray) → INFO (orange) → DEBUG (red) → OFF
             Button { vm.toggleDebug() } label: {
                 HStack(spacing: 4) {
                     Text("D")
                     Circle()
-                        .fill(vm.debugEnabled ? Color.green : Color.gray.opacity(0.4))
+                        .fill({
+                            switch vm.debugLevel {
+                            case .off:   return Color.gray.opacity(0.4)
+                            case .info:  return Color.orange
+                            case .debug: return Color.red
+                            }
+                        }())
                         .frame(width: 8, height: 8)
                 }
                 .font(.caption.bold())
@@ -162,7 +168,7 @@ private struct StaticDebugContent: View {
     DebugView()
         .environment({
             let vm = EmulatorViewModel()
-            vm.debugEnabled = true
+            vm.debugLevel = .info
             vm.debugLines = [
                 "── RAM (part=60) ──",
                 "RAM[60] = 3.141592653589",

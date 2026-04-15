@@ -277,8 +277,50 @@ def emit_cpp() -> None:
 
 # ── ROM loader ───────────────────────────────────────────────────────────────
 
+def load_chip_txt(path: Path) -> list[tuple[int, int]]:
+    """Parse a chip .txt file (header block + '---' separator, then 'AAAA: WWWW ...' lines).
+    Returns an ordered list of (address, opcode) tuples."""
+    words: list[tuple[int, int]] = []
+    in_data = False
+    for line in path.read_text(encoding="utf-8").splitlines():
+        s = line.strip()
+        if not in_data:
+            if s.startswith("---"):
+                in_data = True
+            continue
+        if not s:
+            continue
+        parts = s.split(":", 1)
+        if len(parts) != 2:
+            continue
+        addr_str = parts[0].strip()
+        if len(addr_str) != 4:
+            continue
+        try:
+            base_addr = int(addr_str, 16)
+        except ValueError:
+            continue
+        for i, word_str in enumerate(parts[1].split()):
+            try:
+                words.append((base_addr + i, int(word_str, 16) & 0x1FFF))
+            except ValueError:
+                continue
+    return words
+
+
+def load_chips(chip_names: list[str], roms_dir: Path) -> list[tuple[int, int]]:
+    """Load and concatenate multiple chip .txt files in order."""
+    words: list[tuple[int, int]] = []
+    for name in chip_names:
+        path = roms_dir / f"{name}.txt"
+        chip_words = load_chip_txt(path)
+        print(f"  {path.name}: {len(chip_words)} words")
+        words += chip_words
+    return words
+
+
 def load_rom(path: Path) -> list[tuple[int, int]]:
-    """Parse .hex ROM file → ordered list of (address, opcode) tuples."""
+    """Parse a legacy flat .hex ROM file → ordered list of (address, opcode) tuples."""
     hex_str = "".join(
         line.strip()
         for line in path.read_text(encoding="ascii").splitlines()
@@ -298,10 +340,11 @@ def load_rom(path: Path) -> list[tuple[int, int]]:
 
 _ROM_META: dict[str, dict] = {
     "59": {
+        "chips": ["TMC0582", "TMC0583", "TMC0571B"],
         "sections": {
             0x0000: "; ── TMC0582  0x0000–0x09FF  2,560 words  (ROM chip 1) " + "─" * 20,
             0x0A00: "; ── TMC0583  0x0A00–0x13FF  2,560 words  (ROM chip 2) " + "─" * 20,
-            0x1400: ("; ── TMC0571  0x1400–0x17FF  1,024 words  (SCOM constant table) " + "─" * 11
+            0x1400: ("; ── TMC0571B 0x1400–0x17FF  1,024 words  (SCOM constant table) " + "─" * 10
                      + "\n; NOTE: this block is constant data used by the SCOM chip,\n"
                      + ";       not executable code.  Disassembly shown for reference."),
         },
@@ -311,10 +354,11 @@ _ROM_META: dict[str, dict] = {
         "checksums": [(0x0000, 0x0A01), (0x17FF, 0x1987)],
     },
     "58C": {
+        "chips": ["CD2400", "CD2401", "TMC0573"],
         "sections": {
-            0x0000: "; ── TMC0670  0x0000–0x09FF  2,560 words  (ROM chip 1) " + "─" * 20,
-            0x0A00: "; ── TMC0671  0x0A00–0x13FF  2,560 words  (ROM chip 2) " + "─" * 20,
-            0x1400: "; ── 0x1400–0x17FF  1,024 words  (unused / padding) " + "─" * 22,
+            0x0000: "; ── CD2400   0x0000–0x09FF  2,560 words  (ROM chip 1) " + "─" * 20,
+            0x0A00: "; ── CD2401   0x0A00–0x13FF  2,560 words  (ROM chip 2) " + "─" * 20,
+            0x1400: "; ── TMC0573  0x1400–0x17FF  1,024 words  (SCOM constant table) " + "─" * 10,
         },
         "expected": 6144,
         "addr_range": "0x0000–0x17FF",
@@ -335,11 +379,9 @@ def _sibling_roms() -> Path:
     return local if local.exists() else ROOT.parent / "public" / "Calc-U-59" / "roms"
 
 
-def disasm_rom(dump_path: Path, out_path: Path, meta: dict) -> None:
-    """Disassemble one ROM hex file and write the result to out_path."""
-    print(f"Loading {dump_path} …")
-    words = load_rom(dump_path)
-    print(f"  {len(words)} words loaded")
+def disasm_rom(words: list[tuple[int, int]], out_path: Path, meta: dict) -> None:
+    """Disassemble a word list and write the result to out_path."""
+    print(f"  {len(words)} words total")
 
     if len(words) != meta["expected"]:
         print(f"WARNING: expected {meta['expected']} words, got {len(words)}", file=sys.stderr)
@@ -377,7 +419,8 @@ def main() -> None:
     import argparse
     parser = argparse.ArgumentParser(description="TI-59/58C ROM disassembler")
     parser.add_argument("--emit-cpp", action="store_true", help="Print C++ lookup arrays and exit")
-    parser.add_argument("--input",  "-i", type=Path, help="Input .hex ROM file")
+    parser.add_argument("--input",  "-i", type=Path,
+                        help="Legacy flat .hex ROM file (overrides per-chip .txt loading)")
     parser.add_argument("--output", "-o", type=Path, help="Output .asm file")
     parser.add_argument("--model",  "-m", choices=["59", "58C"], default="59",
                         help="ROM model (default: 59)")
@@ -389,11 +432,16 @@ def main() -> None:
 
     roms = _sibling_roms()
     meta = _ROM_META[args.model]
+    out_path = args.output or ROOT / "rom" / f"TI{args.model}.asm"
 
-    dump_path = args.input  or roms / f"rom-{args.model}.hex"
-    out_path  = args.output or ROOT / "rom" / f"TI{args.model}.asm"
+    if args.input:
+        print(f"Loading {args.input} (legacy .hex) …")
+        words = load_rom(args.input)
+    else:
+        print(f"Loading chips: {', '.join(meta['chips'])} …")
+        words = load_chips(meta["chips"], roms)
 
-    disasm_rom(dump_path, out_path, meta)
+    disasm_rom(words, out_path, meta)
 
 
 if __name__ == "__main__":

@@ -47,3 +47,13 @@ struct CPUSnapshot {
     uint16_t KR, SR, fA, fB, EXT, PREG, flags, m_libAddr;
     uint8_t  R5, digit, REG_ADDR, RAM_ADDR, RAM_OP, m_libAddrReadPos;
 };
+
+// ── Debug event ───────────────────────────────────────────────────────────────
+//
+// Emitted by the CPU core for observability; drained by the UI at 60 Hz.
+// level: 1 = INFO, 2 = DEBUG.
+
+struct DebugEvent {
+    uint8_t level;    ///< 1=INFO, 2=DEBUG
+    char    msg[80];  ///< Null-terminated message
+};

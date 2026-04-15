@@ -156,6 +156,13 @@ public:
     void     setTraceFlags(uint32_t flags);
     uint32_t traceFlags() const;
 
+    // ── Debug event log ───────────────────────────────────────────────────────
+    // The CPU emits DebugEvents for write operations when debugLevel > 0.
+    // Events are drained by TI59Machine under m_keyMutex at 60 Hz.
+    void setDebugLevel(uint8_t level) { m_debugLevel = level; }
+    uint8_t debugLevel() const { return m_debugLevel; }
+    std::vector<DebugEvent> drainDebugEvents();
+
     void addBreakpoint(uint16_t pc);
     void removeBreakpoint(uint16_t pc);
     void clearBreakpoints();
@@ -310,6 +317,11 @@ private:
     // column.  Bit positions correspond to K-line indices (KO=1…KT=6).
     // col = digit-counter slot (0–15); only slots 1–9 connect to keyboard rows.
     uint8_t  key[16]{};
+
+    // ── Debug event log ───────────────────────────────────────────────
+    uint8_t m_debugLevel{0};
+    std::vector<DebugEvent> m_debugEvents;
+    void emitDebug(uint8_t level, const char* fmt, ...) __attribute__((format(printf, 3, 4)));
 
     // ── Trace / debug state ───────────────────────────────────────────
     std::atomic<uint32_t> m_traceFlags{TRACE_NONE};

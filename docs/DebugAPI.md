@@ -157,22 +157,91 @@ nibble[3]    mantissa LSD
 nibble[15]   mantissa MSD
 ```
 
-Exponent is stored as an unsigned magnitude (0–99); the sign is encoded in nibble[0] bit 0.
+Exponent is stored as an unsigned magnitude (0–99); the sign is encoded in nibble[0] bit 2.
 All-zero encodes 0.0.
 
 Swift helpers: `encodeTI59BCD(_ value: Double) → [UInt8]` (in `StateFileLoader.swift`)
 and `TI59MachineWrapper.decodeBCD(_ nibbles16: Data) → Double`.
 
+### Debug panel — level button
+
+The **D** button in the debug toolbar cycles through three levels:
+
+| Dot colour | Level | `DebugLevel` value | Effect |
+|------------|-------|--------------------|--------|
+| Gray       | OFF   | `.off` (0)         | No output written; C-core event buffer not drained |
+| Orange     | INFO  | `.info` (1)        | Swift-side `debugAppend` calls at level `.info` are shown |
+| Red        | DEBUG | `.debug` (2)       | All INFO output **plus** C-core write events (STO, MEMWR, RAM OP) |
+
+Each click advances one step; after DEBUG it wraps back to OFF.
+
+The current level is exposed as `vm.debugLevel: DebugLevel` and as the convenience
+computed property `vm.debugEnabled: Bool` (true when level ≠ OFF).
+
 ### Debug panel functions (ViewModel)
 
 These append formatted output to `debugLines`, displayed in the macOS Debug panel.
-They are no-ops when `debugEnabled` is `false`.
+Each call accepts an implicit `level:` parameter (default `.info`); output is
+suppressed when `vm.debugLevel < level`.
 
 | Function | Description |
 |----------|-------------|
 | `debugDumpVars()` | Non-zero data registers within the current partition, shown as `R00 = 3.14159…` |
-| `debugDumpSCOM()` | All 16 SCOM rows as compact hex nibble strings (`S00 0000000000000000`) |
-| `toggleDebug()` / `clearDebug()` | Enable/disable output; clear the log |
+| `debugDumpSCOM()` | All 16 SCOM rows as hex nibble strings (`S00 0000000000000000`), nibble[15] first |
+| `toggleDebug()` / `clearDebug()` | Cycle debug level (OFF→INFO→DEBUG→OFF); clear the log |
+
+When adding new Swift-side debug output, call `debugAppend([...], level: .info)` or
+`debugAppend([...], level: .debug)` as appropriate.
+
+### C-core debug events
+
+The CPU core (`TMC0501`) can emit `DebugEvent` messages that are drained by
+`tick()` at 60 Hz and forwarded to the debug panel — no manual polling required.
+
+#### Mechanism
+
+1. `TMC0501::emitDebug(level, fmt, ...)` — appends a `DebugEvent` to an internal
+   vector.  The call is a no-op when `level > m_debugLevel`, so there is zero
+   overhead when the panel is OFF or at a lower level.
+2. `TI59Machine::drainDebugEvents()` — called by the Swift tick loop under
+   `m_keyMutex`; swaps and returns the accumulated events.
+3. `tick()` in `EmulatorViewModel` decodes the level prefix and calls
+   `debugAppend` with the matching `DebugLevel`.
+
+#### Levels
+
+| C constant | Value | Shown when button is |
+|-----------|-------|----------------------|
+| `1` (INFO)  | 1 | INFO or DEBUG (orange or red) |
+| `2` (DEBUG) | 2 | DEBUG only (red) |
+
+#### Adding output in C
+
+Inside any `TMC0501` member function, call:
+
+```cpp
+emitDebug(2, "MY_OP target=%d value=%s", addr, fmtNibs(data, buf));
+```
+
+- Use level `2` (DEBUG) for high-frequency per-instruction events such as
+  register writes.  Use level `1` (INFO) for infrequent events such as
+  mode changes.
+- `fmtNibs(const uint8_t* d, char* buf, bool reverse = false)` is a file-local
+  helper in `TMC0501.cpp` that formats 16 nibbles into a 17-byte char buffer.
+  Pass `reverse = true` to print nibble[15] first (MSD-first, as used for SCOM).
+- The message buffer is 80 characters; `vsnprintf` silently truncates longer strings.
+- `emitDebug` may only be called from `TMC0501` member functions — it is private.
+  To emit events from `TI59Machine` or the Obj-C wrapper, add a public helper or
+  call through `m_cpu`.
+
+#### Current DEBUG-level events
+
+| Message format | Trigger |
+|----------------|---------|
+| `STO SCOM[NN] = XXXXXXXXXXXXXXXX` | SCOM register written (STO / STOF / STOG), nibble[15] first |
+| `MEMWR RAM[NNN] = XXXXXXXXXXXXXXXX` | RAM register written (MEMWR instruction or RAM_OP write), nibble[0] first |
+| `RAM_OP CLR1 RAM[NNN]` | RAM_OP clear-1 (op=2) |
+| `RAM_OP CLR10 RAM[NNN]` | RAM_OP clear-10 (op=4) |
 
 ---
 
@@ -258,6 +327,16 @@ Wait: 1s                 # pause 1 s before next line
 42 92 92                 # STO 0 0
 ```
 
+**PARTITION section:**
+
+- The number before the dot is the last visible step number; total steps = that number + 1.
+- Total steps must be a multiple of 80; the parser rounds up to the nearest valid boundary.
+- The `.xx` suffix (e.g. `.59`) is accepted for documentation purposes and ignored by the parser.
+- **Default when omitted:**
+  - TI-59: 479 (480 steps, 60 program-RAM registers)
+  - TI-58 / TI-58C: 239 (240 steps, 30 program-RAM registers)
+- **TI-58 / TI-58C cap:** if an explicit `PARTITION:` value exceeds 479, the load is aborted with an error.
+
 **REGISTERS section:**
 
 - **Normal registers:** `NN = value` where NN is 00–99 (valid for all models)
@@ -280,8 +359,12 @@ Loading sequence (in `EmulatorViewModel.loadStateFile`):
 2. `machine.stepN(300_000)` — lets the ROM complete its master-clear routine
 3. `machine.partitionProgramRegs = …` — sets partition via SCOM
 4. `machine.writeProgramSteps(…)` — writes zero-padded step array
-5. `machine.writeDataRegister(…)` per register — writes BCD nibbles
-6. KEYSTROKES played back asynchronously via `playKeystrokes(_:)` — 0.5 s per key
+5. Per register: normal registers via `machine.writeDataRegister(…)`; hidden registers
+   (H00–H03, TI-58C only) via `machine.setRawRegister(regNum + 60, …)` to bypass the
+   reversed data-register mapping
+6. Out-of-range data registers (those that fall inside the program area for the loaded
+   partition) are zeroed via `machine.setRawRegister(…)` to prevent stale-state corruption
+7. KEYSTROKES played back asynchronously via `playKeystrokes(_:)` — 0.5 s per key
 
 ---
 

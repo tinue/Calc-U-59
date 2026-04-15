@@ -129,6 +129,14 @@ typedef struct {
 
 // ── Trace / debug API ─────────────────────────────────────────────────────────
 
+/// Set the debug event level. 0 = off, 1 = INFO, 2 = DEBUG.
+/// When non-zero, the CPU emits DebugEvents for write operations;
+/// drain them via -drainDebugMessages at 60 Hz.
+- (void)setDebugLevel:(uint8_t)level;
+
+/// Drain pending debug messages as level-prefixed strings ("I:…" or "D:…").
+- (NSArray<NSString*>*)drainDebugMessages;
+
 @property (nonatomic) TITraceFlags traceFlags;
 @property (readonly)  uint16_t currentPC;
 
