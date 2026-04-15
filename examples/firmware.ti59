@@ -15,7 +15,7 @@
 # 2nd-DMS           Flashing 0
 # LRN               000 82
 #
-# Initially this did not work on the ewmulator. Problem was in LIB.PC.IN (opcode 0A2E): Reading the ROM PC was destructive.
+# Initially this did not work on the emulator. Problem was in LIB.PC.IN (opcode 0A2E): Reading the ROM PC was destructive.
 
 # These are the above keystrokes
 KEYSTROKES:
