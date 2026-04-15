@@ -689,18 +689,30 @@ class EmulatorViewModel {
     }
 
     /// Step once while frozen and refresh the inspector view with the new state.
+    /// If the instruction has HOLD set (WAIT Dn), auto-steps until the PC advances.
     func stepFrozen() {
         guard isFrozen else { return }
         guard let m = machine else { return }
-        // Execute one step on the background queue, then refresh the snapshot on main
         emulQueue.async { [weak self, m] in
             guard let self else { return }
-            let result = m.step()
+            let priorPC = m.currentPC
+            var result = m.step()
             if result & 0x8000_0000 != 0 {
                 let hitPC = m.currentPC
                 DispatchQueue.main.async { self.onBreakpointHit(pc: hitPC) }
+            } else if m.currentPC == priorPC {
+                // PC didn't advance — HOLD is set (WAIT Dn). Step until it clears.
+                var limit = 32
+                while m.currentPC == priorPC && limit > 0 {
+                    result = m.step()
+                    if result & 0x8000_0000 != 0 {
+                        let hitPC = m.currentPC
+                        DispatchQueue.main.async { self.onBreakpointHit(pc: hitPC) }
+                        break
+                    }
+                    limit -= 1
+                }
             }
-            // After step completes, refresh the frozen inspector snapshot
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
                 self.captureInspectorSnapshot(machine: m)
