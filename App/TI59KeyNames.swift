@@ -25,8 +25,8 @@ enum TI59KeyNames {
         61: 2,   // GTO
         67: 2,   // EQ
         71: 2,   // SBR
-        76: 1,   // LBL
         77: 2,   // GE
+        82: 1,   // HIR
         86: 1,   // STF
         87: 1,   // IFF
         97: 1,   // DSZ
@@ -53,7 +53,7 @@ enum TI59KeyNames {
         55: "÷",       56: "DEL",     57: "ENG",    58: "FIX",     59: "INT",
         // Function row 5 (60–69)
         60: "DEG",     61: "GTO",     62: "PG*",    63: "EX*",     64: "PD*",
-        65: "x",       66: "PAU",     67: "EQ",     68: "NOP",     69: "OP",
+        65: "|x|",     66: "PAU",     67: "EQ",     68: "NOP",     69: "OP",
         // Function row 6 (70–79)
         70: "RAD",     71: "SBR",     72: "ST*",    73: "RC*",     74: "SM*",
         75: "-",       76: "LBL",     77: "GE",     78: "∑+",      79: "x̄",

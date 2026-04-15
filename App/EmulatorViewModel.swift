@@ -965,13 +965,7 @@ class EmulatorViewModel {
 
             for (idx, keycode) in keycodes.enumerated() {
                 let isArgument = argSteps.contains(idx)
-                let mnemonic: String
-                if isArgument {
-                    let simpleMnemo = TI59KeyNames.mnemonic(for: keycode)
-                    mnemonic = simpleMnemo.count <= 2 && !simpleMnemo.contains("?") ? simpleMnemo : String(format: "%02d", keycode)
-                } else {
-                    mnemonic = TI59KeyNames.mnemonic(for: keycode)
-                }
+                let mnemonic = isArgument ? String(format: "%02d", keycode) : TI59KeyNames.mnemonic(for: keycode)
 
                 result.append(.init(
                     stepNum: idx,
@@ -1184,24 +1178,13 @@ class EmulatorViewModel {
                 }
             }
 
-            // Display steps with proper argument handling
             for (idx, keycode) in keycodes.enumerated() {
                 let addr = lo + idx
                 let isArgument = argSteps.contains(idx)
-                if isArgument {
-                    // For arguments, show simple mnemonics (digits/letters) only
-                    let simpleMnemo = TI59KeyNames.mnemonic(for: keycode)
-                    // Keep only short mnemonics (digits and letters)
-                    let mnemonic = simpleMnemo.count <= 2 && !simpleMnemo.contains("?") ? simpleMnemo : String(format: "%02d", keycode)
-                    snap.programWindow.append(.init(
-                        stepNum: addr, keycode: keycode, mnemonic: mnemonic,
-                        isCurrent: addr == romCenter))
-                } else {
-                    let mnemonic = TI59KeyNames.mnemonic(for: keycode)
-                    snap.programWindow.append(.init(
-                        stepNum: addr, keycode: keycode, mnemonic: mnemonic,
-                        isCurrent: addr == romCenter))
-                }
+                let mnemonic = isArgument ? String(format: "%02d", keycode) : TI59KeyNames.mnemonic(for: keycode)
+                snap.programWindow.append(.init(
+                    stepNum: addr, keycode: keycode, mnemonic: mnemonic,
+                    isCurrent: addr == romCenter))
             }
 
         default:
@@ -1555,6 +1538,7 @@ class EmulatorViewModel {
         }
 
         isRunning = false
+        unfreeze()  // exit freeze mode when loading a state file (same as reset)
         // Synchronous dispatch ensures the emulation loop has fully exited
         // before we touch RAM or SCOM.  Without this, a step() in-flight on
         // emulQueue could write stale values after our state-file writes.
