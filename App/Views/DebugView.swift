@@ -119,7 +119,7 @@ private struct StaticDebugContent: View {
             // C indicator drop logger — prints one line per drop event to console
             Button { vm.cIndicatorDebug.toggle() } label: {
                 HStack(spacing: 4) {
-                    Text("C-DBG")
+                    Text("TRACE")
                     Circle()
                         .fill(vm.cIndicatorDebug ? Color.orange : Color.gray.opacity(0.4))
                         .frame(width: 8, height: 8)
@@ -136,7 +136,7 @@ private struct StaticDebugContent: View {
             // DEBUG level toggle: OFF (gray) → INFO (orange) → DEBUG (red) → OFF
             Button { vm.toggleDebug() } label: {
                 HStack(spacing: 4) {
-                    Text("D")
+                    Text("LOG")
                     Circle()
                         .fill({
                             switch vm.debugLevel {

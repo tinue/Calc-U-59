@@ -7,34 +7,34 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		8C7285742F69626400D5F025 /* roms/MasterLibrary.hex in Resources */ = {isa = PBXBuildFile; fileRef = 8C7285752F69626400D5F025 /* roms/MasterLibrary.hex */; };
-		E492E897460954A16FFCE97D /* roms/TMC0582.txt in Resources */ = {isa = PBXBuildFile; fileRef = 067A301B08617C3C718CAD6B /* roms/TMC0582.txt */; };
+		2340B7D61C0D4DBD6D9300A5 /* roms/TMC0583-CONST-K.txt in Resources */ = {isa = PBXBuildFile; fileRef = 82EB9107C1DE1D77AB49F0D3 /* roms/TMC0583-CONST-K.txt */; };
+		35B51855411FB1D5C01A25BB /* roms/CD2401.txt in Resources */ = {isa = PBXBuildFile; fileRef = E08C9C771806E7B736D15277 /* roms/CD2401.txt */; };
+		6B5CBFF0A3356702CCCA0EA5 /* roms/TMC0582-CONST-K.txt in Resources */ = {isa = PBXBuildFile; fileRef = 0A6522F10504197826D208A1 /* roms/TMC0582-CONST-K.txt */; };
+		6C370FAB142303C959108954 /* roms/TMC0573.txt in Resources */ = {isa = PBXBuildFile; fileRef = E2B162B7479B9E09AE31CB82 /* roms/TMC0573.txt */; };
 		7BAEB40743290D11F6AC8AB9 /* roms/TMC0583.txt in Resources */ = {isa = PBXBuildFile; fileRef = 922A6D0E64ED7C6A5E52CCD5 /* roms/TMC0583.txt */; };
+		8C7285742F69626400D5F025 /* roms/MasterLibrary.hex in Resources */ = {isa = PBXBuildFile; fileRef = 8C7285752F69626400D5F025 /* roms/MasterLibrary.hex */; };
 		ABC5638C64E47FADBF40BFEA /* roms/TMC0571B.txt in Resources */ = {isa = PBXBuildFile; fileRef = 4E36B672AB3C06A1BC192AA5 /* roms/TMC0571B.txt */; };
 		B87F745B7F9EC349D0ECBF2F /* roms/CD2400.txt in Resources */ = {isa = PBXBuildFile; fileRef = 5193840AC3BCB5AC128C8565 /* roms/CD2400.txt */; };
-		35B51855411FB1D5C01A25BB /* roms/CD2401.txt in Resources */ = {isa = PBXBuildFile; fileRef = E08C9C771806E7B736D15277 /* roms/CD2401.txt */; };
-		6C370FAB142303C959108954 /* roms/TMC0573.txt in Resources */ = {isa = PBXBuildFile; fileRef = E2B162B7479B9E09AE31CB82 /* roms/TMC0573.txt */; };
-		6B5CBFF0A3356702CCCA0EA5 /* roms/TMC0582-CONST-K.txt in Resources */ = {isa = PBXBuildFile; fileRef = 0A6522F10504197826D208A1 /* roms/TMC0582-CONST-K.txt */; };
-		2340B7D61C0D4DBD6D9300A5 /* roms/TMC0583-CONST-K.txt in Resources */ = {isa = PBXBuildFile; fileRef = 82EB9107C1DE1D77AB49F0D3 /* roms/TMC0583-CONST-K.txt */; };
-		FFF462699020D7E427019C23 /* roms/CD2400-CONST-K.txt in Resources */ = {isa = PBXBuildFile; fileRef = A03FEEC869500F2ED42C8381 /* roms/CD2400-CONST-K.txt */; };
 		D33A7AEB1F005859A35CAB9E /* roms/CD2401-CONST-K.txt in Resources */ = {isa = PBXBuildFile; fileRef = 5E899B70D779E3C3D40E77C0 /* roms/CD2401-CONST-K.txt */; };
+		E492E897460954A16FFCE97D /* roms/TMC0582.txt in Resources */ = {isa = PBXBuildFile; fileRef = 067A301B08617C3C718CAD6B /* roms/TMC0582.txt */; };
+		FFF462699020D7E427019C23 /* roms/CD2400-CONST-K.txt in Resources */ = {isa = PBXBuildFile; fileRef = A03FEEC869500F2ED42C8381 /* roms/CD2400-CONST-K.txt */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		067A301B08617C3C718CAD6B /* roms/TMC0582.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = roms/TMC0582.txt; sourceTree = "<group>"; };
+		0A6522F10504197826D208A1 /* roms/TMC0582-CONST-K.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "roms/TMC0582-CONST-K.txt"; sourceTree = "<group>"; };
+		4E36B672AB3C06A1BC192AA5 /* roms/TMC0571B.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = roms/TMC0571B.txt; sourceTree = "<group>"; };
+		5193840AC3BCB5AC128C8565 /* roms/CD2400.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = roms/CD2400.txt; sourceTree = "<group>"; };
+		5E899B70D779E3C3D40E77C0 /* roms/CD2401-CONST-K.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "roms/CD2401-CONST-K.txt"; sourceTree = "<group>"; };
+		82EB9107C1DE1D77AB49F0D3 /* roms/TMC0583-CONST-K.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "roms/TMC0583-CONST-K.txt"; sourceTree = "<group>"; };
 		8C7285592F69626400D5F025 /* Calc-U-59.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Calc-U-59.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		8C7285752F69626400D5F025 /* roms/MasterLibrary.hex */ = {isa = PBXFileReference; lastKnownFileType = text; path = roms/MasterLibrary.hex; sourceTree = "<group>"; };
-		067A301B08617C3C718CAD6B /* roms/TMC0582.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "roms/TMC0582.txt"; sourceTree = "<group>"; };
-		922A6D0E64ED7C6A5E52CCD5 /* roms/TMC0583.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "roms/TMC0583.txt"; sourceTree = "<group>"; };
-		4E36B672AB3C06A1BC192AA5 /* roms/TMC0571B.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "roms/TMC0571B.txt"; sourceTree = "<group>"; };
-		5193840AC3BCB5AC128C8565 /* roms/CD2400.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "roms/CD2400.txt"; sourceTree = "<group>"; };
-		E08C9C771806E7B736D15277 /* roms/CD2401.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "roms/CD2401.txt"; sourceTree = "<group>"; };
-		E2B162B7479B9E09AE31CB82 /* roms/TMC0573.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "roms/TMC0573.txt"; sourceTree = "<group>"; };
-		0A6522F10504197826D208A1 /* roms/TMC0582-CONST-K.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "roms/TMC0582-CONST-K.txt"; sourceTree = "<group>"; };
-		82EB9107C1DE1D77AB49F0D3 /* roms/TMC0583-CONST-K.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "roms/TMC0583-CONST-K.txt"; sourceTree = "<group>"; };
-		A03FEEC869500F2ED42C8381 /* roms/CD2400-CONST-K.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "roms/CD2400-CONST-K.txt"; sourceTree = "<group>"; };
-		5E899B70D779E3C3D40E77C0 /* roms/CD2401-CONST-K.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "roms/CD2401-CONST-K.txt"; sourceTree = "<group>"; };
 		8CC614992F6C2E370041355E /* Calc-U-59.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Calc-U-59.entitlements"; sourceTree = "<group>"; };
 		8CF668232F7ED56C006116D2 /* Calc-U-59-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "Calc-U-59-Info.plist"; sourceTree = "<group>"; };
+		922A6D0E64ED7C6A5E52CCD5 /* roms/TMC0583.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = roms/TMC0583.txt; sourceTree = "<group>"; };
+		A03FEEC869500F2ED42C8381 /* roms/CD2400-CONST-K.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "roms/CD2400-CONST-K.txt"; sourceTree = "<group>"; };
+		E08C9C771806E7B736D15277 /* roms/CD2401.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = roms/CD2401.txt; sourceTree = "<group>"; };
+		E2B162B7479B9E09AE31CB82 /* roms/TMC0573.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = roms/TMC0573.txt; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */

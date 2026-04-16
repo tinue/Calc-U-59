@@ -55,6 +55,9 @@ final class TraceWriter {
 
         let url = Self.traceFileURL()
         let fm = FileManager.default
+        // Ensure the parent directory exists (needed for App Library and Custom paths).
+        try? fm.createDirectory(at: url.deletingLastPathComponent(),
+                                withIntermediateDirectories: true)
         let isNew = !fm.fileExists(atPath: url.path)
         if isNew { fm.createFile(atPath: url.path, contents: nil) }
 
@@ -269,10 +272,10 @@ final class TraceWriter {
     // Reuses the iCloud container already resolved by CardStorage.warmUp(),
     // which is called at app start.
 
-    private static let traceFileName = "TI59_TRACE.bin"
+    private static let traceFileName = "CALCU59_TRACE.bin"
 
     static func traceFileURL() -> URL {
-        CardStorage.directoryURL.appendingPathComponent(traceFileName)
+        AppSettings.traceDirectory().appendingPathComponent(traceFileName)
     }
 }
 

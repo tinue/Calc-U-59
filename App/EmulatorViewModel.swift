@@ -132,7 +132,7 @@ class EmulatorViewModel {
     }
 
     init() {
-        Task { await self.start(model: .ti59) }
+        Task { await self.start(model: AppSettings.resolvedStartupModel()) }
     }
 
     func start(model: MachineModel) async {
@@ -140,6 +140,7 @@ class EmulatorViewModel {
         stop()
         await drainEmulQueue()   // ensure old loop has exited before starting the new one
         self.model = model
+        UserDefaults.standard.set(model.rawValue, forKey: SettingsKey.lastUsedModel)
         await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .utility).async {
                 CardStorage.warmUp()

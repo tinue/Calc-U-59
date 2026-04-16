@@ -8,6 +8,7 @@ struct CalculatorView: View {
     #else
     @State private var showingPrinter = false
     @State private var showingStateFilePicker = false
+    @State private var showingSettings = false
     #endif
 
     var body: some View {
@@ -28,6 +29,9 @@ struct CalculatorView: View {
             }
         }
         #if !os(macOS)
+        .sheet(isPresented: $showingSettings) {
+            SettingsView()
+        }
         .fileImporter(
             isPresented: $showingStateFilePicker,
             allowedContentTypes: [
@@ -213,6 +217,12 @@ struct CalculatorView: View {
                 showingStateFilePicker = true
             }
             .labelStyle(showLabel: showLabels)
+            .controlSize(.large)
+            Divider().frame(height: 20)
+            Button("Settings", systemImage: "gear") {
+                showingSettings = true
+            }
+            .labelStyle(.iconOnly)
             .controlSize(.large)
             #endif
         }

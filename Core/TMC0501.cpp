@@ -226,6 +226,7 @@ static const char* fmtNibs(const uint8_t* d, char* buf, bool reverse = false) {
 
 void TMC0501::emitDebug(uint8_t level, const char* fmt, ...) {
     if (level > m_debugLevel) return;
+    if (m_debugEvents.size() >= 8192) return;
     DebugEvent ev;
     ev.level = level;
     va_list args{};  // NOLINT(cppcoreguidelines-init-variables) -- initialized by va_start
