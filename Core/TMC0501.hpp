@@ -216,7 +216,7 @@ public:
         int offset = (addr % 8) * 2;
         uint8_t units = m_constant[row][offset];
         uint8_t tens = m_constant[row][offset + 1];
-        return (uint8_t)(tens * 10 + units);
+        return static_cast<uint8_t>((tens * 10) + units);
     }
 
 private:
@@ -378,7 +378,7 @@ private:
     // ALU operation selector passed to alu().
     // SUB and SHR are ≥ ALU_SUB, which the alu() function uses to choose
     // between add/negate and shift-right paths.
-    enum { ALU_ADD=0, ALU_SHL=1, ALU_SUB=2, ALU_SHR=3 };
+    enum : uint8_t { ALU_ADD=0, ALU_SHL=1, ALU_SUB=2, ALU_SHR=3 };
 
     // Perform a BCD digit-serial ALU operation over the masked field.
     // srcX and srcY are the two source operands (either may be nullptr = zero).
@@ -388,7 +388,7 @@ private:
              const MaskInfo& m, int op);
 
     // Swap digits in the masked field between registers a and b.
-    void xch(uint8_t* a, uint8_t* b, const MaskInfo& m);
+    static void xch(uint8_t* a, uint8_t* b, const MaskInfo& m);
 
     // Decode and execute all ALU-class opcodes (bits 12=0, hi nibble ∉ {0,8,A}).
     void execALU(uint16_t opcode);

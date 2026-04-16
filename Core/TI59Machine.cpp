@@ -4,15 +4,16 @@
 TI59Machine::TI59Machine(MachineVariant variant)
     : m_variant(variant), m_cpu(m_rom, m_ram)
 {
-    if (hasConstantMemory(variant))
+    if (hasConstantMemory(variant)) {
         m_ram.setLimit(64);   // TI-58C: 60 normal regs + 4 extra (reg 60 = OS control reg)
-    else if (!hasLargeMemory(variant))
+    } else if (!hasLargeMemory(variant)) {
         m_ram.setLimit(60);   // TI-58: 60 regs
+    }
     m_cpu.setMachineVariant(variant);
     // Card-reader switch: pressed = card absent (normal startup state).
     // TI-59 uses digit-counter slot 10; TI-58/58C uses slot 7; bit 4 in both.
     int col = cardSwitchCol();
-    m_cpu.setCardSwitchCol((uint8_t)col);
+    m_cpu.setCardSwitchCol(static_cast<uint8_t>(col));
     m_cpu.pressKey(4, col);
     m_cpu.setPrinterConnected(m_printerConnected);
 }
@@ -38,9 +39,10 @@ void TI59Machine::reset() {
 
 uint32_t TI59Machine::step() {
     std::lock_guard<std::mutex> lock(m_keyMutex);
-    uint32_t r = (uint32_t)m_cpu.step();
-    if (m_cpu.consumeBreakpointHit())
-        r |= 0x8000'0000u;
+    auto r = static_cast<uint32_t>(m_cpu.step());
+    if (m_cpu.consumeBreakpointHit()) {
+        r |= 0x8000'0000U;
+    }
     return r;
 }
 
@@ -75,8 +77,8 @@ void TI59Machine::writeProgram(const uint8_t* keycodes, int count) {
         // nibble at (step&7)*2   = units digit (BCD LSD)
         // nibble at (step&7)*2+1 = tens  digit (BCD MSD)
         int regIdx = stepAddr >> 3;
-        m_ram.write(regIdx, (stepAddr & 7) * 2,     keycode % 10);
-        m_ram.write(regIdx, (stepAddr & 7) * 2 + 1, keycode / 10);
+        m_ram.write(regIdx, (stepAddr & 7) * 2,       keycode % 10);
+        m_ram.write(regIdx, ((stepAddr & 7) * 2) + 1, keycode / 10);
     }
 }
 
@@ -90,7 +92,7 @@ int TI59Machine::partitionProgramRegs() const {
     // SCOM[9][0] encodes programRAMregs / 10 as a single hex nibble (0–12).
     // E.g. value 6 → 60 program regs → 480 steps (the factory default "6 OP 17").
     // Discovered empirically: diffing SCOM across "0 OP 17", "5 OP 17", "10 OP 17".
-    return (int)m_cpu.scomNibble(9, 0) * 10;
+    return static_cast<int>(m_cpu.scomNibble(9, 0)) * 10;
 }
 
 void TI59Machine::setPartitionProgramRegs(int programRAMregs) {
@@ -103,9 +105,9 @@ void TI59Machine::setPartitionProgramRegs(int programRAMregs) {
     // where n = programRAMregs / 10.
     // programRAMregs must be a multiple of 10 in [0, 120].
     int n = programRAMregs / 10;
-    m_cpu.setSCOMNibble(9,  0, (uint8_t)n);
-    m_cpu.setSCOMNibble(13, 8, (uint8_t)(n % 10));  // BCD units
-    m_cpu.setSCOMNibble(13, 9, (uint8_t)(n / 10));  // BCD tens
+    m_cpu.setSCOMNibble(9,  0, static_cast<uint8_t>(n));
+    m_cpu.setSCOMNibble(13, 8, static_cast<uint8_t>(n % 10));  // BCD units
+    m_cpu.setSCOMNibble(13, 9, static_cast<uint8_t>(n / 10));  // BCD tens
 }
 
 // ── Magnetic card reader ───────────────────────────────────────────────────────
@@ -208,8 +210,9 @@ uint32_t TI59Machine::stepN(uint32_t n, bool stopOnBreakpoint) {
     while (done < n) {
         int r = m_cpu.step();
         done++;
-        if (stopOnBreakpoint && m_cpu.consumeBreakpointHit())
+        if (stopOnBreakpoint && m_cpu.consumeBreakpointHit()) {
             break;
+        }
         (void)r;
     }
     return done;
@@ -225,9 +228,9 @@ uint32_t TI59Machine::stepUntilNextKeycode(uint32_t maxSteps) {
     while (done < maxSteps) {
         m_cpu.step();
         done++;
-        if (m_cpu.consumeBreakpointHit()) break;
+        if (m_cpu.consumeBreakpointHit()) { break; }
         if (m_cpu.scomNibble(0, 4) != n4 || m_cpu.scomNibble(0, 5) != n5 ||
-            m_cpu.scomNibble(0, 6) != n6 || m_cpu.scomNibble(0, 7) != n7) break;
+            m_cpu.scomNibble(0, 6) != n6 || m_cpu.scomNibble(0, 7) != n7) { break; }
     }
     return done;
 }
@@ -245,26 +248,26 @@ std::string TI59Machine::disassemble(uint16_t pc, uint16_t opcode) {
 double TI59Machine::decodeBCD(const uint8_t* n) {
     // Check for zero / NaN / Inf (all-zero or all-zero mantissa)
     bool allZero = true;
-    for (int i = 0; i < 16; i++) { if (n[i]) { allZero = false; break; } }
-    if (allZero) return 0.0;
+    for (int i = 0; i < 16; i++) { if (n[i] != 0U) { allZero = false; break; } }
+    if (allZero) { return 0.0; }
 
     // n[0]: bit 1 = mantissa sign (1=negative), bit 2 = exponent sign (1=negative)
     // n[1]: exponent units (BCD LSD), n[2]: exponent tens (BCD MSD) — magnitude 0–99
     // n[15]=mantissa MSD .. n[3]=mantissa LSD  (13 digits)
     bool negative = (n[0] & 2) != 0;   // bit 1 = mantissa sign
     bool negExp   = (n[0] & 4) != 0;   // bit 2 = exponent sign
-    int  exp      = n[2] * 10 + n[1];  // exponent magnitude 0–99
-    if (negExp) exp = -exp;
+    int  exp      = (n[2] * 10) + n[1];  // exponent magnitude 0–99
+    if (negExp) { exp = -exp; }
 
     // Reconstruct mantissa from D[15] (MSD) down to D[3] (LSD)
     double mantissa = 0.0;
     for (int i = 15; i >= 3; i--) {
-        mantissa = mantissa * 10.0 + (n[i] & 0x0F);
+        mantissa = (mantissa * 10.0) + static_cast<double>(n[i] & 0x0FU);
     }
     // mantissa is now a 13-digit integer; scale to [1.0, 10.0)
     mantissa /= 1e12;
 
-    double value = mantissa * std::pow(10.0, (double)exp);
+    double value = mantissa * std::pow(10.0, static_cast<double>(exp));
     return negative ? -value : value;
 }
 
@@ -275,9 +278,9 @@ double TI59Machine::readDataReg(int regNum) const {
 
 uint8_t TI59Machine::readProgramStep(int stepAddr) const {
     int regIdx = stepAddr >> 3;  // Each register holds 8 steps (2 nibbles per step)
-    uint8_t tens  = m_ram.read(regIdx, (stepAddr & 7) * 2 + 1);
-    uint8_t units = m_ram.read(regIdx, (stepAddr & 7) * 2);
-    return (uint8_t)(tens * 10 + units);
+    uint8_t tens  = m_ram.read(regIdx, ((stepAddr & 7) * 2) + 1);
+    uint8_t units = m_ram.read(regIdx,  (stepAddr & 7) * 2);
+    return static_cast<uint8_t>((tens * 10) + units);
 }
 
 uint8_t TI59Machine::readROMKeycode(int addr) const {

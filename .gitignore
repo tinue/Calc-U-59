@@ -29,6 +29,9 @@ debug/
 # Generated tool outputs
 refs/
 
+# Compiled object files
+*.o
+
 # App Store metadata lives in the appstore orphan branch, checked out as a worktree here.
 # One-time setup per clone: git worktree add appstore appstore
 appstore/

@@ -44,8 +44,8 @@ static const char* const PRN_CODE[64] = {
 // Used to recover raw codes when function-mnemonic characters are stored in m_prnBuf.
 static uint8_t prnCharToCode(char c) {
     for (int i = 0; i < 64; i++) {
-        if (PRN_CODE[i][0] == (char)c && PRN_CODE[i][1] == '\0')
-            return (uint8_t)i;
+        if (PRN_CODE[i][0] == c && PRN_CODE[i][1] == '\0')
+            return static_cast<uint8_t>(i);
     }
     return 0;  // space
 }
@@ -166,12 +166,12 @@ void TMC0501::reset() {
 }
 
 void TMC0501::loadLibrary(const uint8_t* data, size_t count) {
-    if (count > 5000) count = 5000;
+    count = std::min(count, size_t{5000});
     memcpy(m_libData, data, count);
 }
 
 void TMC0501::loadConstants(const uint8_t* data, size_t count) {
-    if (count > sizeof(m_constant)) count = sizeof(m_constant);
+    count = std::min(count, sizeof(m_constant));
     memcpy(m_constant, data, count);
 }
 
@@ -179,10 +179,10 @@ void TMC0501::loadConstants(const uint8_t* data, size_t count) {
 
 void TMC0501::readRegMasked(uint8_t* dst, int addr, const MaskInfo& m) {
     // Read only the nibbles in the masked range from RAM, zero out others
-    auto src = ram.readReg(addr);
+    const auto* src = ram.readReg(addr);
     memset(dst, 0, 16);
     if (src && m.start != 0xFF) {
-        for (int i = (int)m.start; i <= (int)m.end && i < 16; i++) {
+        for (int i = static_cast<int>(m.start); i <= static_cast<int>(m.end) && i < 16; i++) {
             dst[i] = src[i];
         }
     }
@@ -191,11 +191,11 @@ void TMC0501::readRegMasked(uint8_t* dst, int addr, const MaskInfo& m) {
 void TMC0501::writeRegMasked(int addr, const uint8_t* src, const MaskInfo& m) {
     // Write only the nibbles in the masked range to RAM, preserve others
     if (m.start != 0xFF && addr < ram.size()) {
-        auto current = ram.readReg(addr);
+        const auto* current = ram.readReg(addr);
         if (current) {
             uint8_t temp[16];
             memcpy(temp, current, 16);
-            for (int i = (int)m.start; i <= (int)m.end && i < 16; i++) {
+            for (int i = static_cast<int>(m.start); i <= static_cast<int>(m.end) && i < 16; i++) {
                 temp[i] = src[i];
             }
             ram.writeReg(addr, temp);
@@ -207,7 +207,7 @@ void TMC0501::readScomMasked(uint8_t* dst, int addr, const MaskInfo& m) {
     // Read only the nibbles in the masked range from SCOM, zero out others
     memset(dst, 0, 16);
     if (addr < 16 && m.start != 0xFF) {
-        for (int i = (int)m.start; i <= (int)m.end && i < 16; i++) {
+        for (int i = static_cast<int>(m.start); i <= static_cast<int>(m.end) && i < 16; i++) {
             dst[i] = SCOM[addr][i];
         }
     }
@@ -228,11 +228,11 @@ void TMC0501::emitDebug(uint8_t level, const char* fmt, ...) {
     if (level > m_debugLevel) return;
     DebugEvent ev;
     ev.level = level;
-    va_list args;
+    va_list args{};  // NOLINT(cppcoreguidelines-init-variables) -- initialized by va_start
     va_start(args, fmt);
     vsnprintf(ev.msg, sizeof(ev.msg), fmt, args);
     va_end(args);
-    m_debugEvents.push_back(std::move(ev));
+    m_debugEvents.push_back(ev);
 }
 
 std::vector<DebugEvent> TMC0501::drainDebugEvents() {
@@ -245,12 +245,12 @@ std::vector<DebugEvent> TMC0501::drainDebugEvents() {
 
 void TMC0501::pressKey(int row, int col) {
     if (col >= 0 && col < 16 && row >= 0 && row < 7)
-        key[col] |= (uint8_t)(1u << row);
+        key[col] |= static_cast<uint8_t>(1U << row);
 }
 
 void TMC0501::releaseKey(int row, int col) {
     if (col >= 0 && col < 16 && row >= 0 && row < 7)
-        key[col] &= (uint8_t)~(1u << row);
+        key[col] &= static_cast<uint8_t>(~(1U << row));
 }
 
 // ── Display read-out ──────────────────────────────────────────────────────────
@@ -290,7 +290,7 @@ DisplaySnapshot TMC0501::getDisplay() const {
 
     if (m_dispFilter >= 3) {
         DisplaySnapshot blank{};
-        for (int i=0; i<12; ++i) blank.ctrl[i] = 7;
+        for (auto& ctrl : blank.ctrl) ctrl = 7;
         blank.calcIndicator = cLevel;
         return blank;
     }
@@ -321,15 +321,15 @@ void TMC0501::alu(uint8_t* dst, const uint8_t* srcX, const uint8_t* srcY,
                   const MaskInfo& m, int op) {
     uint8_t carry = 0, shl = 0;
     for (int i = 0; i <= 15; ++i) {
-        if (i == (int)m.start) { shl = carry = 0; }
+        if (i == static_cast<int>(m.start)) { shl = carry = 0; }
 
         uint8_t sum = 0, shr = 0;
-        if (srcY)              sum  = srcY[i];
-        if (i == (int)m.cpos) sum |= m.cval;
+        if (srcY)                                sum  = srcY[i];
+        if (i == static_cast<int>(m.cpos))       sum |= m.cval;
         shr  = sum;
-        sum  = (uint8_t)(sum + carry);
-        if (op >= ALU_SUB)     sum  = (uint8_t)(-sum);
-        if (srcX)            { sum  = (uint8_t)(sum + srcX[i]); shr |= srcX[i]; }
+        sum  = static_cast<uint8_t>(sum + carry);
+        if (op >= ALU_SUB)     sum  = static_cast<uint8_t>(-sum);
+        if (srcX)            { sum  = static_cast<uint8_t>(sum + srcX[i]); shr |= srcX[i]; }
 
         // Real hardware drives Sout to 0 outside the active field.  Naively
         // propagating the carry chain into all 16 positions (the "obvious"
@@ -337,30 +337,30 @@ void TMC0501::alu(uint8_t* dst, const uint8_t* srcX, const uint8_t* srcY,
         // digits.  That stale data then gets written into SCOM via FLG_STORE,
         // corrupting registers used later as print-buffer indices and producing
         // spurious '8' characters in printer output (PRN_CODE[9] = '8').
-        Sout[i] = (i >= (int)m.start && i <= (int)m.end) ? (sum & 0x0F) : 0;
+        Sout[i] = (i >= static_cast<int>(m.start) && i <= static_cast<int>(m.end)) ? (sum & 0x0F) : 0;
 
         // BCD carry: digit 0 wraps at 16 (hex); digits 1–15 wrap at 10 (decimal)
         if (i == 0) {
-            if ((carry = (sum >= 0x10 ? 1u : 0u))) sum &= 0x0Fu;
+            if ((carry = (sum >= 0x10 ? 1U : 0U))) sum &= 0x0FU;
         } else {
-            if ((carry = (sum >= 10 ? 1u : 0u))) {
-                if (op < ALU_SUB) sum = (uint8_t)(sum - 10);
-                else              sum = (uint8_t)(sum + 10);
+            if ((carry = (sum >= 10 ? 1U : 0U))) {
+                if (op < ALU_SUB) sum = static_cast<uint8_t>(sum - 10);
+                else              sum = static_cast<uint8_t>(sum + 10);
             }
         }
 
-        if (i >= (int)m.start && i <= (int)m.end) {
-            if (i == (int)m.cpos) R5 = sum;  // R5 captures result at constant position per manual
+        if (i >= static_cast<int>(m.start) && i <= static_cast<int>(m.end)) {
+            if (i == static_cast<int>(m.cpos)) R5 = sum;  // R5 captures result at constant position per manual
             if (dst) {
-                if      (op == ALU_SHL)                    dst[i]   = shl;
+                if      (op == ALU_SHL)                              dst[i]   = shl;
                 else if (op == ALU_SHR) {
-                    if (i > (int)m.start)                  dst[i-1] = shr;
-                    if (i == (int)m.end)                   dst[i]   = 0;
-                } else                                     dst[i]   = sum;
+                    if (i > static_cast<int>(m.start))               dst[i-1] = shr;
+                    if (i == static_cast<int>(m.end))                dst[i]   = 0;
+                } else                                               dst[i]   = sum;
                 shl = sum;
             }
             // Carry out of the field clears COND (signals overflow to branches)
-            if (i == (int)m.end && !(op & 0x1) && carry)
+            if (i == static_cast<int>(m.end) && !(op & 0x1) && carry)
                 flags &= ~FLG_COND;
         }
     }
@@ -368,7 +368,7 @@ void TMC0501::alu(uint8_t* dst, const uint8_t* srcX, const uint8_t* srcY,
 
 void TMC0501::xch(uint8_t* a, uint8_t* b, const MaskInfo& m) {
     if (m.start == 0xFF) return;
-    for (int i = (int)m.start; i <= (int)m.end; ++i) {
+    for (int i = static_cast<int>(m.start); i <= static_cast<int>(m.end); ++i) {
         uint8_t t = a[i]; a[i] = b[i]; b[i] = t;
     }
 }
@@ -453,15 +453,15 @@ int TMC0501::step() {
         flags |= FLG_JUMP;  // triggers COND auto-restore on the next non-branch
         if (!((flags ^ opcode) & FLG_COND)) {
             uint16_t offs = (opcode >> 1) & 0x3FFu;
-            if (opcode & 0x0001) addr = (uint16_t)(addr - offs);
-            else                 addr = (uint16_t)(addr + offs);
+            if (opcode & 0x0001) addr = static_cast<uint16_t>(addr - offs);
+            else                 addr = static_cast<uint16_t>(addr + offs);
         } else {
             addr++;
         }
         int w = (flags & FLG_IDLE) ? 4 : 1;
         if (tf != TRACE_NONE) [[unlikely]] { tracePostStep(tf, snapCaptured, w); }
         if ((flags & FLG_IDLE) ? (fA & 0x4000u) : fA) m_cSteps.fetch_add(1, std::memory_order_relaxed);
-        m_pollSteps.fetch_add((uint32_t)w, std::memory_order_relaxed);
+        m_pollSteps.fetch_add(static_cast<uint32_t>(w), std::memory_order_relaxed);
         return w;
     }
 
@@ -491,7 +491,7 @@ int TMC0501::step() {
         memcpy(s.C,    C,    16);
         memcpy(s.D,    D,    16);
         memcpy(s.E,    E,    16);
-        memcpy(s.SCOM, SCOM, 16 * 16);
+        memcpy(s.SCOM, SCOM, sizeof(SCOM));
         memcpy(s.Sout, Sout, 16);
         s.KR = KR; s.SR = SR; s.fA = fA; s.fB = fB;
         s.EXT = EXT; s.PREG = PREG ? 1 : 0; s.flags = flags;
@@ -508,7 +508,7 @@ int TMC0501::step() {
     // or on individual bits of KR.  The bit index is encoded in opcode bits 7:4.
     case 0x0000: {
         unsigned bit  = (opcode >> 4) & 0x000Fu;
-        uint16_t mask = (uint16_t)(1u << bit);
+        uint16_t mask = static_cast<uint16_t>(1u << bit);
         switch (opcode & 0x000Fu) {
         case 0x0: if (fA & mask) flags &= ~FLG_COND; break;  // TST fA[b]  — clear COND if bit set
         case 0x1: fA |=  mask;                        break;  // SET fA[b]
@@ -517,7 +517,7 @@ int TMC0501::step() {
         case 0x4: if ((fA ^ fB) & mask) { fA ^= mask; fB ^= mask; } break; // XCH fA[b],fB[b]
         case 0x5: KR |= mask; break;  // SET KR[b]
         case 0x6: if ((fA ^ fB) & mask) fA ^= mask;  break;  // MOV fA[b],fB[b]  (copy fB→fA if different)
-        case 0x7: fA = (uint16_t)((fA & ~0x001Eu) | ((R5 & 0x0Fu) << 1)); break; // MOV fA[1..4],R5
+        case 0x7: fA = static_cast<uint16_t>((fA & ~0x001Eu) | ((R5 & 0x0Fu) << 1)); break; // MOV fA[1..4],R5
         case 0x8: if (fB & mask) flags &= ~FLG_COND; break;  // TST fB[b]
         case 0x9: fB |=  mask;                        break;  // SET fB[b]
         case 0xA: fB &= ~mask;                        break;  // CLR fB[b]
@@ -525,7 +525,8 @@ int TMC0501::step() {
         case 0xC: if (!((fA ^ fB) & mask)) flags &= ~FLG_COND; break; // CMP fA[b],fB[b] — clear COND if equal
         case 0xD: KR &= ~mask;                        break;  // CLR KR[b]
         case 0xE: if ((fA ^ fB) & mask) fB ^= mask;  break;  // MOV fB[b],fA[b]  (copy fA→fB if different)
-        case 0xF: fB = (uint16_t)((fB & ~0x001Eu) | ((R5 & 0x0Fu) << 1)); break; // MOV fB[1..4],R5
+        case 0xF: fB = static_cast<uint16_t>((fB & ~0x001Eu) | ((R5 & 0x0Fu) << 1)); break; // MOV fB[1..4],R5
+        default: break;
         }
         break;
     }
@@ -545,7 +546,7 @@ int TMC0501::step() {
         // XOR with 0x7F inverts all 7 bits because the key[] bitmask uses
         // active-high (bit set = key pressed), while the opcode encodes the
         // mask active-low (0 = "care about this line").
-        uint8_t kmask = (uint8_t)(
+        uint8_t kmask = static_cast<uint8_t>(
             (((opcode & 0x07u) | ((opcode >> 1) & 0x78u)) ^ 0x7Fu) & key[digit]);
         // Reject simultaneous multi-key presses (hardware limitation)
         if (kmask & (kmask - 1u)) kmask = 0;
@@ -560,7 +561,7 @@ int TMC0501::step() {
                 uint8_t bit = 0, m2 = kmask;
                 while (!(m2 & 1)) { bit++; m2 >>= 1; }
                 flags &= ~FLG_COND;
-                KR = (uint16_t)((digit << 4) | ((bit << 8) & 0x0700u));
+                KR = static_cast<uint16_t>((digit << 4) | ((bit << 8) & 0x0700u));
             } else if (digit) {
                 flags |= FLG_HOLD;  // not at digit 0 yet — re-execute
             }
@@ -599,7 +600,7 @@ int TMC0501::step() {
             // KR bits 7:4 index the current constant entry; incrementing
             // them walks through the 64-entry constant table.  When bits
             // 15:4 all reach zero, bit 0 toggles as an overflow indicator.
-            KR = (uint16_t)(KR + 0x0010u);
+            KR = static_cast<uint16_t>(KR + 0x0010u);
             if (!(KR & 0xFFF0u)) KR ^= 0x0001u;
             break;
 
@@ -610,7 +611,7 @@ int TMC0501::step() {
         case 0x6: {
             // TI-58C uses 0xA76 (MEMWR) and 0xA86 (MEMRD); reserve bits 7:4 = 0x7/0x8
             // TI-59/58 use these bits for MOV R5 operand selection (bit 4 = fA/fB choice)
-            uint8_t bits_7_4 = (uint8_t)((opcode >> 4) & 0x000Fu);
+            uint8_t bits_7_4 = static_cast<uint8_t>((opcode >> 4) & 0x000Fu);
             if (hasConstantMemory(m_variant) && bits_7_4 == 0x7) {
                 // MEMWR — deferred write: capture address from Sout now; the
                 // actual data comes from the IO bus at the END of the next
@@ -618,34 +619,34 @@ int TMC0501::step() {
                 // If that instruction drives IO as output (FLG_IO_VALID), Sout
                 // carries the data. Otherwise the bus is in input mode and reads
                 // as zero — so zero is written. Address is Sout[1:0].
-                RAM_ADDR = (uint8_t)(Sout[1] * 16u + Sout[0]);
+                RAM_ADDR = static_cast<uint8_t>((Sout[1] * 16u) + Sout[0]);
                 if (RAM_ADDR < ram.size())
                     flags |= FLG_RAM_WRITE;
             } else if (hasConstantMemory(m_variant) && bits_7_4 == 0x8) {
                 // MEMRD — read RAM[RAM_ADDR] into next MOV #0 as srcY (set up by preceding ALU opcode)
                 // Address is encoded in Sout[1:0] as two hex nibbles.
-                RAM_ADDR = (uint8_t)(Sout[1] * 16u + Sout[0]);
+                RAM_ADDR = static_cast<uint8_t>((Sout[1] * 16u) + Sout[0]);
                 if (RAM_ADDR < ram.size())
                     flags |= FLG_RAM_READ;
             } else {
                 // MOV R5,fA[1..4] or fB[1..4] — copy bits 1-4 into R5
                 uint16_t flags = (opcode & 0x0010u) ? fB : fA;
-                R5 = (uint8_t)((flags >> 1) & 0x0Fu);
+                R5 = static_cast<uint8_t>((flags >> 1) & 0x0Fu);
             }
             break;
         }
 
         case 0x7:  // MOV R5,#n — load 4-bit immediate into R5
-            R5 = (uint8_t)((opcode >> 4) & 0x000Fu);
+            R5 = static_cast<uint8_t>((opcode >> 4) & 0x000Fu);
             break;
 
         case 0x8:  // Peripheral I/O (card reader, printer, RAM, library)
             switch (opcode & 0x00F0u) {
-            case 0x00: R5 = (uint8_t)((KR >> 4) & 0x000Fu); break;  // MOV R5,KR[4..7]
-            case 0x10: KR = (uint16_t)((KR & ~0x00F0u) | ((uint16_t)R5 << 4)); break; // MOV KR[4..7],R5
+            case 0x00: R5 = static_cast<uint8_t>((KR >> 4) & 0x000Fu); break;  // MOV R5,KR[4..7]
+            case 0x10: KR = static_cast<uint16_t>((KR & ~0x00F0u) | (static_cast<uint16_t>(R5) << 4)); break; // MOV KR[4..7],R5
             case 0x20: // IN CRD — card read: fetch next nibble into EXT bits 4-7
                 if (m_cardPresent && m_cardMode == 1 && m_cardPtr < 246) {
-                    EXT = (uint16_t)m_cardBankBuffer[m_cardPtr++] << 4;
+                    EXT = static_cast<uint16_t>(m_cardBankBuffer[m_cardPtr++]) << 4;
                 } else {
                     EXT = 0;
                 }
@@ -653,21 +654,21 @@ int TMC0501::step() {
                 break;
             case 0x30: // OUT CRD — card write: capture KR bits 4-11 (both nibbles) into bank buffer
                 if (m_cardPresent && m_cardMode == 2 && m_cardPtr < 246) {
-                    m_cardBankBuffer[m_cardPtr++] = (uint8_t)((KR >> 4) & 0xFFu);
+                    m_cardBankBuffer[m_cardPtr++] = static_cast<uint8_t>((KR >> 4) & 0xFFu);
                 }
                 break;
             case 0x40: // CRD_OFF — finalize bank operation; card exits reader
                 if (m_cardMode == 2) {
                     // Flush bank buffer back to full card data based on bank index in byte 2.
                     // nibble index 2 -> byte 2 in our 1-byte-per-nibble mapping.
-                    int bank = (m_cardBankBuffer[2] & 0x0Fu) / 3;
+                    int bank = static_cast<int>((m_cardBankBuffer[2] & 0x0Fu) / 3);
                     if (bank >= 0 && bank < 4) {
-                        memcpy(m_cardFullData + bank * 246, m_cardBankBuffer, 246);
+                        memcpy(m_cardFullData + (static_cast<size_t>(bank) * 246), m_cardBankBuffer, 246);
                         m_lastWrittenBank = bank;
                     }
                 } else if (m_cardMode == 1) {
                     // Card banks 0–3 are encoded as nibble values 0,3,6,9; advance by 3 per read pass.
-                    m_cardBankBuffer[2] = (uint8_t)((m_cardBankBuffer[2] + 3) & 0x0F);
+                    m_cardBankBuffer[2] = static_cast<uint8_t>((m_cardBankBuffer[2] + 3) & 0x0F);
                 }
                 m_cardMode = 0;
                 m_cardPtr  = 0;
@@ -679,9 +680,9 @@ int TMC0501::step() {
                 break;
             case 0x50: // CRD_READ — load requested bank into swipe buffer
                 if (m_cardMode == 0) {
-                    int bank = (m_cardBankBuffer[2] & 0x0Fu) / 3;
+                    int bank = static_cast<int>((m_cardBankBuffer[2] & 0x0Fu) / 3);
                     if (bank >= 0 && bank < 4) {
-                        memcpy(m_cardBankBuffer, m_cardFullData + bank * 246, 246);
+                        memcpy(m_cardBankBuffer, m_cardFullData + (static_cast<size_t>(bank) * 246), 246);
                     }
                     m_cardMode = 1;
                     m_cardPtr  = 0;
@@ -695,7 +696,7 @@ int TMC0501::step() {
                 break;
             case 0x60: { // OUT PRT — load one character into print buffer
                 if (m_prnReady) {
-                    uint8_t code = (uint8_t)((KR >> 4) & 0x3Fu);
+                    uint8_t code = static_cast<uint8_t>((KR >> 4) & 0x3Fu);
                     uint8_t slot = m_prnPtr % 20;
                     m_prnBuf[slot]     = PRN_CODE[code];
                     m_prnCodeBuf[slot] = code;
@@ -705,7 +706,7 @@ int TMC0501::step() {
             }
             case 0x70: { // OUT PRT_FUNC — load 3-char function mnemonic (stored reversed)
                 if (m_prnReady) {
-                    uint8_t code = (uint8_t)((KR >> 4) & 0x7Fu);
+                    uint8_t code = static_cast<uint8_t>((KR >> 4) & 0x7Fu);
                     for (int i = 0; PRN_STR[i].str[0]; i++) {
                         if (code == PRN_STR[i].code) {
                             // Store chars reversed so print-reversal restores correct order
@@ -764,8 +765,8 @@ int TMC0501::step() {
                 // only fire when the ROM polls TST BUSY between characters.
                 {
                     std::lock_guard<std::mutex> lk(m_prnMutex);
-                    m_prnLines.push_back(std::string{});
-                    m_prnCodeLines.push_back(std::array<uint8_t,20>{});  // zero-filled
+                    m_prnLines.emplace_back();
+                    m_prnCodeLines.emplace_back();  // zero-filled
                 }
                 flags |= FLG_BUSY;
                 m_prnBusyCycles = 2808;  // (197.5ms * 455kHz) / 2 / 16 / 1000
@@ -802,7 +803,7 @@ int TMC0501::step() {
             break;
 
         case 0xC:  // MOV KR,EXT[4..15] — load KR upper bits from card/library read
-            KR = (uint16_t)((KR & 0x000Fu) | EXT);
+            KR = static_cast<uint16_t>((KR & 0x000Fu) | EXT);
             break;
 
         case 0xD:  // XCH KR,SR — swap KR and SR (primary subroutine return mechanism)
@@ -812,7 +813,7 @@ int TMC0501::step() {
         case 0xE:  // Library module operations
             switch (opcode & 0x00F0u) {
             case 0x00: // IN LIB — fetch one byte from library; advance pointer
-                EXT = (uint16_t)m_libData[m_libAddr++] << 4;
+                EXT = static_cast<uint16_t>(m_libData[m_libAddr++]) << 4;
                 flags |= FLG_EXT_VALID;
                 m_libAddr %= 5000;
                 break;
@@ -826,7 +827,7 @@ int TMC0501::step() {
                 // The ROM calls this instruction four times to load a full
                 // 4-digit address (once per BCD nibble, MSN first).
                 if (!m_libAddrWasWriting) m_libAddrReadPos = 0;  // Reset if switching from read to write
-                m_libAddr = (uint16_t)((m_libAddr / 10) + ((KR >> 4 & 0xFu) * 1000));
+                m_libAddr = static_cast<uint16_t>((m_libAddr / 10) + ((KR >> 4 & 0xFu) * 1000));
                 m_libAddrReadPos = (m_libAddrReadPos + 1) % 4;
                 m_libAddrWasWriting = true;
                 break;
@@ -836,16 +837,17 @@ int TMC0501::step() {
                 {
                     if (m_libAddrWasWriting) m_libAddrReadPos = 0;  // Reset if switching from write to read
                     uint16_t divisors[4] = {1, 10, 100, 1000};
-                    EXT = (uint16_t)((m_libAddr / divisors[m_libAddrReadPos]) % 10) << 4;
+                    EXT = static_cast<uint16_t>((m_libAddr / divisors[m_libAddrReadPos]) % 10) << 4;
                     flags |= FLG_EXT_VALID;
                     m_libAddrReadPos = (m_libAddrReadPos + 1) % 4;
                     m_libAddrWasWriting = false;
                 }
                 break;
             case 0x30: // IN LIB_HIGH — fetch high nibble of current byte (no advance)
-                EXT = (uint16_t)(m_libData[m_libAddr] & 0xF0u);
+                EXT = static_cast<uint16_t>(m_libData[m_libAddr] & 0xF0u);
                 flags |= FLG_EXT_VALID;
                 break;
+            default: break;
             }
             break;
 
@@ -858,8 +860,10 @@ int TMC0501::step() {
             switch (opcode & 0x00F0u) {
             case 0x00: REG_ADDR = Sout[0] & 0x0Fu; flags |= FLG_STORE; break; // STO
             case 0x10: flags |= FLG_RECALL; REG_ADDR = Sout[0] & 0x0Fu; break; // RCL
+            default: break;
             }
             break;
+        default: break;
         }
         break;
 
@@ -882,7 +886,7 @@ int TMC0501::step() {
     int w = (flags & FLG_IDLE) ? 4 : 1;
     if (tf != TRACE_NONE) [[unlikely]] { tracePostStep(tf, snapCaptured, w); }
     if ((flags & FLG_IDLE) ? (fA & 0x4000u) : fA) m_cSteps.fetch_add(1, std::memory_order_relaxed);
-    m_pollSteps.fetch_add((uint32_t)w, std::memory_order_relaxed);
+    m_pollSteps.fetch_add(static_cast<uint32_t>(w), std::memory_order_relaxed);
 
     // ── PREG latch (after instruction execution) ─────────────────────────
     // When KR bit 1 is set (by SET KR[1] instruction), store the address
@@ -890,7 +894,7 @@ int TMC0501::step() {
     // of the next instruction cycle.
     if (KR & 0x2) {
         PREG = (KR >> 4) | ((KR & 0x1) << 12);  // Store address
-        KR  &= ~(uint16_t)0x2;
+        KR  &= ~static_cast<uint16_t>(0x2);
     }
 
     return w;
@@ -914,8 +918,8 @@ void TMC0501::execALU(uint16_t opcode) {
     // Operations 24–31 are special cases handled below (constant, SCOM/RAM, R5).
     const uint8_t* srcX = nullptr;
     const uint8_t* srcY = nullptr;
-    int aluOp;
-    int aluIdx = (opcode >> 3) & 0x1Fu;
+    int aluOp = ALU_ADD;
+    int aluIdx = static_cast<int>((opcode >> 3) & 0x1Fu);
     switch (aluIdx) {
     case  0: srcX=A;       srcY=nullptr; aluOp=ALU_ADD; break;
     case  1: srcX=A;       srcY=nullptr; aluOp=ALU_SUB; break;
@@ -957,11 +961,12 @@ void TMC0501::execALU(uint16_t opcode) {
     case 5: dst = nullptr; break;  // XCH C,D
     case 6: dst = D; break;
     case 7: dst = nullptr; break;  // XCH A,E
+    default: break;
     }
 
     // SCOM constant index — built from KR bits 10:4 (7 bits total).
     // The unusual bit arrangement mirrors the hardware's KR field layout.
-    int constIdx = (int)(((KR >> 5) & 0x78u) | ((KR >> 4) & 0x07u));
+    int constIdx = static_cast<int>(((KR >> 5) & 0x78u) | ((KR >> 4) & 0x07u));
     if (constIdx >= 64) constIdx = 0;
     const uint8_t* constPtr = m_constant[constIdx];
 
@@ -998,7 +1003,7 @@ void TMC0501::execALU(uint16_t opcode) {
             // Zero all field digits except start, then inject the mask constant and R5.
             // Running the result through alu() applies BCD carry-correction, which is
             // needed when the field includes EXP or DPT digits with base-16 behaviour.
-            for (int i = (int)m.start + 1; i <= (int)m.end; ++i) dst[i] = 0;
+            for (int i = static_cast<int>(m.start) + 1; i <= static_cast<int>(m.end); ++i) dst[i] = 0;
             dst[m.cpos]  = m.cval;
             dst[m.start] = R5;
             alu(dst, nullptr, dst, m, (opcode & 0x0008u) ? ALU_SUB : ALU_ADD);
@@ -1014,6 +1019,7 @@ void TMC0501::execALU(uint16_t opcode) {
     case 2: xch(A, B, m); break;
     case 5: xch(C, D, m); break;
     case 7: xch(A, E, m); break;
+    default: break;
     }
 
     // ── Capture field mask for deferred RAM operations ────────────────
@@ -1049,7 +1055,7 @@ void TMC0501::execALU(uint16_t opcode) {
             addr_units = Sout[2];
         }
         RAM_OP = op_nibble;
-        RAM_ADDR = (uint8_t)(addr_tens * 10u + addr_units);
+        RAM_ADDR = static_cast<uint8_t>((addr_tens * 10u) + addr_units);
         if (RAM_ADDR < ram.size()) {
             if      (RAM_OP == 2) { ram.clearReg(RAM_ADDR, 1);  emitDebug(2, "RAM_OP CLR1 RAM[%03d]",  RAM_ADDR); }
             else if (RAM_OP == 4) { ram.clearReg(RAM_ADDR, 10); emitDebug(2, "RAM_OP CLR10 RAM[%03d]", RAM_ADDR); }
@@ -1115,7 +1121,7 @@ std::vector<uint8_t> TMC0501::cardEject() {
     // If no write occurred (read swipe or no swipe), return empty.
     if (m_lastWrittenBank < 0 || m_lastWrittenBank > 3)
         return {};
-    const uint8_t* bank = m_cardFullData + m_lastWrittenBank * 246;
+    const uint8_t* bank = m_cardFullData + (static_cast<size_t>(m_lastWrittenBank) * 246);
     std::vector<uint8_t> result(bank, bank + 246);
     m_lastWrittenBank = -1;
     return result;
@@ -1241,7 +1247,7 @@ void TMC0501::tracePostStep(uint32_t tf, bool snapCaptured, int weight) {
         memcpy(s.C,    C,    16);
         memcpy(s.D,    D,    16);
         memcpy(s.E,    E,    16);
-        memcpy(s.SCOM, SCOM, 16 * 16);
+        memcpy(s.SCOM, SCOM, sizeof(SCOM));
         memcpy(s.Sout, Sout, 16);
         s.KR = KR; s.SR = SR; s.fA = fA; s.fB = fB;
         s.EXT = EXT; s.PREG = PREG ? 1 : 0; s.flags = flags;
@@ -1254,7 +1260,7 @@ void TMC0501::tracePostStep(uint32_t tf, bool snapCaptured, int weight) {
     ev.pc          = m_tracePC;
     ev.opcode      = m_traceOpcode;
     ev.digit       = digit;
-    ev.cycleWeight = (uint8_t)weight;
+    ev.cycleWeight = static_cast<uint8_t>(weight);
     ev.seqno       = m_traceSeqno++;
     // 0x00 = snapshot present in parallel snapRing slot; 0xFF = no snapshot.
     // Not used as an actual array index — the drain uses (m_traceTail & kTraceRingMask)
@@ -1340,7 +1346,7 @@ CPUSnapshot TMC0501::snapshotCPU() const {
     CPUSnapshot s{};
     memcpy(s.A, A, 16); memcpy(s.B, B, 16); memcpy(s.C, C, 16);
     memcpy(s.D, D, 16); memcpy(s.E, E, 16);
-    memcpy(s.SCOM, SCOM, 16 * 16);
+    memcpy(s.SCOM, SCOM, sizeof(SCOM));
     memcpy(s.Sout, Sout, 16);
     s.KR = KR; s.SR = SR; s.fA = fA; s.fB = fB;
     s.EXT = EXT; s.PREG = PREG ? 1 : 0; s.flags = flags;
@@ -1419,12 +1425,12 @@ std::string TMC0501::disassemble(uint16_t pc, uint16_t opcode) {
         uint16_t offs   = (opcode >> 1) & 0x3FFu;
         bool     back   = (opcode & 0x0001) != 0;
         bool     cond   = (opcode & FLG_COND) != 0; // bit 11 of opcode
-        uint16_t target = back ? (uint16_t)(pc - offs) : (uint16_t)(pc + offs);
+        uint16_t target = back ? static_cast<uint16_t>(pc - offs) : static_cast<uint16_t>(pc + offs);
         snprintf(buf, sizeof(buf), "%s %04X", kBranch[cond ? 1 : 0], target);
         return buf;
     }
 
-    uint8_t hi = (uint8_t)((opcode >> 8) & 0x0Fu);
+    uint8_t hi = static_cast<uint8_t>((opcode >> 8) & 0x0Fu);
 
     // ── Flag / control ops (hi nibble = 0) ────────────────────────────
     if (hi == 0x0) {
@@ -1438,7 +1444,7 @@ std::string TMC0501::disassemble(uint16_t pc, uint16_t opcode) {
     // ── Keyboard scan (hi nibble = 8) ─────────────────────────────────
     if (hi == 0x8) {
         bool    single = (opcode & 0x0008) != 0;
-        uint8_t kmask  = (uint8_t)((opcode >> 4) & 0x0Fu);
+        uint8_t kmask  = static_cast<uint8_t>((opcode >> 4) & 0x0Fu);
         if (single) {
             snprintf(buf, sizeof(buf), "KEY %u,D%u", kmask, opcode & 7u);
         } else {
@@ -1449,8 +1455,8 @@ std::string TMC0501::disassemble(uint16_t pc, uint16_t opcode) {
 
     // ── Misc / control (hi nibble = A) ──────────────────────────────────
     if (hi == 0xA) {
-        uint8_t loNib = (uint8_t)(opcode & 0x000Fu);
-        uint8_t arg   = (uint8_t)((opcode >> 4) & 0x000Fu);
+        uint8_t loNib = static_cast<uint8_t>(opcode & 0x000Fu);
+        uint8_t arg   = static_cast<uint8_t>((opcode >> 4) & 0x000Fu);
         switch (loNib) {
         case 0x0: snprintf(buf, sizeof(buf), "WAIT D%u", arg); return buf;
         case 0x1: return "CLR.IDLE";
@@ -1468,10 +1474,10 @@ std::string TMC0501::disassemble(uint16_t pc, uint16_t opcode) {
         }
         case 0x7: snprintf(buf, sizeof(buf), "MOV R5,#%u", arg); return buf;
         case 0x8: {
-            uint8_t prn = (uint8_t)((opcode & 0x00F0u) >> 4);
+            uint8_t prn = static_cast<uint8_t>((opcode & 0x00F0u) >> 4);
             const char* s = kPrn[prn];
             if (s && *s) return s;
-            snprintf(buf, sizeof(buf), "IO_%02X", (uint8_t)(opcode & 0x00FFu));
+            snprintf(buf, sizeof(buf), "IO_%02X", static_cast<uint8_t>(opcode & 0x00FFu));
             return buf;
         }
         case 0x9: return "SET.IDLE";
@@ -1480,7 +1486,7 @@ std::string TMC0501::disassemble(uint16_t pc, uint16_t opcode) {
         case 0xC: return "MOV KR,EXT[4..15]";
         case 0xD: return "SWAP KR,SR";
         case 0xE: {
-            uint8_t lib = (uint8_t)((opcode & 0x00F0u) >> 4);
+            uint8_t lib = static_cast<uint8_t>((opcode & 0x00F0u) >> 4);
             const char* s = kLib[lib];
             if (s && *s) return s;
             snprintf(buf, sizeof(buf), "LIB_%02X", lib);
@@ -1498,7 +1504,7 @@ std::string TMC0501::disassemble(uint16_t pc, uint16_t opcode) {
 
     // ── ALU (everything else) — assignment notation ───────────────────
     const char* fld    = kMaskName[hi];
-    int         aluIdx = (opcode >> 3) & 0x1Fu;
+    int         aluIdx = static_cast<int>((opcode >> 3) & 0x1Fu);
     int         dstIdx = opcode & 0x07;
     const char* dstB   = kDstBase[dstIdx];
     const char* dstX   = kDstXch[dstIdx];
@@ -1513,7 +1519,7 @@ std::string TMC0501::disassemble(uint16_t pc, uint16_t opcode) {
     const char* dst = dstB;
 
     // Special-case entries 24-31 (opcode bits 7:3 = 11xxx)
-    uint8_t spOp = (uint8_t)(opcode & 0x00F8u);
+    uint8_t spOp = static_cast<uint8_t>(opcode & 0x00F8u);
     if (spOp == 0xC0) { snprintf(buf, sizeof(buf), "%s=A+CON %s", dst, fld); return buf; }
     if (spOp == 0xC8) { snprintf(buf, sizeof(buf), "%s=A-CON %s", dst, fld); return buf; }
     if (spOp == 0xD0) { snprintf(buf, sizeof(buf), "%s=LOAD %s",  dst, fld); return buf; }
