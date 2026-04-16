@@ -36,6 +36,7 @@ final class TraceWriter {
     // ── State ─────────────────────────────────────────────────────────────────
     private(set) var isOpen = false
     private var fileHandle: FileHandle?
+    private var currentTraceURL: URL?  // Track the URL for security-scoped resource cleanup
 
     // Dedup state: key bytes of the last written "first-of-run" event
     private var pendingBytes: Data?            // serialised payload of the last seen event
@@ -46,6 +47,9 @@ final class TraceWriter {
     private var sessionEventCount: UInt32    = 0
     private var sessionSuppressedTotal: UInt32 = 0
 
+    init() {
+    }
+
     // ── Public API ────────────────────────────────────────────────────────────
 
     /// Resolve the trace file URL, open (or create+append) the file, and write
@@ -55,16 +59,42 @@ final class TraceWriter {
 
         let url = Self.traceFileURL()
         let fm = FileManager.default
+        let parentDir = url.deletingLastPathComponent()
+        
         // Ensure the parent directory exists (needed for App Library and Custom paths).
-        try? fm.createDirectory(at: url.deletingLastPathComponent(),
-                                withIntermediateDirectories: true)
-        let isNew = !fm.fileExists(atPath: url.path)
-        if isNew { fm.createFile(atPath: url.path, contents: nil) }
-
-        guard let fh = try? FileHandle(forWritingTo: url) else {
-            print("[TraceWriter] ERROR: could not open \(url.path)")
+        do {
+            try fm.createDirectory(at: parentDir, withIntermediateDirectories: true)
+        } catch {
             return
         }
+        
+        // Check if file exists
+        let fileExists = fm.fileExists(atPath: url.path)
+        
+        // Create file if it doesn't exist
+        if !fileExists {
+            // Try method 1: FileManager.createFile()
+            var created = fm.createFile(atPath: url.path, contents: nil)
+            
+            // If that failed, try method 2: Write empty data
+            if !created {
+                do {
+                    try Data().write(to: url)
+                    created = true
+                } catch {
+                    // silently fail
+                }
+            }
+            
+            guard created else { return }
+        }
+        
+        // Verify file now exists
+        guard fm.fileExists(atPath: url.path) else { return }
+        
+        // Try to open the file for writing
+        guard let fh = try? FileHandle(forWritingTo: url) else { return }
+        
         let fileOffset = fh.seekToEndOfFile()
 
         if fileOffset == 0 {
@@ -74,6 +104,7 @@ final class TraceWriter {
 
         fileHandle = fh
         isOpen = true
+        currentTraceURL = url
         suppressedCount = 0
         pendingBytes = nil
         pendingKey   = nil
@@ -84,8 +115,6 @@ final class TraceWriter {
         var payload = Data(capacity: 8)
         payload.appendLE(UInt64(Date().timeIntervalSince1970))
         writeRecord(.sessionStart, payload: payload)
-
-        print("[TraceWriter] trace → \(url.path)")
     }
 
     /// Flush any pending dedup event, write a SESSION_END record, and close the file.
@@ -102,8 +131,14 @@ final class TraceWriter {
 
         fh.closeFile()
         fileHandle = nil
+        
+        // Stop accessing security-scoped resource if it was used
+        if let traceURL = currentTraceURL {
+            traceURL.stopAccessingSecurityScopedResource()
+        }
+        currentTraceURL = nil
+        
         isOpen = false
-        print("[TraceWriter] trace closed (\(sessionEventCount) events, \(sessionSuppressedTotal) suppressed)")
     }
 
     /// Write a CPU trace event with full-dedup logic.

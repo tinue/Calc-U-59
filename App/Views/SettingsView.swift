@@ -12,6 +12,9 @@ struct SettingsView: View {
     @AppStorage(SettingsKey.startupModel)    private var startupModelRaw: Int = -1
     @AppStorage(SettingsKey.traceLocation)   private var traceLocationRaw: Int = TraceLocation.local.rawValue
     @AppStorage(SettingsKey.traceCustomPath) private var traceCustomPath: String = ""
+    
+    // Trigger refresh of warning after re-authorization
+    @State private var authRefreshTrigger: UUID = UUID()
 
     var body: some View {
         #if os(macOS)
@@ -61,6 +64,16 @@ struct SettingsView: View {
                         Spacer()
                         Button("Choose…") { chooseCustomFolder() }
                     }
+                    
+                    // Show warning if path exists but no bookmark (old settings without re-authorization)
+                    Group {
+                        if AppSettings.customTracePathNeedsReauthorization() {
+                            Text("⚠️ This folder needs to be re-authorized. Click 'Choose…' again to allow trace file writing.")
+                                .foregroundStyle(.orange)
+                                .font(.caption)
+                        }
+                    }
+                    .id(authRefreshTrigger)  // Re-evaluate when trigger changes
                 }
                 #endif
             }
@@ -76,7 +89,16 @@ struct SettingsView: View {
         panel.allowsMultipleSelection = false
         panel.message = "Choose a folder for TI59_TRACE.bin"
         if panel.runModal() == .OK, let url = panel.url {
+            print("[SettingsView] User selected folder: \(url.path)")
+            // Use AppSettings to save with security-scoped bookmark
+            // This must be done BEFORE updating the @AppStorage property
+            AppSettings.setCustomTraceDirectory(url)
+            // Now update the UI binding (which will also update UserDefaults via @AppStorage)
             traceCustomPath = url.path
+            print("[SettingsView] Folder saved with bookmark")
+            // Trigger refresh of warning so it disappears if bookmark was successful
+            authRefreshTrigger = UUID()
+            print("[SettingsView] Triggered UI refresh")
         }
         #endif
     }

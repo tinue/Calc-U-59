@@ -9,6 +9,7 @@ struct LiveDebugView: View {
 
             VStack(spacing: 0) {
                 liveHeader(baseFontSize: baseFontSize)
+                debugSection(baseFontSize: baseFontSize)
                 ScrollView {
                     VStack(spacing: 1) {
                         partitionSection(baseFontSize: baseFontSize)
@@ -82,6 +83,30 @@ struct LiveDebugView: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
         .background(Color(white: 0.07))
+    }
+
+    // MARK: - DEBUG Section
+
+    private func debugSection(baseFontSize: CGFloat) -> some View {
+        let snap = vm.liveDebugSnapshot
+        return SectionBox(title: "DEBUG") {
+            HStack(spacing: 12) {
+                Text(String(format: "FA:%04X", snap.fA))
+                    .font(.system(size: baseFontSize + 2, design: .monospaced))
+                    .foregroundStyle(Color(white: 0.65))
+                Text(String(format: "FB:%04X", snap.fB))
+                    .font(.system(size: baseFontSize + 2, design: .monospaced))
+                    .foregroundStyle(Color(white: 0.65))
+                Text("IO:\(snap.ioUserFlags)")
+                    .font(.system(size: baseFontSize + 2, design: .monospaced))
+                    .foregroundStyle(Color(white: 0.85))
+                Text("KEY:\(snap.lastKey)")
+                    .font(.system(size: baseFontSize + 2, design: .monospaced))
+                    .foregroundStyle(Color(white: 0.85))
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+        }
     }
 
     // MARK: - Return Address Section
@@ -254,12 +279,6 @@ struct LiveDebugView: View {
                 Text("FIX:\(snap.fixIndicator)")
                     .font(.system(size: baseFontSize + 2, design: .monospaced))
                     .foregroundStyle(Color(white: 0.85))
-                Text("IO:\(snap.ioUserFlags)")
-                    .font(.system(size: baseFontSize + 2, design: .monospaced))
-                    .foregroundStyle(Color(white: 0.85))
-                Text("KEY:\(snap.lastKey)")
-                    .font(.system(size: baseFontSize + 2, design: .monospaced))
-                    .foregroundStyle(Color(white: 0.85))
                 if let mode = snap.angleMode {
                     Text(modeStr(mode))
                         .font(.system(size: baseFontSize + 2, design: .monospaced))
@@ -269,6 +288,15 @@ struct LiveDebugView: View {
                         .font(.system(size: baseFontSize + 2, design: .monospaced))
                         .foregroundStyle(Color(white: 0.4))
                 }
+                Text("Eng")
+                    .font(.system(size: baseFontSize + 2, design: .monospaced))
+                    .foregroundStyle(snap.engIndicator.isEmpty ? Color(white: 0.4) : Color(white: 0.85))
+                Text("2nd")
+                    .font(.system(size: baseFontSize + 2, design: .monospaced))
+                    .foregroundStyle(snap.secondIndicator.isEmpty ? Color(white: 0.4) : Color(white: 0.85))
+                Text("INV")
+                    .font(.system(size: baseFontSize + 2, design: .monospaced))
+                    .foregroundStyle(snap.invIndicator.isEmpty ? Color(white: 0.4) : Color(white: 0.85))
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
@@ -461,6 +489,11 @@ private struct SectionBox<Content: View>: View {
             snap.programRegCount = 60
             snap.calcFlags = [false, true, nil, false, true, nil, false, nil, true, nil]
             snap.fixIndicator = "-"
+            snap.fA = 0x0340
+            snap.fB = 0x08E0
+            snap.engIndicator = "Eng"
+            snap.secondIndicator = "2nd"
+            snap.invIndicator = "INV"
             snap.ioUserFlags = "12345"
             snap.lastKey = "67"
             snap.printerSCOM = ["0000000000000000", "0000000000000000", "0000000000000000", "0000000000000000"]

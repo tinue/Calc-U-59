@@ -47,15 +47,29 @@ class EmulatorViewModel {
     var cIndicatorDebug: Bool = false {
         didSet {
             if cIndicatorDebug {
+                // TRACE ENABLED
+                // a) Open or create file
+                _ = AppSettings.traceDirectory()
                 traceWriter.open()
-                machine?.traceFlags = [.pc, .regsFull]
+
+                guard let m = machine else { return }
+
+                // b) Tell C-code to start tracing
+                m.traceFlags = [.pc, .regsFull]
+
+                // c) Start draining via tick() calls (happens automatically at 60 Hz)
             } else {
-                emulQueue.async { [weak self] in
-                    guard let self, let m = machine else { return }
-                    drainTraceEvents(machine: m)
-                    traceWriter.close()
-                }
-                machine?.traceFlags = .flagsNone
+                // TRACE DISABLED
+                guard let m = machine else { return }
+
+                // a) Tell C-code to stop writing events IMMEDIATELY
+                m.traceFlags = .flagsNone
+
+                // b) Drain remaining buffer on main thread immediately
+                drainTraceEvents(machine: m)
+
+                // c) Close file
+                traceWriter.close()
             }
         }
     }
@@ -348,6 +362,9 @@ class EmulatorViewModel {
 
         if cIndicatorDebug {
             cDropDebugger.update(snap.calcIndicator)
+            // Drain trace events directly on main thread (tick() is already on main).
+            // The emulation loop runs on the serial emulQueue, so async dispatches would
+            // never execute until the loop exits — we drain here at 60 Hz instead.
             drainTraceEvents(machine: machine)
         }
         let target = Double(snap.calcIndicator) * 0.65
@@ -1158,6 +1175,25 @@ class EmulatorViewModel {
         snap.ioUserFlags = String(format: "%d%d%d%d%d", io14, io13, io12, io11, io10)
         snap.lastKey = String(format: "%d%d", key2, key1)
 
+        // Debug indicators from FA and FB registers
+        let fa = cpu.fA
+        let fb = cpu.fB
+        snap.fA = fa
+        snap.fB = fb
+
+        // 2nd and INV indicators (from FA register, 2nd digit from left = nibble 1)
+        // Bit 0 (rightmost) = INV, Bit 1 = 2nd
+        let faNibble1 = Int((fa >> 8) & 0xF)  // 2nd digit from left (bits 11-8)
+        let invBit = (faNibble1 & 0x1) != 0
+        let secondBit = (faNibble1 & 0x2) != 0
+        snap.invIndicator = invBit ? "INV" : ""
+        snap.secondIndicator = secondBit ? "2nd" : ""
+
+        // EE indicator (from FB register, 3rd digit from left, bit 3 from right)
+        let fbNibble2 = Int((fb >> 4) & 0xF)  // 3rd digit from left (bits 7-4)
+        let engBit = (fbNibble2 & 0x8) != 0
+        snap.engIndicator = engBit ? "Eng" : ""
+
         // Program steps window — source depends on PRG SOURCE flag
         snap.currentStep = decodeProgramCounter(from: cpu)
 
@@ -1662,9 +1698,10 @@ class EmulatorViewModel {
     private func drainTraceEvents(machine m: TI59MachineWrapper) {
         var snapsOut: NSArray? = nil
         let eventsNS = m.drainTraceEvents(max: 2000, snapshots: &snapsOut)
-        guard !eventsNS.isEmpty else { return }
-        let snapsNS = (snapsOut as? [NSValue]) ?? []
 
+        guard !eventsNS.isEmpty else { return }
+
+        let snapsNS = (snapsOut as? [NSValue]) ?? []
         for (i, ev) in eventsNS.enumerated() {
             var e = TITraceEvent()
             ev.getValue(&e)
@@ -1722,6 +1759,11 @@ struct LiveDebugSnapshot: Equatable {
     var fixIndicator: String = "0"      // Nibble 15 (FIX = value - 2 mod 10)
     var ioUserFlags: String = "00000"   // Nibbles 14–10 (5 digits)
     var lastKey: String = "00"          // Nibbles 2–1 (2 digits)
+    var fA: UInt16 = 0                  // FA register (debug display)
+    var fB: UInt16 = 0                  // FB register (debug display)
+    var engIndicator: String = ""       // "Eng" if FB bit 3 (of 3rd digit) is set, else empty
+    var secondIndicator: String = ""    // "2nd" if FA bit 1 is set, else empty
+    var invIndicator: String = ""       // "INV" if FA bit 0 is set, else empty
 
     // Calculator-level status (from SCOM)
     var angleMode: AngleMode? = nil
