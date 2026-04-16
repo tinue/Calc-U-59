@@ -146,7 +146,6 @@ class EmulatorViewModel {
     private let emulQueue = DispatchQueue(label: "calc-u-59.emulation", qos: .userInteractive)
     private var displayTimer: Timer?
     private var isRunning = false
-    private var persistenceEnabled = true  // suspend during state file load
     private static let constantMemoryFileName = "ti58c.mem"
     private static var constantMemoryURL: URL {
         CardStorage.directoryURL.appendingPathComponent(constantMemoryFileName)
@@ -263,11 +262,9 @@ class EmulatorViewModel {
                     Thread.sleep(forTimeInterval: remaining)
                 }
 
-                // Persist TI-58C state after each 20 ms batch if enabled
-                if self.persistenceEnabled && self.model.hasConstantMemory {
-                    DispatchQueue.global(qos: .background).async { [weak self] in
-                        self?.persistConstantMemory()
-                    }
+                // Persist TI-58C state after each 20 ms batch if needed
+                if self.model.hasConstantMemory {
+                    self.persistConstantMemory()
                 }
             }
         }
@@ -564,11 +561,7 @@ class EmulatorViewModel {
         guard model.hasConstantMemory, let data = machine?.serialiseRAM() else { return }
         let text = encodeConstantMemoryToText(data)
         let url = Self.constantMemoryURL
-        let coordinator = NSFileCoordinator()
-        var err: NSError?
-        coordinator.coordinate(writingItemAt: url, options: .forReplacing, error: &err) { dst in
-            try? text.write(to: dst, atomically: true, encoding: .utf8)
-        }
+        try? text.write(to: url, atomically: true, encoding: .utf8)
     }
 
     private func loadConstantMemory() -> Data? {
@@ -1600,12 +1593,6 @@ class EmulatorViewModel {
     // MARK: - State file loading
 
     func loadStateFile(_ url: URL) {
-        persistenceEnabled = false  // suspend persistence during load
-        defer {
-            persistConstantMemory()  // write loaded state once after completion
-            persistenceEnabled = true
-        }
-
         let scoped = url.startAccessingSecurityScopedResource()
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
         guard let text = try? String(contentsOf: url, encoding: .utf8) else {
@@ -1675,6 +1662,9 @@ class EmulatorViewModel {
         }
 
         startEmulationLoop()
+
+        // Persist the loaded state once after all writes complete
+        persistConstantMemory()
 
         if !parsed.keystrokes.isEmpty {
             Task { await playKeystrokes(parsed.keystrokes) }
