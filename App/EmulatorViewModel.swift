@@ -1616,7 +1616,11 @@ class EmulatorViewModel {
         }
 
         isRunning = false
-        unfreeze()  // exit freeze mode when loading a state file (same as reset)
+        // Clear freeze state without restarting the loop
+        freezeReason = nil
+        frozenROMCache = nil
+        frozenRAMCache = nil
+        cachedPrSourceFlag = 0
         // Synchronous dispatch ensures the emulation loop has fully exited
         // before we touch RAM or SCOM.  Without this, a step() in-flight on
         // emulQueue could write stale values after our state-file writes.
