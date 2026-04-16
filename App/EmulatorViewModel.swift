@@ -50,7 +50,13 @@ class EmulatorViewModel {
                 // TRACE ENABLED
                 // a) Open or create file
                 _ = AppSettings.traceDirectory()
-                traceWriter.open()
+                let success = traceWriter.open()
+
+                // If open failed (e.g., iCloud unavailable), disable immediately
+                if !success {
+                    cIndicatorDebug = false
+                    return
+                }
 
                 guard let m = machine else { return }
 
@@ -76,6 +82,7 @@ class EmulatorViewModel {
     private var cDropDebugger = CDropDebugger()
     private var cZeroFrames: Int = 0   // consecutive frames where fA was zero the entire frame
     private let traceWriter = TraceWriter()
+    var isTraceAvailable: Bool { traceWriter.isAvailable }  // false if trace location (e.g., iCloud) unavailable
 
     // ── Debug panel state ────────────────────────────────────────────────────
     var debugLevel: DebugLevel = .off
@@ -146,6 +153,8 @@ class EmulatorViewModel {
     }
 
     init() {
+        // Check trace availability at startup (for iOS/iPadOS iCloud detection, etc.)
+        traceWriter.checkAvailability()
         Task { await self.start(model: AppSettings.resolvedStartupModel()) }
     }
 

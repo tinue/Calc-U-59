@@ -8,6 +8,7 @@ enum SettingsKey {
     static let traceLocation          = "traceLocation"            // Int: TraceLocation.rawValue
     static let traceCustomPath        = "traceCustomPath"          // String: absolute directory path (macOS only)
     static let traceCustomPathBookmark = "traceCustomPathBookmark" // Data: security-scoped bookmark for custom path
+    static let traceMaxFileSizeMB     = "traceMaxFileSizeMB"       // Int: maximum trace file size in MB (default 10)
 }
 
 // MARK: - Trace file location
@@ -30,6 +31,22 @@ enum TraceLocation: Int, CaseIterable {
 
 enum AppSettings {
 
+    /// Resolve the trace location from UserDefaults, with platform-aware defaults.
+    /// Uses object(forKey:) to distinguish "not set" from "set to 0".
+    static func resolvedTraceLocation() -> TraceLocation {
+        let raw = UserDefaults.standard.object(forKey: SettingsKey.traceLocation) as? Int
+        if let rawInt = raw {
+            return TraceLocation(rawValue: rawInt) ?? .local
+        } else {
+            // Key not set; use platform default
+            #if os(macOS)
+            return .local
+            #else
+            return .iCloud
+            #endif
+        }
+    }
+
     /// Returns the model to launch at startup.
     /// If `startupModel` has never been set, defaults to "last used" → TI-59.
     static func resolvedStartupModel() -> MachineModel {
@@ -48,8 +65,7 @@ enum AppSettings {
     /// For custom paths on macOS, uses a security-scoped bookmark to gain file access.
     /// The caller (TraceWriter.open) is responsible for creating the directory if needed.
     static func traceDirectory() -> URL {
-        let raw = UserDefaults.standard.integer(forKey: SettingsKey.traceLocation)
-        let location = TraceLocation(rawValue: raw) ?? .local
+        let location = resolvedTraceLocation()
         switch location {
         case .local:
             let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -58,7 +74,8 @@ enum AppSettings {
         case .iCloud:
             return CardStorage.directoryURL
         case .custom:
-            // Try to use security-scoped bookmark first
+            #if os(macOS)
+            // Try to use security-scoped bookmark first (macOS only)
             if let bookmarkData = UserDefaults.standard.data(forKey: SettingsKey.traceCustomPathBookmark) {
                 var isStale = false
                 do {
@@ -71,13 +88,14 @@ enum AppSettings {
                     // silently fall through to fallback
                 }
             }
-            
+            #endif
+
             // Fallback to stored path
             let path = UserDefaults.standard.string(forKey: SettingsKey.traceCustomPath) ?? ""
             if !path.isEmpty {
                 return URL(fileURLWithPath: path, isDirectory: true)
             }
-            
+
             // Custom path not set: fall back to local App Library.
             let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             let url = appSupport.appendingPathComponent("Calc-U-59", isDirectory: true)

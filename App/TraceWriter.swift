@@ -13,6 +13,9 @@ import Foundation
 
 final class TraceWriter {
 
+    // ── Constants ──────────────────────────────────────────────────────────────
+    private static let defaultMaxFileSizeMB = 10
+
     // ── Record type constants ─────────────────────────────────────────────────
     private enum RecType: UInt8 {
         case sessionStart = 0x01
@@ -35,6 +38,7 @@ final class TraceWriter {
 
     // ── State ─────────────────────────────────────────────────────────────────
     private(set) var isOpen = false
+    private(set) var isAvailable = true  // false if iCloud/storage is unavailable
     private var fileHandle: FileHandle?
     private var currentTraceURL: URL?  // Track the URL for security-scoped resource cleanup
 
@@ -50,55 +54,81 @@ final class TraceWriter {
     init() {
     }
 
+    /// Check if the trace location is accessible. Call at app startup to set isAvailable.
+    func checkAvailability() {
+        let fm = FileManager.default
+
+        #if !os(macOS)
+        let location = AppSettings.resolvedTraceLocation()
+        if location == .iCloud && fm.ubiquityIdentityToken == nil {
+            isAvailable = false
+            return
+        }
+        #endif
+
+        let traceDir = AppSettings.traceDirectory()
+        do {
+            try fm.createDirectory(at: traceDir, withIntermediateDirectories: true)
+            isAvailable = true
+        } catch {
+            isAvailable = false
+        }
+    }
+
     // ── Public API ────────────────────────────────────────────────────────────
 
     /// Resolve the trace file URL, open (or create+append) the file, and write
-    /// a SESSION_START record.  Prints the path to the console.
-    func open() {
-        guard !isOpen else { return }
+    /// a SESSION_START record.  Returns true if successful, false if unavailable.
+    @discardableResult
+    func open() -> Bool {
+        guard !isOpen else { return true }
+        guard isAvailable else { return false }
 
         let url = Self.traceFileURL()
         let fm = FileManager.default
-        let parentDir = url.deletingLastPathComponent()
-        
-        // Ensure the parent directory exists (needed for App Library and Custom paths).
-        do {
-            try fm.createDirectory(at: parentDir, withIntermediateDirectories: true)
-        } catch {
-            return
+
+        // Check if file exists and enforce max file size
+        if let attrs = try? fm.attributesOfItem(atPath: url.path),
+           let fileSize = attrs[FileAttributeKey.size] as? NSNumber {
+            let maxMB = UserDefaults.standard.integer(forKey: SettingsKey.traceMaxFileSizeMB)
+            let maxBytes = UInt64(max(maxMB, Self.defaultMaxFileSizeMB)) * 1_000_000
+            if UInt64(fileSize.int64Value) >= maxBytes {
+                // File exceeded; create timestamped backup and retry
+                let newURL = timestampedTraceURL(baseURL: url)
+                return openFile(at: newURL)
+            }
         }
-        
-        // Check if file exists
-        let fileExists = fm.fileExists(atPath: url.path)
-        
-        // Create file if it doesn't exist
-        if !fileExists {
-            // Try method 1: FileManager.createFile()
+
+        return openFile(at: url)
+    }
+
+    /// Open file at the given URL. Creates it if needed. Returns true on success.
+    private func openFile(at url: URL) -> Bool {
+        let fm = FileManager.default
+
+        // Create file if it doesn't exist — try both methods
+        if !fm.fileExists(atPath: url.path) {
             var created = fm.createFile(atPath: url.path, contents: nil)
-            
-            // If that failed, try method 2: Write empty data
             if !created {
                 do {
                     try Data().write(to: url)
                     created = true
                 } catch {
-                    // silently fail
+                    return false
                 }
             }
-            
-            guard created else { return }
+            if !created {
+                return false
+            }
         }
-        
-        // Verify file now exists
-        guard fm.fileExists(atPath: url.path) else { return }
-        
-        // Try to open the file for writing
-        guard let fh = try? FileHandle(forWritingTo: url) else { return }
-        
-        let fileOffset = fh.seekToEndOfFile()
 
+        // Open for writing
+        guard let fh = try? FileHandle(forWritingTo: url) else {
+            return false
+        }
+
+        let fileOffset = fh.seekToEndOfFile()
         if fileOffset == 0 {
-            // New file — write the 16-byte file header.
             fh.write(Self.fileHeader())
         }
 
@@ -111,10 +141,12 @@ final class TraceWriter {
         sessionEventCount = 0
         sessionSuppressedTotal = 0
 
-        // SESSION_START record
+        // Write SESSION_START record
         var payload = Data(capacity: 8)
         payload.appendLE(UInt64(Date().timeIntervalSince1970))
         writeRecord(.sessionStart, payload: payload)
+
+        return true
     }
 
     /// Flush any pending dedup event, write a SESSION_END record, and close the file.
@@ -311,6 +343,18 @@ final class TraceWriter {
 
     static func traceFileURL() -> URL {
         AppSettings.traceDirectory().appendingPathComponent(traceFileName)
+    }
+
+    /// Create a timestamped trace file URL for when the main file exceeds max size.
+    /// Example: CALCU59_TRACE_20260416_140523.bin
+    private func timestampedTraceURL(baseURL: URL) -> URL {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd_HHmmss"
+        let timestamp = formatter.string(from: Date())
+
+        let baseName = "CALCU59_TRACE"
+        let fileName = "\(baseName)_\(timestamp).bin"
+        return baseURL.deletingLastPathComponent().appendingPathComponent(fileName)
     }
 }
 

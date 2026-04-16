@@ -96,65 +96,71 @@ private struct StaticDebugContent: View {
     // MARK: - Button bar
 
     private var buttonBar: some View {
-        HStack(spacing: 10) {
-            Button("Vars") { vm.debugDumpVars() }
+        VStack(spacing: 8) {
+            // Row 1: Main action buttons
+            HStack(spacing: 8) {
+                Button("Vars") { vm.debugDumpVars() }
+                Button("SCOM") { vm.debugDumpSCOM() }
+                Button("Prog") { vm.debugDumpProg() }
+                Button("Memory") { vm.debugDumpMemory() }
 
-            Button("SCOM") { vm.debugDumpSCOM() }
+                Spacer()
 
-            Button("Prog") { vm.debugDumpProg() }
-
-            Button("Memory") { vm.debugDumpMemory() }
-
-            Spacer()
-
-            // Clear button
-            Button {
-                vm.clearDebug()
-            } label: {
-                Image(systemName: "trash")
-                    .foregroundStyle(.white.opacity(0.6))
-            }
-            .disabled(vm.debugLines.isEmpty)
-
-            // C indicator drop logger — prints one line per drop event to console
-            Button { vm.cIndicatorDebug.toggle() } label: {
-                HStack(spacing: 4) {
-                    Text("TRACE")
-                    Circle()
-                        .fill(vm.cIndicatorDebug ? Color.orange : Color.gray.opacity(0.4))
-                        .frame(width: 8, height: 8)
+                // Clear button
+                Button {
+                    vm.clearDebug()
+                } label: {
+                    Image(systemName: "trash")
+                        .foregroundStyle(.white.opacity(0.6))
                 }
-                .font(.caption.bold())
-                .foregroundStyle(.white)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(Color(white: 0.25))
-                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .disabled(vm.debugLines.isEmpty)
             }
-            .buttonStyle(.plain)
 
-            // DEBUG level toggle: OFF (gray) → INFO (orange) → DEBUG (red) → OFF
-            Button { vm.toggleDebug() } label: {
-                HStack(spacing: 4) {
-                    Text("LOG")
-                    Circle()
-                        .fill({
-                            switch vm.debugLevel {
-                            case .off:   return Color.gray.opacity(0.4)
-                            case .info:  return Color.orange
-                            case .debug: return Color.red
-                            }
-                        }())
-                        .frame(width: 8, height: 8)
+            // Row 2: Status toggles
+            HStack(spacing: 8) {
+                Button { vm.cIndicatorDebug.toggle() } label: {
+                    HStack(spacing: 4) {
+                        Text("TRACE")
+                        Circle()
+                            .fill(vm.isTraceAvailable
+                                ? (vm.cIndicatorDebug ? Color.orange : Color.gray.opacity(0.4))
+                                : Color.red.opacity(0.5))
+                            .frame(width: 8, height: 8)
+                    }
+                    .font(.caption.bold())
+                    .foregroundStyle(vm.isTraceAvailable ? .white : .white.opacity(0.5))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color(white: vm.isTraceAvailable ? 0.25 : 0.15))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
                 }
-                .font(.caption.bold())
-                .foregroundStyle(.white)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(Color(white: 0.25))
-                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .buttonStyle(.plain)
+                .disabled(!vm.isTraceAvailable)
+
+                Button { vm.toggleDebug() } label: {
+                    HStack(spacing: 4) {
+                        Text("LOG")
+                        Circle()
+                            .fill({
+                                switch vm.debugLevel {
+                                case .off:   return Color.gray.opacity(0.4)
+                                case .info:  return Color.orange
+                                case .debug: return Color.red
+                                }
+                            }())
+                            .frame(width: 8, height: 8)
+                    }
+                    .font(.caption.bold())
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color(white: 0.25))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                }
+                .buttonStyle(.plain)
+
+                Spacer()
             }
-            .buttonStyle(.plain)
         }
         .font(.caption.bold())
         .foregroundStyle(.white)

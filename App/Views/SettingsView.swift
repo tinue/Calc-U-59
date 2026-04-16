@@ -10,9 +10,10 @@ struct SettingsView: View {
 
     // -1 = last used; 0/1/2 = specific MachineModel.rawValue
     @AppStorage(SettingsKey.startupModel)    private var startupModelRaw: Int = -1
-    @AppStorage(SettingsKey.traceLocation)   private var traceLocationRaw: Int = TraceLocation.local.rawValue
+    @AppStorage(SettingsKey.traceLocation)   private var traceLocationRaw: Int = TraceLocation.iCloud.rawValue
     @AppStorage(SettingsKey.traceCustomPath) private var traceCustomPath: String = ""
-    
+    @AppStorage(SettingsKey.traceMaxFileSizeMB) private var traceMaxFileSizeMB: Int = 10
+
     // Trigger refresh of warning after re-authorization
     @State private var authRefreshTrigger: UUID = UUID()
 
@@ -31,6 +32,10 @@ struct SettingsView: View {
                     }
                 }
         }
+        .onAppear {
+            // Force iCloud on iOS/iPadOS
+            traceLocationRaw = TraceLocation.iCloud.rawValue
+        }
         #endif
     }
 
@@ -47,14 +52,12 @@ struct SettingsView: View {
             }
 
             Section("Trace File") {
+                #if os(macOS)
                 Picker("Save Location", selection: $traceLocationRaw) {
                     Text(TraceLocation.local.displayName).tag(TraceLocation.local.rawValue)
                     Text(TraceLocation.iCloud.displayName).tag(TraceLocation.iCloud.rawValue)
-                    #if os(macOS)
                     Text(TraceLocation.custom.displayName).tag(TraceLocation.custom.rawValue)
-                    #endif
                 }
-                #if os(macOS)
                 if traceLocationRaw == TraceLocation.custom.rawValue {
                     HStack {
                         Text(traceCustomPath.isEmpty ? "No folder chosen" : traceCustomPath)
@@ -64,7 +67,7 @@ struct SettingsView: View {
                         Spacer()
                         Button("Choose…") { chooseCustomFolder() }
                     }
-                    
+
                     // Show warning if path exists but no bookmark (old settings without re-authorization)
                     Group {
                         if AppSettings.customTracePathNeedsReauthorization() {
@@ -76,6 +79,18 @@ struct SettingsView: View {
                     .id(authRefreshTrigger)  // Re-evaluate when trigger changes
                 }
                 #endif
+
+                HStack {
+                    Text("Maximum File Size")
+                    Spacer()
+                    HStack(spacing: 4) {
+                        TextField("Size", value: $traceMaxFileSizeMB, format: .number)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 60)
+                        Text("MB")
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
         }
         .formStyle(.grouped)
