@@ -16,6 +16,8 @@
 
 **UI:** Clean Reset feature (Cmd+Reset on macOS, long-press on iOS) zeros all registers and resets the calculator. Label and icon change to "Clean" with orange highlight when Command is held (macOS only), providing clear visual feedback. Works across all models; for TI-58C, the empty state is immediately persisted to the save file. Improved accessibility: Reset button now includes text label for screen readers.
 
+**Configuration** Start with a rudimentary "settings" panel. So far allows to choose the model at startup, and the location of the trace log file.
+
 **Documentation:** Added `.ti58c` preset file example showing TI-58C repartitioning workflow. Updated `.ti59` state file format documentation to include hidden register syntax.
 
 ## [0.2.0] - 2026-04-06
