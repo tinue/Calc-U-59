@@ -299,6 +299,171 @@ Pure function — requires no machine state. Returns a mnemonic string for any
 
 ---
 
+## Trace File Format (CALCU59_TRACE.bin)
+
+The binary trace file captures instruction-level CPU state at 60 Hz. It is used by
+`tools/read_trace.py` to generate human-readable logs and JSON exports.
+
+### File Structure
+
+```
+[File Header (16 bytes)]
+[Record 1 (3 + N bytes)]
+[Record 2 (3 + N bytes)]
+...
+[Record N (3 + N bytes)]
+```
+
+### File Header (16 bytes)
+
+```
+Offset  Size  Type   Field        Description
+0       4     LE U32 magic        Magic: 0x54493539 ('TI59' in little-endian ASCII)
+4       2     LE U16 version      Format version (currently 2 or 3)
+6       10    —      reserved     Reserved; ignore for forward compatibility
+```
+
+### Record Structure
+
+All records follow a 3-byte header:
+
+```
+Offset  Size  Type   Field           Description
+0       1     U8     type            Record type (see table below)
+1       2     LE U16 payload_length  Length of payload in bytes (0 allowed)
+3       N     —      payload         Type-specific data (N = payload_length)
+```
+
+### Record Types
+
+| Type | Name              | Payload | Purpose |
+|------|-------------------|---------|---------|
+| 0x01 | SESSION_START     | 8 bytes | Session boundary marker |
+| 0x02 | TRACE_EVENT       | 123 bytes (v2, v3) | CPU instruction snapshot |
+| 0x03 | SESSION_END       | 8 bytes | Session terminator with counts |
+| 0x04 | USER_EVENT        | ≥4 bytes | User input (key press, card insert) |
+
+Unknown record types are silently skipped (forward-compatible).
+
+### Record Type Details
+
+#### SESSION_START (0x01)
+
+Marks the start of a trace session (e.g., app launch or emulator reset).
+
+**Payload (8 bytes):**
+
+```
+Offset  Size  Type   Field       Description
+0       8     LE U64 timestamp   Unix timestamp (seconds since epoch) when session began
+```
+
+#### TRACE_EVENT (0x02)
+
+Captures CPU state at a single instruction. **Payload is exactly 123 bytes.**
+
+**Fixed fields (first 35 bytes):**
+
+```
+Offset  Size  Type   Field              Description
+0       4     LE U32 suppressed         Instruction count suppressed before this event
+4       4     LE U32 seqno              Monotonically increasing sequence number; gaps = ring overflow
+8       2     LE U16 pc                 ROM address (0–0xFFF)
+10      2     LE U16 opcode            13-bit instruction (upper 3 bits unused)
+12      2     LE U16 fA                Flag register A (16-bit bitmask)
+14      2     LE U16 fB                Flag register B (16-bit bitmask)
+16      2     LE U16 KR                Address register (16-bit)
+18      2     LE U16 SR                Return address register (16-bit)
+20      2     LE U16 EXT               Exponent register, upper nibble at bits 12–15
+22      2     LE U16 PREG              Pointer register (4-bit)
+24      2     LE U16 cpu_flags         Internal CPU flags (bit 0 = IDLE, bit 11 = COND)
+26      2     LE U16 m_libAddr         ROM address pointer (absolute offset in ROM)
+28      1     U8     R5                Scratch/decimal pointer (4-bit)
+29      1     U8     digit             Digit counter (0–15)
+30      1     U8     RAM_ADDR          RAM address for current operation
+31      1     U8     RAM_OP            RAM operation code
+32      1     U8     REG_ADDR          Register address for SCOM/register ops
+33      1     U8     m_libAddrReadPos  Sub-address within ROM word (nibble index)
+34      1     U8     cycle_weight      Cycle weight (1 = active, 4 = idle cycle)
+```
+
+**Register A–E (80 bytes):** Unpacked 16-bit nibble arrays (index 0 = LSN, index 15 = MSN).
+
+```
+Offset  Size  Type   Field    Description
+35      16    U8[16] A_regs   Register A: 16 nibbles (index 0 = LSN)
+51      16    U8[16] B_regs   Register B: 16 nibbles
+67      16    U8[16] C_regs   Register C: 16 nibbles
+83      16    U8[16] D_regs   Register D: 16 nibbles
+99      16    U8[16] E_regs   Register E: 16 nibbles
+```
+
+Each nibble (4-bit value 0–15) occupies one byte.
+
+**Output register Sout (8 bytes):** Nibble-packed (2 nibbles per byte).
+
+```
+Offset  Size  Type   Field    Description
+115     8     U8[8]  sout     Printer output: nibbles packed as (high_nibble << 4) | low_nibble
+                              sout[i] & 0x0F = Sout[2i], (sout[i] >> 4) = Sout[2i+1]
+```
+
+**Total payload:** 35 + 80 + 8 = 123 bytes.
+
+**Flag bit definitions (cpu_flags):**
+
+```
+Bit  Name    Meaning
+0    IDLE    1 = idle cycle (keyscan loop); 0 = active
+11   COND    1 = condition code set; 0 = clear
+```
+
+#### SESSION_END (0x03)
+
+Marks the end of a trace session (e.g., app quit or emulator pause).
+
+**Payload (8 bytes):**
+
+```
+Offset  Size  Type   Field            Description
+0       4     LE U32 eventCount       Total instruction events recorded in this session
+4       4     LE U32 suppressedTotal  Total events suppressed due to ring buffer overflow
+```
+
+#### USER_EVENT (0x04)
+
+Records user input (keyboard, card insert/eject).
+
+**Payload (≥4 bytes):**
+
+```
+Offset  Size  Type   Field    Description
+0       1     U8     kind     Event kind (see table below)
+1       1     U8     p1       Parameter 1 (row for KEY events)
+2       1     U8     p2       Parameter 2 (col for KEY events)
+3       1     U8     —        Reserved
+```
+
+**Kind codes:**
+
+| Value | Label        | p1 | p2 | Meaning |
+|-------|--------------|----|----|---------|
+| 0x01  | KEY DOWN     | row| col| Key pressed (row=1–9, col=1–5) |
+| 0x02  | KEY UP       | row| col| Key released |
+| 0x03  | CARD INSERT  | —  | —  | Magnetic card inserted |
+| 0x04  | CARD EJECT   | —  | —  | Magnetic card ejected |
+
+### Parsing Notes
+
+- **Byte order:** All multi-byte fields use little-endian unless stated otherwise.
+- **Nibble representation:** Most fields use packed hex (one 4-bit value per byte for readability).
+- **Ring buffer:** When the trace buffer overflows, `seqno` gaps and `suppressed` counts
+  indicate lost events. The `suppressedTotal` in SESSION_END reflects cumulative loss.
+- **Version compatibility:** v2 and v3 both have 123-byte TRACE_EVENT payloads. v3 added
+  `m_libAddrReadPos` but maintained backward compatibility. Code must accept both versions.
+
+---
+
 ## .ti59 State File Format
 
 State files load programs and data registers in a single operation.
