@@ -102,7 +102,7 @@ struct SettingsView: View {
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.allowsMultipleSelection = false
-        panel.message = "Choose a folder for TI59_TRACE.bin"
+        panel.message = "Choose a folder for CALCU59_TRACE.bin"
         if panel.runModal() == .OK, let url = panel.url {
             print("[SettingsView] User selected folder: \(url.path)")
             // Use AppSettings to save with security-scoped bookmark
