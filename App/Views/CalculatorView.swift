@@ -135,7 +135,7 @@ struct CalculatorView: View {
             KeyboardView()
             cardReaderBar(showLabels: showLabels)
         }
-        .background(Color(white: 0.08))
+        .background(Color(white: 29.0/255.0))
     }
 
     // Identifiable wrapper so .sheet(item:) works with the enum
