@@ -5,25 +5,25 @@ import SwiftUI
 struct KeyboardView: View {
     @Environment(EmulatorViewModel.self) var viewModel
 
-    // Canvas native size: 2064×4275 (aspect ratio ≈ 0.4828)
-    private static let imageAspect: CGFloat = 2064.0 / 4275.0
+    // Canvas native size: 2064×4075 (aspect ratio ≈ 0.5065)
+    private static let imageAspect: CGFloat = 2064.0 / 4075.0
 
     // ── Display panel and card slot rects (canvas-space) ─────────────────
 
     /// LED display window — normalized to canvas size.
-    /// Full-width, positioned at top of display panel.
-    private static let displayRect = CGRect(x: 0.0, y: 0.06,
+    /// Positioned in upper portion of maroon display panel, shifted up to avoid card overlap.
+    private static let displayRect = CGRect(x: 0.0, y: 0.02,
                                              width: 1.0, height: 0.05)
 
     /// ML-01 card slot — normalized to canvas size.
-    /// Full-width, positioned between display and keyboard with gap above keyboard.
-    private static let cardRect = CGRect(x: 0.0, y: 0.1404,
-                                          width: 1.0, height: 0.1029)
+    /// Full-width, positioned between display and keyboard.
+    private static let cardRect = CGRect(x: 0.0, y: 0.0979,
+                                          width: 1.0, height: 0.1325)
 
     /// Keyboard section position within canvas.
     /// Keyboard image is placed at this y-offset, scaled by this factor.
-    private static let kbYStart: CGFloat = 0.2433   // top of keyboard
-    private static let kbYScale: CGFloat = 0.7310   // height factor
+    private static let kbYStart: CGFloat = 0.2324   // top of keyboard
+    private static let kbYScale: CGFloat = 0.7676   // height factor
 
     // ── Colors ──────────────────────────────────────────────────────────
 
