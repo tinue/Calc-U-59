@@ -147,7 +147,7 @@ struct CalculatorView: View {
     // MARK: - Card reader bar
 
     private func cardReaderBar(showLabels: Bool = true) -> some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 12) {
             #if os(macOS)
             Button(isCommandPressed ? "Clean" : "Reset",
                    systemImage: isCommandPressed ? "xmark.circle.fill" : "arrow.counterclockwise") {
@@ -229,7 +229,7 @@ struct CalculatorView: View {
             #endif
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 8)
+        .padding(.vertical, 4)
         .background(Color(white: 0.12))
         .foregroundStyle(.white)
     }
