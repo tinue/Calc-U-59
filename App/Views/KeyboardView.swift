@@ -17,8 +17,9 @@ struct KeyboardView: View {
 
     /// ML-01 card slot — normalized to canvas size.
     /// Full-width, positioned between display and keyboard.
+    /// ML-01.png is 440px tall; 440 / 4075 ≈ 0.108
     private static let cardRect = CGRect(x: 0.0, y: 0.0979,
-                                          width: 1.0, height: 0.1325)
+                                          width: 1.0, height: 0.1080)
 
     /// Keyboard section position within canvas.
     /// Keyboard image is placed at this y-offset, scaled by this factor.
