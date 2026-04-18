@@ -117,6 +117,7 @@ struct CalculatorView: View {
                             }
                     } else {
                         calculatorBody(showLabels: showLabels)
+                            .fixedSize(horizontal: true, vertical: false)
                             .overlay(alignment: .topTrailing) {
                                 pageArrow(systemImage: "chevron.right") {
                                     showingPrinter = true
