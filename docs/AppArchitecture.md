@@ -44,7 +44,7 @@ Support files:
 | `Calc-U-59App.swift` | App entry; persists TI-58C constant memory on scene background/inactive |
 | `MachineModel.swift` | Variant enum with hardware-specific metadata (card-switch col, RAM limits) |
 | `EmulatorViewModel.swift` | Central `@Observable` view model; owns the emulation loop, 60 Hz timer, and all I/O state |
-| `ROMLoader.swift` | Decodes `rom-59.hex` and `MasterLibrary.hex` from the app bundle into `[UInt16]` word arrays |
+| `ROMLoader.swift` | Loads per-chip `.txt` ROM files and `MasterLibrary.hex` from the app bundle into `[UInt16]` word arrays |
 | `CardStorage.swift` | Resolves the card file URL in the iCloud container (or local Documents) and provides atomic read/write |
 | `StateFileLoader.swift` | Parses `.ti59`/`.ti58` state files; encodes `Double` values to TI-59 BCD nibble format |
 | `PC100CFont.swift` | 64-entry × 7-row dot-matrix bitmaps for the PC-100C printer character set |
@@ -224,17 +224,28 @@ slot, `code % 10` → physical column → K-line bit via `kbits[]`.
 
 ## ROM Loading
 
-`ROMLoader` reads `rom-59.hex` from the app bundle — a plain hex dump with 64
-bytes per line.  After decoding, `wordsFromData` interprets each big-endian
-16-bit pair as a 13-bit opcode word (masking off the top 3 bits).
+`ROMLoader` loads the ROM from individual chip `.txt` files bundled with the app.
+Each file has a plain-text header block terminated by `---`, followed by data lines
+in the format `AAAA: WWWW WWWW …` (4-digit hex address, then 13-bit opcode words).
+`ROMLoader.parseRomTxt` strips the header, parses the data lines, and masks each
+word to 13 bits (`& 0x1FFF`).
+
+| Model | Chip files | Address range |
+|-------|-----------|---------------|
+| TI-59 / TI-58 | `TMC0582.txt`, `TMC0583.txt`, `TMC0571B.txt` | 0x0000–0x17FF |
+| TI-58C | `CD2400.txt`, `CD2401.txt`, `TMC0573.txt` | 0x0000–0x17FF |
+
+Constants (the 64 × 16-nibble SCOM constant table) are loaded separately from
+`*-CONST-K.txt` files via `ROMLoader.loadConstants` and fed to
+`wrapper.loadConstants`.
 
 Two sentinel values validate the TI-59 ROM image:
-- `words[0]   == 0x0A01` — first opcode in the ROM (`CLR IDL` at address 0)
-- `words[6143] == 0x1987` — last opcode (a backward branch; also encodes the
-  chip revision year in its bit pattern)
+- `words[0]   == 0x0A01` — first opcode (`CLR IDL` at address 0)
+- `words[6143] == 0x1987` — last opcode (also encodes the chip revision year)
 
-The `MasterLibrary.hex` file is loaded the same way and fed to
-`wrapper.loadLibrary`, populating the CPU's 5,000-byte library module buffer.
+`MasterLibrary.hex` (a flat hex byte dump) is loaded by `ROMLoader.loadLibrary`
+and fed to `wrapper.loadLibrary`, populating the CPU's 5,000-byte library module
+buffer.
 
 ---
 

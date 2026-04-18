@@ -15,5 +15,10 @@ struct CalcU59App: App {
                 viewModel.persistConstantMemory()
             }
         }
+        #if os(macOS)
+        Settings {
+            SettingsView()
+        }
+        #endif
     }
 }

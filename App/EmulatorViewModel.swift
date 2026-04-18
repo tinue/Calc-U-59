@@ -1,6 +1,29 @@
 import Foundation
 import SwiftUI
 
+enum FreezeReason {
+    case manual
+    case breakpointPC(Int)     // future: breakpoint on program step
+    case keycode(UInt8)        // future: freeze when specific keycode executes next
+    case variable(Int, Double) // future: freeze when register matches value
+}
+
+enum DebugLevel: Int, Comparable {
+    case off   = 0
+    case info  = 1
+    case debug = 2
+
+    static func < (lhs: DebugLevel, rhs: DebugLevel) -> Bool { lhs.rawValue < rhs.rawValue }
+
+    mutating func cycle() {
+        self = switch self {
+        case .off:   .info
+        case .info:  .debug
+        case .debug: .off
+        }
+    }
+}
+
 @Observable
 class EmulatorViewModel {
     var displayDigits: [UInt8]  = Array(repeating: 0, count: 12)
@@ -24,26 +47,77 @@ class EmulatorViewModel {
     var cIndicatorDebug: Bool = false {
         didSet {
             if cIndicatorDebug {
-                traceWriter.open()
-                machine?.traceFlags = [.pc, .regsFull]
-            } else {
-                emulQueue.async { [weak self] in
-                    guard let self, let m = machine else { return }
-                    drainTraceEvents(machine: m)
-                    traceWriter.close()
+                // TRACE ENABLED
+                // a) Open or create file
+                _ = AppSettings.traceDirectory()
+                let success = traceWriter.open()
+
+                // If open failed (e.g., iCloud unavailable), disable immediately
+                if !success {
+                    cIndicatorDebug = false
+                    return
                 }
-                machine?.traceFlags = .flagsNone
+
+                guard let m = machine else { return }
+
+                // b) Tell C-code to start tracing
+                m.traceFlags = [.pc, .regsFull]
+
+                // c) Start draining via tick() calls (happens automatically at 60 Hz)
+            } else {
+                // TRACE DISABLED
+                guard let m = machine else { return }
+
+                // a) Tell C-code to stop writing events IMMEDIATELY
+                m.traceFlags = .flagsNone
+
+                // b) Drain remaining buffer on main thread immediately
+                drainTraceEvents(machine: m)
+
+                // c) Close file
+                traceWriter.close()
             }
         }
     }
     private var cDropDebugger = CDropDebugger()
     private var cZeroFrames: Int = 0   // consecutive frames where fA was zero the entire frame
     private let traceWriter = TraceWriter()
+    var isTraceAvailable: Bool { traceWriter.isAvailable }  // false if trace location (e.g., iCloud) unavailable
 
     // ── Debug panel state ────────────────────────────────────────────────────
-    var debugEnabled: Bool = false
+    var debugLevel: DebugLevel = .off
+    var debugEnabled: Bool { debugLevel != .off }   // convenience for existing callers
     var debugLines: [String] = []
     var debugClearID: Int = 0   // incremented on clear to reset Text identity and drop selection
+
+    // ── Live debug panel state (60 Hz real-time) ──────────────────────────────
+    var liveDebugEnabled: Bool = false
+    var liveDebugSnapshot: LiveDebugSnapshot = .empty
+    var freezeReason: FreezeReason? = nil
+    var isFrozen: Bool { freezeReason != nil }
+    var pendingFreezeOnPCChange: Bool = false  // Freeze as soon as PC changes (first instruction)
+    private var lastObservedPC: UInt16 = 0     // Track PC to detect changes
+
+    // Frozen program caches (built on freeze entry, reused until unfreeze)
+    private var frozenROMCache: [LiveDebugSnapshot.StepEntry]?
+    private var frozenRAMCache: [LiveDebugSnapshot.StepEntry]?
+    private var cachedPrSourceFlag: UInt8 = 0  // tracks which cache is currently valid
+
+    // ── Live CPU view state (60 Hz real-time, runs while emulating) ────────────
+    var cpuDebugSnapshot: CPUDebugSnapshot = .empty
+    private var cpuTraceWindow: [TITraceEvent] = []  // rolling window of recent instructions
+    private var cpuTraceSnapshots: [TICPUSnapshot] = []  // parallel snapshots
+
+    // ── Frozen CPU inspector state (static snapshot when paused) ───────────────
+    struct InspectorSnapshot {
+        var pc: UInt16
+        var opcode: UInt16
+        var disasm: String
+        var cpuState: TICPUSnapshot
+        var isHistory: Bool  // true = executed, false = speculative (future ROM)
+        var isCurrent: Bool  // true = this is where it froze
+    }
+    var cpuInspectorHistory: [InspectorSnapshot] = []  // 32 history + 1 current + 5 future
 
     // ── Trace / debug state ──────────────────────────────────────────────────
     var traceEnabled: Bool = false
@@ -78,7 +152,9 @@ class EmulatorViewModel {
     }
 
     init() {
-        Task { await self.start(model: .ti59) }
+        // Check trace availability at startup (for iOS/iPadOS iCloud detection, etc.)
+        traceWriter.checkAvailability()
+        Task { await self.start(model: AppSettings.resolvedStartupModel()) }
     }
 
     func start(model: MachineModel) async {
@@ -86,6 +162,7 @@ class EmulatorViewModel {
         stop()
         await drainEmulQueue()   // ensure old loop has exited before starting the new one
         self.model = model
+        UserDefaults.standard.set(model.rawValue, forKey: SettingsKey.lastUsedModel)
         await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .utility).async {
                 CardStorage.warmUp()
@@ -102,6 +179,10 @@ class EmulatorViewModel {
 
             if let libData = ROMLoader.loadLibrary() {
                 wrapper.loadLibrary(libData)
+            }
+
+            if let constData = try? ROMLoader.loadConstants(model: model) {
+                wrapper.loadConstants(constData)
             }
 
             if model.hasConstantMemory, let saved = loadConstantMemory() {
@@ -151,11 +232,39 @@ class EmulatorViewModel {
                 // the next batch so long-term average speed stays exact.
                 cyclesDone -= targetBatchCycles
 
+                // Check if pending freeze on PC change should activate
+                if self.pendingFreezeOnPCChange {
+                    // Get the user-visible PC (decoded from SCOM), not the raw CPU PC
+                    let cpu = m.snapshotCPU()
+                    let currentPC = self.decodeProgramCounter(from: cpu)
+
+                    // Check if PC has changed from when we armed the freeze
+                    if UInt16(currentPC) != self.lastObservedPC {
+                        // PC has changed — freeze now
+                        self.isRunning = false
+                        self.pendingFreezeOnPCChange = false
+                        self.freezeReason = .manual
+                        DispatchQueue.main.async { [weak self] in
+                            guard let self else { return }
+                            if self.liveDebugEnabled {
+                                self.liveDebugSnapshot = self.buildLiveSnapshot(machine: m)
+                            }
+                            self.captureInspectorSnapshot(machine: m)
+                        }
+                        return
+                    }
+                }
+
                 let end = DispatchTime.now()
                 let elapsed = Double(end.uptimeNanoseconds - start.uptimeNanoseconds) / 1e9
                 let remaining = batchMs - elapsed
                 if remaining > 0 {
                     Thread.sleep(forTimeInterval: remaining)
+                }
+
+                // Persist TI-58C state after each 20 ms batch if needed
+                if self.model.hasConstantMemory {
+                    self.persistConstantMemory()
                 }
             }
         }
@@ -182,15 +291,33 @@ class EmulatorViewModel {
             ejectCard()
         }
 
-        if let lines = machine.drainPrinterLines() as? [String], !lines.isEmpty {
+        let lines = machine.drainPrinterLines()
+        if !lines.isEmpty {
             printerLines.append(contentsOf: lines)
         }
-        if let codes = machine.drainPrinterCodeLines() as? [Data], !codes.isEmpty {
+
+        // Drain C-core debug messages into the debug panel.
+        if debugLevel != .off {
+            let dbgMsgs = machine.drainDebugMessages()
+            if !dbgMsgs.isEmpty {
+                for msg in dbgMsgs {
+                    guard msg.count >= 2 else { continue }
+                    let levelChar = msg.first!
+                    let msgLevel: DebugLevel = (levelChar == "I") ? .info : .debug
+                    let text = String(msg.dropFirst(2))
+                    debugAppend([text], level: msgLevel)
+                }
+            }
+        }
+
+        let codes = machine.drainPrinterCodeLines()
+        if !codes.isEmpty {
             printerCodeLines.append(contentsOf: codes)
         }
 
         // Drain trace events (60 Hz, same cadence as display refresh).
-        if traceEnabled, let evs = machine.drainTraceEvents(max: 512) as? [NSValue] {
+        if traceEnabled {
+            let evs = machine.drainTraceEvents(max: 512)
             let newEvents = evs.map { v -> TITraceEvent in
                 var e = TITraceEvent()
                 v.getValue(&e)
@@ -228,8 +355,22 @@ class EmulatorViewModel {
         //   • target = 0, first zero frame → hold (aliasing artefact; see below)
         //   • target = 0, frame 2+         → rapid decay (genuine dark phase)
         //   • 0 < target < current → proportional-alpha fall
+        // Live debug snapshot — sampled at 60 Hz when the panel is open (unless frozen).
+        if liveDebugEnabled && !isFrozen {
+            let s = buildLiveSnapshot(machine: machine)
+            if s != liveDebugSnapshot { liveDebugSnapshot = s }
+        }
+
+        // CPU debug snapshot — sampled at 60 Hz to keep instruction history current.
+        // Always update so SimpleLiveCPUView gets fresh data after freeze/resume.
+        let s = buildCPUDebugSnapshot(machine: machine)
+        if s != cpuDebugSnapshot { cpuDebugSnapshot = s }
+
         if cIndicatorDebug {
             cDropDebugger.update(snap.calcIndicator)
+            // Drain trace events directly on main thread (tick() is already on main).
+            // The emulation loop runs on the serial emulQueue, so async dispatches would
+            // never execute until the loop exits — we drain here at 60 Hz instead.
             drainTraceEvents(machine: machine)
         }
         let target = Double(snap.calcIndicator) * 0.65
@@ -297,27 +438,36 @@ class EmulatorViewModel {
     // MARK: - Reset
 
     func resetMachine() {
+        unfreeze()  // exit freeze mode when resetting
         cardState = .noCard
+        printerTrace = false
+        machine?.setPrinterTrace(false)
         machine?.reset()
+
+        // Clear out-of-range registers for the current model
+        let programRegs  = Int(machine?.partitionProgramRegs ?? 60)
+        let totalRegs    = Int(machine?.ramRegisterCount ?? (model.hasLargeMemory ? 120 : model.hasConstantMemory ? 64 : 60))
+        let dataRegCount = max(0, totalRegs - programRegs)
+        let zeroNibbles  = Array(repeating: UInt8(0), count: 16)
+        for regNum in dataRegCount..<totalRegs {
+            machine?.setRawRegister(regNum, nibbles: Data(zeroNibbles))
+        }
+
         debugAppend(["Calculator Reset"])
     }
 
-    /// Hard reset (TI-58C only): delete the persistent memory file, then reset.
-    /// The calculator starts fresh with no constant memory on the next load.
-    func hardResetMachine() {
-        guard model.hasConstantMemory else { return }
-        let url = Self.constantMemoryURL
-        let coordinator = NSFileCoordinator()
-        var err: NSError?
-        coordinator.coordinate(writingItemAt: url, options: .forDeleting, error: &err) { dst in
-            try? FileManager.default.removeItem(at: dst)
-        }
-        // Zero all RAM before reset so the ROM's startup sees no valid-memory flag
-        // and performs a full cold-start clear instead of preserving contents.
+    /// Clean reset (all models): zero all RAM, then reset.
+    /// For TI-58C, writes the zeroed state immediately to the save file.
+    func cleanResetMachine() {
+        unfreeze()  // exit freeze mode when resetting
         machine?.deserialiseRAM(Data(repeating: 0, count: 120 * 16))
         cardState = .noCard
+        printerTrace = false
+        machine?.setPrinterTrace(false)
         machine?.reset()
-        debugAppend(["Hard Reset — constant memory cleared"])
+        // Write zeroed state for TI-58C immediately
+        persistConstantMemory()
+        debugAppend(["Clean Reset — all registers cleared"])
     }
 
     // MARK: - Magnetic card reader
@@ -409,23 +559,95 @@ class EmulatorViewModel {
 
     func persistConstantMemory() {
         guard model.hasConstantMemory, let data = machine?.serialiseRAM() else { return }
+        let text = encodeConstantMemoryToText(data)
         let url = Self.constantMemoryURL
-        let coordinator = NSFileCoordinator()
-        var err: NSError?
-        coordinator.coordinate(writingItemAt: url, options: .forReplacing, error: &err) { dst in
-            try? data.write(to: dst, options: .atomic)
-        }
+        try? text.write(to: url, atomically: true, encoding: .utf8)
     }
 
     private func loadConstantMemory() -> Data? {
         let url = Self.constantMemoryURL
-        var result: Data?
+        var rawFileData: Data?
         let coordinator = NSFileCoordinator()
         var err: NSError?
         coordinator.coordinate(readingItemAt: url, options: [], error: &err) { src in
-            result = try? Data(contentsOf: src)
+            rawFileData = try? Data(contentsOf: src)
         }
-        return result
+        guard let rawData = rawFileData else { return nil }
+
+        // Try to decode as text format (new format)
+        if let text = String(data: rawData, encoding: .utf8),
+           let decodedData = decodeConstantMemoryFromText(text) {
+            return decodedData
+        }
+
+        // Fallback: if file is exactly 120*16 bytes, treat as old binary format
+        if rawData.count == 120 * 16 {
+            return rawData
+        }
+
+        // Otherwise, silently fail and return nil (RAM will be initialized to zeros)
+        return nil
+    }
+
+    /// Encode RAM data (120 regs × 16 nibbles) as human-readable text.
+    /// Only includes non-zero registers.
+    private func encodeConstantMemoryToText(_ data: Data) -> String {
+        var lines: [String] = []
+        lines.append("── Memory (non-zero registers) ──")
+
+        for regNum in 0..<120 {
+            let offset = regNum * 16
+            guard offset + 16 <= data.count else { break }
+
+            let nibbles = Array(data.subdata(in: offset..<(offset + 16)))
+
+            // Check if register is all zeros
+            if nibbles.allSatisfy({ $0 == 0 }) { continue }
+
+            // Format: RXXX: HH HH HH HH HH HH HH HH
+            let hexBytes = nibbles.map { String(format: "%02X", $0) }.joined(separator: " ")
+            lines.append(String(format: "R%03d: %@", regNum, hexBytes as NSString))
+        }
+
+        return lines.joined(separator: "\n")
+    }
+
+    /// Decode human-readable text format back to RAM data (120 regs × 16 nibbles).
+    /// Returns nil on parse error (which triggers fallback to old binary format).
+    /// All registers are initialized to zero; only those in the text are updated.
+    private func decodeConstantMemoryFromText(_ text: String) -> Data? {
+        var resultBytes = [UInt8](repeating: 0, count: 120 * 16)
+
+        for line in text.components(separatedBy: .newlines) {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+
+            // Skip empty lines and header line
+            if trimmed.isEmpty || trimmed.hasPrefix("──") { continue }
+
+            // Expected format: "RXXX: HH HH HH HH HH HH HH HH"
+            guard trimmed.hasPrefix("R") else { continue }
+
+            // Split on colon
+            let parts = trimmed.components(separatedBy: ":")
+            guard parts.count == 2 else { return nil }
+
+            let regStr = String(parts[0].dropFirst())  // Remove "R" prefix
+            guard let regNum = Int(regStr), regNum >= 0, regNum < 120 else { return nil }
+
+            // Parse hex bytes from the second part
+            let hexPart = parts[1].trimmingCharacters(in: .whitespaces)
+            let hexTokens = hexPart.components(separatedBy: " ").filter { !$0.isEmpty }
+
+            guard hexTokens.count == 16 else { return nil }
+
+            let offset = regNum * 16
+            for (i, hexToken) in hexTokens.enumerated() {
+                guard let byte = UInt8(hexToken, radix: 16) else { return nil }
+                resultBytes[offset + i] = byte
+            }
+        }
+
+        return Data(resultBytes)
     }
 
     // MARK: - Trace / debug
@@ -474,7 +696,7 @@ class EmulatorViewModel {
     }
 
     func singleStep() {
-        guard isPausedOnBreakpoint else { return }
+        guard isFrozen else { return }
         guard let m = machine else { return }
         emulQueue.async { [weak self, m] in
             guard let self else { return }
@@ -486,9 +708,223 @@ class EmulatorViewModel {
         }
     }
 
+    /// Step once while frozen and refresh the inspector view with the new state.
+    /// If the instruction has HOLD set (WAIT Dn), auto-steps until the PC advances.
+    func stepFrozen() {
+        guard isFrozen else { return }
+        guard let m = machine else { return }
+        emulQueue.async { [weak self, m] in
+            guard let self else { return }
+            let priorPC = m.currentPC
+            var result = m.step()
+            if result & 0x8000_0000 != 0 {
+                let hitPC = m.currentPC
+                DispatchQueue.main.async { self.onBreakpointHit(pc: hitPC) }
+            } else if m.currentPC == priorPC {
+                // PC didn't advance — HOLD is set (WAIT Dn). Step until it clears.
+                var limit = 32
+                while m.currentPC == priorPC && limit > 0 {
+                    result = m.step()
+                    if result & 0x8000_0000 != 0 {
+                        let hitPC = m.currentPC
+                        DispatchQueue.main.async { self.onBreakpointHit(pc: hitPC) }
+                        break
+                    }
+                    limit -= 1
+                }
+            }
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.captureInspectorSnapshot(machine: m)
+            }
+        }
+    }
+
     private func onBreakpointHit(pc: UInt16) {
         isPausedOnBreakpoint = true
         breakpointPC = pc
+    }
+
+    func freezeOnNextPCChange() {
+        // Prepare to freeze as soon as the program counter changes (first instruction executes)
+        // Track the decoded PC (from SCOM), not the raw CPU PC
+        pendingFreezeOnPCChange = true
+        guard let m = machine else { return }
+        let cpu = m.snapshotCPU()
+        lastObservedPC = UInt16(decodeProgramCounter(from: cpu))
+    }
+
+    func freeze(reason: FreezeReason = .manual) {
+        isRunning = false
+        freezeReason = reason
+        pendingFreezeOnPCChange = false  // Cancel any pending freeze
+        guard let m = machine else { return }
+        // Advance to the next keycode boundary on the emulation queue (runs after the
+        // running loop exits, since emulQueue is serial). Then capture state.
+        emulQueue.async { [weak self, m] in
+            _ = m.stepUntilNextKeycode()
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                // Build program caches on freeze entry
+                let cpu = m.snapshotCPU()
+                let currentStep = self.decodeProgramCounter(from: cpu)
+                let prSourceFlag = UInt8(cpu.SCOM.0.3)
+                self.cachedPrSourceFlag = prSourceFlag
+                if prSourceFlag == 0 {
+                    self.frozenRAMCache = self.buildFullProgram(machine: m, currentStep: currentStep, prSourceFlag: 0)
+                } else if prSourceFlag == 8 {
+                    self.frozenROMCache = self.buildFullProgram(machine: m, currentStep: currentStep, prSourceFlag: 8)
+                }
+                if self.liveDebugEnabled {
+                    self.liveDebugSnapshot = self.buildLiveSnapshot(machine: m)
+                }
+                self.captureInspectorSnapshot(machine: m)
+            }
+        }
+    }
+
+    /// Step one keycode while frozen. Advances to the next keycode boundary and
+    /// refreshes the live debug and CPU inspector snapshots. Updates frozen program
+    /// caches if Prg Source changed, and re-centers current step.
+    func stepKeycode() {
+        guard isFrozen else { return }
+        guard let m = machine else { return }
+        emulQueue.async { [weak self, m] in
+            guard let self else { return }
+            _ = m.stepUntilNextKeycode()
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                let cpu = m.snapshotCPU()
+                let currentStep = self.decodeProgramCounter(from: cpu)
+                let prSourceFlag = UInt8(cpu.SCOM.0.3)
+
+                // Check if Prg Source changed; if so, rebuild appropriate cache
+                if prSourceFlag != self.cachedPrSourceFlag {
+                    self.cachedPrSourceFlag = prSourceFlag
+                    if prSourceFlag == 0 {
+                        self.frozenRAMCache = self.buildFullProgram(machine: m, currentStep: currentStep, prSourceFlag: 0)
+                        self.frozenROMCache = nil
+                    } else if prSourceFlag == 8 {
+                        self.frozenROMCache = self.buildFullProgram(machine: m, currentStep: currentStep, prSourceFlag: 8)
+                        self.frozenRAMCache = nil
+                    }
+                } else {
+                    // Prg Source unchanged: update isCurrent markers in existing cache
+                    self.updateCachedProgramCurrent(to: currentStep, prSourceFlag: prSourceFlag)
+                }
+
+                if self.liveDebugEnabled {
+                    self.liveDebugSnapshot = self.buildLiveSnapshot(machine: m)
+                }
+                self.captureInspectorSnapshot(machine: m)
+            }
+        }
+    }
+
+    /// Capture the current CPU state and last 32 executed instructions for the frozen inspector view.
+    /// Reads (without draining) the ring buffer to preserve history across steps.
+    private func captureInspectorSnapshot(machine m: TI59MachineWrapper) {
+        // Read (without draining) all available events from the ring buffer
+        var snapshotArray: NSArray?
+        let eventsNS =  m.readTraceEvents(max: 512, snapshots: &snapshotArray)
+        let newEvents = (eventsNS as [NSValue]).map { v -> TITraceEvent in
+            var e = TITraceEvent()
+            v.getValue(&e)
+            return e
+        }
+        let snapshots = (snapshotArray as? [NSValue] ?? []).map { v -> TICPUSnapshot in
+            var snap = TICPUSnapshot()
+            v.getValue(&snap)
+            return snap
+        }
+
+        cpuInspectorHistory = []
+        let currentPC = m.currentPC
+
+        // Add history: last 32 executed instructions from the ring buffer
+        let historyCount = min(32, newEvents.count)
+        let historyStartIdx = newEvents.count - historyCount
+        for i in historyStartIdx..<newEvents.count {
+            let event = newEvents[i]
+            let snapshotIdx = i - (newEvents.count - snapshots.count)
+            let cpu = (snapshotIdx >= 0 && snapshotIdx < snapshots.count) ? snapshots[snapshotIdx] : TICPUSnapshot()
+            let disasm = TI59MachineWrapper.disassemblePC(event.pc, opcode: event.opcode)
+            let isLastInstruction = (i == newEvents.count - 1)
+            cpuInspectorHistory.append(InspectorSnapshot(
+                pc: event.pc,
+                opcode: event.opcode,
+                disasm: disasm,
+                cpuState: cpu,
+                isHistory: true,
+                isCurrent: isLastInstruction
+            ))
+        }
+
+        // If last event is different from currentPC, add currentPC as a future instruction
+        if newEvents.last?.pc != currentPC {
+            cpuInspectorHistory.append(InspectorSnapshot(
+                pc: currentPC,
+                opcode: 0x0000,
+                disasm: "???",
+                cpuState: TICPUSnapshot(),
+                isHistory: false,
+                isCurrent: false
+            ))
+        }
+
+        // Add next 4 speculative instructions (ROM ahead, unknown opcodes)
+        for offset in 1...4 {
+            let nextPC = currentPC &+ UInt16(offset)
+            cpuInspectorHistory.append(InspectorSnapshot(
+                pc: nextPC,
+                opcode: 0x0000,
+                disasm: "???",
+                cpuState: TICPUSnapshot(),
+                isHistory: false,
+                isCurrent: false
+            ))
+        }
+    }
+
+    /// Update isCurrent markers in the cached program for the given current step.
+    /// Clears old current marker and sets new one.
+    private func updateCachedProgramCurrent(to currentStep: Int, prSourceFlag: UInt8) {
+        if prSourceFlag == 0, var cache = frozenRAMCache {
+            for i in 0..<cache.count {
+                cache[i].isCurrent = (cache[i].stepNum == currentStep)
+            }
+            frozenRAMCache = cache
+        } else if prSourceFlag == 8, var cache = frozenROMCache {
+            for i in 0..<cache.count {
+                cache[i].isCurrent = (cache[i].stepNum == currentStep)
+            }
+            frozenROMCache = cache
+        }
+    }
+
+    /// Return the full cached program when frozen, or nil if not frozen.
+    var frozenCachedProgram: [LiveDebugSnapshot.StepEntry]? {
+        if cachedPrSourceFlag == 0 {
+            return frozenRAMCache
+        } else if cachedPrSourceFlag == 8 {
+            return frozenROMCache
+        }
+        return nil
+    }
+
+    /// Return the index of the current step in the cached program when frozen, or -1 if not frozen.
+    var frozenCachedCurrentIndex: Int {
+        guard let program = frozenCachedProgram else { return -1 }
+        return program.firstIndex(where: { $0.isCurrent }) ?? -1
+    }
+
+    func unfreeze() {
+        freezeReason = nil
+        frozenROMCache = nil
+        frozenRAMCache = nil
+        cachedPrSourceFlag = 0
+        startEmulationLoop()
+        startDisplayRefresh()
     }
 
     // MARK: - Calculator-level snapshot
@@ -512,8 +948,20 @@ class EmulatorViewModel {
     func getCalcSnapshot() -> CalcSnapshot? {
         guard let m = machine else { return nil }
         // Number of accessible data registers depends on the current partition:
-        // programRAMregs occupy RAM[0..(n-1)]; data regs fill RAM[n..119] top-down.
-        let numRegs = max(0, 120 - Int(m.partitionProgramRegs))
+        // programRAMregs occupy RAM[0..(n-1)]; data regs fill RAM[n..totalRegs-1] top-down.
+        let partitionProgramRegs = Int(m.partitionProgramRegs)
+        let totalRegs = Int(m.ramRegisterCount)
+
+        // If partition is invalid (claims more than physically exists), return empty registers
+        guard partitionProgramRegs <= totalRegs else {
+            let regs = [Double](repeating: 0, count: 0)
+            let steps = Array(m.allProgramSteps() as Data)
+            let cpu = m.snapshotCPU()
+            return CalcSnapshot(registers: regs, programSteps: steps,
+                                printerBuffer: m.printerBufferContent, cpu: cpu)
+        }
+
+        let numRegs = max(0, totalRegs - partitionProgramRegs)
         var regs = [Double](repeating: 0, count: numRegs)
         for i in 0..<numRegs { regs[i] = m.dataRegister(i) }
         let steps = Array(m.allProgramSteps() as Data)
@@ -522,8 +970,442 @@ class EmulatorViewModel {
                             printerBuffer: m.printerBufferContent, cpu: cpu)
     }
 
+    /// Build full program for a given source (RAM or ROM), used for freeze caching.
+    /// Returns all steps as StepEntry with mnemonics, marking currentStep as current.
+    private func buildFullProgram(machine m: TI59MachineWrapper, currentStep: Int, prSourceFlag: UInt8) -> [LiveDebugSnapshot.StepEntry] {
+        var result: [LiveDebugSnapshot.StepEntry] = []
+
+        switch prSourceFlag {
+        case 0:
+            // User RAM — all program steps
+            let steps = Array(m.allProgramSteps() as Data)
+            guard !steps.isEmpty else { return [] }
+
+            // Build set of argument step indices
+            var argSteps = Set<Int>()
+            for i in 0..<steps.count {
+                let stepsAfter = TI59KeyNames.stepsAfter(for: steps[i])
+                if stepsAfter > 0 {
+                    for j in 1...stepsAfter {
+                        if i + j < steps.count {
+                            argSteps.insert(i + j)
+                        }
+                    }
+                }
+            }
+
+            for i in 0..<steps.count {
+                let kc = steps[i]
+                let isArgument = argSteps.contains(i)
+                let mnemonic = isArgument ? String(format: "%02d", kc) : TI59KeyNames.mnemonic(for: kc)
+
+                result.append(.init(
+                    stepNum: i,
+                    keycode: kc,
+                    mnemonic: mnemonic,
+                    isCurrent: i == currentStep
+                ))
+            }
+
+        case 8:
+            // Main ROM (384 steps)
+            var keycodes: [UInt8] = []
+            for addr in 0..<384 {
+                keycodes.append(m.romKeycode(at: addr))
+            }
+
+            // Detect argument step indices
+            var argSteps = Set<Int>()
+            for i in 0..<keycodes.count {
+                let stepsAfter = TI59KeyNames.stepsAfter(for: keycodes[i])
+                if stepsAfter > 0 {
+                    for j in 1...stepsAfter {
+                        if i + j < keycodes.count {
+                            argSteps.insert(i + j)
+                        }
+                    }
+                }
+            }
+
+            for (idx, keycode) in keycodes.enumerated() {
+                let isArgument = argSteps.contains(idx)
+                let mnemonic = isArgument ? String(format: "%02d", keycode) : TI59KeyNames.mnemonic(for: keycode)
+
+                result.append(.init(
+                    stepNum: idx,
+                    keycode: keycode,
+                    mnemonic: mnemonic,
+                    isCurrent: idx == currentStep
+                ))
+            }
+
+        default:
+            // Library or other: TBD
+            break
+        }
+
+        return result
+    }
+
+    /// Build a real-time debug snapshot for the live debug view.
+    /// Called from tick() at 60 Hz only when liveDebugEnabled.
+    private func buildLiveSnapshot(machine m: TI59MachineWrapper) -> LiveDebugSnapshot {
+        let partitionProgramRegs = Int(m.partitionProgramRegs)
+        let totalRegs = Int(m.ramRegisterCount)   // 60 (TI-58), 64 (TI-58C), or 120 (TI-59)
+        let displayableRegs = model.hasConstantMemory ? 60 : totalRegs
+
+        // Clamp programRegs to physical RAM; quirky partitions may claim more than exists
+        let programRegs = min(partitionProgramRegs, totalRegs)
+        let dataRegCount = max(0, displayableRegs - programRegs)
+        var snap = LiveDebugSnapshot()
+        snap.programRegCount = partitionProgramRegs  // Store the claimed partition, not the clamped value
+        snap.dataRegCount = dataRegCount
+
+        // Data registers: check all non-zero values in the data region
+        // Visible registers (programRegs to displayableRegs-1) shown as R##
+        // Hidden registers (displayableRegs to totalRegs-1) shown as H##
+        // Guard against quirky partitions: only access what physically exists
+        guard programRegs <= totalRegs else { return snap }
+        for ramIdx in programRegs..<totalRegs {
+            guard ramIdx >= 0 && ramIdx < totalRegs else { continue }
+            let raw = m.rawRegister(ramIdx) as Data
+            if raw.contains(where: { $0 != 0 }) {
+                let value = TI59MachineWrapper.decodeBCD(raw)
+                if ramIdx < displayableRegs {
+                    // Visible register
+                    let regNum = displayableRegs - 1 - ramIdx
+                    snap.nonZeroRegs.append(.init(num: regNum, value: value, isHidden: false))
+                } else {
+                    // Hidden register
+                    let hiddenNum = ramIdx - displayableRegs
+                    snap.nonZeroRegs.append(.init(num: hiddenNum, value: value, isHidden: true))
+                }
+            }
+        }
+
+        // CPU snapshot (single ~370-byte memcpy)
+        let cpu = m.snapshotCPU()
+
+        // HIR registers 1–8 (stored in SCOM[1..8]; decode as Double)
+        // Each HIR is 16 BCD nibbles: bits 15–3 = mantissa, 2–1 = exponent, 0 = sign
+        withUnsafeBytes(of: cpu.SCOM) { bytes in
+            for hirNum in 1...8 {
+                let scomRow = hirNum  // HIR N lives in SCOM[N]
+                let scomBytes = Data(bytes[(scomRow * 16)..<((scomRow + 1) * 16)])
+                let value = TI59MachineWrapper.decodeBCD(scomBytes)
+                switch hirNum {
+                case 1: snap.hir1 = value
+                case 2: snap.hir2 = value
+                case 3: snap.hir3 = value
+                case 4: snap.hir4 = value
+                case 5: snap.hir5 = value
+                case 6: snap.hir6 = value
+                case 7: snap.hir7 = value
+                case 8: snap.hir8 = value
+                default: break
+                }
+            }
+        }
+
+        // T register (stored in SCOM[11]; the stack top / last-X equivalent)
+        withUnsafeBytes(of: cpu.SCOM) { bytes in
+            let tBytes = Data(bytes[(11 * 16)..<(12 * 16)])
+            snap.tRegister = TI59MachineWrapper.decodeBCD(tBytes)
+        }
+
+        // Program Source Flag (SCOM[0], nibble 3; per SCOM map)
+        snap.prSourceFlag = UInt8(cpu.SCOM.0.3)
+
+        // Degree/Radian/Grad mode (SCOM[13][0], nibble 0; per SCOM map)
+        // Encoding: 0=DEG, 1=GRAD, 12(C)=RAD
+        withUnsafeBytes(of: cpu.SCOM) { bytes in
+            let modeNibble = bytes[13 * 16 + 0] & 0x0F
+            snap.angleMode = {
+                switch modeNibble {
+                case 0x0: return .deg
+                case 0x1: return .grad
+                case 0xC: return .rad
+                default: return nil
+                }
+            }()
+        }
+
+        // Pending operations count (SCOM[13], bit 1 area; exact position TBD)
+        withUnsafeBytes(of: cpu.SCOM) { bytes in
+            // Per SCOM map: "No. of pending ops" is in SCOM[13]
+            // Assuming it's in nibble 0 or bits within the row
+            snap.pendingOpsCount = Int(bytes[13 * 16 + 0])  // TBD: exact bit position
+        }
+
+        // Calculator flags 0–9 (stored in SCOM[0], nibbles 11–15)
+        // Encoding: flags 0-4 use bit 1 (value 1), flags 5-9 use bit 2 (value 2) in their respective nibbles
+        // Flag N maps to nibble (11 + N%5) and bit (1 if N<5 else 2)
+        let n11 = Int(cpu.SCOM.0.11)
+        let n12 = Int(cpu.SCOM.0.12)
+        let n13 = Int(cpu.SCOM.0.13)
+        let n14 = Int(cpu.SCOM.0.14)
+        let n15 = Int(cpu.SCOM.0.15)
+
+        snap.calcFlags = [
+            (n11 & 1) != 0,  // Flag 0
+            (n12 & 1) != 0,  // Flag 1
+            (n13 & 1) != 0,  // Flag 2
+            (n14 & 1) != 0,  // Flag 3
+            (n15 & 1) != 0,  // Flag 4
+            (n11 & 2) != 0,  // Flag 5
+            (n12 & 2) != 0,  // Flag 6
+            (n13 & 2) != 0,  // Flag 7
+            (n14 & 2) != 0,  // Flag 8
+            (n15 & 2) != 0,  // Flag 9
+        ]
+
+        // FIX (SCOM[0].15: if 0 show dash, else (raw - 2) % 10), IO User Flags (SCOM[0], nibbles 14–10), Last Key (SCOM[0], nibbles 2–1)
+        let fix_raw = Int(cpu.SCOM.0.0)
+        let io14 = Int(cpu.SCOM.0.1)
+        let io13 = Int(cpu.SCOM.0.2)
+        let io12 = Int(cpu.SCOM.0.3)
+        let io11 = Int(cpu.SCOM.0.4)
+        let io10 = Int(cpu.SCOM.0.5)
+        let key2 = Int(cpu.SCOM.0.13)
+        let key1 = Int(cpu.SCOM.0.14)
+        if fix_raw == 0 {
+            snap.fixIndicator = "-"
+        } else {
+            let fix = ((fix_raw - 2) % 10 + 10) % 10
+            snap.fixIndicator = String(fix)
+        }
+        snap.ioUserFlags = String(format: "%d%d%d%d%d", io14, io13, io12, io11, io10)
+        snap.lastKey = String(format: "%d%d", key2, key1)
+
+        // Debug indicators from FA and FB registers
+        let fa = cpu.fA
+        let fb = cpu.fB
+        snap.fA = fa
+        snap.fB = fb
+
+        // 2nd and INV indicators (from FA register, 2nd digit from left = nibble 1)
+        // Bit 0 (rightmost) = INV, Bit 1 = 2nd
+        let faNibble1 = Int((fa >> 8) & 0xF)  // 2nd digit from left (bits 11-8)
+        let invBit = (faNibble1 & 0x1) != 0
+        let secondBit = (faNibble1 & 0x2) != 0
+        snap.invIndicator = invBit ? "INV" : ""
+        snap.secondIndicator = secondBit ? "2nd" : ""
+
+        // EE indicator (from FB register, 3rd digit from left, bit 3 from right)
+        let fbNibble2 = Int((fb >> 4) & 0xF)  // 3rd digit from left (bits 7-4)
+        let engBit = (fbNibble2 & 0x8) != 0
+        snap.engIndicator = engBit ? "Eng" : ""
+
+        // Program steps window — source depends on PRG SOURCE flag
+        snap.currentStep = decodeProgramCounter(from: cpu)
+
+        switch snap.prSourceFlag {
+        case 0:
+            // User RAM — existing behavior
+            let steps = Array(m.allProgramSteps() as Data)
+            if !steps.isEmpty {
+                let center = snap.currentStep >= 0 ? snap.currentStep : 0
+                let lo = max(0, center - 5)
+                let hi = min(steps.count - 1, center + 5)
+                if lo <= hi {
+                    // Build set of argument step indices (not keycodes)
+                    var argSteps = Set<Int>()
+                    for i in lo...hi {
+                        let stepsAfter = TI59KeyNames.stepsAfter(for: steps[i])
+                        if stepsAfter > 0 {
+                            for j in 1...stepsAfter {
+                                if i + j <= hi {
+                                    argSteps.insert(i + j)
+                                }
+                            }
+                        }
+                    }
+
+                    for i in lo...hi {
+                        let kc = steps[i]
+                        let isArgument = argSteps.contains(i)
+                        let mnemonic = isArgument ? String(format: "%02d", kc) : TI59KeyNames.mnemonic(for: kc)
+
+                        snap.programWindow.append(.init(
+                            stepNum: i,
+                            keycode: kc,
+                            mnemonic: mnemonic,
+                            isCurrent: i == snap.currentStep
+                        ))
+                    }
+                }
+            }
+
+        case 8:
+            // Main ROM (384 keycode programs from constants)
+            let romCenter = snap.currentStep
+            let lo = max(0, romCenter - 5)
+            let hi = min(383, romCenter + 5)
+
+            // Build array of keycodes for this range
+            var keycodes: [UInt8] = []
+            for addr in lo...hi {
+                keycodes.append(m.romKeycode(at: addr))
+            }
+
+            // Detect argument step indices
+            var argSteps = Set<Int>()
+            for i in 0..<keycodes.count {
+                let stepsAfter = TI59KeyNames.stepsAfter(for: keycodes[i])
+                if stepsAfter > 0 {
+                    for j in 1...stepsAfter {
+                        if i + j < keycodes.count {
+                            argSteps.insert(i + j)
+                        }
+                    }
+                }
+            }
+
+            for (idx, keycode) in keycodes.enumerated() {
+                let addr = lo + idx
+                let isArgument = argSteps.contains(idx)
+                let mnemonic = isArgument ? String(format: "%02d", keycode) : TI59KeyNames.mnemonic(for: keycode)
+                snap.programWindow.append(.init(
+                    stepNum: addr, keycode: keycode, mnemonic: mnemonic,
+                    isCurrent: addr == romCenter))
+            }
+
+        default:
+            // PRG SOURCE = 1 (library) or other: TBD
+            break
+        }
+
+        // Return address stack (SCOM[14:15]) — 6 levels of subroutine return addresses
+        // Each level: 5 nibbles (1 PRG SOURCE + 4 address in Base 80, read right-to-left)
+        // Format: Nibble 0 = count, then Level 1-3 (5 nibbles each) in SCOM[15], Level 4-6 in SCOM[14]
+        withUnsafeBytes(of: cpu.SCOM) { bytes in
+            let baseOffset14 = 14 * 16
+            let baseOffset15 = 15 * 16
+
+            // Collect all 16 nibbles from SCOM[15] (left to right)
+            var nibbles15: [UInt8] = []
+            for i in 0..<16 {
+                nibbles15.append(bytes[baseOffset15 + i] & 0xF)
+            }
+
+            // Collect all 16 nibbles from SCOM[14] (left to right)
+            var nibbles14: [UInt8] = []
+            for i in 0..<16 {
+                nibbles14.append(bytes[baseOffset14 + i] & 0xF)
+            }
+
+            // Count from first nibble of SCOM[15]
+            let count = Int(nibbles15[0])
+
+            // Decode levels: PRG SOURCE at position 0, address (Base 80) at positions 1-4 (read right-to-left)
+            // Level 1: positions 1-5
+            let l1_src = nibbles15[1]
+            let l1 = Int(nibbles15[5]) * 800 + Int(nibbles15[4]) * 80 + Int(nibbles15[3]) * 8 + Int(nibbles15[2])
+
+            // Level 2: positions 6-10
+            let l2_src = nibbles15[6]
+            let l2 = Int(nibbles15[10]) * 800 + Int(nibbles15[9]) * 80 + Int(nibbles15[8]) * 8 + Int(nibbles15[7])
+
+            // Level 3: positions 11-15
+            let l3_src = nibbles15[11]
+            let l3 = Int(nibbles15[15]) * 800 + Int(nibbles15[14]) * 80 + Int(nibbles15[13]) * 8 + Int(nibbles15[12])
+
+            // Level 4: positions 1-5
+            let l4_src = nibbles14[1]
+            let l4 = Int(nibbles14[5]) * 800 + Int(nibbles14[4]) * 80 + Int(nibbles14[3]) * 8 + Int(nibbles14[2])
+
+            // Level 5: positions 6-10
+            let l5_src = nibbles14[6]
+            let l5 = Int(nibbles14[10]) * 800 + Int(nibbles14[9]) * 80 + Int(nibbles14[8]) * 8 + Int(nibbles14[7])
+
+            // Level 6: positions 11-15
+            let l6_src = nibbles14[11]
+            let l6 = Int(nibbles14[15]) * 800 + Int(nibbles14[14]) * 80 + Int(nibbles14[13]) * 8 + Int(nibbles14[12])
+
+            snap.returnAddress = String(format: "L6:%03d L5:%03d L4:%03d L3:%03d L2:%03d L1:%03d (count=%d)",
+                l6, l5, l4, l3, l2, l1, count)
+            snap.returnAddressSourceFlags = [l1_src, l2_src, l3_src, l4_src, l5_src, l6_src]
+            snap.returnAddresses = [l1, l2, l3, l4, l5, l6]
+        }
+
+        // SCOM rows (all 16, plus extract rows 0–3 for printer)
+        withUnsafeBytes(of: cpu.SCOM) { bytes in
+            snap.scomRows = (0..<16).map { row in
+                (0..<16).map { String(bytes[row * 16 + $0], radix: 16, uppercase: false) }.joined()
+            }
+        }
+        snap.printerSCOM = Array(snap.scomRows.prefix(4))
+
+        return snap
+    }
+
+    /// Build CPU debug snapshot with disassembled trace history.
+    /// Drains last 32 instructions from trace ring with their pre-execution CPU snapshots.
+    /// Enables TRACE_REGS_FULL automatically so every instruction has a snapshot.
+    private func buildCPUDebugSnapshot(machine m: TI59MachineWrapper) -> CPUDebugSnapshot {
+        var snap = CPUDebugSnapshot()
+        snap.currentPC = m.currentPC
+        snap.isPaused = isPausedOnBreakpoint
+        snap.pausedPC = breakpointPC
+
+        // Ensure trace flags are set so the CPU generates events
+        let requiredFlags: TITraceFlags = [.pc, .regsFull]
+        if !m.traceFlags.contains(requiredFlags) {
+            m.traceFlags = m.traceFlags.union(requiredFlags)
+        }
+
+        // Read (without draining) all recent events from the ring buffer
+        var snapshotArray: NSArray?
+        let eventsNS = m.readTraceEvents(max: 512, snapshots: &snapshotArray)
+        let newEvents = (eventsNS as [NSValue]).map { v -> TITraceEvent in
+            var e = TITraceEvent()
+            v.getValue(&e)
+            return e
+        }
+
+        // Accumulate new events in the rolling window
+        cpuTraceWindow = newEvents  // Replace with all current events from ring buffer
+        cpuTraceSnapshots = (snapshotArray as? [NSValue] ?? []).map { v -> TICPUSnapshot in
+            var snap = TICPUSnapshot()
+            v.getValue(&snap)
+            return snap
+        }
+
+        // Build recent instructions from the accumulated window (show last 32)
+        let instructionsToShow = min(32, cpuTraceWindow.count)
+        snap.recentInstructions = []
+        for i in (cpuTraceWindow.count - instructionsToShow)..<cpuTraceWindow.count {
+            let event = cpuTraceWindow[i]
+            let snapshotIndex = Int(event.snapshotIndex)
+            let cpu = (snapshotIndex < cpuTraceSnapshots.count) ? cpuTraceSnapshots[snapshotIndex] : TICPUSnapshot()
+            let disasm = TI59MachineWrapper.disassemblePC(event.pc, opcode: event.opcode)
+            snap.recentInstructions.append(CPUDebugSnapshot.Instruction(
+                pc: event.pc,
+                opcode: event.opcode,
+                disasm: disasm,
+                cpuBefore: cpu
+            ))
+        }
+
+        return snap
+    }
+
+    /// Decode the program counter from SCOM[0] positions 4-7.
+    /// It's encoded in base-80, so to speak.
+    private func decodeProgramCounter(from cpu: TICPUSnapshot) -> Int {
+        // PC encoding formula
+        let n4 = Int(cpu.SCOM.0.4)
+        let n5 = Int(cpu.SCOM.0.5)
+        let n6 = Int(cpu.SCOM.0.6)
+        let n7 = Int(cpu.SCOM.0.7)
+
+        let pc = n7 * 800 + n6 * 80 + n5 * 8 + n4
+        return pc
+    }
+
     func toggleDebug() {
-        debugEnabled.toggle()
+        debugLevel.cycle()
+        machine?.setDebugLevel(UInt8(debugLevel.rawValue))
     }
 
     func clearDebug() {
@@ -531,29 +1413,67 @@ class EmulatorViewModel {
         debugClearID &+= 1
     }
 
-    private func debugAppend(_ lines: [String]) {
-        guard debugEnabled else { return }
+    private func debugAppend(_ lines: [String], level: DebugLevel = .info) {
+        guard debugLevel >= level else { return }
         debugLines.append(contentsOf: lines)
     }
 
     /// Dump non-zero data variables within the current partition.
-    /// Shows register numbers as R00–Rnn (not raw RAM indices).
+    /// Displays visible registers as R00–Rnn, hidden ones (beyond 60) as H00–Hnn.
+    /// Sorted by label for consistent output.
     func debugDumpVars() {
         guard let m = machine else { return }
-        let programRegs = Int(m.partitionProgramRegs)
-        let maxRegNum = 119 - programRegs   // last addressable data register
-        guard maxRegNum >= 0 else {
+        let partitionProgramRegs = Int(m.partitionProgramRegs)
+        let totalRegs   = Int(m.ramRegisterCount)   // 60 (TI-58), 64 (TI-58C), or 120 (TI-59)
+        let model = self.model
+
+        // For TI-58/58C, treat as 60-register address space; TI-59 uses full 120
+        let displayableRegs = model.hasConstantMemory ? 60 : totalRegs
+
+        // Clamp to physical RAM; quirky partitions may claim more than exists
+        let programRegs = min(partitionProgramRegs, totalRegs)
+        let visibleDataRegCount = displayableRegs - programRegs
+
+        guard visibleDataRegCount > 0 else {
             debugLines.append("── Vars: no data registers in current partition ──")
             return
         }
-        var lines: [String] = [String(format: "── Vars R00–R%02d ──", maxRegNum)]
-        for regNum in 0...maxRegNum {
-            let raw = m.rawRegister(119 - regNum) as Data
+        var lines: [String] = [String(format: "── Vars R00–R%02d ──", visibleDataRegCount - 1)]
+
+        // Collect all non-zero registers with labels, then sort for consistent output
+        var regEntries: [(label: String, value: Double)] = []
+
+        // Check hidden registers first (RAM[displayableRegs..totalRegs-1])
+        // Only iterate through physically existing registers
+        for ramIdx in displayableRegs..<totalRegs {
+            guard ramIdx >= 0 && ramIdx < totalRegs else { continue }
+            let raw = m.rawRegister(ramIdx) as Data
             if raw.contains(where: { $0 != 0 }) {
                 let v = TI59MachineWrapper.decodeBCD(raw)
-                lines.append(String(format: "R%02d = %.10g", regNum, v))
+                let hiddenIdx = ramIdx - displayableRegs
+                regEntries.append((label: String(format: "H%02d", hiddenIdx), value: v))
             }
         }
+
+        // Check visible data registers (RAM[programRegs..displayableRegs-1])
+        // Clamp upper bound to physical RAM limit
+        let visibleEnd = min(displayableRegs, totalRegs)
+        for ramIdx in programRegs..<visibleEnd {
+            guard ramIdx < totalRegs else { break }
+            let raw = m.rawRegister(ramIdx) as Data
+            if raw.contains(where: { $0 != 0 }) {
+                let v = TI59MachineWrapper.decodeBCD(raw)
+                let dataIdx = displayableRegs - 1 - ramIdx
+                regEntries.append((label: String(format: "R%02d", dataIdx), value: v))
+            }
+        }
+
+        // Sort by label and add to output
+        regEntries.sort { $0.label < $1.label }
+        for entry in regEntries {
+            lines.append(String(format: "%@ = %.10g", entry.label, entry.value))
+        }
+
         debugLines.append(contentsOf: lines)
     }
 
@@ -564,7 +1484,7 @@ class EmulatorViewModel {
         var lines: [String] = ["── SCOM ──"]
         withUnsafeBytes(of: &cpu.SCOM) { bytes in
             for s in 0..<16 {
-                let nibbles = (0..<16).map { String(bytes[s * 16 + $0], radix: 16) }.joined()
+                let nibbles = (0..<16).reversed().map { String(bytes[s * 16 + $0], radix: 16) }.joined()
                 lines.append(String(format: "S%02d %@", s, nibbles))
             }
         }
@@ -588,6 +1508,76 @@ class EmulatorViewModel {
         debugLines.append(contentsOf: lines)
     }
 
+    /// Dump entire RAM memory with address information.
+    /// Shows only non-zero registers as raw nibble pairs using raw indices.
+    func debugDumpMemory() {
+        guard let m = machine else { return }
+        var lines: [String] = ["── Memory (non-zero registers) ──"]
+
+        let totalRegs = Int(m.ramRegisterCount)
+
+        for reg in 0..<totalRegs {
+            guard reg >= 0 && reg < totalRegs else { continue }
+            let n = Array(m.rawRegister(reg) as Data)
+            // Skip if all zeros
+            if n.allSatisfy({ $0 == 0 }) { continue }
+
+            let pairs = stride(from: 0, to: 16, by: 2)
+                .map { String(format: "%X%X", n[$0], n[$0 + 1]) }
+                .joined(separator: " ")
+            lines.append(String(format: "R%03d: %@", reg, pairs))
+        }
+        debugLines.append(contentsOf: lines)
+    }
+
+    /// Debug helper: dump step counter encoding from SCOM[0] and surrounding rows.
+    /// Used to identify the nibble pattern for the program counter.
+    func debugDumpStepCounterAnalysis() {
+        guard let m = machine else { return }
+        var lines: [String] = ["── Step Counter Analysis (SCOM) ──"]
+
+        let cpu = m.snapshotCPU()
+
+        // Format SCOM[0] with position numbers
+        var row0Hex = ""
+        withUnsafeBytes(of: cpu.SCOM.0) { bytes in
+            row0Hex = (0..<16).map { String(bytes[$0], radix: 16) }.joined()
+        }
+        lines.append("SCOM[0]  (positions 0–15):")
+        lines.append("values:  " + row0Hex)
+        lines.append("pos:     0123456789abcdef")
+
+        // Highlight the varying segment (positions 4-6)
+        lines.append("note:    ----VARYING---")
+
+        // Extract and show SCOM[15][0] as indicator
+        let row15Hex0 = String(Int(cpu.SCOM.15.0), radix: 16)
+        lines.append(String(format: "SCOM[15][0]: %@ (expected: 0=PC=0, 9=PC>0)", row15Hex0))
+
+        // Show first 16 hex chars of SCOM[10] and [13] as alternatives
+        var row10Hex = ""
+        withUnsafeBytes(of: cpu.SCOM.10) { bytes in
+            row10Hex = (0..<16).map { String(bytes[$0], radix: 16) }.joined()
+        }
+        var row13Hex = ""
+        withUnsafeBytes(of: cpu.SCOM.13) { bytes in
+            row13Hex = (0..<16).map { String(bytes[$0], radix: 16) }.joined()
+        }
+        lines.append("SCOM[10]: " + row10Hex)
+        lines.append("SCOM[13]: " + row13Hex)
+
+        // Known reference data
+        lines.append("")
+        lines.append("Known mappings (for reference):")
+        lines.append("PC=100 → SCOM[0] pos 4-6 = '421'")
+        lines.append("PC=200 → SCOM[0] pos 4-6 = '052'")
+        lines.append("PC=300 → SCOM[0] pos 4-6 = '473'")
+        lines.append("PC=400 → SCOM[0] pos 4-6 = '425'")
+        lines.append("Pattern: nibbles don't decode as BCD or simple hex")
+
+        debugAppend(lines)
+    }
+
     /// Read a raw 16-nibble RAM register (reg 0–119).
     func rawRegister(_ reg: Int) -> [UInt8]? {
         guard let m = machine else { return nil }
@@ -609,23 +1599,28 @@ class EmulatorViewModel {
             errorMessage = "Cannot read file."
             return
         }
-        var parsed = parseStateFile(text)
+        let maxStepAddr = model.hasLargeMemory ? 959 : 479
+        var parsed = parseStateFile(text, maxStepAddr: maxStepAddr, allowHiddenRegisters: model.hasConstantMemory)
         if !parsed.errors.isEmpty { errorMessage = parsed.errors.joined(separator: "\n") }
 
-        // TI-58/58C: 60 RAM registers → max 480 steps (last step 479).
-        let isTI58 = (model == .ti58 || model == .ti58c)
-        if isTI58 {
-            if parsed.partitionWasExplicit && parsed.partitionMaxStep > 479 {
-                errorMessage = "State file partition (\(parsed.partitionMaxStep)) exceeds TI-58 maximum (479) — load aborted."
+        if !model.hasLargeMemory {
+            let maxStep = 479  // TI-58 and TI-58C: both use up to 480 steps
+            if parsed.partitionWasExplicit && parsed.partitionMaxStep > maxStep {
+                errorMessage = "State file partition (\(parsed.partitionMaxStep)) exceeds \(model.displayName) maximum (\(maxStep)) — load aborted."
                 return
             }
-            // Apply TI-58 default partition when the file has none.
+            // Apply default partition when the file has none.
             if !parsed.partitionWasExplicit {
-                parsed.partitionMaxStep = 239   // 30 program regs, 30 data regs (R00–R29)
+                parsed.partitionMaxStep = 239
             }
         }
 
         isRunning = false
+        // Clear freeze state without restarting the loop
+        freezeReason = nil
+        frozenROMCache = nil
+        frozenRAMCache = nil
+        cachedPrSourceFlag = 0
         // Synchronous dispatch ensures the emulation loop has fully exited
         // before we touch RAM or SCOM.  Without this, a step() in-flight on
         // emulQueue could write stale values after our state-file writes.
@@ -639,10 +1634,10 @@ class EmulatorViewModel {
         // (master-clear, display init) completes in well under 100k steps.
         // Skipping this would leave SCOM in an uninitialised state that confuses
         // the AOS stack and display driver when we write program/data below.
-        emulQueue.sync { m.stepN(300_000) }
+        _ = emulQueue.sync { m.stepN(300_000) }
 
         // Set partition directly in SCOM (SCOM[9][0] and SCOM[13][8..9]).
-        // For TI-58, programRegs is capped at 60; the rounding above ensures this.
+        // For TI-58, programRegs capped at 60; for TI-58C at 64; rounding above ensures this.
         let programRegs = (parsed.partitionMaxStep + 1) / 8
         m.partitionProgramRegs = programRegs
 
@@ -654,10 +1649,26 @@ class EmulatorViewModel {
         }
         m.writeProgramSteps(Data(programArray))
         for (regNum, nibbles) in parsed.registers {
-            m.writeDataRegister(regNum, nibbles: Data(nibbles))
+            if regNum >= 60 {
+                // Hidden registers (H00-H03): write directly to RAM slots 60-63
+                m.setRawRegister(regNum, nibbles: Data(nibbles))
+            } else {
+                // Normal data registers: use the reversed mapping
+                m.writeDataRegister(regNum, nibbles: Data(nibbles))
+            }
+        }
+
+        // Clear out-of-range data registers to prevent corruption from stale state files
+        let dataRegCount = 120 - programRegs
+        let zeroNibbles = Data(repeating: UInt8(0), count: 16)
+        for regNum in dataRegCount..<120 {
+            m.setRawRegister(regNum, nibbles: zeroNibbles)
         }
 
         startEmulationLoop()
+
+        // Persist the loaded state once after all writes complete
+        persistConstantMemory()
 
         if !parsed.keystrokes.isEmpty {
             Task { await playKeystrokes(parsed.keystrokes) }
@@ -689,10 +1700,11 @@ class EmulatorViewModel {
 
     private func drainTraceEvents(machine m: TI59MachineWrapper) {
         var snapsOut: NSArray? = nil
-        guard let eventsNS = m.drainTraceEvents(max: 2000, snapshots: &snapsOut) as? [NSValue],
-              !eventsNS.isEmpty else { return }
-        let snapsNS = (snapsOut as? [NSValue]) ?? []
+        let eventsNS = m.drainTraceEvents(max: 2000, snapshots: &snapsOut)
 
+        guard !eventsNS.isEmpty else { return }
+
+        let snapsNS = (snapsOut as? [NSValue]) ?? []
         for (i, ev) in eventsNS.enumerated() {
             var e = TITraceEvent()
             ev.getValue(&e)
@@ -701,6 +1713,107 @@ class EmulatorViewModel {
             traceWriter.write(event: e, snapshot: snap)
         }
     }
+}
+
+// ── Live Debug Snapshot ───────────────────────────────────────────────────────
+//
+// Real-time (60 Hz) view of calculator state: registers, flags, SCOM, program steps.
+// Stores decoded/formatted values to minimize work on render thread.
+
+struct LiveDebugSnapshot: Equatable {
+    // Data registers — only non-zero values
+    struct RegEntry: Equatable {
+        var num: Int      // register number (0–99 for R, 0–3 for H)
+        var value: Double
+        var isHidden: Bool = false  // true for H##, false for R##
+    }
+    var nonZeroRegs: [RegEntry] = []
+    var dataRegCount: Int = 0
+    var programRegCount: Int = 0
+
+    // Program steps window — ±5 around current step
+    struct StepEntry: Equatable {
+        var stepNum: Int       // 000–479
+        var keycode: UInt8     // raw 2-digit code
+        var mnemonic: String   // e.g. "STO 00", "GTO 27"
+        var isCurrent: Bool
+    }
+    var programWindow: [StepEntry] = []
+    var currentStep: Int = -1   // -1 = unknown (SCOM location TBD)
+
+    // HIR registers (stored in SCOM[1..8]; decoded as Double)
+    // Each HIR is 16 BCD nibbles: bits 15–3 = mantissa, 2–1 = exponent, 0 = sign
+    var hir1: Double = 0
+    var hir2: Double = 0
+    var hir3: Double = 0
+    var hir4: Double = 0
+    var hir5: Double = 0
+    var hir6: Double = 0
+    var hir7: Double = 0
+    var hir8: Double = 0
+
+    // T register (SCOM[11]; decoded as Double; stack top / last-X equivalent)
+    var tRegister: Double = 0
+
+    // Calculator flags 0–9 (stored in SCOM; bit mapping TBD experimentally)
+    var calcFlags: [Bool?] = Array(repeating: nil, count: 10)
+
+    // SCOM[0] fields
+    var fixIndicator: String = "0"      // Nibble 15 (FIX = value - 2 mod 10)
+    var ioUserFlags: String = "00000"   // Nibbles 14–10 (5 digits)
+    var lastKey: String = "00"          // Nibbles 2–1 (2 digits)
+    var fA: UInt16 = 0                  // FA register (debug display)
+    var fB: UInt16 = 0                  // FB register (debug display)
+    var engIndicator: String = ""       // "Eng" if FB bit 3 (of 3rd digit) is set, else empty
+    var secondIndicator: String = ""    // "2nd" if FA bit 1 is set, else empty
+    var invIndicator: String = ""       // "INV" if FA bit 0 is set, else empty
+
+    // Calculator-level status (from SCOM)
+    var angleMode: AngleMode? = nil
+    enum AngleMode: Equatable { case deg, rad, grad }
+
+    // SCOM-derived control state
+    var prSourceFlag: UInt8 = 0   // Program Source Flag (SCOM[0] nibble 3)
+    var pendingOpsCount: Int = 0  // Number of pending operations in hierarchy stack (SCOM 13)
+
+    // Printer SCOM rows 0–3
+    var printerSCOM: [String] = []
+
+    // All 16 SCOM rows
+    var scomRows: [String] = []
+
+    // Return address stack (from SCOM[14:15]) — 6 levels of subroutine return addresses
+    var returnAddress: String = ""
+    var returnAddressSourceFlags: [UInt8] = Array(repeating: 0, count: 6)  // PRG SOURCE for each level (L1-L6)
+    var returnAddresses: [Int] = Array(repeating: 0, count: 6)  // Decoded address values for each level (L1-L6)
+
+    static let empty = LiveDebugSnapshot()
+}
+
+// ── CPU-level debugger snapshot ───────────────────────────────────────────────
+//
+// Deep CPU state at each instruction: registers A–E, SCOM, Sout, control registers.
+// Each instruction entry carries its pre-execution CPU snapshot, enabling back-stepping.
+
+struct CPUDebugSnapshot: Equatable {
+    struct Instruction: Equatable {
+        var pc: UInt16
+        var opcode: UInt16
+        var disasm: String
+        var cpuBefore: TICPUSnapshot  // CPU state BEFORE this instruction executed
+
+        static func == (lhs: Instruction, rhs: Instruction) -> Bool {
+            // Compare only the instruction data, not the snapshot (which can't be compared)
+            return lhs.pc == rhs.pc && lhs.opcode == rhs.opcode && lhs.disasm == rhs.disasm
+        }
+    }
+
+    var recentInstructions: [Instruction] = []  // last ~32 instructions with snapshots
+    var currentPC: UInt16 = 0
+    var isPaused: Bool = false
+    var pausedPC: UInt16? = nil
+
+    static let empty = CPUDebugSnapshot()
 }
 
 // ── C indicator drop debugger ─────────────────────────────────────────────────
@@ -743,8 +1856,8 @@ private struct CDropDebugger {
                 let sinceStr  = lastDropEnd > 0
                     ? String(format: "+%.0f ms since last", (dropStart - lastDropEnd) * 1000)
                     : "first drop"
-                print(String(format: "[C-DBG] DROP  from %.3f  min %.3f  %d frame(s)  %.0f ms  → %.3f   (%@)",
-                             dropFrom, dropMin, dropFrames, elapsed, duty, sinceStr))
+                print(String(format: "[C-DBG] DROP  from %.3f  min %.3f  %lld frame(s)  %.0f ms  → %.3f   (%@)",
+                             dropFrom, dropMin, Int64(dropFrames), elapsed, duty, sinceStr as NSString))
                 lastDropEnd = now
                 inDrop      = false
             } else {

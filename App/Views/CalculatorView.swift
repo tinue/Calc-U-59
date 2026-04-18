@@ -3,14 +3,18 @@ import UniformTypeIdentifiers
 
 struct CalculatorView: View {
     @Environment(EmulatorViewModel.self) var viewModel
-    #if !os(macOS)
+    #if os(macOS)
+    @State private var isCommandPressed = false
+    #else
     @State private var showingPrinter = false
     @State private var showingStateFilePicker = false
+    @State private var showingSettings = false
     #endif
 
     var body: some View {
         layout
-        .sheet(item: Binding(
+        .dynamicTypeSize(.small ... .large)
+        .sheet(item: .init(
             get: { viewModel.cardPickerMode.map { PickerItem(mode: $0) } },
             set: { viewModel.cardPickerMode = $0?.mode }
         )) { item in
@@ -26,11 +30,15 @@ struct CalculatorView: View {
             }
         }
         #if !os(macOS)
+        .sheet(isPresented: $showingSettings) {
+            SettingsView()
+        }
         .fileImporter(
             isPresented: $showingStateFilePicker,
             allowedContentTypes: [
                 UTType(filenameExtension: "ti59") ?? .data,
-                UTType(filenameExtension: "ti58") ?? .data
+                UTType(filenameExtension: "ti58") ?? .data,
+                UTType(filenameExtension: "ti58c") ?? .data
             ],
             allowsMultipleSelection: false
         ) { result in
@@ -44,7 +52,7 @@ struct CalculatorView: View {
                 modelPicker
             }
         }
-        .alert("ROM load error", isPresented: Binding(
+        .alert("ROM load error", isPresented: .init(
             get: { viewModel.errorMessage != nil },
             set: { if !$0 { viewModel.errorMessage = nil } }
         )) {
@@ -52,6 +60,15 @@ struct CalculatorView: View {
         } message: {
             Text(viewModel.errorMessage ?? "")
         }
+        #if os(macOS)
+        .task {
+            while true {
+                try? await Task.sleep(for: .milliseconds(50))
+                let pressed = NSEvent.modifierFlags.contains(.command)
+                if isCommandPressed != pressed { isCommandPressed = pressed }
+            }
+        }
+        #endif
     }
 
     @ViewBuilder
@@ -82,7 +99,7 @@ struct CalculatorView: View {
                         .fixedSize(horizontal: true, vertical: false)
                     Divider()
                     PrinterView()
-                        .frame(minWidth: 260, maxWidth: 360)
+                        .frame(minWidth: 290, maxWidth: 360)
                     if UIDevice.current.userInterfaceIdiom == .pad {
                         Divider()
                         DebugView()
@@ -107,6 +124,7 @@ struct CalculatorView: View {
                             }
                     }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         #endif
@@ -130,24 +148,26 @@ struct CalculatorView: View {
 
     private func cardReaderBar(showLabels: Bool = true) -> some View {
         HStack(spacing: 16) {
-            Button("", systemImage: "arrow.counterclockwise") {
-                #if os(macOS)
-                if viewModel.model.hasConstantMemory && NSEvent.modifierFlags.contains(.command) {
-                    viewModel.hardResetMachine()
+            #if os(macOS)
+            Button(isCommandPressed ? "Clean" : "Reset",
+                   systemImage: isCommandPressed ? "xmark.circle.fill" : "arrow.counterclockwise") {
+                if NSEvent.modifierFlags.contains(.command) {
+                    viewModel.cleanResetMachine()
                 } else {
                     viewModel.resetMachine()
                 }
-                #else
-                viewModel.resetMachine()
-                #endif
             }
-            .foregroundStyle(.red)
-            #if !os(macOS)
+            .foregroundStyle(isCommandPressed ? .red : .orange)
+            .labelStyle(showLabel: showLabels)
+            #else
+            Button("Reset", systemImage: "arrow.counterclockwise") {
+                viewModel.resetMachine()
+            }
+            .foregroundStyle(.orange)
+            .labelStyle(showLabel: showLabels)
             .simultaneousGesture(
                 LongPressGesture(minimumDuration: 1.0).onEnded { _ in
-                    if viewModel.model.hasConstantMemory {
-                        viewModel.hardResetMachine()
-                    }
+                    viewModel.cleanResetMachine()
                 }
             )
             #endif
@@ -167,12 +187,12 @@ struct CalculatorView: View {
                         viewModel.cardPickerMode = .load
                     }
                     .labelStyle(showLabel: showLabels)
-                    .controlSize(.large)
+                    .controlSize(.regular)
                     Button("Crd", systemImage: "plus.rectangle") {
                         viewModel.cardPickerMode = .save
                     }
                     .labelStyle(showLabel: showLabels)
-                    .controlSize(.large)
+                    .controlSize(.regular)
                 } else {
                     Button("Eject Card", systemImage: "eject") {
                         viewModel.ejectIfSwiping()
@@ -185,9 +205,10 @@ struct CalculatorView: View {
             Button("Preset") {
                 let panel = NSOpenPanel()
                 panel.allowedContentTypes = [UTType(filenameExtension: "ti59") ?? .data,
-                                             UTType(filenameExtension: "ti58") ?? .data]
+                                             UTType(filenameExtension: "ti58") ?? .data,
+                                             UTType(filenameExtension: "ti58c") ?? .data]
                 panel.allowsOtherFileTypes = true
-                panel.message = "Select a .ti59 state file"
+                panel.message = "Select a .ti59, .ti58, or .ti58c state file"
                 if panel.runModal() == .OK, let url = panel.url {
                     viewModel.loadStateFile(url)
                 }
@@ -198,6 +219,12 @@ struct CalculatorView: View {
                 showingStateFilePicker = true
             }
             .labelStyle(showLabel: showLabels)
+            .controlSize(.large)
+            Divider().frame(height: 20)
+            Button("Settings", systemImage: "gear") {
+                showingSettings = true
+            }
+            .labelStyle(.iconOnly)
             .controlSize(.large)
             #endif
         }
@@ -210,7 +237,7 @@ struct CalculatorView: View {
     // MARK: - Model picker
 
     private var modelPicker: some View {
-        Picker("Model", selection: Binding(
+        Picker("Model", selection: .init(
             get: { viewModel.model },
             set: { newModel in Task { await viewModel.start(model: newModel) } }
         )) {

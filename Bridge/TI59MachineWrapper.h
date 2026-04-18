@@ -34,8 +34,8 @@ typedef struct {
     uint8_t  A[16], B[16], C[16], D[16], E[16];
     uint8_t  SCOM[16][16];
     uint8_t  Sout[16];
-    uint16_t KR, SR, fA, fB, EXT, PREG, flags;
-    uint8_t  R5, digit, REG_ADDR, RAM_ADDR, RAM_OP;
+    uint16_t KR, SR, fA, fB, EXT, PREG, flags, m_libAddr;
+    uint8_t  R5, digit, REG_ADDR, RAM_ADDR, RAM_OP, m_libAddrReadPos;
 } TICPUSnapshot;
 
 @interface TI59MachineWrapper : NSObject
@@ -48,6 +48,9 @@ typedef struct {
 /// Load Library module (NSData containing 5000 uint8_t bytes).
 - (void)loadLibrary:(NSData*)libData;
 
+/// Load constants (NSData containing 64×16 uint8_t constant rows).
+- (void)loadConstants:(NSData*)constData;
+
 /// Reset the CPU to power-on state (PC=0, registers cleared, card absent).
 - (void)reset;
 
@@ -56,6 +59,11 @@ typedef struct {
 
 /// Execute up to n CPU instructions under a single mutex lock. Returns count executed.
 - (uint32_t)stepN:(uint32_t)n;
+
+/// Execute steps until the program-step counter (SCOM[0][4:7]) changes (keycode boundary).
+/// Returns the number of steps executed. Stops at ~50,000 steps if no boundary is found.
+- (uint32_t)stepUntilNextKeycode
+    NS_SWIFT_NAME(stepUntilNextKeycode());
 
 /// Key input. row 0–6, col 0–15.
 - (void)pressKeyRow:(int)row col:(int)col;
@@ -121,6 +129,14 @@ typedef struct {
 
 // ── Trace / debug API ─────────────────────────────────────────────────────────
 
+/// Set the debug event level. 0 = off, 1 = INFO, 2 = DEBUG.
+/// When non-zero, the CPU emits DebugEvents for write operations;
+/// drain them via -drainDebugMessages at 60 Hz.
+- (void)setDebugLevel:(uint8_t)level;
+
+/// Drain pending debug messages as level-prefixed strings ("I:…" or "D:…").
+- (NSArray<NSString*>*)drainDebugMessages;
+
 @property (nonatomic) TITraceFlags traceFlags;
 @property (readonly)  uint16_t currentPC;
 
@@ -138,6 +154,16 @@ typedef struct {
 /// Convenience: drain up to `max` events without capturing CPU register snapshots.
 - (NSArray<NSValue*>*)drainTraceEventsMax:(NSUInteger)max
     NS_SWIFT_NAME(drainTraceEvents(max:));
+
+/// Read (without draining) up to `max` most recent events and their CPU snapshots.
+/// Does not remove events from the ring buffer; safe to call repeatedly.
+- (NSArray<NSValue*>*)readTraceEventsMax:(NSUInteger)max
+                               snapshots:(NSArray<NSValue*>* _Nullable * _Nullable)outSnaps
+    NS_SWIFT_NAME(readTraceEvents(max:snapshots:));
+
+/// Convenience: read up to `max` events without capturing CPU register snapshots.
+- (NSArray<NSValue*>*)readTraceEventsMax:(NSUInteger)max
+    NS_SWIFT_NAME(readTraceEvents(max:));
 
 + (NSString*)disassemblePC:(uint16_t)pc opcode:(uint16_t)opcode;
 
@@ -158,6 +184,15 @@ typedef struct {
 /// The returned data length is partitionProgramRegs × 8 (e.g. 480 bytes for OP 17).
 - (NSData*)allProgramSteps;
 
+/// Read a ROM keycode at address 0–383.
+- (uint8_t)romKeycodeAt:(NSInteger)addr
+    NS_SWIFT_NAME(romKeycode(at:));
+
+/// Returns an index set of register numbers (0-based, user-visible) whose raw nibbles are non-zero.
+/// Scans only within the current partition's data register range.
+- (NSIndexSet*)nonZeroDataRegisterIndices
+    NS_SWIFT_NAME(nonZeroDataRegisterIndices());
+
 /// Capture a snapshot of all CPU registers at the current instant.
 - (TICPUSnapshot)snapshotCPU;
 
@@ -167,7 +202,7 @@ typedef struct {
 
 // ── Raw RAM access ────────────────────────────────────────────────────────────
 
-/// Number of accessible RAM registers (120 for TI-59, 60 for TI-58/58C).
+/// Number of accessible RAM registers (120 for TI-59, 64 for TI-58C, 60 for TI-58).
 @property (readonly) NSInteger ramRegisterCount;
 
 /// Read a complete 16-nibble RAM register.  reg must be in [0, ramRegisterCount).

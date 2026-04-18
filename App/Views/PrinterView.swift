@@ -15,7 +15,10 @@ struct PrinterView: View {
         VStack(spacing: 0) {
             header
             paperStrip
-            buttonBar
+            GeometryReader { geo in
+                buttonBar(width: geo.size.width)
+            }
+            .frame(height: 50)
         }
         .background(Color(white: 0.12))
         .overlay(alignment: .bottom) {
@@ -121,9 +124,10 @@ struct PrinterView: View {
 
     // MARK: - Hardware button bar
 
-    private var buttonBar: some View {
-        HStack(spacing: 12) {
-            printerButton("PRINT") {
+    private func buttonBar(width: CGFloat) -> some View {
+        let printLabel = width < 180 ? "PRN" : "PRINT"
+        return HStack(spacing: 12) {
+            printerButton(printLabel) {
                 viewModel.pressPrinterPrint(true)
             } onRelease: {
                 viewModel.pressPrinterPrint(false)
@@ -158,28 +162,16 @@ struct PrinterView: View {
 
             Button { copyBoth() } label: {
                 Image(systemName: "doc.on.doc")
-                    .font(.caption.bold())
-                    .frame(width: 16)
-                    .foregroundStyle(.white.opacity(0.7))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(Color(white: 0.2))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .font(.system(size: 13))
+                    .foregroundStyle(.white)
             }
-            .buttonStyle(.plain)
             .disabled(viewModel.printerLines.isEmpty)
 
             Button { copyBoth(); viewModel.cutPaper() } label: {
                 Image(systemName: "scissors")
-                    .font(.caption.bold())
-                    .frame(width: 16)
-                    .foregroundStyle(.white.opacity(0.7))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(Color(white: 0.2))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .font(.system(size: 13))
+                    .foregroundStyle(.white)
             }
-            .buttonStyle(.plain)
             .disabled(viewModel.printerLines.isEmpty)
         }
         .padding(.horizontal, 12)

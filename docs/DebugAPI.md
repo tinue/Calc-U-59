@@ -157,22 +157,91 @@ nibble[3]    mantissa LSD
 nibble[15]   mantissa MSD
 ```
 
-Exponent is stored as an unsigned magnitude (0–99); the sign is encoded in nibble[0] bit 0.
+Exponent is stored as an unsigned magnitude (0–99); the sign is encoded in nibble[0] bit 2.
 All-zero encodes 0.0.
 
 Swift helpers: `encodeTI59BCD(_ value: Double) → [UInt8]` (in `StateFileLoader.swift`)
 and `TI59MachineWrapper.decodeBCD(_ nibbles16: Data) → Double`.
 
+### Debug panel — level button
+
+The **D** button in the debug toolbar cycles through three levels:
+
+| Dot colour | Level | `DebugLevel` value | Effect |
+|------------|-------|--------------------|--------|
+| Gray       | OFF   | `.off` (0)         | No output written; C-core event buffer not drained |
+| Orange     | INFO  | `.info` (1)        | Swift-side `debugAppend` calls at level `.info` are shown |
+| Red        | DEBUG | `.debug` (2)       | All INFO output **plus** C-core write events (STO, MEMWR, RAM OP) |
+
+Each click advances one step; after DEBUG it wraps back to OFF.
+
+The current level is exposed as `vm.debugLevel: DebugLevel` and as the convenience
+computed property `vm.debugEnabled: Bool` (true when level ≠ OFF).
+
 ### Debug panel functions (ViewModel)
 
 These append formatted output to `debugLines`, displayed in the macOS Debug panel.
-They are no-ops when `debugEnabled` is `false`.
+Each call accepts an implicit `level:` parameter (default `.info`); output is
+suppressed when `vm.debugLevel < level`.
 
 | Function | Description |
 |----------|-------------|
 | `debugDumpVars()` | Non-zero data registers within the current partition, shown as `R00 = 3.14159…` |
-| `debugDumpSCOM()` | All 16 SCOM rows as compact hex nibble strings (`S00 0000000000000000`) |
-| `toggleDebug()` / `clearDebug()` | Enable/disable output; clear the log |
+| `debugDumpSCOM()` | All 16 SCOM rows as hex nibble strings (`S00 0000000000000000`), nibble[15] first |
+| `toggleDebug()` / `clearDebug()` | Cycle debug level (OFF→INFO→DEBUG→OFF); clear the log |
+
+When adding new Swift-side debug output, call `debugAppend([...], level: .info)` or
+`debugAppend([...], level: .debug)` as appropriate.
+
+### C-core debug events
+
+The CPU core (`TMC0501`) can emit `DebugEvent` messages that are drained by
+`tick()` at 60 Hz and forwarded to the debug panel — no manual polling required.
+
+#### Mechanism
+
+1. `TMC0501::emitDebug(level, fmt, ...)` — appends a `DebugEvent` to an internal
+   vector.  The call is a no-op when `level > m_debugLevel`, so there is zero
+   overhead when the panel is OFF or at a lower level.
+2. `TI59Machine::drainDebugEvents()` — called by the Swift tick loop under
+   `m_keyMutex`; swaps and returns the accumulated events.
+3. `tick()` in `EmulatorViewModel` decodes the level prefix and calls
+   `debugAppend` with the matching `DebugLevel`.
+
+#### Levels
+
+| C constant | Value | Shown when button is |
+|-----------|-------|----------------------|
+| `1` (INFO)  | 1 | INFO or DEBUG (orange or red) |
+| `2` (DEBUG) | 2 | DEBUG only (red) |
+
+#### Adding output in C
+
+Inside any `TMC0501` member function, call:
+
+```cpp
+emitDebug(2, "MY_OP target=%d value=%s", addr, fmtNibs(data, buf));
+```
+
+- Use level `2` (DEBUG) for high-frequency per-instruction events such as
+  register writes.  Use level `1` (INFO) for infrequent events such as
+  mode changes.
+- `fmtNibs(const uint8_t* d, char* buf, bool reverse = false)` is a file-local
+  helper in `TMC0501.cpp` that formats 16 nibbles into a 17-byte char buffer.
+  Pass `reverse = true` to print nibble[15] first (MSD-first, as used for SCOM).
+- The message buffer is 80 characters; `vsnprintf` silently truncates longer strings.
+- `emitDebug` may only be called from `TMC0501` member functions — it is private.
+  To emit events from `TI59Machine` or the Obj-C wrapper, add a public helper or
+  call through `m_cpu`.
+
+#### Current DEBUG-level events
+
+| Message format | Trigger |
+|----------------|---------|
+| `STO SCOM[NN] = XXXXXXXXXXXXXXXX` | SCOM register written (STO / STOF / STOG), nibble[15] first |
+| `MEMWR RAM[NNN] = XXXXXXXXXXXXXXXX` | RAM register written (MEMWR instruction or RAM_OP write), nibble[0] first |
+| `RAM_OP CLR1 RAM[NNN]` | RAM_OP clear-1 (op=2) |
+| `RAM_OP CLR10 RAM[NNN]` | RAM_OP clear-10 (op=4) |
 
 ---
 
@@ -230,6 +299,171 @@ Pure function — requires no machine state. Returns a mnemonic string for any
 
 ---
 
+## Trace File Format (CALCU59_TRACE.bin)
+
+The binary trace file captures instruction-level CPU state at 60 Hz. It is used by
+`tools/read_trace.py` to generate human-readable logs and JSON exports.
+
+### File Structure
+
+```
+[File Header (16 bytes)]
+[Record 1 (3 + N bytes)]
+[Record 2 (3 + N bytes)]
+...
+[Record N (3 + N bytes)]
+```
+
+### File Header (16 bytes)
+
+```
+Offset  Size  Type   Field        Description
+0       4     LE U32 magic        Magic: 0x54493539 ('TI59' in little-endian ASCII)
+4       2     LE U16 version      Format version (currently 2 or 3)
+6       10    —      reserved     Reserved; ignore for forward compatibility
+```
+
+### Record Structure
+
+All records follow a 3-byte header:
+
+```
+Offset  Size  Type   Field           Description
+0       1     U8     type            Record type (see table below)
+1       2     LE U16 payload_length  Length of payload in bytes (0 allowed)
+3       N     —      payload         Type-specific data (N = payload_length)
+```
+
+### Record Types
+
+| Type | Name              | Payload | Purpose |
+|------|-------------------|---------|---------|
+| 0x01 | SESSION_START     | 8 bytes | Session boundary marker |
+| 0x02 | TRACE_EVENT       | 123 bytes (v2, v3) | CPU instruction snapshot |
+| 0x03 | SESSION_END       | 8 bytes | Session terminator with counts |
+| 0x04 | USER_EVENT        | ≥4 bytes | User input (key press, card insert) |
+
+Unknown record types are silently skipped (forward-compatible).
+
+### Record Type Details
+
+#### SESSION_START (0x01)
+
+Marks the start of a trace session (e.g., app launch or emulator reset).
+
+**Payload (8 bytes):**
+
+```
+Offset  Size  Type   Field       Description
+0       8     LE U64 timestamp   Unix timestamp (seconds since epoch) when session began
+```
+
+#### TRACE_EVENT (0x02)
+
+Captures CPU state at a single instruction. **Payload is exactly 123 bytes.**
+
+**Fixed fields (first 35 bytes):**
+
+```
+Offset  Size  Type   Field              Description
+0       4     LE U32 suppressed         Instruction count suppressed before this event
+4       4     LE U32 seqno              Monotonically increasing sequence number; gaps = ring overflow
+8       2     LE U16 pc                 ROM address (0–0xFFF)
+10      2     LE U16 opcode            13-bit instruction (upper 3 bits unused)
+12      2     LE U16 fA                Flag register A (16-bit bitmask)
+14      2     LE U16 fB                Flag register B (16-bit bitmask)
+16      2     LE U16 KR                Address register (16-bit)
+18      2     LE U16 SR                Return address register (16-bit)
+20      2     LE U16 EXT               Exponent register, upper nibble at bits 12–15
+22      2     LE U16 PREG              Pointer register (4-bit)
+24      2     LE U16 cpu_flags         Internal CPU flags (bit 0 = IDLE, bit 11 = COND)
+26      2     LE U16 m_libAddr         ROM address pointer (absolute offset in ROM)
+28      1     U8     R5                Scratch/decimal pointer (4-bit)
+29      1     U8     digit             Digit counter (0–15)
+30      1     U8     RAM_ADDR          RAM address for current operation
+31      1     U8     RAM_OP            RAM operation code
+32      1     U8     REG_ADDR          Register address for SCOM/register ops
+33      1     U8     m_libAddrReadPos  Sub-address within ROM word (nibble index)
+34      1     U8     cycle_weight      Cycle weight (1 = active, 4 = idle cycle)
+```
+
+**Register A–E (80 bytes):** Unpacked 16-bit nibble arrays (index 0 = LSN, index 15 = MSN).
+
+```
+Offset  Size  Type   Field    Description
+35      16    U8[16] A_regs   Register A: 16 nibbles (index 0 = LSN)
+51      16    U8[16] B_regs   Register B: 16 nibbles
+67      16    U8[16] C_regs   Register C: 16 nibbles
+83      16    U8[16] D_regs   Register D: 16 nibbles
+99      16    U8[16] E_regs   Register E: 16 nibbles
+```
+
+Each nibble (4-bit value 0–15) occupies one byte.
+
+**Output register Sout (8 bytes):** Nibble-packed (2 nibbles per byte).
+
+```
+Offset  Size  Type   Field    Description
+115     8     U8[8]  sout     Printer output: nibbles packed as (high_nibble << 4) | low_nibble
+                              sout[i] & 0x0F = Sout[2i], (sout[i] >> 4) = Sout[2i+1]
+```
+
+**Total payload:** 35 + 80 + 8 = 123 bytes.
+
+**Flag bit definitions (cpu_flags):**
+
+```
+Bit  Name    Meaning
+0    IDLE    1 = idle cycle (keyscan loop); 0 = active
+11   COND    1 = condition code set; 0 = clear
+```
+
+#### SESSION_END (0x03)
+
+Marks the end of a trace session (e.g., app quit or emulator pause).
+
+**Payload (8 bytes):**
+
+```
+Offset  Size  Type   Field            Description
+0       4     LE U32 eventCount       Total instruction events recorded in this session
+4       4     LE U32 suppressedTotal  Total events suppressed due to ring buffer overflow
+```
+
+#### USER_EVENT (0x04)
+
+Records user input (keyboard, card insert/eject).
+
+**Payload (≥4 bytes):**
+
+```
+Offset  Size  Type   Field    Description
+0       1     U8     kind     Event kind (see table below)
+1       1     U8     p1       Parameter 1 (row for KEY events)
+2       1     U8     p2       Parameter 2 (col for KEY events)
+3       1     U8     —        Reserved
+```
+
+**Kind codes:**
+
+| Value | Label        | p1 | p2 | Meaning |
+|-------|--------------|----|----|---------|
+| 0x01  | KEY DOWN     | row| col| Key pressed (row=1–9, col=1–5) |
+| 0x02  | KEY UP       | row| col| Key released |
+| 0x03  | CARD INSERT  | —  | —  | Magnetic card inserted |
+| 0x04  | CARD EJECT   | —  | —  | Magnetic card ejected |
+
+### Parsing Notes
+
+- **Byte order:** All multi-byte fields use little-endian unless stated otherwise.
+- **Nibble representation:** Most fields use packed hex (one 4-bit value per byte for readability).
+- **Ring buffer:** When the trace buffer overflows, `seqno` gaps and `suppressed` counts
+  indicate lost events. The `suppressedTotal` in SESSION_END reflects cumulative loss.
+- **Version compatibility:** v2 and v3 both have 123-byte TRACE_EVENT payloads. v3 added
+  `m_libAddrReadPos` but maintained backward compatibility. Code must accept both versions.
+
+---
+
 ## .ti59 State File Format
 
 State files load programs and data registers in a single operation.
@@ -250,6 +484,7 @@ PROGRAM:
 REGISTERS:
 00 = 3.141592653589793
 05 = -1.5e-3
+H01 = 7.77E22           # TI-58C only: hidden register (loads into RAM slot 061)
 
 KEYSTROKES:
 21 84 65 83 95           # [2nd][π] × 2 =  (0.5 s between each key)
@@ -257,7 +492,28 @@ Wait: 1s                 # pause 1 s before next line
 42 92 92                 # STO 0 0
 ```
 
-Matrix code format: `row*10 + col`, row 1–9 (top→bottom), col 1–5 (left→right).
+**PARTITION section:**
+
+- The number before the dot is the last visible step number; total steps = that number + 1.
+- Total steps must be a multiple of 80; the parser rounds up to the nearest valid boundary.
+- The `.xx` suffix (e.g. `.59`) is accepted for documentation purposes and ignored by the parser.
+- **Default when omitted:**
+  - TI-59: 479 (480 steps, 60 program-RAM registers)
+  - TI-58 / TI-58C: 239 (240 steps, 30 program-RAM registers)
+- **TI-58 / TI-58C cap:** if an explicit `PARTITION:` value exceeds 479, the load is aborted with an error.
+
+**REGISTERS section:**
+
+- **Normal registers:** `NN = value` where NN is 00–99 (valid for all models)
+- **Hidden registers (TI-58C only):** `HNN = value` where NN is 00–03
+  - Maps to RAM slots 060–063 (the TI-58C's special constant-memory registers)
+  - `H00` → slot 060, `H01` → slot 061, `H02` → slot 062, `H03` → slot 063
+  - Used to store partition settings, ln(10) validation byte, and FIX mode
+  - Using H00–H03 in `.ti59` or `.ti58` files generates a parse error
+
+Any register (normal or hidden) not listed defaults to zero on load.
+
+**Matrix code format:** `row*10 + col`, row 1–9 (top→bottom), col 1–5 (left→right).
 Valid range: 11–95.  These are **physical key positions**, not TI manual keycodes
 (which are program-memory values like π=89, STO=42).  Mnemonic labels are silently
 ignored (e.g. `21 2nd` presses the 2nd key; `21` alone is sufficient).
@@ -268,5 +524,39 @@ Loading sequence (in `EmulatorViewModel.loadStateFile`):
 2. `machine.stepN(300_000)` — lets the ROM complete its master-clear routine
 3. `machine.partitionProgramRegs = …` — sets partition via SCOM
 4. `machine.writeProgramSteps(…)` — writes zero-padded step array
-5. `machine.writeDataRegister(…)` per register — writes BCD nibbles
-6. KEYSTROKES played back asynchronously via `playKeystrokes(_:)` — 0.5 s per key
+5. Per register: normal registers via `machine.writeDataRegister(…)`; hidden registers
+   (H00–H03, TI-58C only) via `machine.setRawRegister(regNum + 60, …)` to bypass the
+   reversed data-register mapping
+6. Out-of-range data registers (those that fall inside the program area for the loaded
+   partition) are zeroed via `machine.setRawRegister(…)` to prevent stale-state corruption
+7. KEYSTROKES played back asynchronously via `playKeystrokes(_:)` — 0.5 s per key
+
+---
+
+## TI-58C Constant Memory File Format (`ti58c.mem`)
+
+The TI-58C emulator persists RAM contents between sessions in a human-readable text file called `ti58c.mem`.
+This file is stored in the app's Application Support directory and is automatically loaded on startup.
+
+**Format:**
+```
+── Memory (non-zero registers) ──
+R000: 67 11 96 00 10 00 00 96
+R001: 10 20 00 00 00 30 00 00
+R003: 60 00 00 96 30 70 00 00
+R063: 24 00 79 10 21 19 00 00
+```
+
+**Rules:**
+
+- Each line represents one 16-nibble register (8 bytes in hex)
+- Format: `RXXX: HH HH HH HH HH HH HH HH` where XXX is the register number (000–063)
+- Only non-zero registers are written to keep file size small
+- Registers are specified in any order; gaps are initialized to zero on load
+- All-zero registers can be omitted entirely
+- Unspecified registers (0–63) silently initialize to zero
+
+**Backward compatibility:**
+
+Old binary `.mem` files (exactly 120 × 16 = 1920 bytes) are automatically detected and loaded.
+If a load error occurs for any reason, the file is silently ignored and RAM initializes to all zeros.

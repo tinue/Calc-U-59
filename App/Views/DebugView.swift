@@ -2,6 +2,49 @@ import SwiftUI
 
 struct DebugView: View {
     @Environment(EmulatorViewModel.self) var vm
+    @State private var tab: DebugTab = .live
+    enum DebugTab { case live, cpu, log }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Tab bar
+            HStack(spacing: 0) {
+                tabButton("LIVE", .live)
+                tabButton("CPU", .cpu)
+                tabButton("LOG", .log)
+                Spacer()
+            }
+            .background(Color(white: 0.07))
+
+            // Tab content
+            switch tab {
+            case .live: LiveDebugView()
+            case .cpu:
+                if vm.isFrozen {
+                    CPUInspectorView()
+                } else {
+                    SimpleLiveCPUView()
+                }
+            case .log:  StaticDebugContent()
+            }
+        }
+        .background(Color(white: 0.10))
+    }
+
+    private func tabButton(_ label: String, _ tab_: DebugTab) -> some View {
+        Button(label) { tab = tab_ }
+            .font(.system(size: 10, weight: .bold))
+            .foregroundStyle(tab == tab_ ? .white : .white.opacity(0.4))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 5)
+            .background(tab == tab_ ? Color(white: 0.20) : Color.clear)
+    }
+}
+
+// MARK: - Static Debug Content (original DebugView body)
+
+private struct StaticDebugContent: View {
+    @Environment(EmulatorViewModel.self) var vm
 
     var body: some View {
         VStack(spacing: 0) {
@@ -15,7 +58,7 @@ struct DebugView: View {
     // MARK: - Header
 
     private var header: some View {
-        Text("DEBUG")
+        Text("DEBUG LOG")
             .font(.caption.bold())
             .foregroundStyle(.white.opacity(0.6))
             .frame(maxWidth: .infinity)
@@ -53,57 +96,71 @@ struct DebugView: View {
     // MARK: - Button bar
 
     private var buttonBar: some View {
-        HStack(spacing: 10) {
-            Button("Vars") { vm.debugDumpVars() }
+        VStack(spacing: 8) {
+            // Row 1: Main action buttons
+            HStack(spacing: 8) {
+                Button("Vars") { vm.debugDumpVars() }
+                Button("SCOM") { vm.debugDumpSCOM() }
+                Button("Prog") { vm.debugDumpProg() }
+                Button("Memory") { vm.debugDumpMemory() }
 
-            Button("SCOM") { vm.debugDumpSCOM() }
+                Spacer()
 
-            Button("Prog") { vm.debugDumpProg() }
-
-            Spacer()
-
-            // Clear button
-            Button {
-                vm.clearDebug()
-            } label: {
-                Image(systemName: "trash")
-                    .foregroundStyle(.white.opacity(0.6))
-            }
-            .disabled(vm.debugLines.isEmpty)
-
-            // C indicator drop logger — prints one line per drop event to console
-            Button { vm.cIndicatorDebug.toggle() } label: {
-                HStack(spacing: 4) {
-                    Text("C-DBG")
-                    Circle()
-                        .fill(vm.cIndicatorDebug ? Color.orange : Color.gray.opacity(0.4))
-                        .frame(width: 8, height: 8)
+                // Clear button
+                Button {
+                    vm.clearDebug()
+                } label: {
+                    Image(systemName: "trash")
+                        .foregroundStyle(.white.opacity(0.6))
                 }
-                .font(.caption.bold())
-                .foregroundStyle(.white)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(Color(white: 0.25))
-                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .disabled(vm.debugLines.isEmpty)
             }
-            .buttonStyle(.plain)
 
-            // DEBUG enable toggle — styled like the TRACE button
-            Button { vm.toggleDebug() } label: {
-                HStack(spacing: 4) {
-                    Text("D")
-                    Circle()
-                        .fill(vm.debugEnabled ? Color.green : Color.gray.opacity(0.4))
-                        .frame(width: 8, height: 8)
+            // Row 2: Status toggles
+            HStack(spacing: 8) {
+                Button { vm.cIndicatorDebug.toggle() } label: {
+                    HStack(spacing: 4) {
+                        Text("TRACE")
+                        Circle()
+                            .fill(vm.isTraceAvailable
+                                ? (vm.cIndicatorDebug ? Color.orange : Color.gray.opacity(0.4))
+                                : Color.red.opacity(0.5))
+                            .frame(width: 8, height: 8)
+                    }
+                    .font(.caption.bold())
+                    .foregroundStyle(vm.isTraceAvailable ? .white : .white.opacity(0.5))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color(white: vm.isTraceAvailable ? 0.25 : 0.15))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
                 }
-                .font(.caption.bold())
-                .foregroundStyle(.white)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(Color(white: 0.25))
-                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .buttonStyle(.plain)
+                .disabled(!vm.isTraceAvailable)
+
+                Button { vm.toggleDebug() } label: {
+                    HStack(spacing: 4) {
+                        Text("LOG")
+                        Circle()
+                            .fill({
+                                switch vm.debugLevel {
+                                case .off:   return Color.gray.opacity(0.4)
+                                case .info:  return Color.orange
+                                case .debug: return Color.red
+                                }
+                            }())
+                            .frame(width: 8, height: 8)
+                    }
+                    .font(.caption.bold())
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color(white: 0.25))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                }
+                .buttonStyle(.plain)
+
+                Spacer()
             }
-            .buttonStyle(.plain)
         }
         .font(.caption.bold())
         .foregroundStyle(.white)
@@ -117,7 +174,7 @@ struct DebugView: View {
     DebugView()
         .environment({
             let vm = EmulatorViewModel()
-            vm.debugEnabled = true
+            vm.debugLevel = .info
             vm.debugLines = [
                 "── RAM (part=60) ──",
                 "RAM[60] = 3.141592653589",

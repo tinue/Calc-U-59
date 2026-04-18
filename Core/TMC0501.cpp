@@ -2,6 +2,7 @@
 #include "ROM.hpp"
 #include "RAM.hpp"
 #include <algorithm>
+#include <cstdarg>
 #include <cstdio>
 #include <cstring>
 #include <mutex>
@@ -43,8 +44,8 @@ static const char* const PRN_CODE[64] = {
 // Used to recover raw codes when function-mnemonic characters are stored in m_prnBuf.
 static uint8_t prnCharToCode(char c) {
     for (int i = 0; i < 64; i++) {
-        if (PRN_CODE[i][0] == (char)c && PRN_CODE[i][1] == '\0')
-            return (uint8_t)i;
+        if (PRN_CODE[i][0] == c && PRN_CODE[i][1] == '\0')
+            return static_cast<uint8_t>(i);
     }
     return 0;  // space
 }
@@ -113,7 +114,7 @@ const TMC0501::MaskInfo TMC0501::mask_info[16] = {
 
 // ── SCOM mathematical and display constant table ──────────────────────────────
 //
-// 64 entries × 16 BCD digits, physically stored in the TMC0571 SCOM chip.
+// 64 entries × 16 BCD digits, physically stored in the TMC0582/83 chip, SCOM area.
 // Accessed by the CPU via ADD/SUB … const ALU instructions; the constant
 // index is encoded in KR bits 10:4 and loaded by running through the
 // INC KR chain at ROM addresses 0x139A–0x13A8.
@@ -128,81 +129,12 @@ const TMC0501::MaskInfo TMC0501::mask_info[16] = {
 //     [14] π      ≈ 3.141592653589…
 //     [15] 180/π  ≈ 57.2957795130…    (degree ↔ radian conversion)
 //
-// Entries 16–63: 6-bit keystroke display codes used in programming mode.
-//   When reviewing a stored program, the ROM reads these entries to convert
-//   internal key codes into LED character patterns showing the key's label
-//   (e.g. SIN, STO, RCL, LNX, x², …) on the 12-digit display.
-
-const uint8_t TMC0501::CONSTANT[64][16] = {
-  {0xc,0x0,0x0,0x4,0x9,0x9,0x2,0x9,0x0,0x5,0x8,0x5,0x2,0x0,0x3,0x2},
-  {0x5,0x4,0x9,0x9,0x5,0x5,0x0,0x8,0x1,0x7,0x4,0x1,0x3,0x9,0x6,0x0},
-  {0x5,0x2,0x3,0x4,0x0,0x8,0x9,0x7,0x1,0x0,0x1,0x3,0x5,0x9,0x0,0x0},
-  {0x8,0x6,0x1,0x3,0x5,0x8,0x0,0x3,0x3,0x0,0x5,0x9,0x9,0x0,0x0,0x0},
-  {0x4,0x8,0x0,0x3,0x3,0x3,0x0,0x0,0x5,0x9,0x9,0x9,0x0,0x0,0x0,0x0},
-  {0x3,0x3,0x3,0x0,0x0,0x0,0x5,0x9,0x9,0x9,0x9,0x0,0x0,0x0,0x0,0x0},
-  {0x0,0x0,0x0,0x0,0x5,0x9,0x9,0x9,0x9,0x9,0x0,0x0,0x0,0x0,0x0,0x0},
-  {0x0,0x0,0x5,0x9,0x9,0x9,0x9,0x9,0x9,0x0,0x0,0x0,0x0,0x0,0x0,0x0},
-  {0x0,0x5,0x4,0x7,0x9,0x3,0x3,0x6,0x1,0x8,0x9,0x3,0x5,0x8,0x7,0x0},
-  {0x0,0x0,0x2,0x1,0x9,0x4,0x2,0x5,0x6,0x8,0x6,0x6,0x9,0x9,0x0,0x0},
-  {0x0,0x7,0x6,0x6,0x8,0x6,0x6,0x6,0x6,0x9,0x9,0x9,0x9,0x0,0x0,0x0},
-  {0x7,0x6,0x6,0x6,0x6,0x6,0x9,0x9,0x9,0x9,0x9,0x9,0x0,0x0,0x0,0x0},
-  {0x7,0x6,0x6,0x9,0x9,0x9,0x9,0x9,0x9,0x9,0x9,0x0,0x0,0x0,0x0,0x0},
-  {0xc,0x1,0x0,0x5,0x9,0x7,0x6,0x2,0x3,0x6,0x9,0x7,0x0,0x7,0x5,0x1},
-  {0xc,0x0,0x0,0x0,0x9,0x5,0x3,0x5,0x6,0x2,0x9,0x5,0x1,0x4,0x1,0x3},
-  {0xc,0x1,0x0,0x8,0x0,0x3,0x1,0x5,0x9,0x7,0x7,0x5,0x9,0x2,0x7,0x5},
-  {0x2,0x8,0x8,0x0,0x3,0x5,0x3,0x5,0x3,0x4,0x6,0x0,0x5,0x7,0x3,0x4},
-  {0x4,0x0,0x5,0x6,0x3,0x4,0x1,0x0,0x5,0x5,0x3,0x4,0x3,0x0,0x4,0x5},
-  {0x5,0x5,0x3,0x5,0x3,0x4,0x5,0x0,0x5,0x7,0x3,0x4,0x4,0x0,0x3,0x3},
-  {0x5,0x5,0x3,0x4,0x3,0x0,0x4,0x5,0x4,0x5,0x3,0x5,0x3,0x5,0x4,0x2},
-  {0x5,0x6,0x2,0x3,0x3,0x4,0x4,0x0,0x4,0x9,0x5,0x8,0x3,0x4,0x1,0x0},
-  {0x4,0x5,0x5,0x5,0x3,0x4,0x3,0x0,0x4,0x5,0x2,0x8,0x0,0x2,0x3,0x5},
-  {0x3,0x5,0x4,0x9,0x5,0x8,0x2,0x8,0x8,0x1,0x4,0x5,0x5,0x5,0x2,0x3},
-  {0x4,0x5,0x2,0x9,0x3,0x5,0x2,0x3,0x5,0x6,0x2,0x8,0x8,0x1,0x5,0x8},
-  {0x2,0x3,0x4,0x5,0x2,0x9,0x3,0x5,0x3,0x4,0x4,0x0,0x5,0x5,0x3,0x4},
-  {0x3,0x0,0x4,0x5,0x2,0x3,0x3,0x5,0x3,0x4,0x1,0x0,0x5,0x5,0x3,0x4},
-  {0x3,0x0,0x4,0x5,0x2,0x8,0x0,0x2,0x3,0x3,0x3,0x5,0x4,0x9,0x5,0x8},
-  {0x3,0x4,0x2,0x0,0x5,0x5,0x3,0x4,0x3,0x0,0x4,0x5,0x2,0x3,0x3,0x3},
-  {0x3,0x5,0x4,0x9,0x5,0x8,0x3,0x4,0x5,0x0,0x5,0x5,0x3,0x4,0x3,0x0},
-  {0x4,0x5,0x2,0x3,0x2,0x9,0x3,0x5,0x3,0x5,0x3,0x4,0x5,0x0,0x5,0x7},
-  {0x3,0x4,0x4,0x0,0x3,0x3,0x5,0x5,0x3,0x4,0x3,0x0,0x4,0x5,0x5,0x5},
-  {0x3,0x5,0x3,0x4,0x3,0x0,0x5,0x7,0x1,0x0,0x4,0x5,0x2,0x8,0x8,0x0},
-  {0x4,0x5,0x4,0x3,0x2,0x3,0x3,0x5,0x3,0x5,0x3,0x4,0x2,0x0,0x5,0x7},
-  {0x3,0x4,0x1,0x0,0x3,0x3,0x5,0x5,0x3,0x4,0x3,0x0,0x4,0x5,0x5,0x5},
-  {0x2,0x8,0x8,0x1,0x4,0x5,0x4,0x3,0x2,0x9,0x3,0x5,0x3,0x5,0x3,0x4},
-  {0x6,0x0,0x5,0x7,0x3,0x4,0x4,0x0,0x5,0x6,0x3,0x4,0x1,0x0,0x5,0x5},
-  {0x3,0x4,0x3,0x0,0x4,0x5,0x5,0x5,0x3,0x5,0x3,0x5,0x3,0x4,0x5,0x0},
-  {0x5,0x7,0x3,0x4,0x4,0x0,0x3,0x3,0x5,0x5,0x3,0x4,0x3,0x0,0x4,0x5},
-  {0x5,0x6,0x3,0x5,0x3,0x4,0x2,0x0,0x5,0x7,0x3,0x4,0x1,0x0,0x3,0x3},
-  {0x5,0x5,0x3,0x4,0x3,0x0,0x4,0x5,0x4,0x5,0x4,0x3,0x4,0x5,0x2,0x9},
-  {0x4,0x4,0x1,0x0,0x2,0x8,0x8,0x0,0x3,0x3,0x4,0x4,0x2,0x0,0x2,0x3},
-  {0x4,0x4,0x4,0x0,0x2,0x8,0x8,0x4,0x2,0x8,0x7,0x0,0x3,0x3,0x4,0x4},
-  {0x5,0x0,0x1,0x0,0x1,0x6,0x2,0x0,0x6,0x3,0x4,0x9,0x4,0x4,0x1,0x0},
-  {0x2,0x8,0x8,0x0,0x3,0x3,0x4,0x9,0x4,0x4,0x2,0x0,0x2,0x3,0x2,0x2},
-  {0x4,0x4,0x4,0x0,0x2,0x8,0x8,0x4,0x2,0x8,0x7,0x0,0x3,0x3,0x4,0x9},
-  {0x4,0x4,0x5,0x0,0x1,0x0,0x4,0x9,0x4,0x4,0x3,0x0,0x2,0x8,0x7,0x3},
-  {0x2,0x8,0x8,0x1,0x4,0x4,0x6,0x0,0x2,0x8,0x7,0x1,0x2,0x3,0x3,0x4},
-  {0x3,0x0,0x2,0x9,0x3,0x5,0x2,0x8,0x8,0x0,0x3,0x3,0x5,0x8,0x2,0x3},
-  {0x2,0x8,0x7,0x0,0x3,0x3,0x4,0x5,0x4,0x3,0x2,0x3,0x3,0x5,0x3,0x5},
-  {0x2,0x8,0x7,0x1,0x5,0x5,0x0,0x5,0x4,0x5,0x2,0x2,0x9,0x3,0x5,0x8},
-  {0x3,0x5,0x2,0x8,0x8,0x1,0x5,0x5,0x2,0x8,0x7,0x1,0x4,0x5,0x2,0x2},
-  {0x0,0x3,0x4,0x5,0x4,0x2,0x2,0x9,0x3,0x5,0x2,0x8,0x8,0x0,0x9,0x3},
-  {0x5,0x6,0x2,0x3,0x2,0x8,0x7,0x0,0x4,0x5,0x2,0x3,0x3,0x5,0x2,0x8},
-  {0x8,0x1,0x8,0x3,0x5,0x6,0x2,0x8,0x7,0x1,0x4,0x5,0x2,0x9,0x3,0x5},
-  {0x3,0x5,0x3,0x5,0x2,0x8,0x8,0x0,0x9,0x5,0x5,0x6,0x6,0x0,0x0,0x0},
-  {0x5,0x8,0x3,0x5,0x2,0x8,0x8,0x1,0x2,0x2,0x9,0x5,0x5,0x6,0x1,0x0},
-  {0x0,0x0,0x0,0x0,0x4,0x5,0x2,0x8,0x8,0x0,0x9,0x5,0x4,0x5,0x5,0x6},
-  {0x3,0x9,0x6,0x0,0x5,0x8,0x2,0x8,0x8,0x1,0x2,0x2,0x9,0x5,0x4,0x5},
-  {0x5,0x5,0x3,0x0,0x6,0x0,0x4,0x5,0x2,0x9,0x3,0x5,0x3,0x5,0x2,0x8},
-  {0x8,0x0,0x9,0x5,0x5,0x8,0x2,0x8,0x8,0x1,0x2,0x2,0x9,0x5,0x5,0x6},
-  {0x3,0x9,0x6,0x0,0x4,0x5,0x5,0x6,0x1,0x0,0x0,0x0,0x0,0x0,0x4,0x5},
-  {0x2,0x8,0x8,0x0,0x3,0x5,0x3,0x5,0x9,0x5,0x5,0x8,0x2,0x8,0x8,0x1},
-  {0x2,0x2,0x9,0x5,0x5,0x6,0x3,0x9,0x6,0x0,0x4,0x5,0x5,0x6,0x3,0x9},
-  {0x0,0x0,0x1,0x0,0x4,0x5,0x2,0x9,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0},
-};
+// Entries 16–63: Keycode programs for routines such as Polar->Rec coordinates
 
 // ── Constructor / reset ───────────────────────────────────────────────────────
 
 TMC0501::TMC0501(ROM& r, RAM& m) : rom(r), ram(m) {
+    memset(m_constant, 0, sizeof(m_constant));
     for (auto& s : m_prnBuf) s = " ";
 }
 
@@ -212,7 +144,8 @@ void TMC0501::reset() {
     memset(SCOM, 0, sizeof(SCOM));
     memset(Sout, 0, sizeof(Sout));
     memset(key,  0, sizeof(key));
-    KR = SR = fA = fB = EXT = PREG = m_libAddr = 0;
+    KR = SR = fA = fB = EXT = PREG = m_libAddr = m_libAddrReadPos = 0;
+    m_libAddrWasWriting = false;
     R5 = digit = RAM_ADDR = RAM_OP = REG_ADDR = 0;
     addr  = 0;
     flags = FLG_COND | FLG_DISP;  // COND starts true; display active
@@ -233,20 +166,92 @@ void TMC0501::reset() {
 }
 
 void TMC0501::loadLibrary(const uint8_t* data, size_t count) {
-    if (count > 5000) count = 5000;
+    count = std::min(count, size_t{5000});
     memcpy(m_libData, data, count);
+}
+
+void TMC0501::loadConstants(const uint8_t* data, size_t count) {
+    count = std::min(count, sizeof(m_constant));
+    memcpy(m_constant, data, count);
+}
+
+// ── Masked RAM read/write helpers ──────────────────────────────────────────────
+
+void TMC0501::readRegMasked(uint8_t* dst, int addr, const MaskInfo& m) {
+    // Read only the nibbles in the masked range from RAM, zero out others
+    const auto* src = ram.readReg(addr);
+    memset(dst, 0, 16);
+    if (src && m.start != 0xFF) {
+        for (int i = static_cast<int>(m.start); i <= static_cast<int>(m.end) && i < 16; i++) {
+            dst[i] = src[i];
+        }
+    }
+}
+
+void TMC0501::writeRegMasked(int addr, const uint8_t* src, const MaskInfo& m) {
+    // Write only the nibbles in the masked range to RAM, preserve others
+    if (m.start != 0xFF && addr < ram.size()) {
+        const auto* current = ram.readReg(addr);
+        if (current) {
+            uint8_t temp[16];
+            memcpy(temp, current, 16);
+            for (int i = static_cast<int>(m.start); i <= static_cast<int>(m.end) && i < 16; i++) {
+                temp[i] = src[i];
+            }
+            ram.writeReg(addr, temp);
+        }
+    }
+}
+
+void TMC0501::readScomMasked(uint8_t* dst, int addr, const MaskInfo& m) {
+    // Read only the nibbles in the masked range from SCOM, zero out others
+    memset(dst, 0, 16);
+    if (addr < 16 && m.start != 0xFF) {
+        for (int i = static_cast<int>(m.start); i <= static_cast<int>(m.end) && i < 16; i++) {
+            dst[i] = SCOM[addr][i];
+        }
+    }
+}
+
+// ── Debug event log ───────────────────────────────────────────────────────────
+
+// Format 16 nibbles as a 16-character hex string into buf (must be ≥17 bytes).
+// reverse=true outputs nibble[15] first (MSD first, matching SCOM display convention).
+static const char* fmtNibs(const uint8_t* d, char* buf, bool reverse = false) {
+    static const char H[] = "0123456789abcdef";
+    for (int i = 0; i < 16; i++) buf[i] = H[d[reverse ? 15 - i : i] & 0xF];
+    buf[16] = '\0';
+    return buf;
+}
+
+void TMC0501::emitDebug(uint8_t level, const char* fmt, ...) {
+    if (level > m_debugLevel) return;
+    if (m_debugEvents.size() >= 8192) return;
+    DebugEvent ev;
+    ev.level = level;
+    va_list args{};  // NOLINT(cppcoreguidelines-init-variables) -- initialized by va_start
+    va_start(args, fmt);
+    vsnprintf(ev.msg, sizeof(ev.msg), fmt, args);
+    va_end(args);
+    m_debugEvents.push_back(ev);
+}
+
+std::vector<DebugEvent> TMC0501::drainDebugEvents() {
+    std::vector<DebugEvent> result;
+    result.swap(m_debugEvents);
+    return result;
 }
 
 // ── Key matrix ────────────────────────────────────────────────────────────────
 
 void TMC0501::pressKey(int row, int col) {
     if (col >= 0 && col < 16 && row >= 0 && row < 7)
-        key[col] |= (uint8_t)(1u << row);
+        key[col] |= static_cast<uint8_t>(1U << row);
 }
 
 void TMC0501::releaseKey(int row, int col) {
     if (col >= 0 && col < 16 && row >= 0 && row < 7)
-        key[col] &= (uint8_t)~(1u << row);
+        key[col] &= static_cast<uint8_t>(~(1U << row));
 }
 
 // ── Display read-out ──────────────────────────────────────────────────────────
@@ -286,7 +291,7 @@ DisplaySnapshot TMC0501::getDisplay() const {
 
     if (m_dispFilter >= 3) {
         DisplaySnapshot blank{};
-        for (int i=0; i<12; ++i) blank.ctrl[i] = 7;
+        for (auto& ctrl : blank.ctrl) ctrl = 7;
         blank.calcIndicator = cLevel;
         return blank;
     }
@@ -317,15 +322,15 @@ void TMC0501::alu(uint8_t* dst, const uint8_t* srcX, const uint8_t* srcY,
                   const MaskInfo& m, int op) {
     uint8_t carry = 0, shl = 0;
     for (int i = 0; i <= 15; ++i) {
-        if (i == (int)m.start) { shl = carry = 0; }
+        if (i == static_cast<int>(m.start)) { shl = carry = 0; }
 
         uint8_t sum = 0, shr = 0;
-        if (srcY)              sum  = srcY[i];
-        if (i == (int)m.cpos) sum |= m.cval;
+        if (srcY)                                sum  = srcY[i];
+        if (i == static_cast<int>(m.cpos))       sum |= m.cval;
         shr  = sum;
-        sum  = (uint8_t)(sum + carry);
-        if (op >= ALU_SUB)     sum  = (uint8_t)(-sum);
-        if (srcX)            { sum  = (uint8_t)(sum + srcX[i]); shr |= srcX[i]; }
+        sum  = static_cast<uint8_t>(sum + carry);
+        if (op >= ALU_SUB)     sum  = static_cast<uint8_t>(-sum);
+        if (srcX)            { sum  = static_cast<uint8_t>(sum + srcX[i]); shr |= srcX[i]; }
 
         // Real hardware drives Sout to 0 outside the active field.  Naively
         // propagating the carry chain into all 16 positions (the "obvious"
@@ -333,30 +338,30 @@ void TMC0501::alu(uint8_t* dst, const uint8_t* srcX, const uint8_t* srcY,
         // digits.  That stale data then gets written into SCOM via FLG_STORE,
         // corrupting registers used later as print-buffer indices and producing
         // spurious '8' characters in printer output (PRN_CODE[9] = '8').
-        Sout[i] = (i >= (int)m.start && i <= (int)m.end) ? (sum & 0x0F) : 0;
+        Sout[i] = (i >= static_cast<int>(m.start) && i <= static_cast<int>(m.end)) ? (sum & 0x0F) : 0;
 
         // BCD carry: digit 0 wraps at 16 (hex); digits 1–15 wrap at 10 (decimal)
         if (i == 0) {
-            if ((carry = (sum >= 0x10 ? 1u : 0u))) sum &= 0x0Fu;
+            if ((carry = (sum >= 0x10 ? 1U : 0U))) sum &= 0x0FU;
         } else {
-            if ((carry = (sum >= 10 ? 1u : 0u))) {
-                if (op < ALU_SUB) sum = (uint8_t)(sum - 10);
-                else              sum = (uint8_t)(sum + 10);
+            if ((carry = (sum >= 10 ? 1U : 0U))) {
+                if (op < ALU_SUB) sum = static_cast<uint8_t>(sum - 10);
+                else              sum = static_cast<uint8_t>(sum + 10);
             }
         }
 
-        if (i >= (int)m.start && i <= (int)m.end) {
-            if (i == (int)m.start) R5 = sum;  // R5 always captures the start digit
+        if (i >= static_cast<int>(m.start) && i <= static_cast<int>(m.end)) {
+            if (i == static_cast<int>(m.cpos)) R5 = sum;  // R5 captures result at constant position per manual
             if (dst) {
-                if      (op == ALU_SHL)                    dst[i]   = shl;
+                if      (op == ALU_SHL)                              dst[i]   = shl;
                 else if (op == ALU_SHR) {
-                    if (i > (int)m.start)                  dst[i-1] = shr;
-                    if (i == (int)m.end)                   dst[i]   = 0;
-                } else                                     dst[i]   = sum;
+                    if (i > static_cast<int>(m.start))               dst[i-1] = shr;
+                    if (i == static_cast<int>(m.end))                dst[i]   = 0;
+                } else                                               dst[i]   = sum;
                 shl = sum;
             }
             // Carry out of the field clears COND (signals overflow to branches)
-            if (i == (int)m.end && !(op & 0x1) && carry)
+            if (i == static_cast<int>(m.end) && !(op & 0x1) && carry)
                 flags &= ~FLG_COND;
         }
     }
@@ -364,7 +369,7 @@ void TMC0501::alu(uint8_t* dst, const uint8_t* srcX, const uint8_t* srcY,
 
 void TMC0501::xch(uint8_t* a, uint8_t* b, const MaskInfo& m) {
     if (m.start == 0xFF) return;
-    for (int i = (int)m.start; i <= (int)m.end; ++i) {
+    for (int i = static_cast<int>(m.start); i <= static_cast<int>(m.end); ++i) {
         uint8_t t = a[i]; a[i] = b[i]; b[i] = t;
     }
 }
@@ -372,16 +377,6 @@ void TMC0501::xch(uint8_t* a, uint8_t* b, const MaskInfo& m) {
 // ── Main instruction dispatch ─────────────────────────────────────────────────
 
 int TMC0501::step() {
-    // ── PREG computed-jump redirect ───────────────────────────────────
-    // SET KR[1] deposits a rotated KR value into PREG on the previous cycle.
-    // On the next call we redirect the PC without fetching a new opcode.
-    // Returns 0 so this pseudo-cycle doesn't count toward the speed budget.
-    if (PREG & 0x1) {
-        addr = PREG >> 3;
-        PREG = 0;
-        return 0;
-    }
-
     // ── Trace gate ────────────────────────────────────────────────────
     // One relaxed atomic load per step; falls through at zero cost when disabled.
     const uint32_t tf = m_traceFlags.load(std::memory_order_relaxed);
@@ -437,13 +432,6 @@ int TMC0501::step() {
     // condition isn't yet satisfied; clearing it here is the default.
     flags &= ~FLG_HOLD;
 
-    // ── PREG latch (deferred PC redirect) ────────────────────────────
-    // When KR bit 1 is set (by SET KR[1]), the current KR is rotated
-    // right by 1 and stored in PREG.  The redirect fires on the next step().
-    if (KR & 0x2) {
-        PREG = (uint16_t)((KR >> 1) | (KR << 15));
-        KR  &= ~(uint16_t)0x2;
-    }
 
     // ── One-cycle validity windows ────────────────────────────────────
     // EXT and Sout are only valid for the single cycle after they are written.
@@ -466,15 +454,15 @@ int TMC0501::step() {
         flags |= FLG_JUMP;  // triggers COND auto-restore on the next non-branch
         if (!((flags ^ opcode) & FLG_COND)) {
             uint16_t offs = (opcode >> 1) & 0x3FFu;
-            if (opcode & 0x0001) addr = (uint16_t)(addr - offs);
-            else                 addr = (uint16_t)(addr + offs);
+            if (opcode & 0x0001) addr = static_cast<uint16_t>(addr - offs);
+            else                 addr = static_cast<uint16_t>(addr + offs);
         } else {
             addr++;
         }
         int w = (flags & FLG_IDLE) ? 4 : 1;
         if (tf != TRACE_NONE) [[unlikely]] { tracePostStep(tf, snapCaptured, w); }
         if ((flags & FLG_IDLE) ? (fA & 0x4000u) : fA) m_cSteps.fetch_add(1, std::memory_order_relaxed);
-        m_pollSteps.fetch_add((uint32_t)w, std::memory_order_relaxed);
+        m_pollSteps.fetch_add(static_cast<uint32_t>(w), std::memory_order_relaxed);
         return w;
     }
 
@@ -504,10 +492,11 @@ int TMC0501::step() {
         memcpy(s.C,    C,    16);
         memcpy(s.D,    D,    16);
         memcpy(s.E,    E,    16);
-        memcpy(s.SCOM, SCOM, 16 * 16);
+        memcpy(s.SCOM, SCOM, sizeof(SCOM));
         memcpy(s.Sout, Sout, 16);
         s.KR = KR; s.SR = SR; s.fA = fA; s.fB = fB;
-        s.EXT = EXT; s.PREG = PREG; s.flags = flags;
+        s.EXT = EXT; s.PREG = PREG ? 1 : 0; s.flags = flags;
+        s.m_libAddr = m_libAddr; s.m_libAddrReadPos = m_libAddrReadPos;
         s.R5 = R5; s.digit = digit;
         s.REG_ADDR = REG_ADDR; s.RAM_ADDR = RAM_ADDR; s.RAM_OP = RAM_OP;
         snapCaptured = true;  // signal tracePostStep to skip re-capture
@@ -520,7 +509,7 @@ int TMC0501::step() {
     // or on individual bits of KR.  The bit index is encoded in opcode bits 7:4.
     case 0x0000: {
         unsigned bit  = (opcode >> 4) & 0x000Fu;
-        uint16_t mask = (uint16_t)(1u << bit);
+        uint16_t mask = static_cast<uint16_t>(1u << bit);
         switch (opcode & 0x000Fu) {
         case 0x0: if (fA & mask) flags &= ~FLG_COND; break;  // TST fA[b]  — clear COND if bit set
         case 0x1: fA |=  mask;                        break;  // SET fA[b]
@@ -529,7 +518,7 @@ int TMC0501::step() {
         case 0x4: if ((fA ^ fB) & mask) { fA ^= mask; fB ^= mask; } break; // XCH fA[b],fB[b]
         case 0x5: KR |= mask; break;  // SET KR[b]
         case 0x6: if ((fA ^ fB) & mask) fA ^= mask;  break;  // MOV fA[b],fB[b]  (copy fB→fA if different)
-        case 0x7: fA = (uint16_t)((fA & ~0x001Eu) | ((R5 & 0x0Fu) << 1)); break; // MOV fA[1..4],R5
+        case 0x7: fA = static_cast<uint16_t>((fA & ~0x001Eu) | ((R5 & 0x0Fu) << 1)); break; // MOV fA[1..4],R5
         case 0x8: if (fB & mask) flags &= ~FLG_COND; break;  // TST fB[b]
         case 0x9: fB |=  mask;                        break;  // SET fB[b]
         case 0xA: fB &= ~mask;                        break;  // CLR fB[b]
@@ -537,7 +526,8 @@ int TMC0501::step() {
         case 0xC: if (!((fA ^ fB) & mask)) flags &= ~FLG_COND; break; // CMP fA[b],fB[b] — clear COND if equal
         case 0xD: KR &= ~mask;                        break;  // CLR KR[b]
         case 0xE: if ((fA ^ fB) & mask) fB ^= mask;  break;  // MOV fB[b],fA[b]  (copy fA→fB if different)
-        case 0xF: fB = (uint16_t)((fB & ~0x001Eu) | ((R5 & 0x0Fu) << 1)); break; // MOV fB[1..4],R5
+        case 0xF: fB = static_cast<uint16_t>((fB & ~0x001Eu) | ((R5 & 0x0Fu) << 1)); break; // MOV fB[1..4],R5
+        default: break;
         }
         break;
     }
@@ -557,7 +547,7 @@ int TMC0501::step() {
         // XOR with 0x7F inverts all 7 bits because the key[] bitmask uses
         // active-high (bit set = key pressed), while the opcode encodes the
         // mask active-low (0 = "care about this line").
-        uint8_t kmask = (uint8_t)(
+        uint8_t kmask = static_cast<uint8_t>(
             (((opcode & 0x07u) | ((opcode >> 1) & 0x78u)) ^ 0x7Fu) & key[digit]);
         // Reject simultaneous multi-key presses (hardware limitation)
         if (kmask & (kmask - 1u)) kmask = 0;
@@ -572,7 +562,7 @@ int TMC0501::step() {
                 uint8_t bit = 0, m2 = kmask;
                 while (!(m2 & 1)) { bit++; m2 >>= 1; }
                 flags &= ~FLG_COND;
-                KR = (uint16_t)((digit << 4) | ((bit << 8) & 0x0700u));
+                KR = static_cast<uint16_t>((digit << 4) | ((bit << 8) & 0x0700u));
             } else if (digit) {
                 flags |= FLG_HOLD;  // not at digit 0 yet — re-execute
             }
@@ -611,7 +601,7 @@ int TMC0501::step() {
             // KR bits 7:4 index the current constant entry; incrementing
             // them walks through the 64-entry constant table.  When bits
             // 15:4 all reach zero, bit 0 toggles as an overflow indicator.
-            KR = (uint16_t)(KR + 0x0010u);
+            KR = static_cast<uint16_t>(KR + 0x0010u);
             if (!(KR & 0xFFF0u)) KR ^= 0x0001u;
             break;
 
@@ -619,21 +609,45 @@ int TMC0501::step() {
             if (KR & (1u << ((opcode >> 4) & 0x000Fu))) flags &= ~FLG_COND;
             break;
 
-        case 0x6:  // MOV R5,fA[1..4] or fB[1..4] — copy flag bits into R5
-            R5 = (uint8_t)(((opcode & 0x0010u) ? fB : fA) >> 1) & 0x0Fu;
+        case 0x6: {
+            // TI-58C uses 0xA76 (MEMWR) and 0xA86 (MEMRD); reserve bits 7:4 = 0x7/0x8
+            // TI-59/58 use these bits for MOV R5 operand selection (bit 4 = fA/fB choice)
+            uint8_t bits_7_4 = static_cast<uint8_t>((opcode >> 4) & 0x000Fu);
+            if (hasConstantMemory(m_variant) && bits_7_4 == 0x7) {
+                // MEMWR — deferred write: capture address from Sout now; the
+                // actual data comes from the IO bus at the END of the next
+                // instruction cycle (deferred to FLG_RAM_WRITE handler below).
+                // If that instruction drives IO as output (FLG_IO_VALID), Sout
+                // carries the data. Otherwise the bus is in input mode and reads
+                // as zero — so zero is written. Address is Sout[1:0].
+                RAM_ADDR = static_cast<uint8_t>((Sout[1] * 16u) + Sout[0]);
+                if (RAM_ADDR < ram.size())
+                    flags |= FLG_RAM_WRITE;
+            } else if (hasConstantMemory(m_variant) && bits_7_4 == 0x8) {
+                // MEMRD — read RAM[RAM_ADDR] into next MOV #0 as srcY (set up by preceding ALU opcode)
+                // Address is encoded in Sout[1:0] as two hex nibbles.
+                RAM_ADDR = static_cast<uint8_t>((Sout[1] * 16u) + Sout[0]);
+                if (RAM_ADDR < ram.size())
+                    flags |= FLG_RAM_READ;
+            } else {
+                // MOV R5,fA[1..4] or fB[1..4] — copy bits 1-4 into R5
+                uint16_t flags = (opcode & 0x0010u) ? fB : fA;
+                R5 = static_cast<uint8_t>((flags >> 1) & 0x0Fu);
+            }
             break;
+        }
 
         case 0x7:  // MOV R5,#n — load 4-bit immediate into R5
-            R5 = (uint8_t)((opcode >> 4) & 0x000Fu);
+            R5 = static_cast<uint8_t>((opcode >> 4) & 0x000Fu);
             break;
 
         case 0x8:  // Peripheral I/O (card reader, printer, RAM, library)
             switch (opcode & 0x00F0u) {
-            case 0x00: R5 = (uint8_t)((KR >> 4) & 0x000Fu); break;  // MOV R5,KR[4..7]
-            case 0x10: KR = (uint16_t)((KR & ~0x00F0u) | ((uint16_t)R5 << 4)); break; // MOV KR[4..7],R5
+            case 0x00: R5 = static_cast<uint8_t>((KR >> 4) & 0x000Fu); break;  // MOV R5,KR[4..7]
+            case 0x10: KR = static_cast<uint16_t>((KR & ~0x00F0u) | (static_cast<uint16_t>(R5) << 4)); break; // MOV KR[4..7],R5
             case 0x20: // IN CRD — card read: fetch next nibble into EXT bits 4-7
                 if (m_cardPresent && m_cardMode == 1 && m_cardPtr < 246) {
-                    EXT = (uint16_t)m_cardBankBuffer[m_cardPtr++] << 4;
+                    EXT = static_cast<uint16_t>(m_cardBankBuffer[m_cardPtr++]) << 4;
                 } else {
                     EXT = 0;
                 }
@@ -641,21 +655,21 @@ int TMC0501::step() {
                 break;
             case 0x30: // OUT CRD — card write: capture KR bits 4-11 (both nibbles) into bank buffer
                 if (m_cardPresent && m_cardMode == 2 && m_cardPtr < 246) {
-                    m_cardBankBuffer[m_cardPtr++] = (uint8_t)((KR >> 4) & 0xFFu);
+                    m_cardBankBuffer[m_cardPtr++] = static_cast<uint8_t>((KR >> 4) & 0xFFu);
                 }
                 break;
             case 0x40: // CRD_OFF — finalize bank operation; card exits reader
                 if (m_cardMode == 2) {
                     // Flush bank buffer back to full card data based on bank index in byte 2.
                     // nibble index 2 -> byte 2 in our 1-byte-per-nibble mapping.
-                    int bank = (m_cardBankBuffer[2] & 0x0Fu) / 3;
+                    int bank = static_cast<int>((m_cardBankBuffer[2] & 0x0Fu) / 3);
                     if (bank >= 0 && bank < 4) {
-                        memcpy(m_cardFullData + bank * 246, m_cardBankBuffer, 246);
+                        memcpy(m_cardFullData + (static_cast<size_t>(bank) * 246), m_cardBankBuffer, 246);
                         m_lastWrittenBank = bank;
                     }
                 } else if (m_cardMode == 1) {
                     // Card banks 0–3 are encoded as nibble values 0,3,6,9; advance by 3 per read pass.
-                    m_cardBankBuffer[2] = (uint8_t)((m_cardBankBuffer[2] + 3) & 0x0F);
+                    m_cardBankBuffer[2] = static_cast<uint8_t>((m_cardBankBuffer[2] + 3) & 0x0F);
                 }
                 m_cardMode = 0;
                 m_cardPtr  = 0;
@@ -667,9 +681,9 @@ int TMC0501::step() {
                 break;
             case 0x50: // CRD_READ — load requested bank into swipe buffer
                 if (m_cardMode == 0) {
-                    int bank = (m_cardBankBuffer[2] & 0x0Fu) / 3;
+                    int bank = static_cast<int>((m_cardBankBuffer[2] & 0x0Fu) / 3);
                     if (bank >= 0 && bank < 4) {
-                        memcpy(m_cardBankBuffer, m_cardFullData + bank * 246, 246);
+                        memcpy(m_cardBankBuffer, m_cardFullData + (static_cast<size_t>(bank) * 246), 246);
                     }
                     m_cardMode = 1;
                     m_cardPtr  = 0;
@@ -683,7 +697,7 @@ int TMC0501::step() {
                 break;
             case 0x60: { // OUT PRT — load one character into print buffer
                 if (m_prnReady) {
-                    uint8_t code = (uint8_t)((KR >> 4) & 0x3Fu);
+                    uint8_t code = static_cast<uint8_t>((KR >> 4) & 0x3Fu);
                     uint8_t slot = m_prnPtr % 20;
                     m_prnBuf[slot]     = PRN_CODE[code];
                     m_prnCodeBuf[slot] = code;
@@ -693,7 +707,7 @@ int TMC0501::step() {
             }
             case 0x70: { // OUT PRT_FUNC — load 3-char function mnemonic (stored reversed)
                 if (m_prnReady) {
-                    uint8_t code = (uint8_t)((KR >> 4) & 0x7Fu);
+                    uint8_t code = static_cast<uint8_t>((KR >> 4) & 0x7Fu);
                     for (int i = 0; PRN_STR[i].str[0]; i++) {
                         if (code == PRN_STR[i].code) {
                             // Store chars reversed so print-reversal restores correct order
@@ -752,13 +766,19 @@ int TMC0501::step() {
                 // only fire when the ROM polls TST BUSY between characters.
                 {
                     std::lock_guard<std::mutex> lk(m_prnMutex);
-                    m_prnLines.push_back(std::string{});
-                    m_prnCodeLines.push_back(std::array<uint8_t,20>{});  // zero-filled
+                    m_prnLines.emplace_back();
+                    m_prnCodeLines.emplace_back();  // zero-filled
                 }
                 flags |= FLG_BUSY;
                 m_prnBusyCycles = 2808;  // (197.5ms * 455kHz) / 2 / 16 / 1000
                 break;
-            case 0xF0: flags |= FLG_RAM_OP; break; // RAM_OP — next Sout is a RAM opcode
+            case 0xF0: // RAM_OP — deferred decode: next Sout encodes operation + address
+                // Deferred operation: capture operation and address from Sout.
+                // Sout[0] = opcode (0=read, 1=write, 2=clear, 4=clear×10);
+                // Sout[3]*10 + Sout[2] = register address. If the next instruction
+                // drives IO as output (FLG_IO_VALID), Sout carries the data.
+                flags |= FLG_RAM_OP;
+                break;
             default: break;
             }
             break;
@@ -784,7 +804,7 @@ int TMC0501::step() {
             break;
 
         case 0xC:  // MOV KR,EXT[4..15] — load KR upper bits from card/library read
-            KR = (uint16_t)((KR & 0x000Fu) | EXT);
+            KR = static_cast<uint16_t>((KR & 0x000Fu) | EXT);
             break;
 
         case 0xD:  // XCH KR,SR — swap KR and SR (primary subroutine return mechanism)
@@ -794,43 +814,57 @@ int TMC0501::step() {
         case 0xE:  // Library module operations
             switch (opcode & 0x00F0u) {
             case 0x00: // IN LIB — fetch one byte from library; advance pointer
-                EXT = (uint16_t)m_libData[m_libAddr++] << 4;
+                EXT = static_cast<uint16_t>(m_libData[m_libAddr++]) << 4;
                 flags |= FLG_EXT_VALID;
                 m_libAddr %= 5000;
                 break;
-            case 0x10: // OUT LIB_PC — load library pointer tens digit from KR[7:4]
+            case 0x10: // OUT LIB_PC — load library pointer digit from KR[7:4]
                 // The library address is encoded in BCD-like decimal: the ROM
                 // shifts it one decimal digit at a time using OUT LIB_PC / IN LIB_PC
-                // pairs.  OUT LIB_PC replaces the thousands+hundreds group:
-                //   new_addr = (old_addr % 10)   ← preserve units digit already there
-                //            + digit * 1000       ← inject new thousands digit
-                // The ROM calls this instruction twice (tens then thousands) to load
-                // a full 4-digit address.
-                m_libAddr = (uint16_t)((m_libAddr / 10) + ((KR >> 4 & 0xFu) * 1000));
+                // pairs. OUT LIB_PC shifts the address right by one nibble, then
+                // injects the new nibble into the most significant position:
+                //   new_addr = (old_addr / 10)         ← shift right (discard LSN)
+                //            + KR[7:4] * 1000          ← inject new MSN
+                // The ROM calls this instruction four times to load a full
+                // 4-digit address (once per BCD nibble, MSN first).
+                if (!m_libAddrWasWriting) m_libAddrReadPos = 0;  // Reset if switching from read to write
+                m_libAddr = static_cast<uint16_t>((m_libAddr / 10) + ((KR >> 4 & 0xFu) * 1000));
+                m_libAddrReadPos = (m_libAddrReadPos + 1) % 4;
+                m_libAddrWasWriting = true;
                 break;
-            case 0x20: // IN LIB_PC — read library pointer ones digit into EXT
-                // Pops the lowest decimal digit of m_libAddr into EXT, shifting
-                // the address right by one decimal place.  The ROM uses this to
-                // read back the address one digit at a time for display or storage.
-                EXT = (uint16_t)(m_libAddr % 10) << 4;
-                flags |= FLG_EXT_VALID;
-                m_libAddr /= 10;
+            case 0x20: // IN LIB_PC — read library pointer digit into EXT
+                // Reads the current digit of m_libAddr based on m_libAddrReadPos (0-3).
+                // Does not modify m_libAddr; only advances the read position counter.
+                {
+                    if (m_libAddrWasWriting) m_libAddrReadPos = 0;  // Reset if switching from write to read
+                    uint16_t divisors[4] = {1, 10, 100, 1000};
+                    EXT = static_cast<uint16_t>((m_libAddr / divisors[m_libAddrReadPos]) % 10) << 4;
+                    flags |= FLG_EXT_VALID;
+                    m_libAddrReadPos = (m_libAddrReadPos + 1) % 4;
+                    m_libAddrWasWriting = false;
+                }
                 break;
             case 0x30: // IN LIB_HIGH — fetch high nibble of current byte (no advance)
-                EXT = (uint16_t)(m_libData[m_libAddr] & 0xF0u);
+                EXT = static_cast<uint16_t>(m_libData[m_libAddr] & 0xF0u);
                 flags |= FLG_EXT_VALID;
                 break;
+            default: break;
             }
             break;
 
         case 0xF:  // STO / RCL — SCOM register store or recall
-            // The register address was set by the preceding ALU IO operation
-            // (Sout[0] encodes the SCOM register number 0–15).
+            // Deferred write: capture register address from Sout now; the actual
+            // data comes from the IO bus at the END of the next instruction cycle
+            // (deferred to FLG_STORE handler below). Sout[0] encodes the register
+            // number 0–15. If that instruction drives IO as output (FLG_IO_VALID),
+            // Sout carries the data. Otherwise the bus reads as zero.
             switch (opcode & 0x00F0u) {
-            case 0x00: flags |= FLG_STORE;  REG_ADDR = Sout[0] & 0x0Fu; break; // STO
+            case 0x00: REG_ADDR = Sout[0] & 0x0Fu; flags |= FLG_STORE; break; // STO
             case 0x10: flags |= FLG_RECALL; REG_ADDR = Sout[0] & 0x0Fu; break; // RCL
+            default: break;
             }
             break;
+        default: break;
         }
         break;
 
@@ -840,13 +874,30 @@ int TMC0501::step() {
         break;
     }
 
-    if (!(flags & FLG_HOLD)) {
+    // ── PREG redirect (after instruction execution) ───────────────────
+    // If PREG is set (SET KR[1] was executed in the previous instruction),
+    // the next instruction has now completed. Redirect PC to the latched
+    // address and clear PREG.
+    if (PREG) {
+        addr = PREG;
+        PREG = 0;
+    } else if (!(flags & FLG_HOLD)) {
         addr++;
     }
     int w = (flags & FLG_IDLE) ? 4 : 1;
     if (tf != TRACE_NONE) [[unlikely]] { tracePostStep(tf, snapCaptured, w); }
     if ((flags & FLG_IDLE) ? (fA & 0x4000u) : fA) m_cSteps.fetch_add(1, std::memory_order_relaxed);
-    m_pollSteps.fetch_add((uint32_t)w, std::memory_order_relaxed);
+    m_pollSteps.fetch_add(static_cast<uint32_t>(w), std::memory_order_relaxed);
+
+    // ── PREG latch (after instruction execution) ─────────────────────────
+    // When KR bit 1 is set (by SET KR[1] instruction), store the address
+    // in PREG and clear KR[1] immediately. The redirect will fire at the end
+    // of the next instruction cycle.
+    if (KR & 0x2) {
+        PREG = (KR >> 4) | ((KR & 0x1) << 12);  // Store address
+        KR  &= ~static_cast<uint16_t>(0x2);
+    }
+
     return w;
 }
 
@@ -868,8 +919,8 @@ void TMC0501::execALU(uint16_t opcode) {
     // Operations 24–31 are special cases handled below (constant, SCOM/RAM, R5).
     const uint8_t* srcX = nullptr;
     const uint8_t* srcY = nullptr;
-    int aluOp;
-    int aluIdx = (opcode >> 3) & 0x1Fu;
+    int aluOp = ALU_ADD;
+    int aluIdx = static_cast<int>((opcode >> 3) & 0x1Fu);
     switch (aluIdx) {
     case  0: srcX=A;       srcY=nullptr; aluOp=ALU_ADD; break;
     case  1: srcX=A;       srcY=nullptr; aluOp=ALU_SUB; break;
@@ -911,13 +962,14 @@ void TMC0501::execALU(uint16_t opcode) {
     case 5: dst = nullptr; break;  // XCH C,D
     case 6: dst = D; break;
     case 7: dst = nullptr; break;  // XCH A,E
+    default: break;
     }
 
     // SCOM constant index — built from KR bits 10:4 (7 bits total).
     // The unusual bit arrangement mirrors the hardware's KR field layout.
-    int constIdx = (int)(((KR >> 5) & 0x78u) | ((KR >> 4) & 0x07u));
+    int constIdx = static_cast<int>(((KR >> 5) & 0x78u) | ((KR >> 4) & 0x07u));
     if (constIdx >= 64) constIdx = 0;
-    const uint8_t* constPtr = CONSTANT[constIdx];
+    const uint8_t* constPtr = m_constant[constIdx];
 
     // Special-case ALU operations (indices 24–31, opcode bits 7:3 = 0x18–0x1F)
     switch (opcode & 0x00F8u) {
@@ -926,12 +978,19 @@ void TMC0501::execALU(uint16_t opcode) {
     case 0x00D0:  // MOV dst, #0  — may be overridden by a pending recall
         if (flags & FLG_RECALL) {
             // SCOM recall: deliver SCOM[REG_ADDR] as srcY (set up by preceding RCL)
+            // Only read the nibbles specified by the field mask to prevent carry
+            // propagation from unmasked nibbles affecting the masked result.
             flags &= ~FLG_RECALL;
-            alu(dst, nullptr, SCOM[REG_ADDR], m, ALU_ADD);
+            uint8_t masked[16]{};
+            readScomMasked(masked, REG_ADDR, m);
+            alu(dst, nullptr, masked, m, ALU_ADD);
         } else if ((flags & FLG_RAM_READ) && RAM_ADDR < ram.size()) {
-            // RAM read: deliver RAM[RAM_ADDR] as srcY (set up by preceding RAM_OP)
+            // RAM read: deliver RAM[RAM_ADDR] as srcY (set up by preceding MEMRD)
+            // Only read the nibbles specified by the field mask
             flags &= ~FLG_RAM_READ;
-            alu(dst, nullptr, ram.readReg(RAM_ADDR), m, ALU_ADD);
+            uint8_t masked[16]{};
+            readRegMasked(masked, RAM_ADDR, m);
+            alu(dst, nullptr, masked, m, ALU_ADD);
         } else {
             alu(dst, nullptr, nullptr, m, ALU_ADD);  // plain zero-load
         }
@@ -945,7 +1004,7 @@ void TMC0501::execALU(uint16_t opcode) {
             // Zero all field digits except start, then inject the mask constant and R5.
             // Running the result through alu() applies BCD carry-correction, which is
             // needed when the field includes EXP or DPT digits with base-16 behaviour.
-            for (int i = (int)m.start + 1; i <= (int)m.end; ++i) dst[i] = 0;
+            for (int i = static_cast<int>(m.start) + 1; i <= static_cast<int>(m.end); ++i) dst[i] = 0;
             dst[m.cpos]  = m.cval;
             dst[m.start] = R5;
             alu(dst, nullptr, dst, m, (opcode & 0x0008u) ? ALU_SUB : ALU_ADD);
@@ -961,33 +1020,62 @@ void TMC0501::execALU(uint16_t opcode) {
     case 2: xch(A, B, m); break;
     case 5: xch(C, D, m); break;
     case 7: xch(A, E, m); break;
+    default: break;
     }
 
-    // ── Deferred memory write-back ────────────────────────────────────
-    // SCOM store: write Sout (the IO bus) into the SCOM register selected
-    // by the preceding STO instruction.
+    // ── Capture field mask for deferred RAM operations ────────────────
+    // When an ALU instruction executes after MEMWR/MEMRD, capture its
+    // field mask for use when the deferred write/read actually completes.
+    if ((flags & FLG_RAM_WRITE) || (flags & FLG_RAM_READ)) {
+        RAM_MASK = m;
+    }
+
+    // ── Deferred SCOM store (STO / STOF / STOG) ────────────────────────
+    // Write Sout (the IO bus) into the SCOM register selected by the
+    // preceding STO instruction. If the last instruction did not drive IO
+    // (FLG_IO_VALID not set), the bus reads as zero — so zero is written.
     if (flags & FLG_STORE) {
         flags &= ~FLG_STORE;
-        memcpy(SCOM[REG_ADDR], Sout, 16);
+        uint8_t io_data[16] = {};
+        if (flags & FLG_IO_VALID) memcpy(io_data, Sout, sizeof(io_data));
+        memcpy(SCOM[REG_ADDR], io_data, 16);
+        char nb[17];
+        emitDebug(2, "STO SCOM[%02d] = %s", REG_ADDR, fmtNibs(io_data, nb, true));
     }
 
-    // RAM operation decode: Sout[0] = opcode (read/write/clear),
-    // Sout[3]*10 + Sout[2] = register address.  Sets up FLG_RAM_READ or
-    // FLG_RAM_WRITE for the following instruction.
+    // ── Deferred RAM operation decode ───────────────────────────────────
+    // Decode the operation and address from Sout. Sout[0] = opcode (read/write/
+    // clear); Sout[3]*10 + Sout[2] = register address. If the last instruction
+    // did not drive IO (FLG_IO_VALID not set), the bus reads as zero.
     if (flags & FLG_RAM_OP) {
         flags &= ~FLG_RAM_OP;
-        RAM_OP   = Sout[0] & 0x0Fu;
-        RAM_ADDR = (uint8_t)(Sout[3] * 10u + Sout[2]);
+        uint8_t op_nibble = 0, addr_tens = 0, addr_units = 0;
+        if (flags & FLG_IO_VALID) {
+            op_nibble = Sout[0] & 0x0Fu;
+            addr_tens = Sout[3];
+            addr_units = Sout[2];
+        }
+        RAM_OP = op_nibble;
+        RAM_ADDR = static_cast<uint8_t>((addr_tens * 10u) + addr_units);
         if (RAM_ADDR < ram.size()) {
-            if      (RAM_OP == 2) ram.clearReg(RAM_ADDR, 1);
-            else if (RAM_OP == 4) ram.clearReg(RAM_ADDR, 10);
+            if      (RAM_OP == 2) { ram.clearReg(RAM_ADDR, 1);  emitDebug(2, "RAM_OP CLR1 RAM[%03d]",  RAM_ADDR); }
+            else if (RAM_OP == 4) { ram.clearReg(RAM_ADDR, 10); emitDebug(2, "RAM_OP CLR10 RAM[%03d]", RAM_ADDR); }
             else if (RAM_OP == 1) flags |= FLG_RAM_WRITE;
             else if (RAM_OP == 0) flags |= FLG_RAM_READ;
         }
     } else if (flags & FLG_RAM_WRITE) {
+        // ── Deferred RAM write (MEMWR / RAM_OP write) ────────────────
+        // Write Sout (the IO bus) into RAM[RAM_ADDR] at the masked field.
+        // If the last instruction did not drive IO (FLG_IO_VALID not set),
+        // the bus reads as zero — so zero is written.
         flags &= ~FLG_RAM_WRITE;
-        if (RAM_ADDR < ram.size())
-            ram.writeReg(RAM_ADDR, Sout);
+        if (RAM_ADDR < ram.size()) {
+            uint8_t io_data[16] = {};
+            if (flags & FLG_IO_VALID) memcpy(io_data, Sout, sizeof(io_data));
+            writeRegMasked(RAM_ADDR, io_data, RAM_MASK);
+            char nb[17];
+            emitDebug(2, "MEMWR RAM[%03d] = %s", RAM_ADDR, fmtNibs(io_data, nb));
+        }
     }
 
     // Keep Sout zeroed between cycles unless FLG_IO_VALID is still active
@@ -1034,7 +1122,7 @@ std::vector<uint8_t> TMC0501::cardEject() {
     // If no write occurred (read swipe or no swipe), return empty.
     if (m_lastWrittenBank < 0 || m_lastWrittenBank > 3)
         return {};
-    const uint8_t* bank = m_cardFullData + m_lastWrittenBank * 246;
+    const uint8_t* bank = m_cardFullData + (static_cast<size_t>(m_lastWrittenBank) * 246);
     std::vector<uint8_t> result(bank, bank + 246);
     m_lastWrittenBank = -1;
     return result;
@@ -1068,11 +1156,14 @@ void TMC0501::setPrinterTrace(bool enabled) {
 }
 
 void TMC0501::setPrinterConnected(bool connected) {
-    // KP.D0: the line the ROM tests (via test-row ?KEY at digit==0) to detect
-    // whether a PC-100C is attached.  Invisible to scan-all ?KEY (digit 0 is
-    // the scan-all termination sentinel, not a key-check slot).
-    if (connected) key[0] |=  (1u << 2);
-    else           key[0] &= ~(1u << 2);
+    // Printer-connected detection line: KP at the digit the ROM tests via
+    // test-row ?KEY.  TI-59 uses WAIT D1 + KEY FB → executes at digit 0 (KP.D0).
+    // TI-58C uses WAIT D11 + KEY FB → executes at digit 10 (KP.D10).
+    // The printer connector is physically identical on both models, but the
+    // TI-58C PCB routes the detection pin to a different digit-counter line.
+    int d = hasConstantMemory(m_variant) ? 10 : 0;
+    if (connected) key[d] |=  (1u << 2);
+    else           key[d] &= ~(1u << 2);
 }
 
 // ── Trace / debug API ──────────────────────────────────────────────────────────
@@ -1157,10 +1248,11 @@ void TMC0501::tracePostStep(uint32_t tf, bool snapCaptured, int weight) {
         memcpy(s.C,    C,    16);
         memcpy(s.D,    D,    16);
         memcpy(s.E,    E,    16);
-        memcpy(s.SCOM, SCOM, 16 * 16);
+        memcpy(s.SCOM, SCOM, sizeof(SCOM));
         memcpy(s.Sout, Sout, 16);
         s.KR = KR; s.SR = SR; s.fA = fA; s.fB = fB;
-        s.EXT = EXT; s.PREG = PREG; s.flags = flags;
+        s.EXT = EXT; s.PREG = PREG ? 1 : 0; s.flags = flags;
+        s.m_libAddr = m_libAddr; s.m_libAddrReadPos = m_libAddrReadPos;
         s.R5 = R5; s.digit = digit;
         s.REG_ADDR = REG_ADDR; s.RAM_ADDR = RAM_ADDR; s.RAM_OP = RAM_OP;
     }
@@ -1169,7 +1261,7 @@ void TMC0501::tracePostStep(uint32_t tf, bool snapCaptured, int weight) {
     ev.pc          = m_tracePC;
     ev.opcode      = m_traceOpcode;
     ev.digit       = digit;
-    ev.cycleWeight = (uint8_t)weight;
+    ev.cycleWeight = static_cast<uint8_t>(weight);
     ev.seqno       = m_traceSeqno++;
     // 0x00 = snapshot present in parallel snapRing slot; 0xFF = no snapshot.
     // Not used as an actual array index — the drain uses (m_traceTail & kTraceRingMask)
@@ -1209,6 +1301,26 @@ uint32_t TMC0501::drainTraceEvents(TraceEvent* out, CPUSnapshot* outSnaps, uint3
     return count;
 }
 
+uint32_t TMC0501::readTraceEvents(TraceEvent* out, CPUSnapshot* outSnaps, uint32_t max) const {
+    std::lock_guard<std::mutex> lk(m_traceMutex);
+    uint32_t head = m_traceHead;
+    if (max == 0 || head == 0) return 0;
+
+    // Return the last 'count' events from the ring buffer, ignoring the drain tail.
+    // This gives a snapshot of the most recent events without removing them.
+    uint32_t count = (head < max) ? head : max;  // Can't read more than we have
+
+    // Read the last 'count' events (starting from head - count)
+    uint32_t startIdx = (head - count) & kTraceRingMask;
+    for (uint32_t i = 0; i < count; i++) {
+        uint32_t idx = (startIdx + i) & kTraceRingMask;
+        out[i] = m_traceRing[idx];
+        if (outSnaps && out[i].snapshotIndex != 0xFF)
+            outSnaps[i] = m_snapRing[idx];
+    }
+    return count;
+}
+
 bool TMC0501::peekLastEvent(TraceEvent& out, CPUSnapshot* outSnap) const {
     std::lock_guard<std::mutex> lk(m_traceMutex);
     if (m_traceHead == m_traceTail) return false;
@@ -1235,10 +1347,11 @@ CPUSnapshot TMC0501::snapshotCPU() const {
     CPUSnapshot s{};
     memcpy(s.A, A, 16); memcpy(s.B, B, 16); memcpy(s.C, C, 16);
     memcpy(s.D, D, 16); memcpy(s.E, E, 16);
-    memcpy(s.SCOM, SCOM, 16 * 16);
+    memcpy(s.SCOM, SCOM, sizeof(SCOM));
     memcpy(s.Sout, Sout, 16);
     s.KR = KR; s.SR = SR; s.fA = fA; s.fB = fB;
-    s.EXT = EXT; s.PREG = PREG; s.flags = flags;
+    s.EXT = EXT; s.PREG = PREG ? 1 : 0; s.flags = flags;
+    s.m_libAddr = m_libAddr;
     s.R5 = R5; s.digit = digit;
     s.REG_ADDR = REG_ADDR; s.RAM_ADDR = RAM_ADDR; s.RAM_OP = RAM_OP;
     return s;
@@ -1247,65 +1360,94 @@ CPUSnapshot TMC0501::snapshotCPU() const {
 // ── disassemble() ─────────────────────────────────────────────────────────────
 //
 // Pure function: converts a 13-bit opcode to a mnemonic string.
-// Mnemonic conventions follow the TMC0501 instruction set encoding.
+// Mnemonic names follow tools/mnemonics.tsv in the ti59-research project.
+// Regenerate the generated tables with: python3 tools/disasm.py --emit-cpp
+
+// ── Generated tables (update via --emit-cpp) ─────────────────────────────────
 
 static const char* const kMaskName[16] = {
-    "INV","ALL","DPT","DPT,#1","DPT,#C","LLSD,#1",
-    "EXP","EXP,#1","INV","MANT","INV","MLSD,#5",
-    "MAEX","MAEX/MLSD,#1","MMSD,#1","MAEX,#1"
+    "<flag>", "ALL", "DP", "DP", "DP", "LO", "EXP", "EXP",
+    "<keyboard>", "MANT", "<wait>", "MID", "MX", "MID", "HI", "MX"
 };
 
-// ALU source-pair names: index → "srcX,srcY" or "srcX" or "srcY"
-static const char* const kALUSrc[24] = {
+static const char* const kFlagFmt[16] = {
+    "TST fA[%u]", "SET fA[%u]", "CLR fA[%u]", "TOG fA[%u]",
+    "SWAP fA[%u],fB[%u]", "SET KR[%u]", "MOV fA[%u],fB[%u]", "MOV fA[1..4],R5",
+    "TST fB[%u]", "SET fB[%u]", "CLR fB[%u]", "TOG fB[%u]",
+    "CMP fA[%u],fB[%u]", "CLR KR[%u]", "MOV fB[%u],fA[%u]", "MOV fB[1..4],R5"
+};
+
+static const char* const kBranch[2] = { "JNC", "JC" };
+
+static const char* const kPrn[16] = {
+    "MOV R5,KR[4..7]", "MOV KR[4..7],R5", "CRD.IN",  "CRD.OUT",
+    "CRD.OFF",         "CRD.RD",           "PRT.OUT",  "PRT.FUNC",
+    "PRT.CLR",         "PRT.STEP",         "PRT.GO",   "PRT.FEED",
+    "CRD.WR",          "",                 "",         "RAM.OP"
+};
+
+static const char* const kLib[16] = {
+    "LIB.IN", "LIB.PC", "LIB.PC.IN", "LIB.HI",
+    "", "", "", "", "", "", "", "", "", "", "", ""
+};
+
+static const char* const kMem[2] = { "STOF", "RCLF" };
+
+// ── Fixed ALU tables ──────────────────────────────────────────────────────────
+
+// BCD constant N associated with each field mask (bits 11-8)
+static const char* const kN[16] = {
+    "?","0","0","1","xC","1","0","1",
+    "?","0","?","5","0","1","1","1"
+};
+
+// Primary source register per ALU index 0-23
+static const char* const kSrc1[24] = {
     "A","A","B","B","C","C","D","D",
     "A","A","B","B","C","C","D","D",
-    "A,B","A,B","C,B","C,B","C,D","C,D","A,D","A,D"
+    "A","A","C","C","C","C","A","A"
 };
-static const char* const kALUOp[24] = {
-    "ADD","SUB","ADD","SUB","ADD","SUB","ADD","SUB",
-    "SHL","SHR","SHL","SHR","SHL","SHR","SHL","SHR",
-    "ADD","SUB","ADD","SUB","ADD","SUB","ADD","SUB"
+// Secondary source for two-register entries (indices 16-23); empty otherwise
+static const char* const kSrc2[24] = {
+    "","","","","","","","",
+    "","","","","","","","",
+    "B","B","B","B","D","D","D","D"
 };
-static const char* const kDst[8] = { "A","IO","AxB","B","C","CxD","D","AxE" };
+
+// Destination base name; kDstXch is the exchange partner ("" if not an XCH dest)
+static const char* const kDstBase[8] = { "A","IO","A","B","C","C","D","A" };
+static const char* const kDstXch[8]  = { "","","B","","","D","","E" };
 
 std::string TMC0501::disassemble(uint16_t pc, uint16_t opcode) {
     char buf[64];
 
     // ── Branch ────────────────────────────────────────────────────────
     if (opcode & 0x1000) {
-        uint16_t offs  = (opcode >> 1) & 0x3FFu;
-        bool     back  = (opcode & 0x0001) != 0;
-        bool     cond  = (opcode & FLG_COND) != 0; // bit 11 of opcode
-        uint16_t target = back ? (uint16_t)(pc - offs) : (uint16_t)(pc + offs);
-        snprintf(buf, sizeof(buf), "%s %04X",
-                 cond ? "BR_C" : "BR_NC", target);
+        uint16_t offs   = (opcode >> 1) & 0x3FFu;
+        bool     back   = (opcode & 0x0001) != 0;
+        bool     cond   = (opcode & FLG_COND) != 0; // bit 11 of opcode
+        uint16_t target = back ? static_cast<uint16_t>(pc - offs) : static_cast<uint16_t>(pc + offs);
+        snprintf(buf, sizeof(buf), "%s %04X", kBranch[cond ? 1 : 0], target);
         return buf;
     }
 
-    uint8_t hi = (uint8_t)((opcode >> 8) & 0x0Fu);
+    uint8_t hi = static_cast<uint8_t>((opcode >> 8) & 0x0Fu);
 
     // ── Flag / control ops (hi nibble = 0) ────────────────────────────
     if (hi == 0x0) {
-        static const char* const fOp[16] = {
-            "TST","SET","CLR","INV","XCH","SET_KR","MOV","MOV_R5",
-            "TST","SET","CLR","INV","CMP","CLR_KR","MOV","MOV_R5"
-        };
-        static const char* const fReg[16] = {
-            "fA","fA","fA","fA","fA/fB","KR","fA<-fB","fA[1:4]",
-            "fB","fB","fB","fB","fA,fB","KR","fB<-fA","fB[1:4]"
-        };
         unsigned bit = (opcode >> 4) & 0x0Fu;
         unsigned op  = opcode & 0x0Fu;
-        snprintf(buf, sizeof(buf), "%s %s[%u]", fOp[op], fReg[op], bit);
+        // Pass bit twice; SWAP/CMP/MOV templates use %u in both positions
+        snprintf(buf, sizeof(buf), kFlagFmt[op], bit, bit);
         return buf;
     }
 
     // ── Keyboard scan (hi nibble = 8) ─────────────────────────────────
     if (hi == 0x8) {
-        bool single = (opcode & 0x0008) != 0;
-        uint8_t kmask = (uint8_t)((opcode >> 4) & 0x0Fu);
+        bool    single = (opcode & 0x0008) != 0;
+        uint8_t kmask  = static_cast<uint8_t>((opcode >> 4) & 0x0Fu);
         if (single) {
-            snprintf(buf, sizeof(buf), "KEY %u,D%u", kmask, opcode & 7);
+            snprintf(buf, sizeof(buf), "KEY %u,D%u", kmask, opcode & 7u);
         } else {
             snprintf(buf, sizeof(buf), "KEY_ALL %u", kmask);
         }
@@ -1314,57 +1456,46 @@ std::string TMC0501::disassemble(uint16_t pc, uint16_t opcode) {
 
     // ── Misc / control (hi nibble = A) ──────────────────────────────────
     if (hi == 0xA) {
-        uint8_t loNib = (uint8_t)(opcode & 0x000Fu);
-        uint8_t arg   = (uint8_t)((opcode >> 4) & 0x000Fu);
+        uint8_t loNib = static_cast<uint8_t>(opcode & 0x000Fu);
+        uint8_t arg   = static_cast<uint8_t>((opcode >> 4) & 0x000Fu);
         switch (loNib) {
         case 0x0: snprintf(buf, sizeof(buf), "WAIT D%u", arg); return buf;
-        case 0x1: return "CLR IDL";
+        case 0x1: return "CLR.IDLE";
         case 0x2: return "CLR fA";
-        case 0x3: return "WAIT_BUSY";
+        case 0x3: return "WAIT.BUSY";
         case 0x4: return "INC KR";
         case 0x5: snprintf(buf, sizeof(buf), "TST KR[%u]", arg); return buf;
-        case 0x6: snprintf(buf, sizeof(buf), "MOV R5,%s[1..4]", (opcode & 0x10) ? "fB" : "fA"); return buf;
+        case 0x6: {
+            // TI-58C uses 0xA76 (MEMWR, bits 7:4=0x7) and 0xA86 (MEMRD, bits 7:4=0x8)
+            // Reserve these patterns; TI-59/58 use them for MOV R5 with different arg meanings
+            if (arg == 0x7) return "MEMWR";
+            if (arg == 0x8) return "MEMRD";
+            snprintf(buf, sizeof(buf), "MOV R5,%s[1..4]", (opcode & 0x10) ? "fB" : "fA");
+            return buf;
+        }
         case 0x7: snprintf(buf, sizeof(buf), "MOV R5,#%u", arg); return buf;
         case 0x8: {
-            // Peripheral I/O — sub-decoded by opcode bits 7:4
-            switch (opcode & 0x00F0u) {
-            case 0x00: return "MOV R5,KR[4..7]";
-            case 0x10: return "MOV KR[4..7],R5";
-            case 0x20: return "IN CRD";
-            case 0x30: return "OUT CRD";
-            case 0x40: return "CRD_OFF";
-            case 0x50: return "CRD_READ";
-            case 0x60: return "OUT PRT";
-            case 0x70: return "OUT PRT_FUNC";
-            case 0x80: return "PRT_CLEAR";
-            case 0x90: return "PRT_STEP";
-            case 0xA0: return "PRT_PRINT";
-            case 0xB0: return "PRT_FEED";
-            case 0xC0: return "CRD_WRITE";
-            case 0xF0: return "RAM_OP";
-            default: snprintf(buf, sizeof(buf), "IO_%02X", (uint8_t)(opcode & 0x00FFu)); return buf;
-            }
+            uint8_t prn = static_cast<uint8_t>((opcode & 0x00F0u) >> 4);
+            const char* s = kPrn[prn];
+            if (s && *s) return s;
+            snprintf(buf, sizeof(buf), "IO_%02X", static_cast<uint8_t>(opcode & 0x00FFu));
+            return buf;
         }
-        case 0x9: return "SET IDL";
+        case 0x9: return "SET.IDLE";
         case 0xA: return "CLR fB";
-        case 0xB: return "TST BUSY";
-        case 0xC: return "MOV KR,EXT";
-        case 0xD: return "XCH KR,SR";
+        case 0xB: return "TST.BUSY";
+        case 0xC: return "MOV KR,EXT[4..15]";
+        case 0xD: return "SWAP KR,SR";
         case 0xE: {
-            switch (opcode & 0x00F0u) {
-            case 0x00: return "IN LIB";
-            case 0x10: return "OUT LIB_PC";
-            case 0x20: return "IN LIB_PC";
-            case 0x30: return "IN LIB_HIGH";
-            default:   snprintf(buf, sizeof(buf), "LIB_%02X", (uint8_t)(opcode >> 4 & 0xF)); return buf;
-            }
+            uint8_t lib = static_cast<uint8_t>((opcode & 0x00F0u) >> 4);
+            const char* s = kLib[lib];
+            if (s && *s) return s;
+            snprintf(buf, sizeof(buf), "LIB_%02X", lib);
+            return buf;
         }
         case 0xF: {
-            switch (opcode & 0x00F0u) {
-            case 0x00: return "STO";
-            case 0x10: return "RCL";
-            default:   snprintf(buf, sizeof(buf), "MEM_%02X", (uint8_t)(opcode >> 4 & 0xF)); return buf;
-            }
+            uint8_t m = (opcode & 0x0010u) ? 1 : 0;
+            return kMem[m];
         }
         default: break;
         }
@@ -1372,28 +1503,59 @@ std::string TMC0501::disassemble(uint16_t pc, uint16_t opcode) {
         return buf;
     }
 
-    // ── ALU (everything else) ─────────────────────────────────────────
-    const char* maskStr = kMaskName[hi];
-    int aluIdx = (opcode >> 3) & 0x1Fu;
-    int dstIdx = opcode & 0x07;
-    const char* dstStr = kDst[dstIdx];
+    // ── ALU (everything else) — assignment notation ───────────────────
+    const char* fld    = kMaskName[hi];
+    int         aluIdx = static_cast<int>((opcode >> 3) & 0x1Fu);
+    int         dstIdx = opcode & 0x07;
+    const char* dstB   = kDstBase[dstIdx];
+    const char* dstX   = kDstXch[dstIdx];
+    const char* n      = kN[hi];
 
-    // Special-case ops 24–31
-    uint8_t spOp = (uint8_t)(opcode & 0x00F8u);
-    if (spOp == 0xC0) { snprintf(buf, sizeof(buf), "ADD.%s %s,A,const", maskStr, dstStr); return buf; }
-    if (spOp == 0xC8) { snprintf(buf, sizeof(buf), "SUB.%s %s,A,const", maskStr, dstStr); return buf; }
-    if (spOp == 0xD0) { snprintf(buf, sizeof(buf), "MOV.%s %s,#0/RCL", maskStr, dstStr); return buf; }
-    if (spOp == 0xD8) { snprintf(buf, sizeof(buf), "NEG.%s %s", maskStr, dstStr); return buf; }
-    if (spOp == 0xE0) { snprintf(buf, sizeof(buf), "ADD.%s %s,C,const", maskStr, dstStr); return buf; }
-    if (spOp == 0xE8) { snprintf(buf, sizeof(buf), "SUB.%s %s,C,const", maskStr, dstStr); return buf; }
-    if (spOp == 0xF0 || spOp == 0xF8) { snprintf(buf, sizeof(buf), "MOV.%s %s,R5", maskStr, dstStr); return buf; }
-
-    if (aluIdx < 24) {
-        snprintf(buf, sizeof(buf), "%s.%s %s,%s",
-                 kALUOp[aluIdx], maskStr, dstStr, kALUSrc[aluIdx]);
+    // Exchange: kDstXch is non-empty and bits 7:4 == 0xD
+    if (*dstX && (opcode & 0xF0u) == 0xD0u) {
+        snprintf(buf, sizeof(buf), "%s<>%s %s", dstB, dstX, fld);
         return buf;
     }
 
-    snprintf(buf, sizeof(buf), "ALU %04X", opcode);
+    const char* dst = dstB;
+
+    // Special-case entries 24-31 (opcode bits 7:3 = 11xxx)
+    uint8_t spOp = static_cast<uint8_t>(opcode & 0x00F8u);
+    if (spOp == 0xC0) { snprintf(buf, sizeof(buf), "%s=A+CON %s", dst, fld); return buf; }
+    if (spOp == 0xC8) { snprintf(buf, sizeof(buf), "%s=A-CON %s", dst, fld); return buf; }
+    if (spOp == 0xD0) { snprintf(buf, sizeof(buf), "%s=LOAD %s",  dst, fld); return buf; }
+    if (spOp == 0xD8) { snprintf(buf, sizeof(buf), "%s=-%s %s",   dst, n,   fld); return buf; }
+    if (spOp == 0xE0) { snprintf(buf, sizeof(buf), "%s=C+CON %s", dst, fld); return buf; }
+    if (spOp == 0xE8) { snprintf(buf, sizeof(buf), "%s=C-CON %s", dst, fld); return buf; }
+    if (spOp == 0xF0) { snprintf(buf, sizeof(buf), "%s=R5 %s",    dst, fld); return buf; }
+    if (spOp == 0xF8) { snprintf(buf, sizeof(buf), "%s=-R5 %s",   dst, fld); return buf; }
+
+    if (aluIdx >= 24) {
+        snprintf(buf, sizeof(buf), "ALU %04X", opcode);
+        return buf;
+    }
+
+    const char* s1 = kSrc1[aluIdx];
+    const char* s2 = kSrc2[aluIdx];
+
+    if (*s2) {
+        // Two-register arithmetic (indices 16-23): D=S1±S2 FLD
+        bool isAdd = (aluIdx & 1) == 0;
+        snprintf(buf, sizeof(buf), "%s=%s%s%s %s", dst, s1, isAdd ? "+" : "-", s2, fld);
+    } else if (aluIdx >= 8 && aluIdx <= 15) {
+        // Shift (indices 8-15): D=SL/SRx FLD
+        bool isShl = (aluIdx & 1) == 0;
+        snprintf(buf, sizeof(buf), "%s=S%c%s %s", dst, isShl ? 'L' : 'R', s1, fld);
+    } else if (aluIdx == 3 || aluIdx == 7) {
+        // Negate: D=-S FLD
+        snprintf(buf, sizeof(buf), "%s=-%s %s", dst, s1, fld);
+    } else if (aluIdx == 2 || aluIdx == 6) {
+        // Move register: D=S FLD
+        snprintf(buf, sizeof(buf), "%s=%s %s", dst, s1, fld);
+    } else {
+        // Immediate ADD/SUB (indices 0,1,4,5): D=S±N FLD
+        bool isAdd = (aluIdx == 0 || aluIdx == 4);
+        snprintf(buf, sizeof(buf), "%s=%s%s%s %s", dst, s1, isAdd ? "+" : "-", n, fld);
+    }
     return buf;
 }

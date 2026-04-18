@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 #include "TraceTypes.hpp"
+#include "MachineVariant.hpp"
 
 class ROM;
 class RAM;
@@ -86,6 +87,9 @@ enum : uint16_t {
 
 class TMC0501 {
 public:
+    // Field mask descriptor (moved here for use in member variables)
+    struct MaskInfo { uint8_t start, end, cpos, cval; };
+
     explicit TMC0501(ROM& rom, RAM& ram);
 
     void reset();
@@ -109,6 +113,9 @@ public:
     /// Used by the TI-59 magnetic card reader / solid-state library modules.
     void loadLibrary(const uint8_t* data, size_t count);
 
+    /// Load constants from data (must be 1024 bytes for 64×16 rows).
+    void loadConstants(const uint8_t* data, size_t count);
+
     // ── Magnetic card reader ─────────────────────────────────────────────────
     // The ROM polls TST BUSY in a tight loop after the user presses 2nd-Read
     // or 2nd-Write.  TST BUSY sets m_waitingForCard when it sees the card-switch
@@ -119,6 +126,10 @@ public:
     /// Tell the CPU which digit-counter slot the card-switch occupies.
     /// Must be called once at machine construction before any step().
     void setCardSwitchCol(uint8_t col) { m_cardSwitchCol = col; }
+
+    /// Tell the CPU which machine variant is running (TI-59, TI-58, or TI-58C).
+    /// Must be called once at machine construction before any step().
+    void setMachineVariant(MachineVariant v) { m_variant = v; }
 
     /// Insert a card immediately.  data/count non-zero → read card (IN CRD
     /// feeds those bytes); zero → blank card (write-only, OUT CRD captured).
@@ -145,6 +156,13 @@ public:
     void     setTraceFlags(uint32_t flags);
     uint32_t traceFlags() const;
 
+    // ── Debug event log ───────────────────────────────────────────────────────
+    // The CPU emits DebugEvents for write operations when debugLevel > 0.
+    // Events are drained by TI59Machine under m_keyMutex at 60 Hz.
+    void setDebugLevel(uint8_t level) { m_debugLevel = level; }
+    uint8_t debugLevel() const { return m_debugLevel; }
+    std::vector<DebugEvent> drainDebugEvents();
+
     void addBreakpoint(uint16_t pc);
     void removeBreakpoint(uint16_t pc);
     void clearBreakpoints();
@@ -155,6 +173,7 @@ public:
     /// outSnaps may be nullptr if TRACE_REGS_FULL snapshots are not needed.
     /// Returns the number of events written.
     uint32_t drainTraceEvents(TraceEvent* out, CPUSnapshot* outSnaps, uint32_t max);
+    uint32_t readTraceEvents(TraceEvent* out, CPUSnapshot* outSnaps, uint32_t max) const;
 
     /// Peek at the last event written without consuming it (thread-safe).
     bool peekLastEvent(TraceEvent& out, CPUSnapshot* outSnap) const;
@@ -189,6 +208,17 @@ public:
     uint8_t  scomNibble(int row, int col) const { return SCOM[row][col]; }
     void setSCOMNibble(int row, int col, uint8_t val) { SCOM[row][col] = val & 0xF; }
 
+    /// Read a ROM keycode (PRG SOURCE = 8) by address 0–383.
+    /// Returns 0 for out-of-range addresses.
+    uint8_t romKeycode(int addr) const {
+        if (addr < 0 || addr >= 384) return 0;
+        int row = 16 + (addr / 8);
+        int offset = (addr % 8) * 2;
+        uint8_t units = m_constant[row][offset];
+        uint8_t tens = m_constant[row][offset + 1];
+        return static_cast<uint8_t>((tens * 10) + units);
+    }
+
 private:
     ROM& rom;
     RAM& ram;
@@ -217,9 +247,10 @@ private:
     uint16_t fB{};      // Flag register B — second set of 16 ROM-visible flag bits.
     uint16_t EXT{};     // External data latch — holds one nibble read from the card
                         // reader or library module; valid for one cycle after IN CRD/LIB.
-    uint16_t PREG{};    // Computed-jump latch.  SET KR[1] loads a rotated KR here;
-                        // on the next step() call the PC is replaced with PREG>>3
-                        // and PREG is cleared (return value 0, no ROM fetch).
+    uint16_t PREG{};    // Latched program address when SET KR[1] executes.
+                        // Non-zero means redirect is pending. After the next
+                        // instruction completes, PC is redirected to this address
+                        // and PREG is cleared.
     uint8_t  Sout[16]{}; // ALU output bus — 16 BCD digits written after every ALU op.
                          // Also serves as the IO bus for STO/RCL address encoding.
     uint16_t flags{};   // Internal emulator state flags (see FLG_* enum above).
@@ -234,10 +265,16 @@ private:
     uint8_t  REG_ADDR{};  // SCOM register address latched by STO/RCL instructions.
     uint8_t  RAM_ADDR{};  // User-RAM register address decoded from Sout (Sout[3]*10 + Sout[2]).
     uint8_t  RAM_OP{};    // RAM operation code from Sout[0] (0=read, 1=write, 2=clear, 4=clear×10).
+    MaskInfo RAM_MASK{0xFF, 0, 0, 0};  // Field mask for current RAM read/write operation.
 
     // ── Library module state ──────────────────────────────────────────
-    uint16_t m_libAddr{};       // Current read position within the loaded library image.
+    uint16_t m_libAddr{};       // Current address within the loaded library image.
+    uint8_t  m_libAddrReadPos{}; // Position counter for reading address digits (0-3, cycles).
+    bool     m_libAddrWasWriting{}; // Track direction: true=writing (OUT), false=reading (IN)
     uint8_t  m_libData[5000]{}; // Library module byte image (up to 5,000 bytes).
+
+    // ── Machine variant ───────────────────────────────────────────────
+    MachineVariant       m_variant{};           // TI-59, TI-58, or TI-58C (affects instruction decoding).
 
     // ── Magnetic card reader ──────────────────────────────────────────
     // Each OUT CRD stores the current KR value (2 bytes, little-endian).
@@ -281,6 +318,11 @@ private:
     // col = digit-counter slot (0–15); only slots 1–9 connect to keyboard rows.
     uint8_t  key[16]{};
 
+    // ── Debug event log ───────────────────────────────────────────────
+    uint8_t m_debugLevel{0};
+    std::vector<DebugEvent> m_debugEvents;
+    void emitDebug(uint8_t level, const char* fmt, ...) __attribute__((format(printf, 3, 4)));
+
     // ── Trace / debug state ───────────────────────────────────────────
     std::atomic<uint32_t> m_traceFlags{TRACE_NONE};
     uint32_t m_traceSeqno{0};
@@ -302,15 +344,22 @@ private:
     void tracePreStep(uint32_t tf, uint16_t opcode, bool& snapCaptured);
     void tracePostStep(uint32_t tf, bool snapCaptured, int weight);
 
+    // ── Helper methods for masked operations ──────────────────────────
+    // Read only the nibbles specified by the field mask from RAM
+    void readRegMasked(uint8_t* dst, int addr, const MaskInfo& m);
+    // Write only the nibbles specified by the field mask to RAM
+    void writeRegMasked(int addr, const uint8_t* src, const MaskInfo& m);
+    // Read only the nibbles specified by the field mask from SCOM
+    void readScomMasked(uint8_t* dst, int addr, const MaskInfo& m);
+
     // ── ALU support tables ────────────────────────────────────────────
 
-    // Field mask descriptor.  Each ALU instruction carries a 4-bit field-mask
+    // Field mask descriptor table.  Each ALU instruction carries a 4-bit field-mask
     // index that selects a contiguous range of digits to operate on.
     // start/end: first and last digit index updated in the destination register.
     // cpos/cval: digit position and value of an implicit BCD constant injected
     //            into every operation (e.g. "#1" in "ADD C.DPT, C, #1").
     //            start=0xFF marks an invalid/unused mask entry.
-    struct MaskInfo { uint8_t start, end, cpos, cval; };
     static const MaskInfo mask_info[16];
 
     // 64 × 16-digit BCD constant table, stored in the SCOM chip (TMC0571).
@@ -324,12 +373,12 @@ private:
     //
     // The constant is accessed by loading KR with the desired index via the
     // INC KR chain at 0x139A–0x13A8, then using an ADD/SUB…const opcode.
-    static const uint8_t CONSTANT[64][16];
+    uint8_t m_constant[64][16];
 
     // ALU operation selector passed to alu().
     // SUB and SHR are ≥ ALU_SUB, which the alu() function uses to choose
     // between add/negate and shift-right paths.
-    enum { ALU_ADD=0, ALU_SHL=1, ALU_SUB=2, ALU_SHR=3 };
+    enum : uint8_t { ALU_ADD=0, ALU_SHL=1, ALU_SUB=2, ALU_SHR=3 };
 
     // Perform a BCD digit-serial ALU operation over the masked field.
     // srcX and srcY are the two source operands (either may be nullptr = zero).
@@ -339,7 +388,7 @@ private:
              const MaskInfo& m, int op);
 
     // Swap digits in the masked field between registers a and b.
-    void xch(uint8_t* a, uint8_t* b, const MaskInfo& m);
+    static void xch(uint8_t* a, uint8_t* b, const MaskInfo& m);
 
     // Decode and execute all ALU-class opcodes (bits 12=0, hi nibble ∉ {0,8,A}).
     void execALU(uint16_t opcode);

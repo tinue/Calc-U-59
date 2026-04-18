@@ -32,6 +32,9 @@ import Foundation
 //   REGISTERS:
 //       Lines of the form "NN = value", where NN is 00–99 and value is any
 //       floating-point literal accepted by Swift's Double initialiser.
+//       TI-58C files only: hidden registers may be loaded with "HNN = value"
+//       syntax, where NN is 00–03. These map to storage areas 060–063 (the
+//       special registers used by the TI-58C ROM for partition and ln(10) info).
 //
 //   KEYSTROKES:
 //       Keystrokes to inject after the program and registers have been loaded,
@@ -81,7 +84,7 @@ struct LoadStateResult {
 
 private enum ParseSection { case none, partition, program, registers, keystrokes }
 
-func parseStateFile(_ text: String) -> LoadStateResult {
+func parseStateFile(_ text: String, maxStepAddr: Int = 479, allowHiddenRegisters: Bool = false) -> LoadStateResult {
     var result = LoadStateResult()
     var section: ParseSection = .none
     var currentStep = 0
@@ -138,14 +141,14 @@ func parseStateFile(_ text: String) -> LoadStateResult {
             break
         case .program:
             if line == "..." { break }  // gap marker — steps in between remain 00
-            let (maybeStart, codes) = parseProgLine(line)
+            let (maybeStart, codes) = parseProgLine(line, maxStepAddr: maxStepAddr)
             if let start = maybeStart { currentStep = start }
             for code in codes {
                 result.programSteps.append((stepAddr: currentStep, keycode: code))
                 currentStep += 1
             }
         case .registers:
-            parseRegLine(line, into: &result.registers, errors: &result.errors)
+            parseRegLine(line, allowHiddenRegisters: allowHiddenRegisters, into: &result.registers, errors: &result.errors)
         case .keystrokes:
             if let t = parseWaitLine(line) {
                 result.keystrokes.append(.wait(t))
@@ -165,13 +168,13 @@ func parseStateFile(_ text: String) -> LoadStateResult {
 /// Parse one program line. Returns the step address set by a prefix (if any) and
 /// the keycodes found on the line. A 3-or-more-digit token that is a valid step
 /// address (0–479) is treated as a position prefix, not a keycode.
-private func parseProgLine(_ line: String) -> (stepAddr: Int?, keycodes: [UInt8]) {
+private func parseProgLine(_ line: String, maxStepAddr: Int = 479) -> (stepAddr: Int?, keycodes: [UInt8]) {
     let tokens = line.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
     var startStep: Int? = nil
     var keycodes: [UInt8] = []
 
     for token in tokens {
-        if startStep == nil && token.count >= 3, let n = Int(token), n >= 0, n <= 479 {
+        if startStep == nil && token.count >= 3, let n = Int(token), n >= 0, n <= maxStepAddr {
             startStep = n   // step-address prefix: sets position, not a keycode
             continue
         }
@@ -184,14 +187,29 @@ private func parseProgLine(_ line: String) -> (stepAddr: Int?, keycodes: [UInt8]
 }
 
 private func parseRegLine(_ line: String,
+                           allowHiddenRegisters: Bool,
                            into registers: inout [(regNum: Int, nibbles: [UInt8])],
                            errors: inout [String]) {
-    // Expected format: "NN = <float>"
+    // Expected format: "NN = <float>" or "HNN = <float>" (H00-H03 for TI-58C hidden regs)
     let parts = line.components(separatedBy: "=")
     guard parts.count >= 2 else { return }
     let nnStr  = parts[0].trimmingCharacters(in: .whitespaces)
     let valStr = parts[1...].joined(separator: "=").trimmingCharacters(in: .whitespaces)
-    guard let regNum = Int(nnStr), regNum >= 0, regNum <= 99 else { return }
+
+    var regNum: Int
+    if let n = Int(nnStr), n >= 0, n <= 99 {
+        regNum = n
+    } else if nnStr.uppercased().hasPrefix("H"),
+              let n = Int(nnStr.dropFirst()), n >= 0, n <= 3 {
+        if !allowHiddenRegisters {
+            errors.append("Hidden register \(nnStr) is only valid for TI-58C files.")
+            return
+        }
+        regNum = 60 + n  // H00→60, H01→61, H02→62, H03→63
+    } else {
+        return
+    }
+
     guard let value = Double(valStr) else {
         errors.append("Cannot parse register \(nnStr) value: \"\(valStr)\"")
         return

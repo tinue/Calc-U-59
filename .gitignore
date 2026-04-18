@@ -29,9 +29,18 @@ debug/
 # Generated tool outputs
 refs/
 
+# Compiled object files
+*.o
+
 # App Store metadata lives in the appstore orphan branch, checked out as a worktree here.
 # One-time setup per clone: git worktree add appstore appstore
 appstore/
 
 # Local Claude Code settings (permissions only, no secrets — but local)
 .claude/settings.local.json
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws

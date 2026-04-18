@@ -13,6 +13,9 @@ import Foundation
 
 final class TraceWriter {
 
+    // ── Constants ──────────────────────────────────────────────────────────────
+    private static let defaultMaxFileSizeMB = 10
+
     // ── Record type constants ─────────────────────────────────────────────────
     private enum RecType: UInt8 {
         case sessionStart = 0x01
@@ -30,12 +33,14 @@ final class TraceWriter {
 
     // ── File header constants ─────────────────────────────────────────────────
     private static let magic: UInt32   = 0x54493539   // 'TI59' LE
-    private static let version: UInt16 = 1
+    private static let version: UInt16 = 3            // v3: added m_libAddrReadPos field
     private static let headerSize      = 16
 
     // ── State ─────────────────────────────────────────────────────────────────
     private(set) var isOpen = false
+    private(set) var isAvailable = true  // false if iCloud/storage is unavailable
     private var fileHandle: FileHandle?
+    private var currentTraceURL: URL?  // Track the URL for security-scoped resource cleanup
 
     // Dedup state: key bytes of the last written "first-of-run" event
     private var pendingBytes: Data?            // serialised payload of the last seen event
@@ -46,43 +51,102 @@ final class TraceWriter {
     private var sessionEventCount: UInt32    = 0
     private var sessionSuppressedTotal: UInt32 = 0
 
+    init() {
+    }
+
+    /// Check if the trace location is accessible. Call at app startup to set isAvailable.
+    func checkAvailability() {
+        let fm = FileManager.default
+
+        #if !os(macOS)
+        let location = AppSettings.resolvedTraceLocation()
+        if location == .iCloud && fm.ubiquityIdentityToken == nil {
+            isAvailable = false
+            return
+        }
+        #endif
+
+        let traceDir = AppSettings.traceDirectory()
+        do {
+            try fm.createDirectory(at: traceDir, withIntermediateDirectories: true)
+            isAvailable = true
+        } catch {
+            isAvailable = false
+        }
+    }
+
     // ── Public API ────────────────────────────────────────────────────────────
 
     /// Resolve the trace file URL, open (or create+append) the file, and write
-    /// a SESSION_START record.  Prints the path to the console.
-    func open() {
-        guard !isOpen else { return }
+    /// a SESSION_START record.  Returns true if successful, false if unavailable.
+    @discardableResult
+    func open() -> Bool {
+        guard !isOpen else { return true }
+        guard isAvailable else { return false }
 
         let url = Self.traceFileURL()
         let fm = FileManager.default
-        let isNew = !fm.fileExists(atPath: url.path)
-        if isNew { fm.createFile(atPath: url.path, contents: nil) }
 
-        guard let fh = try? FileHandle(forWritingTo: url) else {
-            print("[TraceWriter] ERROR: could not open \(url.path)")
-            return
+        // Check if file exists and enforce max file size
+        if let attrs = try? fm.attributesOfItem(atPath: url.path),
+           let fileSize = attrs[FileAttributeKey.size] as? NSNumber {
+            let maxMB = UserDefaults.standard.integer(forKey: SettingsKey.traceMaxFileSizeMB)
+            let maxBytes = UInt64(max(maxMB, Self.defaultMaxFileSizeMB)) * 1_000_000
+            if UInt64(fileSize.int64Value) >= maxBytes {
+                // File exceeded; create timestamped backup and retry
+                let newURL = timestampedTraceURL(baseURL: url)
+                return openFile(at: newURL)
+            }
         }
-        let fileOffset = fh.seekToEndOfFile()
 
+        return openFile(at: url)
+    }
+
+    /// Open file at the given URL. Creates it if needed. Returns true on success.
+    private func openFile(at url: URL) -> Bool {
+        let fm = FileManager.default
+
+        // Create file if it doesn't exist — try both methods
+        if !fm.fileExists(atPath: url.path) {
+            var created = fm.createFile(atPath: url.path, contents: nil)
+            if !created {
+                do {
+                    try Data().write(to: url)
+                    created = true
+                } catch {
+                    return false
+                }
+            }
+            if !created {
+                return false
+            }
+        }
+
+        // Open for writing
+        guard let fh = try? FileHandle(forWritingTo: url) else {
+            return false
+        }
+
+        let fileOffset = fh.seekToEndOfFile()
         if fileOffset == 0 {
-            // New file — write the 16-byte file header.
             fh.write(Self.fileHeader())
         }
 
         fileHandle = fh
         isOpen = true
+        currentTraceURL = url
         suppressedCount = 0
         pendingBytes = nil
         pendingKey   = nil
         sessionEventCount = 0
         sessionSuppressedTotal = 0
 
-        // SESSION_START record
+        // Write SESSION_START record
         var payload = Data(capacity: 8)
         payload.appendLE(UInt64(Date().timeIntervalSince1970))
         writeRecord(.sessionStart, payload: payload)
 
-        print("[TraceWriter] trace → \(url.path)")
+        return true
     }
 
     /// Flush any pending dedup event, write a SESSION_END record, and close the file.
@@ -99,8 +163,14 @@ final class TraceWriter {
 
         fh.closeFile()
         fileHandle = nil
+        
+        // Stop accessing security-scoped resource if it was used
+        if let traceURL = currentTraceURL {
+            traceURL.stopAccessingSecurityScopedResource()
+        }
+        currentTraceURL = nil
+        
         isOpen = false
-        print("[TraceWriter] trace closed (\(sessionEventCount) events, \(sessionSuppressedTotal) suppressed)")
     }
 
     /// Write a CPU trace event with full-dedup logic.
@@ -185,7 +255,7 @@ final class TraceWriter {
     // TITraceEvent light-register fields (fA, fB, KR, SR, cpuFlags) are only
     // populated when TRACE_REGS_LIGHT is set — which we do NOT enable.
     private func makeKey(event e: TITraceEvent, snapshot snap: TICPUSnapshot) -> Data {
-        var d = Data(capacity: 2+2+2+2+2+2+2+1+80)
+        var d = Data(capacity: 2+2+2+2+2+2+2+2+1+80)
         d.appendLE(e.pc)
         d.appendLE(e.opcode)
         // digit is excluded: the counter cycles 0–15 on every instruction,
@@ -195,6 +265,7 @@ final class TraceWriter {
         d.appendLE(snap.KR)
         d.appendLE(snap.SR)
         d.appendLE(snap.flags)
+        d.appendLE(snap.m_libAddr)
         d.append(snap.R5)
         var a2 = snap.A; d.append(contentsOf: tupleBytes(&a2))
         var b2 = snap.B; d.append(contentsOf: tupleBytes(&b2))
@@ -204,13 +275,13 @@ final class TraceWriter {
         return d
     }
 
-    // Full 120-byte TRACE_EVENT payload.
+    // Full 123-byte TRACE_EVENT payload (v3: added m_libAddrReadPos field).
     // suppressedBefore is embedded at offset 0 so the last-of-run can carry the count.
     private func makeEventPayload(event e: TITraceEvent, snapshot snap: TICPUSnapshot,
                                   suppressedBefore: UInt32) -> Data {
-        var d = Data(capacity: 120)
+        var d = Data(capacity: 123)
 
-        // Dedup counter + control fields (32 bytes)
+        // Dedup counter + control fields (34 bytes)
         d.appendLE(suppressedBefore)
         d.appendLE(e.seqno)
         d.appendLE(e.pc)
@@ -222,11 +293,13 @@ final class TraceWriter {
         d.appendLE(snap.EXT)
         d.appendLE(snap.PREG)
         d.appendLE(snap.flags)
+        d.appendLE(snap.m_libAddr)
         d.append(snap.R5)
         d.append(snap.digit)
         d.append(snap.RAM_ADDR)
         d.append(snap.RAM_OP)
         d.append(snap.REG_ADDR)
+        d.append(snap.m_libAddrReadPos)
         d.append(e.cycleWeight)
 
         // Registers A–E: one nibble per byte, index 0 = LSN (digit 0) — 80 bytes
@@ -245,7 +318,7 @@ final class TraceWriter {
             d.append(lo | (hi << 4))
         }
 
-        assert(d.count == 120)
+        assert(d.count == 123)
         return d
     }
 
@@ -266,10 +339,22 @@ final class TraceWriter {
     // Reuses the iCloud container already resolved by CardStorage.warmUp(),
     // which is called at app start.
 
-    private static let traceFileName = "TI59_TRACE.bin"
+    private static let traceFileName = "CALCU59_TRACE.bin"
 
     static func traceFileURL() -> URL {
-        CardStorage.directoryURL.appendingPathComponent(traceFileName)
+        AppSettings.traceDirectory().appendingPathComponent(traceFileName)
+    }
+
+    /// Create a timestamped trace file URL for when the main file exceeds max size.
+    /// Example: CALCU59_TRACE_20260416_140523.bin
+    private func timestampedTraceURL(baseURL: URL) -> URL {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd_HHmmss"
+        let timestamp = formatter.string(from: Date())
+
+        let baseName = "CALCU59_TRACE"
+        let fileName = "\(baseName)_\(timestamp).bin"
+        return baseURL.deletingLastPathComponent().appendingPathComponent(fileName)
     }
 }
 

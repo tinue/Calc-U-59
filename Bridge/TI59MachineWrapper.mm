@@ -35,6 +35,12 @@ static const int kbits[] = {0, 1, 2, 3, 5, 6};  // index 0 unused; index col
     _machine->loadLibrary(bytes, count);
 }
 
+- (void)loadConstants:(NSData*)constData {
+    const uint8_t* bytes = (const uint8_t*)constData.bytes;
+    size_t count = constData.length;
+    _machine->loadConstants(bytes, count);
+}
+
 - (void)reset {
     _machine->reset();
 }
@@ -45,6 +51,10 @@ static const int kbits[] = {0, 1, 2, 3, 5, 6};  // index 0 unused; index col
 
 - (uint32_t)stepN:(uint32_t)n {
     return _machine->stepN(n);
+}
+
+- (uint32_t)stepUntilNextKeycode {
+    return _machine->stepUntilNextKeycode();
 }
 
 - (void)pressKeyRow:(int)row col:(int)col {
@@ -137,6 +147,25 @@ static const int kbits[] = {0, 1, 2, 3, 5, 6};  // index 0 unused; index col
 - (void)setPrinterConnected:(BOOL)connected   { _machine->setPrinterConnected(connected == YES); }
 - (BOOL)isPrinterConnected                    { return _machine->isPrinterConnected() ? YES : NO; }
 
+// ── Debug event log ───────────────────────────────────────────────────────────
+
+- (void)setDebugLevel:(uint8_t)level {
+    _machine->setDebugLevel(level);
+}
+
+- (NSArray<NSString*>*)drainDebugMessages {
+    auto events = _machine->drainDebugEvents();
+    if (events.empty()) return @[];
+    NSMutableArray<NSString*>* result = [NSMutableArray arrayWithCapacity:events.size()];
+    for (const auto& ev : events) {
+        // Prefix: "I:" for INFO (1), "D:" for DEBUG (2).
+        char prefix = (ev.level == 1) ? 'I' : 'D';
+        NSString* s = [NSString stringWithFormat:@"%c:%s", prefix, ev.msg];
+        [result addObject:s];
+    }
+    return result;
+}
+
 // ── Trace / debug API ─────────────────────────────────────────────────────────
 
 - (TITraceFlags)traceFlags {
@@ -205,7 +234,69 @@ static const int kbits[] = {0, 1, 2, 3, 5, 6};  // index 0 unused; index col
             memcpy(ts.SCOM, s.SCOM, 16 * 16);
             memcpy(ts.Sout, s.Sout, 16);
             ts.KR = s.KR; ts.SR = s.SR; ts.fA = s.fA; ts.fB = s.fB;
-            ts.EXT = s.EXT; ts.PREG = s.PREG; ts.flags = s.flags;
+            ts.EXT = s.EXT; ts.PREG = s.PREG; ts.flags = s.flags; ts.m_libAddr = s.m_libAddr; ts.m_libAddrReadPos = s.m_libAddrReadPos;
+            ts.R5 = s.R5; ts.digit = s.digit;
+            ts.REG_ADDR = s.REG_ADDR; ts.RAM_ADDR = s.RAM_ADDR; ts.RAM_OP = s.RAM_OP;
+            [snaps addObject:[NSValue valueWithBytes:&ts objCType:@encode(TICPUSnapshot)]];
+        } else if (snaps) {
+            TICPUSnapshot empty{};
+            [snaps addObject:[NSValue valueWithBytes:&empty objCType:@encode(TICPUSnapshot)]];
+        }
+    }
+
+    if (outSnaps) *outSnaps = snaps;
+    return result;
+}
+
+- (NSArray<NSValue*>*)readTraceEventsMax:(NSUInteger)max {
+    return [self readTraceEventsMax:max snapshots:nil];
+}
+
+- (NSArray<NSValue*>*)readTraceEventsMax:(NSUInteger)max
+                               snapshots:(NSArray<NSValue*>* _Nullable * _Nullable)outSnaps {
+    if (max == 0) return @[];
+
+    const uint32_t cap = (uint32_t)MIN(max, 512u);
+    std::vector<TraceEvent>   evBuf(cap);
+    std::vector<CPUSnapshot>  snapBuf(cap);
+
+    uint32_t n = _machine->readTraceEvents(evBuf.data(), outSnaps ? snapBuf.data() : nullptr, cap);
+    if (n == 0) {
+        if (outSnaps) *outSnaps = @[];
+        return @[];
+    }
+
+    NSMutableArray<NSValue*>* result  = [NSMutableArray arrayWithCapacity:n];
+    NSMutableArray<NSValue*>* snaps   = outSnaps ? [NSMutableArray arrayWithCapacity:n] : nil;
+
+    for (uint32_t i = 0; i < n; i++) {
+        TITraceEvent te;
+        te.pc           = evBuf[i].pc;
+        te.opcode       = evBuf[i].opcode;
+        te.digit        = evBuf[i].digit;
+        te.cycleWeight  = evBuf[i].cycleWeight;
+        te.seqno        = evBuf[i].seqno;
+        te.KR           = evBuf[i].KR;
+        te.SR           = evBuf[i].SR;
+        te.fA           = evBuf[i].fA;
+        te.fB           = evBuf[i].fB;
+        te.cpuFlags     = evBuf[i].cpuFlags;
+        te.R5           = evBuf[i].R5;
+        te.snapshotIndex = (outSnaps ? 0xFF : i);  // Mark which snapshots are valid
+        [result addObject:[NSValue valueWithBytes:&te objCType:@encode(TITraceEvent)]];
+
+        if (outSnaps) {
+            const CPUSnapshot& s = snapBuf[i];
+            TICPUSnapshot ts;
+            memcpy(ts.A,    s.A,    16);
+            memcpy(ts.B,    s.B,    16);
+            memcpy(ts.C,    s.C,    16);
+            memcpy(ts.D,    s.D,    16);
+            memcpy(ts.E,    s.E,    16);
+            memcpy(ts.SCOM, s.SCOM, 16 * 16);
+            memcpy(ts.Sout, s.Sout, 16);
+            ts.KR = s.KR; ts.SR = s.SR; ts.fA = s.fA; ts.fB = s.fB;
+            ts.EXT = s.EXT; ts.PREG = s.PREG; ts.flags = s.flags; ts.m_libAddr = s.m_libAddr; ts.m_libAddrReadPos = s.m_libAddrReadPos;
             ts.R5 = s.R5; ts.digit = s.digit;
             ts.REG_ADDR = s.REG_ADDR; ts.RAM_ADDR = s.RAM_ADDR; ts.RAM_OP = s.RAM_OP;
             [snaps addObject:[NSValue valueWithBytes:&ts objCType:@encode(TICPUSnapshot)]];
@@ -257,6 +348,27 @@ static const int kbits[] = {0, 1, 2, 3, 5, 6};  // index 0 unused; index col
     return data;
 }
 
+- (uint8_t)romKeycodeAt:(NSInteger)addr {
+    return _machine->readROMKeycode((int)addr);
+}
+
+- (NSIndexSet*)nonZeroDataRegisterIndices {
+    NSMutableIndexSet* result = [NSMutableIndexSet indexSet];
+    int programRegs = (int)_machine->partitionProgramRegs();
+    int totalRegs   = _machine->ramRegCount();
+    int dataRegCount = MAX(0, totalRegs - programRegs);
+    for (int regNum = 0; regNum < dataRegCount; regNum++) {
+        const uint8_t* n = _machine->readRAMReg(totalRegs - 1 - regNum);
+        for (int i = 0; i < 16; i++) {
+            if (n[i] != 0) {
+                [result addIndex:regNum];
+                break;
+            }
+        }
+    }
+    return result;
+}
+
 - (TICPUSnapshot)snapshotCPU {
     CPUSnapshot s = _machine->snapshotCPU();
     TICPUSnapshot out;
@@ -265,7 +377,7 @@ static const int kbits[] = {0, 1, 2, 3, 5, 6};  // index 0 unused; index col
     memcpy(out.SCOM, s.SCOM, 16 * 16);
     memcpy(out.Sout, s.Sout, 16);
     out.KR = s.KR; out.SR = s.SR; out.fA = s.fA; out.fB = s.fB;
-    out.EXT = s.EXT; out.PREG = s.PREG; out.flags = s.flags;
+    out.EXT = s.EXT; out.PREG = s.PREG; out.flags = s.flags; out.m_libAddr = s.m_libAddr; out.m_libAddrReadPos = s.m_libAddrReadPos;
     out.R5 = s.R5; out.digit = s.digit;
     out.REG_ADDR = s.REG_ADDR; out.RAM_ADDR = s.RAM_ADDR; out.RAM_OP = s.RAM_OP;
     return out;

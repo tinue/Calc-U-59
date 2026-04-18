@@ -68,19 +68,6 @@ On iPhone (and iPad in portrait), only one panel is visible at a time. The calcu
 
 The debug panel is not available on iPhone.
 
-## Future Work
-
-Planned improvements in rough priority order:
-
-- **Emulation speed control** — a multiplier to run the emulator faster or slower than real time.
-- **Event callbacks** — push notifications for display updates and register changes, replacing the current polling model.
-- **Library module switching** — a UI picker to load different Solid State Library modules, with a machine reset on swap (matching real hardware behaviour).
-- **Real-time debugger panels** — live calculator state panel (registers, program listing with moving PC) and a CPU-level panel (A–E registers, current instruction as mnemonic).
-- **Card stacking** — a queue of cards fed automatically on successive read/write requests, for programs that use multiple cards.
-- **Printer real-speed simulation** — replay output at the PC-100C's actual print speed rather than rendering it instantly.
-- **CMake build** — standalone build targeting the C++ core, enabling headless use and non-macOS platforms.
-- **Headless / REST API** — full GUI decoupling to enable scripted research workflows and alternative frontends.
-
 ## AI Programming Assistant
 
 The file [`prompt/ti59-agent-prompt.md`](prompt/ti59-agent-prompt.md) is a system prompt that turns a capable LLM (Claude, GPT-4o, etc.) into a TI-59 expert. Paste the entire file as the system prompt, then ask the model to write, explain, or debug TI-59 programs. It outputs ready-to-load `.ti59` state files.
@@ -95,15 +82,9 @@ The file [`prompt/ti59-agent-prompt.md`](prompt/ti59-agent-prompt.md) is a syste
 
 **Token cost:** The prompt is large (~15 000 tokens). Every conversation turn carries this overhead. Use a model with a generous context window and be aware that costs add up quickly in long sessions.
 
-## Releases
+## Changelog
 
-### 0.2.0 (Unreleased)
-
-<!-- Add 0.2.0 release notes here -->
-
-### 0.1.0 (2026-03-28)
-
-Initial release. Core TMC0501 emulation, debugger, printer functional simulation, and `.ti59` state file support.
+See [CHANGELOG.md](CHANGELOG.md) for version history and release notes.
 
 ## License
 

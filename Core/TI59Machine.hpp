@@ -2,11 +2,10 @@
 #include "ROM.hpp"
 #include "RAM.hpp"
 #include "TMC0501.hpp"
+#include "MachineVariant.hpp"
 #include <cstdint>
 #include <mutex>
 #include <vector>
-
-enum class MachineVariant { TI59, TI58, TI58C };
 
 class TI59Machine {
 public:
@@ -14,6 +13,7 @@ public:
 
     void loadROM(const uint16_t* data, size_t count);
     void loadLibrary(const uint8_t* data, size_t count);
+    void loadConstants(const uint8_t* data, size_t count);
     void reset();
 
     /// Execute one CPU instruction.
@@ -70,16 +70,24 @@ public:
     void     setTraceFlags(uint32_t flags);
     uint32_t traceFlags() const;
 
+    void setDebugLevel(uint8_t level);
+    std::vector<DebugEvent> drainDebugEvents();
+
     void addBreakpoint(uint16_t pc);
     void removeBreakpoint(uint16_t pc);
     void clearBreakpoints();
 
     uint32_t drainTraceEvents(TraceEvent* out, CPUSnapshot* outSnaps, uint32_t max);
+    uint32_t readTraceEvents(TraceEvent* out, CPUSnapshot* outSnaps, uint32_t max) const;
     bool     peekLastEvent(TraceEvent& out, CPUSnapshot* outSnap) const;
 
     /// Run up to n steps under a single mutex lock; returns count actually executed.
     /// Stops early if a breakpoint is hit (when TRACE_BREAKPOINTS is set).
     uint32_t stepN(uint32_t n, bool stopOnBreakpoint = true);
+
+    /// Run steps until SCOM[0][4:7] changes (keycode boundary) or maxSteps is reached.
+    /// Returns number of steps executed. Works for both RAM and master-library programs.
+    uint32_t stepUntilNextKeycode(uint32_t maxSteps = 50000);
 
     /// Current program counter (for CLI inspection between stepN calls).
     uint16_t pc() const;
@@ -96,6 +104,9 @@ public:
 
     /// Read program step stepAddr (0–479) as 2-digit keycode (0–99).
     uint8_t readProgramStep(int stepAddr) const;
+
+    /// Read a ROM keycode at address 0–383.
+    uint8_t readROMKeycode(int addr) const;
 
     /// Capture a snapshot of all CPU registers at the current instant.
     CPUSnapshot snapshotCPU() const;
