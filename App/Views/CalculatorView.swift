@@ -125,7 +125,6 @@ struct CalculatorView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color(white: 0.08))
             }
         }
         #endif
