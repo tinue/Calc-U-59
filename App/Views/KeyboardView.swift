@@ -32,27 +32,27 @@ struct KeyboardView: View {
     private static let maroon = Color(red: 0x1C/255.0, green: 0x06/255.0, blue: 0x06/255.0)
 
     // ── Key rects — keyboard-image space (0..1) ────────────────────────
-    /// Extracted from key_rectangles.png by automated scanning (without transformation).
+    /// Extracted from key_rectangles.png, converted to keyboard-image-space coords.
     /// All 9×5 = 45 keys.
     private static let keyRects: [[CGRect]] = [
         // row 0
-        [CGRect(x:0.0160, y:0.2604, width:0.1245, height:0.0373), CGRect(x:0.2277, y:0.2604, width:0.1245, height:0.0373), CGRect(x:0.4375, y:0.2604, width:0.1245, height:0.0373), CGRect(x:0.6483, y:0.2604, width:0.1245, height:0.0373), CGRect(x:0.8571, y:0.2604, width:0.1245, height:0.0373)],
+        [CGRect(x:0.0160, y:0.0365, width:0.1245, height:0.0486), CGRect(x:0.2277, y:0.0365, width:0.1245, height:0.0486), CGRect(x:0.4375, y:0.0365, width:0.1245, height:0.0486), CGRect(x:0.6483, y:0.0365, width:0.1245, height:0.0486), CGRect(x:0.8571, y:0.0365, width:0.1245, height:0.0486)],
         // row 1
-        [CGRect(x:0.0160, y:0.3463, width:0.1245, height:0.0390), CGRect(x:0.2277, y:0.3463, width:0.1245, height:0.0390), CGRect(x:0.4375, y:0.3463, width:0.1245, height:0.0390), CGRect(x:0.6483, y:0.3463, width:0.1245, height:0.0390), CGRect(x:0.8571, y:0.3463, width:0.1245, height:0.0390)],
+        [CGRect(x:0.0160, y:0.1484, width:0.1245, height:0.0508), CGRect(x:0.2277, y:0.1484, width:0.1245, height:0.0508), CGRect(x:0.4375, y:0.1484, width:0.1245, height:0.0508), CGRect(x:0.6483, y:0.1484, width:0.1245, height:0.0508), CGRect(x:0.8571, y:0.1484, width:0.1245, height:0.0508)],
         // row 2
-        [CGRect(x:0.0160, y:0.4339, width:0.1245, height:0.0390), CGRect(x:0.2277, y:0.4339, width:0.1245, height:0.0390), CGRect(x:0.4375, y:0.4339, width:0.1245, height:0.0390), CGRect(x:0.6483, y:0.4339, width:0.1245, height:0.0390), CGRect(x:0.8571, y:0.4339, width:0.1245, height:0.0390)],
+        [CGRect(x:0.0160, y:0.2625, width:0.1245, height:0.0508), CGRect(x:0.2277, y:0.2625, width:0.1245, height:0.0508), CGRect(x:0.4375, y:0.2625, width:0.1245, height:0.0508), CGRect(x:0.6483, y:0.2625, width:0.1245, height:0.0508), CGRect(x:0.8571, y:0.2625, width:0.1245, height:0.0508)],
         // row 3
-        [CGRect(x:0.0160, y:0.5205, width:0.1245, height:0.0390), CGRect(x:0.2277, y:0.5205, width:0.1245, height:0.0390), CGRect(x:0.4375, y:0.5205, width:0.1245, height:0.0390), CGRect(x:0.6483, y:0.5205, width:0.1245, height:0.0390), CGRect(x:0.8571, y:0.5205, width:0.1245, height:0.0390)],
+        [CGRect(x:0.0160, y:0.3753, width:0.1245, height:0.0508), CGRect(x:0.2277, y:0.3753, width:0.1245, height:0.0508), CGRect(x:0.4375, y:0.3753, width:0.1245, height:0.0508), CGRect(x:0.6483, y:0.3753, width:0.1245, height:0.0508), CGRect(x:0.8571, y:0.3753, width:0.1245, height:0.0508)],
         // row 4
-        [CGRect(x:0.0160, y:0.6049, width:0.1245, height:0.0390), CGRect(x:0.2277, y:0.6049, width:0.1245, height:0.0390), CGRect(x:0.4375, y:0.6049, width:0.1245, height:0.0390), CGRect(x:0.6483, y:0.6049, width:0.1245, height:0.0390), CGRect(x:0.8571, y:0.6049, width:0.1279, height:0.0390)],
+        [CGRect(x:0.0160, y:0.4853, width:0.1245, height:0.0508), CGRect(x:0.2277, y:0.4853, width:0.1245, height:0.0508), CGRect(x:0.4375, y:0.4853, width:0.1245, height:0.0508), CGRect(x:0.6483, y:0.4853, width:0.1245, height:0.0508), CGRect(x:0.8571, y:0.4853, width:0.1279, height:0.0508)],
         // row 5
-        [CGRect(x:0.0160, y:0.6920, width:0.1245, height:0.0390), CGRect(x:0.2001, y:0.6901, width:0.1623, height:0.0410), CGRect(x:0.4186, y:0.6898, width:0.1623, height:0.0412), CGRect(x:0.6371, y:0.6901, width:0.1623, height:0.0410), CGRect(x:0.8571, y:0.6901, width:0.1284, height:0.0410)],
+        [CGRect(x:0.0160, y:0.5987, width:0.1245, height:0.0508), CGRect(x:0.2001, y:0.5963, width:0.1623, height:0.0534), CGRect(x:0.4186, y:0.5959, width:0.1623, height:0.0537), CGRect(x:0.6371, y:0.5963, width:0.1623, height:0.0534), CGRect(x:0.8571, y:0.5963, width:0.1284, height:0.0534)],
         // row 6
-        [CGRect(x:0.0160, y:0.7782, width:0.1245, height:0.0390), CGRect(x:0.2001, y:0.7767, width:0.1623, height:0.0405), CGRect(x:0.4186, y:0.7762, width:0.1623, height:0.0410), CGRect(x:0.6371, y:0.7769, width:0.1623, height:0.0402), CGRect(x:0.8571, y:0.7769, width:0.1284, height:0.0412)],
+        [CGRect(x:0.0160, y:0.7110, width:0.1245, height:0.0508), CGRect(x:0.2001, y:0.7091, width:0.1623, height:0.0528), CGRect(x:0.4186, y:0.7084, width:0.1623, height:0.0534), CGRect(x:0.6371, y:0.7094, width:0.1623, height:0.0524), CGRect(x:0.8571, y:0.7094, width:0.1284, height:0.0537)],
         // row 7
-        [CGRect(x:0.0160, y:0.8643, width:0.1245, height:0.0390), CGRect(x:0.2001, y:0.8633, width:0.1623, height:0.0412), CGRect(x:0.4186, y:0.8628, width:0.1623, height:0.0405), CGRect(x:0.6371, y:0.8636, width:0.1623, height:0.0412), CGRect(x:0.8571, y:0.8631, width:0.1284, height:0.0412)],
+        [CGRect(x:0.0160, y:0.8232, width:0.1245, height:0.0508), CGRect(x:0.2001, y:0.8219, width:0.1623, height:0.0537), CGRect(x:0.4186, y:0.8213, width:0.1623, height:0.0528), CGRect(x:0.6371, y:0.8223, width:0.1623, height:0.0537), CGRect(x:0.8571, y:0.8217, width:0.1284, height:0.0537)],
         // row 8
-        [CGRect(x:0.0160, y:0.9509, width:0.1245, height:0.0390), CGRect(x:0.2001, y:0.9490, width:0.1623, height:0.0415), CGRect(x:0.4186, y:0.9490, width:0.1623, height:0.0410), CGRect(x:0.6366, y:0.9490, width:0.1623, height:0.0427), CGRect(x:0.8571, y:0.9497, width:0.1289, height:0.0412)],
+        [CGRect(x:0.0160, y:0.9360, width:0.1245, height:0.0508), CGRect(x:0.2001, y:0.9336, width:0.1623, height:0.0541), CGRect(x:0.4186, y:0.9336, width:0.1623, height:0.0534), CGRect(x:0.6366, y:0.9336, width:0.1623, height:0.0556), CGRect(x:0.8571, y:0.9345, width:0.1289, height:0.0537)],
     ]
 
     // ── Key hit-test ──────────────────────────────────────────────────────
