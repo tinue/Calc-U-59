@@ -1,6 +1,11 @@
 # Changelog
 
-## [0.3.0] - TBD
+## [0.4.0] - WIP
+
+**UI:** GUI rework for main calculator panel. Increased usable area by removing unused space. This makes operation on smaller
+displays easier. Also prepared for later swap of solid state module reference cards (currently ML-01 is still hardcoded).
+
+## [0.3.0] - 2026-04-18
 
 **Core emulation:** Fixed critical R5 register bug where ALU results were captured at the wrong digit position. The R5 register must capture results at the mask's constant position (cpos), not the start position. This bug caused subroutine returns (P/R, transcendental functions, etc.) to jump to incorrect addresses. Bug was present since initial implementation and affected all machine variants.
 
