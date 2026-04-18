@@ -13,6 +13,7 @@ struct CalculatorView: View {
 
     var body: some View {
         layout
+        .dynamicTypeSize(.small ... .large)
         .sheet(item: .init(
             get: { viewModel.cardPickerMode.map { PickerItem(mode: $0) } },
             set: { viewModel.cardPickerMode = $0?.mode }
@@ -123,6 +124,7 @@ struct CalculatorView: View {
                             }
                     }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         #endif
