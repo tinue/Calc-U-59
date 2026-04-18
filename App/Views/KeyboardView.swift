@@ -32,27 +32,27 @@ struct KeyboardView: View {
     private static let maroon = Color(red: 0x1C/255.0, green: 0x06/255.0, blue: 0x06/255.0)
 
     // ── Key rects — keyboard-image space (0..1) ────────────────────────
-    /// Extracted from user-corrected key_validation.png, converted to keyboard-image coords.
+    /// Extracted from key_rectangles.png with visual measurement.
     /// All 9×5 = 45 keys.
     private static let keyRects: [[CGRect]] = [
-        // row 0  (A, B, C, D, E)
-        [CGRect(x:0.0552, y:0.0484, width:0.1153, height:0.0495), CGRect(x:0.2495, y:0.0484, width:0.1153, height:0.0495), CGRect(x:0.4423, y:0.0484, width:0.1153, height:0.0495), CGRect(x:0.6371, y:0.0484, width:0.1153, height:0.0495), CGRect(x:0.8270, y:0.0484, width:0.1153, height:0.0495)],
-        // row 1  (2nd, INV, lnx, CE, CLR)
-        [CGRect(x:0.0552, y:0.1611, width:0.1153, height:0.0495), CGRect(x:0.2495, y:0.1611, width:0.1153, height:0.0495), CGRect(x:0.4423, y:0.1611, width:0.1153, height:0.0495), CGRect(x:0.6371, y:0.1611, width:0.1153, height:0.0495), CGRect(x:0.8270, y:0.1611, width:0.1153, height:0.0495)],
-        // row 2  (LRN, x≷t, x², √x, 1/x)
-        [CGRect(x:0.0552, y:0.2734, width:0.1153, height:0.0495), CGRect(x:0.2495, y:0.2734, width:0.1153, height:0.0495), CGRect(x:0.4423, y:0.2734, width:0.1153, height:0.0495), CGRect(x:0.6371, y:0.2734, width:0.1153, height:0.0495), CGRect(x:0.8270, y:0.2734, width:0.1153, height:0.0495)],
-        // row 3  (SST, STO, RCL, SUM, y^x)
-        [CGRect(x:0.0552, y:0.3843, width:0.1153, height:0.0495), CGRect(x:0.2495, y:0.3843, width:0.1153, height:0.0495), CGRect(x:0.4423, y:0.3843, width:0.1153, height:0.0495), CGRect(x:0.6371, y:0.3843, width:0.1153, height:0.0495), CGRect(x:0.8270, y:0.3843, width:0.1153, height:0.0495)],
-        // row 4  (BST, EE, (, ), ÷)
-        [CGRect(x:0.0552, y:0.4952, width:0.1153, height:0.0495), CGRect(x:0.2495, y:0.4952, width:0.1153, height:0.0495), CGRect(x:0.4423, y:0.4952, width:0.1153, height:0.0495), CGRect(x:0.6371, y:0.4952, width:0.1153, height:0.0495), CGRect(x:0.8270, y:0.4963, width:0.1182, height:0.0520)],
-        // row 5  (GTO, 7, 8, 9, ×) — cols 1–3 wider
-        [CGRect(x:0.0552, y:0.6090, width:0.1153, height:0.0495), CGRect(x:0.2263, y:0.6079, width:0.1478, height:0.0523), CGRect(x:0.4259, y:0.6090, width:0.1478, height:0.0523), CGRect(x:0.6255, y:0.6090, width:0.1478, height:0.0523), CGRect(x:0.8266, y:0.6062, width:0.1192, height:0.0551)],
-        // row 6  (SBR, 4, 5, 6, −) — cols 1–3 wider
-        [CGRect(x:0.0552, y:0.7241, width:0.1153, height:0.0495), CGRect(x:0.2263, y:0.7209, width:0.1478, height:0.0527), CGRect(x:0.4259, y:0.7209, width:0.1478, height:0.0527), CGRect(x:0.6255, y:0.7213, width:0.1478, height:0.0523), CGRect(x:0.8256, y:0.7213, width:0.1182, height:0.0551)],
-        // row 7  (RST, 1, 2, 3, +) — cols 1–3 wider
-        [CGRect(x:0.0552, y:0.8378, width:0.1153, height:0.0495), CGRect(x:0.2263, y:0.8332, width:0.1478, height:0.0544), CGRect(x:0.4259, y:0.8329, width:0.1478, height:0.0544), CGRect(x:0.6255, y:0.8329, width:0.1478, height:0.0544), CGRect(x:0.8275, y:0.8332, width:0.1187, height:0.0551)],
-        // row 8  (R/S, 0, ., ±, =) — cols 1–3 wider
-        [CGRect(x:0.0552, y:0.9511, width:0.1153, height:0.0495), CGRect(x:0.2263, y:0.9455, width:0.1478, height:0.0544), CGRect(x:0.4259, y:0.9459, width:0.1478, height:0.0544), CGRect(x:0.6255, y:0.9455, width:0.1478, height:0.0544), CGRect(x:0.8275, y:0.9455, width:0.1187, height:0.0551)],
+        // row 0  (A', B', C', D', E')
+        [CGRect(x:0.0290, y:0.0270, width:0.1560, height:0.0380), CGRect(x:0.1940, y:0.0270, width:0.1560, height:0.0380), CGRect(x:0.3590, y:0.0270, width:0.1560, height:0.0380), CGRect(x:0.5240, y:0.0270, width:0.1560, height:0.0380), CGRect(x:0.6890, y:0.0270, width:0.1560, height:0.0380)],
+        // row 1  (2nd, INV, log, CP, CLR)
+        [CGRect(x:0.0290, y:0.0750, width:0.1560, height:0.0380), CGRect(x:0.1940, y:0.0750, width:0.1560, height:0.0380), CGRect(x:0.3590, y:0.0750, width:0.1560, height:0.0380), CGRect(x:0.5240, y:0.0750, width:0.1560, height:0.0380), CGRect(x:0.6890, y:0.0750, width:0.1560, height:0.0380)],
+        // row 2  (Pgm, P→R, sin, cos, tan)
+        [CGRect(x:0.0290, y:0.1230, width:0.1560, height:0.0380), CGRect(x:0.1940, y:0.1230, width:0.1560, height:0.0380), CGRect(x:0.3590, y:0.1230, width:0.1560, height:0.0380), CGRect(x:0.5240, y:0.1230, width:0.1560, height:0.0380), CGRect(x:0.6890, y:0.1230, width:0.1560, height:0.0380)],
+        // row 3  (Ins, CMSs, Exc, Prd, Ind)
+        [CGRect(x:0.0290, y:0.1710, width:0.1560, height:0.0380), CGRect(x:0.1940, y:0.1710, width:0.1560, height:0.0380), CGRect(x:0.3590, y:0.1710, width:0.1560, height:0.0380), CGRect(x:0.5240, y:0.1710, width:0.1560, height:0.0380), CGRect(x:0.6890, y:0.1710, width:0.1560, height:0.0380)],
+        // row 4  (Del, Eng, Fix, Int, I×I)
+        [CGRect(x:0.0290, y:0.2190, width:0.1560, height:0.0380), CGRect(x:0.1940, y:0.2190, width:0.1560, height:0.0380), CGRect(x:0.3590, y:0.2190, width:0.1560, height:0.0380), CGRect(x:0.5240, y:0.2190, width:0.1560, height:0.0380), CGRect(x:0.6890, y:0.2190, width:0.1560, height:0.0380)],
+        // row 5  (Pause, x=t, Nop, Op, Deg) — cols 1–3 wider
+        [CGRect(x:0.0290, y:0.2750, width:0.1450, height:0.0410), CGRect(x:0.1900, y:0.2750, width:0.1680, height:0.0410), CGRect(x:0.3740, y:0.2750, width:0.1680, height:0.0410), CGRect(x:0.5580, y:0.2750, width:0.1680, height:0.0410), CGRect(x:0.7420, y:0.2750, width:0.1450, height:0.0410)],
+        // row 6  (Lbl, x≥t, Σ+, x̄, Rad) — cols 1–3 wider
+        [CGRect(x:0.0290, y:0.3340, width:0.1450, height:0.0410), CGRect(x:0.1900, y:0.3340, width:0.1680, height:0.0410), CGRect(x:0.3740, y:0.3340, width:0.1680, height:0.0410), CGRect(x:0.5580, y:0.3340, width:0.1680, height:0.0410), CGRect(x:0.7420, y:0.3340, width:0.1450, height:0.0410)],
+        // row 7  (St flg, If flg, D.MS, π, Grad) — cols 1–3 wider
+        [CGRect(x:0.0290, y:0.3930, width:0.1450, height:0.0410), CGRect(x:0.1900, y:0.3930, width:0.1680, height:0.0410), CGRect(x:0.3740, y:0.3930, width:0.1680, height:0.0410), CGRect(x:0.5580, y:0.3930, width:0.1680, height:0.0410), CGRect(x:0.7420, y:0.3930, width:0.1450, height:0.0410)],
+        // row 8  (Write, Dsz, Adv, Prt, List) — cols 1–3 wider
+        [CGRect(x:0.0290, y:0.4520, width:0.1450, height:0.0410), CGRect(x:0.1900, y:0.4520, width:0.1680, height:0.0410), CGRect(x:0.3740, y:0.4520, width:0.1680, height:0.0410), CGRect(x:0.5580, y:0.4520, width:0.1680, height:0.0410), CGRect(x:0.7420, y:0.4520, width:0.1450, height:0.0410)],
     ]
 
     // ── Key hit-test ──────────────────────────────────────────────────────
