@@ -12,13 +12,13 @@ struct KeyboardView: View {
 
     /// LED display window — normalized to canvas size.
     /// Positioned in upper portion of maroon display panel, shifted up to avoid card overlap.
-    private static let displayRect = CGRect(x: 0.0, y: 0.02,
+    private static let displayRect = CGRect(x: 0.0, y: 0.052,
                                              width: 1.0, height: 0.05)
 
     /// ML-01 card slot — normalized to canvas size.
     /// Full-width, positioned between display and keyboard.
     /// ML-01.png is 440px tall; 440 / 4075 ≈ 0.108
-    private static let cardRect = CGRect(x: 0.0, y: 0.0979,
+    private static let cardRect = CGRect(x: 0.0, y: 0.11,
                                           width: 1.0, height: 0.1080)
 
     /// Keyboard section position within canvas.
@@ -103,24 +103,12 @@ struct KeyboardView: View {
                 Image("ML01")
                     .resizable()
                     .frame(width: cardW, height: cardH)
+                    .background(Color(red: 29.0/255.0, green: 29.0/255.0, blue: 28.0/255.0))
                     .overlay(alignment: .top) {
-                        // Top-wash gradient: opacity 0.96→0 over top 36% of card
-                        LinearGradient(stops: [
-                            .init(color: Self.maroon.opacity(0.96), location: 0.00),
-                            .init(color: Self.maroon.opacity(0.90), location: 0.12),
-                            .init(color: Self.maroon.opacity(0.60), location: 0.24),
-                            .init(color: Self.maroon.opacity(0.00), location: 0.36),
-                        ], startPoint: .top, endPoint: .bottom)
-                        .frame(height: cardH)
-                    }
-                    .overlay(alignment: .leading) {
-                        Rectangle().fill(Self.cardEdge).frame(width: cardW * 0.009)
-                    }
-                    .overlay(alignment: .trailing) {
-                        Rectangle().fill(Self.cardEdge).frame(width: cardW * 0.009)
-                    }
-                    .overlay(alignment: .bottom) {
-                        Rectangle().fill(Self.cardEdge).frame(height: cardH * 0.03)
+                        // Top-wash: uniform dark overlay
+                        Rectangle()
+                            .fill(Color(red: 0.1, green: 0.02, blue: 0.02).opacity(0.95))
+                            .frame(height: cardH * 0.28)
                     }
                     .position(x: cardW / 2, y: cardY + cardH / 2)
 

@@ -258,7 +258,9 @@ struct CalculatorView: View {
                 .padding(8)
                 .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
         }
-        .padding(8)
+        .padding(.top, 2)
+        .padding(.horizontal, 8)
+        .padding(.bottom, 8)
     }
     #endif
 }
