@@ -131,11 +131,18 @@ struct CalculatorView: View {
     }
 
     private func calculatorBody(showLabels: Bool = true) -> some View {
-        VStack(spacing: 0) {
-            KeyboardView()
-            cardReaderBar(showLabels: showLabels)
+        ZStack {
+            Color(red: 29/255, green: 29/255, blue: 28/255)
+
+            VStack(spacing: 0) {
+                KeyboardView()
+                Spacer()
+                cardReaderBar(showLabels: showLabels)
+            }
+            .background(Color(white: 29.0/255.0))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 8)
         }
-        .background(Color(white: 29.0/255.0))
     }
 
     // Identifiable wrapper so .sheet(item:) works with the enum
@@ -228,9 +235,10 @@ struct CalculatorView: View {
             .controlSize(.large)
             #endif
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 4)
-        .background(Color(white: 0.12))
+        .padding(.horizontal, 12)
+        .frame(maxWidth: .infinity)
+        .frame(height: 50)
+        .background(Color(white: 0.15))
         .foregroundStyle(.white)
     }
 
