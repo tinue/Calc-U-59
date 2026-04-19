@@ -89,10 +89,8 @@ struct CalculatorView: View {
         #else
         // iOS/iPadOS: side-by-side when wide, button-navigated pages when portrait
         GeometryReader { geo in
-            // In portrait, hide button labels when the calculator is too narrow to
-            // fit them comfortably (all iPhones; wide iPads always have room).
-            let isPortrait = geo.size.height >= geo.size.width
-            let showLabels = !isPortrait || geo.size.width >= 500
+            // Hide button labels when the calculator is too narrow to fit them comfortably.
+            let showLabels = geo.size.width >= 1300
             if geo.size.width > geo.size.height {
                 HStack(spacing: 0) {
                     calculatorBody(showLabels: showLabels)
