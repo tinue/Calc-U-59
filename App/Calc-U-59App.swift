@@ -9,6 +9,7 @@ struct CalcU59App: App {
         WindowGroup {
             CalculatorView()
                 .environment(viewModel)
+                .preferredColorScheme(.dark)
         }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .background || newPhase == .inactive {

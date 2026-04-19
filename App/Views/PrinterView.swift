@@ -45,24 +45,38 @@ struct PrinterView: View {
     // MARK: - Header
 
     private var header: some View {
-        HStack {
+        HStack(spacing: 12) {
             Spacer()
-            Text("PC-100C")
-                .font(.caption.bold())
-                .foregroundStyle(.white.opacity(0.6))
+            // Printer toggle button
+            Button {
+                viewModel.setPrinterConnected(!viewModel.printerConnected)
+                viewModel.resetMachine()
+            } label: {
+                Text("PC-100C")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(viewModel.printerConnected ? Color(white: 0.25) : Color(white: 0.15))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+            }
+            .buttonStyle(.plain)
             Spacer()
             // Dot / text toggle
             Button {
                 dotMode.toggle()
             } label: {
                 Image(systemName: dotMode ? "circle.grid.3x3.fill" : "text.alignleft")
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.5))
-                    .padding(.trailing, 10)
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Color(white: 0.25))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
             }
             .buttonStyle(.plain)
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, 8)
         .background(Color(white: 0.08))
     }
 
