@@ -186,6 +186,34 @@ static const int kbits[] = {0, 1, 2, 3, 5, 6};  // index 0 unused; index col
 
 // ── New CPU frame API ────────────────────────────────────────────────────────
 
+// Helper: convert C++ CpuFrame to Objective-C TICpuFrame struct.
+static TICpuFrame marshalCpuFrame(const CpuFrame& f) {
+    TICpuFrame frame;
+    // Identity
+    frame.seqno = f.seqno;
+    frame.pc = f.pc;
+    frame.opcode = f.opcode;
+    frame.digit = f.digit;
+    frame.cycleWeight = f.cycleWeight;
+    // Light registers
+    frame.KR = f.KR; frame.SR = f.SR; frame.fA = f.fA; frame.fB = f.fB;
+    frame.cpuFlags = f.cpuFlags; frame.R5 = f.R5;
+    // Full snapshot
+    memcpy(frame.A, f.A, 16);
+    memcpy(frame.B, f.B, 16);
+    memcpy(frame.C, f.C, 16);
+    memcpy(frame.D, f.D, 16);
+    memcpy(frame.E, f.E, 16);
+    memcpy(frame.SCOM, f.SCOM, sizeof(f.SCOM));
+    memcpy(frame.Sout, f.Sout, 16);
+    frame.EXT = f.EXT; frame.PREG = f.PREG; frame.flags = f.flags;
+    frame.m_libAddr = f.m_libAddr;
+    frame.REG_ADDR = f.REG_ADDR; frame.RAM_ADDR = f.RAM_ADDR; frame.RAM_OP = f.RAM_OP;
+    frame.m_libAddrReadPos = f.m_libAddrReadPos;
+    frame.dispFilter = f.dispFilter;
+    return frame;
+}
+
 - (NSArray<NSValue*>*)drainCpuFramesMax:(NSUInteger)max
                                    lost:(NSUInteger*)outLost {
     if (max == 0) { if (outLost) *outLost = 0; return @[]; }
@@ -200,42 +228,7 @@ static const int kbits[] = {0, 1, 2, 3, 5, 6};  // index 0 unused; index col
 
     NSMutableArray<NSValue*>* result = [NSMutableArray arrayWithCapacity:n];
     for (uint32_t i = 0; i < n; i++) {
-        TICpuFrame frame;
-        const CpuFrame& f = frames[i];
-
-        // Identity
-        frame.seqno = f.seqno;
-        frame.pc = f.pc;
-        frame.opcode = f.opcode;
-        frame.digit = f.digit;
-        frame.cycleWeight = f.cycleWeight;
-
-        // Light registers
-        frame.KR = f.KR;
-        frame.SR = f.SR;
-        frame.fA = f.fA;
-        frame.fB = f.fB;
-        frame.cpuFlags = f.cpuFlags;
-        frame.R5 = f.R5;
-
-        // Full snapshot
-        memcpy(frame.A, f.A, 16);
-        memcpy(frame.B, f.B, 16);
-        memcpy(frame.C, f.C, 16);
-        memcpy(frame.D, f.D, 16);
-        memcpy(frame.E, f.E, 16);
-        memcpy(frame.SCOM, f.SCOM, sizeof(f.SCOM));
-        memcpy(frame.Sout, f.Sout, 16);
-        frame.EXT = f.EXT;
-        frame.PREG = f.PREG;
-        frame.flags = f.flags;
-        frame.m_libAddr = f.m_libAddr;
-        frame.REG_ADDR = f.REG_ADDR;
-        frame.RAM_ADDR = f.RAM_ADDR;
-        frame.RAM_OP = f.RAM_OP;
-        frame.m_libAddrReadPos = f.m_libAddrReadPos;
-        frame.dispFilter = f.dispFilter;
-
+        TICpuFrame frame = marshalCpuFrame(frames[i]);
         [result addObject:[NSValue valueWithBytes:&frame objCType:@encode(TICpuFrame)]];
     }
     return result;
@@ -252,42 +245,7 @@ static const int kbits[] = {0, 1, 2, 3, 5, 6};  // index 0 unused; index col
 
     NSMutableArray<NSValue*>* result = [NSMutableArray arrayWithCapacity:n];
     for (uint32_t i = 0; i < n; i++) {
-        TICpuFrame frame;
-        const CpuFrame& f = frames[i];
-
-        // Identity
-        frame.seqno = f.seqno;
-        frame.pc = f.pc;
-        frame.opcode = f.opcode;
-        frame.digit = f.digit;
-        frame.cycleWeight = f.cycleWeight;
-
-        // Light registers
-        frame.KR = f.KR;
-        frame.SR = f.SR;
-        frame.fA = f.fA;
-        frame.fB = f.fB;
-        frame.cpuFlags = f.cpuFlags;
-        frame.R5 = f.R5;
-
-        // Full snapshot
-        memcpy(frame.A, f.A, 16);
-        memcpy(frame.B, f.B, 16);
-        memcpy(frame.C, f.C, 16);
-        memcpy(frame.D, f.D, 16);
-        memcpy(frame.E, f.E, 16);
-        memcpy(frame.SCOM, f.SCOM, sizeof(f.SCOM));
-        memcpy(frame.Sout, f.Sout, 16);
-        frame.EXT = f.EXT;
-        frame.PREG = f.PREG;
-        frame.flags = f.flags;
-        frame.m_libAddr = f.m_libAddr;
-        frame.REG_ADDR = f.REG_ADDR;
-        frame.RAM_ADDR = f.RAM_ADDR;
-        frame.RAM_OP = f.RAM_OP;
-        frame.m_libAddrReadPos = f.m_libAddrReadPos;
-        frame.dispFilter = f.dispFilter;
-
+        TICpuFrame frame = marshalCpuFrame(frames[i]);
         [result addObject:[NSValue valueWithBytes:&frame objCType:@encode(TICpuFrame)]];
     }
     return result;

@@ -230,9 +230,8 @@ final class TraceWriter {
     private func makeFramePayload(frame: TICpuFrame) -> Data {
         var d = Data(capacity: 124)
 
-        // Dedup counter + control fields (34 bytes)
-        let suppressedBefore: UInt32 = 0  // no dedup
-        d.appendLE(suppressedBefore)
+        // Control fields (suppressed count is always 0; kept for format compatibility) — 34 bytes
+        d.appendLE(UInt32(0))
         d.appendLE(frame.seqno)
         d.appendLE(frame.pc)
         d.appendLE(frame.opcode)

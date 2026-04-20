@@ -1241,13 +1241,6 @@ void TMC0501::tracePostStep(uint32_t tf, bool snapCaptured, int weight) {
     uint32_t idx = m_frameHead & kFrameRingMask;
     CpuFrame& frame = m_frameRing[idx];
 
-    // Debug: check for opcode 0213
-    if (m_traceOpcode == 0x0213) {
-        fprintf(stderr, "[OPCODE 0213] B=");
-        for (int i = 15; i >= 0; i--) fprintf(stderr, "%X", B[i]);
-        fprintf(stderr, " R5=%X\n", R5);
-    }
-
     // Capture snapshot only for branch instructions (!snapCaptured).
     // Non-branch instructions already wrote their snapshot after COND auto-restore.
     if ((tf & TRACE_REGS_FULL) && !snapCaptured) {

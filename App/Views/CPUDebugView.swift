@@ -259,12 +259,10 @@ struct CPUDebugView: View {
 
     private var registersSection: some View {
         SectionBox(title: "REGISTERS") {
-            let frame = selectedInstructionIndex.flatMap { idx in
+            let cpu = selectedInstructionIndex.flatMap { idx in
                 guard idx >= 0 && idx < vm.cpuDebugSnapshot.recentInstructions.count else { return nil }
                 return vm.cpuDebugSnapshot.recentInstructions[idx].frame
             } ?? vm.cpuDebugSnapshot.recentInstructions.last?.frame ?? TICpuFrame()
-
-            let cpu = frame
 
             VStack(alignment: .leading, spacing: 6) {
                 registerRow("A", cpu.A)
@@ -302,12 +300,10 @@ struct CPUDebugView: View {
 
     private var controlRegistersSection: some View {
         SectionBox(title: "CONTROL REGISTERS") {
-            let frame = selectedInstructionIndex.flatMap { idx in
+            let cpu = selectedInstructionIndex.flatMap { idx in
                 guard idx >= 0 && idx < vm.cpuDebugSnapshot.recentInstructions.count else { return nil }
                 return vm.cpuDebugSnapshot.recentInstructions[idx].frame
             } ?? vm.cpuDebugSnapshot.recentInstructions.last?.frame ?? TICpuFrame()
-
-            let cpu = frame
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
@@ -355,12 +351,10 @@ struct CPUDebugView: View {
 
     private var scomSection: some View {
         SectionBox(title: "SCOM") {
-            let frame = selectedInstructionIndex.flatMap { idx in
+            let cpu = selectedInstructionIndex.flatMap { idx in
                 guard idx >= 0 && idx < vm.cpuDebugSnapshot.recentInstructions.count else { return nil }
                 return vm.cpuDebugSnapshot.recentInstructions[idx].frame
             } ?? vm.cpuDebugSnapshot.recentInstructions.last?.frame ?? TICpuFrame()
-
-            let cpu = frame
 
             VStack(alignment: .leading, spacing: 2) {
                 ForEach(0..<16, id: \.self) { row in

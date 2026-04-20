@@ -70,6 +70,8 @@ def _parse_trace_event(payload):
         '<IIHHHHHHHHHH BBBBBBBB', payload, 0)
 
     # A–E registers: 16 unpacked nibbles each (index 0 = LSN)
+    # Fixed fields total 36 bytes: seqno(4) + pc(2) + opcode(2) + digit(1) + cycleWeight(1) +
+    #   KR(2) + SR(2) + fA(2) + fB(2) + cpuFlags(2) + R5(1) = 36 bytes
     regs = {}
     off = 36
     for name in ('A', 'B', 'C', 'D', 'E'):
