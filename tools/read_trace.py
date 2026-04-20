@@ -12,10 +12,12 @@ Usage:
     python3 read_trace.py TI59_TRACE.bin
     python3 read_trace.py --json TI59_TRACE.bin
     python3 read_trace.py --skip-idle-loops TI59_TRACE.bin
+    python3 read_trace.py --no-dedup TI59_TRACE.bin
 
 Flags:
     --json                 Output as JSON array (no idle loop filtering)
     --skip-idle-loops      Collapse repeating keyscan loop cycles into summaries
+    --no-dedup             Show all records without deduplication (full uncompressed log)
 
 The mnemonic disassembly uses mnemonics.tsv from the same directory.
 """
@@ -213,8 +215,8 @@ def _format_trace_record(rec):
              f"EXT={rec['EXT']} COND={rec['COND']} IDLE={rec['IDLE']} "
              f"IO={rec['IO']}")
     rom_str = rec.get('ROM', '0000')
-    # Display status based on blanking filter: ON if blanked (>= 3), else OFF
-    disp_status = "ON" if rec['dispFilter'] >= 3 else "OFF"
+    # Display status based on blanking filter: OFF if blanked (>= 3), else ON
+    disp_status = "OFF" if rec['dispFilter'] >= 3 else "ON"
     line4 = (f"FB={rec['fB']} [{_bin16(int(rec['fB'],16))}] "
              f"SR={rec['SR']} R5={rec['R5']} ROM={rom_str} PREG={rec['PREG']} "
              f"RAMOP={ramop_str} RAMREG={rec['RAM_ADDR']:03d} "
@@ -228,7 +230,7 @@ def _user_banner(rec):
         label += f"  row={rec['row']}  col={rec['col']}"
     return f"\n{BANNER}\n{label}\n{BANNER}\n"
 
-def format_as_log(records, skip_idle_loops=False):
+def format_as_log(records, skip_idle_loops=False, no_dedup=False):
     """
     Render records as TI59E.LOG-style text (4 lines + blank per instruction).
     USER_EVENT records are rendered as a prominent banner.
@@ -237,6 +239,8 @@ def format_as_log(records, skip_idle_loops=False):
     If skip_idle_loops=True, detects and collapses idle keyscan loop cycles.
     A cycle is detected when IDLE=1 and we return to the same PC.
     When enabled, suppression markers are disabled to allow full pattern detection.
+
+    If no_dedup=True, shows all records without suppression collapse (full uncompressed log).
     """
     out = []
     i = 0
@@ -262,8 +266,8 @@ def format_as_log(records, skip_idle_loops=False):
             sup = r['suppressedBefore']
 
             # Last-of-run: don't expand — just show a compact skip marker.
-            # But skip this when looking for idle loops, as it interferes with detection.
-            if sup > 0 and not skip_idle_loops:
+            # But skip this when looking for idle loops or no_dedup, as it interferes with detection.
+            if sup > 0 and not skip_idle_loops and not no_dedup:
                 out.append(f"... {sup} ...")
                 i += 1
                 continue
@@ -326,6 +330,7 @@ def main():
     args = sys.argv[1:]
     as_json = '--json' in args
     skip_idle_loops = '--skip-idle-loops' in args
+    no_dedup = '--no-dedup' in args
     paths = [a for a in args if not a.startswith('--')]
     if not paths:
         print(__doc__)
@@ -336,7 +341,7 @@ def main():
         if as_json:
             print(json.dumps(records, indent=2))
         else:
-            print(format_as_log(records, skip_idle_loops=skip_idle_loops))
+            print(format_as_log(records, skip_idle_loops=skip_idle_loops, no_dedup=no_dedup))
 
 if __name__ == '__main__':
     main()
