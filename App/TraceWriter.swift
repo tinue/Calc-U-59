@@ -33,7 +33,7 @@ final class TraceWriter {
 
     // ── File header constants ─────────────────────────────────────────────────
     private static let magic: UInt32   = 0x54493539   // 'TI59' LE
-    private static let version: UInt16 = 3            // v3: added m_libAddrReadPos field
+    private static let version: UInt16 = 4            // v4: added dispFilter field (display blanking counter)
     private static let headerSize      = 16
 
     // ── State ─────────────────────────────────────────────────────────────────
@@ -41,6 +41,7 @@ final class TraceWriter {
     private(set) var isAvailable = true  // false if iCloud/storage is unavailable
     private var fileHandle: FileHandle?
     private var currentTraceURL: URL?  // Track the URL for security-scoped resource cleanup
+    private let model: MachineModel     // Calculator model (determines trace filename)
 
     // Dedup state: key bytes of the last written "first-of-run" event
     private var pendingBytes: Data?            // serialised payload of the last seen event
@@ -51,7 +52,8 @@ final class TraceWriter {
     private var sessionEventCount: UInt32    = 0
     private var sessionSuppressedTotal: UInt32 = 0
 
-    init() {
+    init(model: MachineModel) {
+        self.model = model
     }
 
     /// Check if the trace location is accessible. Call at app startup to set isAvailable.
@@ -84,7 +86,7 @@ final class TraceWriter {
         guard !isOpen else { return true }
         guard isAvailable else { return false }
 
-        let url = Self.traceFileURL()
+        let url = self.traceFileURL()
         let fm = FileManager.default
 
         // Check if file exists and enforce max file size
@@ -275,11 +277,11 @@ final class TraceWriter {
         return d
     }
 
-    // Full 123-byte TRACE_EVENT payload (v3: added m_libAddrReadPos field).
+    // Full 124-byte TRACE_EVENT payload (v4: added dispFilter field).
     // suppressedBefore is embedded at offset 0 so the last-of-run can carry the count.
     private func makeEventPayload(event e: TITraceEvent, snapshot snap: TICPUSnapshot,
                                   suppressedBefore: UInt32) -> Data {
-        var d = Data(capacity: 123)
+        var d = Data(capacity: 124)
 
         // Dedup counter + control fields (34 bytes)
         d.appendLE(suppressedBefore)
@@ -301,6 +303,7 @@ final class TraceWriter {
         d.append(snap.REG_ADDR)
         d.append(snap.m_libAddrReadPos)
         d.append(e.cycleWeight)
+        d.append(snap.dispFilter)
 
         // Registers A–E: one nibble per byte, index 0 = LSN (digit 0) — 80 bytes
         var a = snap.A; d.append(contentsOf: tupleBytes(&a))
@@ -318,7 +321,7 @@ final class TraceWriter {
             d.append(lo | (hi << 4))
         }
 
-        assert(d.count == 123)
+        assert(d.count == 124)
         return d
     }
 
@@ -339,20 +342,42 @@ final class TraceWriter {
     // Reuses the iCloud container already resolved by CardStorage.warmUp(),
     // which is called at app start.
 
-    private static let traceFileName = "CALCU59_TRACE.bin"
+    /// Generate the model-specific base filename.
+    /// Examples: CALCU59_TRACE.bin, CALCU58_TRACE.bin, CALCU58C_TRACE.bin
+    private func traceBaseFileName() -> String {
+        let modelPrefix: String
+        switch model {
+        case .ti59:  modelPrefix = "CALCU59"
+        case .ti58:  modelPrefix = "CALCU58"
+        case .ti58c: modelPrefix = "CALCU58C"
+        }
+        return "\(modelPrefix)_TRACE.bin"
+    }
 
-    static func traceFileURL() -> URL {
-        AppSettings.traceDirectory().appendingPathComponent(traceFileName)
+    /// Generate the model-specific base name for timestamped files.
+    /// Examples: CALCU59_TRACE, CALCU58_TRACE, CALCU58C_TRACE
+    private func traceBaseName() -> String {
+        let modelPrefix: String
+        switch model {
+        case .ti59:  modelPrefix = "CALCU59"
+        case .ti58:  modelPrefix = "CALCU58"
+        case .ti58c: modelPrefix = "CALCU58C"
+        }
+        return "\(modelPrefix)_TRACE"
+    }
+
+    func traceFileURL() -> URL {
+        AppSettings.traceDirectory().appendingPathComponent(traceBaseFileName())
     }
 
     /// Create a timestamped trace file URL for when the main file exceeds max size.
-    /// Example: CALCU59_TRACE_20260416_140523.bin
+    /// Example: CALCU59_TRACE_20260416_140523.bin (or CALCU58_TRACE_... / CALCU58C_TRACE_...)
     private func timestampedTraceURL(baseURL: URL) -> URL {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyyMMdd_HHmmss"
         let timestamp = formatter.string(from: Date())
 
-        let baseName = "CALCU59_TRACE"
+        let baseName = traceBaseName()
         let fileName = "\(baseName)_\(timestamp).bin"
         return baseURL.deletingLastPathComponent().appendingPathComponent(fileName)
     }

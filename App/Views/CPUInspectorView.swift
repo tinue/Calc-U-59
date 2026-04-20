@@ -181,12 +181,31 @@ struct CPUInspectorView: View {
                                             .foregroundStyle(.white.opacity(0.85))
                                         Text("R5: \(cpu.R5)")
                                             .foregroundStyle(.white.opacity(0.85))
+                                        Spacer()
                                     }
                                     HStack(spacing: 16) {
                                         Text("COND:\(cond)")
                                             .foregroundStyle(cond == 1 ? .white : .white.opacity(0.45))
                                         Text("IDLE:\(idle)")
                                             .foregroundStyle(idle == 1 ? Color.yellow.opacity(0.8) : .white.opacity(0.45))
+                                        Spacer()
+                                    }
+                                }
+                                .font(.system(size: baseFontSize + 2, design: .monospaced))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                            }
+
+                            // Display state
+                            inspectorSection(title: "DISPLAY STATE") {
+                                let displayOn = cpu.dispFilter < 3
+                                VStack(alignment: .leading, spacing: 2) {
+                                    HStack(spacing: 16) {
+                                        Text("Filter: \(cpu.dispFilter)")
+                                            .foregroundStyle(.white.opacity(0.85))
+                                        Text(displayOn ? "ON" : "BLANKED")
+                                            .foregroundStyle(displayOn ? Color.green.opacity(0.85) : Color.red.opacity(0.7))
+                                        Spacer()
                                     }
                                 }
                                 .font(.system(size: baseFontSize + 2, design: .monospaced))

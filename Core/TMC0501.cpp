@@ -499,6 +499,7 @@ int TMC0501::step() {
         s.m_libAddr = m_libAddr; s.m_libAddrReadPos = m_libAddrReadPos;
         s.R5 = R5; s.digit = digit;
         s.REG_ADDR = REG_ADDR; s.RAM_ADDR = RAM_ADDR; s.RAM_OP = RAM_OP;
+        s.dispFilter = m_dispFilter;
         snapCaptured = true;  // signal tracePostStep to skip re-capture
     }
 
@@ -1255,6 +1256,7 @@ void TMC0501::tracePostStep(uint32_t tf, bool snapCaptured, int weight) {
         s.m_libAddr = m_libAddr; s.m_libAddrReadPos = m_libAddrReadPos;
         s.R5 = R5; s.digit = digit;
         s.REG_ADDR = REG_ADDR; s.RAM_ADDR = RAM_ADDR; s.RAM_OP = RAM_OP;
+        s.dispFilter = m_dispFilter;
     }
 
     TraceEvent& ev = m_traceRing[idx];
@@ -1354,6 +1356,7 @@ CPUSnapshot TMC0501::snapshotCPU() const {
     s.m_libAddr = m_libAddr;
     s.R5 = R5; s.digit = digit;
     s.REG_ADDR = REG_ADDR; s.RAM_ADDR = RAM_ADDR; s.RAM_OP = RAM_OP;
+    s.dispFilter = m_dispFilter;
     return s;
 }
 

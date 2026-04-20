@@ -327,9 +327,9 @@ private:
     std::atomic<uint32_t> m_traceFlags{TRACE_NONE};
     uint32_t m_traceSeqno{0};
 
-    static constexpr uint32_t kTraceRingMask = 511u; // ring size 512
-    TraceEvent  m_traceRing[512]{};
-    CPUSnapshot m_snapRing[512]{};
+    static constexpr uint32_t kTraceRingMask = 1023u; // ring size 1024
+    TraceEvent  m_traceRing[1024]{};
+    CPUSnapshot m_snapRing[1024]{};
     uint32_t    m_traceHead{0};     // write index (emulation thread only)
     uint32_t    m_traceTail{0};     // read index (drain caller under m_traceMutex)
 

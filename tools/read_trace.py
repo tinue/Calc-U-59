@@ -28,7 +28,7 @@ from disasm import disasm
 # ── Constants (must match DebugAPI.md) ────────────────────────────────────────
 
 MAGIC   = 0x54493539   # 'TI59' in LE memory
-VERSION = 3            # v3: added m_libAddrReadPos field (backward-compat reads v2 too)
+VERSION = 4            # v4: added dispFilter field (backward-compat reads v2, v3, v4)
 
 REC_SESSION_START = 0x01
 REC_TRACE_EVENT   = 0x02
@@ -53,19 +53,19 @@ def _parse_file_header(f):
     magic, version = struct.unpack_from('<IH', hdr, 0)
     if magic != MAGIC:
         raise ValueError(f"Bad magic: 0x{magic:08X} (expected 0x{MAGIC:08X})")
-    if version not in (2, 3):
+    if version not in (2, 3, 4):
         raise ValueError(f"Unsupported version: {version}")
 
 def _parse_trace_event(payload):
-    """Parse a 123-byte TRACE_EVENT payload into a dict (v3: added m_libAddrReadPos)."""
-    if len(payload) != 123:
-        raise ValueError(f"TRACE_EVENT payload length {len(payload)}, expected 123")
+    """Parse a 124-byte TRACE_EVENT payload into a dict (v4: added dispFilter)."""
+    if len(payload) != 124:
+        raise ValueError(f"TRACE_EVENT payload length {len(payload)}, expected 124")
 
-    # Fixed fields (35 bytes in v3: added m_libAddrReadPos)
+    # Fixed fields (36 bytes in v4: added dispFilter)
     (suppressed, seqno, pc, opcode, fA, fB, KR, SR,
      EXT, PREG, cpu_flags, m_libAddr, R5, digit,
-     RAM_ADDR, RAM_OP, REG_ADDR, m_libAddrReadPos, cycle_weight) = struct.unpack_from(
-        '<IIHHHHHHHHHH BBBBBBB', payload, 0)
+     RAM_ADDR, RAM_OP, REG_ADDR, m_libAddrReadPos, cycle_weight, dispFilter) = struct.unpack_from(
+        '<IIHHHHHHHHHH BBBBBBBB', payload, 0)
 
     # A–E registers: 16 unpacked nibbles each (index 0 = LSN)
     regs = {}
@@ -102,6 +102,7 @@ def _parse_trace_event(payload):
         'cpuFlags':     cpu_flags,
         'COND':         str(cond),
         'IDLE':         str(idle),
+        'dispFilter':   dispFilter,
         'R5':           f'{R5:X}',
         'ROM':          f'{m_libAddr:04d}.{m_libAddrReadPos}',
         'digit':        digit,
@@ -295,11 +296,13 @@ def format_as_log(records, skip_idle_loops=False):
                                         f"EXT={r_item['EXT']} COND={r_item['COND']} IDLE={r_item['IDLE']} "
                                         f"IO={r_item['IO']}")
                                 rom_str = r_item.get('ROM', '0000')
+                                disp_status = "ON" if r_item['dispFilter'] < 3 else "BLANKED"
                                 line4 = (f"FB={r_item['fB']} [{_bin16(int(r_item['fB'],16))}] "
                                         f"SR={r_item['SR']} R5={r_item['R5']} ROM={rom_str} PREG={r_item['PREG']} "
                                         f"RAMOP={ramop_str} RAMREG={r_item['RAM_ADDR']:03d} "
                                         f"ROMREG={r_item['REG_ADDR']:02d}")
-                                out.append(line1 + '\n' + line2 + '\n' + line3 + '\n' + line4 + '\n')
+                                line5 = f"DISP: {r_item['dispFilter']} ({disp_status})"
+                                out.append(line1 + '\n' + line2 + '\n' + line3 + '\n' + line4 + '\n' + line5 + '\n')
                             elif records[idx]['type'] == 'trace' and records[idx]['suppressedBefore'] > 0:
                                 out.append(f"... {records[idx]['suppressedBefore']} ...\n")
 
@@ -321,11 +324,13 @@ def format_as_log(records, skip_idle_loops=False):
                      f"EXT={r['EXT']} COND={r['COND']} IDLE={r['IDLE']} "
                      f"IO={r['IO']}")
             rom_str = r.get('ROM', '0000')
+            disp_status = "ON" if r['dispFilter'] < 3 else "BLANKED"
             line4 = (f"FB={r['fB']} [{_bin16(int(r['fB'],16))}] "
                      f"SR={r['SR']} R5={r['R5']} ROM={rom_str} PREG={r['PREG']} "
                      f"RAMOP={ramop_str} RAMREG={r['RAM_ADDR']:03d} "
                      f"ROMREG={r['REG_ADDR']:02d}")
-            out.append(line1 + '\n' + line2 + '\n' + line3 + '\n' + line4 + '\n')
+            line5 = f"DISP: {r['dispFilter']} ({disp_status})"
+            out.append(line1 + '\n' + line2 + '\n' + line3 + '\n' + line4 + '\n' + line5 + '\n')
             i += 1
     return '\n'.join(out)
 

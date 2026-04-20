@@ -2,7 +2,8 @@
 Unsorted collection of ideas, bugs, obsdervations etc.
 
 ## Settings
-- **Enbable/disable persistency**  - For TI-58/59 (TI-58C always is persistent by design)
+- **Enbable/disable persistency** - For TI-58/59 (TI-58C always is persistent by design)
+- **Enable/disable printer** - Allow to set desired porinter state at startup (on, off, last selected)
 
 ## UI
 - **Keyboard support** Number keys, operators, "Enter" to trigger "=" etc.

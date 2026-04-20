@@ -319,7 +319,7 @@ The binary trace file captures instruction-level CPU state at 60 Hz. It is used 
 ```
 Offset  Size  Type   Field        Description
 0       4     LE U32 magic        Magic: 0x54493539 ('TI59' in little-endian ASCII)
-4       2     LE U16 version      Format version (currently 2 or 3)
+4       2     LE U16 version      Format version (currently 4; backward-compatible readers accept 2, 3)
 6       10    —      reserved     Reserved; ignore for forward compatibility
 ```
 
@@ -339,7 +339,7 @@ Offset  Size  Type   Field           Description
 | Type | Name              | Payload | Purpose |
 |------|-------------------|---------|---------|
 | 0x01 | SESSION_START     | 8 bytes | Session boundary marker |
-| 0x02 | TRACE_EVENT       | 123 bytes (v2, v3) | CPU instruction snapshot |
+| 0x02 | TRACE_EVENT       | 124 bytes (v4) | CPU instruction snapshot |
 | 0x03 | SESSION_END       | 8 bytes | Session terminator with counts |
 | 0x04 | USER_EVENT        | ≥4 bytes | User input (key press, card insert) |
 
@@ -360,9 +360,9 @@ Offset  Size  Type   Field       Description
 
 #### TRACE_EVENT (0x02)
 
-Captures CPU state at a single instruction. **Payload is exactly 123 bytes.**
+Captures CPU state at a single instruction. **Payload is exactly 124 bytes (v4).**
 
-**Fixed fields (first 35 bytes):**
+**Fixed fields (first 36 bytes):**
 
 ```
 Offset  Size  Type   Field              Description
@@ -385,17 +385,18 @@ Offset  Size  Type   Field              Description
 32      1     U8     REG_ADDR          Register address for SCOM/register ops
 33      1     U8     m_libAddrReadPos  Sub-address within ROM word (nibble index)
 34      1     U8     cycle_weight      Cycle weight (1 = active, 4 = idle cycle)
+35      1     U8     dispFilter        Display blanking filter counter (0–3; ≥3 = blanked during compute)
 ```
 
 **Register A–E (80 bytes):** Unpacked 16-bit nibble arrays (index 0 = LSN, index 15 = MSN).
 
 ```
 Offset  Size  Type   Field    Description
-35      16    U8[16] A_regs   Register A: 16 nibbles (index 0 = LSN)
-51      16    U8[16] B_regs   Register B: 16 nibbles
-67      16    U8[16] C_regs   Register C: 16 nibbles
-83      16    U8[16] D_regs   Register D: 16 nibbles
-99      16    U8[16] E_regs   Register E: 16 nibbles
+36      16    U8[16] A_regs   Register A: 16 nibbles (index 0 = LSN)
+52      16    U8[16] B_regs   Register B: 16 nibbles
+68      16    U8[16] C_regs   Register C: 16 nibbles
+84      16    U8[16] D_regs   Register D: 16 nibbles
+100     16    U8[16] E_regs   Register E: 16 nibbles
 ```
 
 Each nibble (4-bit value 0–15) occupies one byte.
@@ -404,11 +405,11 @@ Each nibble (4-bit value 0–15) occupies one byte.
 
 ```
 Offset  Size  Type   Field    Description
-115     8     U8[8]  sout     Printer output: nibbles packed as (high_nibble << 4) | low_nibble
+116     8     U8[8]  sout     Printer output: nibbles packed as (high_nibble << 4) | low_nibble
                               sout[i] & 0x0F = Sout[2i], (sout[i] >> 4) = Sout[2i+1]
 ```
 
-**Total payload:** 35 + 80 + 8 = 123 bytes.
+**Total payload:** 36 + 80 + 8 = 124 bytes.
 
 **Flag bit definitions (cpu_flags):**
 
@@ -459,8 +460,9 @@ Offset  Size  Type   Field    Description
 - **Nibble representation:** Most fields use packed hex (one 4-bit value per byte for readability).
 - **Ring buffer:** When the trace buffer overflows, `seqno` gaps and `suppressed` counts
   indicate lost events. The `suppressedTotal` in SESSION_END reflects cumulative loss.
-- **Version compatibility:** v2 and v3 both have 123-byte TRACE_EVENT payloads. v3 added
-  `m_libAddrReadPos` but maintained backward compatibility. Code must accept both versions.
+- **Version compatibility:** 
+  - v2, v3: 123-byte TRACE_EVENT payloads (v3 added `m_libAddrReadPos`, backward compatible with v2)
+  - v4: 124-byte TRACE_EVENT payloads (added `dispFilter` field for display blanking state)
 
 ---
 

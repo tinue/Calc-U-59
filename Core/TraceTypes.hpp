@@ -17,7 +17,7 @@ enum : uint32_t {
 // ── Trace event ───────────────────────────────────────────────────────────────
 //
 // One event per executed instruction (PREG pseudo-cycles are not traced).
-// Events accumulate in a 512-deep ring; seqno gaps indicate overflow.
+// Events accumulate in a 1024-deep ring; seqno gaps indicate overflow.
 
 struct TraceEvent {
     uint16_t pc;            ///< Address of the instruction
@@ -46,6 +46,7 @@ struct CPUSnapshot {
     uint8_t  Sout[16];
     uint16_t KR, SR, fA, fB, EXT, PREG, flags, m_libAddr;
     uint8_t  R5, digit, REG_ADDR, RAM_ADDR, RAM_OP, m_libAddrReadPos;
+    uint8_t  dispFilter; ///< Display blanking filter counter (0–3; ≥3 = display blanked during compute)
 };
 
 // ── Debug event ───────────────────────────────────────────────────────────────

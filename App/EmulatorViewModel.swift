@@ -81,8 +81,8 @@ class EmulatorViewModel {
     }
     private var cDropDebugger = CDropDebugger()
     private var cZeroFrames: Int = 0   // consecutive frames where fA was zero the entire frame
-    private let traceWriter = TraceWriter()
-    var isTraceAvailable: Bool { traceWriter.isAvailable }  // false if trace location (e.g., iCloud) unavailable
+    private var traceWriter: TraceWriter!  // initialized in init, updated when model changes
+    var isTraceAvailable: Bool { traceWriter?.isAvailable ?? true }  // false if trace location (e.g., iCloud) unavailable
 
     // ── Debug panel state ────────────────────────────────────────────────────
     var debugLevel: DebugLevel = .off
@@ -152,6 +152,8 @@ class EmulatorViewModel {
     }
 
     init() {
+        // Initialize traceWriter with default model
+        traceWriter = TraceWriter(model: model)
         // Check trace availability at startup (for iOS/iPadOS iCloud detection, etc.)
         traceWriter.checkAvailability()
         Task { await self.start(model: AppSettings.resolvedStartupModel()) }
@@ -162,6 +164,7 @@ class EmulatorViewModel {
         stop()
         await drainEmulQueue()   // ensure old loop has exited before starting the new one
         self.model = model
+        traceWriter = TraceWriter(model: model)  // reinitialize with new model for correct trace filename
         UserDefaults.standard.set(model.rawValue, forKey: SettingsKey.lastUsedModel)
         await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .utility).async {
@@ -826,7 +829,7 @@ class EmulatorViewModel {
     private func captureInspectorSnapshot(machine m: TI59MachineWrapper) {
         // Read (without draining) all available events from the ring buffer
         var snapshotArray: NSArray?
-        let eventsNS =  m.readTraceEvents(max: 512, snapshots: &snapshotArray)
+        let eventsNS =  m.readTraceEvents(max: 1024, snapshots: &snapshotArray)
         let newEvents = (eventsNS as [NSValue]).map { v -> TITraceEvent in
             var e = TITraceEvent()
             v.getValue(&e)
@@ -841,9 +844,9 @@ class EmulatorViewModel {
         cpuInspectorHistory = []
         let currentPC = m.currentPC
 
-        // Add history: last 32 executed instructions from the ring buffer
-        let historyCount = min(32, newEvents.count)
-        let historyStartIdx = newEvents.count - historyCount
+        // Add history: all executed instructions from the ring buffer (up to 1024)
+        let historyCount = newEvents.count  // Use full buffer, no limit
+        let historyStartIdx = 0
         for i in historyStartIdx..<newEvents.count {
             let event = newEvents[i]
             let snapshotIdx = i - (newEvents.count - snapshots.count)
@@ -1356,7 +1359,7 @@ class EmulatorViewModel {
 
         // Read (without draining) all recent events from the ring buffer
         var snapshotArray: NSArray?
-        let eventsNS = m.readTraceEvents(max: 512, snapshots: &snapshotArray)
+        let eventsNS = m.readTraceEvents(max: 1024, snapshots: &snapshotArray)
         let newEvents = (eventsNS as [NSValue]).map { v -> TITraceEvent in
             var e = TITraceEvent()
             v.getValue(&e)
