@@ -199,6 +199,29 @@ def trace_events_only(records):
 def _bin16(v):
     return ''.join(str((v >> (15 - i)) & 1) for i in range(16))
 
+def _format_trace_record(rec):
+    """Format a single trace record as 5 lines of output."""
+    ramop_str = (f"{rec['RAM_OP']:X}" if (rec['cpuFlags'] & 0x0040) else '-')
+    addr = int(rec['pc'], 16)
+    opcode = int(rec['opcode'], 16)
+    mnemonic = disasm(addr, opcode)
+    line1 = f"{rec['pc']} {rec['opcode']} {mnemonic}"
+    line2 = (f"A={rec['A']} B={rec['B']} C={rec['C']} "
+             f"D={rec['D']} E={rec['E']}")
+    line3 = (f"FA={rec['fA']} [{_bin16(int(rec['fA'],16))}] "
+             f"KR={rec['KR']} [{_bin16(int(rec['KR'],16))}] "
+             f"EXT={rec['EXT']} COND={rec['COND']} IDLE={rec['IDLE']} "
+             f"IO={rec['IO']}")
+    rom_str = rec.get('ROM', '0000')
+    # Display status based on blanking filter: ON if blanked (>= 3), else OFF
+    disp_status = "ON" if rec['dispFilter'] >= 3 else "OFF"
+    line4 = (f"FB={rec['fB']} [{_bin16(int(rec['fB'],16))}] "
+             f"SR={rec['SR']} R5={rec['R5']} ROM={rom_str} PREG={rec['PREG']} "
+             f"RAMOP={ramop_str} RAMREG={rec['RAM_ADDR']:03d} "
+             f"ROMREG={rec['REG_ADDR']:02d}")
+    line5 = f"DISP: {rec['dispFilter']} ({disp_status})"
+    return '\n'.join([line1, line2, line3, line4, line5]) + '\n'
+
 def _user_banner(rec):
     label = rec['label']
     if rec['kind'] in (0x01, 0x02):
@@ -283,26 +306,7 @@ def format_as_log(records, skip_idle_loops=False):
                         # Output one full cycle, then compress the rest
                         for idx in range(i, cycle_end):
                             if records[idx]['type'] == 'trace' and records[idx]['suppressedBefore'] == 0:
-                                r_item = records[idx]
-                                ramop_str = (f"{r_item['RAM_OP']:X}" if (r_item['cpuFlags'] & 0x0040) else '-')
-                                addr = int(r_item['pc'], 16)
-                                opcode = int(r_item['opcode'], 16)
-                                mnemonic = disasm(addr, opcode)
-                                line1 = f"{r_item['pc']} {r_item['opcode']} {mnemonic}"
-                                line2 = (f"A={r_item['A']} B={r_item['B']} C={r_item['C']} "
-                                        f"D={r_item['D']} E={r_item['E']}")
-                                line3 = (f"FA={r_item['fA']} [{_bin16(int(r_item['fA'],16))}] "
-                                        f"KR={r_item['KR']} [{_bin16(int(r_item['KR'],16))}] "
-                                        f"EXT={r_item['EXT']} COND={r_item['COND']} IDLE={r_item['IDLE']} "
-                                        f"IO={r_item['IO']}")
-                                rom_str = r_item.get('ROM', '0000')
-                                disp_status = "ON" if r_item['dispFilter'] < 3 else "BLANKED"
-                                line4 = (f"FB={r_item['fB']} [{_bin16(int(r_item['fB'],16))}] "
-                                        f"SR={r_item['SR']} R5={r_item['R5']} ROM={rom_str} PREG={r_item['PREG']} "
-                                        f"RAMOP={ramop_str} RAMREG={r_item['RAM_ADDR']:03d} "
-                                        f"ROMREG={r_item['REG_ADDR']:02d}")
-                                line5 = f"DISP: {r_item['dispFilter']} ({disp_status})"
-                                out.append(line1 + '\n' + line2 + '\n' + line3 + '\n' + line4 + '\n' + line5 + '\n')
+                                out.append(_format_trace_record(records[idx]))
                             elif records[idx]['type'] == 'trace' and records[idx]['suppressedBefore'] > 0:
                                 out.append(f"... {records[idx]['suppressedBefore']} ...\n")
 
@@ -312,25 +316,7 @@ def format_as_log(records, skip_idle_loops=False):
                         continue
 
             # Normal output
-            ramop_str = (f"{r['RAM_OP']:X}" if (r['cpuFlags'] & 0x0040) else '-')
-            addr = int(r['pc'], 16)
-            opcode = int(r['opcode'], 16)
-            mnemonic = disasm(addr, opcode)
-            line1 = f"{r['pc']} {r['opcode']} {mnemonic}"
-            line2 = (f"A={r['A']} B={r['B']} C={r['C']} "
-                     f"D={r['D']} E={r['E']}")
-            line3 = (f"FA={r['fA']} [{_bin16(int(r['fA'],16))}] "
-                     f"KR={r['KR']} [{_bin16(int(r['KR'],16))}] "
-                     f"EXT={r['EXT']} COND={r['COND']} IDLE={r['IDLE']} "
-                     f"IO={r['IO']}")
-            rom_str = r.get('ROM', '0000')
-            disp_status = "ON" if r['dispFilter'] < 3 else "BLANKED"
-            line4 = (f"FB={r['fB']} [{_bin16(int(r['fB'],16))}] "
-                     f"SR={r['SR']} R5={r['R5']} ROM={rom_str} PREG={r['PREG']} "
-                     f"RAMOP={ramop_str} RAMREG={r['RAM_ADDR']:03d} "
-                     f"ROMREG={r['REG_ADDR']:02d}")
-            line5 = f"DISP: {r['dispFilter']} ({disp_status})"
-            out.append(line1 + '\n' + line2 + '\n' + line3 + '\n' + line4 + '\n' + line5 + '\n')
+            out.append(_format_trace_record(r))
             i += 1
     return '\n'.join(out)
 
