@@ -169,14 +169,13 @@ public:
     /// Returns true once per hit; called by TI59Machine after each step().
     bool consumeBreakpointHit();
 
-    /// Drain up to `max` trace events into caller-supplied buffers.
-    /// outSnaps may be nullptr if TRACE_REGS_FULL snapshots are not needed.
-    /// Returns the number of events written.
-    uint32_t drainTraceEvents(TraceEvent* out, CPUSnapshot* outSnaps, uint32_t max);
-    uint32_t readTraceEvents(TraceEvent* out, CPUSnapshot* outSnaps, uint32_t max) const;
+    /// Drain up to `max` CPU frames. If ring overflow occurred since last drain,
+    /// *outLost is set to the count of lost frames. Returns number of frames written.
+    uint32_t drainCpuFrames(CpuFrame* out, uint32_t max, uint32_t* outLost);
 
-    /// Peek at the last event written without consuming it (thread-safe).
-    bool peekLastEvent(TraceEvent& out, CPUSnapshot* outSnap) const;
+    /// Read (without draining) the last up to `max` CPU frames from the ring.
+    /// Returns number of frames read.
+    uint32_t readCpuFrames(CpuFrame* out, uint32_t max) const;
 
     /// Pure function — disassembles one 13-bit opcode to a mnemonic string.
     static std::string disassemble(uint16_t pc, uint16_t opcode);
@@ -202,7 +201,7 @@ public:
     uint16_t cpuFlags() const { return flags; }
 
     /// Capture a snapshot of all CPU registers at the current instant.
-    CPUSnapshot snapshotCPU() const;
+    CpuFrame snapshotCPU() const;
 
     /// Direct SCOM nibble access (row 0–15, col 0–15).
     uint8_t  scomNibble(int row, int col) const { return SCOM[row][col]; }
@@ -327,11 +326,11 @@ private:
     std::atomic<uint32_t> m_traceFlags{TRACE_NONE};
     uint32_t m_traceSeqno{0};
 
-    static constexpr uint32_t kTraceRingMask = 1023u; // ring size 1024
-    TraceEvent  m_traceRing[1024]{};
-    CPUSnapshot m_snapRing[1024]{};
-    uint32_t    m_traceHead{0};     // write index (emulation thread only)
-    uint32_t    m_traceTail{0};     // read index (drain caller under m_traceMutex)
+    static constexpr uint32_t kFrameRingSize = 1024u;
+    static constexpr uint32_t kFrameRingMask = 1023u; // kFrameRingSize - 1
+    CpuFrame m_frameRing[kFrameRingSize]{};
+    uint32_t m_frameHead{0};     // write index (emulation thread only, always advancing)
+    uint32_t m_diskCursor{0};    // drain read cursor (protected by m_traceMutex)
 
     mutable std::mutex    m_traceMutex;
     std::vector<uint16_t> m_breakpoints; // sorted ascending; protected by m_traceMutex

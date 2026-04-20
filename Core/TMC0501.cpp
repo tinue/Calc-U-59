@@ -485,21 +485,21 @@ int TMC0501::step() {
     // snapCaptured is set here to signal tracePostStep to skip re-capturing the
     // snapshot (it would overwrite the pre-body values with post-body values).
     if (tf != TRACE_NONE && (tf & TRACE_REGS_FULL)) [[unlikely]] {
-        uint32_t idx = m_traceHead & kTraceRingMask;
-        CPUSnapshot& s = m_snapRing[idx];
-        memcpy(s.A,    A,    16);
-        memcpy(s.B,    B,    16);
-        memcpy(s.C,    C,    16);
-        memcpy(s.D,    D,    16);
-        memcpy(s.E,    E,    16);
-        memcpy(s.SCOM, SCOM, sizeof(SCOM));
-        memcpy(s.Sout, Sout, 16);
-        s.KR = KR; s.SR = SR; s.fA = fA; s.fB = fB;
-        s.EXT = EXT; s.PREG = PREG ? 1 : 0; s.flags = flags;
-        s.m_libAddr = m_libAddr; s.m_libAddrReadPos = m_libAddrReadPos;
-        s.R5 = R5; s.digit = digit;
-        s.REG_ADDR = REG_ADDR; s.RAM_ADDR = RAM_ADDR; s.RAM_OP = RAM_OP;
-        s.dispFilter = m_dispFilter;
+        uint32_t idx = m_frameHead & kFrameRingMask;
+        CpuFrame& frame = m_frameRing[idx];
+        memcpy(frame.A,    A,    16);
+        memcpy(frame.B,    B,    16);
+        memcpy(frame.C,    C,    16);
+        memcpy(frame.D,    D,    16);
+        memcpy(frame.E,    E,    16);
+        memcpy(frame.SCOM, SCOM, sizeof(SCOM));
+        memcpy(frame.Sout, Sout, 16);
+        frame.KR = KR; frame.SR = SR; frame.fA = fA; frame.fB = fB;
+        frame.EXT = EXT; frame.PREG = PREG ? 1 : 0; frame.flags = flags;
+        frame.m_libAddr = m_libAddr; frame.m_libAddrReadPos = m_libAddrReadPos;
+        frame.R5 = R5; frame.digit = digit;
+        frame.REG_ADDR = REG_ADDR; frame.RAM_ADDR = RAM_ADDR; frame.RAM_OP = RAM_OP;
+        frame.dispFilter = m_dispFilter;
         snapCaptured = true;  // signal tracePostStep to skip re-capture
     }
 
@@ -1238,99 +1238,99 @@ void TMC0501::tracePreStep(uint32_t tf, uint16_t opcode, bool& snapCaptured) {
 //     registers visible in the snapshot, so timing does not matter for them.
 
 void TMC0501::tracePostStep(uint32_t tf, bool snapCaptured, int weight) {
-    uint32_t idx = m_traceHead & kTraceRingMask;
+    uint32_t idx = m_frameHead & kFrameRingMask;
+    CpuFrame& frame = m_frameRing[idx];
+
+    // Debug: check for opcode 0213
+    if (m_traceOpcode == 0x0213) {
+        fprintf(stderr, "[OPCODE 0213] B=");
+        for (int i = 15; i >= 0; i--) fprintf(stderr, "%X", B[i]);
+        fprintf(stderr, " R5=%X\n", R5);
+    }
 
     // Capture snapshot only for branch instructions (!snapCaptured).
     // Non-branch instructions already wrote their snapshot after COND auto-restore.
     if ((tf & TRACE_REGS_FULL) && !snapCaptured) {
-        CPUSnapshot& s = m_snapRing[idx];
-        memcpy(s.A,    A,    16);
-        memcpy(s.B,    B,    16);
-        memcpy(s.C,    C,    16);
-        memcpy(s.D,    D,    16);
-        memcpy(s.E,    E,    16);
-        memcpy(s.SCOM, SCOM, sizeof(SCOM));
-        memcpy(s.Sout, Sout, 16);
-        s.KR = KR; s.SR = SR; s.fA = fA; s.fB = fB;
-        s.EXT = EXT; s.PREG = PREG ? 1 : 0; s.flags = flags;
-        s.m_libAddr = m_libAddr; s.m_libAddrReadPos = m_libAddrReadPos;
-        s.R5 = R5; s.digit = digit;
-        s.REG_ADDR = REG_ADDR; s.RAM_ADDR = RAM_ADDR; s.RAM_OP = RAM_OP;
-        s.dispFilter = m_dispFilter;
+        memcpy(frame.A,    A,    16);
+        memcpy(frame.B,    B,    16);
+        memcpy(frame.C,    C,    16);
+        memcpy(frame.D,    D,    16);
+        memcpy(frame.E,    E,    16);
+        memcpy(frame.SCOM, SCOM, sizeof(SCOM));
+        memcpy(frame.Sout, Sout, 16);
+        frame.KR = KR; frame.SR = SR; frame.fA = fA; frame.fB = fB;
+        frame.EXT = EXT; frame.PREG = PREG ? 1 : 0; frame.flags = flags;
+        frame.m_libAddr = m_libAddr; frame.m_libAddrReadPos = m_libAddrReadPos;
+        frame.R5 = R5; frame.digit = digit;
+        frame.REG_ADDR = REG_ADDR; frame.RAM_ADDR = RAM_ADDR; frame.RAM_OP = RAM_OP;
+        frame.dispFilter = m_dispFilter;
     }
 
-    TraceEvent& ev = m_traceRing[idx];
-    ev.pc          = m_tracePC;
-    ev.opcode      = m_traceOpcode;
-    ev.digit       = digit;
-    ev.cycleWeight = static_cast<uint8_t>(weight);
-    ev.seqno       = m_traceSeqno++;
-    // 0x00 = snapshot present in parallel snapRing slot; 0xFF = no snapshot.
-    // Not used as an actual array index — the drain uses (m_traceTail & kTraceRingMask)
-    // directly — so a plain present/absent flag is correct and avoids the collision
-    // that arose when (idx & 0xFF) == 0xFF (ring slots 255 and 511).
-    ev.snapshotIndex = (tf & TRACE_REGS_FULL) ? 0x00u : 0xFFu;
+    // Fill in identity fields
+    frame.seqno     = m_traceSeqno++;
+    frame.pc        = m_tracePC;
+    frame.opcode    = m_traceOpcode;
+    frame.digit     = digit;
+    frame.cycleWeight = static_cast<uint8_t>(weight);
 
-    if (tf & TRACE_REGS_LIGHT) {
-        ev.KR       = KR;
-        ev.SR       = SR;
-        ev.fA       = fA;
-        ev.fB       = fB;
-        ev.cpuFlags = flags;
-        ev.R5       = R5;
-    } else {
-        ev.KR = ev.SR = ev.fA = ev.fB = ev.cpuFlags = 0;
-        ev.R5 = 0;
-    }
+    // Fill in light registers (always captured, not conditional)
+    frame.KR       = KR;
+    frame.SR       = SR;
+    frame.fA       = fA;
+    frame.fB       = fB;
+    frame.cpuFlags = flags;
+    frame.R5       = R5;
 
-    m_traceHead++;
+    m_frameHead++;
 }
 
-uint32_t TMC0501::drainTraceEvents(TraceEvent* out, CPUSnapshot* outSnaps, uint32_t max) {
+uint32_t TMC0501::drainCpuFrames(CpuFrame* out, uint32_t max, uint32_t* outLost) {
     std::lock_guard<std::mutex> lk(m_traceMutex);
-    uint32_t head = m_traceHead;  // single read; emulation thread may advance concurrently
-    if (head == m_traceTail || max == 0) return 0;
+    if (max == 0) { if (outLost) *outLost = 0; return 0; }
 
-    uint32_t count = 0;
-    while (m_traceTail != head && count < max) {
-        uint32_t idx = m_traceTail & kTraceRingMask;
-        out[count] = m_traceRing[idx];
-        if (outSnaps && out[count].snapshotIndex != 0xFF)
-            outSnaps[count] = m_snapRing[idx];
-        m_traceTail++;
-        count++;
+    uint32_t head = m_frameHead;  // single read; emulation thread may advance concurrently
+
+    // Detect ring overflow: if head has advanced beyond diskCursor + ring size,
+    // frames were overwritten.
+    uint32_t lostCount = 0;
+    if (head - m_diskCursor > kFrameRingSize) {
+        lostCount = (head - m_diskCursor) - kFrameRingSize;
+        m_diskCursor = head - kFrameRingSize;  // jump to oldest frame still in ring
     }
+
+    if (outLost) *outLost = lostCount;
+
+    // Drain from m_diskCursor up to head (exclusive)
+    if (m_diskCursor == head || max == 0) return 0;
+
+    uint32_t available = head - m_diskCursor;
+    uint32_t count = (available < max) ? available : max;
+
+    for (uint32_t i = 0; i < count; i++) {
+        uint32_t idx = (m_diskCursor + i) & kFrameRingMask;
+        out[i] = m_frameRing[idx];
+    }
+
+    m_diskCursor += count;
     return count;
 }
 
-uint32_t TMC0501::readTraceEvents(TraceEvent* out, CPUSnapshot* outSnaps, uint32_t max) const {
+uint32_t TMC0501::readCpuFrames(CpuFrame* out, uint32_t max) const {
     std::lock_guard<std::mutex> lk(m_traceMutex);
-    uint32_t head = m_traceHead;
+    uint32_t head = m_frameHead;
     if (max == 0 || head == 0) return 0;
 
-    // Return the last 'count' events from the ring buffer, ignoring the drain tail.
-    // This gives a snapshot of the most recent events without removing them.
+    // Return the last 'count' frames from the ring buffer (non-consuming).
+    // This gives a snapshot of the most recent frames without removing them.
     uint32_t count = (head < max) ? head : max;  // Can't read more than we have
 
-    // Read the last 'count' events (starting from head - count)
-    uint32_t startIdx = (head - count) & kTraceRingMask;
+    // Read the last 'count' frames (starting from head - count)
+    uint32_t startIdx = (head - count) & kFrameRingMask;
     for (uint32_t i = 0; i < count; i++) {
-        uint32_t idx = (startIdx + i) & kTraceRingMask;
-        out[i] = m_traceRing[idx];
-        if (outSnaps && out[i].snapshotIndex != 0xFF)
-            outSnaps[i] = m_snapRing[idx];
+        uint32_t idx = (startIdx + i) & kFrameRingMask;
+        out[i] = m_frameRing[idx];
     }
     return count;
-}
-
-bool TMC0501::peekLastEvent(TraceEvent& out, CPUSnapshot* outSnap) const {
-    std::lock_guard<std::mutex> lk(m_traceMutex);
-    if (m_traceHead == m_traceTail) return false;
-    uint32_t idx = (m_traceHead - 1) & kTraceRingMask;
-    out = m_traceRing[idx];
-    if (outSnap && out.snapshotIndex != 0xFF)
-        *outSnap = m_snapRing[idx];
-    return true;
 }
 
 // ── printerBufferContent() ────────────────────────────────────────────────────
@@ -1345,19 +1345,44 @@ std::string TMC0501::printerBufferContent() const {
 
 // ── snapshotCPU() ─────────────────────────────────────────────────────────────
 
-CPUSnapshot TMC0501::snapshotCPU() const {
-    CPUSnapshot s{};
-    memcpy(s.A, A, 16); memcpy(s.B, B, 16); memcpy(s.C, C, 16);
-    memcpy(s.D, D, 16); memcpy(s.E, E, 16);
-    memcpy(s.SCOM, SCOM, sizeof(SCOM));
-    memcpy(s.Sout, Sout, 16);
-    s.KR = KR; s.SR = SR; s.fA = fA; s.fB = fB;
-    s.EXT = EXT; s.PREG = PREG ? 1 : 0; s.flags = flags;
-    s.m_libAddr = m_libAddr;
-    s.R5 = R5; s.digit = digit;
-    s.REG_ADDR = REG_ADDR; s.RAM_ADDR = RAM_ADDR; s.RAM_OP = RAM_OP;
-    s.dispFilter = m_dispFilter;
-    return s;
+CpuFrame TMC0501::snapshotCPU() const {
+    CpuFrame frame{};
+    // Trace identity fields (not meaningful for a standalone snapshot, but initialized to 0)
+    frame.seqno = 0;
+    frame.pc = addr;
+    frame.opcode = 0;
+    frame.digit = digit;
+    frame.cycleWeight = 0;
+
+    // Light registers
+    frame.KR = KR;
+    frame.SR = SR;
+    frame.fA = fA;
+    frame.fB = fB;
+    frame.cpuFlags = flags;
+    frame.R5 = R5;
+
+    // Full registers
+    memcpy(frame.A, A, 16);
+    memcpy(frame.B, B, 16);
+    memcpy(frame.C, C, 16);
+    memcpy(frame.D, D, 16);
+    memcpy(frame.E, E, 16);
+    memcpy(frame.SCOM, SCOM, sizeof(SCOM));
+    memcpy(frame.Sout, Sout, 16);
+
+    // Control registers
+    frame.EXT = EXT;
+    frame.PREG = PREG ? 1 : 0;
+    frame.flags = flags;
+    frame.m_libAddr = m_libAddr;
+    frame.REG_ADDR = REG_ADDR;
+    frame.RAM_ADDR = RAM_ADDR;
+    frame.RAM_OP = RAM_OP;
+    frame.m_libAddrReadPos = 0;  // not meaningful for snapshot
+    frame.dispFilter = m_dispFilter;
+
+    return frame;
 }
 
 // ── disassemble() ─────────────────────────────────────────────────────────────

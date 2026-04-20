@@ -77,9 +77,8 @@ public:
     void removeBreakpoint(uint16_t pc);
     void clearBreakpoints();
 
-    uint32_t drainTraceEvents(TraceEvent* out, CPUSnapshot* outSnaps, uint32_t max);
-    uint32_t readTraceEvents(TraceEvent* out, CPUSnapshot* outSnaps, uint32_t max) const;
-    bool     peekLastEvent(TraceEvent& out, CPUSnapshot* outSnap) const;
+    uint32_t drainCpuFrames(CpuFrame* out, uint32_t max, uint32_t* outLost);
+    uint32_t readCpuFrames(CpuFrame* out, uint32_t max) const;
 
     /// Run up to n steps under a single mutex lock; returns count actually executed.
     /// Stops early if a breakpoint is hit (when TRACE_BREAKPOINTS is set).
@@ -109,7 +108,7 @@ public:
     uint8_t readROMKeycode(int addr) const;
 
     /// Capture a snapshot of all CPU registers at the current instant.
-    CPUSnapshot snapshotCPU() const;
+    CpuFrame snapshotCPU() const;
 
     /// Raw RAM access — reads/writes a complete 16-nibble register.
     /// reg must be in [0, RAM::TOTAL_REGS).

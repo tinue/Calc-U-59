@@ -190,18 +190,14 @@ void TI59Machine::clearBreakpoints() {
     m_cpu.clearBreakpoints();
 }
 
-uint32_t TI59Machine::drainTraceEvents(TraceEvent* out, CPUSnapshot* outSnaps, uint32_t max) {
+uint32_t TI59Machine::drainCpuFrames(CpuFrame* out, uint32_t max, uint32_t* outLost) {
     std::lock_guard<std::mutex> lock(m_keyMutex);
-    return m_cpu.drainTraceEvents(out, outSnaps, max);
+    return m_cpu.drainCpuFrames(out, max, outLost);
 }
 
-uint32_t TI59Machine::readTraceEvents(TraceEvent* out, CPUSnapshot* outSnaps, uint32_t max) const {
+uint32_t TI59Machine::readCpuFrames(CpuFrame* out, uint32_t max) const {
     std::lock_guard<std::mutex> lock(m_keyMutex);
-    return m_cpu.readTraceEvents(out, outSnaps, max);
-}
-
-bool TI59Machine::peekLastEvent(TraceEvent& out, CPUSnapshot* outSnap) const {
-    return m_cpu.peekLastEvent(out, outSnap);
+    return m_cpu.readCpuFrames(out, max);
 }
 
 uint32_t TI59Machine::stepN(uint32_t n, bool stopOnBreakpoint) {
@@ -287,7 +283,7 @@ uint8_t TI59Machine::readROMKeycode(int addr) const {
     return m_cpu.romKeycode(addr);
 }
 
-CPUSnapshot TI59Machine::snapshotCPU() const {
+CpuFrame TI59Machine::snapshotCPU() const {
     return m_cpu.snapshotCPU();
 }
 

@@ -23,21 +23,23 @@ typedef NS_OPTIONS(uint32_t, TITraceFlags) {
 };
 
 typedef struct {
-    uint16_t pc, opcode;
-    uint8_t  digit, cycleWeight;
+    // Identity (always captured)
     uint32_t seqno;
+    uint16_t pc;
+    uint16_t opcode;
+    uint8_t  digit;
+    uint8_t  cycleWeight;
+    // Light registers
     uint16_t KR, SR, fA, fB, cpuFlags;
-    uint8_t  R5, snapshotIndex;
-} TITraceEvent;
-
-typedef struct {
+    uint8_t  R5;
+    // Full snapshot
     uint8_t  A[16], B[16], C[16], D[16], E[16];
     uint8_t  SCOM[16][16];
     uint8_t  Sout[16];
-    uint16_t KR, SR, fA, fB, EXT, PREG, flags, m_libAddr;
-    uint8_t  R5, digit, REG_ADDR, RAM_ADDR, RAM_OP, m_libAddrReadPos;
-    uint8_t  dispFilter;  ///< Display blanking filter counter (0–3; ≥3 = blanked during compute)
-} TICPUSnapshot;
+    uint16_t EXT, PREG, flags, m_libAddr;
+    uint8_t  REG_ADDR, RAM_ADDR, RAM_OP, m_libAddrReadPos;
+    uint8_t  dispFilter;
+} TICpuFrame;
 
 @interface TI59MachineWrapper : NSObject
 
@@ -145,26 +147,19 @@ typedef struct {
 - (void)removeBreakpoint:(uint16_t)pc;
 - (void)clearBreakpoints;
 
-/// Drain up to `max` trace events.  If outSnaps is non-nil, the pointed-to
-/// NSArray* is set to a parallel array of TICPUSnapshot NSValues (may be empty
-/// if TRACE_REGS_FULL was not set).  Returns an array of TITraceEvent NSValues.
-- (NSArray<NSValue*>*)drainTraceEventsMax:(NSUInteger)max
-                                snapshots:(NSArray<NSValue*>* _Nullable * _Nullable)outSnaps
-    NS_SWIFT_NAME(drainTraceEvents(max:snapshots:));
+/// Drain up to `max` CPU frames into an array. If ring overflow occurred,
+/// *outLost is set to the count of frames that were overwritten. Returns
+/// an array of TICpuFrame NSValues.
+- (NSArray<NSValue*>*)drainCpuFramesMax:(NSUInteger)max
+                                   lost:(NSUInteger*)outLost
+    NS_SWIFT_NAME(drainCpuFrames(max:lost:));
 
-/// Convenience: drain up to `max` events without capturing CPU register snapshots.
-- (NSArray<NSValue*>*)drainTraceEventsMax:(NSUInteger)max
-    NS_SWIFT_NAME(drainTraceEvents(max:));
+/// Read (without draining) up to `max` most recent CPU frames. Does not remove
+/// frames from the ring buffer; safe to call repeatedly.
+- (NSArray<NSValue*>*)readCpuFramesMax:(NSUInteger)max
+    NS_SWIFT_NAME(readCpuFrames(max:));
 
-/// Read (without draining) up to `max` most recent events and their CPU snapshots.
-/// Does not remove events from the ring buffer; safe to call repeatedly.
-- (NSArray<NSValue*>*)readTraceEventsMax:(NSUInteger)max
-                               snapshots:(NSArray<NSValue*>* _Nullable * _Nullable)outSnaps
-    NS_SWIFT_NAME(readTraceEvents(max:snapshots:));
-
-/// Convenience: read up to `max` events without capturing CPU register snapshots.
-- (NSArray<NSValue*>*)readTraceEventsMax:(NSUInteger)max
-    NS_SWIFT_NAME(readTraceEvents(max:));
+// ── Old trace API (deprecated; kept for binary compatibility) ──
 
 + (NSString*)disassemblePC:(uint16_t)pc opcode:(uint16_t)opcode;
 
@@ -195,7 +190,7 @@ typedef struct {
     NS_SWIFT_NAME(nonZeroDataRegisterIndices());
 
 /// Capture a snapshot of all CPU registers at the current instant.
-- (TICPUSnapshot)snapshotCPU;
+- (TICpuFrame)snapshotCPU;
 
 /// Decode a 16-nibble BCD register to a Double (pure, no machine state needed).
 + (double)decodeBCDNibbles:(NSData*)nibbles16

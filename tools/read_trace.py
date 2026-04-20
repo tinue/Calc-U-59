@@ -71,7 +71,7 @@ def _parse_trace_event(payload):
 
     # A–E registers: 16 unpacked nibbles each (index 0 = LSN)
     regs = {}
-    off = 32
+    off = 36
     for name in ('A', 'B', 'C', 'D', 'E'):
         regs[name] = list(payload[off:off+16])
         off += 16

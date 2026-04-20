@@ -147,7 +147,7 @@ struct CPUInspectorView: View {
                 // State display sections
                 if let idx = selectedIndex, idx >= 0, idx < vm.cpuInspectorHistory.count {
                     let snap = vm.cpuInspectorHistory[idx]
-                    let cpu = snap.cpuState
+                    let cpu = snap.frame
 
                     ScrollView {
                         VStack(alignment: .leading, spacing: 1) {
