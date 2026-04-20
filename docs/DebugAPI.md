@@ -89,7 +89,7 @@ struct CalcSnapshot {
     var registers:    [Double]      // R00…Rnn per current partition
     var programSteps: [UInt8]       // keycodes 0–99; length = totalSteps
     var printerBuffer: String       // characters not yet committed to a line
-    var cpu:          TICPUSnapshot // raw CPU register state
+    var cpu:          TICpuFrame    // raw CPU register state (unified frame struct)
 }
 ```
 
@@ -106,10 +106,12 @@ Read data register Rnn decoded as a Double. Equivalent to `RCL nn` on the keyboa
 
 Read all program steps as raw keycodes. Length = `partitionProgramRegs × 8`.
 
-#### `machine.snapshotCPU() → TICPUSnapshot`  *(ObjC bridge)*
+#### `machine.snapshotCPU() → TICpuFrame`  *(ObjC bridge)*
 
-Capture a snapshot of all CPU registers (A–E, SCOM, KR, SR, fA, fB, …) at the
-current instant. Safe to call while the emulation loop is running.
+Capture a unified snapshot of all CPU registers (A–E, SCOM, KR, SR, fA, fB, …) at the
+current instant. Safe to call while the emulation loop is running. Returns the same
+`TICpuFrame` struct used in the trace ring buffer, with identity fields (pc, opcode, seqno)
+set to zero (not meaningful for standalone snapshots).
 
 #### `machine.printerBufferContent → String`  *(ObjC bridge)*
 
@@ -249,7 +251,8 @@ emitDebug(2, "MY_OP target=%d value=%s", addr, fmtNibs(data, buf));
 
 ### Trace flags
 
-Set via `viewModel.setTraceEnabled(_:fullRegs:)` or directly on the machine wrapper.
+Set via `machine.traceFlags` property. The UI manages this automatically when
+the trace window is opened/closed and when the full-registers toggle is clicked.
 
 | Flag | Swift name | Cost | Records |
 |------|------------|------|---------|
@@ -260,19 +263,41 @@ Set via `viewModel.setTraceEnabled(_:fullRegs:)` or directly on the machine wrap
 
 Flags are combined: `[.pc, .regsLight]` is the default when tracing is enabled.
 
-### TraceEvent fields
+### CpuFrame fields
 
+A unified `CpuFrame` struct combines all CPU state into one 397-byte structure,
+eliminating the parallel TraceEvent + CPUSnapshot mismatch risk.
+
+**Identity fields (always captured):**
 ```
+seqno         monotonically increasing; gaps indicate ring overflow
 pc            ROM address of the instruction
 opcode        13-bit word fetched from ROM
 digit         digit-counter value (0–15) when the instruction ran
 cycleWeight   1 (active) or 4 (idle)
-seqno         monotonically increasing; gaps indicate ring overflow
+```
+
+**Light registers (captured when TRACE_REGS_LIGHT is set):**
+```
 KR, SR        address / return registers
 fA, fB        flag registers A and B
+cpuFlags      internal CPU flags (bit 0 = IDLE, bit 11 = COND)
 R5            4-bit scratch / decimal-point pointer
-cpuFlags      internal emulator flags (FLG_* bitmask)
-snapshotIndex index into CPUSnapshot ring (0xFF = no snapshot)
+```
+
+**Full snapshot (captured when TRACE_REGS_FULL is set):**
+```
+A, B, C, D, E 16-nibble working registers (index 0 = LSN)
+SCOM[16][16]  serial common I/O memory
+Sout[16]      printer output register
+EXT           exponent register
+PREG          pointer register (4-bit)
+m_libAddr     ROM address pointer (master library)
+m_libAddrReadPos nibble sub-address within ROM word
+REG_ADDR      register address for current operation
+RAM_ADDR      RAM address for current operation
+RAM_OP        RAM operation code
+dispFilter    display blanking filter counter (0–3; ≥3 = blanked during compute)
 ```
 
 ### Breakpoints
@@ -339,9 +364,10 @@ Offset  Size  Type   Field           Description
 | Type | Name              | Payload | Purpose |
 |------|-------------------|---------|---------|
 | 0x01 | SESSION_START     | 8 bytes | Session boundary marker |
-| 0x02 | TRACE_EVENT       | 124 bytes (v4) | CPU instruction snapshot |
+| 0x02 | TRACE_EVENT       | 124 bytes (v4) | Unified CPU frame snapshot (combined instruction + state) |
 | 0x03 | SESSION_END       | 8 bytes | Session terminator with counts |
 | 0x04 | USER_EVENT        | ≥4 bytes | User input (key press, card insert) |
+| 0x05 | TRACE_GAP         | 4 bytes | Ring overflow marker: UInt32 LE count of lost frames |
 
 Unknown record types are silently skipped (forward-compatible).
 
@@ -360,7 +386,10 @@ Offset  Size  Type   Field       Description
 
 #### TRACE_EVENT (0x02)
 
-Captures CPU state at a single instruction. **Payload is exactly 124 bytes (v4).**
+Captures a unified CPU frame (instruction + full state) at a single instruction.
+**Payload is exactly 124 bytes (v4).**  This unified format eliminates the parallel
+TraceEvent + CPUSnapshot structure used in earlier versions, ensuring no mismatch
+between instruction metadata and CPU state.
 
 **Fixed fields (first 36 bytes):**
 
@@ -427,8 +456,9 @@ Marks the end of a trace session (e.g., app quit or emulator pause).
 
 ```
 Offset  Size  Type   Field            Description
-0       4     LE U32 eventCount       Total instruction events recorded in this session
-4       4     LE U32 suppressedTotal  Total events suppressed due to ring buffer overflow
+0       4     LE U32 eventCount       Total TRACE_EVENT records written in this session
+4       4     LE U32 suppressedTotal  Deprecated; now always zero (dedup removed in v5; ring overflows
+                                      are recorded via TRACE_GAP records instead)
 ```
 
 #### USER_EVENT (0x04)
@@ -454,15 +484,36 @@ Offset  Size  Type   Field    Description
 | 0x03  | CARD INSERT  | —  | —  | Magnetic card inserted |
 | 0x04  | CARD EJECT   | —  | —  | Magnetic card ejected |
 
+#### TRACE_GAP (0x05)
+
+Indicates that the ring buffer overflowed and some frames were lost.
+
+**Payload (4 bytes):**
+
+```
+Offset  Size  Type   Field       Description
+0       4     LE U32 lostFrames  Number of CPU frames that were overwritten in the ring
+```
+
+This record appears in the trace when the emulation runs faster than the trace drain
+thread can write to disk, causing the 1024-frame ring buffer to wrap. The `seqno`
+field in subsequent TRACE_EVENT records will have a gap showing exactly how many
+frames were lost. When parsing, accumulate the loss counts to understand the true
+instruction count across gaps.
+
 ### Parsing Notes
 
 - **Byte order:** All multi-byte fields use little-endian unless stated otherwise.
 - **Nibble representation:** Most fields use packed hex (one 4-bit value per byte for readability).
-- **Ring buffer:** When the trace buffer overflows, `seqno` gaps and `suppressed` counts
-  indicate lost events. The `suppressedTotal` in SESSION_END reflects cumulative loss.
+- **Ring buffer and overflow:** The trace ring holds up to 1024 unified CPU frames. When
+  emulation runs faster than the trace drain thread, frames are lost. Lost frames are
+  reported via TRACE_GAP records (type 0x05). Check for `seqno` gaps in TRACE_EVENT
+  records to detect overflow; the gap size equals the number of lost frames.
 - **Version compatibility:** 
   - v2, v3: 123-byte TRACE_EVENT payloads (v3 added `m_libAddrReadPos`, backward compatible with v2)
   - v4: 124-byte TRACE_EVENT payloads (added `dispFilter` field for display blanking state)
+    - Later v4 addition: TRACE_GAP records (type 0x05) for ring buffer overflow reporting
+    - Old readers expecting only types 0x01–0x04 will silently skip 0x05 (forward-compatible)
 
 ---
 
