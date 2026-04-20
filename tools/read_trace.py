@@ -9,15 +9,18 @@ Parses TI59_TRACE.bin (format documented in DebugAPI.md) and either:
   • Exposes load_trace(path) for import by compare_trace.py
 
 Usage:
-    python3 read_trace.py TI59_TRACE.bin
+    python3 read_trace.py TI59_TRACE.bin                       # output everything
+    python3 read_trace.py --dedup TI59_TRACE.bin               # filter consecutive same-PC
+    python3 read_trace.py --skip-repeating TI59_TRACE.bin      # dedup + collapse repeating loops
+    python3 read_trace.py --dedup --color TI59_TRACE.bin       # filters + coloring
     python3 read_trace.py --json TI59_TRACE.bin
-    python3 read_trace.py --skip-idle-loops TI59_TRACE.bin
-    python3 read_trace.py --no-dedup TI59_TRACE.bin
 
 Flags:
-    --json                 Output as JSON array (no idle loop filtering)
-    --skip-idle-loops      Collapse repeating keyscan loop cycles into summaries
-    --no-dedup             Show all records without deduplication (full uncompressed log)
+    --json                 Output as JSON array
+    --dedup                Remove consecutive records with same PC (filter duplicates)
+    --skip-repeating       Apply dedup first, then collapse repeating PC sequences
+    --color                Colorize trace entries (DISP ON: light yellow, IDLE=1: darker white,
+                           both: dark yellow). Works with any filter combination.
 
 The mnemonic disassembly uses mnemonics.tsv from the same directory.
 """
@@ -164,8 +167,11 @@ def load_trace(path):
     Note: RAMOP and RAMREG are not directly available from the binary format
     (RAM_OP is the raw op code, not the text flag). The compare pipeline uses
     COND/IDLE/KR/FA/registers as the primary match keys; RAMOP is advisory only.
+
+    Each 'trace' record is tagged with _trace_index (1-indexed) for numbering.
     """
     records = []
+    trace_index = 0
     with open(path, 'rb') as f:
         try:
             _parse_file_header(f)
@@ -185,7 +191,10 @@ def load_trace(path):
             if rec_type == REC_SESSION_START:
                 records.append(_parse_session_start(payload))
             elif rec_type == REC_TRACE_EVENT:
-                records.append(_parse_trace_event(payload))
+                trace_index += 1
+                rec = _parse_trace_event(payload)
+                rec['_trace_index'] = trace_index
+                records.append(rec)
             elif rec_type == REC_SESSION_END:
                 records.append(_parse_session_end(payload))
             elif rec_type == REC_USER_EVENT:
@@ -203,8 +212,11 @@ def trace_events_only(records):
 def _bin16(v):
     return ''.join(str((v >> (15 - i)) & 1) for i in range(16))
 
-def _format_trace_record(rec):
-    """Format a single trace record as 5 lines of output."""
+def _format_trace_record(rec, trace_number=None):
+    """Format a single trace record as 5 lines of output.
+
+    If trace_number is provided, prepend it (8-digit right-aligned) to the DISP line.
+    """
     ramop_str = (f"{rec['RAM_OP']:X}" if (rec['cpuFlags'] & 0x0040) else '-')
     addr = int(rec['pc'], 16)
     opcode = int(rec['opcode'], 16)
@@ -224,6 +236,11 @@ def _format_trace_record(rec):
              f"RAMOP={ramop_str} RAMREG={rec['RAM_ADDR']:03d} "
              f"ROMREG={rec['REG_ADDR']:02d}")
     line5 = f"DISP: {rec['dispFilter']} ({disp_status})"
+
+    if trace_number is not None:
+        trace_num_str = f"{trace_number:>8d}"
+        line5 = f"{trace_num_str} {line5}"
+
     return '\n'.join([line1, line2, line3, line4, line5]) + '\n'
 
 def _user_banner(rec):
@@ -232,98 +249,199 @@ def _user_banner(rec):
         label += f"  row={rec['row']}  col={rec['col']}"
     return f"\n{BANNER}\n{label}\n{BANNER}\n"
 
-def format_as_log(records, skip_idle_loops=False, no_dedup=False):
+def _apply_color(formatted, rec, color):
+    """Apply ANSI color codes to formatted trace output if color=True.
+
+    Color rules:
+      - DISP ON and IDLE=1: dark yellow (\033[33m)
+      - DISP ON only: light yellow (\033[93m)
+      - IDLE=1 only: darker white (\033[90m)
+      - Otherwise: no coloring
     """
-    Render records as TI59E.LOG-style text (4 lines + blank per instruction).
-    USER_EVENT records are rendered as a prominent banner.
-    SESSION_START/END are rendered as a brief comment line.
+    if not color:
+        return formatted
 
-    If skip_idle_loops=True, detects and collapses idle keyscan loop cycles.
-    A cycle is detected when IDLE=1 and we return to the same PC.
-    When enabled, suppression markers are disabled to allow full pattern detection.
+    disp_status = "OFF" if rec['dispFilter'] >= 3 else "ON"
+    idle = rec['IDLE'] == '1'
 
-    If no_dedup=True, shows all records without suppression collapse (full uncompressed log).
+    if disp_status == "ON" and idle:
+        # Dark yellow
+        return f"\033[33m{formatted}\033[0m"
+    elif disp_status == "ON":
+        # Light yellow
+        return f"\033[93m{formatted}\033[0m"
+    elif idle:
+        # Darker white
+        return f"\033[90m{formatted}\033[0m"
+    else:
+        return formatted
+
+def _apply_dedup(records):
+    """Filter to keep only records where PC changes.
+
+    Removes consecutive trace records with the same PC.
+    Non-trace records are always kept.
+    """
+    deduped = []
+    last_pc = None
+    for rec in records:
+        if rec['type'] != 'trace':
+            deduped.append(rec)
+        elif rec['pc'] != last_pc:
+            deduped.append(rec)
+            last_pc = rec['pc']
+    return deduped
+
+def _skip_repeating(records):
+    """Collapse repeating PC sequences (loops).
+
+    Should be called after dedup. A "true" loop is one where:
+    1. We see a sequence of PCs
+    2. The last instruction is a jump/branch BACK to the first PC
+    3. This sequence repeats (same PCs in same order)
+
+    Jump opcodes detected by checking mnemonic (JC, JNC, JSB, RTN, WAIT, etc).
     """
     out = []
     i = 0
-
     while i < len(records):
         rec = records[i]
+
+        # Non-trace records pass through
+        if rec['type'] != 'trace':
+            out.append(rec)
+            i += 1
+            continue
+
+        loop_start_pc = rec['pc']
+        cycle_end = None
+
+        # Find next occurrence of the same PC (loop back point)
+        for j in range(i + 1, min(i + 100, len(records))):
+            if records[j]['type'] == 'trace' and records[j]['pc'] == loop_start_pc:
+                cycle_end = j
+                break
+
+        # No loop found, output normally
+        if not cycle_end:
+            out.append(rec)
+            i += 1
+            continue
+
+        cycle_len = cycle_end - i
+
+        # Verify this is a real loop: last instruction must be a jump/branch
+        # Get mnemonic of last instruction in cycle
+        last_rec = records[cycle_end - 1]
+        last_mnem = disasm(int(last_rec['pc'], 16), int(last_rec['opcode'], 16))
+
+        # Extract target from jump mnemonic if present
+        is_backward_jump = False
+        if last_mnem.startswith(('JC ', 'JNC ', 'JSB ', 'RTN')):
+            # These are control flow instructions that could loop back
+            is_backward_jump = True
+
+        if not is_backward_jump:
+            # Not a backward jump, so not a real loop
+            out.append(rec)
+            i += 1
+            continue
+
+        # Check if this cycle repeats by comparing PC sequences
+        repeats = False
+        if cycle_end + cycle_len <= len(records):
+            repeats = True
+            for k in range(cycle_len):
+                if (records[i + k]['type'] != 'trace' or
+                    records[cycle_end + k]['type'] != 'trace' or
+                    records[i + k]['pc'] != records[cycle_end + k]['pc']):
+                    repeats = False
+                    break
+
+        if repeats:
+            # Count total repetitions
+            num_reps = 1
+            j = cycle_end + cycle_len
+            while j + cycle_len <= len(records):
+                match = True
+                for k in range(cycle_len):
+                    if (records[j + k]['type'] != 'trace' or
+                        records[i + k]['type'] != 'trace' or
+                        records[j + k]['pc'] != records[i + k]['pc']):
+                        match = False
+                        break
+                if match:
+                    num_reps += 1
+                    j += cycle_len
+                else:
+                    break
+
+            # Output one full cycle
+            for idx in range(i, cycle_end):
+                out.append(records[idx])
+
+            # Add marker comment
+            out.append({
+                'type': 'comment',
+                'text': f'; [REPEATING: {cycle_len}-instruction cycle, {num_reps} total repetitions]\n'
+            })
+
+            i = cycle_end + cycle_len * num_reps
+        else:
+            out.append(rec)
+            i += 1
+
+    return out
+
+def format_as_log(records, dedup=False, skip_repeating=False, color=False):
+    """
+    Render records as TI59E.LOG-style text.
+
+    USER_EVENT records are rendered as a prominent banner.
+    SESSION_START/END are rendered as a brief comment line.
+    TRACE records are formatted as 5-line blocks with register/state info.
+
+    If dedup=True, filter to keep only records where PC changes
+    (removes consecutive trace records with the same PC).
+
+    If skip_repeating=True, first apply dedup, then collapse repeating
+    PC sequences (loops). Shows one cycle, marks repetition count.
+
+    If color=True, colorize trace entries based on DISP and IDLE state.
+
+    Trace numbers reflect the original binary position, so collapsed loops
+    show the true gap in the output.
+    """
+    # Apply filters if requested
+    if skip_repeating:
+        records = _apply_dedup(records)
+        records = _skip_repeating(records)
+    elif dedup:
+        records = _apply_dedup(records)
+
+    # Format output
+    out = []
+
+    for rec in records:
         t = rec['type']
 
         if t == 'session_start':
             import datetime
             ts = datetime.datetime.fromtimestamp(rec['timestamp'])
             out.append(f"\n; SESSION START  {ts.isoformat()}\n")
-            i += 1
         elif t == 'session_end':
             out.append(f"; SESSION END  events={rec['eventCount']}  "
                        f"suppressed={rec['suppressedTotal']}\n")
-            i += 1
         elif t == 'user':
             out.append(_user_banner(rec))
-            i += 1
+        elif t == 'comment':
+            out.append(rec['text'])
         elif t == 'trace':
-            r = rec
-            sup = r['suppressedBefore']
+            trace_num = rec.get('_trace_index')
+            formatted = _format_trace_record(rec, trace_number=trace_num)
+            formatted = _apply_color(formatted, rec, color)
+            out.append(formatted)
 
-            # Last-of-run: don't expand — just show a compact skip marker.
-            # But skip this when looking for idle loops or no_dedup, as it interferes with detection.
-            if sup > 0 and not skip_idle_loops and not no_dedup:
-                out.append(f"... {sup} ...")
-                i += 1
-                continue
-
-            # Detect idle loop: when IDLE=1, look for when we return to this PC
-            if skip_idle_loops and r['IDLE'] == '1':
-                loop_start_pc = r['pc']
-                cycle_end = None
-
-                # Find next occurrence of the same PC
-                for j in range(i + 1, min(i + 50, len(records))):
-                    if (records[j]['type'] == 'trace' and
-                        records[j]['pc'] == loop_start_pc):
-                        cycle_end = j
-                        break
-
-                # If we found a cycle and it repeats, compress it
-                if cycle_end and cycle_end > i:
-                    cycle_len = cycle_end - i
-                    # Check if this same cycle repeats at cycle_end
-                    repeats = False
-                    if cycle_end + cycle_len < len(records):
-                        if (records[cycle_end]['type'] == 'trace' and
-                            records[cycle_end + cycle_len]['type'] == 'trace' and
-                            records[cycle_end + cycle_len]['pc'] == loop_start_pc):
-                            repeats = True
-
-                    if repeats:
-                        # Count total repetitions
-                        num_reps = 1
-                        j = cycle_end + cycle_len
-                        while j + cycle_len <= len(records):
-                            if (records[j]['type'] == 'trace' and
-                                records[j]['pc'] == loop_start_pc):
-                                num_reps += 1
-                                j += cycle_len
-                            else:
-                                break
-
-                        # Output one full cycle, then compress the rest
-                        for idx in range(i, cycle_end):
-                            if records[idx]['type'] == 'trace' and records[idx]['suppressedBefore'] == 0:
-                                out.append(_format_trace_record(records[idx]))
-                            elif records[idx]['type'] == 'trace' and records[idx]['suppressedBefore'] > 0:
-                                out.append(f"... {records[idx]['suppressedBefore']} ...\n")
-
-                        # Add marker for repeated cycles
-                        out.append(f"; [IDLE LOOP: PC {loop_start_pc}, repeated {num_reps} more times]\n")
-                        i = cycle_end + cycle_len * num_reps
-                        continue
-
-            # Normal output
-            out.append(_format_trace_record(r))
-            i += 1
     return '\n'.join(out)
 
 # ── Entry point ───────────────────────────────────────────────────────────────
@@ -331,8 +449,9 @@ def format_as_log(records, skip_idle_loops=False, no_dedup=False):
 def main():
     args = sys.argv[1:]
     as_json = '--json' in args
-    skip_idle_loops = '--skip-idle-loops' in args
-    no_dedup = '--no-dedup' in args
+    dedup = '--dedup' in args
+    skip_repeating = '--skip-repeating' in args
+    color = '--color' in args
     paths = [a for a in args if not a.startswith('--')]
     if not paths:
         print(__doc__)
@@ -343,7 +462,7 @@ def main():
         if as_json:
             print(json.dumps(records, indent=2))
         else:
-            print(format_as_log(records, skip_idle_loops=skip_idle_loops, no_dedup=no_dedup))
+            print(format_as_log(records, dedup=dedup, skip_repeating=skip_repeating, color=color))
 
 if __name__ == '__main__':
     main()
