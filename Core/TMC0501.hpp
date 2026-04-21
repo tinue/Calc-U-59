@@ -203,10 +203,9 @@ public:
     /// Capture a snapshot of all CPU registers at the current instant.
     CpuFrame snapshotCPU() const;
 
-    /// Finalize the last ring-buffer entry before displaying. If about to execute
-    /// a non-branch instruction after a jump sequence, patches the previous entry's
-    /// COND to the post-restoration value. Safe to call anytime.
-    void finalizeCpuFrameForDisplay();
+    /// Pre-execution phase: COND auto-restore, patch previous ring entry, capture snapshot.
+    /// Called at the start of step(); also exposed for debugger use after freeze/step boundaries.
+    void beginNextStep();
 
     /// Direct SCOM nibble access (row 0–15, col 0–15).
     uint8_t  scomNibble(int row, int col) const { return SCOM[row][col]; }
@@ -330,6 +329,7 @@ private:
     // ── Trace / debug state ───────────────────────────────────────────
     std::atomic<uint32_t> m_traceFlags{TRACE_NONE};
     uint32_t m_traceSeqno{0};
+    uint16_t m_pendingOpcode{};  // opcode cached by beginNextStep, consumed by step()
 
     static constexpr uint32_t kFrameRingSize = 1024u;
     static constexpr uint32_t kFrameRingMask = 1023u; // kFrameRingSize - 1

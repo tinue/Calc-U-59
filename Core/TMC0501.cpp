@@ -386,10 +386,9 @@ int TMC0501::step() {
         if (--m_prnBusyCycles == 0) flags &= ~FLG_BUSY;
     }
 
-    uint16_t opcode = rom.read(addr);
-
-    // Capture pre-execution state for the trace ring.
-    if (tf != TRACE_NONE) [[unlikely]] { tracePreStep(tf, opcode); }
+    // Pre-execution phase: COND auto-restore, patch previous ring entry, capture snapshot
+    beginNextStep();
+    uint16_t opcode = m_pendingOpcode;
 
     // ── Digit counter ─────────────────────────────────────────────────
     // 4-bit counter cycling 15→14→…→1→0→15.  One step per instruction.
@@ -459,28 +458,6 @@ int TMC0501::step() {
         return w;
     }
 
-    // ── COND auto-restore after a branch sequence ─────────────────────
-    // After a run of branch instructions, the first non-branch instruction
-    // restores COND to 1 (true) so the next TST/CMP starts from a clean slate.
-    if (flags & FLG_JUMP) {
-        flags &= ~FLG_JUMP;
-        flags |=  FLG_COND;
-    }
-
-    // ── Patch previous instruction's COND with post-restoration value ────
-    // At the start of each new instruction, the previous entry's COND gets
-    // the current value: either unchanged (if no COND auto-restore), or
-    // restored to 1 (if we just exited a jump sequence). This ensures the
-    // last jump in a sequence shows post-restoration COND correctly.
-    if (tf != TRACE_NONE && m_frameHead > 0) {
-        CpuFrame& prevFrame = m_frameRing[(m_frameHead - 1) & kFrameRingMask];
-        if (tf & (TRACE_REGS_LIGHT | TRACE_REGS_FULL)) {
-            prevFrame.cpuFlags = (prevFrame.cpuFlags & ~uint16_t(FLG_COND)) | (flags & FLG_COND);
-        }
-        if (tf & TRACE_REGS_FULL) {
-            prevFrame.flags = (prevFrame.flags & ~uint16_t(FLG_COND)) | (flags & FLG_COND);
-        }
-    }
 
     switch (opcode & 0x0F00) {
 
@@ -1180,6 +1157,46 @@ bool TMC0501::consumeBreakpointHit() {
     return false;
 }
 
+// ── beginNextStep ─────────────────────────────────────────────────────────────
+//
+// Pre-execution phase for the next instruction to run. Called at the very start
+// of step() so the running loop gets it for free; also called explicitly by the
+// debugger after freeze or a step, to ensure the ring buffer is display-ready.
+//
+// Safe to call multiple times for the same addr: observable state is idempotent
+// (COND auto-restore only fires if FLG_JUMP set; ring patches write same values).
+// However, repeated calls do redundant ROM reads and snapshot captures.
+
+void TMC0501::beginNextStep() {
+    const uint32_t tf = m_traceFlags.load(std::memory_order_relaxed);
+    m_pendingOpcode = rom.read(addr);
+
+    // COND auto-restore: first non-branch instruction after a jump sequence
+    // restores COND to 1 so the next TST/CMP starts from a clean slate.
+    if (!(m_pendingOpcode & 0x1000) && (flags & FLG_JUMP)) {
+        flags &= ~FLG_JUMP;
+        flags |=  FLG_COND;
+    }
+
+    // Patch the previous ring entry's COND to its post-execution value.
+    // This runs for every instruction (branch and non-branch), ensuring all
+    // frames have the correct COND regardless of instruction type.
+    if (tf != TRACE_NONE && m_frameHead > 0) {
+        CpuFrame& prev = m_frameRing[(m_frameHead - 1) & kFrameRingMask];
+        if (tf & (TRACE_REGS_LIGHT | TRACE_REGS_FULL)) {
+            prev.cpuFlags = (prev.cpuFlags & ~uint16_t(FLG_COND)) | (flags & FLG_COND);
+        }
+        if (tf & TRACE_REGS_FULL) {
+            prev.flags = (prev.flags & ~uint16_t(FLG_COND)) | (flags & FLG_COND);
+        }
+    }
+
+    // Capture pre-execution snapshot for the instruction about to run.
+    if (tf != TRACE_NONE) {
+        tracePreStep(tf, m_pendingOpcode);
+    }
+}
+
 // ── tracePreStep ──────────────────────────────────────────────────────────────
 //
 // Called at the top of step() when any trace flag is active.
@@ -1350,34 +1367,6 @@ CpuFrame TMC0501::snapshotCPU() const {
     frame.dispFilter = m_dispFilter;
 
     return frame;
-}
-
-// ── finalizeCpuFrameForDisplay ─────────────────────────────────────────────────
-//
-// Called by the UI (Swift) when about to display the current CPU state, e.g., at
-// freeze. Patches the previous ring entry's COND if we're about to execute a
-// non-branch instruction after a jump sequence. This ensures the last jump shows
-// post-restoration COND=1 when displayed.
-//
-// Safe to call anytime; only patches if conditions are met.
-
-void TMC0501::finalizeCpuFrameForDisplay() {
-    uint32_t tf = m_traceFlags.load(std::memory_order_relaxed);
-    if (tf == TRACE_NONE || m_frameHead == 0) return;
-
-    // Check if we're at a non-branch instruction after a jump sequence
-    uint16_t opcode = rom.read(addr);
-    if ((opcode & 0x1000) == 0 && (flags & FLG_JUMP)) {
-        // Non-branch opcode, and we have FLG_JUMP set (exiting jump sequence)
-        // Patch the previous entry's COND to the restored value (1)
-        CpuFrame& prevFrame = m_frameRing[(m_frameHead - 1) & kFrameRingMask];
-        if (tf & (TRACE_REGS_LIGHT | TRACE_REGS_FULL)) {
-            prevFrame.cpuFlags = (prevFrame.cpuFlags & ~uint16_t(FLG_COND)) | (flags & FLG_COND);
-        }
-        if (tf & TRACE_REGS_FULL) {
-            prevFrame.flags = (prevFrame.flags & ~uint16_t(FLG_COND)) | (flags & FLG_COND);
-        }
-    }
 }
 
 // ── disassemble() ─────────────────────────────────────────────────────────────

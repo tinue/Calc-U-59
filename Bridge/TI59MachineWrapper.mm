@@ -335,8 +335,8 @@ static TICpuFrame marshalCpuFrame(const CpuFrame& f) {
     return out;
 }
 
-- (void)finalizeCpuFrameForDisplay {
-    _machine->finalizeCpuFrameForDisplay();
+- (void)beginNextStep {
+    _machine->beginNextStep();
 }
 
 + (double)decodeBCDNibbles:(NSData*)nibbles16 {

@@ -110,8 +110,9 @@ public:
     /// Capture a snapshot of all CPU registers at the current instant.
     CpuFrame snapshotCPU() const;
 
-    /// Finalize the CPU frame before displaying. Patches COND if about to exit a jump.
-    void finalizeCpuFrameForDisplay() { m_cpu.finalizeCpuFrameForDisplay(); }
+    /// Pre-execution phase: COND restore, patch previous ring entry, capture snapshot.
+    /// Call after stepUntilNextKeycode() or after step() in debugger mode.
+    void beginNextStep() { m_cpu.beginNextStep(); }
 
     /// Raw RAM access — reads/writes a complete 16-nibble register.
     /// reg must be in [0, RAM::TOTAL_REGS).
