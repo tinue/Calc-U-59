@@ -11,6 +11,7 @@ Unsorted collection of ideas, bugs, obsdervations etc.
 - **Optimize screen area** remove black areas left/right
 
 ## Various
+- **Keep memory on mddel switch** - This requires separate memory per model (currently shared)
 - **Emulation speed control** — a multiplier to run the emulator faster or slower than real time.
 - **Event callbacks** — push notifications for display updates and register changes, replacing the current polling model.
 - **Library module switching** — a UI picker to load different Solid State Library modules, with a machine reset on swap (matching real hardware behaviour).
