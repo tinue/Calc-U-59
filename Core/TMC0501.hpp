@@ -336,12 +336,8 @@ private:
     std::vector<uint16_t> m_breakpoints; // sorted ascending; protected by m_traceMutex
     bool m_breakpointHit{false};
 
-    // Saved during tracePreStep; consumed by tracePostStep.
-    uint16_t m_tracePC{};
-    uint16_t m_traceOpcode{};
-
-    void tracePreStep(uint32_t tf, uint16_t opcode, bool& snapCaptured);
-    void tracePostStep(uint32_t tf, bool snapCaptured, int weight);
+    void tracePreStep(uint32_t tf, uint16_t opcode);
+    void tracePostStep(uint32_t tf, int weight);
 
     // ── Helper methods for masked operations ──────────────────────────
     // Read only the nibbles specified by the field mask from RAM

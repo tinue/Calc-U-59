@@ -380,13 +380,6 @@ int TMC0501::step() {
     // ── Trace gate ────────────────────────────────────────────────────
     // One relaxed atomic load per step; falls through at zero cost when disabled.
     const uint32_t tf = m_traceFlags.load(std::memory_order_relaxed);
-    // snapCaptured: true when the mid-step snapshot was already written to the
-    // snap ring (after COND auto-restore, before instruction body).  tracePostStep
-    // checks this flag to skip re-capturing for non-branch instructions.
-    // Using bool avoids the 0xFF sentinel conflict: with a 512-slot ring, slot 255
-    // and slot 511 both have (idx & 0xFF) == 0xFF, which would falsely signal
-    // "not captured" if the ring-slot index were used as the sentinel.
-    bool snapCaptured = false;
 
     // ── Printer busy countdown ────────────────────────────────────────
     if (m_prnBusyCycles > 0) {
@@ -396,7 +389,7 @@ int TMC0501::step() {
     uint16_t opcode = rom.read(addr);
 
     // Capture pre-execution state for the trace ring.
-    if (tf != TRACE_NONE) [[unlikely]] { tracePreStep(tf, opcode, snapCaptured); }
+    if (tf != TRACE_NONE) [[unlikely]] { tracePreStep(tf, opcode); }
 
     // ── Digit counter ─────────────────────────────────────────────────
     // 4-bit counter cycling 15→14→…→1→0→15.  One step per instruction.
@@ -460,7 +453,7 @@ int TMC0501::step() {
             addr++;
         }
         int w = (flags & FLG_IDLE) ? 4 : 1;
-        if (tf != TRACE_NONE) [[unlikely]] { tracePostStep(tf, snapCaptured, w); }
+        if (tf != TRACE_NONE) [[unlikely]] { tracePostStep(tf, w); }
         if ((flags & FLG_IDLE) ? (fA & 0x4000u) : fA) m_cSteps.fetch_add(1, std::memory_order_relaxed);
         m_pollSteps.fetch_add(static_cast<uint32_t>(w), std::memory_order_relaxed);
         return w;
@@ -474,34 +467,6 @@ int TMC0501::step() {
         flags |=  FLG_COND;
     }
 
-    // ── Pre-instruction-body snapshot ─────────────────────────────────
-    // The reference emulator records CPU state HERE — after COND auto-restore
-    // but before the instruction body runs.  This means that for instructions
-    // that clear COND (e.g. ?TFKR, ?TST fA[b]), the trace shows COND=1
-    // (the freshly-restored value) rather than COND=0 (the post-execution
-    // value).  Branch instructions are unaffected: they return before reaching
-    // this point and always capture their snapshot post-execution (above).
-    //
-    // snapCaptured is set here to signal tracePostStep to skip re-capturing the
-    // snapshot (it would overwrite the pre-body values with post-body values).
-    if (tf != TRACE_NONE && (tf & TRACE_REGS_FULL)) [[unlikely]] {
-        uint32_t idx = m_frameHead & kFrameRingMask;
-        CpuFrame& frame = m_frameRing[idx];
-        memcpy(frame.A,    A,    16);
-        memcpy(frame.B,    B,    16);
-        memcpy(frame.C,    C,    16);
-        memcpy(frame.D,    D,    16);
-        memcpy(frame.E,    E,    16);
-        memcpy(frame.SCOM, SCOM, sizeof(SCOM));
-        memcpy(frame.Sout, Sout, 16);
-        frame.KR = KR; frame.SR = SR; frame.fA = fA; frame.fB = fB;
-        frame.EXT = EXT; frame.PREG = PREG ? 1 : 0; frame.flags = flags;
-        frame.m_libAddr = m_libAddr; frame.m_libAddrReadPos = m_libAddrReadPos;
-        frame.R5 = R5; frame.digit = digit;
-        frame.REG_ADDR = REG_ADDR; frame.RAM_ADDR = RAM_ADDR; frame.RAM_OP = RAM_OP;
-        frame.dispFilter = m_dispFilter;
-        snapCaptured = true;  // signal tracePostStep to skip re-capture
-    }
 
     switch (opcode & 0x0F00) {
 
@@ -886,7 +851,7 @@ int TMC0501::step() {
         addr++;
     }
     int w = (flags & FLG_IDLE) ? 4 : 1;
-    if (tf != TRACE_NONE) [[unlikely]] { tracePostStep(tf, snapCaptured, w); }
+    if (tf != TRACE_NONE) [[unlikely]] { tracePostStep(tf, w); }
     if ((flags & FLG_IDLE) ? (fA & 0x4000u) : fA) m_cSteps.fetch_add(1, std::memory_order_relaxed);
     m_pollSteps.fetch_add(static_cast<uint32_t>(w), std::memory_order_relaxed);
 
@@ -1204,15 +1169,11 @@ bool TMC0501::consumeBreakpointHit() {
 // ── tracePreStep ──────────────────────────────────────────────────────────────
 //
 // Called at the top of step() when any trace flag is active.
-// Records pc and opcode for use by tracePostStep.  snapCaptured starts false
-// and is set to true by the mid-step snapshot capture (after COND auto-restore,
-// before instruction body) for non-branch instructions.  Branch instructions
-// leave it false and capture post-execution in their own return path.
+// Captures a pre-execution snapshot of all CPU registers into the ring buffer.
+// COND is the single post-execution exception: patched in tracePostStep().
 
-void TMC0501::tracePreStep(uint32_t tf, uint16_t opcode, bool& snapCaptured) {
-    m_tracePC     = addr;
-    m_traceOpcode = opcode;
-
+void TMC0501::tracePreStep(uint32_t tf, uint16_t opcode) {
+    // Breakpoint check (unchanged)
     if (tf & TRACE_BREAKPOINTS) {
         std::lock_guard<std::mutex> lk(m_traceMutex);
         if (!m_breakpoints.empty()) {
@@ -1221,29 +1182,26 @@ void TMC0501::tracePreStep(uint32_t tf, uint16_t opcode, bool& snapCaptured) {
                 m_breakpointHit = true;
         }
     }
-}
 
-// ── tracePostStep ─────────────────────────────────────────────────────────────
-//
-// Called at every return site in step() when tracing is active.
-// Writes a TraceEvent to the ring.  Ring overflow: head advances unconditionally;
-// seqno gaps in the output signal dropped events to the caller.
-//
-// Snapshot timing (matches reference-emulator convention):
-//   • Non-branch instructions: snapshot was already captured mid-step (after COND
-//     auto-restore, before instruction body).  snapCaptured=true signals this; the
-//     capture below is skipped so the pre-body values are preserved.
-//   • Branch instructions: snapCaptured=false; snapshot is captured here, after
-//     the branch logic runs (post-execution).  Branches do not modify COND or
-//     registers visible in the snapshot, so timing does not matter for them.
+    // Capture pre-execution snapshot into the ring slot
+    CpuFrame& frame = m_frameRing[m_frameHead & kFrameRingMask];
 
-void TMC0501::tracePostStep(uint32_t tf, bool snapCaptured, int weight) {
-    uint32_t idx = m_frameHead & kFrameRingMask;
-    CpuFrame& frame = m_frameRing[idx];
+    // Identity (pc and opcode available here; seqno/cycleWeight set post-step)
+    frame.pc     = addr;
+    frame.opcode = opcode;
 
-    // Capture snapshot only for branch instructions (!snapCaptured).
-    // Non-branch instructions already wrote their snapshot after COND auto-restore.
-    if ((tf & TRACE_REGS_FULL) && !snapCaptured) {
+    // Light registers (previously deferred to tracePostStep for non-branch)
+    if (tf & (TRACE_REGS_LIGHT | TRACE_REGS_FULL)) {
+        frame.KR       = KR;
+        frame.SR       = SR;
+        frame.fA       = fA;
+        frame.fB       = fB;
+        frame.cpuFlags = flags;
+        frame.R5       = R5;
+    }
+
+    // Full registers (previously in mid-step block)
+    if (tf & TRACE_REGS_FULL) {
         memcpy(frame.A,    A,    16);
         memcpy(frame.B,    B,    16);
         memcpy(frame.C,    C,    16);
@@ -1258,27 +1216,29 @@ void TMC0501::tracePostStep(uint32_t tf, bool snapCaptured, int weight) {
         frame.REG_ADDR = REG_ADDR; frame.RAM_ADDR = RAM_ADDR; frame.RAM_OP = RAM_OP;
         frame.dispFilter = m_dispFilter;
     }
+}
 
-    // Fill in identity fields
-    frame.seqno     = m_traceSeqno++;
-    frame.pc        = m_tracePC;
-    frame.opcode    = m_traceOpcode;
-    frame.digit     = digit;
-    frame.cycleWeight = static_cast<uint8_t>(weight);
+// ── tracePostStep ─────────────────────────────────────────────────────────────
+//
+// Called at every return site in step() when tracing is active.
+// Patches COND to post-execution value (the only exception to pre-execution semantics),
+// then finalizes the snapshot with identity fields and advances the ring buffer.
 
-    // Fill in light registers (ONLY for branch instructions, which didn't capture mid-step).
-    // Non-branch instructions already have their light registers captured pre-execution at the
-    // mid-step point (before the instruction body runs), so we skip re-capturing here to
-    // preserve those pre-execution values.
-    if (!snapCaptured) {
-        // Branch instruction: snapshot wasn't captured mid-step, so capture light registers now
-        frame.KR       = KR;
-        frame.SR       = SR;
-        frame.fA       = fA;
-        frame.fB       = fB;
-        frame.cpuFlags = flags;
-        frame.R5       = R5;
+void TMC0501::tracePostStep(uint32_t tf, int weight) {
+    CpuFrame& frame = m_frameRing[m_frameHead & kFrameRingMask];
+
+    // Patch COND to post-execution value — the single exception to pre-execution semantics
+    if (tf & (TRACE_REGS_LIGHT | TRACE_REGS_FULL)) {
+        frame.cpuFlags = (frame.cpuFlags & ~uint16_t(FLG_COND)) | (flags & FLG_COND);
     }
+    if (tf & TRACE_REGS_FULL) {
+        frame.flags = (frame.flags & ~uint16_t(FLG_COND)) | (flags & FLG_COND);
+    }
+
+    // Identity fields only known after execution
+    frame.seqno       = m_traceSeqno++;
+    frame.digit       = digit;   // post-decrement, consistent with prior behavior
+    frame.cycleWeight = static_cast<uint8_t>(weight);
 
     m_frameHead++;
 }
