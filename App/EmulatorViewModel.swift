@@ -1162,12 +1162,26 @@ class EmulatorViewModel {
         snap.engIndicator = engBit ? "Eng" : ""
 
         // Program steps window — source depends on PRG SOURCE flag
-        snap.currentStep = decodeProgramCounter(from: cpu)
+        let decodedPC = decodeProgramCounter(from: cpu)
+
+        // When frozen: currentStep is the last executed instruction,
+        // nextStep is what PC points to (next to execute)
+        if isFrozen {
+            snap.currentStep = max(0, decodedPC - 1)
+            snap.nextStepNum = decodedPC
+        } else {
+            // When running: currentStep is the next to execute (pre-execution state)
+            snap.currentStep = decodedPC
+            snap.nextStepNum = -1
+        }
+
+        // Pre-fetch RAM program steps once (used by both window and nextStep population)
+        let ramSteps = snap.prSourceFlag == 0 ? Array(m.allProgramSteps() as Data) : []
 
         switch snap.prSourceFlag {
         case 0:
             // User RAM — existing behavior
-            let steps = Array(m.allProgramSteps() as Data)
+            let steps = ramSteps
             if !steps.isEmpty {
                 let center = snap.currentStep >= 0 ? snap.currentStep : 0
                 let lo = max(0, center - 5)
@@ -1238,6 +1252,41 @@ class EmulatorViewModel {
         default:
             // PRG SOURCE = 1 (library) or other: TBD
             break
+        }
+
+        // When frozen: populate nextStep fields from the next instruction to execute
+        if isFrozen && snap.nextStepNum >= 0 {
+            switch snap.prSourceFlag {
+            case 0:
+                // User RAM (steps already fetched above)
+                if snap.nextStepNum < ramSteps.count {
+                    let nextKeycode = ramSteps[snap.nextStepNum]
+                    snap.nextStepKeycode = nextKeycode
+                    let isArgument = {
+                        // Check if this step is an argument for a previous instruction
+                        if snap.nextStepNum == 0 { return false }
+                        let stepsAfter = TI59KeyNames.stepsAfter(for: ramSteps[snap.nextStepNum - 1])
+                        return stepsAfter > 0 && snap.nextStepNum - 1 + stepsAfter >= snap.nextStepNum
+                    }()
+                    snap.nextStepMnemonic = isArgument ? String(format: "%02d", nextKeycode) : TI59KeyNames.mnemonic(for: nextKeycode)
+                }
+            case 8:
+                // Main ROM
+                if snap.nextStepNum < 384 {
+                    let nextKeycode = m.romKeycode(at: snap.nextStepNum)
+                    snap.nextStepKeycode = nextKeycode
+                    let isArgument = {
+                        // Check if this step is an argument for a previous instruction
+                        if snap.nextStepNum == 0 { return false }
+                        let prevKeycode = m.romKeycode(at: snap.nextStepNum - 1)
+                        let stepsAfter = TI59KeyNames.stepsAfter(for: prevKeycode)
+                        return stepsAfter > 0 && snap.nextStepNum - 1 + stepsAfter >= snap.nextStepNum
+                    }()
+                    snap.nextStepMnemonic = isArgument ? String(format: "%02d", nextKeycode) : TI59KeyNames.mnemonic(for: nextKeycode)
+                }
+            default:
+                break
+            }
         }
 
         // Return address stack (SCOM[14:15]) — 6 levels of subroutine return addresses
@@ -1699,6 +1748,11 @@ struct LiveDebugSnapshot: Equatable {
     }
     var programWindow: [StepEntry] = []
     var currentStep: Int = -1   // -1 = unknown (SCOM location TBD)
+
+    // When frozen: the last fully executed step and the next step to execute
+    var nextStepNum: Int = -1      // Step number of next instruction (from PC when frozen)
+    var nextStepKeycode: UInt8 = 0  // Keycode of next instruction
+    var nextStepMnemonic: String = ""  // Mnemonic of next instruction
 
     // HIR registers (stored in SCOM[1..8]; decoded as Double)
     // Each HIR is 16 BCD nibbles: bits 15–3 = mantissa, 2–1 = exponent, 0 = sign

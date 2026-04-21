@@ -9,20 +9,20 @@
 # Entries marked <...> are handled by special-case branches in the disassembler.
 MASK	0	<flag>
 MASK	1	ALL
-MASK	2	DP
-MASK	3	DP
-MASK	4	DP
-MASK	5	LO
+MASK	2	DPT
+MASK	3	DPT1
+MASK	4	DPTC
+MASK	5	LLSD1
 MASK	6	EXP
-MASK	7	EXP
+MASK	7	EXP1
 MASK	8	<keyboard>
 MASK	9	MANT
 MASK	A	<wait>
-MASK	B	MID
-MASK	C	MX
-MASK	D	MID
-MASK	E	HI
-MASK	F	MX
+MASK	B	MLSD5
+MASK	C	MAEX
+MASK	D	MLSD1
+MASK	E	MMSD1
+MASK	F	MAEX1
 
 # ── DST ──────────────────────────────────────────────────────────────────────
 # Destination / exchange register names, indexed 0..7 by opcode bits 2-0.
