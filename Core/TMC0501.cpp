@@ -1169,6 +1169,7 @@ bool TMC0501::consumeBreakpointHit() {
 
 void TMC0501::beginNextStep() {
     const uint32_t tf = m_traceFlags.load(std::memory_order_relaxed);
+
     m_pendingOpcode = rom.read(addr);
 
     // COND auto-restore: first non-branch instruction after a jump sequence
@@ -1178,16 +1179,39 @@ void TMC0501::beginNextStep() {
         flags |=  FLG_COND;
     }
 
-    // Patch the previous ring entry's COND to its post-execution value.
-    // This runs for every instruction (branch and non-branch), ensuring all
-    // frames have the correct COND regardless of instruction type.
+    // Patch the previous ring entry to the CPU's post-execution state.
+    // This runs for every instruction (branch and non-branch), so every stored
+    // frame uses the same post-exec semantics for UI and trace-file consumers,
+    // including COND after auto-restore handling.
     if (tf != TRACE_NONE && m_frameHead > 0) {
         CpuFrame& prev = m_frameRing[(m_frameHead - 1) & kFrameRingMask];
         if (tf & (TRACE_REGS_LIGHT | TRACE_REGS_FULL)) {
-            prev.cpuFlags = (prev.cpuFlags & ~uint16_t(FLG_COND)) | (flags & FLG_COND);
+            prev.KR       = KR;
+            prev.SR       = SR;
+            prev.fA       = fA;
+            prev.fB       = fB;
+            prev.cpuFlags = flags;
+            prev.R5       = R5;
         }
         if (tf & TRACE_REGS_FULL) {
-            prev.flags = (prev.flags & ~uint16_t(FLG_COND)) | (flags & FLG_COND);
+            memcpy(prev.A,    A,    16);
+            memcpy(prev.B,    B,    16);
+            memcpy(prev.C,    C,    16);
+            memcpy(prev.D,    D,    16);
+            memcpy(prev.E,    E,    16);
+            memcpy(prev.SCOM, SCOM, sizeof(SCOM));
+            memcpy(prev.Sout, Sout, 16);
+            prev.EXT = EXT;
+            prev.PREG = PREG ? 1 : 0;
+            prev.flags = flags;
+            prev.m_libAddr = m_libAddr;
+            prev.m_libAddrReadPos = m_libAddrReadPos;
+            prev.R5 = R5;
+            prev.digit = digit;
+            prev.REG_ADDR = REG_ADDR;
+            prev.RAM_ADDR = RAM_ADDR;
+            prev.RAM_OP = RAM_OP;
+            prev.dispFilter = m_dispFilter;
         }
     }
 
@@ -1200,8 +1224,9 @@ void TMC0501::beginNextStep() {
 // ── tracePreStep ──────────────────────────────────────────────────────────────
 //
 // Called at the top of step() when any trace flag is active.
-// Captures a pre-execution snapshot of all CPU registers into the ring buffer.
-// COND is the single post-execution exception: patched in tracePostStep().
+// Captures instruction identity (pc/opcode) and a pre-execution baseline.
+// On the following instruction boundary, beginNextStep() patches the previous
+// frame to full post-execution state so all emitted entries share one semantic.
 
 void TMC0501::tracePreStep(uint32_t tf, uint16_t opcode) {
     // Breakpoint check (unchanged)
@@ -1253,9 +1278,8 @@ void TMC0501::tracePreStep(uint32_t tf, uint16_t opcode) {
 //
 // Called at every return site in step() when tracing is active.
 // Finalizes identity fields and advances the ring buffer.
-// COND patching is deferred to either:
-//   a) The start of the next instruction (if it auto-restores COND)
-//   b) finalizeCpuFrameForDisplay() (if freeze happens immediately)
+// Full state patching is deferred to beginNextStep() at the next instruction
+// boundary, where the previous frame is rewritten to post-execution state.
 
 void TMC0501::tracePostStep(uint32_t tf, int weight) {
     CpuFrame& frame = m_frameRing[m_frameHead & kFrameRingMask];

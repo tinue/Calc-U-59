@@ -427,7 +427,7 @@ active tab content switches automatically depending on whether the emulator is f
   steps).  Driven by `vm.liveDebugSnapshot` when `vm.liveDebugEnabled` is `true`.
 - **CPU** — When running, shows a scrolling live trace of recent instructions
   (`SimpleLiveCPUView`).  When frozen, switches to `CPUInspectorView`, which shows
-  the full instruction history with pre-execution CPU register snapshots and a
+  the full instruction history with post-execution CPU register snapshots and a
   look-ahead at upcoming ROM instructions.
 - **LOG** — The original text-based debug log (`StaticDebugContent`) backed by
   `vm.debugLines`.  Contains Vars/SCOM/Prog/Memory dump buttons and the TRACE toggle.
@@ -505,6 +505,10 @@ Flags are combined: `[.pc, .regsLight]` is the default when tracing is enabled.
 A unified `CpuFrame` struct combines all CPU state into one 397-byte structure,
 eliminating the parallel TraceEvent + CPUSnapshot mismatch risk.
 
+All emitted `CpuFrame` entries (UI and binary trace) use post-execution semantics.
+`COND` is finalized after jump-chain auto-restore handling and then written into
+the previous frame together with the rest of the CPU state.
+
 **Identity fields (always captured):**
 ```
 seqno         monotonically increasing; gaps indicate ring overflow
@@ -553,7 +557,7 @@ to continue or `singleStep()` to advance one instruction at a time.
 ### CPU Inspector
 
 The CPU inspector provides a deep view of instruction-level execution history with
-pre-execution register snapshots.  It is active when the **CPU** tab is selected
+post-execution register snapshots.  It is active when the **CPU** tab is selected
 and the emulator is frozen.
 
 #### `CPUDebugSnapshot`
@@ -567,7 +571,7 @@ struct CPUDebugSnapshot {
         var pc:     UInt16    // ROM address
         var opcode: UInt16    // 13-bit instruction word
         var disasm: String    // disassembly mnemonic
-        var frame:  TICpuFrame  // CPU state BEFORE this instruction executed
+    var frame:  TICpuFrame  // CPU state AFTER this instruction executed
     }
     var recentInstructions: [Instruction]  // last ≤32 instructions
     var currentPC:  UInt16
@@ -588,7 +592,7 @@ struct InspectorSnapshot {
     var pc:        UInt16
     var opcode:    UInt16
     var disasm:    String
-    var frame:     TICpuFrame  // CPU state BEFORE this instruction (empty for speculative future)
+    var frame:     TICpuFrame  // CPU state AFTER this instruction (empty for speculative future)
     var isHistory: Bool        // true = executed; false = speculative look-ahead
     var isCurrent: Bool        // true = the instruction frozen at
 }
@@ -679,6 +683,8 @@ Captures a unified CPU frame (instruction + full state) at a single instruction.
 **Payload is exactly 124 bytes (v4).**  This unified format eliminates the parallel
 TraceEvent + CPUSnapshot structure used in earlier versions, ensuring no mismatch
 between instruction metadata and CPU state.
+
+Frame state is post-execution for the recorded instruction.
 
 **Fixed fields (first 36 bytes):**
 
