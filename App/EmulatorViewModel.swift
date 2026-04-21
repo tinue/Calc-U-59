@@ -808,6 +808,11 @@ class EmulatorViewModel {
         cpuInspectorHistory = []
         let currentPC = m.currentPC
 
+        // Get program source to determine if we can read ahead
+        let cpu = m.snapshotCPU()
+        let prSourceFlag = UInt8(cpu.SCOM.0.3)
+        let inROM = (prSourceFlag == 8)
+
         // Add history: all executed instructions from the ring buffer (up to 1024)
         for i in 0..<frames.count {
             let frame = frames[i]
@@ -823,32 +828,19 @@ class EmulatorViewModel {
             ))
         }
 
-        // If last frame is different from currentPC, add currentPC as a future instruction
-        if frames.last?.pc != currentPC {
-            var emptyFrame = TICpuFrame()
-            cpuInspectorHistory.append(InspectorSnapshot(
-                pc: currentPC,
-                opcode: 0x0000,
-                disasm: "???",
-                frame: emptyFrame,
-                isHistory: false,
-                isCurrent: false
-            ))
-        }
-
-        // Add next 4 speculative instructions (ROM ahead, unknown opcodes)
-        for offset in 1...4 {
-            let nextPC = currentPC &+ UInt16(offset)
-            var emptyFrame = TICpuFrame()
-            cpuInspectorHistory.append(InspectorSnapshot(
-                pc: nextPC,
-                opcode: 0x0000,
-                disasm: "???",
-                frame: emptyFrame,
-                isHistory: false,
-                isCurrent: false
-            ))
-        }
+        // Certain next instruction — always show, even when same PC (WAIT/KEY loops on same instruction)
+        // cpu.opcode is now the real next opcode from snapshotCPU()
+        let nextOpcode = cpu.opcode
+        let disasm = TI59MachineWrapper.disassemblePC(currentPC, opcode: nextOpcode)
+        var emptyFrame = TICpuFrame()
+        cpuInspectorHistory.append(InspectorSnapshot(
+            pc: currentPC,
+            opcode: nextOpcode,
+            disasm: disasm,
+            frame: emptyFrame,
+            isHistory: false,
+            isCurrent: false
+        ))
     }
 
     /// Update isCurrent markers in the cached program for the given current step.

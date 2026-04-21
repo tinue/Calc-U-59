@@ -1349,7 +1349,7 @@ CpuFrame TMC0501::snapshotCPU() const {
     // Trace identity fields (not meaningful for a standalone snapshot, but initialized to 0)
     frame.seqno = 0;
     frame.pc = addr;
-    frame.opcode = 0;
+    frame.opcode = rom.read(addr);
     frame.digit = digit;
     frame.cycleWeight = 0;
 
