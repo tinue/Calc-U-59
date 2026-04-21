@@ -253,7 +253,7 @@ struct CPUInspectorView: View {
                 .fixedSize()
 
             HStack(spacing: 1) {
-                ForEach(array, id: \.self) { n in
+                ForEach(Array(array.enumerated()), id: \.offset) { _, n in
                     Text(String(format: "%X", n))
                         .font(.system(size: baseFontSize + 2, design: .monospaced))
                         .foregroundStyle(.white.opacity(0.85))

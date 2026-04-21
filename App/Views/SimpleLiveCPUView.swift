@@ -59,7 +59,7 @@ struct SimpleLiveCPUView: View {
                 // Instructions trace (compact list)
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
-                        ForEach(vm.cpuDebugSnapshot.recentInstructions, id: \.pc) { instr in
+                        ForEach(Array(vm.cpuDebugSnapshot.recentInstructions.enumerated()), id: \.offset) { _, instr in
                             let isCurrent = (instr.pc == vm.cpuDebugSnapshot.currentPC)
                             HStack(spacing: 6) {
                                 Text(String(format: "0x%04X", instr.pc))
