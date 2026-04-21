@@ -467,6 +467,20 @@ int TMC0501::step() {
         flags |=  FLG_COND;
     }
 
+    // ── Patch previous instruction's COND with post-restoration value ────
+    // At the start of each new instruction, the previous entry's COND gets
+    // the current value: either unchanged (if no COND auto-restore), or
+    // restored to 1 (if we just exited a jump sequence). This ensures the
+    // last jump in a sequence shows post-restoration COND correctly.
+    if (tf != TRACE_NONE && m_frameHead > 0) {
+        CpuFrame& prevFrame = m_frameRing[(m_frameHead - 1) & kFrameRingMask];
+        if (tf & (TRACE_REGS_LIGHT | TRACE_REGS_FULL)) {
+            prevFrame.cpuFlags = (prevFrame.cpuFlags & ~uint16_t(FLG_COND)) | (flags & FLG_COND);
+        }
+        if (tf & TRACE_REGS_FULL) {
+            prevFrame.flags = (prevFrame.flags & ~uint16_t(FLG_COND)) | (flags & FLG_COND);
+        }
+    }
 
     switch (opcode & 0x0F00) {
 
@@ -1221,23 +1235,16 @@ void TMC0501::tracePreStep(uint32_t tf, uint16_t opcode) {
 // ── tracePostStep ─────────────────────────────────────────────────────────────
 //
 // Called at every return site in step() when tracing is active.
-// Patches COND to post-execution value (the only exception to pre-execution semantics),
-// then finalizes the snapshot with identity fields and advances the ring buffer.
+// Finalizes the snapshot with identity fields and advances the ring buffer.
+// COND patching happens at the start of the next instruction (retroactively updating
+// the previous entry with post-execution value).
 
 void TMC0501::tracePostStep(uint32_t tf, int weight) {
     CpuFrame& frame = m_frameRing[m_frameHead & kFrameRingMask];
 
-    // Patch COND to post-execution value — the single exception to pre-execution semantics
-    if (tf & (TRACE_REGS_LIGHT | TRACE_REGS_FULL)) {
-        frame.cpuFlags = (frame.cpuFlags & ~uint16_t(FLG_COND)) | (flags & FLG_COND);
-    }
-    if (tf & TRACE_REGS_FULL) {
-        frame.flags = (frame.flags & ~uint16_t(FLG_COND)) | (flags & FLG_COND);
-    }
-
     // Identity fields only known after execution
     frame.seqno       = m_traceSeqno++;
-    frame.digit       = digit;   // post-decrement, consistent with prior behavior
+    frame.digit       = digit;
     frame.cycleWeight = static_cast<uint8_t>(weight);
 
     m_frameHead++;
