@@ -815,8 +815,6 @@ class EmulatorViewModel {
 
         // Get program source to determine if we can read ahead
         let cpu = m.snapshotCPU()
-        let prSourceFlag = UInt8(cpu.SCOM.0.3)
-        let inROM = (prSourceFlag == 8)
 
         // Add history: all executed instructions from the ring buffer (up to 1024)
         for i in 0..<frames.count {
@@ -837,7 +835,7 @@ class EmulatorViewModel {
         // cpu.opcode is now the real next opcode from snapshotCPU()
         let nextOpcode = cpu.opcode
         let disasm = TI59MachineWrapper.disassemblePC(currentPC, opcode: nextOpcode)
-        var emptyFrame = TICpuFrame()
+        let emptyFrame = TICpuFrame()
         cpuInspectorHistory.append(InspectorSnapshot(
             pc: currentPC,
             opcode: nextOpcode,
