@@ -117,6 +117,7 @@ class EmulatorViewModel {
         var isCurrent: Bool  // true = this is where it froze
     }
     var cpuInspectorHistory: [InspectorSnapshot] = []  // 32 history + 1 current + 5 future
+    var cpuInspectorUpdateID: Int = 0  // incremented every captureInspectorSnapshot call
 
     // ── Trace / debug state ──────────────────────────────────────────────────
     var breakpoints: Set<UInt16> = []
@@ -845,6 +846,9 @@ class EmulatorViewModel {
             isHistory: false,
             isCurrent: false
         ))
+
+        // Signal that the inspector snapshot has been updated (fires onChange observers)
+        cpuInspectorUpdateID &+= 1
     }
 
     /// Update isCurrent markers in the cached program for the given current step.
