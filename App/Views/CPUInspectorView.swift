@@ -152,9 +152,9 @@ struct CPUInspectorView: View {
                                     }
                                     HStack(spacing: 16) {
                                         Text("COND:\(cond)")
-                                            .foregroundStyle(cond == 1 ? .white : .white.opacity(0.45))
+                                            .foregroundStyle(cond == 1 ? Color.yellow.opacity(0.4) : Color.yellow)
                                         Text("IDLE:\(idle)")
-                                            .foregroundStyle(idle == 1 ? Color.yellow.opacity(0.8) : .white.opacity(0.45))
+                                            .foregroundStyle(idle == 1 ? .white : .white.opacity(0.45))
                                         Spacer()
                                     }
                                 }
