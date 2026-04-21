@@ -203,6 +203,11 @@ public:
     /// Capture a snapshot of all CPU registers at the current instant.
     CpuFrame snapshotCPU() const;
 
+    /// Finalize the last ring-buffer entry before displaying. If about to execute
+    /// a non-branch instruction after a jump sequence, patches the previous entry's
+    /// COND to the post-restoration value. Safe to call anytime.
+    void finalizeCpuFrameForDisplay();
+
     /// Direct SCOM nibble access (row 0–15, col 0–15).
     uint8_t  scomNibble(int row, int col) const { return SCOM[row][col]; }
     void setSCOMNibble(int row, int col, uint8_t val) { SCOM[row][col] = val & 0xF; }

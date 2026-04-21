@@ -335,6 +335,10 @@ static TICpuFrame marshalCpuFrame(const CpuFrame& f) {
     return out;
 }
 
+- (void)finalizeCpuFrameForDisplay {
+    _machine->finalizeCpuFrameForDisplay();
+}
+
 + (double)decodeBCDNibbles:(NSData*)nibbles16 {
     if (nibbles16.length < 16) return 0.0;
     return TI59Machine::decodeBCD((const uint8_t*)nibbles16.bytes);

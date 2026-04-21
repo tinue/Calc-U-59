@@ -1235,20 +1235,13 @@ void TMC0501::tracePreStep(uint32_t tf, uint16_t opcode) {
 // ── tracePostStep ─────────────────────────────────────────────────────────────
 //
 // Called at every return site in step() when tracing is active.
-// Patches COND to post-execution value, then finalizes identity fields and
-// advances the ring buffer. If a later instruction needs to patch the previous
-// entry (jump auto-restore), it will overwrite COND at that time.
+// Finalizes identity fields and advances the ring buffer.
+// COND patching is deferred to either:
+//   a) The start of the next instruction (if it auto-restores COND)
+//   b) finalizeCpuFrameForDisplay() (if freeze happens immediately)
 
 void TMC0501::tracePostStep(uint32_t tf, int weight) {
     CpuFrame& frame = m_frameRing[m_frameHead & kFrameRingMask];
-
-    // Patch COND to post-execution value for this instruction
-    if (tf & (TRACE_REGS_LIGHT | TRACE_REGS_FULL)) {
-        frame.cpuFlags = (frame.cpuFlags & ~uint16_t(FLG_COND)) | (flags & FLG_COND);
-    }
-    if (tf & TRACE_REGS_FULL) {
-        frame.flags = (frame.flags & ~uint16_t(FLG_COND)) | (flags & FLG_COND);
-    }
 
     // Identity fields only known after execution
     frame.seqno       = m_traceSeqno++;
@@ -1357,6 +1350,34 @@ CpuFrame TMC0501::snapshotCPU() const {
     frame.dispFilter = m_dispFilter;
 
     return frame;
+}
+
+// ── finalizeCpuFrameForDisplay ─────────────────────────────────────────────────
+//
+// Called by the UI (Swift) when about to display the current CPU state, e.g., at
+// freeze. Patches the previous ring entry's COND if we're about to execute a
+// non-branch instruction after a jump sequence. This ensures the last jump shows
+// post-restoration COND=1 when displayed.
+//
+// Safe to call anytime; only patches if conditions are met.
+
+void TMC0501::finalizeCpuFrameForDisplay() {
+    uint32_t tf = m_traceFlags.load(std::memory_order_relaxed);
+    if (tf == TRACE_NONE || m_frameHead == 0) return;
+
+    // Check if we're at a non-branch instruction after a jump sequence
+    uint16_t opcode = rom.read(addr);
+    if ((opcode & 0x1000) == 0 && (flags & FLG_JUMP)) {
+        // Non-branch opcode, and we have FLG_JUMP set (exiting jump sequence)
+        // Patch the previous entry's COND to the restored value (1)
+        CpuFrame& prevFrame = m_frameRing[(m_frameHead - 1) & kFrameRingMask];
+        if (tf & (TRACE_REGS_LIGHT | TRACE_REGS_FULL)) {
+            prevFrame.cpuFlags = (prevFrame.cpuFlags & ~uint16_t(FLG_COND)) | (flags & FLG_COND);
+        }
+        if (tf & TRACE_REGS_FULL) {
+            prevFrame.flags = (prevFrame.flags & ~uint16_t(FLG_COND)) | (flags & FLG_COND);
+        }
+    }
 }
 
 // ── disassemble() ─────────────────────────────────────────────────────────────

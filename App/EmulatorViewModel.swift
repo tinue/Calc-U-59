@@ -738,6 +738,8 @@ class EmulatorViewModel {
             _ = m.stepUntilNextKeycode()
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
+                // Finalize CPU frame for display (patches COND if needed for jump exit)
+                m.finalizeCpuFrameForDisplay()
                 // Build program caches on freeze entry
                 let cpu = m.snapshotCPU()
                 let currentStep = self.decodeProgramCounter(from: cpu)
@@ -767,6 +769,7 @@ class EmulatorViewModel {
             _ = m.stepUntilNextKeycode()
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
+                m.finalizeCpuFrameForDisplay()
                 let cpu = m.snapshotCPU()
                 let currentStep = self.decodeProgramCounter(from: cpu)
                 let prSourceFlag = UInt8(cpu.SCOM.0.3)

@@ -192,6 +192,10 @@ typedef struct {
 /// Capture a snapshot of all CPU registers at the current instant.
 - (TICpuFrame)snapshotCPU;
 
+/// Finalize the CPU frame before displaying (e.g., at freeze). Patches the
+/// previous ring entry's COND if about to execute a non-branch after a jump.
+- (void)finalizeCpuFrameForDisplay;
+
 /// Decode a 16-nibble BCD register to a Double (pure, no machine state needed).
 + (double)decodeBCDNibbles:(NSData*)nibbles16
     NS_SWIFT_NAME(decodeBCD(_:));

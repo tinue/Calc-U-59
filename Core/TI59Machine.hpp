@@ -110,6 +110,9 @@ public:
     /// Capture a snapshot of all CPU registers at the current instant.
     CpuFrame snapshotCPU() const;
 
+    /// Finalize the CPU frame before displaying. Patches COND if about to exit a jump.
+    void finalizeCpuFrameForDisplay() { m_cpu.finalizeCpuFrameForDisplay(); }
+
     /// Raw RAM access — reads/writes a complete 16-nibble register.
     /// reg must be in [0, RAM::TOTAL_REGS).
     const uint8_t* readRAMReg(int reg) const { return m_ram.readReg(reg); }
