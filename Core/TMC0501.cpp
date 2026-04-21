@@ -1235,12 +1235,20 @@ void TMC0501::tracePreStep(uint32_t tf, uint16_t opcode) {
 // ── tracePostStep ─────────────────────────────────────────────────────────────
 //
 // Called at every return site in step() when tracing is active.
-// Finalizes the snapshot with identity fields and advances the ring buffer.
-// COND patching happens at the start of the next instruction (retroactively updating
-// the previous entry with post-execution value).
+// Patches COND to post-execution value, then finalizes identity fields and
+// advances the ring buffer. If a later instruction needs to patch the previous
+// entry (jump auto-restore), it will overwrite COND at that time.
 
 void TMC0501::tracePostStep(uint32_t tf, int weight) {
     CpuFrame& frame = m_frameRing[m_frameHead & kFrameRingMask];
+
+    // Patch COND to post-execution value for this instruction
+    if (tf & (TRACE_REGS_LIGHT | TRACE_REGS_FULL)) {
+        frame.cpuFlags = (frame.cpuFlags & ~uint16_t(FLG_COND)) | (flags & FLG_COND);
+    }
+    if (tf & TRACE_REGS_FULL) {
+        frame.flags = (frame.flags & ~uint16_t(FLG_COND)) | (flags & FLG_COND);
+    }
 
     // Identity fields only known after execution
     frame.seqno       = m_traceSeqno++;
