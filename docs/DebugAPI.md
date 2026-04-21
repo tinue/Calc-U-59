@@ -637,7 +637,7 @@ The binary trace file captures instruction-level CPU state at 60 Hz. It is used 
 ```
 Offset  Size  Type   Field        Description
 0       4     LE U32 magic        Magic: 0x54493539 ('TI59' in little-endian ASCII)
-4       2     LE U16 version      Format version (currently 4; backward-compatible readers accept 2, 3)
+4       2     LE U16 version      Format version (currently 1; baseline for v1.0.0 — do not increment before release)
 6       10    —      reserved     Reserved; ignore for forward compatibility
 ```
 
@@ -657,7 +657,7 @@ Offset  Size  Type   Field           Description
 | Type | Name              | Payload | Purpose |
 |------|-------------------|---------|---------|
 | 0x01 | SESSION_START     | 8 bytes | Session boundary marker |
-| 0x02 | TRACE_EVENT       | 124 bytes (v4) | Unified CPU frame snapshot (combined instruction + state) |
+| 0x02 | TRACE_EVENT       | 124 bytes | Unified CPU frame snapshot (combined instruction + state) |
 | 0x03 | SESSION_END       | 8 bytes | Session terminator with counts |
 | 0x04 | USER_EVENT        | ≥4 bytes | User input (key press, card insert) |
 | 0x05 | TRACE_GAP         | 4 bytes | Ring overflow marker: UInt32 LE count of lost frames |
@@ -680,9 +680,7 @@ Offset  Size  Type   Field       Description
 #### TRACE_EVENT (0x02)
 
 Captures a unified CPU frame (instruction + full state) at a single instruction.
-**Payload is exactly 124 bytes (v4).**  This unified format eliminates the parallel
-TraceEvent + CPUSnapshot structure used in earlier versions, ensuring no mismatch
-between instruction metadata and CPU state.
+**Payload is exactly 124 bytes.** (v1 baseline; any future changes require binary format version increment).
 
 Frame state is post-execution for the recorded instruction.
 
@@ -804,11 +802,7 @@ instruction count across gaps.
   emulation runs faster than the trace drain thread, frames are lost. Lost frames are
   reported via TRACE_GAP records (type 0x05). Check for `seqno` gaps in TRACE_EVENT
   records to detect overflow; the gap size equals the number of lost frames.
-- **Version compatibility:**
-  - v2, v3: 123-byte TRACE_EVENT payloads (v3 added `m_libAddrReadPos`, backward compatible with v2)
-  - v4: 124-byte TRACE_EVENT payloads (added `dispFilter` field for display blanking state)
-    - Later v4 addition: TRACE_GAP records (type 0x05) for ring buffer overflow reporting
-    - Old readers expecting only types 0x01–0x04 will silently skip 0x05 (forward-compatible)
+- **Record types:** Unknown record types are silently skipped (forward-compatible).
 
 ---
 

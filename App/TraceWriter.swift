@@ -19,7 +19,7 @@ final class TraceWriter {
     // ── Record type constants ─────────────────────────────────────────────────
     private enum RecType: UInt8 {
         case sessionStart = 0x01
-        case traceEvent   = 0x02  // deprecated; kept for backward compat
+        case traceEvent   = 0x02
         case sessionEnd   = 0x03
         case userEvent    = 0x04
         case traceGap     = 0x05  // frame count: UInt32 of lost frames
@@ -34,7 +34,7 @@ final class TraceWriter {
 
     // ── File header constants ─────────────────────────────────────────────────
     private static let magic: UInt32   = 0x54493539   // 'TI59' LE
-    private static let version: UInt16 = 4            // v4: added dispFilter field (display blanking counter)
+    private static let version: UInt16 = 1  // Baseline version for initial release; do not increment until v1.0.0 ships
     private static let headerSize      = 16
 
     // ── State ─────────────────────────────────────────────────────────────────

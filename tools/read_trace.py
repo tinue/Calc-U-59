@@ -33,7 +33,7 @@ from disasm import disasm
 # ── Constants (must match DebugAPI.md) ────────────────────────────────────────
 
 MAGIC   = 0x54493539   # 'TI59' in LE memory
-VERSION = 4            # v4: added dispFilter field (backward-compat reads v2, v3, v4)
+VERSION = 1            # Baseline version for initial release; do not increment until v1.0.0 ships
 
 REC_SESSION_START = 0x01
 REC_TRACE_EVENT   = 0x02
@@ -58,15 +58,15 @@ def _parse_file_header(f):
     magic, version = struct.unpack_from('<IH', hdr, 0)
     if magic != MAGIC:
         raise ValueError(f"Bad magic: 0x{magic:08X} (expected 0x{MAGIC:08X})")
-    if version not in (2, 3, 4):
-        raise ValueError(f"Unsupported version: {version}")
+    if version != VERSION:
+        raise ValueError(f"Unsupported version: {version} (expected {VERSION})")
 
 def _parse_trace_event(payload):
-    """Parse a 124-byte TRACE_EVENT payload into a dict (v4: added dispFilter)."""
+    """Parse a 124-byte TRACE_EVENT payload into a dict."""
     if len(payload) != 124:
         raise ValueError(f"TRACE_EVENT payload length {len(payload)}, expected 124")
 
-    # Fixed fields (36 bytes in v4: added dispFilter)
+    # Fixed fields (36 bytes)
     (suppressed, seqno, pc, opcode, fA, fB, KR, SR,
      EXT, PREG, cpu_flags, m_libAddr, R5, digit,
      RAM_ADDR, RAM_OP, REG_ADDR, m_libAddrReadPos, cycle_weight, dispFilter) = struct.unpack_from(
@@ -83,7 +83,7 @@ def _parse_trace_event(payload):
 
     # Sout: 8 bytes, nibble-packed (low nibble = Sout[2i], high = Sout[2i+1])
     sout = []
-    for b in payload[112:120]:
+    for b in payload[off:off+8]:
         sout.append(b & 0x0F)
         sout.append((b >> 4) & 0x0F)
 
@@ -333,6 +333,11 @@ def _skip_repeating(records):
         # Verify this is a real loop: last instruction must be a jump/branch
         # Get mnemonic of last instruction in cycle
         last_rec = records[cycle_end - 1]
+        if last_rec.get('type') != 'trace':
+            # Not a trace record, can't analyze; skip loop collapsing
+            out.append(rec)
+            i += 1
+            continue
         last_mnem = disasm(int(last_rec['pc'], 16), int(last_rec['opcode'], 16))
 
         # Extract target from jump mnemonic if present
