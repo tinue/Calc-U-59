@@ -841,7 +841,14 @@ int TMC0501::step() {
     } else if (!(flags & FLG_HOLD)) {
         addr++;
     }
-    int w = (flags & FLG_IDLE) ? 4 : 1;
+    // Timing quirk: WAIT Dn appears to execute at base instruction rate even
+    // while IDLE is set; only non-WAIT instructions are slowed by the IDLE
+    // divider.
+    const bool isWaitDn = ((opcode & 0x0F0Fu) == 0x0A00u);
+    int w = 1;
+    if (flags & FLG_IDLE) {
+        w = isWaitDn ? 1 : 4;
+    }
     if (tf != TRACE_NONE) [[unlikely]] { tracePostStep(tf, w); }
     if ((flags & FLG_IDLE) ? (fA & 0x4000u) : fA) m_cSteps.fetch_add(1, std::memory_order_relaxed);
     m_pollSteps.fetch_add(static_cast<uint32_t>(w), std::memory_order_relaxed);
