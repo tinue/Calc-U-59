@@ -1511,7 +1511,12 @@ std::string TMC0501::disassemble(uint16_t pc, uint16_t opcode) {
     // ── Keyboard scan (hi nibble = 8) ─────────────────────────────────
     if (hi == 0x8) {
         bool    single = (opcode & 0x0008) != 0;
-        uint8_t kmask  = static_cast<uint8_t>((opcode >> 4) & 0x0Fu);
+        // Reconstruct the 7-bit K-line mask using the same formula as execution:
+        // bits 2:0 → K-lines KN/KO/KP
+        // bits 10:4 → K-lines KQ/KR/KS/KT (extracted via >> 1)
+        uint8_t kmask_raw = static_cast<uint8_t>(
+            (opcode & 0x07u) | ((opcode >> 1) & 0x78u));
+        uint8_t kmask  = static_cast<uint8_t>(kmask_raw ^ 0x7Fu);
         if (single) {
             snprintf(buf, sizeof(buf), "KEY %u,D%u", kmask, opcode & 7u);
         } else {
