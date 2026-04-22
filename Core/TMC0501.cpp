@@ -425,15 +425,16 @@ int TMC0501::step() {
     if (digit == 0) {
         if (flags & FLG_IDLE) {
             m_dispFilter = 0;
-            if (m_pendingDisplayUpdate) {
-                m_pendingDisplayUpdate = false;
-                std::lock_guard<std::mutex> lock(m_displayMutex);
-                for (int i = 0; i < 12; ++i) {
-                    m_display.digits[i] = A[i + 2] & 0x0F;
-                    m_display.ctrl[i]   = B[i + 2] & 0x0F;
-                }
-                m_display.dpPos = R5 & 0x0F;
+            // Auto-update display every digit cycle while in IDLE mode.
+            // This matches hardware behavior: display reflects A/B changes immediately
+            // while idle (m_pendingDisplayUpdate tracks entry to IDLE for initial latch,
+            // but display continuously refreshes).
+            std::lock_guard<std::mutex> lock(m_displayMutex);
+            for (int i = 0; i < 12; ++i) {
+                m_display.digits[i] = A[i + 2] & 0x0F;
+                m_display.ctrl[i]   = B[i + 2] & 0x0F;
             }
+            m_display.dpPos = R5 & 0x0F;
         } else if (m_dispFilter < 3) {
             m_dispFilter++;
         }
