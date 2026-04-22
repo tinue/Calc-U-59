@@ -296,6 +296,7 @@ DisplaySnapshot TMC0501::getDisplay() const {
         return blank;
     }
     DisplaySnapshot s = m_display;
+    s.dpPos = R5 & 0x0F;  // Live R5 value for POV decimal-point effect
     s.calcIndicator = cLevel;
     return s;
 }
@@ -434,7 +435,6 @@ int TMC0501::step() {
                 m_display.digits[i] = A[i + 2] & 0x0F;
                 m_display.ctrl[i]   = B[i + 2] & 0x0F;
             }
-            m_display.dpPos = R5 & 0x0F;
         } else if (m_dispFilter < 3) {
             m_dispFilter++;
         }
