@@ -189,6 +189,11 @@ public:
     /// Return the content currently held in the printer character buffer.
     std::string printerBufferContent() const;
 
+    /// Debug-only helper: repeatedly force PREG redirect to startAddr and step
+    /// until HOLD is observed or maxSteps is reached. Returns true on success.
+    bool runDebugInjectedProgram(uint16_t startAddr, uint32_t maxSteps,
+                                 uint32_t* outSteps, bool* outSawHold);
+
     /// Return the last stable display snapshot.
     /// The snapshot is captured on every SET IDLE when the digit counter
     /// reaches 0.  If the CPU has been active (not idling) for 3+ consecutive
@@ -287,7 +292,7 @@ private:
     uint8_t              m_cardSwitchCol{10};   // Digit-counter slot of the card-switch key.
     bool                 m_cardPresent{false};  // Card is currently passing through reader.
     bool                 m_waitingForCard{false}; // ROM is polling TST BUSY for a card.
-    
+
     uint8_t              m_cardFullData[984]{}; // 4 banks * 246 bytes/bank.
     uint8_t              m_cardBankBuffer[246]{}; // Current active swipe buffer.
     size_t               m_cardPtr{0};         // Current index in m_cardBankBuffer.

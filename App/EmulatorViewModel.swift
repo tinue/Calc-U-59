@@ -89,6 +89,11 @@ class EmulatorViewModel {
     var debugEnabled: Bool { debugLevel != .off }   // convenience for existing callers
     var debugLines: [String] = []
     var debugClearID: Int = 0   // incremented on clear to reset Text identity and drop selection
+    var asmFileName: String = "No file selected"
+    var asmWordCount: Int = 0
+    var asmStatusMessage: String = "Load a hex opcode file and press Run."
+    private var asmOverlayWords: [UInt16] = []
+    var canRunASM: Bool { !asmOverlayWords.isEmpty }
 
     // ── Live debug panel state (60 Hz real-time) ──────────────────────────────
     var liveDebugEnabled: Bool = false
@@ -191,6 +196,15 @@ class EmulatorViewModel {
                 // routine sees the warm-start flag and skips its RAM clear —
                 // matching the real TI-58C where CMOS RAM was always live.
                 wrapper.deserialiseRAM(saved)
+            }
+
+            if !asmOverlayWords.isEmpty {
+                let data = asmOverlayWords.withUnsafeBufferPointer { Data(buffer: $0) }
+                if !wrapper.loadDebugOverlayWords(data) {
+                    asmOverlayWords = []
+                    asmWordCount = 0
+                    asmStatusMessage = "ASM overlay cleared (incompatible after model switch)."
+                }
             }
 
             self.machine = wrapper
@@ -1415,6 +1429,156 @@ class EmulatorViewModel {
     func clearDebug() {
         debugLines = []
         debugClearID &+= 1
+    }
+
+    func loadASMOverlayFile(_ url: URL) {
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        guard let text = try? String(contentsOf: url, encoding: .utf8) else {
+            asmStatusMessage = "Could not read ASM file."
+            errorMessage = "Could not read ASM file."
+            return
+        }
+
+        do {
+            let words = try parseASMWords(from: text)
+            guard let m = machine else {
+                asmStatusMessage = "Machine not initialized yet."
+                return
+            }
+            let data = words.withUnsafeBufferPointer { Data(buffer: $0) }
+            guard m.loadDebugOverlayWords(data) else {
+                asmStatusMessage = "ASM program exceeds overlay range 0x1800-0x1FFF."
+                errorMessage = asmStatusMessage
+                return
+            }
+            asmOverlayWords = words
+            asmFileName = url.lastPathComponent
+            asmWordCount = words.count
+            asmStatusMessage = String(format: "Loaded %d word(s) at 0x1800.", words.count)
+        } catch {
+            let msg = error.localizedDescription
+            asmStatusMessage = msg
+            errorMessage = msg
+        }
+    }
+
+    func clearASMOverlay() {
+        machine?.clearDebugOverlay()
+        asmOverlayWords = []
+        asmWordCount = 0
+        asmStatusMessage = "ASM overlay cleared."
+    }
+
+    func runASMOverlay() {
+        guard !asmOverlayWords.isEmpty else {
+            asmStatusMessage = "No ASM overlay loaded."
+            return
+        }
+        guard let m = machine else {
+            asmStatusMessage = "Machine not initialized yet."
+            return
+        }
+
+        isRunning = false
+        isPausedOnBreakpoint = false
+        breakpointPC = nil
+        pendingFreezeOnPCChange = false
+        freezeReason = nil
+        frozenROMCache = nil
+        frozenRAMCache = nil
+        cachedPrSourceFlag = 0
+
+        var steps: UInt32 = 0
+        var sawHold: ObjCBool = false
+        var ok = false
+        var loaded = true
+
+        // Wait until any in-flight step batch finishes, then run the injection.
+        emulQueue.sync {
+            let data = self.asmOverlayWords.withUnsafeBufferPointer { Data(buffer: $0) }
+            if !m.loadDebugOverlayWords(data) {
+                loaded = false
+                ok = false
+                return
+            }
+            ok = m.runDebugOverlay(at: 0x1800, maxSteps: 8192, steps: &steps, sawHold: &sawHold)
+            m.beginNextStep()
+        }
+
+        if !loaded {
+            asmStatusMessage = "ASM program exceeds overlay range 0x1800-0x1FFF."
+            errorMessage = asmStatusMessage
+        } else if ok {
+            asmStatusMessage = sawHold.boolValue
+                ? "ASM entered at 0x1800 (HOLD detected after \(steps) step(s))."
+                : "ASM entered at 0x1800 (\(steps) step(s))."
+            startEmulationLoop()
+            startDisplayRefresh()
+        } else {
+            asmStatusMessage = "ASM run timed out before HOLD (\(steps) step(s))."
+            errorMessage = asmStatusMessage
+        }
+    }
+
+    private func parseASMWords(from text: String) throws -> [UInt16] {
+        enum ASMParseError: LocalizedError {
+            case noWords
+            case invalidToken(String)
+            case tooLarge(Int)
+
+            var errorDescription: String? {
+                switch self {
+                case .noWords:
+                    return "No hex opcode words found in ASM file."
+                case .invalidToken(let token):
+                    return "Invalid ASM token: \(token)"
+                case .tooLarge(let count):
+                    return "ASM contains \(count) words; maximum is 2048 (0x1800-0x1FFF)."
+                }
+            }
+        }
+
+        let pattern = #"0[xX][0-9A-Fa-f]+|[0-9A-Fa-f]{4,}"#
+        let regex = try NSRegularExpression(pattern: pattern)
+        let nsText = text as NSString
+        let matches = regex.matches(in: text, range: NSRange(location: 0, length: nsText.length))
+
+        var words: [UInt16] = []
+        words.reserveCapacity(matches.count)
+
+        for match in matches {
+            var token = nsText.substring(with: match.range)
+            if token.hasPrefix("0x") || token.hasPrefix("0X") {
+                token.removeFirst(2)
+            }
+            guard !token.isEmpty else { continue }
+            guard token.allSatisfy({ $0.isHexDigit }) else {
+                throw ASMParseError.invalidToken(token)
+            }
+            if token.count % 4 != 0 {
+                throw ASMParseError.invalidToken(token)
+            }
+
+            var idx = token.startIndex
+            while idx < token.endIndex {
+                let next = token.index(idx, offsetBy: 4)
+                let chunk = String(token[idx..<next])
+                guard let value = UInt16(chunk, radix: 16) else {
+                    throw ASMParseError.invalidToken(chunk)
+                }
+                words.append(value & 0x1FFF)
+                idx = next
+            }
+        }
+
+        if words.isEmpty {
+            throw ASMParseError.noWords
+        }
+        if words.count > 2048 {
+            throw ASMParseError.tooLarge(words.count)
+        }
+        return words
     }
 
     private func debugAppend(_ lines: [String], level: DebugLevel = .info) {

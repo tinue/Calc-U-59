@@ -147,6 +147,20 @@ typedef struct {
 - (void)removeBreakpoint:(uint16_t)pc;
 - (void)clearBreakpoints;
 
+/// Load 13-bit opcodes into debug overlay region at linear address 0x1800.
+/// `words` must contain little-endian UInt16 opcodes. Returns NO on overflow.
+- (BOOL)loadDebugOverlayWords:(NSData*)words;
+
+/// Clear all debug overlay words from 0x1800-0x1FFF.
+- (void)clearDebugOverlay;
+
+/// Force execution entry at startAddr and step until HOLD is observed or timeout.
+/// Returns YES if HOLD was observed; NO if maxSteps exhausted.
+- (BOOL)runDebugOverlayAt:(uint16_t)startAddr
+                                 maxSteps:(uint32_t)maxSteps
+                                        steps:(uint32_t*)outSteps
+                                    sawHold:(BOOL*)outSawHold;
+
 /// Drain up to `max` CPU frames into an array. If ring overflow occurred,
 /// *outLost is set to the count of frames that were overwritten. Returns
 /// an array of TICpuFrame NSValues.

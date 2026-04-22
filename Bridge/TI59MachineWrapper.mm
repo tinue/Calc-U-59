@@ -184,6 +184,29 @@ static const int kbits[] = {0, 1, 2, 3, 5, 6};  // index 0 unused; index col
 - (void)removeBreakpoint:(uint16_t)pc { _machine->removeBreakpoint(pc); }
 - (void)clearBreakpoints              { _machine->clearBreakpoints(); }
 
+- (BOOL)loadDebugOverlayWords:(NSData*)words {
+    if ((words.length % sizeof(uint16_t)) != 0) return NO;
+    const uint16_t* data = (const uint16_t*)words.bytes;
+    size_t count = words.length / sizeof(uint16_t);
+    return _machine->loadDebugOverlay(data, count) ? YES : NO;
+}
+
+- (void)clearDebugOverlay {
+    _machine->clearDebugOverlay();
+}
+
+- (BOOL)runDebugOverlayAt:(uint16_t)startAddr
+                 maxSteps:(uint32_t)maxSteps
+                    steps:(uint32_t*)outSteps
+                  sawHold:(BOOL*)outSawHold {
+    uint32_t steps = 0;
+    bool sawHold = false;
+    bool ok = _machine->runDebugOverlay(startAddr, maxSteps, &steps, &sawHold);
+    if (outSteps) *outSteps = steps;
+    if (outSawHold) *outSawHold = sawHold ? YES : NO;
+    return ok ? YES : NO;
+}
+
 // ── New CPU frame API ────────────────────────────────────────────────────────
 
 // Helper: convert C++ CpuFrame to Objective-C TICpuFrame struct.

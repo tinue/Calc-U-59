@@ -374,6 +374,26 @@ void TMC0501::xch(uint8_t* a, uint8_t* b, const MaskInfo& m) {
     }
 }
 
+bool TMC0501::runDebugInjectedProgram(uint16_t startAddr, uint32_t maxSteps,
+                                      uint32_t* outSteps, bool* outSawHold) {
+    if (outSteps) *outSteps = 0;
+    if (outSawHold) *outSawHold = false;
+
+    const uint16_t target = static_cast<uint16_t>(startAddr & 0x1FFFu);
+    for (uint32_t i = 0; i < maxSteps; i++) {
+        // Emulate the external debugger forcing EXT/PREG lines until HOLD.
+        EXT = target;
+        PREG = target;
+        (void)step();
+        if (outSteps) *outSteps = i + 1;
+        if (flags & FLG_HOLD) {
+            if (outSawHold) *outSawHold = true;
+            return true;
+        }
+    }
+    return false;
+}
+
 // ── Main instruction dispatch ─────────────────────────────────────────────────
 
 int TMC0501::step() {

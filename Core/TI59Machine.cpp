@@ -190,6 +190,22 @@ void TI59Machine::clearBreakpoints() {
     m_cpu.clearBreakpoints();
 }
 
+bool TI59Machine::loadDebugOverlay(const uint16_t* data, size_t count) {
+    std::lock_guard<std::mutex> lock(m_keyMutex);
+    return m_rom.loadOverlay(data, count);
+}
+
+void TI59Machine::clearDebugOverlay() {
+    std::lock_guard<std::mutex> lock(m_keyMutex);
+    m_rom.clearOverlay();
+}
+
+bool TI59Machine::runDebugOverlay(uint16_t startAddr, uint32_t maxSteps,
+                                  uint32_t* outSteps, bool* outSawHold) {
+    std::lock_guard<std::mutex> lock(m_keyMutex);
+    return m_cpu.runDebugInjectedProgram(startAddr, maxSteps, outSteps, outSawHold);
+}
+
 uint32_t TI59Machine::drainCpuFrames(CpuFrame* out, uint32_t max, uint32_t* outLost) {
     std::lock_guard<std::mutex> lock(m_keyMutex);
     return m_cpu.drainCpuFrames(out, max, outLost);
