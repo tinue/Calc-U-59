@@ -10,6 +10,8 @@ This document describes the two-layer debug API available in the TI-59 emulator.
 Both layers are thread-safe. All Swift entry points live in `EmulatorViewModel`;
 the underlying C++ is in `TI59Machine` and `TMC0501`.
 
+For a description of the debug GUI (tabs, buttons, ASM overlay), see [USERGUIDE.md](USERGUIDE.md).
+
 ---
 
 ## Partition System
@@ -380,26 +382,11 @@ address = n[5]×800 + n[4]×80 + n[3]×8 + n[2]
 
 ---
 
-### Debug panel — level button
+### Debug output API (ViewModel)
 
-The **D** button in the debug toolbar cycles through three levels:
-
-| Dot colour | Level | `DebugLevel` value | Effect |
-|------------|-------|--------------------|--------|
-| Gray       | OFF   | `.off` (0)         | No output written; C-core event buffer not drained |
-| Orange     | INFO  | `.info` (1)        | Swift-side `debugAppend` calls at level `.info` are shown |
-| Red        | DEBUG | `.debug` (2)       | All INFO output **plus** C-core write events (STO, MEMWR, RAM OP) |
-
-Each click advances one step; after DEBUG it wraps back to OFF.
-
-The current level is exposed as `vm.debugLevel: DebugLevel` and as the convenience
-computed property `vm.debugEnabled: Bool` (true when level ≠ OFF).
-
-### Debug panel functions (ViewModel)
-
-These append formatted output to `debugLines`, displayed in the macOS Debug panel.
-Each call accepts an implicit `level:` parameter (default `.info`); output is
-suppressed when `vm.debugLevel < level`.
+These append formatted lines to `vm.debugLines` (displayed in the LOG tab). Each
+call accepts an implicit `level:` parameter (default `.info`); output is suppressed
+when `vm.debugLevel < level`.
 
 | Function | Description |
 |----------|-------------|
@@ -409,28 +396,13 @@ suppressed when `vm.debugLevel < level`.
 | `debugDumpMemory()` | Entire RAM: non-zero registers only, using physical indices (`R000:`, `R001:`, …); same format as `ti58c.mem` |
 | `toggleDebug()` / `clearDebug()` | Cycle debug level (OFF→INFO→DEBUG→OFF); clear the log |
 
+`vm.debugLevel: DebugLevel` — current level (`.off`, `.info`, `.debug`).
+`vm.debugEnabled: Bool` — convenience; `true` when level ≠ OFF.
+
 When adding new Swift-side debug output, call `debugAppend([...], level: .info)` or
 `debugAppend([...], level: .debug)` as appropriate.
 
-### Debug View (UI)
-
-The debug panel in the app is a three-tab view (`App/Views/DebugView.swift`).  The
-active tab content switches automatically depending on whether the emulator is frozen:
-
-| Tab  | Running              | Frozen               |
-|------|----------------------|----------------------|
-| LIVE | `LiveDebugView`      | `LiveDebugView`      |
-| CPU  | `SimpleLiveCPUView`  | `CPUInspectorView`   |
-| LOG  | `StaticDebugContent` | `StaticDebugContent` |
-
-- **LIVE** — 60 Hz real-time view of calculator state (registers, flags, SCOM, program
-  steps).  Driven by `vm.liveDebugSnapshot` when `vm.liveDebugEnabled` is `true`.
-- **CPU** — When running, shows a scrolling live trace of recent instructions
-  (`SimpleLiveCPUView`).  When frozen, switches to `CPUInspectorView`, which shows
-  the full instruction history with post-execution CPU register snapshots and a
-  look-ahead at upcoming ROM instructions.
-- **LOG** — The original text-based debug log (`StaticDebugContent`) backed by
-  `vm.debugLines`.  Contains Vars/SCOM/Prog/Memory dump buttons and the TRACE toggle.
+---
 
 ### C-core debug events
 

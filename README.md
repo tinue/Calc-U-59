@@ -14,6 +14,7 @@ If you are looking for a polished calculator app, this is probably not for you. 
 
 - Cycle-accurate TMC0501 CPU emulation
 - Integrated debugger with register inspection and program memory dump
+- [Debug GUI](docs/USERGUIDE.md) — four-tab debug panel (LIVE, CPU, LOG, ASM) with live register view, CPU inspector, and ROM overlay execution
 - [Debug API](docs/DebugAPI.md) for scripted access to CPU state, breakpoints, instruction tracing, and disassembly
 - Printer trace mode (functional simulation — see limitation below)
 - `.ti59` state file format for loading calculator state
