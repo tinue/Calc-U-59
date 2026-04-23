@@ -1,3 +1,4 @@
+PROGRAM:
 ; This doesn't work great on the emulator, because its simulated LED is too fast. On the
 ; real hardware, the LEDs have a bit of afterglow, and it looks as if all decimal dots
 ; are on at the same time.
@@ -23,3 +24,6 @@
         0A37    MOV     R5,#3
         0A27    MOV     R5,#2
         181B    BRA1    -13     ;1800
+
+HEX:
+0AF0 0AD7 0AC7 0AB7 0AA7 0A97 0A87 0A77 0A67 0A57 0A47 0A37 0A27 181B

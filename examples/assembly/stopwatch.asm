@@ -1,3 +1,4 @@
+PROGRAM:
 ; Load the program and start
 ; Press R/S once to start the stopwatch.
 ; Press R/S again to stop
@@ -5,7 +6,7 @@
 ;
 ; Original comment:
 ;
-Stopwatch
+; Stopwatch
 ; This example is more complex. It uses WAIT Dn instruction to make timing more precise (without
 ; counting instructions). Increment cycle repeats 222 times per second (455kHz÷2÷16÷16), increment
 ; value should be 4.5010989ms. Attention should be payed to DPT digit, which is hexadecimal (no BCD
@@ -61,3 +62,10 @@ Stopwatch
         08FD    KEY     FD
         1005    BRA0    -2              ;181E
         182F    BRA1    -23             ;180A
+
+HEX:
+01D8 01DB 07DB 01DE 0A47 02F6 0176 0A57
+02F6 0176 0A57 0A30 087F 1804 01D8 0AA0
+08FD 180F 01B0 0A57 1002 0AA0 08FD 100B
+01B0 0A57 1002 0AA0 08FD 180B 0AA0 08FD
+1005 182F

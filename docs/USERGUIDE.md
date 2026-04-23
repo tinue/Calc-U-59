@@ -6,14 +6,17 @@ This document describes the integrated debug panel in Calc-U-59 from a user's pe
 
 ## Debug Panel Overview
 
-The debug panel is a four-tab view (`App/Views/DebugView.swift`). The active tab content adapts automatically to whether the emulator is running or frozen:
+The debug panel is a three-tab view (`App/Views/DebugView.swift`). The active tab content adapts automatically to whether the emulator is running or frozen:
 
 | Tab  | Running              | Frozen               |
 |------|----------------------|----------------------|
 | LIVE | `LiveDebugView`      | `LiveDebugView`      |
-| CPU  | `SimpleLiveCPUView`  | `CPUInspectorView`   |
+| CPU  | `SimpleLiveCPUView` + ASM section  | `CPUInspectorView` + ASM section |
 | LOG  | `StaticDebugContent` | `StaticDebugContent` |
-| ASM  | `ASMDebugContent`    | `ASMDebugContent`    |
+
+The **LIVE** tab is disabled while an ASM overlay is running (the tab button is grayed out and the view auto-switches to **CPU**).
+
+The ASM overlay controls are embedded at the bottom of the **CPU** tab rather than occupying a separate tab — this reflects that overlays operate at ROM-instruction level, the same granularity as the CPU inspector.
 
 ---
 
@@ -68,6 +71,14 @@ The view scrolls to the current instruction automatically each time a new inspec
 
 Backed by `vm.cpuInspectorHistory` (a list of `InspectorSnapshot` values built by `captureInspectorSnapshot()`).
 
+### Freeze semantics in the CPU tab
+
+FREEZE in the CPU tab stops after the **current ROM opcode** completes — no advancement to the next calculator program step. This is the right granularity for ROM-level inspection. Contrast with the LIVE tab, where FREEZE advances to the next keycode boundary (a full calculator program step, which may span thousands of ROM instructions).
+
+### ASM overlay section
+
+A compact ASM overlay control section is embedded at the bottom of the CPU tab. See [ASM Overlay](#asm-overlay-cpu-tab) below for the full description.
+
 ---
 
 ## LOG Tab
@@ -104,9 +115,9 @@ Each click advances one step; after DEBUG it wraps back to OFF.
 
 ---
 
-## ASM Tab
+## ASM Overlay (CPU tab)
 
-The ASM tab lets you inject raw TMC0501 machine code into the emulator's debug overlay ROM area and execute it in a single synchronous burst. It is intended for ROM-level experimentation: testing small snippets, probing CPU behavior, or exercising the emulator with precisely crafted instruction sequences.
+The ASM overlay section is embedded at the bottom of the **CPU** tab. It lets you inject raw TMC0501 machine code into the emulator's debug overlay ROM area and execute it in a single synchronous burst. It is intended for ROM-level experimentation: testing small snippets, probing CPU behavior, or exercising the emulator with precisely crafted instruction sequences.
 
 ### Overlay address range
 
@@ -114,31 +125,32 @@ The overlay occupies ROM addresses `0x1800–0x1FFF` (2048 words). These address
 
 ### File format
 
-The ASM tab requires **`.hex` files** — plain-text files containing nothing but hex opcode words, one or more per line:
+The ASM overlay uses **`.asm` files** with two sections:
 
 ```
+PROGRAM:
+; human-readable assembly listing
+1800:   01D8    MOV     A.ALL,#0
+        ...
+
+HEX:
 01D8 01DB 0D00 0A37 1805 1007
 ```
 
-The parser recognises two token forms:
+The `PROGRAM:` section is free-form text — assembly source, comments, notes. It is ignored entirely by the loader. The `HEX:` marker line signals where machine code begins; the loader skips everything up to and including that line, then parses the hex opcodes that follow.
+
+Within the `HEX:` section, the parser recognises two token forms:
 
 - `0xHHHH` — explicit hex prefix, one 13-bit word per token.
 - `HHHH` — bare 4-hex-digit sequence; longer runs are split into sequential 4-digit words.
 
-All other characters (spaces, newlines, non-hex tokens) are silently skipped.
-
-**`.asm` files will not work.** The file picker accepts them, but assembly source listings contain address labels (`1800:`, `1802:`, …) that are valid 4-hex-digit sequences. The parser treats them as opcodes, producing incorrect code. Always use the paired `.hex` file instead.
+All other characters (spaces, newlines, non-hex tokens) are silently skipped. Files without a `HEX:` section are rejected with an error.
 
 **Maximum:** 2048 words. Files exceeding this limit are rejected.
 
 ### Example programs
 
-The repository includes ready-to-run examples in `examples/assembly/`. Each example ships as a pair:
-
-| File | Purpose |
-|------|---------|
-| `*.hex` | Load this into the ASM tab. |
-| `*.asm` | Human-readable assembly source with comments explaining the logic. Reference only — do not load. |
+The repository includes ready-to-run examples in `examples/assembly/`. Each `.asm` file contains both the annotated assembly listing (under `PROGRAM:`) and the loadable opcodes (under `HEX:`).
 
 The examples are drawn from Hynek Sladký's *Calculators TI-58/59 HW Programming Guide*.
 
@@ -165,14 +177,14 @@ Concretely, when Run is pressed:
 
 ### Persistence across reset and model switch
 
-The loaded file is **not** reset when you reset the calculator or switch between models — it stays loaded in the ASM tab. On a model switch the overlay is automatically re-injected into the new machine's ROM; it is only discarded if it is too large for the overlay area (which would be reported in the status line). There is a single loaded file shared across all models, not one per model.
+The loaded file is **not** reset when you reset the calculator or switch between models — it stays loaded in the ASM overlay section. On a model switch the overlay is automatically re-injected into the new machine's ROM; it is only discarded if it is too large for the overlay area (which would be reported in the status line). There is a single loaded file shared across all models, not one per model.
 
 This persistence makes it straightforward to use an ASM program that reads whatever is currently on the display:
 
-1. **Select File** — load the `.hex` file once.
+1. **Select File** — load the `.asm` file once.
 2. Reset the calculator to reach a clean state.
 3. Type the input value on the keyboard.
-4. Switch to the ASM tab and press **Run**.
+4. Press **Run**.
 
 ### Error recovery
 
@@ -187,7 +199,7 @@ The timeout means the ROM's current instruction never generated a HOLD signal du
 
 ### Status display
 
-The ASM tab shows three lines of status information:
+The ASM overlay section shows three lines of status information:
 
 | Field | Content |
 |-------|---------|

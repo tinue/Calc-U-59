@@ -12,7 +12,7 @@ struct SimpleLiveCPUView: View {
             VStack(spacing: 0) {
                 // Control bar
                 HStack(spacing: 12) {
-                    Button(action: { vm.freeze(reason: .manual) }) {
+                    Button(action: { vm.freeze(reason: .manual, waitForKeycode: false) }) {
                         Text("FREEZE")
                             .font(.caption.bold())
                             .foregroundStyle(.white)

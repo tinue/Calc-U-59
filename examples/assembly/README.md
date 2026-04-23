@@ -7,16 +7,25 @@ Written by Hynek Sladský
 
 ## File Format
 
-### `.asm` files
-Assembly source code with comments explaining the operations and expected behavior. These are human-readable and useful for understanding the program logic.
+Each example is a single `.asm` file with two sections:
 
-### `.hex` files
-Machine code (hexadecimal opcodes) ready to load into the emulator. Use these with the experimental **ASM** tab in the debug section:
+```
+PROGRAM:
+; human-readable assembly listing with comments
+1800:   01D8    MOV     A.ALL,#0
+        ...
 
-1. Open the emulator
-2. Go to the **Debug** panel (toggle with debug button)
-3. Select the **ASM** tab
-4. Load a `.hex` file using the file picker
-5. Click **Run** to execute the program
+HEX:
+01D8 01DB ...
+```
 
-The loaded code will execute in the calculator's ROM space and update the display in real-time.
+The `PROGRAM:` section is the annotated assembly source — for reading and understanding the code. The `HEX:` section contains the raw opcodes that are loaded into the emulator. The loader ignores everything before `HEX:` and parses only what follows.
+
+## How to Run
+
+1. Open the emulator and show the **Debug** panel.
+2. Select the **CPU** tab.
+3. In the **ASM Overlay** section at the bottom, click **Select File** and pick a `.asm` file.
+4. Click **Run** to execute the program.
+
+The loaded code runs in the calculator's ROM overlay area (`0x1800–0x1FFF`) and updates the display in real-time.

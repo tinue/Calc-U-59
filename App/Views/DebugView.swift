@@ -5,16 +5,17 @@ struct DebugView: View {
     @Environment(EmulatorViewModel.self) var vm
     @State private var tab: DebugTab = .live
     @State private var showingASMFileImporter = false
-    enum DebugTab { case live, cpu, log, asm }
+    enum DebugTab { case live, cpu, log }
 
     var body: some View {
         VStack(spacing: 0) {
             // Tab bar
             HStack(spacing: 0) {
                 tabButton("LIVE", .live)
+                    .disabled(vm.asmOverlayActive)
+                    .opacity(vm.asmOverlayActive ? 0.35 : 1.0)
                 tabButton("CPU", .cpu)
                 tabButton("LOG", .log)
-                tabButton("ASM", .asm)
                 Spacer()
             }
             .background(Color(white: 0.07))
@@ -23,27 +24,34 @@ struct DebugView: View {
             switch tab {
             case .live: LiveDebugView()
             case .cpu:
-                if vm.isFrozen {
-                    CPUInspectorView()
-                } else {
-                    SimpleLiveCPUView()
+                VStack(spacing: 0) {
+                    Group {
+                        if vm.isFrozen {
+                            CPUInspectorView()
+                        } else {
+                            SimpleLiveCPUView()
+                        }
+                    }
+                    .frame(maxHeight: .infinity)
+
+                    Divider().background(Color(white: 0.25))
+
+                    ASMDebugContent {
+                        showingASMFileImporter = true
+                    }
                 }
             case .log:
                 StaticDebugContent()
-            case .asm:
-                ASMDebugContent {
-                    showingASMFileImporter = true
-                }
             }
         }
         .background(Color(white: 0.10))
+        .onChange(of: vm.asmOverlayActive) { _, active in
+            if active { tab = .cpu }
+        }
         .fileImporter(
             isPresented: $showingASMFileImporter,
             allowedContentTypes: [
                 UTType(filenameExtension: "asm") ?? .plainText,
-                UTType(filenameExtension: "hex") ?? .plainText,
-                UTType.plainText,
-                UTType.text
             ],
             allowsMultipleSelection: false
         ) { result in
@@ -266,8 +274,6 @@ private struct ASMDebugContent: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
             .background(Color(white: 0.15))
-
-            Spacer(minLength: 0)
         }
         .background(Color(white: 0.10))
     }

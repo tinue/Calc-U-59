@@ -94,6 +94,7 @@ class EmulatorViewModel {
     var asmStatusMessage: String = "Load a hex opcode file and press Run."
     private var asmOverlayWords: [UInt16] = []
     var canRunASM: Bool { !asmOverlayWords.isEmpty }
+    var asmOverlayActive: Bool = false
 
     // ── Live debug panel state (60 Hz real-time) ──────────────────────────────
     var liveDebugEnabled: Bool = false
@@ -202,6 +203,7 @@ class EmulatorViewModel {
                 let data = asmOverlayWords.withUnsafeBufferPointer { Data(buffer: $0) }
                 if !wrapper.loadDebugOverlayWords(data) {
                     asmOverlayWords = []
+                    asmOverlayActive = false
                     asmWordCount = 0
                     asmStatusMessage = "ASM overlay cleared (incompatible after model switch)."
                 }
@@ -442,6 +444,7 @@ class EmulatorViewModel {
 
     func resetMachine() {
         unfreeze()  // exit freeze mode when resetting
+        asmOverlayActive = false
         cardState = .noCard
         printerTrace = false
         machine?.setPrinterTrace(false)
@@ -463,6 +466,7 @@ class EmulatorViewModel {
     /// For TI-58C, writes the zeroed state immediately to the save file.
     func cleanResetMachine() {
         unfreeze()  // exit freeze mode when resetting
+        asmOverlayActive = false
         machine?.deserialiseRAM(Data(repeating: 0, count: 120 * 16))
         cardState = .noCard
         printerTrace = false
@@ -743,15 +747,19 @@ class EmulatorViewModel {
         lastObservedPC = UInt16(decodeProgramCounter(from: cpu))
     }
 
-    func freeze(reason: FreezeReason = .manual) {
+    func freeze(reason: FreezeReason = .manual, waitForKeycode: Bool = true) {
         isRunning = false
         freezeReason = reason
+        asmOverlayActive = false
         pendingFreezeOnPCChange = false  // Cancel any pending freeze
         guard let m = machine else { return }
         // Advance to the next keycode boundary on the emulation queue (runs after the
         // running loop exits, since emulQueue is serial). Then capture state.
         emulQueue.async { [weak self, m] in
-            _ = m.stepUntilNextKeycode()
+            if waitForKeycode {
+                _ = m.stepUntilNextKeycode()  // advance to program-step boundary
+            }
+            // else: stop after the current ROM opcode — correct for CPU-level freeze
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
                 // Pre-execution phase: prepare ring buffer and snapshot for display
@@ -1466,6 +1474,7 @@ class EmulatorViewModel {
     func clearASMOverlay() {
         machine?.clearDebugOverlay()
         asmOverlayWords = []
+        asmOverlayActive = false
         asmWordCount = 0
         asmStatusMessage = "ASM overlay cleared."
     }
@@ -1513,6 +1522,7 @@ class EmulatorViewModel {
             asmStatusMessage = sawHold.boolValue
                 ? "ASM entered at 0x1800 (HOLD detected after \(steps) step(s))."
                 : "ASM entered at 0x1800 (\(steps) step(s))."
+            asmOverlayActive = true
             startEmulationLoop()
             startDisplayRefresh()
         } else {
@@ -1523,26 +1533,36 @@ class EmulatorViewModel {
 
     private func parseASMWords(from text: String) throws -> [UInt16] {
         enum ASMParseError: LocalizedError {
+            case noHexSection
             case noWords
             case invalidToken(String)
             case tooLarge(Int)
 
             var errorDescription: String? {
                 switch self {
+                case .noHexSection:
+                    return "No HEX: section found in ASM file."
                 case .noWords:
-                    return "No hex opcode words found in ASM file."
+                    return "No hex opcode words found after HEX: in ASM file."
                 case .invalidToken(let token):
-                    return "Invalid ASM token: \(token)"
+                    return "Invalid token in HEX section: \(token)"
                 case .tooLarge(let count):
                     return "ASM contains \(count) words; maximum is 2048 (0x1800-0x1FFF)."
                 }
             }
         }
 
+        // Find the HEX: marker and parse only the text that follows it.
+        let lines = text.components(separatedBy: .newlines)
+        guard let hexLine = lines.firstIndex(where: { $0.trimmingCharacters(in: .whitespaces).uppercased() == "HEX:" }) else {
+            throw ASMParseError.noHexSection
+        }
+        let hexText = lines[(hexLine + 1)...].joined(separator: "\n")
+
         let pattern = #"0[xX][0-9A-Fa-f]+|[0-9A-Fa-f]{4,}"#
         let regex = try NSRegularExpression(pattern: pattern)
-        let nsText = text as NSString
-        let matches = regex.matches(in: text, range: NSRange(location: 0, length: nsText.length))
+        let nsText = hexText as NSString
+        let matches = regex.matches(in: hexText, range: NSRange(location: 0, length: nsText.length))
 
         var words: [UInt16] = []
         words.reserveCapacity(matches.count)

@@ -230,16 +230,16 @@ uint32_t TI59Machine::stepN(uint32_t n, bool stopOnBreakpoint) {
     return done;
 }
 
-uint32_t TI59Machine::stepUntilNextKeycode(uint32_t maxSteps) {
+uint32_t TI59Machine::stepUntilNextKeycode(uint32_t maxCycles) {
     std::lock_guard<std::mutex> lock(m_keyMutex);
     uint8_t n4 = m_cpu.scomNibble(0, 4);
     uint8_t n5 = m_cpu.scomNibble(0, 5);
     uint8_t n6 = m_cpu.scomNibble(0, 6);
     uint8_t n7 = m_cpu.scomNibble(0, 7);
     uint32_t done = 0;
-    while (done < maxSteps) {
-        m_cpu.step();
-        done++;
+    while (done < maxCycles) {
+        int w = m_cpu.step();          // returns 1 (active) or 4 (IDLE)
+        done += static_cast<uint32_t>(w);
         if (m_cpu.consumeBreakpointHit()) { break; }
         if (m_cpu.scomNibble(0, 4) != n4 || m_cpu.scomNibble(0, 5) != n5 ||
             m_cpu.scomNibble(0, 6) != n6 || m_cpu.scomNibble(0, 7) != n7) { break; }

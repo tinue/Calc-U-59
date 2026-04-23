@@ -67,7 +67,7 @@ struct CPUDebugView: View {
                 if vm.isFrozen {
                     vm.unfreeze()
                 } else {
-                    vm.freeze(reason: .manual)
+                    vm.freeze(reason: .manual, waitForKeycode: false)
                     // Explicitly select current instruction and request focus
                     selectedInstructionIndex = vm.cpuDebugSnapshot.recentInstructions.count - 1
                     isFocused = true

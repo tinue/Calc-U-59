@@ -1,9 +1,10 @@
+PROGRAM:
 ; This program *doesn't work* on the emulator. The emulator takes shortcuts when synchronizing
 ; WAIT and KEY, and the bad timing that this program apparently uses does not trigger.
 ; Original comment follows:
-:
+;
 ; 7-segment decoder test
-; This test is also little bit tricky. It uses “bad” digit synchronization to display DPT on LED. As DPT is
+; This test is also little bit tricky. It uses "bad" digit synchronization to display DPT on LED. As DPT is
 ; hexadecimal, this allows to display all combinations available in 7-segment decoder. Value displayed is
 ; BB.AAX, where BB is value in B.DPT, AA is value in A.DPT and X is resulting 7-segment digit.
 ; Because of illegal synchronization, some keys behave strange! (RCL makes CPU reset, LRN row
@@ -62,3 +63,10 @@
 ;set DPT position
 1824:   0A37    MOV     R5,#3
         1837    BRA1    -27             ;180A
+
+HEX:
+0A01 01D0 01D3 07DB 0153 0153 07DB 01D4
+0AC0 0A09 0AE0 0820 180C 0A45 0A55 0A65
+0A75 100F 0AE0 0820 1805 0300 1806 0324
+0223 01D6 0206 0176 0630 01D6 0226 0176
+0176 0176 0930 1002 0A37 1837
