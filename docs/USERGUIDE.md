@@ -147,20 +147,19 @@ The examples are drawn from Hynek Sladký's *Calculators TI-58/59 HW Programming
 | Button | Action |
 |--------|--------|
 | **Select File** | Opens the file picker. On success, the file is parsed and the overlay is loaded immediately. The status line shows the word count and load address. |
-| **Run** | Stops any running emulation, re-injects the overlay into ROM, and executes it starting at `0x1800`. Runs synchronously on the emulation queue for up to 8 192 CPU steps. Resumes normal emulation afterwards. |
+| **Run** | Stops any running emulation, re-injects the overlay into ROM, and waits for a HOLD signal to enter the overlay (see Run semantics below). Resumes normal emulation on success; shows a timeout error if no HOLD is detected within 8 192 steps. |
 | **Clear** | Removes the overlay from ROM and resets the status display. |
 
 ### Run semantics
 
-When **Run** is pressed:
+**Run** works by hijacking the ROM's HOLD mechanism rather than directly jumping to `0x1800`. When Run is pressed, the emulator forces `PREG = 0x1800` before every CPU step and waits for the ROM's *currently executing* instruction to assert the HOLD signal. HOLD is generated naturally by the keyscan scan-all instruction (present in every iteration of the IDLE keyscan loop) and by `WAIT Dn` instructions. The moment HOLD fires, the PREG redirect snaps `addr` to `0x1800`, and the normal emulation loop resumes from there — running the overlay program sequentially in real time.
 
-1. The emulation loop is stopped.
-2. The overlay words are written into ROM at `0x1800`.
-3. The CPU executes instructions starting at `0x1800`, up to 8 192 steps.
-4. Execution stops when:
-   - A **HOLD** instruction is encountered — the overlay has finished cleanly. Normal emulation resumes.
-   - The step limit (8 192) is reached without a HOLD — a timeout error is shown and emulation does **not** resume automatically.
-5. The status line reports the outcome: word count, entry address, steps taken, and whether HOLD was seen.
+Concretely, when Run is pressed:
+
+1. The emulation loop is stopped and the overlay words are written (or re-written) into ROM at `0x1800`.
+2. The emulator takes over the CPU, forcing `PREG = 0x1800` on every step and watching for HOLD.
+3. If the current ROM instruction generates HOLD (see below), `addr` is snapped to `0x1800` and normal emulation resumes from there.
+4. If no HOLD appears within 8 192 steps, a timeout error is shown and emulation does **not** resume automatically.
 
 **Endless loops vs. HOLD:** Many overlay programs — stopwatches, counters, display animators — are intentional infinite loops. They run forever within the overlay and are stopped by resetting the calculator; they do not need a HOLD instruction. HOLD (`0x0C00`) is only needed for programs that perform a finite computation and want to hand control back to the normal ROM when done. If a program falls off the end of the overlay without looping or halting, the CPU continues into whatever ROM code follows `0x1FFF`, which is unlikely to be useful.
 
@@ -177,7 +176,14 @@ This persistence makes it straightforward to use an ASM program that reads whate
 
 ### Error recovery
 
-If **Run** reports that the program could not be started or timed out before reaching a HOLD instruction, the CPU may be left in an indeterminate state. Press **Reset** and try again. The loaded file is preserved through the reset, so you only need to go back to the ASM tab and press **Run** again.
+**Why "timed out before HOLD" happens:**
+
+The timeout means the ROM's current instruction never generated a HOLD signal during the 8 192-step window. The two common causes are:
+
+- **Calculator not in IDLE mode.** If the calculator is computing, executing a keypress, or anywhere other than the idle keyscan loop, the ROM code at that point may have no HOLD-generating instruction. The PREG redirect snaps execution to `0x1800`, the overlay's first instruction (typically a register initialisation like `MOV A.ALL,#0`) is not a HOLD source, and all 8 192 steps cycle there without result.
+- **Unlucky digit-counter timing, even from IDLE.** The keyscan scan-all instruction generates HOLD on digit ticks 1–15 but *not* on digit 0 (the scan completion tick). If Run lands exactly at digit 0, no HOLD fires on that step, PREG snaps to `0x1800`, and the program is stuck there for the remainder of the limit.
+
+**Fix:** Press **Reset** and then **Run** again. After a reset the ROM runs its startup routine and enters the IDLE keyscan loop, where HOLD is asserted on almost every step. The loaded file is preserved through the reset, so only Run needs to be pressed again. This works the large majority of the time; if it fails a second time, wait a moment for the display to settle and try once more.
 
 ### Status display
 
