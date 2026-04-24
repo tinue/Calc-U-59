@@ -1,6 +1,9 @@
 # Changelog
 
-## [0.4.0] - WIP
+## [1.0.0] - WIP
+First iOS / iPadOS release in the App Store.
+
+## [0.4.0] - 2026-04-24
 
 **UI:** Full GUI rework of the main calculator panel. The layout now uses an edge-to-edge canvas with a runtime card overlay, replacing the previous button-based layout. The ML-01 reference card was regenerated at full canvas width. The LED display was repositioned to avoid overlap with the card slot. Key rectangles were recalculated from accurate image extraction. Fixed wide borders on iPad Mini in landscape mode. Dark mode is now enforced app-wide.
 
