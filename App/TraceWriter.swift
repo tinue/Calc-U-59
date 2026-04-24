@@ -22,6 +22,7 @@ final class TraceWriter {
         case traceEvent   = 0x02
         case sessionEnd   = 0x03
         case userEvent    = 0x04
+        case traceGap     = 0x05  // frame count: UInt32 of lost frames
     }
 
     private enum UserEventKind: UInt8 {
@@ -33,7 +34,7 @@ final class TraceWriter {
 
     // ── File header constants ─────────────────────────────────────────────────
     private static let magic: UInt32   = 0x54493539   // 'TI59' LE
-    private static let version: UInt16 = 3            // v3: added m_libAddrReadPos field
+    private static let version: UInt16 = 1  // Baseline version for initial release; do not increment until v1.0.0 ships
     private static let headerSize      = 16
 
     // ── State ─────────────────────────────────────────────────────────────────
@@ -41,17 +42,14 @@ final class TraceWriter {
     private(set) var isAvailable = true  // false if iCloud/storage is unavailable
     private var fileHandle: FileHandle?
     private var currentTraceURL: URL?  // Track the URL for security-scoped resource cleanup
-
-    // Dedup state: key bytes of the last written "first-of-run" event
-    private var pendingBytes: Data?            // serialised payload of the last seen event
-    private var pendingKey: Data?              // dedup key bytes of the pending event
-    private var suppressedCount: UInt32 = 0   // identical events seen after the first
+    private let model: MachineModel     // Calculator model (determines trace filename)
 
     // Session statistics
     private var sessionEventCount: UInt32    = 0
     private var sessionSuppressedTotal: UInt32 = 0
 
-    init() {
+    init(model: MachineModel) {
+        self.model = model
     }
 
     /// Check if the trace location is accessible. Call at app startup to set isAvailable.
@@ -84,7 +82,7 @@ final class TraceWriter {
         guard !isOpen else { return true }
         guard isAvailable else { return false }
 
-        let url = Self.traceFileURL()
+        let url = self.traceFileURL()
         let fm = FileManager.default
 
         // Check if file exists and enforce max file size
@@ -135,9 +133,6 @@ final class TraceWriter {
         fileHandle = fh
         isOpen = true
         currentTraceURL = url
-        suppressedCount = 0
-        pendingBytes = nil
-        pendingKey   = nil
         sessionEventCount = 0
         sessionSuppressedTotal = 0
 
@@ -152,8 +147,6 @@ final class TraceWriter {
     /// Flush any pending dedup event, write a SESSION_END record, and close the file.
     func close() {
         guard isOpen, let fh = fileHandle else { isOpen = false; return }
-
-        flushPending()
 
         // SESSION_END record
         var payload = Data(capacity: 8)
@@ -173,28 +166,24 @@ final class TraceWriter {
         isOpen = false
     }
 
-    /// Write a CPU trace event with full-dedup logic.
-    func write(event e: TITraceEvent, snapshot snap: TICPUSnapshot) {
+    /// Write a unified CPU frame (combines TraceEvent and CPU state).
+    func write(frame: TICpuFrame) {
         guard isOpen else { return }
 
-        let key = makeKey(event: e, snapshot: snap)
+        // Write every frame immediately with no deduplication.
+        // This preserves the exact execution trace for debugging.
+        let payload = makeFramePayload(frame: frame)
+        writeRecord(.traceEvent, payload: payload)
+        sessionEventCount += 1
+    }
 
-        if key == pendingKey {
-            // Identical to last seen event: suppress it.
-            suppressedCount += 1
-            sessionSuppressedTotal += 1
-            // Update the pending bytes so the last-of-run carries the right seqno/cycleWeight.
-            pendingBytes = makeEventPayload(event: e, snapshot: snap, suppressedBefore: suppressedCount)
-        } else {
-            // Different event: flush the pending last-of-run, then write this as first-of-run.
-            flushPending()
-            let payload = makeEventPayload(event: e, snapshot: snap, suppressedBefore: 0)
-            writeRecord(.traceEvent, payload: payload)
-            sessionEventCount += 1
-            pendingKey   = key
-            pendingBytes = payload     // will be re-serialised as last-of-run if suppressed later
-            suppressedCount = 0
-        }
+    /// Write a gap record indicating lost frames during ring overflow.
+    func writeLostGap(count: UInt32) {
+        guard isOpen else { return }
+
+        var payload = Data(capacity: 4)
+        payload.appendLE(count)
+        writeRecord(.traceGap, payload: payload)
     }
 
     func writeKeyDown(row: UInt8, col: UInt8) {
@@ -214,19 +203,6 @@ final class TraceWriter {
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
-
-    private func flushPending() {
-        guard let bytes = pendingBytes, suppressedCount > 0 else {
-            // Either nothing pending, or it was written as first-of-run with no duplicates.
-            return
-        }
-        // Re-write with the accumulated suppressedBefore count baked in.
-        writeRecord(.traceEvent, payload: bytes)
-        sessionEventCount += 1
-        pendingBytes = nil
-        pendingKey   = nil
-        suppressedCount = 0
-    }
 
     private func writeUserEvent(kind: UserEventKind, p1: UInt8, p2: UInt8) {
         guard isOpen else { return }
@@ -249,68 +225,42 @@ final class TraceWriter {
 
     // ── Serialisation ─────────────────────────────────────────────────────────
 
-    // Dedup key: everything that uniquely identifies a CPU state for our purposes.
-    // seqno and cycleWeight are excluded — they always differ.
-    // Uses CPUSnapshot (post-execution, TRACE_REGS_FULL) for all register values;
-    // TITraceEvent light-register fields (fA, fB, KR, SR, cpuFlags) are only
-    // populated when TRACE_REGS_LIGHT is set — which we do NOT enable.
-    private func makeKey(event e: TITraceEvent, snapshot snap: TICPUSnapshot) -> Data {
-        var d = Data(capacity: 2+2+2+2+2+2+2+2+1+80)
-        d.appendLE(e.pc)
-        d.appendLE(e.opcode)
-        // digit is excluded: the counter cycles 0–15 on every instruction,
-        // so including it would prevent dedup of IDLE loops and HOLD cycles.
-        d.appendLE(snap.fA)
-        d.appendLE(snap.fB)
-        d.appendLE(snap.KR)
-        d.appendLE(snap.SR)
-        d.appendLE(snap.flags)
-        d.appendLE(snap.m_libAddr)
-        d.append(snap.R5)
-        var a2 = snap.A; d.append(contentsOf: tupleBytes(&a2))
-        var b2 = snap.B; d.append(contentsOf: tupleBytes(&b2))
-        var c2 = snap.C; d.append(contentsOf: tupleBytes(&c2))
-        var d2 = snap.D; d.append(contentsOf: tupleBytes(&d2))
-        var e3 = snap.E; d.append(contentsOf: tupleBytes(&e3))
-        return d
-    }
+    // Full 124-byte TRACE_EVENT payload from a unified CpuFrame.
+    // Maintains backward compatibility with existing trace file format.
+    private func makeFramePayload(frame: TICpuFrame) -> Data {
+        var d = Data(capacity: 124)
 
-    // Full 123-byte TRACE_EVENT payload (v3: added m_libAddrReadPos field).
-    // suppressedBefore is embedded at offset 0 so the last-of-run can carry the count.
-    private func makeEventPayload(event e: TITraceEvent, snapshot snap: TICPUSnapshot,
-                                  suppressedBefore: UInt32) -> Data {
-        var d = Data(capacity: 123)
-
-        // Dedup counter + control fields (34 bytes)
-        d.appendLE(suppressedBefore)
-        d.appendLE(e.seqno)
-        d.appendLE(e.pc)
-        d.appendLE(e.opcode)
-        d.appendLE(snap.fA)
-        d.appendLE(snap.fB)
-        d.appendLE(snap.KR)
-        d.appendLE(snap.SR)
-        d.appendLE(snap.EXT)
-        d.appendLE(snap.PREG)
-        d.appendLE(snap.flags)
-        d.appendLE(snap.m_libAddr)
-        d.append(snap.R5)
-        d.append(snap.digit)
-        d.append(snap.RAM_ADDR)
-        d.append(snap.RAM_OP)
-        d.append(snap.REG_ADDR)
-        d.append(snap.m_libAddrReadPos)
-        d.append(e.cycleWeight)
+        // Control fields (suppressed count is always 0; kept for format compatibility) — 34 bytes
+        d.appendLE(UInt32(0))
+        d.appendLE(frame.seqno)
+        d.appendLE(frame.pc)
+        d.appendLE(frame.opcode)
+        d.appendLE(frame.fA)
+        d.appendLE(frame.fB)
+        d.appendLE(frame.KR)
+        d.appendLE(frame.SR)
+        d.appendLE(frame.EXT)
+        d.appendLE(frame.PREG)
+        d.appendLE(frame.flags)
+        d.appendLE(frame.m_libAddr)
+        d.append(frame.R5)
+        d.append(frame.digit)
+        d.append(frame.RAM_ADDR)
+        d.append(frame.RAM_OP)
+        d.append(frame.REG_ADDR)
+        d.append(frame.m_libAddrReadPos)
+        d.append(frame.cycleWeight)
+        d.append(frame.dispFilter)
 
         // Registers A–E: one nibble per byte, index 0 = LSN (digit 0) — 80 bytes
-        var a = snap.A; d.append(contentsOf: tupleBytes(&a))
-        var b = snap.B; d.append(contentsOf: tupleBytes(&b))
-        var c = snap.C; d.append(contentsOf: tupleBytes(&c))
-        var dd2 = snap.D; d.append(contentsOf: tupleBytes(&dd2))
-        var e2 = snap.E; d.append(contentsOf: tupleBytes(&e2))
+        var a = frame.A; d.append(contentsOf: tupleBytes(&a))
+        var b = frame.B; d.append(contentsOf: tupleBytes(&b))
+        var c = frame.C; d.append(contentsOf: tupleBytes(&c))
+        var dd = frame.D; d.append(contentsOf: tupleBytes(&dd))
+        var e = frame.E; d.append(contentsOf: tupleBytes(&e))
 
         // Sout nibble-packed: low nibble = Sout[2i], high nibble = Sout[2i+1] — 8 bytes
-        var soutTuple = snap.Sout
+        var soutTuple = frame.Sout
         let sout = tupleBytes(&soutTuple)   // 16 bytes, each a nibble
         for i in 0..<8 {
             let lo: UInt8 = sout[i * 2]     & 0x0F
@@ -318,7 +268,7 @@ final class TraceWriter {
             d.append(lo | (hi << 4))
         }
 
-        assert(d.count == 123)
+        assert(d.count == 124)
         return d
     }
 
@@ -339,20 +289,42 @@ final class TraceWriter {
     // Reuses the iCloud container already resolved by CardStorage.warmUp(),
     // which is called at app start.
 
-    private static let traceFileName = "CALCU59_TRACE.bin"
+    /// Generate the model-specific base filename.
+    /// Examples: CALCU59_TRACE.bin, CALCU58_TRACE.bin, CALCU58C_TRACE.bin
+    private func traceBaseFileName() -> String {
+        let modelPrefix: String
+        switch model {
+        case .ti59:  modelPrefix = "CALCU59"
+        case .ti58:  modelPrefix = "CALCU58"
+        case .ti58c: modelPrefix = "CALCU58C"
+        }
+        return "\(modelPrefix)_TRACE.bin"
+    }
 
-    static func traceFileURL() -> URL {
-        AppSettings.traceDirectory().appendingPathComponent(traceFileName)
+    /// Generate the model-specific base name for timestamped files.
+    /// Examples: CALCU59_TRACE, CALCU58_TRACE, CALCU58C_TRACE
+    private func traceBaseName() -> String {
+        let modelPrefix: String
+        switch model {
+        case .ti59:  modelPrefix = "CALCU59"
+        case .ti58:  modelPrefix = "CALCU58"
+        case .ti58c: modelPrefix = "CALCU58C"
+        }
+        return "\(modelPrefix)_TRACE"
+    }
+
+    func traceFileURL() -> URL {
+        AppSettings.traceDirectory().appendingPathComponent(traceBaseFileName())
     }
 
     /// Create a timestamped trace file URL for when the main file exceeds max size.
-    /// Example: CALCU59_TRACE_20260416_140523.bin
+    /// Example: CALCU59_TRACE_20260416_140523.bin (or CALCU58_TRACE_... / CALCU58C_TRACE_...)
     private func timestampedTraceURL(baseURL: URL) -> URL {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyyMMdd_HHmmss"
         let timestamp = formatter.string(from: Date())
 
-        let baseName = "CALCU59_TRACE"
+        let baseName = traceBaseName()
         let fileName = "\(baseName)_\(timestamp).bin"
         return baseURL.deletingLastPathComponent().appendingPathComponent(fileName)
     }

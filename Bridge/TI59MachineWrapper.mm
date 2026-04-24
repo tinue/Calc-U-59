@@ -184,131 +184,97 @@ static const int kbits[] = {0, 1, 2, 3, 5, 6};  // index 0 unused; index col
 - (void)removeBreakpoint:(uint16_t)pc { _machine->removeBreakpoint(pc); }
 - (void)clearBreakpoints              { _machine->clearBreakpoints(); }
 
-- (NSArray<NSValue*>*)drainTraceEventsMax:(NSUInteger)max {
-    return [self drainTraceEventsMax:max snapshots:nil];
+- (BOOL)loadDebugOverlayWords:(NSData*)words {
+    if ((words.length % sizeof(uint16_t)) != 0) return NO;
+    const uint16_t* data = (const uint16_t*)words.bytes;
+    size_t count = words.length / sizeof(uint16_t);
+    return _machine->loadDebugOverlay(data, count) ? YES : NO;
 }
 
-- (NSArray<NSValue*>*)drainTraceEventsMax:(NSUInteger)max
-                                snapshots:(NSArray<NSValue*>* _Nullable * _Nullable)outSnaps {
-    if (max == 0) return @[];
+- (void)clearDebugOverlay {
+    _machine->clearDebugOverlay();
+}
 
-    // Allocate temporary buffers on the stack for small drains; heap for large.
-    const uint32_t cap = (uint32_t)MIN(max, 512u);
-    std::vector<TraceEvent>   evBuf(cap);
-    std::vector<CPUSnapshot>  snapBuf(cap);
+- (BOOL)runDebugOverlayAt:(uint16_t)startAddr
+                 maxSteps:(uint32_t)maxSteps
+                    steps:(uint32_t*)outSteps
+                  sawHold:(BOOL*)outSawHold {
+    uint32_t steps = 0;
+    bool sawHold = false;
+    bool ok = _machine->runDebugOverlay(startAddr, maxSteps, &steps, &sawHold);
+    if (outSteps) *outSteps = steps;
+    if (outSawHold) *outSawHold = sawHold ? YES : NO;
+    return ok ? YES : NO;
+}
 
-    uint32_t n = _machine->drainTraceEvents(evBuf.data(), outSnaps ? snapBuf.data() : nullptr, cap);
-    if (n == 0) {
-        if (outSnaps) *outSnaps = @[];
-        return @[];
-    }
+// ── New CPU frame API ────────────────────────────────────────────────────────
 
-    NSMutableArray<NSValue*>* result  = [NSMutableArray arrayWithCapacity:n];
-    NSMutableArray<NSValue*>* snaps   = outSnaps ? [NSMutableArray arrayWithCapacity:n] : nil;
+// Helper: convert C++ CpuFrame to Objective-C TICpuFrame struct.
+static TICpuFrame marshalCpuFrame(const CpuFrame& f) {
+    TICpuFrame frame;
+    // Identity
+    frame.seqno = f.seqno;
+    frame.pc = f.pc;
+    frame.opcode = f.opcode;
+    frame.digit = f.digit;
+    frame.cycleWeight = f.cycleWeight;
+    // Light registers
+    frame.KR = f.KR; frame.SR = f.SR; frame.fA = f.fA; frame.fB = f.fB;
+    frame.cpuFlags = f.cpuFlags; frame.R5 = f.R5;
+    // Full snapshot
+    memcpy(frame.A, f.A, 16);
+    memcpy(frame.B, f.B, 16);
+    memcpy(frame.C, f.C, 16);
+    memcpy(frame.D, f.D, 16);
+    memcpy(frame.E, f.E, 16);
+    memcpy(frame.SCOM, f.SCOM, sizeof(f.SCOM));
+    memcpy(frame.Sout, f.Sout, 16);
+    frame.EXT = f.EXT; frame.PREG = f.PREG; frame.flags = f.flags;
+    frame.m_libAddr = f.m_libAddr;
+    frame.REG_ADDR = f.REG_ADDR; frame.RAM_ADDR = f.RAM_ADDR; frame.RAM_OP = f.RAM_OP;
+    frame.m_libAddrReadPos = f.m_libAddrReadPos;
+    frame.dispFilter = f.dispFilter;
+    return frame;
+}
 
+- (NSArray<NSValue*>*)drainCpuFramesMax:(NSUInteger)max
+                                   lost:(NSUInteger*)outLost {
+    if (max == 0) { if (outLost) *outLost = 0; return @[]; }
+
+    const uint32_t cap = (uint32_t)MIN(max, 1024u);
+    std::vector<CpuFrame> frames(cap);
+    uint32_t lostCount = 0;
+
+    uint32_t n = _machine->drainCpuFrames(frames.data(), cap, &lostCount);
+    if (outLost) *outLost = lostCount;
+    if (n == 0) return @[];
+
+    NSMutableArray<NSValue*>* result = [NSMutableArray arrayWithCapacity:n];
     for (uint32_t i = 0; i < n; i++) {
-        // Copy C++ struct into Obj-C counterpart (same layout, verified at compile time)
-        TITraceEvent te;
-        te.pc           = evBuf[i].pc;
-        te.opcode       = evBuf[i].opcode;
-        te.digit        = evBuf[i].digit;
-        te.cycleWeight  = evBuf[i].cycleWeight;
-        te.seqno        = evBuf[i].seqno;
-        te.KR           = evBuf[i].KR;
-        te.SR           = evBuf[i].SR;
-        te.fA           = evBuf[i].fA;
-        te.fB           = evBuf[i].fB;
-        te.cpuFlags     = evBuf[i].cpuFlags;
-        te.R5           = evBuf[i].R5;
-        te.snapshotIndex = evBuf[i].snapshotIndex;
-        [result addObject:[NSValue valueWithBytes:&te objCType:@encode(TITraceEvent)]];
-
-        if (snaps && evBuf[i].snapshotIndex != 0xFF) {
-            TICPUSnapshot ts;
-            const CPUSnapshot& s = snapBuf[i];
-            memcpy(ts.A,    s.A,    16);
-            memcpy(ts.B,    s.B,    16);
-            memcpy(ts.C,    s.C,    16);
-            memcpy(ts.D,    s.D,    16);
-            memcpy(ts.E,    s.E,    16);
-            memcpy(ts.SCOM, s.SCOM, 16 * 16);
-            memcpy(ts.Sout, s.Sout, 16);
-            ts.KR = s.KR; ts.SR = s.SR; ts.fA = s.fA; ts.fB = s.fB;
-            ts.EXT = s.EXT; ts.PREG = s.PREG; ts.flags = s.flags; ts.m_libAddr = s.m_libAddr; ts.m_libAddrReadPos = s.m_libAddrReadPos;
-            ts.R5 = s.R5; ts.digit = s.digit;
-            ts.REG_ADDR = s.REG_ADDR; ts.RAM_ADDR = s.RAM_ADDR; ts.RAM_OP = s.RAM_OP;
-            [snaps addObject:[NSValue valueWithBytes:&ts objCType:@encode(TICPUSnapshot)]];
-        } else if (snaps) {
-            TICPUSnapshot empty{};
-            [snaps addObject:[NSValue valueWithBytes:&empty objCType:@encode(TICPUSnapshot)]];
-        }
+        TICpuFrame frame = marshalCpuFrame(frames[i]);
+        [result addObject:[NSValue valueWithBytes:&frame objCType:@encode(TICpuFrame)]];
     }
-
-    if (outSnaps) *outSnaps = snaps;
     return result;
 }
 
-- (NSArray<NSValue*>*)readTraceEventsMax:(NSUInteger)max {
-    return [self readTraceEventsMax:max snapshots:nil];
-}
-
-- (NSArray<NSValue*>*)readTraceEventsMax:(NSUInteger)max
-                               snapshots:(NSArray<NSValue*>* _Nullable * _Nullable)outSnaps {
+- (NSArray<NSValue*>*)readCpuFramesMax:(NSUInteger)max {
     if (max == 0) return @[];
 
-    const uint32_t cap = (uint32_t)MIN(max, 512u);
-    std::vector<TraceEvent>   evBuf(cap);
-    std::vector<CPUSnapshot>  snapBuf(cap);
+    const uint32_t cap = (uint32_t)MIN(max, 1024u);
+    std::vector<CpuFrame> frames(cap);
 
-    uint32_t n = _machine->readTraceEvents(evBuf.data(), outSnaps ? snapBuf.data() : nullptr, cap);
-    if (n == 0) {
-        if (outSnaps) *outSnaps = @[];
-        return @[];
-    }
+    uint32_t n = _machine->readCpuFrames(frames.data(), cap);
+    if (n == 0) return @[];
 
-    NSMutableArray<NSValue*>* result  = [NSMutableArray arrayWithCapacity:n];
-    NSMutableArray<NSValue*>* snaps   = outSnaps ? [NSMutableArray arrayWithCapacity:n] : nil;
-
+    NSMutableArray<NSValue*>* result = [NSMutableArray arrayWithCapacity:n];
     for (uint32_t i = 0; i < n; i++) {
-        TITraceEvent te;
-        te.pc           = evBuf[i].pc;
-        te.opcode       = evBuf[i].opcode;
-        te.digit        = evBuf[i].digit;
-        te.cycleWeight  = evBuf[i].cycleWeight;
-        te.seqno        = evBuf[i].seqno;
-        te.KR           = evBuf[i].KR;
-        te.SR           = evBuf[i].SR;
-        te.fA           = evBuf[i].fA;
-        te.fB           = evBuf[i].fB;
-        te.cpuFlags     = evBuf[i].cpuFlags;
-        te.R5           = evBuf[i].R5;
-        te.snapshotIndex = (outSnaps ? 0xFF : i);  // Mark which snapshots are valid
-        [result addObject:[NSValue valueWithBytes:&te objCType:@encode(TITraceEvent)]];
-
-        if (outSnaps) {
-            const CPUSnapshot& s = snapBuf[i];
-            TICPUSnapshot ts;
-            memcpy(ts.A,    s.A,    16);
-            memcpy(ts.B,    s.B,    16);
-            memcpy(ts.C,    s.C,    16);
-            memcpy(ts.D,    s.D,    16);
-            memcpy(ts.E,    s.E,    16);
-            memcpy(ts.SCOM, s.SCOM, 16 * 16);
-            memcpy(ts.Sout, s.Sout, 16);
-            ts.KR = s.KR; ts.SR = s.SR; ts.fA = s.fA; ts.fB = s.fB;
-            ts.EXT = s.EXT; ts.PREG = s.PREG; ts.flags = s.flags; ts.m_libAddr = s.m_libAddr; ts.m_libAddrReadPos = s.m_libAddrReadPos;
-            ts.R5 = s.R5; ts.digit = s.digit;
-            ts.REG_ADDR = s.REG_ADDR; ts.RAM_ADDR = s.RAM_ADDR; ts.RAM_OP = s.RAM_OP;
-            [snaps addObject:[NSValue valueWithBytes:&ts objCType:@encode(TICPUSnapshot)]];
-        } else if (snaps) {
-            TICPUSnapshot empty{};
-            [snaps addObject:[NSValue valueWithBytes:&empty objCType:@encode(TICPUSnapshot)]];
-        }
+        TICpuFrame frame = marshalCpuFrame(frames[i]);
+        [result addObject:[NSValue valueWithBytes:&frame objCType:@encode(TICpuFrame)]];
     }
-
-    if (outSnaps) *outSnaps = snaps;
     return result;
 }
+
+// ── Old trace API (deprecated; kept for binary compatibility) ────────────────
 
 + (NSString*)disassemblePC:(uint16_t)pc opcode:(uint16_t)opcode {
     std::string s = TI59Machine::disassemble(pc, opcode);
@@ -369,18 +335,31 @@ static const int kbits[] = {0, 1, 2, 3, 5, 6};  // index 0 unused; index col
     return result;
 }
 
-- (TICPUSnapshot)snapshotCPU {
-    CPUSnapshot s = _machine->snapshotCPU();
-    TICPUSnapshot out;
-    memcpy(out.A, s.A, 16); memcpy(out.B, s.B, 16); memcpy(out.C, s.C, 16);
-    memcpy(out.D, s.D, 16); memcpy(out.E, s.E, 16);
-    memcpy(out.SCOM, s.SCOM, 16 * 16);
-    memcpy(out.Sout, s.Sout, 16);
-    out.KR = s.KR; out.SR = s.SR; out.fA = s.fA; out.fB = s.fB;
-    out.EXT = s.EXT; out.PREG = s.PREG; out.flags = s.flags; out.m_libAddr = s.m_libAddr; out.m_libAddrReadPos = s.m_libAddrReadPos;
-    out.R5 = s.R5; out.digit = s.digit;
-    out.REG_ADDR = s.REG_ADDR; out.RAM_ADDR = s.RAM_ADDR; out.RAM_OP = s.RAM_OP;
+- (TICpuFrame)snapshotCPU {
+    CpuFrame frame = _machine->snapshotCPU();
+    TICpuFrame out;
+    out.seqno = frame.seqno;
+    out.pc = frame.pc;
+    out.opcode = frame.opcode;
+    out.digit = frame.digit;
+    out.cycleWeight = frame.cycleWeight;
+    out.KR = frame.KR; out.SR = frame.SR; out.fA = frame.fA; out.fB = frame.fB;
+    out.cpuFlags = frame.cpuFlags;
+    out.R5 = frame.R5;
+    memcpy(out.A, frame.A, 16); memcpy(out.B, frame.B, 16); memcpy(out.C, frame.C, 16);
+    memcpy(out.D, frame.D, 16); memcpy(out.E, frame.E, 16);
+    memcpy(out.SCOM, frame.SCOM, 16 * 16);
+    memcpy(out.Sout, frame.Sout, 16);
+    out.EXT = frame.EXT; out.PREG = frame.PREG; out.flags = frame.flags;
+    out.m_libAddr = frame.m_libAddr;
+    out.REG_ADDR = frame.REG_ADDR; out.RAM_ADDR = frame.RAM_ADDR; out.RAM_OP = frame.RAM_OP;
+    out.m_libAddrReadPos = frame.m_libAddrReadPos;
+    out.dispFilter = frame.dispFilter;
     return out;
+}
+
+- (void)beginNextStep {
+    _machine->beginNextStep();
 }
 
 + (double)decodeBCDNibbles:(NSData*)nibbles16 {

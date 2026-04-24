@@ -67,7 +67,7 @@ struct CPUDebugView: View {
                 if vm.isFrozen {
                     vm.unfreeze()
                 } else {
-                    vm.freeze(reason: .manual)
+                    vm.freeze(reason: .manual, waitForKeycode: false)
                     // Explicitly select current instruction and request focus
                     selectedInstructionIndex = vm.cpuDebugSnapshot.recentInstructions.count - 1
                     isFocused = true
@@ -261,8 +261,8 @@ struct CPUDebugView: View {
         SectionBox(title: "REGISTERS") {
             let cpu = selectedInstructionIndex.flatMap { idx in
                 guard idx >= 0 && idx < vm.cpuDebugSnapshot.recentInstructions.count else { return nil }
-                return vm.cpuDebugSnapshot.recentInstructions[idx].cpuBefore
-            } ?? vm.cpuDebugSnapshot.recentInstructions.last?.cpuBefore ?? TICPUSnapshot()
+                return vm.cpuDebugSnapshot.recentInstructions[idx].frame
+            } ?? vm.cpuDebugSnapshot.recentInstructions.last?.frame ?? TICpuFrame()
 
             VStack(alignment: .leading, spacing: 6) {
                 registerRow("A", cpu.A)
@@ -302,8 +302,8 @@ struct CPUDebugView: View {
         SectionBox(title: "CONTROL REGISTERS") {
             let cpu = selectedInstructionIndex.flatMap { idx in
                 guard idx >= 0 && idx < vm.cpuDebugSnapshot.recentInstructions.count else { return nil }
-                return vm.cpuDebugSnapshot.recentInstructions[idx].cpuBefore
-            } ?? vm.cpuDebugSnapshot.recentInstructions.last?.cpuBefore ?? TICPUSnapshot()
+                return vm.cpuDebugSnapshot.recentInstructions[idx].frame
+            } ?? vm.cpuDebugSnapshot.recentInstructions.last?.frame ?? TICpuFrame()
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
@@ -353,8 +353,8 @@ struct CPUDebugView: View {
         SectionBox(title: "SCOM") {
             let cpu = selectedInstructionIndex.flatMap { idx in
                 guard idx >= 0 && idx < vm.cpuDebugSnapshot.recentInstructions.count else { return nil }
-                return vm.cpuDebugSnapshot.recentInstructions[idx].cpuBefore
-            } ?? vm.cpuDebugSnapshot.recentInstructions.last?.cpuBefore ?? TICPUSnapshot()
+                return vm.cpuDebugSnapshot.recentInstructions[idx].frame
+            } ?? vm.cpuDebugSnapshot.recentInstructions.last?.frame ?? TICpuFrame()
 
             VStack(alignment: .leading, spacing: 2) {
                 ForEach(0..<16, id: \.self) { row in

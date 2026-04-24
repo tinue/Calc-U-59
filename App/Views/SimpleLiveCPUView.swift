@@ -12,7 +12,7 @@ struct SimpleLiveCPUView: View {
             VStack(spacing: 0) {
                 // Control bar
                 HStack(spacing: 12) {
-                    Button(action: { vm.freeze(reason: .manual) }) {
+                    Button(action: { vm.freeze(reason: .manual, waitForKeycode: false) }) {
                         Text("FREEZE")
                             .font(.caption.bold())
                             .foregroundStyle(.white)
@@ -59,7 +59,7 @@ struct SimpleLiveCPUView: View {
                 // Instructions trace (compact list)
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
-                        ForEach(vm.cpuDebugSnapshot.recentInstructions, id: \.pc) { instr in
+                        ForEach(Array(vm.cpuDebugSnapshot.recentInstructions.enumerated()), id: \.offset) { _, instr in
                             let isCurrent = (instr.pc == vm.cpuDebugSnapshot.currentPC)
                             HStack(spacing: 6) {
                                 Text(String(format: "0x%04X", instr.pc))

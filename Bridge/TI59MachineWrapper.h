@@ -23,20 +23,23 @@ typedef NS_OPTIONS(uint32_t, TITraceFlags) {
 };
 
 typedef struct {
-    uint16_t pc, opcode;
-    uint8_t  digit, cycleWeight;
+    // Identity (always captured)
     uint32_t seqno;
+    uint16_t pc;
+    uint16_t opcode;
+    uint8_t  digit;
+    uint8_t  cycleWeight;
+    // Light registers
     uint16_t KR, SR, fA, fB, cpuFlags;
-    uint8_t  R5, snapshotIndex;
-} TITraceEvent;
-
-typedef struct {
+    uint8_t  R5;
+    // Full snapshot
     uint8_t  A[16], B[16], C[16], D[16], E[16];
     uint8_t  SCOM[16][16];
     uint8_t  Sout[16];
-    uint16_t KR, SR, fA, fB, EXT, PREG, flags, m_libAddr;
-    uint8_t  R5, digit, REG_ADDR, RAM_ADDR, RAM_OP, m_libAddrReadPos;
-} TICPUSnapshot;
+    uint16_t EXT, PREG, flags, m_libAddr;
+    uint8_t  REG_ADDR, RAM_ADDR, RAM_OP, m_libAddrReadPos;
+    uint8_t  dispFilter;
+} TICpuFrame;
 
 @interface TI59MachineWrapper : NSObject
 
@@ -144,26 +147,33 @@ typedef struct {
 - (void)removeBreakpoint:(uint16_t)pc;
 - (void)clearBreakpoints;
 
-/// Drain up to `max` trace events.  If outSnaps is non-nil, the pointed-to
-/// NSArray* is set to a parallel array of TICPUSnapshot NSValues (may be empty
-/// if TRACE_REGS_FULL was not set).  Returns an array of TITraceEvent NSValues.
-- (NSArray<NSValue*>*)drainTraceEventsMax:(NSUInteger)max
-                                snapshots:(NSArray<NSValue*>* _Nullable * _Nullable)outSnaps
-    NS_SWIFT_NAME(drainTraceEvents(max:snapshots:));
+/// Load 13-bit opcodes into debug overlay region at linear address 0x1800.
+/// `words` must contain little-endian UInt16 opcodes. Returns NO on overflow.
+- (BOOL)loadDebugOverlayWords:(NSData*)words;
 
-/// Convenience: drain up to `max` events without capturing CPU register snapshots.
-- (NSArray<NSValue*>*)drainTraceEventsMax:(NSUInteger)max
-    NS_SWIFT_NAME(drainTraceEvents(max:));
+/// Clear all debug overlay words from 0x1800-0x1FFF.
+- (void)clearDebugOverlay;
 
-/// Read (without draining) up to `max` most recent events and their CPU snapshots.
-/// Does not remove events from the ring buffer; safe to call repeatedly.
-- (NSArray<NSValue*>*)readTraceEventsMax:(NSUInteger)max
-                               snapshots:(NSArray<NSValue*>* _Nullable * _Nullable)outSnaps
-    NS_SWIFT_NAME(readTraceEvents(max:snapshots:));
+/// Force execution entry at startAddr and step until HOLD is observed or timeout.
+/// Returns YES if HOLD was observed; NO if maxSteps exhausted.
+- (BOOL)runDebugOverlayAt:(uint16_t)startAddr
+                                 maxSteps:(uint32_t)maxSteps
+                                        steps:(uint32_t*)outSteps
+                                    sawHold:(BOOL*)outSawHold;
 
-/// Convenience: read up to `max` events without capturing CPU register snapshots.
-- (NSArray<NSValue*>*)readTraceEventsMax:(NSUInteger)max
-    NS_SWIFT_NAME(readTraceEvents(max:));
+/// Drain up to `max` CPU frames into an array. If ring overflow occurred,
+/// *outLost is set to the count of frames that were overwritten. Returns
+/// an array of TICpuFrame NSValues.
+- (NSArray<NSValue*>*)drainCpuFramesMax:(NSUInteger)max
+                                   lost:(NSUInteger*)outLost
+    NS_SWIFT_NAME(drainCpuFrames(max:lost:));
+
+/// Read (without draining) up to `max` most recent CPU frames. Does not remove
+/// frames from the ring buffer; safe to call repeatedly.
+- (NSArray<NSValue*>*)readCpuFramesMax:(NSUInteger)max
+    NS_SWIFT_NAME(readCpuFrames(max:));
+
+// ── Old trace API (deprecated; kept for binary compatibility) ──
 
 + (NSString*)disassemblePC:(uint16_t)pc opcode:(uint16_t)opcode;
 
@@ -194,7 +204,10 @@ typedef struct {
     NS_SWIFT_NAME(nonZeroDataRegisterIndices());
 
 /// Capture a snapshot of all CPU registers at the current instant.
-- (TICPUSnapshot)snapshotCPU;
+- (TICpuFrame)snapshotCPU;
+
+/// Pre-execution phase for the next instruction. Call after freeze or after step() in debugger.
+- (void)beginNextStep;
 
 /// Decode a 16-nibble BCD register to a Double (pure, no machine state needed).
 + (double)decodeBCDNibbles:(NSData*)nibbles16

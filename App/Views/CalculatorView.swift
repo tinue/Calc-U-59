@@ -89,10 +89,8 @@ struct CalculatorView: View {
         #else
         // iOS/iPadOS: side-by-side when wide, button-navigated pages when portrait
         GeometryReader { geo in
-            // In portrait, hide button labels when the calculator is too narrow to
-            // fit them comfortably (all iPhones; wide iPads always have room).
-            let isPortrait = geo.size.height >= geo.size.width
-            let showLabels = !isPortrait || geo.size.width >= 500
+            // Hide button labels when the calculator is too narrow to fit them comfortably.
+            let showLabels = geo.size.width >= 1300
             if geo.size.width > geo.size.height {
                 HStack(spacing: 0) {
                     calculatorBody(showLabels: showLabels)
@@ -131,11 +129,18 @@ struct CalculatorView: View {
     }
 
     private func calculatorBody(showLabels: Bool = true) -> some View {
-        VStack(spacing: 0) {
-            KeyboardView()
-            cardReaderBar(showLabels: showLabels)
+        ZStack {
+            Color(red: 29/255, green: 29/255, blue: 28/255)
+
+            VStack(spacing: 0) {
+                KeyboardView()
+                Spacer()
+                cardReaderBar(showLabels: showLabels)
+            }
+            .background(Color(white: 29.0/255.0))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 8)
         }
-        .background(Color(white: 0.08))
     }
 
     // Identifiable wrapper so .sheet(item:) works with the enum
@@ -147,7 +152,7 @@ struct CalculatorView: View {
     // MARK: - Card reader bar
 
     private func cardReaderBar(showLabels: Bool = true) -> some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 12) {
             #if os(macOS)
             Button(isCommandPressed ? "Clean" : "Reset",
                    systemImage: isCommandPressed ? "xmark.circle.fill" : "arrow.counterclockwise") {
@@ -228,9 +233,10 @@ struct CalculatorView: View {
             .controlSize(.large)
             #endif
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .background(Color(white: 0.12))
+        .padding(.horizontal, 12)
+        .frame(maxWidth: .infinity)
+        .frame(height: 50)
+        .background(Color(white: 0.15))
         .foregroundStyle(.white)
     }
 
@@ -258,7 +264,9 @@ struct CalculatorView: View {
                 .padding(8)
                 .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
         }
-        .padding(8)
+        .padding(.top, 2)
+        .padding(.horizontal, 8)
+        .padding(.bottom, 8)
     }
     #endif
 }

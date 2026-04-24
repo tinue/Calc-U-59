@@ -26,6 +26,11 @@ __pycache__/
 # Debug output
 debug/
 
+# Trace files (debug artifacts)
+*.txt
+*.ans
+*.bin
+
 # Generated tool outputs
 refs/
 

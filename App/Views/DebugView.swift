@@ -1,8 +1,10 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct DebugView: View {
     @Environment(EmulatorViewModel.self) var vm
     @State private var tab: DebugTab = .live
+    @State private var showingASMFileImporter = false
     enum DebugTab { case live, cpu, log }
 
     var body: some View {
@@ -10,6 +12,8 @@ struct DebugView: View {
             // Tab bar
             HStack(spacing: 0) {
                 tabButton("LIVE", .live)
+                    .disabled(vm.asmOverlayActive)
+                    .opacity(vm.asmOverlayActive ? 0.35 : 1.0)
                 tabButton("CPU", .cpu)
                 tabButton("LOG", .log)
                 Spacer()
@@ -20,15 +24,41 @@ struct DebugView: View {
             switch tab {
             case .live: LiveDebugView()
             case .cpu:
-                if vm.isFrozen {
-                    CPUInspectorView()
-                } else {
-                    SimpleLiveCPUView()
+                VStack(spacing: 0) {
+                    Group {
+                        if vm.isFrozen {
+                            CPUInspectorView()
+                        } else {
+                            SimpleLiveCPUView()
+                        }
+                    }
+                    .frame(maxHeight: .infinity)
+
+                    Divider().background(Color(white: 0.25))
+
+                    ASMDebugContent {
+                        showingASMFileImporter = true
+                    }
                 }
-            case .log:  StaticDebugContent()
+            case .log:
+                StaticDebugContent()
             }
         }
         .background(Color(white: 0.10))
+        .onChange(of: vm.asmOverlayActive) { _, active in
+            if active { tab = .cpu }
+        }
+        .fileImporter(
+            isPresented: $showingASMFileImporter,
+            allowedContentTypes: [
+                UTType(filenameExtension: "asm") ?? .plainText,
+            ],
+            allowsMultipleSelection: false
+        ) { result in
+            if case .success(let urls) = result, let url = urls.first {
+                vm.loadASMOverlayFile(url)
+            }
+        }
     }
 
     private func tabButton(_ label: String, _ tab_: DebugTab) -> some View {
@@ -167,6 +197,85 @@ private struct StaticDebugContent: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
         .background(Color(white: 0.15))
+    }
+}
+
+private struct ASMDebugContent: View {
+    @Environment(EmulatorViewModel.self) var vm
+    let onPickFile: () -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Text("ASM OVERLAY")
+                .font(.caption.bold())
+                .foregroundStyle(.white.opacity(0.6))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 6)
+                .background(Color(white: 0.07))
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("File: \(vm.asmFileName)")
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(Color(white: 0.85))
+                Text("Words: \(vm.asmWordCount)")
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(Color(white: 0.75))
+                Text(vm.asmStatusMessage)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(Color(white: 0.7))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(10)
+            .background(Color(white: 0.13))
+            .overlay(
+                RoundedRectangle(cornerRadius: 2)
+                    .stroke(Color(white: 0.25), lineWidth: 0.5)
+            )
+            .padding(8)
+
+            HStack(spacing: 8) {
+                Button("Select File") {
+                    onPickFile()
+                }
+                .buttonStyle(.plain)
+                .font(.caption.bold())
+                .foregroundStyle(.white)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color(white: 0.25))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+
+                Button("Run") {
+                    vm.runASMOverlay()
+                }
+                .buttonStyle(.plain)
+                .font(.caption.bold())
+                .foregroundStyle(.white)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color(white: 0.25))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .disabled(!vm.canRunASM)
+
+                Button("Clear") {
+                    vm.clearASMOverlay()
+                }
+                .buttonStyle(.plain)
+                .font(.caption.bold())
+                .foregroundStyle(.white)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color(white: 0.25))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+
+                Spacer()
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(Color(white: 0.15))
+        }
+        .background(Color(white: 0.10))
     }
 }
 

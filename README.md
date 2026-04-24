@@ -14,6 +14,7 @@ If you are looking for a polished calculator app, this is probably not for you. 
 
 - Cycle-accurate TMC0501 CPU emulation
 - Integrated debugger with register inspection and program memory dump
+- [Debug GUI](docs/USERGUIDE.md) — three-tab debug panel (LIVE, CPU, LOG) with live register view, CPU inspector, and ROM overlay execution (ASM overlay controls are in the CPU tab)
 - [Debug API](docs/DebugAPI.md) for scripted access to CPU state, breakpoints, instruction tracing, and disassembly
 - Printer trace mode (functional simulation — see limitation below)
 - `.ti59` state file format for loading calculator state
@@ -23,7 +24,9 @@ If you are looking for a polished calculator app, this is probably not for you. 
 
 **Printer:** The PC-100C thermal printer is not hardware-emulated. The printer output is simulated functionally: the emulator intercepts the ROM's print commands and renders characters using a pixel-accurate dot-matrix font calibrated against physical hardware, but does not model the actual printer interface timing or mechanics. It will not reproduce timing-sensitive printer interactions.
 
-**Debug API:** Despite being a research tool, the debug API is still in its infancy. Register inspection, snapshots, and breakpoints work, but there is no live real-time panel updating as the machine runs, no instruction-level tracing UI, and the API surface will change as it matures.
+**Debug API:** Despite being a research tool, the debug API is still in its infancy. Live view and inspection, step by step
+operation of both calculator-level and CPU-level instructions work. Still missing are breakpoints, keypress latch while
+single stepping, or any sort of dynamic freeze (e.g. on register change). The API surface will change as it matures.
 
 **Library module:** The Master Library module is hardcoded. Switching to a different Solid State Library module is not yet supported.
 

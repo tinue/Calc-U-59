@@ -190,44 +190,55 @@ void TI59Machine::clearBreakpoints() {
     m_cpu.clearBreakpoints();
 }
 
-uint32_t TI59Machine::drainTraceEvents(TraceEvent* out, CPUSnapshot* outSnaps, uint32_t max) {
+bool TI59Machine::loadDebugOverlay(const uint16_t* data, size_t count) {
     std::lock_guard<std::mutex> lock(m_keyMutex);
-    return m_cpu.drainTraceEvents(out, outSnaps, max);
+    return m_rom.loadOverlay(data, count);
 }
 
-uint32_t TI59Machine::readTraceEvents(TraceEvent* out, CPUSnapshot* outSnaps, uint32_t max) const {
+void TI59Machine::clearDebugOverlay() {
     std::lock_guard<std::mutex> lock(m_keyMutex);
-    return m_cpu.readTraceEvents(out, outSnaps, max);
+    m_rom.clearOverlay();
 }
 
-bool TI59Machine::peekLastEvent(TraceEvent& out, CPUSnapshot* outSnap) const {
-    return m_cpu.peekLastEvent(out, outSnap);
+bool TI59Machine::runDebugOverlay(uint16_t startAddr, uint32_t maxSteps,
+                                  uint32_t* outSteps, bool* outSawHold) {
+    std::lock_guard<std::mutex> lock(m_keyMutex);
+    return m_cpu.runDebugInjectedProgram(startAddr, maxSteps, outSteps, outSawHold);
+}
+
+uint32_t TI59Machine::drainCpuFrames(CpuFrame* out, uint32_t max, uint32_t* outLost) {
+    std::lock_guard<std::mutex> lock(m_keyMutex);
+    return m_cpu.drainCpuFrames(out, max, outLost);
+}
+
+uint32_t TI59Machine::readCpuFrames(CpuFrame* out, uint32_t max) const {
+    std::lock_guard<std::mutex> lock(m_keyMutex);
+    return m_cpu.readCpuFrames(out, max);
 }
 
 uint32_t TI59Machine::stepN(uint32_t n, bool stopOnBreakpoint) {
     std::lock_guard<std::mutex> lock(m_keyMutex);
     uint32_t done = 0;
     while (done < n) {
-        int r = m_cpu.step();
+        m_cpu.step();
         done++;
         if (stopOnBreakpoint && m_cpu.consumeBreakpointHit()) {
             break;
         }
-        (void)r;
     }
     return done;
 }
 
-uint32_t TI59Machine::stepUntilNextKeycode(uint32_t maxSteps) {
+uint32_t TI59Machine::stepUntilNextKeycode(uint32_t maxCycles) {
     std::lock_guard<std::mutex> lock(m_keyMutex);
     uint8_t n4 = m_cpu.scomNibble(0, 4);
     uint8_t n5 = m_cpu.scomNibble(0, 5);
     uint8_t n6 = m_cpu.scomNibble(0, 6);
     uint8_t n7 = m_cpu.scomNibble(0, 7);
     uint32_t done = 0;
-    while (done < maxSteps) {
-        m_cpu.step();
-        done++;
+    while (done < maxCycles) {
+        int w = m_cpu.step();          // returns 1 (active) or 4 (IDLE)
+        done += static_cast<uint32_t>(w);
         if (m_cpu.consumeBreakpointHit()) { break; }
         if (m_cpu.scomNibble(0, 4) != n4 || m_cpu.scomNibble(0, 5) != n5 ||
             m_cpu.scomNibble(0, 6) != n6 || m_cpu.scomNibble(0, 7) != n7) { break; }
@@ -287,7 +298,7 @@ uint8_t TI59Machine::readROMKeycode(int addr) const {
     return m_cpu.romKeycode(addr);
 }
 
-CPUSnapshot TI59Machine::snapshotCPU() const {
+CpuFrame TI59Machine::snapshotCPU() const {
     return m_cpu.snapshotCPU();
 }
 

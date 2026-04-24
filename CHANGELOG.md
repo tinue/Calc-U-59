@@ -1,6 +1,26 @@
 # Changelog
 
-## [0.3.0] - TBD
+## [0.4.0] - WIP
+
+**UI:** Full GUI rework of the main calculator panel. The layout now uses an edge-to-edge canvas with a runtime card overlay, replacing the previous button-based layout. The ML-01 reference card was regenerated at full canvas width. The LED display was repositioned to avoid overlap with the card slot. Key rectangles were recalculated from accurate image extraction. Fixed wide borders on iPad Mini in landscape mode. Dark mode is now enforced app-wide.
+
+**Printer:** Printer toggle button added in landscape mode. Printer can now be disabled.
+
+**Debugger:** CPU Inspector frozen view reliability significantly improved. Trace snapshot capture unified to pre-execution semantics; COND field is now correctly patched at freeze time. The frozen view shows the correct next instruction and register state. Fixed SwiftUI ForEach ID collisions in debug views. Refined coloring for return address, HIR, and conditional result fields. ASM overlay tab merged into the CPU tab (unified three-tab layout: LIVE, CPU, LOG). Fixed freeze semantics so that freeze and step-out of IDLE behave correctly.
+
+**Assembly overlay:** `.asm` file format unified. Fixed `ObjCBool` type mismatch in `runASMOverlay`.
+
+**Display:** The calculator display now live-updates while the machine is in IDLE mode (previously stale between keystrokes). Decimal-point position is now read live from R5 rather than cached.
+
+**Disassembler:** Fixed KEY instruction disassembly mask decoding. Dropped redundant `+0`/`-0` suffix for `ADD #0` / `SUB #0` opcodes.
+
+**Trace:** Binary trace format reset to v1 baseline with unified post-execution frame semantics. Fixed Sout offset bug in trace output. `read_trace.py` enhanced with trace numbering, colorization, proper idle-loop detection, and display-phase analysis.
+
+**Emulation:** Removed experimental `WAIT Dn` timing patch (was causing inaccurate idle timing). TI-58C blink timing analyzed, but still no solution found as to the wrong error blink pattern.
+
+**Documentation:** Added `docs/USERGUIDE.md` covering the debug GUI (three-tab panel: LIVE, CPU, LOG). Debug GUI documentation split out of `DebugAPI.md`. Assembly examples from Sladský's hardware programming guide added under `examples/assembly/`.
+
+## [0.3.0] - 2026-04-18
 
 **Core emulation:** Fixed critical R5 register bug where ALU results were captured at the wrong digit position. The R5 register must capture results at the mask's constant position (cpos), not the start position. This bug caused subroutine returns (P/R, transcendental functions, etc.) to jump to incorrect addresses. Bug was present since initial implementation and affected all machine variants.
 

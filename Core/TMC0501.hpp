@@ -70,8 +70,6 @@ enum : uint16_t {
 
     // ── Miscellaneous ───────────────────────────────────────────────────
     FLG_DISP      = 0x1000, // Display active flag (set at reset alongside FLG_COND).
-    FLG_DISP_C    = 0x4000, // (Unused internal mirror — same bit value as fA[14], the hardware
-                            //  SH-pin driver in IDLE mode per TI-58/59 HW guide §digit-12.)
     FLG_BUSY      = 0x8000, // Printer / peripheral busy signal; tested by TST BUSY.
 };
 
@@ -169,14 +167,13 @@ public:
     /// Returns true once per hit; called by TI59Machine after each step().
     bool consumeBreakpointHit();
 
-    /// Drain up to `max` trace events into caller-supplied buffers.
-    /// outSnaps may be nullptr if TRACE_REGS_FULL snapshots are not needed.
-    /// Returns the number of events written.
-    uint32_t drainTraceEvents(TraceEvent* out, CPUSnapshot* outSnaps, uint32_t max);
-    uint32_t readTraceEvents(TraceEvent* out, CPUSnapshot* outSnaps, uint32_t max) const;
+    /// Drain up to `max` CPU frames. If ring overflow occurred since last drain,
+    /// *outLost is set to the count of lost frames. Returns number of frames written.
+    uint32_t drainCpuFrames(CpuFrame* out, uint32_t max, uint32_t* outLost);
 
-    /// Peek at the last event written without consuming it (thread-safe).
-    bool peekLastEvent(TraceEvent& out, CPUSnapshot* outSnap) const;
+    /// Read (without draining) the last up to `max` CPU frames from the ring.
+    /// Returns number of frames read.
+    uint32_t readCpuFrames(CpuFrame* out, uint32_t max) const;
 
     /// Pure function — disassembles one 13-bit opcode to a mnemonic string.
     static std::string disassemble(uint16_t pc, uint16_t opcode);
@@ -190,6 +187,11 @@ public:
     /// Return the content currently held in the printer character buffer.
     std::string printerBufferContent() const;
 
+    /// Debug-only helper: repeatedly force PREG redirect to startAddr and step
+    /// until HOLD is observed or maxSteps is reached. Returns true on success.
+    bool runDebugInjectedProgram(uint16_t startAddr, uint32_t maxSteps,
+                                 uint32_t* outSteps, bool* outSawHold);
+
     /// Return the last stable display snapshot.
     /// The snapshot is captured on every SET IDLE when the digit counter
     /// reaches 0.  If the CPU has been active (not idling) for 3+ consecutive
@@ -202,7 +204,11 @@ public:
     uint16_t cpuFlags() const { return flags; }
 
     /// Capture a snapshot of all CPU registers at the current instant.
-    CPUSnapshot snapshotCPU() const;
+    CpuFrame snapshotCPU() const;
+
+    /// Pre-execution phase: COND auto-restore, patch previous ring entry, capture snapshot.
+    /// Called at the start of step(); also exposed for debugger use after freeze/step boundaries.
+    void beginNextStep();
 
     /// Direct SCOM nibble access (row 0–15, col 0–15).
     uint8_t  scomNibble(int row, int col) const { return SCOM[row][col]; }
@@ -284,7 +290,7 @@ private:
     uint8_t              m_cardSwitchCol{10};   // Digit-counter slot of the card-switch key.
     bool                 m_cardPresent{false};  // Card is currently passing through reader.
     bool                 m_waitingForCard{false}; // ROM is polling TST BUSY for a card.
-    
+
     uint8_t              m_cardFullData[984]{}; // 4 banks * 246 bytes/bank.
     uint8_t              m_cardBankBuffer[246]{}; // Current active swipe buffer.
     size_t               m_cardPtr{0};         // Current index in m_cardBankBuffer.
@@ -304,11 +310,8 @@ private:
     // ── Display state (shared between CPU thread and UI thread) ───────
     mutable std::mutex m_displayMutex;
     DisplaySnapshot m_display{};       // Last stable snapshot, updated at digit=0 on SET IDLE.
-    bool     m_pendingDisplayUpdate{}; // SET IDLE was executed; snapshot will be captured
-                                       // at the next digit=0 boundary.
     uint8_t  m_dispFilter{};   // Counts digit-counter wrap-arounds since the last IDLE.
                                 // At 3, the display is blanked (CPU is busy computing).
-    mutable std::atomic<bool>     m_calcLatch{false};   // Fired on CLR IDL; consumed by getDisplay() (legacy, kept for reset).
     mutable std::atomic<uint32_t> m_cSteps{0};          // Steps (IDLE or non-IDLE) where fA≠0 since last getDisplay().
     mutable std::atomic<uint32_t> m_pollSteps{0};       // Weighted step count since last getDisplay() (non-IDLE=1, IDLE=4).
 
@@ -326,23 +329,20 @@ private:
     // ── Trace / debug state ───────────────────────────────────────────
     std::atomic<uint32_t> m_traceFlags{TRACE_NONE};
     uint32_t m_traceSeqno{0};
+    uint16_t m_pendingOpcode{};  // opcode cached by beginNextStep, consumed by step()
 
-    static constexpr uint32_t kTraceRingMask = 511u; // ring size 512
-    TraceEvent  m_traceRing[512]{};
-    CPUSnapshot m_snapRing[512]{};
-    uint32_t    m_traceHead{0};     // write index (emulation thread only)
-    uint32_t    m_traceTail{0};     // read index (drain caller under m_traceMutex)
+    static constexpr uint32_t kFrameRingSize = 1024u;
+    static constexpr uint32_t kFrameRingMask = kFrameRingSize - 1u;
+    CpuFrame m_frameRing[kFrameRingSize]{};
+    uint32_t m_frameHead{0};     // write index (emulation thread only, always advancing)
+    uint32_t m_diskCursor{0};    // drain read cursor (protected by m_traceMutex)
 
     mutable std::mutex    m_traceMutex;
     std::vector<uint16_t> m_breakpoints; // sorted ascending; protected by m_traceMutex
     bool m_breakpointHit{false};
 
-    // Saved during tracePreStep; consumed by tracePostStep.
-    uint16_t m_tracePC{};
-    uint16_t m_traceOpcode{};
-
-    void tracePreStep(uint32_t tf, uint16_t opcode, bool& snapCaptured);
-    void tracePostStep(uint32_t tf, bool snapCaptured, int weight);
+    void tracePreStep(uint32_t tf, uint16_t opcode);
+    void tracePostStep(uint32_t tf, int weight);
 
     // ── Helper methods for masked operations ──────────────────────────
     // Read only the nibbles specified by the field mask from RAM

@@ -14,38 +14,32 @@ enum : uint32_t {
     TRACE_BREAKPOINTS  = 0x0008,  ///< binary-search breakpoint check on each step; stop-the-world
 };
 
-// ── Trace event ───────────────────────────────────────────────────────────────
+
+// ── Unified CPU frame ─────────────────────────────────────────────────────────
 //
-// One event per executed instruction (PREG pseudo-cycles are not traced).
-// Events accumulate in a 512-deep ring; seqno gaps indicate overflow.
+// Combines TraceEvent and CPUSnapshot into a single struct.
+// Reduces ring buffers from 2 to 1 and eliminates parallel-array mismatch risk.
+// ~397 bytes per frame; 1024-deep ring = ~406 KB.
 
-struct TraceEvent {
-    uint16_t pc;            ///< Address of the instruction
-    uint16_t opcode;        ///< 13-bit opcode fetched from ROM at pc
-    uint8_t  digit;         ///< Digit-counter value when the instruction executed
-    uint8_t  cycleWeight;   ///< 1 (active) or 4 (idle); matches step() return value
-    uint32_t seqno;         ///< Monotonically increasing; gaps = dropped events
+struct CpuFrame {
+    // Identity (always captured)
+    uint32_t seqno;
+    uint16_t pc;
+    uint16_t opcode;
+    uint8_t  digit;
+    uint8_t  cycleWeight;
 
-    // Light registers — valid when TRACE_REGS_LIGHT was set at capture time
+    // Light registers (captured when TRACE_REGS_LIGHT is set)
     uint16_t KR, SR, fA, fB, cpuFlags;
     uint8_t  R5;
 
-    // Snapshot presence flag: 0x00 = snapshot in parallel snapRing slot, 0xFF = none.
-    // Not used as an actual ring index; the drain uses (m_traceTail & kTraceRingMask).
-    uint8_t  snapshotIndex;
-};
-
-// ── Full CPU snapshot ─────────────────────────────────────────────────────────
-//
-// Captured into a parallel ring when TRACE_REGS_FULL is set.
-// The snapshotIndex field in the corresponding TraceEvent indexes this ring.
-
-struct CPUSnapshot {
+    // Full snapshot (captured when TRACE_REGS_FULL is set)
     uint8_t  A[16], B[16], C[16], D[16], E[16];
     uint8_t  SCOM[16][16];
     uint8_t  Sout[16];
-    uint16_t KR, SR, fA, fB, EXT, PREG, flags, m_libAddr;
-    uint8_t  R5, digit, REG_ADDR, RAM_ADDR, RAM_OP, m_libAddrReadPos;
+    uint16_t EXT, PREG, flags, m_libAddr;
+    uint8_t  REG_ADDR, RAM_ADDR, RAM_OP, m_libAddrReadPos;
+    uint8_t  dispFilter; ///< Display blanking filter counter (0–3; ≥3 = display blanked during compute)
 };
 
 // ── Debug event ───────────────────────────────────────────────────────────────

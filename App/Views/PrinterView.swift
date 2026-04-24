@@ -12,15 +12,20 @@ struct PrinterView: View {
     @State private var showCopiedToast = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-            paperStrip
-            GeometryReader { geo in
-                buttonBar(width: geo.size.width)
+        ZStack {
+            Color(red: 29/255, green: 29/255, blue: 28/255)
+
+            VStack(spacing: 0) {
+                header
+                paperStrip
+                Spacer()
+                buttonBar
+                    .frame(height: 50)
             }
-            .frame(height: 50)
+            .background(Color(white: 29.0/255.0))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 8)
         }
-        .background(Color(white: 0.12))
         .overlay(alignment: .bottom) {
             if showCopiedToast {
                 Text("Copied to clipboard")
@@ -40,24 +45,45 @@ struct PrinterView: View {
     // MARK: - Header
 
     private var header: some View {
-        HStack {
+        HStack(spacing: 12) {
             Spacer()
-            Text("PC-100C")
-                .font(.caption.bold())
-                .foregroundStyle(.white.opacity(0.6))
+            // Printer toggle button
+            Button {
+                viewModel.setPrinterConnected(!viewModel.printerConnected)
+                viewModel.resetMachine()
+            } label: {
+                HStack(spacing: 6) {
+                    Text("PC-100C")
+                    Circle()
+                        .fill(viewModel.printerConnected ? Color.red : Color.gray.opacity(0.4))
+                        .frame(width: 8, height: 8)
+                }
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Color(white: 0.25))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("PC-100C")
+            .accessibilityValue(viewModel.printerConnected ? "On" : "Off")
             Spacer()
             // Dot / text toggle
             Button {
                 dotMode.toggle()
             } label: {
                 Image(systemName: dotMode ? "circle.grid.3x3.fill" : "text.alignleft")
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.5))
-                    .padding(.trailing, 10)
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Color(white: 0.25))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
             }
             .buttonStyle(.plain)
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, 8)
         .background(Color(white: 0.08))
     }
 
@@ -124,59 +150,63 @@ struct PrinterView: View {
 
     // MARK: - Hardware button bar
 
-    private func buttonBar(width: CGFloat) -> some View {
-        let printLabel = width < 180 ? "PRN" : "PRINT"
-        return HStack(spacing: 12) {
-            printerButton(printLabel) {
-                viewModel.pressPrinterPrint(true)
-            } onRelease: {
-                viewModel.pressPrinterPrint(false)
-            }
-
-            Button {
-                viewModel.togglePrinterTrace()
-            } label: {
-                HStack(spacing: 4) {
-                    Text("T")
-                    Circle()
-                        .fill(viewModel.printerTrace ? Color.red : Color.gray.opacity(0.4))
-                        .frame(width: 8, height: 8)
+    private var buttonBar: some View {
+        GeometryReader { geo in
+            let width = geo.size.width
+            let printLabel = width < 180 ? "PRN" : "PRINT"
+            HStack(spacing: 12) {
+                printerButton(printLabel) {
+                    viewModel.pressPrinterPrint(true)
+                } onRelease: {
+                    viewModel.pressPrinterPrint(false)
                 }
-                .font(.caption.bold())
-                .foregroundStyle(.white)
-                .frame(minWidth: 36)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(Color(white: 0.25))
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-            }
-            .buttonStyle(.plain)
 
-            printerButton("ADV") {
-                viewModel.pressPrinterAdv(true)
-            } onRelease: {
-                viewModel.pressPrinterAdv(false)
-            }
-
-            Spacer(minLength: 0)
-
-            Button { copyBoth() } label: {
-                Image(systemName: "doc.on.doc")
-                    .font(.system(size: 13))
+                Button {
+                    viewModel.togglePrinterTrace()
+                } label: {
+                    HStack(spacing: 4) {
+                        Text("T")
+                        Circle()
+                            .fill(viewModel.printerTrace ? Color.red : Color.gray.opacity(0.4))
+                            .frame(width: 8, height: 8)
+                    }
+                    .font(.caption.bold())
                     .foregroundStyle(.white)
-            }
-            .disabled(viewModel.printerLines.isEmpty)
+                    .frame(minWidth: 36)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color(white: 0.25))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                }
+                .buttonStyle(.plain)
 
-            Button { copyBoth(); viewModel.cutPaper() } label: {
-                Image(systemName: "scissors")
-                    .font(.system(size: 13))
-                    .foregroundStyle(.white)
+                printerButton("ADV") {
+                    viewModel.pressPrinterAdv(true)
+                } onRelease: {
+                    viewModel.pressPrinterAdv(false)
+                }
+
+                Spacer(minLength: 0)
+
+                Button { copyBoth() } label: {
+                    Image(systemName: "doc.on.doc")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.white)
+                }
+                .disabled(viewModel.printerLines.isEmpty)
+
+                Button { copyBoth(); viewModel.cutPaper() } label: {
+                    Image(systemName: "scissors")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.white)
+                }
+                .disabled(viewModel.printerLines.isEmpty)
             }
-            .disabled(viewModel.printerLines.isEmpty)
+            .padding(.horizontal, 12)
+            .frame(maxWidth: .infinity)
+            .frame(height: 50)
+            .background(Color(white: 0.15))
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(Color(white: 0.15))
     }
 
     // MARK: - Copy helper

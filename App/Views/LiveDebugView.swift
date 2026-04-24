@@ -209,6 +209,28 @@ struct LiveDebugView: View {
                                 .padding(.vertical, 1)
                                 .background(entry.isCurrent ? currentLineColor : Color.clear)
                                 .id(entry.stepNum)
+
+                                // Show next step underneath current (with PC and mnemonic)
+                                if entry.isCurrent && snap.nextStepNum >= 0 {
+                                    HStack(spacing: 0) {
+                                        Text(String(format: "%03d", snap.nextStepNum))
+                                            .foregroundStyle(Color(white: 0.45))
+                                        Text("  ")
+                                        Text(String(format: "%02d", snap.nextStepKeycode))
+                                            .foregroundStyle(Color(white: 0.35))
+                                        Text("  ")
+                                        Text(snap.nextStepMnemonic.isEmpty ? "?" : snap.nextStepMnemonic)
+                                            .foregroundStyle(Color(white: 0.45))
+                                        Text("  ← next")
+                                            .font(.system(size: baseFontSize, design: .monospaced))
+                                            .foregroundStyle(Color.cyan)
+                                        Spacer()
+                                    }
+                                    .font(.system(size: baseFontSize + 2, design: .monospaced))
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 1)
+                                    .background(Color(red: 0.08, green: 0.15, blue: 0.20))
+                                }
                             }
                         }
                     }
@@ -236,33 +258,37 @@ struct LiveDebugView: View {
             SectionBox(title: "PROGRAM STEPS") {
                 VStack(alignment: .leading, spacing: 0) {
                     let window = snap.programWindow
-                    ForEach(0..<11, id: \.self) { i in
-                        if i < window.count {
-                            let entry = window[i]
-                            HStack(spacing: 0) {
-                                Text(String(format: "%03d", entry.stepNum))
-                                    .foregroundStyle(entry.isCurrent ? .white : Color(white: 0.55))
-                                Text("  ")
-                                Text(String(format: "%02d", entry.keycode))
-                                    .foregroundStyle(entry.isCurrent ? Color(red: 0.6, green: 1.0, blue: 0.6)
-                                                                     : Color(white: 0.45))
-                                Text("  ")
-                                Text(entry.mnemonic)
-                                    .foregroundStyle(entry.isCurrent ? .white : Color(white: 0.65))
-                                Spacer()
+                    ForEach(window, id: \.stepNum) { entry in
+                        HStack(spacing: 0) {
+                            Text(String(format: "%03d", entry.stepNum))
+                                .foregroundStyle(entry.isCurrent ? .white : Color(white: 0.55))
+                            Text("  ")
+                            Text(String(format: "%02d", entry.keycode))
+                                .foregroundStyle(entry.isCurrent ? Color(red: 0.6, green: 1.0, blue: 0.6)
+                                                                 : Color(white: 0.45))
+                            Text("  ")
+                            Text(entry.mnemonic)
+                                .foregroundStyle(entry.isCurrent ? .white : Color(white: 0.65))
+                            if entry.isCurrent {
+                                Text("  ← running")
+                                    .font(.system(size: baseFontSize, design: .monospaced))
+                                    .foregroundStyle(Color.cyan)
                             }
-                            .font(.system(size: baseFontSize + 2, design: .monospaced))
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 1)
-                            .background(entry.isCurrent ? currentLineColor : Color.clear)
-                        } else {
-                            HStack(spacing: 0) {
-                                Spacer()
-                            }
-                            .font(.system(size: baseFontSize + 2, design: .monospaced))
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 1)
+                            Spacer()
                         }
+                        .font(.system(size: baseFontSize + 2, design: .monospaced))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 1)
+                        .background(entry.isCurrent ? currentLineColor : Color.clear)
+                    }
+                    // Pad with empty rows to maintain fixed height
+                    ForEach(0..<max(0, 11 - window.count), id: \.self) { _ in
+                        HStack(spacing: 0) {
+                            Spacer()
+                        }
+                        .font(.system(size: baseFontSize + 2, design: .monospaced))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 1)
                     }
                 }
                 .frame(height: 165, alignment: .top)

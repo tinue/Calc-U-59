@@ -10,6 +10,8 @@ This document describes the two-layer debug API available in the TI-59 emulator.
 Both layers are thread-safe. All Swift entry points live in `EmulatorViewModel`;
 the underlying C++ is in `TI59Machine` and `TMC0501`.
 
+For a description of the debug GUI (tabs, buttons, ASM overlay), see [USERGUIDE.md](USERGUIDE.md).
+
 ---
 
 ## Partition System
@@ -89,7 +91,7 @@ struct CalcSnapshot {
     var registers:    [Double]      // R00…Rnn per current partition
     var programSteps: [UInt8]       // keycodes 0–99; length = totalSteps
     var printerBuffer: String       // characters not yet committed to a line
-    var cpu:          TICPUSnapshot // raw CPU register state
+    var cpu:          TICpuFrame    // raw CPU register state (unified frame struct)
 }
 ```
 
@@ -106,10 +108,12 @@ Read data register Rnn decoded as a Double. Equivalent to `RCL nn` on the keyboa
 
 Read all program steps as raw keycodes. Length = `partitionProgramRegs × 8`.
 
-#### `machine.snapshotCPU() → TICPUSnapshot`  *(ObjC bridge)*
+#### `machine.snapshotCPU() → TICpuFrame`  *(ObjC bridge)*
 
-Capture a snapshot of all CPU registers (A–E, SCOM, KR, SR, fA, fB, …) at the
-current instant. Safe to call while the emulation loop is running.
+Capture a unified snapshot of all CPU registers (A–E, SCOM, KR, SR, fA, fB, …) at the
+current instant. Safe to call while the emulation loop is running. Returns the same
+`TICpuFrame` struct used in the trace ring buffer, with identity fields (pc, opcode, seqno)
+set to zero (not meaningful for standalone snapshots).
 
 #### `machine.printerBufferContent → String`  *(ObjC bridge)*
 
@@ -163,35 +167,242 @@ All-zero encodes 0.0.
 Swift helpers: `encodeTI59BCD(_ value: Double) → [UInt8]` (in `StateFileLoader.swift`)
 and `TI59MachineWrapper.decodeBCD(_ nibbles16: Data) → Double`.
 
-### Debug panel — level button
+---
 
-The **D** button in the debug toolbar cycles through three levels:
+## Freeze / Step Controls
 
-| Dot colour | Level | `DebugLevel` value | Effect |
-|------------|-------|--------------------|--------|
-| Gray       | OFF   | `.off` (0)         | No output written; C-core event buffer not drained |
-| Orange     | INFO  | `.info` (1)        | Swift-side `debugAppend` calls at level `.info` are shown |
-| Red        | DEBUG | `.debug` (2)       | All INFO output **plus** C-core write events (STO, MEMWR, RAM OP) |
+The live debug panel can pause the emulator at a keycode boundary, letting you
+inspect and single-step through program execution.
 
-Each click advances one step; after DEBUG it wraps back to OFF.
+### State properties (`EmulatorViewModel`)
 
-The current level is exposed as `vm.debugLevel: DebugLevel` and as the convenience
-computed property `vm.debugEnabled: Bool` (true when level ≠ OFF).
+| Property | Type | Description |
+|----------|------|-------------|
+| `isFrozen` | `Bool` | `true` when emulation is halted (read-only; derived from `freezeReason`) |
+| `freezeReason` | `FreezeReason?` | `nil` = running; non-nil = frozen (`.manual`, `.breakpoint`) |
+| `pendingFreezeOnPCChange` | `Bool` | `true` when "FREEZE ON START" is armed; auto-clears on first PC change |
 
-### Debug panel functions (ViewModel)
+### Methods
 
-These append formatted output to `debugLines`, displayed in the macOS Debug panel.
-Each call accepts an implicit `level:` parameter (default `.info`); output is
-suppressed when `vm.debugLevel < level`.
+#### `freeze(reason: FreezeReason = .manual)`
+
+Stops the emulation loop and waits (on `emulQueue`) for the CPU to reach the next
+keycode boundary.  On return, `isFrozen` is `true` and the following caches are
+built once for the frozen view:
+
+- `frozenRAMCache` — full user-RAM program listing with `isCurrent` markers
+- `frozenROMCache` — full main-ROM listing (when `prSourceFlag == 8`)
+- `cachedPrSourceFlag` — which cache is currently valid
+
+#### `unfreeze()`
+
+Clears `freezeReason` and all program caches, then restarts the emulation and
+display refresh loops.
+
+#### `freezeOnNextPCChange()`
+
+Arms a one-shot freeze that fires as soon as the decoded program counter (from
+SCOM[0] nibbles 4–7) changes.  The current decoded PC is recorded in
+`lastObservedPC`; `pendingFreezeOnPCChange` is set to `true`.  The check runs
+inside the 60 Hz tick loop.
+
+#### `stepKeycode()`
+
+Advances one keycode boundary while frozen.  After the step:
+
+1. Rebuilds live debug and CPU inspector snapshots.
+2. If `prSourceFlag` changed (e.g. a library call), the appropriate program cache
+   is rebuilt and the other cache is cleared.
+3. If `prSourceFlag` is unchanged, only the `isCurrent` markers are updated
+   in-place (cheaper than a full rebuild).
+
+### Frozen-display semantics
+
+When frozen, `currentStep` and `nextStepNum` in `LiveDebugSnapshot` use the
+following convention:
+
+```
+currentStep = decodedPC − 1   (last fully executed step)
+nextStepNum = decodedPC       (next step to execute, from PC)
+```
+
+The frozen program window shows the full program listing (built once on freeze) and
+scrolls to `currentStep` automatically.  The "next" step is rendered below the
+current step with dimmed styling.
+
+### Frozen program cache access
+
+```swift
+var frozenCachedProgram: [LiveDebugSnapshot.StepEntry]?  // nil when not frozen
+var frozenCachedCurrentIndex: Int                         // index of isCurrent entry, or -1
+```
+
+---
+
+## Live Debug Snapshot
+
+`LiveDebugSnapshot` is a value type (`struct`) that carries a complete point-in-time
+view of the calculator's user-visible and SCOM-derived state.  It is rebuilt by
+`buildLiveSnapshot()` at 60 Hz when `vm.liveDebugEnabled` is `true`, and is also
+captured once on each `freeze()` / `stepKeycode()` call.
+
+The snapshot is stored in `vm.liveDebugSnapshot` and read by `LiveDebugView`.
+
+### Partition fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `programRegCount` | `Int` | RAM registers allocated to program storage (from SCOM[9][0]) |
+| `dataRegCount` | `Int` | Displayable data registers (varies by model) |
+
+### Program steps
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `programWindow` | `[StepEntry]` | ±5 steps around `currentStep` when running; not used when frozen (full cache used instead) |
+| `currentStep` | `Int` | Decoded program counter; −1 = unknown.  When frozen: last executed step (decodedPC − 1) |
+| `nextStepNum` | `Int` | Step number of next-to-execute instruction (from PC when frozen); −1 when running |
+| `nextStepKeycode` | `UInt8` | Keycode at `nextStepNum` |
+| `nextStepMnemonic` | `String` | Mnemonic of `nextStepNum` |
+
+`StepEntry` fields: `stepNum: Int`, `keycode: UInt8`, `mnemonic: String`, `isCurrent: Bool`.
+
+The program source (RAM vs. ROM) is selected by `prSourceFlag`:
+
+| `prSourceFlag` | Source | Steps decoded from |
+|----------------|--------|--------------------|
+| `0` | User RAM | `machine.allProgramSteps()` |
+| `8` | Main ROM constants | `machine.romKeycode(at:)` (indices 0–383) |
+
+### HIR registers (SCOM[1..8])
+
+The eight hierarchy registers are decoded as `Double` values from their 16-nibble
+BCD representation in SCOM rows 1–8.
+
+| Field | SCOM row | Description |
+|-------|----------|-------------|
+| `hir1`–`hir8` | SCOM[1]–SCOM[8] | Hierarchy registers 1–8 |
+
+Each HIR nibble layout: bits 15–3 = mantissa, 2–1 = exponent, 0 = sign (same
+format as data registers).
+
+### T register
+
+| Field | SCOM row | Description |
+|-------|----------|-------------|
+| `tRegister` | SCOM[11] | Stack top / last-X equivalent; decoded as `Double` |
+
+### Calculator flags (SCOM[0] nibbles 11–15)
+
+`calcFlags: [Bool?]` has 10 entries (indices 0–9).  Mapping:
+
+| Flag | Nibble | Bit |
+|------|--------|-----|
+| F0–F4 | 11–15 | bit 0 (value 1) |
+| F5–F9 | 11–15 | bit 1 (value 2) |
+
+```
+Flag N → nibble (11 + N % 5), bit (1 if N < 5 else 2)
+```
+
+### SCOM[0] scalar fields
+
+| Field | Source | Description |
+|-------|--------|-------------|
+| `fixIndicator` | nibble 0 | `"-"` when raw == 0; otherwise `(raw − 2) % 10` as a decimal string |
+| `ioUserFlags` | nibbles 1–5 | Five IO user flag nibbles as a decimal string, e.g. `"00100"` |
+| `lastKey` | nibbles 13–14 | Last key pressed as two-digit decimal string, e.g. `"67"` |
+| `fA` | FA register | FA register raw value (16-bit); bit 1 of nibble 1 = `2nd`, bit 0 = `INV` |
+| `fB` | FB register | FB register raw value (16-bit); bit 3 of nibble 2 = ENG mode |
+| `secondIndicator` | fA nibble 1 bit 1 | `"2nd"` when set, `""` otherwise |
+| `invIndicator` | fA nibble 1 bit 0 | `"INV"` when set, `""` otherwise |
+| `engIndicator` | fB nibble 2 bit 3 | `"Eng"` when set, `""` otherwise |
+
+### Angle mode (SCOM[13][0])
+
+| `angleMode` | Nibble value | Description |
+|-------------|--------------|-------------|
+| `.deg` | `0x0` | Degrees |
+| `.grad` | `0x1` | Gradians |
+| `.rad` | `0xC` | Radians |
+| `nil` | other | Unknown / transitional state |
+
+### Control state
+
+| Field | Source | Description |
+|-------|--------|-------------|
+| `prSourceFlag` | SCOM[0] nibble 3 | `0` = user RAM, `1` = library, `8` = main ROM |
+| `pendingOpsCount` | SCOM[13][0] | Number of pending operations in hierarchy stack (exact bit position TBD) |
+
+### SCOM display
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `scomRows` | `[String]` | All 16 SCOM rows as 16-character lowercase hex strings (nibble[0] first) |
+| `printerSCOM` | `[String]` | First 4 rows of `scomRows` (SCOM[0]–SCOM[3], the printer region) |
+
+### Return address stack (SCOM[14:15])
+
+The ROM stores up to 6 levels of subroutine return addresses in SCOM rows 14–15.
+
+**Layout:**
+
+```
+SCOM[15][0]   count         number of active return levels (0–6)
+SCOM[15][1..5]   Level 1   nibble[1] = PRG SOURCE; nibbles[5:2] = address (Base-80, right-to-left)
+SCOM[15][6..10]  Level 2   same format
+SCOM[15][11..15] Level 3   same format
+SCOM[14][1..5]   Level 4   same format
+SCOM[14][6..10]  Level 5   same format
+SCOM[14][11..15] Level 6   same format
+```
+
+**Address decode:**
+
+```
+address = n[5]×800 + n[4]×80 + n[3]×8 + n[2]
+```
+
+(Same Base-80 encoding as the program counter in SCOM[0].)
+
+**`LiveDebugSnapshot` fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `returnAddresses` | `[Int]` (6 elements) | Decoded address for each level (L1 at index 0) |
+| `returnAddressSourceFlags` | `[UInt8]` (6 elements) | PRG SOURCE flag for each level |
+
+**Source flag colours in the UI:**
+
+| Value | Source  | Colour |
+|-------|---------|--------|
+| `0`   | RAM     | Green  |
+| `1`   | Library | Purple |
+| `8`   | ROM     | Yellow |
+
+---
+
+### Debug output API (ViewModel)
+
+These append formatted lines to `vm.debugLines` (displayed in the LOG tab). Each
+call accepts an implicit `level:` parameter (default `.info`); output is suppressed
+when `vm.debugLevel < level`.
 
 | Function | Description |
 |----------|-------------|
 | `debugDumpVars()` | Non-zero data registers within the current partition, shown as `R00 = 3.14159…` |
 | `debugDumpSCOM()` | All 16 SCOM rows as hex nibble strings (`S00 0000000000000000`), nibble[15] first |
+| `debugDumpProg()` | Program RAM registers R00–Rnn as raw nibble pairs in storage order (`R00: 67 11 24 00…`); length = `partitionProgramRegs` |
+| `debugDumpMemory()` | Entire RAM: non-zero registers only, using physical indices (`R000:`, `R001:`, …); same format as `ti58c.mem` |
 | `toggleDebug()` / `clearDebug()` | Cycle debug level (OFF→INFO→DEBUG→OFF); clear the log |
+
+`vm.debugLevel: DebugLevel` — current level (`.off`, `.info`, `.debug`).
+`vm.debugEnabled: Bool` — convenience; `true` when level ≠ OFF.
 
 When adding new Swift-side debug output, call `debugAppend([...], level: .info)` or
 `debugAppend([...], level: .debug)` as appropriate.
+
+---
 
 ### C-core debug events
 
@@ -249,7 +460,8 @@ emitDebug(2, "MY_OP target=%d value=%s", addr, fmtNibs(data, buf));
 
 ### Trace flags
 
-Set via `viewModel.setTraceEnabled(_:fullRegs:)` or directly on the machine wrapper.
+Set via `machine.traceFlags` property. The UI manages this automatically when
+the trace window is opened/closed and when the full-registers toggle is clicked.
 
 | Flag | Swift name | Cost | Records |
 |------|------------|------|---------|
@@ -260,19 +472,45 @@ Set via `viewModel.setTraceEnabled(_:fullRegs:)` or directly on the machine wrap
 
 Flags are combined: `[.pc, .regsLight]` is the default when tracing is enabled.
 
-### TraceEvent fields
+### CpuFrame fields
 
+A unified `CpuFrame` struct combines all CPU state into one 397-byte structure,
+eliminating the parallel TraceEvent + CPUSnapshot mismatch risk.
+
+All emitted `CpuFrame` entries (UI and binary trace) use post-execution semantics.
+`COND` is finalized after jump-chain auto-restore handling and then written into
+the previous frame together with the rest of the CPU state.
+
+**Identity fields (always captured):**
 ```
+seqno         monotonically increasing; gaps indicate ring overflow
 pc            ROM address of the instruction
 opcode        13-bit word fetched from ROM
 digit         digit-counter value (0–15) when the instruction ran
 cycleWeight   1 (active) or 4 (idle)
-seqno         monotonically increasing; gaps indicate ring overflow
+```
+
+**Light registers (captured when TRACE_REGS_LIGHT is set):**
+```
 KR, SR        address / return registers
 fA, fB        flag registers A and B
+cpuFlags      internal CPU flags (bit 0 = IDLE, bit 11 = COND)
 R5            4-bit scratch / decimal-point pointer
-cpuFlags      internal emulator flags (FLG_* bitmask)
-snapshotIndex index into CPUSnapshot ring (0xFF = no snapshot)
+```
+
+**Full snapshot (captured when TRACE_REGS_FULL is set):**
+```
+A, B, C, D, E 16-nibble working registers (index 0 = LSN)
+SCOM[16][16]  serial common I/O memory
+Sout[16]      printer output register
+EXT           exponent register
+PREG          pointer register (4-bit)
+m_libAddr     ROM address pointer (master library)
+m_libAddrReadPos nibble sub-address within ROM word
+REG_ADDR      register address for current operation
+RAM_ADDR      RAM address for current operation
+RAM_OP        RAM operation code
+dispFilter    display blanking filter counter (0–3; ≥3 = blanked during compute)
 ```
 
 ### Breakpoints
@@ -287,6 +525,58 @@ viewModel.singleStep()
 When a breakpoint is hit, the emulation loop stops and `isPausedOnBreakpoint`
 becomes `true`. `breakpointPC` holds the address. Use `resumeFromBreakpoint()`
 to continue or `singleStep()` to advance one instruction at a time.
+
+### CPU Inspector
+
+The CPU inspector provides a deep view of instruction-level execution history with
+post-execution register snapshots.  It is active when the **CPU** tab is selected
+and the emulator is frozen.
+
+#### `CPUDebugSnapshot`
+
+Stored in `vm.cpuDebugSnapshot`; rebuilt by `buildCPUDebugSnapshot()` at 60 Hz
+when the CPU tab is active and the emulator is **running**.
+
+```swift
+struct CPUDebugSnapshot {
+    struct Instruction {
+        var pc:     UInt16    // ROM address
+        var opcode: UInt16    // 13-bit instruction word
+        var disasm: String    // disassembly mnemonic
+    var frame:  TICpuFrame  // CPU state AFTER this instruction executed
+    }
+    var recentInstructions: [Instruction]  // last ≤32 instructions
+    var currentPC:  UInt16
+    var isPaused:   Bool
+    var pausedPC:   UInt16?
+}
+```
+
+Trace flags `[.pc, .regsFull]` are automatically enabled when this snapshot is
+being built.
+
+#### `InspectorSnapshot`
+
+Used by `CPUInspectorView` (frozen mode only).  Stored in `vm.cpuInspectorHistory`.
+
+```swift
+struct InspectorSnapshot {
+    var pc:        UInt16
+    var opcode:    UInt16
+    var disasm:    String
+    var frame:     TICpuFrame  // CPU state AFTER this instruction (empty for speculative future)
+    var isHistory: Bool        // true = executed; false = speculative look-ahead
+    var isCurrent: Bool        // true = the instruction frozen at
+}
+```
+
+Built by `captureInspectorSnapshot()`, which is called on every `freeze()`,
+`stepKeycode()`, and `singleStep()`.  It reads (without draining) up to 1024 frames
+from the ring buffer via `readCpuFrames(max: 1024)`, then appends a speculative
+"next instruction" entry derived from `snapshotCPU().opcode`.
+
+`vm.cpuInspectorUpdateID` is incremented each time a new inspector snapshot is
+captured; views observe this to trigger a scroll-to-current update.
 
 ### Disassembler
 
@@ -319,7 +609,7 @@ The binary trace file captures instruction-level CPU state at 60 Hz. It is used 
 ```
 Offset  Size  Type   Field        Description
 0       4     LE U32 magic        Magic: 0x54493539 ('TI59' in little-endian ASCII)
-4       2     LE U16 version      Format version (currently 2 or 3)
+4       2     LE U16 version      Format version (currently 1; baseline for v1.0.0 — do not increment before release)
 6       10    —      reserved     Reserved; ignore for forward compatibility
 ```
 
@@ -339,9 +629,10 @@ Offset  Size  Type   Field           Description
 | Type | Name              | Payload | Purpose |
 |------|-------------------|---------|---------|
 | 0x01 | SESSION_START     | 8 bytes | Session boundary marker |
-| 0x02 | TRACE_EVENT       | 123 bytes (v2, v3) | CPU instruction snapshot |
+| 0x02 | TRACE_EVENT       | 124 bytes | Unified CPU frame snapshot (combined instruction + state) |
 | 0x03 | SESSION_END       | 8 bytes | Session terminator with counts |
 | 0x04 | USER_EVENT        | ≥4 bytes | User input (key press, card insert) |
+| 0x05 | TRACE_GAP         | 4 bytes | Ring overflow marker: UInt32 LE count of lost frames |
 
 Unknown record types are silently skipped (forward-compatible).
 
@@ -360,9 +651,12 @@ Offset  Size  Type   Field       Description
 
 #### TRACE_EVENT (0x02)
 
-Captures CPU state at a single instruction. **Payload is exactly 123 bytes.**
+Captures a unified CPU frame (instruction + full state) at a single instruction.
+**Payload is exactly 124 bytes.** (v1 baseline; any future changes require binary format version increment).
 
-**Fixed fields (first 35 bytes):**
+Frame state is post-execution for the recorded instruction.
+
+**Fixed fields (first 36 bytes):**
 
 ```
 Offset  Size  Type   Field              Description
@@ -385,17 +679,18 @@ Offset  Size  Type   Field              Description
 32      1     U8     REG_ADDR          Register address for SCOM/register ops
 33      1     U8     m_libAddrReadPos  Sub-address within ROM word (nibble index)
 34      1     U8     cycle_weight      Cycle weight (1 = active, 4 = idle cycle)
+35      1     U8     dispFilter        Display blanking filter counter (0–3; ≥3 = blanked during compute)
 ```
 
 **Register A–E (80 bytes):** Unpacked 16-bit nibble arrays (index 0 = LSN, index 15 = MSN).
 
 ```
 Offset  Size  Type   Field    Description
-35      16    U8[16] A_regs   Register A: 16 nibbles (index 0 = LSN)
-51      16    U8[16] B_regs   Register B: 16 nibbles
-67      16    U8[16] C_regs   Register C: 16 nibbles
-83      16    U8[16] D_regs   Register D: 16 nibbles
-99      16    U8[16] E_regs   Register E: 16 nibbles
+36      16    U8[16] A_regs   Register A: 16 nibbles (index 0 = LSN)
+52      16    U8[16] B_regs   Register B: 16 nibbles
+68      16    U8[16] C_regs   Register C: 16 nibbles
+84      16    U8[16] D_regs   Register D: 16 nibbles
+100     16    U8[16] E_regs   Register E: 16 nibbles
 ```
 
 Each nibble (4-bit value 0–15) occupies one byte.
@@ -404,11 +699,11 @@ Each nibble (4-bit value 0–15) occupies one byte.
 
 ```
 Offset  Size  Type   Field    Description
-115     8     U8[8]  sout     Printer output: nibbles packed as (high_nibble << 4) | low_nibble
+116     8     U8[8]  sout     Printer output: nibbles packed as (high_nibble << 4) | low_nibble
                               sout[i] & 0x0F = Sout[2i], (sout[i] >> 4) = Sout[2i+1]
 ```
 
-**Total payload:** 35 + 80 + 8 = 123 bytes.
+**Total payload:** 36 + 80 + 8 = 124 bytes.
 
 **Flag bit definitions (cpu_flags):**
 
@@ -426,8 +721,9 @@ Marks the end of a trace session (e.g., app quit or emulator pause).
 
 ```
 Offset  Size  Type   Field            Description
-0       4     LE U32 eventCount       Total instruction events recorded in this session
-4       4     LE U32 suppressedTotal  Total events suppressed due to ring buffer overflow
+0       4     LE U32 eventCount       Total TRACE_EVENT records written in this session
+4       4     LE U32 suppressedTotal  Deprecated; now always zero (dedup removed in v5; ring overflows
+                                      are recorded via TRACE_GAP records instead)
 ```
 
 #### USER_EVENT (0x04)
@@ -453,14 +749,32 @@ Offset  Size  Type   Field    Description
 | 0x03  | CARD INSERT  | —  | —  | Magnetic card inserted |
 | 0x04  | CARD EJECT   | —  | —  | Magnetic card ejected |
 
+#### TRACE_GAP (0x05)
+
+Indicates that the ring buffer overflowed and some frames were lost.
+
+**Payload (4 bytes):**
+
+```
+Offset  Size  Type   Field       Description
+0       4     LE U32 lostFrames  Number of CPU frames that were overwritten in the ring
+```
+
+This record appears in the trace when the emulation runs faster than the trace drain
+thread can write to disk, causing the 1024-frame ring buffer to wrap. The `seqno`
+field in subsequent TRACE_EVENT records will have a gap showing exactly how many
+frames were lost. When parsing, accumulate the loss counts to understand the true
+instruction count across gaps.
+
 ### Parsing Notes
 
 - **Byte order:** All multi-byte fields use little-endian unless stated otherwise.
 - **Nibble representation:** Most fields use packed hex (one 4-bit value per byte for readability).
-- **Ring buffer:** When the trace buffer overflows, `seqno` gaps and `suppressed` counts
-  indicate lost events. The `suppressedTotal` in SESSION_END reflects cumulative loss.
-- **Version compatibility:** v2 and v3 both have 123-byte TRACE_EVENT payloads. v3 added
-  `m_libAddrReadPos` but maintained backward compatibility. Code must accept both versions.
+- **Ring buffer and overflow:** The trace ring holds up to 1024 unified CPU frames. When
+  emulation runs faster than the trace drain thread, frames are lost. Lost frames are
+  reported via TRACE_GAP records (type 0x05). Check for `seqno` gaps in TRACE_EVENT
+  records to detect overflow; the gap size equals the number of lost frames.
+- **Record types:** Unknown record types are silently skipped (forward-compatible).
 
 ---
 

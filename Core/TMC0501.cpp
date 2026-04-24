@@ -284,7 +284,6 @@ DisplaySnapshot TMC0501::getDisplay() const {
     //   • long computations (e.g. 1/x)     → duty cycle near 1.0
     //   • IDLE with only decimal-point bits → duty cycle = 0.0 (no false C)
     //   • "A" blink bright phase in IDLE   → fA[14] set → duty cycle ≈ 0.25
-    m_calcLatch.exchange(false, std::memory_order_relaxed);  // consume (kept for reset logic)
     const uint32_t cSteps    = m_cSteps.exchange(0, std::memory_order_relaxed);
     const uint32_t pollSteps = m_pollSteps.exchange(0, std::memory_order_relaxed);
     const float cLevel = pollSteps ? (float)cSteps / (float)pollSteps : 0.0f;
@@ -296,6 +295,7 @@ DisplaySnapshot TMC0501::getDisplay() const {
         return blank;
     }
     DisplaySnapshot s = m_display;
+    s.dpPos = R5 & 0x0F;  // Live R5 value for POV decimal-point effect
     s.calcIndicator = cLevel;
     return s;
 }
@@ -374,29 +374,41 @@ void TMC0501::xch(uint8_t* a, uint8_t* b, const MaskInfo& m) {
     }
 }
 
+bool TMC0501::runDebugInjectedProgram(uint16_t startAddr, uint32_t maxSteps,
+                                      uint32_t* outSteps, bool* outSawHold) {
+    if (outSteps) *outSteps = 0;
+    if (outSawHold) *outSawHold = false;
+
+    const uint16_t target = static_cast<uint16_t>(startAddr & 0x1FFFu);
+    for (uint32_t i = 0; i < maxSteps; i++) {
+        // Emulate the external debugger forcing EXT/PREG lines until HOLD.
+        EXT = target;
+        PREG = target;
+        (void)step();
+        if (outSteps) *outSteps = i + 1;
+        if (flags & FLG_HOLD) {
+            if (outSawHold) *outSawHold = true;
+            return true;
+        }
+    }
+    return false;
+}
+
 // ── Main instruction dispatch ─────────────────────────────────────────────────
 
 int TMC0501::step() {
     // ── Trace gate ────────────────────────────────────────────────────
     // One relaxed atomic load per step; falls through at zero cost when disabled.
     const uint32_t tf = m_traceFlags.load(std::memory_order_relaxed);
-    // snapCaptured: true when the mid-step snapshot was already written to the
-    // snap ring (after COND auto-restore, before instruction body).  tracePostStep
-    // checks this flag to skip re-capturing for non-branch instructions.
-    // Using bool avoids the 0xFF sentinel conflict: with a 512-slot ring, slot 255
-    // and slot 511 both have (idx & 0xFF) == 0xFF, which would falsely signal
-    // "not captured" if the ring-slot index were used as the sentinel.
-    bool snapCaptured = false;
 
     // ── Printer busy countdown ────────────────────────────────────────
     if (m_prnBusyCycles > 0) {
         if (--m_prnBusyCycles == 0) flags &= ~FLG_BUSY;
     }
 
-    uint16_t opcode = rom.read(addr);
-
-    // Capture pre-execution state for the trace ring.
-    if (tf != TRACE_NONE) [[unlikely]] { tracePreStep(tf, opcode, snapCaptured); }
+    // Pre-execution phase: COND auto-restore, patch previous ring entry, capture snapshot
+    beginNextStep();
+    uint16_t opcode = m_pendingOpcode;
 
     // ── Digit counter ─────────────────────────────────────────────────
     // 4-bit counter cycling 15→14→…→1→0→15.  One step per instruction.
@@ -413,14 +425,12 @@ int TMC0501::step() {
     if (digit == 0) {
         if (flags & FLG_IDLE) {
             m_dispFilter = 0;
-            if (m_pendingDisplayUpdate) {
-                m_pendingDisplayUpdate = false;
-                std::lock_guard<std::mutex> lock(m_displayMutex);
-                for (int i = 0; i < 12; ++i) {
-                    m_display.digits[i] = A[i + 2] & 0x0F;
-                    m_display.ctrl[i]   = B[i + 2] & 0x0F;
-                }
-                m_display.dpPos = R5 & 0x0F;
+            // Auto-update display every digit cycle while in IDLE mode.
+            // Display reflects A/B changes immediately while idle.
+            std::lock_guard<std::mutex> lock(m_displayMutex);
+            for (int i = 0; i < 12; ++i) {
+                m_display.digits[i] = A[i + 2] & 0x0F;
+                m_display.ctrl[i]   = B[i + 2] & 0x0F;
             }
         } else if (m_dispFilter < 3) {
             m_dispFilter++;
@@ -460,47 +470,12 @@ int TMC0501::step() {
             addr++;
         }
         int w = (flags & FLG_IDLE) ? 4 : 1;
-        if (tf != TRACE_NONE) [[unlikely]] { tracePostStep(tf, snapCaptured, w); }
+        if (tf != TRACE_NONE) [[unlikely]] { tracePostStep(tf, w); }
         if ((flags & FLG_IDLE) ? (fA & 0x4000u) : fA) m_cSteps.fetch_add(1, std::memory_order_relaxed);
         m_pollSteps.fetch_add(static_cast<uint32_t>(w), std::memory_order_relaxed);
         return w;
     }
 
-    // ── COND auto-restore after a branch sequence ─────────────────────
-    // After a run of branch instructions, the first non-branch instruction
-    // restores COND to 1 (true) so the next TST/CMP starts from a clean slate.
-    if (flags & FLG_JUMP) {
-        flags &= ~FLG_JUMP;
-        flags |=  FLG_COND;
-    }
-
-    // ── Pre-instruction-body snapshot ─────────────────────────────────
-    // The reference emulator records CPU state HERE — after COND auto-restore
-    // but before the instruction body runs.  This means that for instructions
-    // that clear COND (e.g. ?TFKR, ?TST fA[b]), the trace shows COND=1
-    // (the freshly-restored value) rather than COND=0 (the post-execution
-    // value).  Branch instructions are unaffected: they return before reaching
-    // this point and always capture their snapshot post-execution (above).
-    //
-    // snapCaptured is set here to signal tracePostStep to skip re-capturing the
-    // snapshot (it would overwrite the pre-body values with post-body values).
-    if (tf != TRACE_NONE && (tf & TRACE_REGS_FULL)) [[unlikely]] {
-        uint32_t idx = m_traceHead & kTraceRingMask;
-        CPUSnapshot& s = m_snapRing[idx];
-        memcpy(s.A,    A,    16);
-        memcpy(s.B,    B,    16);
-        memcpy(s.C,    C,    16);
-        memcpy(s.D,    D,    16);
-        memcpy(s.E,    E,    16);
-        memcpy(s.SCOM, SCOM, sizeof(SCOM));
-        memcpy(s.Sout, Sout, 16);
-        s.KR = KR; s.SR = SR; s.fA = fA; s.fB = fB;
-        s.EXT = EXT; s.PREG = PREG ? 1 : 0; s.flags = flags;
-        s.m_libAddr = m_libAddr; s.m_libAddrReadPos = m_libAddrReadPos;
-        s.R5 = R5; s.digit = digit;
-        s.REG_ADDR = REG_ADDR; s.RAM_ADDR = RAM_ADDR; s.RAM_OP = RAM_OP;
-        snapCaptured = true;  // signal tracePostStep to skip re-capture
-    }
 
     switch (opcode & 0x0F00) {
 
@@ -587,10 +562,6 @@ int TMC0501::step() {
 
         case 0x1:  // CLR IDL — exit idle/display mode; resume full speed
             flags &= ~FLG_IDLE;
-            // Latch fires on every CLR IDL so getDisplay() (60 Hz) always sees
-            // at least one frame of C=true, even for brief computations where
-            // fA stays 0 throughout (e.g. simple digit entry like "1").
-            m_calcLatch.store(true, std::memory_order_relaxed);
             break;
 
         case 0x2: fA = 0; break;  // CLR fA — clear all 16 fA flag bits at once
@@ -631,8 +602,8 @@ int TMC0501::step() {
                     flags |= FLG_RAM_READ;
             } else {
                 // MOV R5,fA[1..4] or fB[1..4] — copy bits 1-4 into R5
-                uint16_t flags = (opcode & 0x0010u) ? fB : fA;
-                R5 = static_cast<uint8_t>((flags >> 1) & 0x0Fu);
+                uint16_t flagReg = (opcode & 0x0010u) ? fB : fA;
+                R5 = static_cast<uint8_t>((flagReg >> 1) & 0x0Fu);
             }
             break;
         }
@@ -784,10 +755,9 @@ int TMC0501::step() {
             break;
 
         case 0x9:  // SET IDL — enter idle/display mode
-            // Marks FLG_IDLE so step() returns 4 (1/4 speed) and schedules a
-            // display snapshot at the next digit=0 boundary.
+            // Marks FLG_IDLE so step() returns 4 (1/4 speed); display snapshot
+            // is captured at the next digit=0 boundary in the main step() loop.
             flags |= FLG_IDLE;
-            m_pendingDisplayUpdate = true;
             break;
 
         case 0xA: fB = 0; break;  // CLR fB — clear all 16 fB flag bits at once
@@ -885,7 +855,7 @@ int TMC0501::step() {
         addr++;
     }
     int w = (flags & FLG_IDLE) ? 4 : 1;
-    if (tf != TRACE_NONE) [[unlikely]] { tracePostStep(tf, snapCaptured, w); }
+    if (tf != TRACE_NONE) [[unlikely]] { tracePostStep(tf, w); }
     if ((flags & FLG_IDLE) ? (fA & 0x4000u) : fA) m_cSteps.fetch_add(1, std::memory_order_relaxed);
     m_pollSteps.fetch_add(static_cast<uint32_t>(w), std::memory_order_relaxed);
 
@@ -1200,18 +1170,79 @@ bool TMC0501::consumeBreakpointHit() {
     return false;
 }
 
+// ── beginNextStep ─────────────────────────────────────────────────────────────
+//
+// Pre-execution phase for the next instruction to run. Called at the very start
+// of step() so the running loop gets it for free; also called explicitly by the
+// debugger after freeze or a step, to ensure the ring buffer is display-ready.
+//
+// Safe to call multiple times for the same addr: observable state is idempotent
+// (COND auto-restore only fires if FLG_JUMP set; ring patches write same values).
+// However, repeated calls do redundant ROM reads and snapshot captures.
+
+void TMC0501::beginNextStep() {
+    const uint32_t tf = m_traceFlags.load(std::memory_order_relaxed);
+
+    m_pendingOpcode = rom.read(addr);
+
+    // COND auto-restore: first non-branch instruction after a jump sequence
+    // restores COND to 1 so the next TST/CMP starts from a clean slate.
+    if (!(m_pendingOpcode & 0x1000) && (flags & FLG_JUMP)) {
+        flags &= ~FLG_JUMP;
+        flags |=  FLG_COND;
+    }
+
+    // Patch the previous ring entry to the CPU's post-execution state.
+    // This runs for every instruction (branch and non-branch), so every stored
+    // frame uses the same post-exec semantics for UI and trace-file consumers,
+    // including COND after auto-restore handling.
+    if (tf != TRACE_NONE && m_frameHead > 0) {
+        CpuFrame& prev = m_frameRing[(m_frameHead - 1) & kFrameRingMask];
+        if (tf & (TRACE_REGS_LIGHT | TRACE_REGS_FULL)) {
+            prev.KR       = KR;
+            prev.SR       = SR;
+            prev.fA       = fA;
+            prev.fB       = fB;
+            prev.cpuFlags = flags;
+            prev.R5       = R5;
+        }
+        if (tf & TRACE_REGS_FULL) {
+            memcpy(prev.A,    A,    16);
+            memcpy(prev.B,    B,    16);
+            memcpy(prev.C,    C,    16);
+            memcpy(prev.D,    D,    16);
+            memcpy(prev.E,    E,    16);
+            memcpy(prev.SCOM, SCOM, sizeof(SCOM));
+            memcpy(prev.Sout, Sout, 16);
+            prev.EXT = EXT;
+            prev.PREG = PREG;
+            prev.flags = flags;
+            prev.m_libAddr = m_libAddr;
+            prev.m_libAddrReadPos = m_libAddrReadPos;
+            prev.R5 = R5;
+            prev.digit = digit;
+            prev.REG_ADDR = REG_ADDR;
+            prev.RAM_ADDR = RAM_ADDR;
+            prev.RAM_OP = RAM_OP;
+            prev.dispFilter = m_dispFilter;
+        }
+    }
+
+    // Capture pre-execution snapshot for the instruction about to run.
+    if (tf != TRACE_NONE) {
+        tracePreStep(tf, m_pendingOpcode);
+    }
+}
+
 // ── tracePreStep ──────────────────────────────────────────────────────────────
 //
 // Called at the top of step() when any trace flag is active.
-// Records pc and opcode for use by tracePostStep.  snapCaptured starts false
-// and is set to true by the mid-step snapshot capture (after COND auto-restore,
-// before instruction body) for non-branch instructions.  Branch instructions
-// leave it false and capture post-execution in their own return path.
+// Captures instruction identity (pc/opcode) and a pre-execution baseline.
+// On the following instruction boundary, beginNextStep() patches the previous
+// frame to full post-execution state so all emitted entries share one semantic.
 
-void TMC0501::tracePreStep(uint32_t tf, uint16_t opcode, bool& snapCaptured) {
-    m_tracePC     = addr;
-    m_traceOpcode = opcode;
-
+void TMC0501::tracePreStep(uint32_t tf, uint16_t opcode) {
+    // Breakpoint check (unchanged)
     if (tf & TRACE_BREAKPOINTS) {
         std::lock_guard<std::mutex> lk(m_traceMutex);
         if (!m_breakpoints.empty()) {
@@ -1220,115 +1251,106 @@ void TMC0501::tracePreStep(uint32_t tf, uint16_t opcode, bool& snapCaptured) {
                 m_breakpointHit = true;
         }
     }
+
+    // Capture pre-execution snapshot into the ring slot
+    CpuFrame& frame = m_frameRing[m_frameHead & kFrameRingMask];
+
+    // Identity (pc and opcode available here; seqno/cycleWeight set post-step)
+    frame.pc     = addr;
+    frame.opcode = opcode;
+
+    // Light registers (previously deferred to tracePostStep for non-branch)
+    if (tf & (TRACE_REGS_LIGHT | TRACE_REGS_FULL)) {
+        frame.KR       = KR;
+        frame.SR       = SR;
+        frame.fA       = fA;
+        frame.fB       = fB;
+        frame.cpuFlags = flags;
+        frame.R5       = R5;
+    }
+
+    // Full registers (previously in mid-step block)
+    if (tf & TRACE_REGS_FULL) {
+        memcpy(frame.A,    A,    16);
+        memcpy(frame.B,    B,    16);
+        memcpy(frame.C,    C,    16);
+        memcpy(frame.D,    D,    16);
+        memcpy(frame.E,    E,    16);
+        memcpy(frame.SCOM, SCOM, sizeof(SCOM));
+        memcpy(frame.Sout, Sout, 16);
+        frame.EXT = EXT; frame.PREG = PREG; frame.flags = flags;
+        frame.m_libAddr = m_libAddr; frame.m_libAddrReadPos = m_libAddrReadPos;
+        frame.digit = digit;
+        frame.REG_ADDR = REG_ADDR; frame.RAM_ADDR = RAM_ADDR; frame.RAM_OP = RAM_OP;
+        frame.dispFilter = m_dispFilter;
+    }
 }
 
 // ── tracePostStep ─────────────────────────────────────────────────────────────
 //
 // Called at every return site in step() when tracing is active.
-// Writes a TraceEvent to the ring.  Ring overflow: head advances unconditionally;
-// seqno gaps in the output signal dropped events to the caller.
-//
-// Snapshot timing (matches reference-emulator convention):
-//   • Non-branch instructions: snapshot was already captured mid-step (after COND
-//     auto-restore, before instruction body).  snapCaptured=true signals this; the
-//     capture below is skipped so the pre-body values are preserved.
-//   • Branch instructions: snapCaptured=false; snapshot is captured here, after
-//     the branch logic runs (post-execution).  Branches do not modify COND or
-//     registers visible in the snapshot, so timing does not matter for them.
+// Finalizes identity fields and advances the ring buffer.
+// Full state patching is deferred to beginNextStep() at the next instruction
+// boundary, where the previous frame is rewritten to post-execution state.
 
-void TMC0501::tracePostStep(uint32_t tf, bool snapCaptured, int weight) {
-    uint32_t idx = m_traceHead & kTraceRingMask;
+void TMC0501::tracePostStep(uint32_t tf, int weight) {
+    CpuFrame& frame = m_frameRing[m_frameHead & kFrameRingMask];
 
-    // Capture snapshot only for branch instructions (!snapCaptured).
-    // Non-branch instructions already wrote their snapshot after COND auto-restore.
-    if ((tf & TRACE_REGS_FULL) && !snapCaptured) {
-        CPUSnapshot& s = m_snapRing[idx];
-        memcpy(s.A,    A,    16);
-        memcpy(s.B,    B,    16);
-        memcpy(s.C,    C,    16);
-        memcpy(s.D,    D,    16);
-        memcpy(s.E,    E,    16);
-        memcpy(s.SCOM, SCOM, sizeof(SCOM));
-        memcpy(s.Sout, Sout, 16);
-        s.KR = KR; s.SR = SR; s.fA = fA; s.fB = fB;
-        s.EXT = EXT; s.PREG = PREG ? 1 : 0; s.flags = flags;
-        s.m_libAddr = m_libAddr; s.m_libAddrReadPos = m_libAddrReadPos;
-        s.R5 = R5; s.digit = digit;
-        s.REG_ADDR = REG_ADDR; s.RAM_ADDR = RAM_ADDR; s.RAM_OP = RAM_OP;
-    }
+    // Identity fields only known after execution
+    frame.seqno       = m_traceSeqno++;
+    frame.digit       = digit;
+    frame.cycleWeight = static_cast<uint8_t>(weight);
 
-    TraceEvent& ev = m_traceRing[idx];
-    ev.pc          = m_tracePC;
-    ev.opcode      = m_traceOpcode;
-    ev.digit       = digit;
-    ev.cycleWeight = static_cast<uint8_t>(weight);
-    ev.seqno       = m_traceSeqno++;
-    // 0x00 = snapshot present in parallel snapRing slot; 0xFF = no snapshot.
-    // Not used as an actual array index — the drain uses (m_traceTail & kTraceRingMask)
-    // directly — so a plain present/absent flag is correct and avoids the collision
-    // that arose when (idx & 0xFF) == 0xFF (ring slots 255 and 511).
-    ev.snapshotIndex = (tf & TRACE_REGS_FULL) ? 0x00u : 0xFFu;
-
-    if (tf & TRACE_REGS_LIGHT) {
-        ev.KR       = KR;
-        ev.SR       = SR;
-        ev.fA       = fA;
-        ev.fB       = fB;
-        ev.cpuFlags = flags;
-        ev.R5       = R5;
-    } else {
-        ev.KR = ev.SR = ev.fA = ev.fB = ev.cpuFlags = 0;
-        ev.R5 = 0;
-    }
-
-    m_traceHead++;
+    m_frameHead++;
 }
 
-uint32_t TMC0501::drainTraceEvents(TraceEvent* out, CPUSnapshot* outSnaps, uint32_t max) {
+uint32_t TMC0501::drainCpuFrames(CpuFrame* out, uint32_t max, uint32_t* outLost) {
     std::lock_guard<std::mutex> lk(m_traceMutex);
-    uint32_t head = m_traceHead;  // single read; emulation thread may advance concurrently
-    if (head == m_traceTail || max == 0) return 0;
+    if (max == 0) { if (outLost) *outLost = 0; return 0; }
 
-    uint32_t count = 0;
-    while (m_traceTail != head && count < max) {
-        uint32_t idx = m_traceTail & kTraceRingMask;
-        out[count] = m_traceRing[idx];
-        if (outSnaps && out[count].snapshotIndex != 0xFF)
-            outSnaps[count] = m_snapRing[idx];
-        m_traceTail++;
-        count++;
+    uint32_t head = m_frameHead;  // single read; emulation thread may advance concurrently
+
+    // Detect ring overflow: if head has advanced beyond diskCursor + ring size,
+    // frames were overwritten.
+    uint32_t lostCount = 0;
+    if (head - m_diskCursor > kFrameRingSize) {
+        lostCount = (head - m_diskCursor) - kFrameRingSize;
+        m_diskCursor = head - kFrameRingSize;  // jump to oldest frame still in ring
     }
+
+    if (outLost) *outLost = lostCount;
+
+    // Drain from m_diskCursor up to head (exclusive)
+    if (m_diskCursor == head || max == 0) return 0;
+
+    uint32_t available = head - m_diskCursor;
+    uint32_t count = (available < max) ? available : max;
+
+    for (uint32_t i = 0; i < count; i++) {
+        uint32_t idx = (m_diskCursor + i) & kFrameRingMask;
+        out[i] = m_frameRing[idx];
+    }
+
+    m_diskCursor += count;
     return count;
 }
 
-uint32_t TMC0501::readTraceEvents(TraceEvent* out, CPUSnapshot* outSnaps, uint32_t max) const {
+uint32_t TMC0501::readCpuFrames(CpuFrame* out, uint32_t max) const {
     std::lock_guard<std::mutex> lk(m_traceMutex);
-    uint32_t head = m_traceHead;
+    uint32_t head = m_frameHead;
     if (max == 0 || head == 0) return 0;
 
-    // Return the last 'count' events from the ring buffer, ignoring the drain tail.
-    // This gives a snapshot of the most recent events without removing them.
+    // Return the last 'count' frames from the ring buffer (non-consuming).
+    // This gives a snapshot of the most recent frames without removing them.
     uint32_t count = (head < max) ? head : max;  // Can't read more than we have
 
-    // Read the last 'count' events (starting from head - count)
-    uint32_t startIdx = (head - count) & kTraceRingMask;
+    // Read the last 'count' frames (starting from head - count)
+    uint32_t startIdx = (head - count) & kFrameRingMask;
     for (uint32_t i = 0; i < count; i++) {
-        uint32_t idx = (startIdx + i) & kTraceRingMask;
-        out[i] = m_traceRing[idx];
-        if (outSnaps && out[i].snapshotIndex != 0xFF)
-            outSnaps[i] = m_snapRing[idx];
+        uint32_t idx = (startIdx + i) & kFrameRingMask;
+        out[i] = m_frameRing[idx];
     }
     return count;
-}
-
-bool TMC0501::peekLastEvent(TraceEvent& out, CPUSnapshot* outSnap) const {
-    std::lock_guard<std::mutex> lk(m_traceMutex);
-    if (m_traceHead == m_traceTail) return false;
-    uint32_t idx = (m_traceHead - 1) & kTraceRingMask;
-    out = m_traceRing[idx];
-    if (outSnap && out.snapshotIndex != 0xFF)
-        *outSnap = m_snapRing[idx];
-    return true;
 }
 
 // ── printerBufferContent() ────────────────────────────────────────────────────
@@ -1343,18 +1365,44 @@ std::string TMC0501::printerBufferContent() const {
 
 // ── snapshotCPU() ─────────────────────────────────────────────────────────────
 
-CPUSnapshot TMC0501::snapshotCPU() const {
-    CPUSnapshot s{};
-    memcpy(s.A, A, 16); memcpy(s.B, B, 16); memcpy(s.C, C, 16);
-    memcpy(s.D, D, 16); memcpy(s.E, E, 16);
-    memcpy(s.SCOM, SCOM, sizeof(SCOM));
-    memcpy(s.Sout, Sout, 16);
-    s.KR = KR; s.SR = SR; s.fA = fA; s.fB = fB;
-    s.EXT = EXT; s.PREG = PREG ? 1 : 0; s.flags = flags;
-    s.m_libAddr = m_libAddr;
-    s.R5 = R5; s.digit = digit;
-    s.REG_ADDR = REG_ADDR; s.RAM_ADDR = RAM_ADDR; s.RAM_OP = RAM_OP;
-    return s;
+CpuFrame TMC0501::snapshotCPU() const {
+    CpuFrame frame{};
+    // Trace identity fields (not meaningful for a standalone snapshot, but initialized to 0)
+    frame.seqno = 0;
+    frame.pc = addr;
+    frame.opcode = rom.read(addr);
+    frame.digit = digit;
+    frame.cycleWeight = 0;
+
+    // Light registers
+    frame.KR = KR;
+    frame.SR = SR;
+    frame.fA = fA;
+    frame.fB = fB;
+    frame.cpuFlags = flags;
+    frame.R5 = R5;
+
+    // Full registers
+    memcpy(frame.A, A, 16);
+    memcpy(frame.B, B, 16);
+    memcpy(frame.C, C, 16);
+    memcpy(frame.D, D, 16);
+    memcpy(frame.E, E, 16);
+    memcpy(frame.SCOM, SCOM, sizeof(SCOM));
+    memcpy(frame.Sout, Sout, 16);
+
+    // Control registers
+    frame.EXT = EXT;
+    frame.PREG = PREG;
+    frame.flags = flags;
+    frame.m_libAddr = m_libAddr;
+    frame.REG_ADDR = REG_ADDR;
+    frame.RAM_ADDR = RAM_ADDR;
+    frame.RAM_OP = RAM_OP;
+    frame.m_libAddrReadPos = m_libAddrReadPos;
+    frame.dispFilter = m_dispFilter;
+
+    return frame;
 }
 
 // ── disassemble() ─────────────────────────────────────────────────────────────
@@ -1365,9 +1413,12 @@ CPUSnapshot TMC0501::snapshotCPU() const {
 
 // ── Generated tables (update via --emit-cpp) ─────────────────────────────────
 
+// ── Auto-generated by: python3 tools/disasm.py --emit-cpp ──────────────────
+// Do not edit by hand; update tools/mnemonics.tsv and re-run.
+
 static const char* const kMaskName[16] = {
-    "<flag>", "ALL", "DP", "DP", "DP", "LO", "EXP", "EXP",
-    "<keyboard>", "MANT", "<wait>", "MID", "MX", "MID", "HI", "MX"
+    "<flag>", "ALL", "DPT", "DPT1", "DPTC", "LLSD1", "EXP", "EXP1",
+    "<keyboard>", "MANT", "<wait>", "MLSD5", "MAEX", "MLSD1", "MMSD1", "MAEX1"
 };
 
 static const char* const kFlagFmt[16] = {
@@ -1445,7 +1496,12 @@ std::string TMC0501::disassemble(uint16_t pc, uint16_t opcode) {
     // ── Keyboard scan (hi nibble = 8) ─────────────────────────────────
     if (hi == 0x8) {
         bool    single = (opcode & 0x0008) != 0;
-        uint8_t kmask  = static_cast<uint8_t>((opcode >> 4) & 0x0Fu);
+        // Reconstruct the 7-bit K-line mask using the same formula as execution:
+        // bits 2:0 → K-lines KN/KO/KP
+        // bits 10:4 → K-lines KQ/KR/KS/KT (extracted via >> 1)
+        uint8_t kmask_raw = static_cast<uint8_t>(
+            (opcode & 0x07u) | ((opcode >> 1) & 0x78u));
+        uint8_t kmask  = static_cast<uint8_t>(kmask_raw ^ 0x7Fu);
         if (single) {
             snprintf(buf, sizeof(buf), "KEY %u,D%u", kmask, opcode & 7u);
         } else {

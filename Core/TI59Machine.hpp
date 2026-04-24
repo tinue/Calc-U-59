@@ -77,17 +77,27 @@ public:
     void removeBreakpoint(uint16_t pc);
     void clearBreakpoints();
 
-    uint32_t drainTraceEvents(TraceEvent* out, CPUSnapshot* outSnaps, uint32_t max);
-    uint32_t readTraceEvents(TraceEvent* out, CPUSnapshot* outSnaps, uint32_t max) const;
-    bool     peekLastEvent(TraceEvent& out, CPUSnapshot* outSnap) const;
+    /// Load debug ASM words into overlay region 0x1800+. Returns false on overflow.
+    bool loadDebugOverlay(const uint16_t* data, size_t count);
+
+    /// Clear all debug ASM overlay words.
+    void clearDebugOverlay();
+
+    /// Force execution entry at startAddr and step until HOLD is observed.
+    bool runDebugOverlay(uint16_t startAddr, uint32_t maxSteps,
+                         uint32_t* outSteps, bool* outSawHold);
+
+    uint32_t drainCpuFrames(CpuFrame* out, uint32_t max, uint32_t* outLost);
+    uint32_t readCpuFrames(CpuFrame* out, uint32_t max) const;
 
     /// Run up to n steps under a single mutex lock; returns count actually executed.
     /// Stops early if a breakpoint is hit (when TRACE_BREAKPOINTS is set).
     uint32_t stepN(uint32_t n, bool stopOnBreakpoint = true);
 
-    /// Run steps until SCOM[0][4:7] changes (keycode boundary) or maxSteps is reached.
-    /// Returns number of steps executed. Works for both RAM and master-library programs.
-    uint32_t stepUntilNextKeycode(uint32_t maxSteps = 50000);
+    /// Run until SCOM[0][4:7] changes (keycode boundary) or maxCycles cycle-equivalents
+    /// are consumed (IDLE steps count as 4, active steps count as 1).
+    /// Returns cycle-equivalents executed. Works for both RAM and master-library programs.
+    uint32_t stepUntilNextKeycode(uint32_t maxCycles = 50000);
 
     /// Current program counter (for CLI inspection between stepN calls).
     uint16_t pc() const;
@@ -109,7 +119,11 @@ public:
     uint8_t readROMKeycode(int addr) const;
 
     /// Capture a snapshot of all CPU registers at the current instant.
-    CPUSnapshot snapshotCPU() const;
+    CpuFrame snapshotCPU() const;
+
+    /// Pre-execution phase: COND restore, patch previous ring entry, capture snapshot.
+    /// Call after stepUntilNextKeycode() or after step() in debugger mode.
+    void beginNextStep() { m_cpu.beginNextStep(); }
 
     /// Raw RAM access — reads/writes a complete 16-nibble register.
     /// reg must be in [0, RAM::TOTAL_REGS).

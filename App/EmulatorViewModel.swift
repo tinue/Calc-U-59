@@ -81,14 +81,20 @@ class EmulatorViewModel {
     }
     private var cDropDebugger = CDropDebugger()
     private var cZeroFrames: Int = 0   // consecutive frames where fA was zero the entire frame
-    private let traceWriter = TraceWriter()
-    var isTraceAvailable: Bool { traceWriter.isAvailable }  // false if trace location (e.g., iCloud) unavailable
+    private var traceWriter: TraceWriter!  // initialized in init, updated when model changes
+    var isTraceAvailable: Bool { traceWriter?.isAvailable ?? true }  // false if trace location (e.g., iCloud) unavailable
 
     // ── Debug panel state ────────────────────────────────────────────────────
     var debugLevel: DebugLevel = .off
     var debugEnabled: Bool { debugLevel != .off }   // convenience for existing callers
     var debugLines: [String] = []
     var debugClearID: Int = 0   // incremented on clear to reset Text identity and drop selection
+    var asmFileName: String = "No file selected"
+    var asmWordCount: Int = 0
+    var asmStatusMessage: String = "Load a hex opcode file and press Run."
+    private var asmOverlayWords: [UInt16] = []
+    var canRunASM: Bool { !asmOverlayWords.isEmpty }
+    var asmOverlayActive: Bool = false
 
     // ── Live debug panel state (60 Hz real-time) ──────────────────────────────
     var liveDebugEnabled: Bool = false
@@ -105,23 +111,21 @@ class EmulatorViewModel {
 
     // ── Live CPU view state (60 Hz real-time, runs while emulating) ────────────
     var cpuDebugSnapshot: CPUDebugSnapshot = .empty
-    private var cpuTraceWindow: [TITraceEvent] = []  // rolling window of recent instructions
-    private var cpuTraceSnapshots: [TICPUSnapshot] = []  // parallel snapshots
+    private var cpuFrameWindow: [TICpuFrame] = []  // rolling window of recent instructions
 
     // ── Frozen CPU inspector state (static snapshot when paused) ───────────────
     struct InspectorSnapshot {
         var pc: UInt16
         var opcode: UInt16
         var disasm: String
-        var cpuState: TICPUSnapshot
+        var frame: TICpuFrame
         var isHistory: Bool  // true = executed, false = speculative (future ROM)
         var isCurrent: Bool  // true = this is where it froze
     }
     var cpuInspectorHistory: [InspectorSnapshot] = []  // 32 history + 1 current + 5 future
+    var cpuInspectorUpdateID: Int = 0  // incremented every captureInspectorSnapshot call
 
     // ── Trace / debug state ──────────────────────────────────────────────────
-    var traceEnabled: Bool = false
-    var traceEvents: [TITraceEvent] = []          // sliding window, last 512
     var breakpoints: Set<UInt16> = []
     var isPausedOnBreakpoint: Bool = false
     var breakpointPC: UInt16? = nil
@@ -152,6 +156,8 @@ class EmulatorViewModel {
     }
 
     init() {
+        // Initialize traceWriter with default model
+        traceWriter = TraceWriter(model: model)
         // Check trace availability at startup (for iOS/iPadOS iCloud detection, etc.)
         traceWriter.checkAvailability()
         Task { await self.start(model: AppSettings.resolvedStartupModel()) }
@@ -162,6 +168,7 @@ class EmulatorViewModel {
         stop()
         await drainEmulQueue()   // ensure old loop has exited before starting the new one
         self.model = model
+        traceWriter = TraceWriter(model: model)  // reinitialize with new model for correct trace filename
         UserDefaults.standard.set(model.rawValue, forKey: SettingsKey.lastUsedModel)
         await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .utility).async {
@@ -190,6 +197,16 @@ class EmulatorViewModel {
                 // routine sees the warm-start flag and skips its RAM clear —
                 // matching the real TI-58C where CMOS RAM was always live.
                 wrapper.deserialiseRAM(saved)
+            }
+
+            if !asmOverlayWords.isEmpty {
+                let data = asmOverlayWords.withUnsafeBufferPointer { Data(buffer: $0) }
+                if !wrapper.loadDebugOverlayWords(data) {
+                    asmOverlayWords = []
+                    asmOverlayActive = false
+                    asmWordCount = 0
+                    asmStatusMessage = "ASM overlay cleared (incompatible after model switch)."
+                }
             }
 
             self.machine = wrapper
@@ -315,18 +332,6 @@ class EmulatorViewModel {
             printerCodeLines.append(contentsOf: codes)
         }
 
-        // Drain trace events (60 Hz, same cadence as display refresh).
-        if traceEnabled {
-            let evs = machine.drainTraceEvents(max: 512)
-            let newEvents = evs.map { v -> TITraceEvent in
-                var e = TITraceEvent()
-                v.getValue(&e)
-                return e
-            }
-            traceEvents.append(contentsOf: newEvents)
-            if traceEvents.count > 512 { traceEvents.removeFirst(traceEvents.count - 512) }
-        }
-
         let snap = machine.getDisplay()
         var d = [UInt8](repeating: 0, count: 12)
         var c = [UInt8](repeating: 0, count: 12)
@@ -439,6 +444,7 @@ class EmulatorViewModel {
 
     func resetMachine() {
         unfreeze()  // exit freeze mode when resetting
+        asmOverlayActive = false
         cardState = .noCard
         printerTrace = false
         machine?.setPrinterTrace(false)
@@ -460,6 +466,7 @@ class EmulatorViewModel {
     /// For TI-58C, writes the zeroed state immediately to the save file.
     func cleanResetMachine() {
         unfreeze()  // exit freeze mode when resetting
+        asmOverlayActive = false
         machine?.deserialiseRAM(Data(repeating: 0, count: 120 * 16))
         cardState = .noCard
         printerTrace = false
@@ -652,21 +659,6 @@ class EmulatorViewModel {
 
     // MARK: - Trace / debug
 
-    /// Enable or disable instruction tracing.  fullRegs adds the full A–E/SCOM snapshot.
-    func setTraceEnabled(_ enabled: Bool, fullRegs: Bool = false) {
-        traceEnabled = enabled
-        if enabled {
-            var flags: TITraceFlags = [.pc, .regsLight]
-            if fullRegs { flags.insert(.regsFull) }
-            if !breakpoints.isEmpty { flags.insert(.breakpoints) }
-            machine?.traceFlags = flags
-        } else {
-            // Keep breakpoints active even when the trace view is off, if any are set.
-            machine?.traceFlags = breakpoints.isEmpty ? [] : .breakpoints
-        }
-        if !enabled { traceEvents = [] }
-    }
-
     func addBreakpoint(_ pc: UInt16) {
         breakpoints.insert(pc)
         machine?.addBreakpoint(pc)
@@ -733,6 +725,7 @@ class EmulatorViewModel {
                     limit -= 1
                 }
             }
+            m.beginNextStep()
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
                 self.captureInspectorSnapshot(machine: m)
@@ -754,17 +747,23 @@ class EmulatorViewModel {
         lastObservedPC = UInt16(decodeProgramCounter(from: cpu))
     }
 
-    func freeze(reason: FreezeReason = .manual) {
+    func freeze(reason: FreezeReason = .manual, waitForKeycode: Bool = true) {
         isRunning = false
         freezeReason = reason
+        asmOverlayActive = false
         pendingFreezeOnPCChange = false  // Cancel any pending freeze
         guard let m = machine else { return }
         // Advance to the next keycode boundary on the emulation queue (runs after the
         // running loop exits, since emulQueue is serial). Then capture state.
         emulQueue.async { [weak self, m] in
-            _ = m.stepUntilNextKeycode()
+            if waitForKeycode {
+                _ = m.stepUntilNextKeycode()  // advance to program-step boundary
+            }
+            // else: stop after the current ROM opcode — correct for CPU-level freeze
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
+                // Pre-execution phase: prepare ring buffer and snapshot for display
+                m.beginNextStep()
                 // Build program caches on freeze entry
                 let cpu = m.snapshotCPU()
                 let currentStep = self.decodeProgramCounter(from: cpu)
@@ -794,6 +793,7 @@ class EmulatorViewModel {
             _ = m.stepUntilNextKeycode()
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
+                m.beginNextStep()
                 let cpu = m.snapshotCPU()
                 let currentStep = self.decodeProgramCounter(from: cpu)
                 let prSourceFlag = UInt8(cpu.SCOM.0.3)
@@ -824,66 +824,51 @@ class EmulatorViewModel {
     /// Capture the current CPU state and last 32 executed instructions for the frozen inspector view.
     /// Reads (without draining) the ring buffer to preserve history across steps.
     private func captureInspectorSnapshot(machine m: TI59MachineWrapper) {
-        // Read (without draining) all available events from the ring buffer
-        var snapshotArray: NSArray?
-        let eventsNS =  m.readTraceEvents(max: 512, snapshots: &snapshotArray)
-        let newEvents = (eventsNS as [NSValue]).map { v -> TITraceEvent in
-            var e = TITraceEvent()
-            v.getValue(&e)
-            return e
-        }
-        let snapshots = (snapshotArray as? [NSValue] ?? []).map { v -> TICPUSnapshot in
-            var snap = TICPUSnapshot()
-            v.getValue(&snap)
-            return snap
+        // Read (without draining) all available frames from the ring buffer
+        let framesNS = m.readCpuFrames(max: 1024)
+        let frames = (framesNS as [NSValue]).map { v -> TICpuFrame in
+            var f = TICpuFrame()
+            v.getValue(&f)
+            return f
         }
 
         cpuInspectorHistory = []
         let currentPC = m.currentPC
 
-        // Add history: last 32 executed instructions from the ring buffer
-        let historyCount = min(32, newEvents.count)
-        let historyStartIdx = newEvents.count - historyCount
-        for i in historyStartIdx..<newEvents.count {
-            let event = newEvents[i]
-            let snapshotIdx = i - (newEvents.count - snapshots.count)
-            let cpu = (snapshotIdx >= 0 && snapshotIdx < snapshots.count) ? snapshots[snapshotIdx] : TICPUSnapshot()
-            let disasm = TI59MachineWrapper.disassemblePC(event.pc, opcode: event.opcode)
-            let isLastInstruction = (i == newEvents.count - 1)
+        // Get program source to determine if we can read ahead
+        let cpu = m.snapshotCPU()
+
+        // Add history: all executed instructions from the ring buffer (up to 1024)
+        for i in 0..<frames.count {
+            let frame = frames[i]
+            let disasm = TI59MachineWrapper.disassemblePC(frame.pc, opcode: frame.opcode)
+            let isLastInstruction = (i == frames.count - 1)
             cpuInspectorHistory.append(InspectorSnapshot(
-                pc: event.pc,
-                opcode: event.opcode,
+                pc: frame.pc,
+                opcode: frame.opcode,
                 disasm: disasm,
-                cpuState: cpu,
+                frame: frame,
                 isHistory: true,
                 isCurrent: isLastInstruction
             ))
         }
 
-        // If last event is different from currentPC, add currentPC as a future instruction
-        if newEvents.last?.pc != currentPC {
-            cpuInspectorHistory.append(InspectorSnapshot(
-                pc: currentPC,
-                opcode: 0x0000,
-                disasm: "???",
-                cpuState: TICPUSnapshot(),
-                isHistory: false,
-                isCurrent: false
-            ))
-        }
+        // Certain next instruction — always show, even when same PC (WAIT/KEY loops on same instruction)
+        // cpu.opcode is now the real next opcode from snapshotCPU()
+        let nextOpcode = cpu.opcode
+        let disasm = TI59MachineWrapper.disassemblePC(currentPC, opcode: nextOpcode)
+        let emptyFrame = TICpuFrame()
+        cpuInspectorHistory.append(InspectorSnapshot(
+            pc: currentPC,
+            opcode: nextOpcode,
+            disasm: disasm,
+            frame: emptyFrame,
+            isHistory: false,
+            isCurrent: false
+        ))
 
-        // Add next 4 speculative instructions (ROM ahead, unknown opcodes)
-        for offset in 1...4 {
-            let nextPC = currentPC &+ UInt16(offset)
-            cpuInspectorHistory.append(InspectorSnapshot(
-                pc: nextPC,
-                opcode: 0x0000,
-                disasm: "???",
-                cpuState: TICPUSnapshot(),
-                isHistory: false,
-                isCurrent: false
-            ))
-        }
+        // Signal that the inspector snapshot has been updated (fires onChange observers)
+        cpuInspectorUpdateID &+= 1
     }
 
     /// Update isCurrent markers in the cached program for the given current step.
@@ -940,7 +925,7 @@ class EmulatorViewModel {
         /// Content of the printer character accumulator (not yet committed to a line).
         var printerBuffer: String
         /// Current CPU register state.
-        var cpu: TICPUSnapshot
+        var cpu: TICpuFrame
     }
 
     /// Read the full calculator state without disturbing execution.
@@ -1197,12 +1182,26 @@ class EmulatorViewModel {
         snap.engIndicator = engBit ? "Eng" : ""
 
         // Program steps window — source depends on PRG SOURCE flag
-        snap.currentStep = decodeProgramCounter(from: cpu)
+        let decodedPC = decodeProgramCounter(from: cpu)
+
+        // When frozen: currentStep is the last executed instruction,
+        // nextStep is what PC points to (next to execute)
+        if isFrozen {
+            snap.currentStep = max(0, decodedPC - 1)
+            snap.nextStepNum = decodedPC
+        } else {
+            // When running: currentStep is the next to execute (pre-execution state)
+            snap.currentStep = decodedPC
+            snap.nextStepNum = -1
+        }
+
+        // Pre-fetch RAM program steps once (used by both window and nextStep population)
+        let ramSteps = snap.prSourceFlag == 0 ? Array(m.allProgramSteps() as Data) : []
 
         switch snap.prSourceFlag {
         case 0:
             // User RAM — existing behavior
-            let steps = Array(m.allProgramSteps() as Data)
+            let steps = ramSteps
             if !steps.isEmpty {
                 let center = snap.currentStep >= 0 ? snap.currentStep : 0
                 let lo = max(0, center - 5)
@@ -1273,6 +1272,41 @@ class EmulatorViewModel {
         default:
             // PRG SOURCE = 1 (library) or other: TBD
             break
+        }
+
+        // When frozen: populate nextStep fields from the next instruction to execute
+        if isFrozen && snap.nextStepNum >= 0 {
+            switch snap.prSourceFlag {
+            case 0:
+                // User RAM (steps already fetched above)
+                if snap.nextStepNum < ramSteps.count {
+                    let nextKeycode = ramSteps[snap.nextStepNum]
+                    snap.nextStepKeycode = nextKeycode
+                    let isArgument = {
+                        // Check if this step is an argument for a previous instruction
+                        if snap.nextStepNum == 0 { return false }
+                        let stepsAfter = TI59KeyNames.stepsAfter(for: ramSteps[snap.nextStepNum - 1])
+                        return stepsAfter > 0 && snap.nextStepNum - 1 + stepsAfter >= snap.nextStepNum
+                    }()
+                    snap.nextStepMnemonic = isArgument ? String(format: "%02d", nextKeycode) : TI59KeyNames.mnemonic(for: nextKeycode)
+                }
+            case 8:
+                // Main ROM
+                if snap.nextStepNum < 384 {
+                    let nextKeycode = m.romKeycode(at: snap.nextStepNum)
+                    snap.nextStepKeycode = nextKeycode
+                    let isArgument = {
+                        // Check if this step is an argument for a previous instruction
+                        if snap.nextStepNum == 0 { return false }
+                        let prevKeycode = m.romKeycode(at: snap.nextStepNum - 1)
+                        let stepsAfter = TI59KeyNames.stepsAfter(for: prevKeycode)
+                        return stepsAfter > 0 && snap.nextStepNum - 1 + stepsAfter >= snap.nextStepNum
+                    }()
+                    snap.nextStepMnemonic = isArgument ? String(format: "%02d", nextKeycode) : TI59KeyNames.mnemonic(for: nextKeycode)
+                }
+            default:
+                break
+            }
         }
 
         // Return address stack (SCOM[14:15]) — 6 levels of subroutine return addresses
@@ -1354,36 +1388,28 @@ class EmulatorViewModel {
             m.traceFlags = m.traceFlags.union(requiredFlags)
         }
 
-        // Read (without draining) all recent events from the ring buffer
-        var snapshotArray: NSArray?
-        let eventsNS = m.readTraceEvents(max: 512, snapshots: &snapshotArray)
-        let newEvents = (eventsNS as [NSValue]).map { v -> TITraceEvent in
-            var e = TITraceEvent()
-            v.getValue(&e)
-            return e
+        // Read (without draining) all recent frames from the ring buffer
+        let framesNS = m.readCpuFrames(max: 1024)
+        let newFrames = (framesNS as [NSValue]).map { v -> TICpuFrame in
+            var f = TICpuFrame()
+            v.getValue(&f)
+            return f
         }
 
-        // Accumulate new events in the rolling window
-        cpuTraceWindow = newEvents  // Replace with all current events from ring buffer
-        cpuTraceSnapshots = (snapshotArray as? [NSValue] ?? []).map { v -> TICPUSnapshot in
-            var snap = TICPUSnapshot()
-            v.getValue(&snap)
-            return snap
-        }
+        // Store frames in the rolling window
+        cpuFrameWindow = newFrames
 
         // Build recent instructions from the accumulated window (show last 32)
-        let instructionsToShow = min(32, cpuTraceWindow.count)
+        let instructionsToShow = min(32, cpuFrameWindow.count)
         snap.recentInstructions = []
-        for i in (cpuTraceWindow.count - instructionsToShow)..<cpuTraceWindow.count {
-            let event = cpuTraceWindow[i]
-            let snapshotIndex = Int(event.snapshotIndex)
-            let cpu = (snapshotIndex < cpuTraceSnapshots.count) ? cpuTraceSnapshots[snapshotIndex] : TICPUSnapshot()
-            let disasm = TI59MachineWrapper.disassemblePC(event.pc, opcode: event.opcode)
+        for i in (cpuFrameWindow.count - instructionsToShow)..<cpuFrameWindow.count {
+            let frame = cpuFrameWindow[i]
+            let disasm = TI59MachineWrapper.disassemblePC(frame.pc, opcode: frame.opcode)
             snap.recentInstructions.append(CPUDebugSnapshot.Instruction(
-                pc: event.pc,
-                opcode: event.opcode,
+                pc: frame.pc,
+                opcode: frame.opcode,
                 disasm: disasm,
-                cpuBefore: cpu
+                frame: frame
             ))
         }
 
@@ -1392,7 +1418,7 @@ class EmulatorViewModel {
 
     /// Decode the program counter from SCOM[0] positions 4-7.
     /// It's encoded in base-80, so to speak.
-    private func decodeProgramCounter(from cpu: TICPUSnapshot) -> Int {
+    private func decodeProgramCounter(from cpu: TICpuFrame) -> Int {
         // PC encoding formula
         let n4 = Int(cpu.SCOM.0.4)
         let n5 = Int(cpu.SCOM.0.5)
@@ -1411,6 +1437,168 @@ class EmulatorViewModel {
     func clearDebug() {
         debugLines = []
         debugClearID &+= 1
+    }
+
+    func loadASMOverlayFile(_ url: URL) {
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        guard let text = try? String(contentsOf: url, encoding: .utf8) else {
+            asmStatusMessage = "Could not read ASM file."
+            errorMessage = "Could not read ASM file."
+            return
+        }
+
+        do {
+            let words = try parseASMWords(from: text)
+            guard let m = machine else {
+                asmStatusMessage = "Machine not initialized yet."
+                return
+            }
+            let data = words.withUnsafeBufferPointer { Data(buffer: $0) }
+            guard m.loadDebugOverlayWords(data) else {
+                asmStatusMessage = "ASM program exceeds overlay range 0x1800-0x1FFF."
+                errorMessage = asmStatusMessage
+                return
+            }
+            asmOverlayWords = words
+            asmFileName = url.lastPathComponent
+            asmWordCount = words.count
+            asmStatusMessage = String(format: "Loaded %d word(s) at 0x1800.", words.count)
+        } catch {
+            let msg = error.localizedDescription
+            asmStatusMessage = msg
+            errorMessage = msg
+        }
+    }
+
+    func clearASMOverlay() {
+        machine?.clearDebugOverlay()
+        asmOverlayWords = []
+        asmOverlayActive = false
+        asmWordCount = 0
+        asmStatusMessage = "ASM overlay cleared."
+    }
+
+    func runASMOverlay() {
+        guard !asmOverlayWords.isEmpty else {
+            asmStatusMessage = "No ASM overlay loaded."
+            return
+        }
+        guard let m = machine else {
+            asmStatusMessage = "Machine not initialized yet."
+            return
+        }
+
+        isRunning = false
+        isPausedOnBreakpoint = false
+        breakpointPC = nil
+        pendingFreezeOnPCChange = false
+        freezeReason = nil
+        frozenROMCache = nil
+        frozenRAMCache = nil
+        cachedPrSourceFlag = 0
+
+        var steps: UInt32 = 0
+        var sawHold: ObjCBool = false
+        var ok = false
+        var loaded = true
+
+        // Wait until any in-flight step batch finishes, then run the injection.
+        emulQueue.sync {
+            let data = self.asmOverlayWords.withUnsafeBufferPointer { Data(buffer: $0) }
+            if !m.loadDebugOverlayWords(data) {
+                loaded = false
+                ok = false
+                return
+            }
+            ok = m.runDebugOverlay(at: 0x1800, maxSteps: 8192, steps: &steps, sawHold: &sawHold)
+            m.beginNextStep()
+        }
+
+        if !loaded {
+            asmStatusMessage = "ASM program exceeds overlay range 0x1800-0x1FFF."
+            errorMessage = asmStatusMessage
+        } else if ok {
+            asmStatusMessage = sawHold.boolValue
+                ? "ASM entered at 0x1800 (HOLD detected after \(steps) step(s))."
+                : "ASM entered at 0x1800 (\(steps) step(s))."
+            asmOverlayActive = true
+            startEmulationLoop()
+            startDisplayRefresh()
+        } else {
+            asmStatusMessage = "ASM run timed out before HOLD (\(steps) step(s))."
+            errorMessage = asmStatusMessage
+        }
+    }
+
+    private func parseASMWords(from text: String) throws -> [UInt16] {
+        enum ASMParseError: LocalizedError {
+            case noHexSection
+            case noWords
+            case invalidToken(String)
+            case tooLarge(Int)
+
+            var errorDescription: String? {
+                switch self {
+                case .noHexSection:
+                    return "No HEX: section found in ASM file."
+                case .noWords:
+                    return "No hex opcode words found after HEX: in ASM file."
+                case .invalidToken(let token):
+                    return "Invalid token in HEX section: \(token)"
+                case .tooLarge(let count):
+                    return "ASM contains \(count) words; maximum is 2048 (0x1800-0x1FFF)."
+                }
+            }
+        }
+
+        // Find the HEX: marker and parse only the text that follows it.
+        let lines = text.components(separatedBy: .newlines)
+        guard let hexLine = lines.firstIndex(where: { $0.trimmingCharacters(in: .whitespaces).uppercased() == "HEX:" }) else {
+            throw ASMParseError.noHexSection
+        }
+        let hexText = lines[(hexLine + 1)...].joined(separator: "\n")
+
+        let pattern = #"0[xX][0-9A-Fa-f]+|[0-9A-Fa-f]{4,}"#
+        let regex = try NSRegularExpression(pattern: pattern)
+        let nsText = hexText as NSString
+        let matches = regex.matches(in: hexText, range: NSRange(location: 0, length: nsText.length))
+
+        var words: [UInt16] = []
+        words.reserveCapacity(matches.count)
+
+        for match in matches {
+            var token = nsText.substring(with: match.range)
+            if token.hasPrefix("0x") || token.hasPrefix("0X") {
+                token.removeFirst(2)
+            }
+            guard !token.isEmpty else { continue }
+            guard token.allSatisfy({ $0.isHexDigit }) else {
+                throw ASMParseError.invalidToken(token)
+            }
+            if token.count % 4 != 0 {
+                throw ASMParseError.invalidToken(token)
+            }
+
+            var idx = token.startIndex
+            while idx < token.endIndex {
+                let next = token.index(idx, offsetBy: 4)
+                let chunk = String(token[idx..<next])
+                guard let value = UInt16(chunk, radix: 16) else {
+                    throw ASMParseError.invalidToken(chunk)
+                }
+                words.append(value & 0x1FFF)
+                idx = next
+            }
+        }
+
+        if words.isEmpty {
+            throw ASMParseError.noWords
+        }
+        if words.count > 2048 {
+            throw ASMParseError.tooLarge(words.count)
+        }
+        return words
     }
 
     private func debugAppend(_ lines: [String], level: DebugLevel = .info) {
@@ -1695,22 +1883,24 @@ class EmulatorViewModel {
     }
 
     // ── Binary trace file (TI59_TRACE.bin) ───────────────────────────────────
-    // Drain the CPU ring buffer and forward each event+snapshot to TraceWriter.
+    // Drain the CPU ring buffer and forward frames to TraceWriter.
     // Called from tick() (main thread, 60 Hz) and from the emulQueue close path.
 
     private func drainTraceEvents(machine m: TI59MachineWrapper) {
-        var snapsOut: NSArray? = nil
-        let eventsNS = m.drainTraceEvents(max: 2000, snapshots: &snapsOut)
+        var lost: UInt = 0
+        let framesNS = m.drainCpuFrames(max: 1024, lost: &lost)
 
-        guard !eventsNS.isEmpty else { return }
+        // Write gap record if ring overflow occurred
+        if lost > 0 {
+            traceWriter.writeLostGap(count: UInt32(lost))
+        }
 
-        let snapsNS = (snapsOut as? [NSValue]) ?? []
-        for (i, ev) in eventsNS.enumerated() {
-            var e = TITraceEvent()
-            ev.getValue(&e)
-            var snap = TICPUSnapshot()
-            if i < snapsNS.count { snapsNS[i].getValue(&snap) }
-            traceWriter.write(event: e, snapshot: snap)
+        guard !framesNS.isEmpty else { return }
+
+        for frameVal in framesNS {
+            var frame = TICpuFrame()
+            frameVal.getValue(&frame)
+            traceWriter.write(frame: frame)
         }
     }
 }
@@ -1740,6 +1930,11 @@ struct LiveDebugSnapshot: Equatable {
     }
     var programWindow: [StepEntry] = []
     var currentStep: Int = -1   // -1 = unknown (SCOM location TBD)
+
+    // When frozen: the last fully executed step and the next step to execute
+    var nextStepNum: Int = -1      // Step number of next instruction (from PC when frozen)
+    var nextStepKeycode: UInt8 = 0  // Keycode of next instruction
+    var nextStepMnemonic: String = ""  // Mnemonic of next instruction
 
     // HIR registers (stored in SCOM[1..8]; decoded as Double)
     // Each HIR is 16 BCD nibbles: bits 15–3 = mantissa, 2–1 = exponent, 0 = sign
@@ -1800,10 +1995,10 @@ struct CPUDebugSnapshot: Equatable {
         var pc: UInt16
         var opcode: UInt16
         var disasm: String
-        var cpuBefore: TICPUSnapshot  // CPU state BEFORE this instruction executed
+        var frame: TICpuFrame  // CPU frame with all state BEFORE this instruction executed
 
         static func == (lhs: Instruction, rhs: Instruction) -> Bool {
-            // Compare only the instruction data, not the snapshot (which can't be compared)
+            // Compare only the instruction data, not the frame (which can't be compared)
             return lhs.pc == rhs.pc && lhs.opcode == rhs.opcode && lhs.disasm == rhs.disasm
         }
     }

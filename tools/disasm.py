@@ -202,9 +202,8 @@ def disasm(addr: int, opcode: int, model: str = "59") -> str:
             sign = "+" if alu_i in (0, 4) else "-"
             return f"{dst}={src1}{sign}{n} {fld}"
         if src2 == "" and alu_i in (0, 1, 4, 5):
-            # n == "0": ADD/SUB with #0 — show as copy with +0 / -0
-            sign = "+" if alu_i in (0, 4) else "-"
-            return f"{dst}={src1}{sign}0 {fld}"
+            # n == "0": ADD/SUB with #0 — identical to a register copy
+            return f"{dst}={src1} {fld}"
 
         result = _ALU_FMT[alu_i].format(d=dst, f=fld, n=n, s=src1, s2=src2)
         return result

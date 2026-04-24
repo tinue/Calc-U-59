@@ -5,7 +5,6 @@ import SwiftUI
 struct CPUInspectorView: View {
     @Environment(EmulatorViewModel.self) var vm
     @State private var selectedIndex: Int? = nil
-    @State private var hasAutoSelected = false
     @FocusState private var isFocused: Bool
 
     var body: some View {
@@ -48,35 +47,6 @@ struct CPUInspectorView: View {
                 .padding(.horizontal, 10)
                 .padding(.vertical, 8)
                 .background(Color(white: 0.07))
-                .focusable()
-                .focused($isFocused)
-                .onAppear {
-                    isFocused = true
-                    hasAutoSelected = false
-                    selectedIndex = nil
-                }
-                .onKeyPress(.upArrow) {
-                    guard !vm.cpuInspectorHistory.isEmpty else { return .ignored }
-                    if let idx = selectedIndex {
-                        if idx > 0 {
-                            selectedIndex = idx - 1
-                        }
-                    } else {
-                        selectedIndex = vm.cpuInspectorHistory.count - 1
-                    }
-                    return .handled
-                }
-                .onKeyPress(.downArrow) {
-                    guard !vm.cpuInspectorHistory.isEmpty else { return .ignored }
-                    if let idx = selectedIndex {
-                        if idx < vm.cpuInspectorHistory.count - 1 {
-                            selectedIndex = idx + 1
-                        } else {
-                            selectedIndex = nil
-                        }
-                    }
-                    return .handled
-                }
 
                 // Instructions list with scrollbar
                 ScrollView {
@@ -107,6 +77,7 @@ struct CPUInspectorView: View {
                                 .contentShape(Rectangle())
                                 .onTapGesture {
                                     selectedIndex = (isSelected ? nil : idx)
+                                    isFocused = true
                                 }
                                 .id(idx)
                             }
@@ -118,11 +89,9 @@ struct CPUInspectorView: View {
                                 }
                             }
                         }
-                        .onChange(of: vm.cpuInspectorHistory.count) { _, newCount in
-                            // Auto-select current instruction when history first arrives after freeze
-                            guard !hasAutoSelected, newCount > 0 else { return }
+                        .onChange(of: vm.cpuInspectorUpdateID) { _, _ in
+                            // Auto-select current instruction whenever snapshot rebuilds (freeze or step)
                             if let currentIdx = vm.cpuInspectorHistory.firstIndex(where: { $0.isCurrent }) {
-                                hasAutoSelected = true
                                 selectedIndex = currentIdx
                                 withAnimation(.easeInOut(duration: 0.1)) {
                                     proxy.scrollTo(currentIdx, anchor: .center)
@@ -131,9 +100,7 @@ struct CPUInspectorView: View {
                         }
                         .onAppear {
                             // Fallback: history already populated when view appears
-                            if !hasAutoSelected,
-                               let currentIdx = vm.cpuInspectorHistory.firstIndex(where: { $0.isCurrent }) {
-                                hasAutoSelected = true
+                            if let currentIdx = vm.cpuInspectorHistory.firstIndex(where: { $0.isCurrent }) {
                                 selectedIndex = currentIdx
                                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                                     proxy.scrollTo(currentIdx, anchor: .center)
@@ -147,7 +114,7 @@ struct CPUInspectorView: View {
                 // State display sections
                 if let idx = selectedIndex, idx >= 0, idx < vm.cpuInspectorHistory.count {
                     let snap = vm.cpuInspectorHistory[idx]
-                    let cpu = snap.cpuState
+                    let cpu = snap.frame
 
                     ScrollView {
                         VStack(alignment: .leading, spacing: 1) {
@@ -181,12 +148,31 @@ struct CPUInspectorView: View {
                                             .foregroundStyle(.white.opacity(0.85))
                                         Text("R5: \(cpu.R5)")
                                             .foregroundStyle(.white.opacity(0.85))
+                                        Spacer()
                                     }
                                     HStack(spacing: 16) {
                                         Text("COND:\(cond)")
-                                            .foregroundStyle(cond == 1 ? .white : .white.opacity(0.45))
+                                            .foregroundStyle(cond == 1 ? Color.yellow.opacity(0.4) : Color.yellow)
                                         Text("IDLE:\(idle)")
-                                            .foregroundStyle(idle == 1 ? Color.yellow.opacity(0.8) : .white.opacity(0.45))
+                                            .foregroundStyle(idle == 1 ? .white : .white.opacity(0.45))
+                                        Spacer()
+                                    }
+                                }
+                                .font(.system(size: baseFontSize + 2, design: .monospaced))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                            }
+
+                            // Display state
+                            inspectorSection(title: "DISPLAY STATE") {
+                                let displayOn = cpu.dispFilter < 3
+                                VStack(alignment: .leading, spacing: 2) {
+                                    HStack(spacing: 16) {
+                                        Text("Filter: \(cpu.dispFilter)")
+                                            .foregroundStyle(.white.opacity(0.85))
+                                        Text(displayOn ? "ON" : "BLANKED")
+                                            .foregroundStyle(displayOn ? Color.green.opacity(0.85) : Color.red.opacity(0.7))
+                                        Spacer()
                                     }
                                 }
                                 .font(.system(size: baseFontSize + 2, design: .monospaced))
@@ -196,11 +182,39 @@ struct CPUInspectorView: View {
                         }
                         .padding(4)
                     }
+                    .textSelection(.enabled)
                 }
 
                 Spacer()
             }
-            .textSelection(.enabled)
+            .focusable()
+            .focused($isFocused)
+            .onAppear {
+                isFocused = true
+                selectedIndex = nil
+            }
+            .onKeyPress(.upArrow) {
+                guard !vm.cpuInspectorHistory.isEmpty else { return .ignored }
+                if let idx = selectedIndex {
+                    if idx > 0 {
+                        selectedIndex = idx - 1
+                    }
+                } else {
+                    selectedIndex = vm.cpuInspectorHistory.count - 1
+                }
+                return .handled
+            }
+            .onKeyPress(.downArrow) {
+                guard !vm.cpuInspectorHistory.isEmpty else { return .ignored }
+                if let idx = selectedIndex {
+                    if idx < vm.cpuInspectorHistory.count - 1 {
+                        selectedIndex = idx + 1
+                    } else {
+                        selectedIndex = nil
+                    }
+                }
+                return .handled
+            }
             .background(Color(white: 0.10))
         }
     }
@@ -227,19 +241,17 @@ struct CPUInspectorView: View {
     private func registerDisplay(_ label: String, _ nibbles: (UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8), baseFontSize: CGFloat) -> some View {
         let array = [nibbles.0, nibbles.1, nibbles.2, nibbles.3, nibbles.4, nibbles.5, nibbles.6, nibbles.7,
                      nibbles.8, nibbles.9, nibbles.10, nibbles.11, nibbles.12, nibbles.13, nibbles.14, nibbles.15]
+        let nibbleString = array.map { String(format: "%X", $0) }.joined()
         return HStack(spacing: 4) {
             Text(label)
                 .font(.system(size: baseFontSize + 2, weight: .bold, design: .monospaced))
                 .foregroundStyle(.white.opacity(0.6))
                 .fixedSize()
 
-            HStack(spacing: 1) {
-                ForEach(array, id: \.self) { n in
-                    Text(String(format: "%X", n))
-                        .font(.system(size: baseFontSize + 2, design: .monospaced))
-                        .foregroundStyle(.white.opacity(0.85))
-                }
-            }
+            Text(nibbleString)
+                .font(.system(size: baseFontSize + 2, design: .monospaced))
+                .foregroundStyle(.white.opacity(0.85))
+
             Spacer()
         }
     }
