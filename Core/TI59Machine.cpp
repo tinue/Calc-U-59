@@ -220,12 +220,11 @@ uint32_t TI59Machine::stepN(uint32_t n, bool stopOnBreakpoint) {
     std::lock_guard<std::mutex> lock(m_keyMutex);
     uint32_t done = 0;
     while (done < n) {
-        int r = m_cpu.step();
+        m_cpu.step();
         done++;
         if (stopOnBreakpoint && m_cpu.consumeBreakpointHit()) {
             break;
         }
-        (void)r;
     }
     return done;
 }

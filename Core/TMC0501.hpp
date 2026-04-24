@@ -70,8 +70,6 @@ enum : uint16_t {
 
     // ── Miscellaneous ───────────────────────────────────────────────────
     FLG_DISP      = 0x1000, // Display active flag (set at reset alongside FLG_COND).
-    FLG_DISP_C    = 0x4000, // (Unused internal mirror — same bit value as fA[14], the hardware
-                            //  SH-pin driver in IDLE mode per TI-58/59 HW guide §digit-12.)
     FLG_BUSY      = 0x8000, // Printer / peripheral busy signal; tested by TST BUSY.
 };
 
@@ -312,11 +310,8 @@ private:
     // ── Display state (shared between CPU thread and UI thread) ───────
     mutable std::mutex m_displayMutex;
     DisplaySnapshot m_display{};       // Last stable snapshot, updated at digit=0 on SET IDLE.
-    bool     m_pendingDisplayUpdate{}; // SET IDLE was executed; snapshot will be captured
-                                       // at the next digit=0 boundary.
     uint8_t  m_dispFilter{};   // Counts digit-counter wrap-arounds since the last IDLE.
                                 // At 3, the display is blanked (CPU is busy computing).
-    mutable std::atomic<bool>     m_calcLatch{false};   // Fired on CLR IDL; consumed by getDisplay() (legacy, kept for reset).
     mutable std::atomic<uint32_t> m_cSteps{0};          // Steps (IDLE or non-IDLE) where fA≠0 since last getDisplay().
     mutable std::atomic<uint32_t> m_pollSteps{0};       // Weighted step count since last getDisplay() (non-IDLE=1, IDLE=4).
 
@@ -337,7 +332,7 @@ private:
     uint16_t m_pendingOpcode{};  // opcode cached by beginNextStep, consumed by step()
 
     static constexpr uint32_t kFrameRingSize = 1024u;
-    static constexpr uint32_t kFrameRingMask = 1023u; // kFrameRingSize - 1
+    static constexpr uint32_t kFrameRingMask = kFrameRingSize - 1u;
     CpuFrame m_frameRing[kFrameRingSize]{};
     uint32_t m_frameHead{0};     // write index (emulation thread only, always advancing)
     uint32_t m_diskCursor{0};    // drain read cursor (protected by m_traceMutex)

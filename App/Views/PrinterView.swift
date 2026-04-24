@@ -52,15 +52,22 @@ struct PrinterView: View {
                 viewModel.setPrinterConnected(!viewModel.printerConnected)
                 viewModel.resetMachine()
             } label: {
-                Text("PC-100C")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(viewModel.printerConnected ? Color(white: 0.25) : Color(white: 0.15))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                HStack(spacing: 6) {
+                    Text("PC-100C")
+                    Circle()
+                        .fill(viewModel.printerConnected ? Color.red : Color.gray.opacity(0.4))
+                        .frame(width: 8, height: 8)
+                }
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Color(white: 0.25))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("PC-100C")
+            .accessibilityValue(viewModel.printerConnected ? "On" : "Off")
             Spacer()
             // Dot / text toggle
             Button {

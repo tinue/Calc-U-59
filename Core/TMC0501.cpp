@@ -284,7 +284,6 @@ DisplaySnapshot TMC0501::getDisplay() const {
     //   • long computations (e.g. 1/x)     → duty cycle near 1.0
     //   • IDLE with only decimal-point bits → duty cycle = 0.0 (no false C)
     //   • "A" blink bright phase in IDLE   → fA[14] set → duty cycle ≈ 0.25
-    m_calcLatch.exchange(false, std::memory_order_relaxed);  // consume (kept for reset logic)
     const uint32_t cSteps    = m_cSteps.exchange(0, std::memory_order_relaxed);
     const uint32_t pollSteps = m_pollSteps.exchange(0, std::memory_order_relaxed);
     const float cLevel = pollSteps ? (float)cSteps / (float)pollSteps : 0.0f;
@@ -427,9 +426,7 @@ int TMC0501::step() {
         if (flags & FLG_IDLE) {
             m_dispFilter = 0;
             // Auto-update display every digit cycle while in IDLE mode.
-            // This matches hardware behavior: display reflects A/B changes immediately
-            // while idle (m_pendingDisplayUpdate tracks entry to IDLE for initial latch,
-            // but display continuously refreshes).
+            // Display reflects A/B changes immediately while idle.
             std::lock_guard<std::mutex> lock(m_displayMutex);
             for (int i = 0; i < 12; ++i) {
                 m_display.digits[i] = A[i + 2] & 0x0F;
@@ -565,10 +562,6 @@ int TMC0501::step() {
 
         case 0x1:  // CLR IDL — exit idle/display mode; resume full speed
             flags &= ~FLG_IDLE;
-            // Latch fires on every CLR IDL so getDisplay() (60 Hz) always sees
-            // at least one frame of C=true, even for brief computations where
-            // fA stays 0 throughout (e.g. simple digit entry like "1").
-            m_calcLatch.store(true, std::memory_order_relaxed);
             break;
 
         case 0x2: fA = 0; break;  // CLR fA — clear all 16 fA flag bits at once
@@ -609,8 +602,8 @@ int TMC0501::step() {
                     flags |= FLG_RAM_READ;
             } else {
                 // MOV R5,fA[1..4] or fB[1..4] — copy bits 1-4 into R5
-                uint16_t flags = (opcode & 0x0010u) ? fB : fA;
-                R5 = static_cast<uint8_t>((flags >> 1) & 0x0Fu);
+                uint16_t flagReg = (opcode & 0x0010u) ? fB : fA;
+                R5 = static_cast<uint8_t>((flagReg >> 1) & 0x0Fu);
             }
             break;
         }
@@ -762,10 +755,9 @@ int TMC0501::step() {
             break;
 
         case 0x9:  // SET IDL — enter idle/display mode
-            // Marks FLG_IDLE so step() returns 4 (1/4 speed) and schedules a
-            // display snapshot at the next digit=0 boundary.
+            // Marks FLG_IDLE so step() returns 4 (1/4 speed); display snapshot
+            // is captured at the next digit=0 boundary in the main step() loop.
             flags |= FLG_IDLE;
-            m_pendingDisplayUpdate = true;
             break;
 
         case 0xA: fB = 0; break;  // CLR fB — clear all 16 fB flag bits at once
@@ -1223,7 +1215,7 @@ void TMC0501::beginNextStep() {
             memcpy(prev.SCOM, SCOM, sizeof(SCOM));
             memcpy(prev.Sout, Sout, 16);
             prev.EXT = EXT;
-            prev.PREG = PREG ? 1 : 0;
+            prev.PREG = PREG;
             prev.flags = flags;
             prev.m_libAddr = m_libAddr;
             prev.m_libAddrReadPos = m_libAddrReadPos;
@@ -1286,10 +1278,9 @@ void TMC0501::tracePreStep(uint32_t tf, uint16_t opcode) {
         memcpy(frame.E,    E,    16);
         memcpy(frame.SCOM, SCOM, sizeof(SCOM));
         memcpy(frame.Sout, Sout, 16);
-        frame.KR = KR; frame.SR = SR; frame.fA = fA; frame.fB = fB;
-        frame.EXT = EXT; frame.PREG = PREG ? 1 : 0; frame.flags = flags;
+        frame.EXT = EXT; frame.PREG = PREG; frame.flags = flags;
         frame.m_libAddr = m_libAddr; frame.m_libAddrReadPos = m_libAddrReadPos;
-        frame.R5 = R5; frame.digit = digit;
+        frame.digit = digit;
         frame.REG_ADDR = REG_ADDR; frame.RAM_ADDR = RAM_ADDR; frame.RAM_OP = RAM_OP;
         frame.dispFilter = m_dispFilter;
     }
@@ -1402,13 +1393,13 @@ CpuFrame TMC0501::snapshotCPU() const {
 
     // Control registers
     frame.EXT = EXT;
-    frame.PREG = PREG ? 1 : 0;
+    frame.PREG = PREG;
     frame.flags = flags;
     frame.m_libAddr = m_libAddr;
     frame.REG_ADDR = REG_ADDR;
     frame.RAM_ADDR = RAM_ADDR;
     frame.RAM_OP = RAM_OP;
-    frame.m_libAddrReadPos = 0;  // not meaningful for snapshot
+    frame.m_libAddrReadPos = m_libAddrReadPos;
     frame.dispFilter = m_dispFilter;
 
     return frame;
