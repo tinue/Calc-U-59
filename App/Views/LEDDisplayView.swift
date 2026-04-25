@@ -234,8 +234,8 @@ struct LEDDisplayView: View, Equatable {
                 let dotRect = CGRect(x: cx - dotR, y: cy - dotR, width: dotR*2, height: dotR*2)
                 if active {
                     var glow = ctx
-                    glow.addFilter(.blur(radius: dotR * 0.7))
-                    glow.fill(Path(ellipseIn: dotRect), with: .color(color.opacity(0.45 * opacity)))
+                    glow.addFilter(.blur(radius: dotR * 1.3))
+                    glow.fill(Path(ellipseIn: dotRect), with: .color(color.opacity(0.65 * opacity)))
                 }
                 ctx.fill(Path(ellipseIn: dotRect), with: .color(color))
             }
@@ -259,8 +259,8 @@ struct LEDDisplayView: View, Equatable {
                 let dotRect = CGRect(x: cx - dotR, y: cy - dotR, width: dotR*2, height: dotR*2)
                 if active {
                     var glow = ctx
-                    glow.addFilter(.blur(radius: dotR * 0.7))
-                    glow.fill(Path(ellipseIn: dotRect), with: .color(color.opacity(0.45 * opacity)))
+                    glow.addFilter(.blur(radius: dotR * 1.3))
+                    glow.fill(Path(ellipseIn: dotRect), with: .color(color.opacity(0.65 * opacity)))
                 }
                 ctx.fill(Path(ellipseIn: dotRect), with: .color(color))
             }
