@@ -124,8 +124,10 @@ struct KeyboardView: View {
         // iOS: Use system UI click sound
         AudioServicesPlaySystemSound(1104)
         #else
-        // macOS: Use NSSound for system beep
-        NSSound.beep()
+        // macOS: Use system "Pop" sound (more click-like than beep)
+        if let popSound = NSSound(named: "Pop") {
+            popSound.play()
+        }
         #endif
     }
 
