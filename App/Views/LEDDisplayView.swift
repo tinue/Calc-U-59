@@ -32,8 +32,10 @@ struct LEDDisplayView: View, Equatable {
             //   - ctrl ≤ 4 and digit == 0 and zero == true  (leading zero)
             var suppressed = [Bool](repeating: false, count: 12)
             var zero = true
+            let dpPosInt = Int(dpPos)
+            let dpDigitIndex = dpPosInt >= 2 ? dpPosInt - 2 : -1
             for i in stride(from: 11, through: 0, by: -1) {
-                if i == 1 || (Int(dpPos) >= 2 && Int(dpPos) - 2 == i) || ctrl[i] >= 8 {
+                if i == 1 || dpDigitIndex == i || ctrl[i] >= 8 {
                     zero = false
                 }
                 if i == 0 { zero = true }
@@ -44,6 +46,9 @@ struct LEDDisplayView: View, Equatable {
                     zero = false
                 }
             }
+
+            // Compute slant once, reuse for all digits
+            let slant: CGFloat = (fontStyle == .modernized) ? 0.14 : 0.1139
 
             for i in 0..<12 {
                 let x = CGFloat(11 - i) * digitWidth
@@ -64,15 +69,13 @@ struct LEDDisplayView: View, Equatable {
                 // Slant transform for the digit
                 var digitCtx = ctx
                 digitCtx.translateBy(x: rect.minX, y: rect.minY)
-                // Apply slant: Modernized uses ~8°, Classic uses ~6.5°
-                let slant: CGFloat = (fontStyle == .modernized) ? 0.14 : 0.1139
                 // Shear: x' = x + slant * (height - y). To fix bottom, we shift right by slant*height.
                 digitCtx.concatenate(CGAffineTransform(1, 0, -slant, 1, height * slant, 0))
 
                 let digitRect = CGRect(origin: .zero, size: rect.size)
                 drawSegments(ctx: &digitCtx, rect: digitRect, segments: segs, segmentOpacity: cOpacity, fontStyle: fontStyle)
-                
-                if Int(dpPos) >= 2 && Int(dpPos) - 2 == i {
+
+                if dpDigitIndex == i {
                     // Decimal point is usually NOT slanted or handled separately
                     var dpCtx = ctx
                     drawDecimalPoint(ctx: &dpCtx, rect: rect)
@@ -133,6 +136,22 @@ struct LEDDisplayView: View, Equatable {
 
     // MARK: - Drawing
 
+    // Glow effect constants
+    private static let modernizedGlowBlurMultiplier: CGFloat = 0.8
+    private static let modernizedGlowOpacityFactor: Double = 0.6
+    private static let modernizedBloomBlurMultiplier: CGFloat = 0.2
+    private static let classicGlowBlurMultiplier: CGFloat = 1.3
+    private static let classicGlowOpacityFactor: Double = 0.65
+    private static let dotRadiusMultiplier: CGFloat = 0.45
+
+    // Draw a glowing path (reusable helper for both modernized and classic styles)
+    private func drawGlowingPath(ctx: inout GraphicsContext, path: CGPath, color: Color,
+                                blurRadius: CGFloat, glowOpacity: Double, segmentOpacity: Double) {
+        var glow = ctx
+        glow.addFilter(.blur(radius: blurRadius))
+        glow.fill(Path(path), with: .color(color.opacity(glowOpacity * segmentOpacity)))
+    }
+
     private func drawSegments(ctx: inout GraphicsContext, rect: CGRect, segments: UInt8,
                               segmentOpacity: Double = 1.0, fontStyle: LEDFontStyle) {
         if fontStyle == .classic {
@@ -167,64 +186,64 @@ struct LEDDisplayView: View, Equatable {
         for (path, bit) in paths {
             let active = (segments >> bit) & 1 == 1
             if active {
-                var glow = ctx
-                glow.addFilter(.blur(radius: sw * 0.8))
-                glow.fill(Path(path), with: .color(activeColor.opacity(0.6 * segmentOpacity)))
-
-                var bloom = ctx
-                bloom.addFilter(.blur(radius: sw * 0.2))
-                bloom.fill(Path(path), with: .color(activeColor.opacity(segmentOpacity)))
+                drawGlowingPath(ctx: &ctx, path: path, color: activeColor, blurRadius: sw * Self.modernizedGlowBlurMultiplier, glowOpacity: Self.modernizedGlowOpacityFactor, segmentOpacity: segmentOpacity)
+                drawGlowingPath(ctx: &ctx, path: path, color: activeColor, blurRadius: sw * Self.modernizedBloomBlurMultiplier, glowOpacity: 1.0, segmentOpacity: segmentOpacity)
             }
             ctx.fill(Path(path), with: .color(active ? activeColor.opacity(segmentOpacity) : inactiveColor))
         }
     }
 
     private func drawSegmentsClassic(ctx: inout GraphicsContext, rect: CGRect,
-                                     segments: UInt8, segmentOpacity: Double) {
+                                     segments: UInt8, segmentOpacity: Double = 1.0) {
         let padX = rect.width * 0.22
         let padY = rect.height * 0.10
         let r = rect.insetBy(dx: padX, dy: padY)
-        let sw: CGFloat = r.width * 0.16   // slightly thicker than Modernized
+        let sw: CGFloat = r.width * 0.16
 
-        let activeColor   = Color(red: 1.0, green: 0.2, blue: 0.2)  // brighter to compensate for dot appearance
+        let activeColor   = Color(red: 1.0, green: 0.2, blue: 0.2)
         let inactiveColor = Color(red: 0.2, green: 0.0, blue: 0.0, opacity: 0.2)
 
         let hh = r.height / 2
         // (isHorizontal, x, y, length, bitIndex)
         // Vertical segments define the boundaries; horizontal segments just touch them
-        // This prevents corner overlap and makes "-" (G) the right width
         let segs: [(Bool, CGFloat, CGFloat, CGFloat, Int)] = [
-            (true,  r.minX + sw,         r.minY,             r.width - 2*sw,      0), // A top (spans between verticals)
+            (true,  r.minX + sw,         r.minY,             r.width - 2*sw,      0), // A top
             (false, r.maxX - sw,         r.minY,             hh,                  1), // B upper-right
             (false, r.maxX - sw,         r.midY,             hh,                  2), // C lower-right
-            (true,  r.minX + sw,         r.maxY - sw,        r.width - 2*sw,      3), // D bottom (spans between verticals)
+            (true,  r.minX + sw,         r.maxY - sw,        r.width - 2*sw,      3), // D bottom
             (false, r.minX,              r.midY,             hh,                  4), // E lower-left
             (false, r.minX,              r.minY,             hh,                  5), // F upper-left
-            (true,  r.minX + sw,         r.midY - sw/2,      r.width - 2*sw,      6), // G middle (spans between verticals)
+            (true,  r.minX + sw,         r.midY - sw/2,      r.width - 2*sw,      6), // G middle
         ]
 
         for (isH, sx, sy, len, bit) in segs {
             let active = (segments >> UInt8(bit)) & 1 == 1
             let color  = active ? activeColor.opacity(segmentOpacity) : inactiveColor
-            if isH {
-                drawHDots(ctx: &ctx, x: sx, y: sy, w: len, sw: sw,
-                          color: color, active: active, opacity: segmentOpacity)
-            } else {
-                drawVDots(ctx: &ctx, x: sx, y: sy, h: len, sw: sw,
-                          color: color, active: active, opacity: segmentOpacity)
-            }
+            drawDotSegment(ctx: &ctx, x: sx, y: sy, length: len, sw: sw,
+                          isHorizontal: isH, color: color, active: active, opacity: segmentOpacity)
         }
     }
 
-    // Horizontal segment as 2-row dot grid
-    private func drawHDots(ctx: inout GraphicsContext,
-                           x: CGFloat, y: CGFloat, w: CGFloat, sw: CGFloat,
-                           color: Color, active: Bool, opacity: Double) {
-        let rows   = 2
-        let cellH  = sw / CGFloat(rows)
-        let cols   = max(2, Int(w / cellH))
-        let cellW  = w / CGFloat(cols)
-        let dotR   = min(cellW, cellH) * 0.45  // larger dots for brighter appearance
+    // Draw a dot segment grid (horizontal: 2 rows × N cols; vertical: 2 cols × N rows)
+    private func drawDotSegment(ctx: inout GraphicsContext,
+                               x: CGFloat, y: CGFloat, length: CGFloat, sw: CGFloat,
+                               isHorizontal: Bool, color: Color, active: Bool, opacity: Double) {
+        let (cols, rows): (Int, Int)
+        if isHorizontal {
+            let rows2 = 2
+            let cellH = sw / CGFloat(rows2)
+            cols = max(2, Int(length / cellH))
+            rows = rows2
+        } else {
+            let cols2 = 2
+            let cellW = sw / CGFloat(cols2)
+            rows = max(2, Int(length / cellW))
+            cols = cols2
+        }
+
+        let cellW = isHorizontal ? length / CGFloat(cols) : sw / CGFloat(cols)
+        let cellH = isHorizontal ? sw / CGFloat(rows) : length / CGFloat(rows)
+        let dotR = min(cellW, cellH) * Self.dotRadiusMultiplier
 
         for row in 0..<rows {
             for col in 0..<cols {
@@ -232,34 +251,7 @@ struct LEDDisplayView: View, Equatable {
                 let cy = y + (CGFloat(row) + 0.5) * cellH
                 let dotRect = CGRect(x: cx - dotR, y: cy - dotR, width: dotR*2, height: dotR*2)
                 if active {
-                    var glow = ctx
-                    glow.addFilter(.blur(radius: dotR * 1.3))
-                    glow.fill(Path(ellipseIn: dotRect), with: .color(color.opacity(0.65 * opacity)))
-                }
-                ctx.fill(Path(ellipseIn: dotRect), with: .color(color))
-            }
-        }
-    }
-
-    // Vertical segment as 2-column dot grid
-    private func drawVDots(ctx: inout GraphicsContext,
-                           x: CGFloat, y: CGFloat, h: CGFloat, sw: CGFloat,
-                           color: Color, active: Bool, opacity: Double) {
-        let cols  = 2
-        let cellW = sw / CGFloat(cols)
-        let rows  = max(2, Int(h / cellW))
-        let cellH = h / CGFloat(rows)
-        let dotR  = min(cellW, cellH) * 0.45  // larger dots for brighter appearance
-
-        for col in 0..<cols {
-            for row in 0..<rows {
-                let cx = x + (CGFloat(col) + 0.5) * cellW
-                let cy = y + (CGFloat(row) + 0.5) * cellH
-                let dotRect = CGRect(x: cx - dotR, y: cy - dotR, width: dotR*2, height: dotR*2)
-                if active {
-                    var glow = ctx
-                    glow.addFilter(.blur(radius: dotR * 1.3))
-                    glow.fill(Path(ellipseIn: dotRect), with: .color(color.opacity(0.65 * opacity)))
+                    drawGlowingPath(ctx: &ctx, path: CGPath(ellipseIn: dotRect, transform: nil), color: color, blurRadius: dotR * Self.classicGlowBlurMultiplier, glowOpacity: Self.classicGlowOpacityFactor, segmentOpacity: opacity)
                 }
                 ctx.fill(Path(ellipseIn: dotRect), with: .color(color))
             }
@@ -274,10 +266,8 @@ struct LEDDisplayView: View, Equatable {
 
         let activeColor = Color(red: 1.0, green: 0.1, blue: 0.1)
 
-        var glow = ctx
-        glow.addFilter(.blur(radius: dotSize * 0.8))
-        glow.fill(Path(ellipseIn: dotRect), with: .color(activeColor.opacity(0.6)))
-
+        let path = CGPath(ellipseIn: dotRect, transform: nil)
+        drawGlowingPath(ctx: &ctx, path: path, color: activeColor, blurRadius: dotSize * Self.modernizedGlowBlurMultiplier, glowOpacity: Self.modernizedGlowOpacityFactor, segmentOpacity: 1.0)
         ctx.fill(Path(ellipseIn: dotRect), with: .color(activeColor))
     }
 
