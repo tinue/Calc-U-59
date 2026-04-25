@@ -185,7 +185,6 @@ struct LEDDisplayView: View, Equatable {
         let padY = rect.height * 0.10
         let r = rect.insetBy(dx: padX, dy: padY)
         let sw: CGFloat = r.width * 0.16   // slightly thicker than Modernized
-        let gap: CGFloat = sw * 0.15
 
         let activeColor   = Color(red: 1.0, green: 0.2, blue: 0.2)  // brighter to compensate for dot appearance
         let inactiveColor = Color(red: 0.2, green: 0.0, blue: 0.0, opacity: 0.2)
