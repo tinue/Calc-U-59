@@ -61,15 +61,13 @@ struct LEDDisplayView: View, Equatable {
                     cOpacity = 1.0
                 }
 
-                // Slant transform for the digit (only for Modernized style, ~8 degrees)
-                let slant: CGFloat = 0.14
+                // Slant transform for the digit
                 var digitCtx = ctx
                 digitCtx.translateBy(x: rect.minX, y: rect.minY)
-                // Only apply slant for Modernized style
-                if fontStyle == .modernized {
-                    // Shear: x' = x + slant * (height - y). To fix bottom, we shift right by slant*height.
-                    digitCtx.concatenate(CGAffineTransform(1, 0, -slant, 1, height * slant, 0))
-                }
+                // Apply slant: Modernized uses ~8°, Classic uses ~6.5°
+                let slant: CGFloat = (fontStyle == .modernized) ? 0.14 : 0.1139
+                // Shear: x' = x + slant * (height - y). To fix bottom, we shift right by slant*height.
+                digitCtx.concatenate(CGAffineTransform(1, 0, -slant, 1, height * slant, 0))
 
                 let digitRect = CGRect(origin: .zero, size: rect.size)
                 drawSegments(ctx: &digitCtx, rect: digitRect, segments: segs, segmentOpacity: cOpacity, fontStyle: fontStyle)
@@ -189,19 +187,20 @@ struct LEDDisplayView: View, Equatable {
         let sw: CGFloat = r.width * 0.16   // slightly thicker than Modernized
         let gap: CGFloat = sw * 0.15
 
-        let activeColor   = Color(red: 1.0, green: 0.12, blue: 0.05)
-        let inactiveColor = Color(red: 0.18, green: 0.0, blue: 0.0, opacity: 0.12)
+        let activeColor   = Color(red: 1.0, green: 0.1, blue: 0.1)  // match Modernized brightness
+        let inactiveColor = Color(red: 0.2, green: 0.0, blue: 0.0, opacity: 0.2)  // match Modernized
 
         let hh = r.height / 2
         // (isHorizontal, x, y, length, bitIndex)
+        // Horizontal segments (A, D, G) extend all the way with minimal gap
         let segs: [(Bool, CGFloat, CGFloat, CGFloat, Int)] = [
-            (true,  r.minX + sw/2 + gap, r.minY,             r.width - sw - 2*gap, 0), // A top
+            (true,  r.minX + gap,        r.minY,             r.width - 2*gap,     0), // A top (full width)
             (false, r.maxX - sw,         r.minY + sw/2 + gap, hh - sw - 2*gap,    1), // B upper-right
             (false, r.maxX - sw,         r.midY + sw/2 + gap, hh - sw - 2*gap,    2), // C lower-right
-            (true,  r.minX + sw/2 + gap, r.maxY - sw,        r.width - sw - 2*gap, 3), // D bottom
+            (true,  r.minX + gap,        r.maxY - sw,        r.width - 2*gap,     3), // D bottom (full width)
             (false, r.minX,              r.midY + sw/2 + gap, hh - sw - 2*gap,    4), // E lower-left
             (false, r.minX,              r.minY + sw/2 + gap, hh - sw - 2*gap,    5), // F upper-left
-            (true,  r.minX + sw/2 + gap, r.midY - sw/2,      r.width - sw - 2*gap, 6), // G middle
+            (true,  r.minX + gap,        r.midY - sw/2,      r.width - 2*gap,     6), // G middle (full width)
         ]
 
         for (isH, sx, sy, len, bit) in segs {
