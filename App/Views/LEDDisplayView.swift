@@ -192,15 +192,16 @@ struct LEDDisplayView: View, Equatable {
 
         let hh = r.height / 2
         // (isHorizontal, x, y, length, bitIndex)
-        // All segments extend fully to touch each other (no gaps)
+        // Vertical segments define the boundaries; horizontal segments just touch them
+        // This prevents corner overlap and makes "-" (G) the right width
         let segs: [(Bool, CGFloat, CGFloat, CGFloat, Int)] = [
-            (true,  r.minX + gap,        r.minY,             r.width - 2*gap,     0), // A top
-            (false, r.maxX - sw,         r.minY,             hh,                  1), // B upper-right (no gap, full height)
-            (false, r.maxX - sw,         r.midY,             hh,                  2), // C lower-right (no gap, full height)
-            (true,  r.minX + gap,        r.maxY - sw,        r.width - 2*gap,     3), // D bottom
-            (false, r.minX,              r.midY,             hh,                  4), // E lower-left (no gap, full height)
-            (false, r.minX,              r.minY,             hh,                  5), // F upper-left (no gap, full height)
-            (true,  r.minX + gap,        r.midY - sw/2,      r.width - 2*gap,     6), // G middle
+            (true,  r.minX + sw,         r.minY,             r.width - 2*sw,      0), // A top (spans between verticals)
+            (false, r.maxX - sw,         r.minY,             hh,                  1), // B upper-right
+            (false, r.maxX - sw,         r.midY,             hh,                  2), // C lower-right
+            (true,  r.minX + sw,         r.maxY - sw,        r.width - 2*sw,      3), // D bottom (spans between verticals)
+            (false, r.minX,              r.midY,             hh,                  4), // E lower-left
+            (false, r.minX,              r.minY,             hh,                  5), // F upper-left
+            (true,  r.minX + sw,         r.midY - sw/2,      r.width - 2*sw,      6), // G middle (spans between verticals)
         ]
 
         for (isH, sx, sy, len, bit) in segs {
