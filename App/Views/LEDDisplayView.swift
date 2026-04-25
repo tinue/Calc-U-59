@@ -187,20 +187,20 @@ struct LEDDisplayView: View, Equatable {
         let sw: CGFloat = r.width * 0.16   // slightly thicker than Modernized
         let gap: CGFloat = sw * 0.15
 
-        let activeColor   = Color(red: 1.0, green: 0.1, blue: 0.1)  // match Modernized brightness
-        let inactiveColor = Color(red: 0.2, green: 0.0, blue: 0.0, opacity: 0.2)  // match Modernized
+        let activeColor   = Color(red: 1.0, green: 0.2, blue: 0.2)  // brighter to compensate for dot appearance
+        let inactiveColor = Color(red: 0.2, green: 0.0, blue: 0.0, opacity: 0.2)
 
         let hh = r.height / 2
         // (isHorizontal, x, y, length, bitIndex)
-        // Horizontal segments (A, D, G) extend all the way with minimal gap
+        // All segments extend fully to touch each other (no gaps)
         let segs: [(Bool, CGFloat, CGFloat, CGFloat, Int)] = [
-            (true,  r.minX + gap,        r.minY,             r.width - 2*gap,     0), // A top (full width)
-            (false, r.maxX - sw,         r.minY + sw/2 + gap, hh - sw - 2*gap,    1), // B upper-right
-            (false, r.maxX - sw,         r.midY + sw/2 + gap, hh - sw - 2*gap,    2), // C lower-right
-            (true,  r.minX + gap,        r.maxY - sw,        r.width - 2*gap,     3), // D bottom (full width)
-            (false, r.minX,              r.midY + sw/2 + gap, hh - sw - 2*gap,    4), // E lower-left
-            (false, r.minX,              r.minY + sw/2 + gap, hh - sw - 2*gap,    5), // F upper-left
-            (true,  r.minX + gap,        r.midY - sw/2,      r.width - 2*gap,     6), // G middle (full width)
+            (true,  r.minX + gap,        r.minY,             r.width - 2*gap,     0), // A top
+            (false, r.maxX - sw,         r.minY,             hh,                  1), // B upper-right (no gap, full height)
+            (false, r.maxX - sw,         r.midY,             hh,                  2), // C lower-right (no gap, full height)
+            (true,  r.minX + gap,        r.maxY - sw,        r.width - 2*gap,     3), // D bottom
+            (false, r.minX,              r.midY,             hh,                  4), // E lower-left (no gap, full height)
+            (false, r.minX,              r.minY,             hh,                  5), // F upper-left (no gap, full height)
+            (true,  r.minX + gap,        r.midY - sw/2,      r.width - 2*gap,     6), // G middle
         ]
 
         for (isH, sx, sy, len, bit) in segs {
@@ -224,7 +224,7 @@ struct LEDDisplayView: View, Equatable {
         let cellH  = sw / CGFloat(rows)
         let cols   = max(2, Int(w / cellH))
         let cellW  = w / CGFloat(cols)
-        let dotR   = min(cellW, cellH) * 0.38
+        let dotR   = min(cellW, cellH) * 0.45  // larger dots for brighter appearance
 
         for row in 0..<rows {
             for col in 0..<cols {
@@ -249,7 +249,7 @@ struct LEDDisplayView: View, Equatable {
         let cellW = sw / CGFloat(cols)
         let rows  = max(2, Int(h / cellW))
         let cellH = h / CGFloat(rows)
-        let dotR  = min(cellW, cellH) * 0.38
+        let dotR  = min(cellW, cellH) * 0.45  // larger dots for brighter appearance
 
         for col in 0..<cols {
             for row in 0..<rows {
