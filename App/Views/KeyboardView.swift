@@ -99,6 +99,7 @@ struct KeyboardView: View {
     }
 
     @State private var pressedKey: Int? = nil   // physRow * 5 + physCol
+    @AppStorage(SettingsKey.ledFontStyle) private var ledFontStyleRaw: Int = LEDFontStyle.modernized.rawValue
 
     #if canImport(UIKit)
     private let haptic = UIImpactFeedbackGenerator(style: .rigid)
@@ -162,7 +163,8 @@ struct KeyboardView: View {
                     digits:        viewModel.displayDigits,
                     ctrl:          viewModel.displayCtrl,
                     dpPos:         viewModel.dpPos,
-                    calcIndicatorOpacity: viewModel.calcIndicatorOpacity
+                    calcIndicatorOpacity: viewModel.calcIndicatorOpacity,
+                    fontStyle:     LEDFontStyle(rawValue: ledFontStyleRaw) ?? .modernized
                 )
                 .equatable()
                 .frame(width:  w * Self.displayRect.width,

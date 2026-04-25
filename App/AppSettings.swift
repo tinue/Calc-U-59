@@ -1,5 +1,21 @@
 import Foundation
 
+// MARK: - LED Font Style
+
+enum LEDFontStyle: Int, CaseIterable, Identifiable {
+    case modernized = 0
+    case classic    = 1
+
+    var id: Int { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .modernized: return "Modernized"
+        case .classic:    return "Classic"
+        }
+    }
+}
+
 // MARK: - Keyboard Feedback Type
 
 enum KeyboardFeedbackType: Int, CaseIterable, Identifiable {
@@ -28,6 +44,7 @@ enum SettingsKey {
     static let traceCustomPathBookmark = "traceCustomPathBookmark" // Data: security-scoped bookmark for custom path
     static let traceMaxFileSizeMB     = "traceMaxFileSizeMB"       // Int: maximum trace file size in MB (default 10)
     static let keyboardFeedback       = "keyboardFeedback"         // Int: KeyboardFeedbackType.rawValue
+    static let ledFontStyle           = "ledFontStyle"             // Int: LEDFontStyle.rawValue
 }
 
 // MARK: - Trace file location
@@ -49,6 +66,13 @@ enum TraceLocation: Int, CaseIterable {
 // MARK: - AppSettings
 
 enum AppSettings {
+
+    /// Resolve the LED font style from UserDefaults.
+    /// Defaults to modernized if not set.
+    static func resolvedLEDFontStyle() -> LEDFontStyle {
+        let raw = UserDefaults.standard.object(forKey: SettingsKey.ledFontStyle) as? Int
+        return LEDFontStyle(rawValue: raw ?? LEDFontStyle.modernized.rawValue) ?? .modernized
+    }
 
     /// Resolve the keyboard feedback type from UserDefaults.
     /// Defaults to off if not set.

@@ -14,6 +14,7 @@ struct SettingsView: View {
     @AppStorage(SettingsKey.traceCustomPath) private var traceCustomPath: String = ""
     @AppStorage(SettingsKey.traceMaxFileSizeMB) private var traceMaxFileSizeMB: Int = 10
     @AppStorage(SettingsKey.keyboardFeedback) private var keyboardFeedbackRaw: Int = KeyboardFeedbackType.off.rawValue
+    @AppStorage(SettingsKey.ledFontStyle) private var ledFontStyleRaw: Int = LEDFontStyle.modernized.rawValue
 
     // Trigger refresh of warning after re-authorization
     @State private var authRefreshTrigger: UUID = UUID()
@@ -59,6 +60,14 @@ struct SettingsView: View {
                     }
                 }
                 #endif
+            }
+
+            Section("Display") {
+                Picker("Segment Style", selection: $ledFontStyleRaw) {
+                    ForEach(LEDFontStyle.allCases) { style in
+                        Text(style.displayName).tag(style.rawValue)
+                    }
+                }
             }
 
             Section("Trace File") {
