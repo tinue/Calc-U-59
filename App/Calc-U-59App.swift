@@ -12,8 +12,13 @@ struct CalcU59App: App {
                 .preferredColorScheme(.dark)
         }
         .onChange(of: scenePhase) { _, newPhase in
-            if newPhase == .background || newPhase == .inactive {
-                viewModel.persistConstantMemory()
+            switch newPhase {
+            case .background:
+                viewModel.suspendForBackground()
+            case .active:
+                viewModel.resumeFromBackground()
+            default:
+                break
             }
         }
         #if os(macOS)

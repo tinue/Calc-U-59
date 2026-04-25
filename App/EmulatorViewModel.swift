@@ -150,6 +150,7 @@ class EmulatorViewModel {
     private let emulQueue = DispatchQueue(label: "calc-u-59.emulation", qos: .userInteractive)
     private var displayTimer: Timer?
     private var isRunning = false
+    private var suspendedByLifecycle = false
     private static let constantMemoryFileName = "ti58c.mem"
     private static var constantMemoryURL: URL {
         CardStorage.directoryURL.appendingPathComponent(constantMemoryFileName)
@@ -415,6 +416,29 @@ class EmulatorViewModel {
         isRunning = false
         displayTimer?.invalidate()
         displayTimer = nil
+    }
+
+    /// Suspend emulation when the app enters the background.
+    /// Stops the CPU loop and display timer to prevent battery drain.
+    /// Does not destroy machine state — resumeFromBackground() will restart both.
+    func suspendForBackground() {
+        persistConstantMemory()
+        suspendedByLifecycle = isRunning
+        isRunning = false
+        displayTimer?.invalidate()
+        displayTimer = nil
+    }
+
+    /// Resume emulation after the app returns to the foreground.
+    /// Restarts the CPU loop only if it was running at suspension time,
+    /// so a user-triggered debug freeze is preserved across backgrounding.
+    func resumeFromBackground() {
+        guard machine != nil else { return }
+        startDisplayRefresh()
+        if suspendedByLifecycle {
+            suspendedByLifecycle = false
+            startEmulationLoop()
+        }
     }
 
     /// Wait for any in-flight emulation batch to finish.
