@@ -99,38 +99,31 @@ struct KeyboardView: View {
     }
 
     @State private var pressedKey: Int? = nil   // physRow * 5 + physCol
-    @State private var currentSound: NSSound? = nil  // Keep sound alive while playing
 
     #if canImport(UIKit)
     private let haptic = UIImpactFeedbackGenerator(style: .rigid)
     #endif
 
     private func triggerFeedback() {
+        #if os(iOS)
         let feedbackType = AppSettings.resolvedKeyboardFeedback()
         switch feedbackType {
         case .off:
             // No feedback
             break
         case .haptic:
-            #if canImport(UIKit)
             haptic.impactOccurred()
-            #endif
         case .click:
             playClickSound()
         }
+        #endif
+        // macOS: No audio feedback
     }
 
     private func playClickSound() {
+        // iOS only: Use system UI click sound
         #if os(iOS)
-        // iOS: Use system UI click sound
         AudioServicesPlaySystemSound(1104)
-        #else
-        // macOS: Use system "Pop" sound (more click-like than beep)
-        // Retain the sound object so it doesn't get deallocated during playback
-        if let popSound = NSSound(named: "Pop") {
-            currentSound = popSound  // Keep reference alive
-            popSound.play()
-        }
         #endif
     }
 

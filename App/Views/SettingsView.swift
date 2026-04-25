@@ -51,18 +51,14 @@ struct SettingsView: View {
                     Text("Last Used").tag(-1)
                 }
 
+                // Keyboard feedback only on iOS
+                #if os(iOS)
                 Picker("Keyboard Feedback", selection: $keyboardFeedbackRaw) {
                     ForEach(KeyboardFeedbackType.allCases) { feedback in
-                        // Only show haptic on iOS/iPadOS where it's available
-                        #if os(iOS)
                         Text(feedback.displayName).tag(feedback.rawValue)
-                        #else
-                        if feedback != .haptic {
-                            Text(feedback.displayName).tag(feedback.rawValue)
-                        }
-                        #endif
                     }
                 }
+                #endif
             }
 
             Section("Trace File") {
