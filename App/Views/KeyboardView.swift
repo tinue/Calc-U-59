@@ -107,6 +107,9 @@ struct KeyboardView: View {
     private func triggerFeedback() {
         let feedbackType = AppSettings.resolvedKeyboardFeedback()
         switch feedbackType {
+        case .off:
+            // No feedback
+            break
         case .haptic:
             #if canImport(UIKit)
             haptic.impactOccurred()

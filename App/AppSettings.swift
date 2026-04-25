@@ -3,13 +3,15 @@ import Foundation
 // MARK: - Keyboard Feedback Type
 
 enum KeyboardFeedbackType: Int, CaseIterable, Identifiable {
-    case haptic = 0
-    case click  = 1
+    case off    = 0
+    case haptic = 1
+    case click  = 2
 
     var id: Int { rawValue }
 
     var displayName: String {
         switch self {
+        case .off:    return "Off"
         case .haptic: return "Haptic"
         case .click:  return "Click Sound"
         }
@@ -49,10 +51,10 @@ enum TraceLocation: Int, CaseIterable {
 enum AppSettings {
 
     /// Resolve the keyboard feedback type from UserDefaults.
-    /// Defaults to haptic if not set.
+    /// Defaults to off if not set.
     static func resolvedKeyboardFeedback() -> KeyboardFeedbackType {
         let raw = UserDefaults.standard.object(forKey: SettingsKey.keyboardFeedback) as? Int
-        return KeyboardFeedbackType(rawValue: raw ?? KeyboardFeedbackType.haptic.rawValue) ?? .haptic
+        return KeyboardFeedbackType(rawValue: raw ?? KeyboardFeedbackType.off.rawValue) ?? .off
     }
 
     /// Resolve the trace location from UserDefaults, with platform-aware defaults.
