@@ -39,21 +39,21 @@ struct KeyboardView: View {
         // row 0
         [CGRect(x:0.0160, y:0.0365, width:0.1245, height:0.0486), CGRect(x:0.2277, y:0.0365, width:0.1245, height:0.0486), CGRect(x:0.4375, y:0.0365, width:0.1245, height:0.0486), CGRect(x:0.6483, y:0.0365, width:0.1245, height:0.0486), CGRect(x:0.8571, y:0.0365, width:0.1245, height:0.0486)],
         // row 1
-        [CGRect(x:0.0160, y:0.1484, width:0.1245, height:0.0508), CGRect(x:0.2277, y:0.1484, width:0.1245, height:0.0508), CGRect(x:0.4375, y:0.1484, width:0.1245, height:0.0508), CGRect(x:0.6483, y:0.1484, width:0.1245, height:0.0508), CGRect(x:0.8571, y:0.1484, width:0.1245, height:0.0508)],
+        [CGRect(x:0.0140, y:0.1484, width:0.1265, height:0.0508), CGRect(x:0.2277, y:0.1484, width:0.1245, height:0.0508), CGRect(x:0.4375, y:0.1484, width:0.1245, height:0.0508), CGRect(x:0.6483, y:0.1484, width:0.1245, height:0.0508), CGRect(x:0.8566, y:0.1484, width:0.1250, height:0.0508)],
         // row 2
         [CGRect(x:0.0160, y:0.2625, width:0.1245, height:0.0508), CGRect(x:0.2277, y:0.2625, width:0.1245, height:0.0508), CGRect(x:0.4375, y:0.2625, width:0.1245, height:0.0508), CGRect(x:0.6483, y:0.2625, width:0.1245, height:0.0508), CGRect(x:0.8571, y:0.2625, width:0.1245, height:0.0508)],
         // row 3
         [CGRect(x:0.0160, y:0.3753, width:0.1245, height:0.0508), CGRect(x:0.2277, y:0.3753, width:0.1245, height:0.0508), CGRect(x:0.4375, y:0.3753, width:0.1245, height:0.0508), CGRect(x:0.6483, y:0.3753, width:0.1245, height:0.0508), CGRect(x:0.8571, y:0.3753, width:0.1245, height:0.0508)],
         // row 4
-        [CGRect(x:0.0160, y:0.4853, width:0.1245, height:0.0508), CGRect(x:0.2277, y:0.4853, width:0.1245, height:0.0508), CGRect(x:0.4375, y:0.4853, width:0.1245, height:0.0508), CGRect(x:0.6483, y:0.4853, width:0.1245, height:0.0508), CGRect(x:0.8571, y:0.4853, width:0.1279, height:0.0508)],
+        [CGRect(x:0.0160, y:0.4853, width:0.1245, height:0.0508), CGRect(x:0.2277, y:0.4853, width:0.1245, height:0.0508), CGRect(x:0.4375, y:0.4853, width:0.1245, height:0.0508), CGRect(x:0.6483, y:0.4853, width:0.1245, height:0.0508), CGRect(x:0.8566, y:0.4853, width:0.1284, height:0.0508)],
         // row 5
-        [CGRect(x:0.0160, y:0.5987, width:0.1245, height:0.0508), CGRect(x:0.2001, y:0.5963, width:0.1623, height:0.0534), CGRect(x:0.4186, y:0.5959, width:0.1623, height:0.0537), CGRect(x:0.6371, y:0.5963, width:0.1623, height:0.0534), CGRect(x:0.8571, y:0.5963, width:0.1284, height:0.0534)],
+        [CGRect(x:0.0155, y:0.5987, width:0.1250, height:0.0508), CGRect(x:0.2001, y:0.5963, width:0.1623, height:0.0534), CGRect(x:0.4186, y:0.5959, width:0.1623, height:0.0537), CGRect(x:0.6366, y:0.5963, width:0.1628, height:0.0534), CGRect(x:0.8566, y:0.5963, width:0.1289, height:0.0534)],
         // row 6
-        [CGRect(x:0.0160, y:0.7110, width:0.1245, height:0.0508), CGRect(x:0.2001, y:0.7091, width:0.1623, height:0.0528), CGRect(x:0.4186, y:0.7084, width:0.1623, height:0.0534), CGRect(x:0.6371, y:0.7094, width:0.1623, height:0.0524), CGRect(x:0.8571, y:0.7094, width:0.1284, height:0.0537)],
+        [CGRect(x:0.0160, y:0.7110, width:0.1245, height:0.0508), CGRect(x:0.2001, y:0.7091, width:0.1623, height:0.0528), CGRect(x:0.4186, y:0.7084, width:0.1623, height:0.0534), CGRect(x:0.6366, y:0.7094, width:0.1628, height:0.0524), CGRect(x:0.8566, y:0.7091, width:0.1289, height:0.0528)],
         // row 7
-        [CGRect(x:0.0160, y:0.8232, width:0.1245, height:0.0508), CGRect(x:0.2001, y:0.8219, width:0.1623, height:0.0537), CGRect(x:0.4186, y:0.8213, width:0.1623, height:0.0528), CGRect(x:0.6371, y:0.8223, width:0.1623, height:0.0537), CGRect(x:0.8571, y:0.8217, width:0.1284, height:0.0537)],
+        [CGRect(x:0.0160, y:0.8232, width:0.1245, height:0.0508), CGRect(x:0.2001, y:0.8219, width:0.1623, height:0.0537), CGRect(x:0.4186, y:0.8213, width:0.1623, height:0.0528), CGRect(x:0.6371, y:0.8223, width:0.1623, height:0.0537), CGRect(x:0.8566, y:0.8217, width:0.1289, height:0.0537)],
         // row 8
-        [CGRect(x:0.0160, y:0.9360, width:0.1245, height:0.0508), CGRect(x:0.2001, y:0.9336, width:0.1623, height:0.0541), CGRect(x:0.4186, y:0.9336, width:0.1623, height:0.0534), CGRect(x:0.6366, y:0.9336, width:0.1623, height:0.0556), CGRect(x:0.8571, y:0.9345, width:0.1289, height:0.0537)],
+        [CGRect(x:0.0160, y:0.9360, width:0.1245, height:0.0508), CGRect(x:0.2001, y:0.9336, width:0.1623, height:0.0541), CGRect(x:0.4186, y:0.9336, width:0.1623, height:0.0534), CGRect(x:0.6366, y:0.9336, width:0.1623, height:0.0556), CGRect(x:0.8566, y:0.9340, width:0.1294, height:0.0557)],
     ]
 
     // ── Key hit-test ──────────────────────────────────────────────────────
@@ -208,16 +208,35 @@ struct KeyboardView: View {
                     )
 
                 // ── Press highlight ─────────────────────────────────────
-                // keyRects are in keyboard-image space; convert to canvas space for rendering
+                // Simulate key press: shift key down-right and expose black background
                 if let pk = pressedKey {
                     let r = Self.keyRects[pk / 5][pk % 5]
-                    let canvasY = Self.kbYStart + r.midY * Self.kbYScale
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.white.opacity(0.35))
-                        .frame(width:  w * r.width,
-                               height: h * r.height * Self.kbYScale)
-                        .position(x: w * r.midX,
-                                  y: h * canvasY)
+                    let keyW = w * r.width
+                    let keyH = h * r.height * Self.kbYScale
+                    let canvasX = w * r.minX
+                    let canvasY = h * (Self.kbYStart + r.minY * Self.kbYScale)
+                    let shiftX: CGFloat = 3    // tunable: shift right (points)
+                    let shiftY: CGFloat = 3    // tunable: shift down (points)
+
+                    // Layer 1 — black fill at original key position (erases the key)
+                    Rectangle()
+                        .fill(Color.black)
+                        .frame(width: keyW, height: keyH)
+                        .position(x: canvasX + keyW / 2,
+                                  y: canvasY + keyH / 2)
+                        .allowsHitTesting(false)
+
+                    // Layer 2 — key region of base image, shifted down-right
+                    // Crop the image to show only the key rect, then position it shifted
+                    Image(canvasImageName)
+                        .resizable()
+                        .frame(width: w, height: h)
+                        .offset(x: -canvasX, y: -canvasY)   // align key's top-left to frame origin
+                        .frame(width: keyW, height: keyH,
+                               alignment: .topLeading)
+                        .clipped()
+                        .position(x: canvasX + keyW / 2 + shiftX,
+                                  y: canvasY + keyH / 2 + shiftY)
                         .allowsHitTesting(false)
                 }
             }
