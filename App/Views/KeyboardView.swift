@@ -99,6 +99,7 @@ struct KeyboardView: View {
     }
 
     @State private var pressedKey: Int? = nil   // physRow * 5 + physCol
+    @State private var currentSound: NSSound? = nil  // Keep sound alive while playing
 
     #if canImport(UIKit)
     private let haptic = UIImpactFeedbackGenerator(style: .rigid)
@@ -125,7 +126,9 @@ struct KeyboardView: View {
         AudioServicesPlaySystemSound(1104)
         #else
         // macOS: Use system "Pop" sound (more click-like than beep)
+        // Retain the sound object so it doesn't get deallocated during playback
         if let popSound = NSSound(named: "Pop") {
+            currentSound = popSound  // Keep reference alive
             popSound.play()
         }
         #endif
