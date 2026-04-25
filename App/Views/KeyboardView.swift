@@ -120,8 +120,13 @@ struct KeyboardView: View {
     }
 
     private func playClickSound() {
-        // Play a simple click/tap sound using system audio
-        AudioServicesPlaySystemSound(1104)  // UIKit click sound ID (iOS)
+        #if os(iOS)
+        // iOS: Use system UI click sound
+        AudioServicesPlaySystemSound(1104)
+        #else
+        // macOS: Use NSSound for system beep
+        NSSound.beep()
+        #endif
     }
 
     // ── Body ───────────────────────────────────────────────────────────────
