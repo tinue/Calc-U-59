@@ -1,5 +1,21 @@
 import Foundation
 
+// MARK: - Keyboard Feedback Type
+
+enum KeyboardFeedbackType: Int, CaseIterable, Identifiable {
+    case haptic = 0
+    case click  = 1
+
+    var id: Int { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .haptic: return "Haptic"
+        case .click:  return "Click Sound"
+        }
+    }
+}
+
 // MARK: - UserDefaults keys
 
 enum SettingsKey {
@@ -9,6 +25,7 @@ enum SettingsKey {
     static let traceCustomPath        = "traceCustomPath"          // String: absolute directory path (macOS only)
     static let traceCustomPathBookmark = "traceCustomPathBookmark" // Data: security-scoped bookmark for custom path
     static let traceMaxFileSizeMB     = "traceMaxFileSizeMB"       // Int: maximum trace file size in MB (default 10)
+    static let keyboardFeedback       = "keyboardFeedback"         // Int: KeyboardFeedbackType.rawValue
 }
 
 // MARK: - Trace file location
@@ -30,6 +47,13 @@ enum TraceLocation: Int, CaseIterable {
 // MARK: - AppSettings
 
 enum AppSettings {
+
+    /// Resolve the keyboard feedback type from UserDefaults.
+    /// Defaults to haptic if not set.
+    static func resolvedKeyboardFeedback() -> KeyboardFeedbackType {
+        let raw = UserDefaults.standard.object(forKey: SettingsKey.keyboardFeedback) as? Int
+        return KeyboardFeedbackType(rawValue: raw ?? KeyboardFeedbackType.haptic.rawValue) ?? .haptic
+    }
 
     /// Resolve the trace location from UserDefaults, with platform-aware defaults.
     /// Uses object(forKey:) to distinguish "not set" from "set to 0".

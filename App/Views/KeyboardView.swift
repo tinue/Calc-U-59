@@ -1,4 +1,5 @@
 import SwiftUI
+import AudioToolbox
 
 /// Full calculator canvas: base image (display + empty card slot + keyboard),
 /// with runtime overlays for LED display and ML-01 card.
@@ -57,13 +58,34 @@ struct KeyboardView: View {
 
     // ── Key hit-test ──────────────────────────────────────────────────────
 
+    /// Expand each key rect horizontally for hit-testing.
+    /// **Tunable: 0.15 = add 15% of width left AND right**
+    private static let hitTestExpansionHorizontal: CGFloat = 0.15
+
+    /// Expand each key rect vertically for hit-testing.
+    /// **Tunable: 0.35 = add 35% of height top AND bottom**
+    private static let hitTestExpansionVertical: CGFloat = 0.35
+
+    /// Get the expanded detection rect for a key (in keyboard-image space)
+    private static func expandedKeyRect(row: Int, col: Int) -> CGRect {
+        let rect = keyRects[row][col]
+        let expandWidth = rect.width * hitTestExpansionHorizontal
+        let expandHeight = rect.height * hitTestExpansionVertical
+        return CGRect(
+            x: rect.minX - expandWidth,
+            y: rect.minY - expandHeight,
+            width: rect.width + expandWidth * 2,
+            height: rect.height + expandHeight * 2
+        )
+    }
+
     /// Scan all 45 rects (in keyboard-image space) for the one containing (nx, ny).
-    /// Non-overlapping so at most one matches.
+    /// Rects are expanded independently on horizontal/vertical axes. At most one matches unless rects overlap.
     private static func keyAt(nx: CGFloat, ny: CGFloat) -> (Int, Int)? {
         let pt = CGPoint(x: nx, y: ny)
         for row in 0..<9 {
             for col in 0..<5 {
-                if keyRects[row][col].contains(pt) { return (row, col) }
+                if expandedKeyRect(row: row, col: col).contains(pt) { return (row, col) }
             }
         }
         return nil
@@ -81,6 +103,23 @@ struct KeyboardView: View {
     #if canImport(UIKit)
     private let haptic = UIImpactFeedbackGenerator(style: .rigid)
     #endif
+
+    private func triggerFeedback() {
+        let feedbackType = AppSettings.resolvedKeyboardFeedback()
+        switch feedbackType {
+        case .haptic:
+            #if canImport(UIKit)
+            haptic.impactOccurred()
+            #endif
+        case .click:
+            playClickSound()
+        }
+    }
+
+    private func playClickSound() {
+        // Play a simple click/tap sound using system audio
+        AudioServicesPlaySystemSound(1104)  // UIKit click sound ID (iOS)
+    }
 
     // ── Body ───────────────────────────────────────────────────────────────
 
@@ -135,7 +174,9 @@ struct KeyboardView: View {
                                 let ny = value.location.y / h
                                 // Convert canvas coords → keyboard-image coords
                                 let kbNy = (ny - Self.kbYStart) / Self.kbYScale
-                                guard kbNy >= 0 && kbNy <= 1 else {
+                                // Allow margin for vertical expansion (20% of max key height ≈ 0.015)
+                                let verticalMargin: CGFloat = 0.025
+                                guard kbNy >= -verticalMargin && kbNy <= 1 + verticalMargin else {
                                     if let prev = pressedKey {
                                         viewModel.releaseKey(row: prev / 5, col: prev % 5)
                                         pressedKey = nil
@@ -150,9 +191,7 @@ struct KeyboardView: View {
                                 }
                                 pressedKey = keyID
                                 viewModel.pressKey(row: row, col: col)
-                                #if canImport(UIKit)
-                                haptic.impactOccurred()
-                                #endif
+                                triggerFeedback()
                             }
                             .onEnded { _ in
                                 if let prev = pressedKey {

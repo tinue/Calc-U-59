@@ -13,6 +13,7 @@ struct SettingsView: View {
     @AppStorage(SettingsKey.traceLocation)   private var traceLocationRaw: Int = TraceLocation.iCloud.rawValue
     @AppStorage(SettingsKey.traceCustomPath) private var traceCustomPath: String = ""
     @AppStorage(SettingsKey.traceMaxFileSizeMB) private var traceMaxFileSizeMB: Int = 10
+    @AppStorage(SettingsKey.keyboardFeedback) private var keyboardFeedbackRaw: Int = KeyboardFeedbackType.haptic.rawValue
 
     // Trigger refresh of warning after re-authorization
     @State private var authRefreshTrigger: UUID = UUID()
@@ -48,6 +49,12 @@ struct SettingsView: View {
                     }
                     Divider()
                     Text("Last Used").tag(-1)
+                }
+
+                Picker("Keyboard Feedback", selection: $keyboardFeedbackRaw) {
+                    ForEach(KeyboardFeedbackType.allCases) { feedback in
+                        Text(feedback.displayName).tag(feedback.rawValue)
+                    }
                 }
             }
 
