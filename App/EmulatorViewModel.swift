@@ -337,13 +337,24 @@ class EmulatorViewModel {
         var c = [UInt8](repeating: 0, count: 12)
         withUnsafeBytes(of: snap.digits) { b in for i in 0..<12 { d[i] = b[i] } }
         withUnsafeBytes(of: snap.ctrl)   { b in for i in 0..<12 { c[i] = b[i] } }
+
+        // Display content freeze: while display is ON (afterglow) but IDLE is 0 (RUN mode),
+        // do not update display content. This prevents stale values (e.g., R5) from appearing
+        // after exiting IDLE, while still showing the last captured display state.
+        let cpuFrame = machine.snapshotCPU()
+        let isIdle = (cpuFrame.flags & 0x0001) != 0          // FLG_IDLE
+        let displayOn = cpuFrame.dispFilter < 3              // Display still on (not blanked yet)
+        let shouldFreeze = displayOn && !isIdle              // Afterglow with RUN mode
+
         // Guard each assignment: @Observable only notifies SwiftUI when a property
         // is actually written, but the write itself counts as a change even if the
         // value is identical.  The guards prevent 60 Hz spurious re-renders when
         // the display is static (e.g. calculator idle showing a number).
-        if displayDigits    != d               { displayDigits    = d }
-        if displayCtrl      != c               { displayCtrl      = c }
-        if dpPos            != snap.dpPos      { dpPos            = snap.dpPos }
+        if !shouldFreeze {
+            if displayDigits    != d               { displayDigits    = d }
+            if displayCtrl      != c               { displayCtrl      = c }
+            if dpPos            != snap.dpPos      { dpPos            = snap.dpPos }
+        }
         // C indicator opacity driven by the integrated duty cycle from the C++ core.
         //
         // Hardware model (per Sladký 2014 HW guide):

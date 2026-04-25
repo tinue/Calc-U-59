@@ -3,7 +3,9 @@
 ## [1.0.0] - WIP
 First iOS / iPadOS release in the App Store.
 
-**UI:** Improved key detection and feedback with refined key rectangles for better visual press simulation and more accurate hit-testing.
+**UI:** Improved key detection and feedback with refined key rectangles for better visual press simulation and more accurate hit-testing. New classic display font with dot-matrix LED segments, offering an authentic retro aesthetic alongside the existing modernized font style.
+
+**Display:** Fixed display content artefacts during afterglow phase. When exiting IDLE mode, the display now correctly freezes its content (digits, decimal point) until returning to IDLE, preventing stale register values (e.g., R5) from appearing visually during computation.
 
 ## [0.4.0] - 2026-04-24
 
