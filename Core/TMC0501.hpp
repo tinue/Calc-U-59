@@ -80,8 +80,10 @@ enum : uint16_t {
 // digit per instruction cycle via a serial ALU.  Field masks select which
 // subset of the 16 digits are actually written back to the destination.
 //
-// Clock: 455 kHz oscillator ÷ 2 (two-phase) ÷ 16 (digit-serial cycle)
+// Clock: TI-59: 455 kHz oscillator ÷ 2 (two-phase) ÷ 16 (digit-serial cycle)
 //        ≈ 14,219 instructions/sec in active mode; ÷4 further in idle mode.
+//        TI-58/58C: 384 kHz oscillator ÷ 2 ÷ 16 ≈ 12,000 instructions/sec
+//        (TI-58C runs at constant speed, no idle divisor).
 
 class TMC0501 {
 public:

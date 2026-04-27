@@ -226,10 +226,11 @@ class EmulatorViewModel {
             guard let self else { return }
             var cyclesDone: Int32 = 0
             // Hardware clock: 455 kHz crystal ÷ 2 (two-phase) ÷ 16 (digit-serial)
-            // = 14,218.75 instructions/sec in active mode.  Idle mode runs at ÷4
-            // (step() returns 4 instead of 1), so the loop naturally slows down
-            // when the calculator is waiting for a keypress.
-            let targetHz: Double = 14218.75
+            // = 14,218.75 instructions/sec in active mode (TI-59).
+            // TI-58/58C: 384 kHz ÷ 2 ÷ 16 = 12,000 instructions/sec.
+            // Idle mode runs at ÷4 (step() returns 4 instead of 1, except TI-58C constant speed),
+            // so the loop naturally slows down when the calculator is waiting for a keypress.
+            let targetHz: Double = model == .ti59 ? 14218.75 : 12000.0
             let batchMs: Double = 0.020  // 20 ms batches keep latency low
             let targetBatchCycles = Int32(targetHz * batchMs) // ≈ 284
 
