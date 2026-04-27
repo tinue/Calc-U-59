@@ -289,13 +289,14 @@ DisplaySnapshot TMC0501::getDisplay() const {
     const float cLevel = pollSteps ? (float)cSteps / (float)pollSteps : 0.0f;
 
     if (m_dispFilter >= 3) {
-        DisplaySnapshot blank{};
+        // Blanking window: blank the display but preserve the last captured state
+        // (A, B, R5 triple) so dpPos remains frozen with the rest of the display.
+        DisplaySnapshot blank = m_display;
         for (auto& ctrl : blank.ctrl) ctrl = 7;
         blank.calcIndicator = cLevel;
         return blank;
     }
     DisplaySnapshot s = m_display;
-    // dpPos (R5) is now buffered at digit==0 capture; return the buffered value
     s.calcIndicator = cLevel;
     return s;
 }
