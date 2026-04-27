@@ -252,11 +252,11 @@ def _user_banner(rec):
 def _apply_color(formatted, rec, color):
     """Apply ANSI color codes to formatted trace output if color=True.
 
-    Color rules:
-      - DISP ON and IDLE=1: dark yellow (\033[33m)
-      - DISP ON only: light yellow (\033[93m)
-      - IDLE=1 only: darker white (\033[90m)
-      - Otherwise: no coloring
+    Color rules (four states):
+      - IDLE=1 / DISP=ON:  light yellow (\033[93m) — display mode (genuinely active)
+      - IDLE=1 / DISP=OFF: red (\033[91m) — anomaly (should not happen)
+      - IDLE=0 / DISP=ON:  dark olive (\033[38;5;100m) — afterglow fade (display fading)
+      - IDLE=0 / DISP=OFF: white (\033[0m) — normal RUN mode (no color)
     """
     if not color:
         return formatted
@@ -264,16 +264,17 @@ def _apply_color(formatted, rec, color):
     disp_status = "OFF" if rec['dispFilter'] >= 3 else "ON"
     idle = rec['IDLE'] == '1'
 
-    if disp_status == "ON" and idle:
-        # Dark yellow
-        return f"\033[33m{formatted}\033[0m"
-    elif disp_status == "ON":
-        # Light yellow
+    if idle and disp_status == "ON":
+        # IDLE=1 / DISP=ON: light yellow (display genuinely active)
         return f"\033[93m{formatted}\033[0m"
-    elif idle:
-        # Darker white
-        return f"\033[90m{formatted}\033[0m"
+    elif idle and disp_status == "OFF":
+        # IDLE=1 / DISP=OFF: red (anomaly — should not happen)
+        return f"\033[91m{formatted}\033[0m"
+    elif not idle and disp_status == "ON":
+        # IDLE=0 / DISP=ON: dark olive (display fading)
+        return f"\033[38;5;100m{formatted}\033[0m"
     else:
+        # IDLE=0 / DISP=OFF: white (normal RUN mode)
         return formatted
 
 def _apply_dedup(records):
