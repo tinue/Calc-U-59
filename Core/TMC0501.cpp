@@ -1216,6 +1216,7 @@ void TMC0501::beginNextStep() {
             prev.fB       = fB;
             prev.cpuFlags = flags;
             prev.R5       = R5;
+            prev.dpPos_captured = m_display.dpPos;  // Buffered display position (what Swift sees)
         }
         if (tf & TRACE_REGS_FULL) {
             memcpy(prev.A,    A,    16);
@@ -1278,6 +1279,7 @@ void TMC0501::tracePreStep(uint32_t tf, uint16_t opcode) {
         frame.fB       = fB;
         frame.cpuFlags = flags;
         frame.R5       = R5;
+        frame.dpPos_captured = m_display.dpPos;  // Buffered display position (what Swift sees)
     }
 
     // Full registers (previously in mid-step block)
@@ -1392,6 +1394,7 @@ CpuFrame TMC0501::snapshotCPU() const {
     frame.fB = fB;
     frame.cpuFlags = flags;
     frame.R5 = R5;
+    frame.dpPos_captured = m_display.dpPos;  // Buffered display position (what Swift sees)
 
     // Full registers
     memcpy(frame.A, A, 16);

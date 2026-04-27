@@ -32,6 +32,7 @@ struct CpuFrame {
     // Light registers (captured when TRACE_REGS_LIGHT is set)
     uint16_t KR, SR, fA, fB, cpuFlags;
     uint8_t  R5;
+    uint8_t  dpPos_captured; ///< Buffered R5 from m_display (decimal-point position served to Swift)
 
     // Full snapshot (captured when TRACE_REGS_FULL is set)
     uint8_t  A[16], B[16], C[16], D[16], E[16];

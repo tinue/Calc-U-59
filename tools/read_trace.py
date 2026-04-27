@@ -62,21 +62,21 @@ def _parse_file_header(f):
         raise ValueError(f"Unsupported version: {version} (expected {VERSION})")
 
 def _parse_trace_event(payload):
-    """Parse a 124-byte TRACE_EVENT payload into a dict."""
-    if len(payload) != 124:
-        raise ValueError(f"TRACE_EVENT payload length {len(payload)}, expected 124")
+    """Parse a 125-byte TRACE_EVENT payload into a dict."""
+    if len(payload) != 125:
+        raise ValueError(f"TRACE_EVENT payload length {len(payload)}, expected 125")
 
-    # Fixed fields (36 bytes)
+    # Fixed fields (37 bytes)
     (suppressed, seqno, pc, opcode, fA, fB, KR, SR,
-     EXT, PREG, cpu_flags, m_libAddr, R5, digit,
+     EXT, PREG, cpu_flags, m_libAddr, R5, dpPos_captured, digit,
      RAM_ADDR, RAM_OP, REG_ADDR, m_libAddrReadPos, cycle_weight, dispFilter) = struct.unpack_from(
-        '<IIHHHHHHHHHH BBBBBBBB', payload, 0)
+        '<IIHHHHHHHHHH BBBBBBBBB', payload, 0)
 
     # A–E registers: 16 unpacked nibbles each (index 0 = LSN)
-    # Fixed fields total 36 bytes: seqno(4) + pc(2) + opcode(2) + digit(1) + cycleWeight(1) +
-    #   KR(2) + SR(2) + fA(2) + fB(2) + cpuFlags(2) + R5(1) = 36 bytes
+    # Fixed fields total 37 bytes: seqno(4) + pc(2) + opcode(2) + digit(1) + cycleWeight(1) +
+    #   KR(2) + SR(2) + fA(2) + fB(2) + cpuFlags(2) + R5(1) + dpPos_captured(1) = 37 bytes
     regs = {}
-    off = 36
+    off = 37
     for name in ('A', 'B', 'C', 'D', 'E'):
         regs[name] = list(payload[off:off+16])
         off += 16
@@ -111,6 +111,7 @@ def _parse_trace_event(payload):
         'IDLE':         str(idle),
         'dispFilter':   dispFilter,
         'R5':           f'{R5:X}',
+        'dpPos_captured': f'{dpPos_captured:X}',  # Buffered display position (what Swift sees)
         'ROM':          f'{m_libAddr:04d}.{m_libAddrReadPos}',
         'digit':        digit,
         'RAM_ADDR':     RAM_ADDR,
@@ -212,6 +213,62 @@ def trace_events_only(records):
 def _bin16(v):
     return ''.join(str((v >> (15 - i)) & 1) for i in range(16))
 
+def _format_display_content(rec):
+    """Format display content from captured A, B, dpPos_captured.
+
+    Returns a string like "1.23456789012" or "-8.8888888-88" with:
+      - 12 display positions (from A[2..13])
+      - decimal point at dpPos_captured position (buffered, what Swift sees)
+      - '-' for minus sign positions (from B[2..13])
+      - empty/blank for suppressed leading zeros
+
+    Returns empty string if display is OFF (IDLE=0 and dispFilter >= 3).
+    """
+    # Display is off (blanked) when IDLE=0 and dispFilter >= 3
+    idle = rec.get('IDLE') == '1'
+    disp_filter = rec.get('dispFilter', 0)
+
+    if not idle and disp_filter >= 3:
+        return ""  # Display blank, no content
+
+    # Extract digit values (A[2..13] = positions 0..11)
+    A = rec['_A']  # Raw nibble list, index 0 = LSN
+    B = rec['_B']  # Raw nibble list, index 0 = LSN
+    dpPos = int(rec.get('dpPos_captured', '0'), 16)  # Buffered display position
+
+    # A and B are stored LSN-first (index 0 = LSN = rightmost).
+    # Display positions 0..11 map to A[2..13] and B[2..13]
+    # For display, we want MSN-first (left to right)
+    digits = []
+    for i in range(12, 1, -1):  # A[13] down to A[2]
+        digit_val = A[i] & 0x0F
+        ctrl = B[i] & 0x0F
+
+        # ctrl nibble meanings:
+        # 0: blank
+        # 1-7: show digit
+        # 8: show digit + minus
+        # 9+: other special chars
+
+        if ctrl >= 8:  # Minus or other control
+            digits.append('-')
+        elif ctrl == 0:  # Blank
+            digits.append(' ')
+        else:  # Regular digit
+            digits.append(f'{digit_val:X}')
+
+    # dpPos indicates decimal point position: dpPos=0 means no decimal point,
+    # dpPos=1 = after digit 11 (rightmost), dpPos=2 = after digit 10, etc.
+    # Insert decimal point at the appropriate position (left-to-right)
+    result = ''.join(digits)
+    if 2 <= dpPos <= 13:
+        # dpPos=2 means position 0 (leftmost), dpPos=13 means between 10 and 11
+        pos = 12 - (dpPos - 2)  # Convert to string position
+        if 0 < pos < len(result):
+            result = result[:pos] + '.' + result[pos:]
+
+    return result.rstrip()
+
 def _format_trace_record(rec, trace_number=None):
     """Format a single trace record as 5 lines of output.
 
@@ -235,7 +292,13 @@ def _format_trace_record(rec, trace_number=None):
              f"SR={rec['SR']} R5={rec['R5']} ROM={rom_str} PREG={rec['PREG']} "
              f"RAMOP={ramop_str} RAMREG={rec['RAM_ADDR']:03d} "
              f"ROMREG={rec['REG_ADDR']:02d}")
-    line5 = f"DISP: {rec['dispFilter']} ({disp_status})"
+
+    # Display content: show the actual rendered display using buffered dpPos
+    # Compare R5 (live) vs dpPos_captured (buffered) to see if display is frozen
+    display_content = _format_display_content(rec)
+    r5_str = rec.get('R5', '?')
+    dpPos_str = rec.get('dpPos_captured', '?')
+    line5 = f"DISP: {rec['dispFilter']} ({disp_status}) | R5={r5_str} → captured={dpPos_str} | {display_content}"
 
     if trace_number is not None:
         trace_num_str = f"{trace_number:>8d}"
