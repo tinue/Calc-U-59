@@ -295,7 +295,7 @@ DisplaySnapshot TMC0501::getDisplay() const {
         return blank;
     }
     DisplaySnapshot s = m_display;
-    s.dpPos = R5 & 0x0F;  // Live R5 value for POV decimal-point effect
+    // dpPos (R5) is now buffered at digit==0 capture; return the buffered value
     s.calcIndicator = cLevel;
     return s;
 }
@@ -414,28 +414,8 @@ int TMC0501::step() {
     // 4-bit counter cycling 15→14→…→1→0→15.  One step per instruction.
     // Drives display multiplexing and keyboard row selection:
     //   digits 1–9  → keyboard rows D1–D9
-    //   digit  0    → display latch point (snapshot captured here on IDLE)
+    //   digit  0    → display latch point (snapshot captured at end of step when IDLE)
     digit = digit ? (digit - 1) : 15;
-
-    // ── Display snapshot / flicker filter ────────────────────────────
-    // Sampled once per full digit-counter cycle (at digit == 0).
-    // IDLE set:   reset filter and commit pending snapshot to the display buffer.
-    // IDLE clear: increment filter; at 3 counts getDisplay() will blank the LEDs,
-    //             reproducing the dark-display-during-computation hardware behaviour.
-    if (digit == 0) {
-        if (flags & FLG_IDLE) {
-            m_dispFilter = 0;
-            // Auto-update display every digit cycle while in IDLE mode.
-            // Display reflects A/B changes immediately while idle.
-            std::lock_guard<std::mutex> lock(m_displayMutex);
-            for (int i = 0; i < 12; ++i) {
-                m_display.digits[i] = A[i + 2] & 0x0F;
-                m_display.ctrl[i]   = B[i + 2] & 0x0F;
-            }
-        } else if (m_dispFilter < 3) {
-            m_dispFilter++;
-        }
-    }
 
     // ── Clear HOLD ────────────────────────────────────────────────────
     // HOLD is re-asserted each cycle by WAIT Dn / KEY scan-all if the
@@ -874,6 +854,28 @@ int TMC0501::step() {
     if (KR & 0x2) {
         PREG = (KR >> 4) | ((KR & 0x1) << 12);  // Store address
         KR  &= ~static_cast<uint16_t>(0x2);
+    }
+
+    // ── Display snapshot / flicker filter (after instruction execution) ───
+    // Sampled once per full digit-counter cycle (at digit == 0).
+    // Executed AFTER instruction (so SET.IDLE takes effect before capture):
+    // IDLE set:   reset filter and commit pending snapshot to the display buffer.
+    // IDLE clear: increment filter; at 3 counts getDisplay() will blank the LEDs,
+    //             reproducing the dark-display-during-computation hardware behaviour.
+    if (digit == 0) {
+        if (flags & FLG_IDLE) {
+            m_dispFilter = 0;
+            // Auto-update display every digit cycle while in IDLE mode.
+            // Display reflects A/B/R5 changes immediately while idle.
+            std::lock_guard<std::mutex> lock(m_displayMutex);
+            for (int i = 0; i < 12; ++i) {
+                m_display.digits[i] = A[i + 2] & 0x0F;
+                m_display.ctrl[i]   = B[i + 2] & 0x0F;
+            }
+            m_display.dpPos = R5 & 0x0F;
+        } else if (m_dispFilter < 3) {
+            m_dispFilter++;
+        }
     }
 
     return w;

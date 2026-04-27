@@ -14,9 +14,10 @@ class RAM;
 
 // ── Display snapshot ──────────────────────────────────────────────────────────
 //
-// Atomic copy of the display state, written by the CPU thread on every SET IDLE
-// and read by the UI thread at 60 Hz.  All 12 visible digit positions come from
-// the A and B registers; decimal point and the "C" annunciator are separate.
+// Atomic copy of the display state, written by the CPU thread at every digit==0
+// when IDLE is set, and read by the UI thread at 60 Hz.  All 12 visible digit
+// positions come from the A and B registers; decimal point (R5) and the "C"
+// annunciator are captured and buffered the same way.
 
 struct DisplaySnapshot {
     uint8_t digits[12]{};        ///< A[2..13] — BCD digit values (0–9, A–F)
