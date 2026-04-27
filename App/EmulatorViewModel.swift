@@ -1936,8 +1936,78 @@ class EmulatorViewModel {
         for frameVal in framesNS {
             var frame = TICpuFrame()
             frameVal.getValue(&frame)
+
+            // Fill in the rendered display string with what Swift is currently showing
+            let rendered = formatDisplayForTrace(digits: displayDigits, ctrl: displayCtrl, dpPos: Int(dpPos))
+            let renderedBytes = Array(rendered.utf8)
+            var renderedArray: [UInt8] = Array(repeating: 0, count: 13)
+            for (i, byte) in renderedBytes.prefix(13).enumerated() {
+                renderedArray[i] = byte
+            }
+            // Copy to the C array tuple
+            _ = renderedArray.withUnsafeBytes { buf in
+                memcpy(&frame.displayRendered, buf.baseAddress!, 13)
+            }
+
             traceWriter.write(frame: frame)
         }
+    }
+
+    /// Format the display as a string for trace output (exactly what LEDDisplayView renders).
+    /// Replicates LEDDisplayView's rendering logic including zero-suppression and control nibble interpretation.
+    private func formatDisplayForTrace(digits: [UInt8], ctrl: [UInt8], dpPos: Int) -> String {
+        // Zero suppression — mirrors LEDDisplayView's leading-zero blanking
+        var suppressed = [Bool](repeating: false, count: 12)
+        var zero = true
+        let dpDigitIndex = dpPos >= 2 ? dpPos - 2 : -1
+
+        for i in stride(from: 11, through: 0, by: -1) {
+            if i == 1 || dpDigitIndex == i || ctrl[i] >= 8 {
+                zero = false
+            }
+            if i == 0 { zero = true }
+            if ctrl[i] == 7 || ctrl[i] == 3
+                || (ctrl[i] <= 4 && zero && digits[i] == 0) {
+                suppressed[i] = true
+            } else if ctrl[i] <= 1 && digits[i] != 0 {
+                zero = false
+            }
+        }
+
+        // Convert to characters using LEDDisplayView's displayChar logic.
+        // Note: indices 0 (rightmost) to 11 (leftmost) must be rendered left-to-right,
+        // so iterate from 11 down to 0 to match screen layout.
+        var result = ""
+        for i in stride(from: 11, through: 0, by: -1) {
+            let char: Character
+            if suppressed[i] {
+                char = " "
+            } else {
+                let digit = digits[i] & 0x0F
+                let ctrlNib = ctrl[i] & 0x0F
+                switch ctrlNib {
+                case 0, 1, 8, 9:
+                    char = Character(String(format: "%X", digit))
+                case 2, 3, 4:
+                    char = " "  // space, positive sign, apostrophe
+                case 5:
+                    char = digit == 0 ? "-" : "°"
+                case 6:
+                    char = "-"
+                default:
+                    char = " "
+                }
+            }
+            result.append(char)
+
+            // Insert decimal point after this position if needed.
+            // dpDigitIndex is the index where the decimal point appears before (to the left of) it.
+            if dpDigitIndex == i && dpPos > 0 {
+                result.append(".")
+            }
+        }
+
+        return result
     }
 }
 

@@ -32,7 +32,12 @@ struct CpuFrame {
     // Light registers (captured when TRACE_REGS_LIGHT is set)
     uint16_t KR, SR, fA, fB, cpuFlags;
     uint8_t  R5;
-    uint8_t  dpPos_captured; ///< Buffered R5 from m_display (decimal-point position served to Swift)
+
+    // Display snapshot (what Swift actually displays) — captured at every step
+    uint8_t  displayDigits[12];  ///< m_display.digits[12] — buffered digit values
+    uint8_t  displayCtrl[12];    ///< m_display.ctrl[12] — buffered control nibbles
+    uint8_t  displayDpPos;       ///< m_display.dpPos — buffered decimal-point position
+    uint8_t  displayRendered[13];  ///< Swift-rendered display string (what user actually sees on screen)
 
     // Full snapshot (captured when TRACE_REGS_FULL is set)
     uint8_t  A[16], B[16], C[16], D[16], E[16];

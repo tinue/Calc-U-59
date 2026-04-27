@@ -62,21 +62,25 @@ def _parse_file_header(f):
         raise ValueError(f"Unsupported version: {version} (expected {VERSION})")
 
 def _parse_trace_event(payload):
-    """Parse a 125-byte TRACE_EVENT payload into a dict."""
-    if len(payload) != 125:
-        raise ValueError(f"TRACE_EVENT payload length {len(payload)}, expected 125")
+    """Parse a 162-byte TRACE_EVENT payload into a dict (includes display snapshot and rendered string)."""
+    if len(payload) != 162:
+        raise ValueError(f"TRACE_EVENT payload length {len(payload)}, expected 162")
 
-    # Fixed fields (37 bytes)
+    # Fixed fields (36 bytes)
+    # Unpacks: suppressed(4) + seqno(4) + pc(2) + opcode(2) + fA(2) + fB(2) + KR(2) + SR(2) +
+    #          EXT(2) + PREG(2) + flags(2) + m_libAddr(2) + R5(1) + digit(1) + RAM_ADDR(1) +
+    #          RAM_OP(1) + REG_ADDR(1) + m_libAddrReadPos(1) + cycle_weight(1) + dispFilter(1) = 36 bytes
     (suppressed, seqno, pc, opcode, fA, fB, KR, SR,
-     EXT, PREG, cpu_flags, m_libAddr, R5, dpPos_captured, digit,
+     EXT, PREG, cpu_flags, m_libAddr, R5, digit,
      RAM_ADDR, RAM_OP, REG_ADDR, m_libAddrReadPos, cycle_weight, dispFilter) = struct.unpack_from(
-        '<IIHHHHHHHHHH BBBBBBBBB', payload, 0)
+        '<IIHHHHHHHHHH BBBBBBBB', payload, 0)
+
+    dpPos_captured = R5  # For compatibility, but actual buffered position comes from display snapshot
 
     # A–E registers: 16 unpacked nibbles each (index 0 = LSN)
-    # Fixed fields total 37 bytes: seqno(4) + pc(2) + opcode(2) + digit(1) + cycleWeight(1) +
-    #   KR(2) + SR(2) + fA(2) + fB(2) + cpuFlags(2) + R5(1) + dpPos_captured(1) = 37 bytes
+    # Fixed fields total 36 bytes (2 I's + 10 H's + 8 B's)
     regs = {}
-    off = 37
+    off = 36
     for name in ('A', 'B', 'C', 'D', 'E'):
         regs[name] = list(payload[off:off+16])
         off += 16
@@ -86,6 +90,22 @@ def _parse_trace_event(payload):
     for b in payload[off:off+8]:
         sout.append(b & 0x0F)
         sout.append((b >> 4) & 0x0F)
+    off += 8
+
+    # Display snapshot: 12 bytes (displayDigits) + 12 bytes (displayCtrl) + 1 byte (displayDpPos) = 25 bytes
+    # Display starts at byte 124 (36 fixed + 80 A-E + 8 Sout)
+    display_digits = list(payload[off:off+12])  # displayDigits[12] at offset 124-135
+    off += 12
+    display_ctrl = list(payload[off:off+12])    # displayCtrl[12] at offset 136-147
+    off += 12
+    display_dpPos = payload[off]                 # displayDpPos at offset 148
+    off += 1
+
+    # Swift-rendered display string: 13 bytes (what user actually sees on screen)
+    display_rendered_bytes = payload[off:off+13]  # displayRendered[13] at offset 149-161
+    # Convert to string, stopping at null terminator if present
+    display_rendered = display_rendered_bytes.rstrip(b'\x00').decode('ascii', errors='replace')
+    off += 13
 
     cond = 1 if (cpu_flags & 0x0800) else 0
     idle = 1 if (cpu_flags & 0x0001) else 0
@@ -111,7 +131,7 @@ def _parse_trace_event(payload):
         'IDLE':         str(idle),
         'dispFilter':   dispFilter,
         'R5':           f'{R5:X}',
-        'dpPos_captured': f'{dpPos_captured:X}',  # Buffered display position (what Swift sees)
+        'dpPos_captured': f'{dpPos_captured:X}',  # Live R5 value at instruction capture
         'ROM':          f'{m_libAddr:04d}.{m_libAddrReadPos}',
         'digit':        digit,
         'RAM_ADDR':     RAM_ADDR,
@@ -128,6 +148,11 @@ def _parse_trace_event(payload):
         # raw nibble lists (index 0 = LSN) for any tool that wants them
         '_A': regs['A'], '_B': regs['B'], '_C': regs['C'],
         '_D': regs['D'], '_E': regs['E'], '_Sout': sout,
+        # display snapshot fields (buffered display state that Swift renders)
+        '_displayDigits': display_digits,      # A[2..13] buffered values (what display shows)
+        '_displayCtrl': display_ctrl,          # B[2..13] buffered control nibbles
+        '_displayDpPos': display_dpPos,        # Buffered decimal point position (what Swift shows)
+        '_displayRendered': display_rendered,  # Swift-rendered display string (actual screen content)
     }
 
 def _parse_user_event(payload):
@@ -214,60 +239,31 @@ def _bin16(v):
     return ''.join(str((v >> (15 - i)) & 1) for i in range(16))
 
 def _format_display_content(rec):
-    """Format display content from captured A, B, dpPos_captured.
+    """Format display content from both raw buffered snapshot AND Swift-rendered string.
 
-    Returns a string like "1.23456789012" or "-8.8888888-88" with:
-      - 12 display positions (from A[2..13])
-      - decimal point at dpPos_captured position (buffered, what Swift sees)
-      - '-' for minus sign positions (from B[2..13])
-      - empty/blank for suppressed leading zeros
+    Returns: "digits=[...] ctrl=[...] dpPos=N | Swift shows: '...'"
 
-    Returns empty string if display is OFF (IDLE=0 and dispFilter >= 3).
+    The raw values show what the CPU buffered at capture time.
+    The Swift-rendered string shows what the user actually saw on their screen.
     """
-    # Display is off (blanked) when IDLE=0 and dispFilter >= 3
-    idle = rec.get('IDLE') == '1'
-    disp_filter = rec.get('dispFilter', 0)
+    # Get raw buffered snapshot
+    display_digits = rec.get('_displayDigits', [0] * 12)
+    display_ctrl = rec.get('_displayCtrl', [0] * 12)
+    display_dpPos = rec.get('_displayDpPos', 0)
+    display_rendered = rec.get('_displayRendered', '')
 
-    if not idle and disp_filter >= 3:
-        return ""  # Display blank, no content
+    # Format raw values mechanically (no interpretation)
+    digits_str = '[' + ','.join(f'{d:X}' for d in display_digits) + ']'
+    ctrl_str = '[' + ','.join(f'{c:X}' for c in display_ctrl) + ']'
 
-    # Extract digit values (A[2..13] = positions 0..11)
-    A = rec['_A']  # Raw nibble list, index 0 = LSN
-    B = rec['_B']  # Raw nibble list, index 0 = LSN
-    dpPos = int(rec.get('dpPos_captured', '0'), 16)  # Buffered display position
+    # Build output: raw values + Swift-rendered string
+    result = f"raw: digits={digits_str} ctrl={ctrl_str} dpPos={display_dpPos}"
 
-    # A and B are stored LSN-first (index 0 = LSN = rightmost).
-    # Display positions 0..11 map to A[2..13] and B[2..13]
-    # For display, we want MSN-first (left to right)
-    digits = []
-    for i in range(12, 1, -1):  # A[13] down to A[2]
-        digit_val = A[i] & 0x0F
-        ctrl = B[i] & 0x0F
+    # Add what Swift actually displayed
+    if display_rendered:
+        result += f" | Swift showed: '{display_rendered}'"
 
-        # ctrl nibble meanings:
-        # 0: blank
-        # 1-7: show digit
-        # 8: show digit + minus
-        # 9+: other special chars
-
-        if ctrl >= 8:  # Minus or other control
-            digits.append('-')
-        elif ctrl == 0:  # Blank
-            digits.append(' ')
-        else:  # Regular digit
-            digits.append(f'{digit_val:X}')
-
-    # dpPos indicates decimal point position: dpPos=0 means no decimal point,
-    # dpPos=1 = after digit 11 (rightmost), dpPos=2 = after digit 10, etc.
-    # Insert decimal point at the appropriate position (left-to-right)
-    result = ''.join(digits)
-    if 2 <= dpPos <= 13:
-        # dpPos=2 means position 0 (leftmost), dpPos=13 means between 10 and 11
-        pos = 12 - (dpPos - 2)  # Convert to string position
-        if 0 < pos < len(result):
-            result = result[:pos] + '.' + result[pos:]
-
-    return result.rstrip()
+    return result
 
 def _format_trace_record(rec, trace_number=None):
     """Format a single trace record as 5 lines of output.
@@ -293,12 +289,9 @@ def _format_trace_record(rec, trace_number=None):
              f"RAMOP={ramop_str} RAMREG={rec['RAM_ADDR']:03d} "
              f"ROMREG={rec['REG_ADDR']:02d}")
 
-    # Display content: show the actual rendered display using buffered dpPos
-    # Compare R5 (live) vs dpPos_captured (buffered) to see if display is frozen
+    # Display content: show the actual rendered display using buffered display snapshot
     display_content = _format_display_content(rec)
-    r5_str = rec.get('R5', '?')
-    dpPos_str = rec.get('dpPos_captured', '?')
-    line5 = f"DISP: {rec['dispFilter']} ({disp_status}) | R5={r5_str} → captured={dpPos_str} | {display_content}"
+    line5 = f"DISP: {rec['dispFilter']} ({disp_status}) | {display_content}"
 
     if trace_number is not None:
         trace_num_str = f"{trace_number:>8d}"

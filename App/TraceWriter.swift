@@ -225,10 +225,11 @@ final class TraceWriter {
 
     // ── Serialisation ─────────────────────────────────────────────────────────
 
-    // Full 124-byte TRACE_EVENT payload from a unified CpuFrame.
-    // Maintains backward compatibility with existing trace file format.
+    // Full 162-byte TRACE_EVENT payload from a unified CpuFrame.
+    // Includes display snapshot (digits, ctrl, dpPos) for exact UI reproduction,
+    // plus Swift-rendered display string (what user actually sees).
     private func makeFramePayload(frame: TICpuFrame) -> Data {
-        var d = Data(capacity: 124)
+        var d = Data(capacity: 162)
 
         // Control fields (suppressed count is always 0; kept for format compatibility) — 34 bytes
         d.appendLE(UInt32(0))
@@ -268,7 +269,18 @@ final class TraceWriter {
             d.append(lo | (hi << 4))
         }
 
-        assert(d.count == 124)
+        // Display snapshot: what Swift actually renders — 25 bytes
+        var displayDigitsTuple = frame.displayDigits
+        d.append(contentsOf: tupleBytes(&displayDigitsTuple))   // 12 bytes
+        var displayCtrlTuple = frame.displayCtrl
+        d.append(contentsOf: tupleBytes(&displayCtrlTuple))     // 12 bytes
+        d.append(frame.displayDpPos)                             // 1 byte
+
+        // Swift-rendered display string — 13 bytes
+        var displayRenderedTuple = frame.displayRendered
+        d.append(contentsOf: tupleBytes(&displayRenderedTuple))  // 13 bytes
+
+        assert(d.count == 162)
         return d
     }
 

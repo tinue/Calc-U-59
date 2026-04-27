@@ -1209,6 +1209,13 @@ void TMC0501::beginNextStep() {
     // including COND after auto-restore handling.
     if (tf != TRACE_NONE && m_frameHead > 0) {
         CpuFrame& prev = m_frameRing[(m_frameHead - 1) & kFrameRingMask];
+
+        // Display snapshot: captured for every trace (not conditional on trace flags)
+        // At this point, SET.IDLE has executed and the display buffer has been updated
+        memcpy(prev.displayDigits, m_display.digits, 12);
+        memcpy(prev.displayCtrl, m_display.ctrl, 12);
+        prev.displayDpPos = m_display.dpPos;
+
         if (tf & (TRACE_REGS_LIGHT | TRACE_REGS_FULL)) {
             prev.KR       = KR;
             prev.SR       = SR;
@@ -1216,7 +1223,6 @@ void TMC0501::beginNextStep() {
             prev.fB       = fB;
             prev.cpuFlags = flags;
             prev.R5       = R5;
-            prev.dpPos_captured = m_display.dpPos;  // Buffered display position (what Swift sees)
         }
         if (tf & TRACE_REGS_FULL) {
             memcpy(prev.A,    A,    16);
@@ -1271,6 +1277,8 @@ void TMC0501::tracePreStep(uint32_t tf, uint16_t opcode) {
     frame.pc     = addr;
     frame.opcode = opcode;
 
+    // Display snapshot will be captured at the end of step() after display buffer update
+
     // Light registers (previously deferred to tracePostStep for non-branch)
     if (tf & (TRACE_REGS_LIGHT | TRACE_REGS_FULL)) {
         frame.KR       = KR;
@@ -1279,7 +1287,6 @@ void TMC0501::tracePreStep(uint32_t tf, uint16_t opcode) {
         frame.fB       = fB;
         frame.cpuFlags = flags;
         frame.R5       = R5;
-        frame.dpPos_captured = m_display.dpPos;  // Buffered display position (what Swift sees)
     }
 
     // Full registers (previously in mid-step block)
@@ -1394,7 +1401,11 @@ CpuFrame TMC0501::snapshotCPU() const {
     frame.fB = fB;
     frame.cpuFlags = flags;
     frame.R5 = R5;
-    frame.dpPos_captured = m_display.dpPos;  // Buffered display position (what Swift sees)
+
+    // Display snapshot (what Swift actually displays)
+    memcpy(frame.displayDigits, m_display.digits, 12);
+    memcpy(frame.displayCtrl, m_display.ctrl, 12);
+    frame.displayDpPos = m_display.dpPos;
 
     // Full registers
     memcpy(frame.A, A, 16);
