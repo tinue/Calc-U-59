@@ -288,17 +288,17 @@ DisplaySnapshot TMC0501::getDisplay() const {
     const uint32_t pollSteps = m_pollSteps.exchange(0, std::memory_order_relaxed);
     const float cLevel = pollSteps ? (float)cSteps / (float)pollSteps : 0.0f;
 
+    DisplaySnapshot result = m_display;
+
     if (m_dispFilter >= 3) {
-        // Blanking window: blank the display but preserve the last captured state
-        // (A, B, R5 triple) so dpPos remains frozen with the rest of the display.
-        DisplaySnapshot blank = m_display;
-        for (auto& ctrl : blank.ctrl) ctrl = 7;
-        blank.calcIndicator = cLevel;
-        return blank;
+        // Post-blanking, force all digits to blank (ctrl=7) to match the hardware's dark segments.
+        for (auto& ctrl : result.ctrl) ctrl = 7;
     }
-    DisplaySnapshot s = m_display;
-    s.calcIndicator = cLevel;
-    return s;
+    result.calcIndicator = cLevel;
+
+    // Experiment
+    result.dpPos = (R5 & 0x0Fu);  // Expose the raw R5 value for debugging; matches the DPT position for DPT-based masks.
+    return result;
 }
 
 // ── BCD digit-serial ALU ──────────────────────────────────────────────────────
@@ -415,7 +415,7 @@ int TMC0501::step() {
     // 4-bit counter cycling 15→14→…→1→0→15.  One step per instruction.
     // Drives display multiplexing and keyboard row selection:
     //   digits 1–9  → keyboard rows D1–D9
-    //   digit  0    → display latch point (snapshot captured at end of step when IDLE)
+    //   digit  0    → display latch point (snapshot captured here on IDLE)
     digit = digit ? (digit - 1) : 15;
 
     // ── Clear HOLD ────────────────────────────────────────────────────
@@ -832,6 +832,29 @@ int TMC0501::step() {
         break;
     }
 
+    // ── Display snapshot / flicker filter ────────────────────────────
+    // Sampled once per full digit-counter cycle (at digit == 0).
+    // IDLE set:   reset filter and commit pending snapshot to the display buffer.
+    // IDLE clear: increment filter; at 3 counts getDisplay() will blank the LEDs,
+    //             reproducing the dark-display-during-computation hardware behaviour.
+    if (digit == 0) {
+        if (flags & FLG_IDLE) {
+            m_dispFilter = 0;
+            // Auto-update display every digit cycle while in IDLE mode.
+            // Display reflects A/B/R5 changes immediately while idle.
+
+            std::lock_guard<std::mutex> lock(m_displayMutex);
+
+            for (int i = 0; i < 12; ++i) {
+                m_display.digits[i] = A[i + 2] & 0x0F;
+                m_display.ctrl[i]   = B[i + 2] & 0x0F;
+            }
+            m_display.dpPos = R5 & 0x0F;
+        } else if (m_dispFilter < 3) {
+            m_dispFilter++;
+        }
+    }
+
     // ── PREG redirect (after instruction execution) ───────────────────
     // If PREG is set (SET KR[1] was executed in the previous instruction),
     // the next instruction has now completed. Redirect PC to the latched
@@ -855,28 +878,6 @@ int TMC0501::step() {
     if (KR & 0x2) {
         PREG = (KR >> 4) | ((KR & 0x1) << 12);  // Store address
         KR  &= ~static_cast<uint16_t>(0x2);
-    }
-
-    // ── Display snapshot / flicker filter (after instruction execution) ───
-    // Sampled once per full digit-counter cycle (at digit == 0).
-    // Executed AFTER instruction (so SET.IDLE takes effect before capture):
-    // IDLE set:   reset filter and commit pending snapshot to the display buffer.
-    // IDLE clear: increment filter; at 3 counts getDisplay() will blank the LEDs,
-    //             reproducing the dark-display-during-computation hardware behaviour.
-    if (digit == 0) {
-        if (flags & FLG_IDLE) {
-            m_dispFilter = 0;
-            // Auto-update display every digit cycle while in IDLE mode.
-            // Display reflects A/B/R5 changes immediately while idle.
-            std::lock_guard<std::mutex> lock(m_displayMutex);
-            for (int i = 0; i < 12; ++i) {
-                m_display.digits[i] = A[i + 2] & 0x0F;
-                m_display.ctrl[i]   = B[i + 2] & 0x0F;
-            }
-            m_display.dpPos = R5 & 0x0F;
-        } else if (m_dispFilter < 3) {
-            m_dispFilter++;
-        }
     }
 
     return w;
