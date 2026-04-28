@@ -156,6 +156,15 @@ if $DO_RELEASE; then
         exit 1
     fi
 
+    # Confirm CHANGELOG and version have been updated
+    echo ""
+    read -p "Have CHANGELOG.md and CURRENT_PROJECT_VERSION been updated? (yes/no) " -r
+    if [[ ! $REPLY =~ ^[Yy][Ee][Ss]$ ]]; then
+        echo "Aborted: Please update CHANGELOG.md and CURRENT_PROJECT_VERSION before releasing."
+        exit 1
+    fi
+    echo ""
+
     # Read CHANGELOG entry for the squash-merge commit message
     CHANGELOG="CHANGELOG.md"
     COMMIT_MSG="Release ${TAG}"
