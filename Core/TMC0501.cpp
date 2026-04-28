@@ -152,8 +152,8 @@ void TMC0501::reset() {
     m_display = {};
     m_dispFilter = 0;
     memset(m_dpAfterglowCounters, 0, sizeof(m_dpAfterglowCounters));
-        m_prevR5dp = 0;
-        m_dpActivityMask = 0;
+    m_prevR5dp = 0;
+    m_dpActivityMask = 0;
     // Reset card state; caller (TI59Machine) re-presses the card-switch key.
     m_cardPresent    = false;
     m_waitingForCard = false;
@@ -293,15 +293,6 @@ DisplaySnapshot TMC0501::getDisplay() const {
 
     DisplaySnapshot result = m_display;
 
-    // Build decimal-point afterglow bitmask: bit (pos-2) for positions 2..13.
-    // Includes the current buffered dpPos plus any positions with an active afterglow counter.
-    uint16_t dpMask = 0;
-    for (int i = 0; i < 12; ++i) {
-        if (m_dpAfterglowCounters[i] > 0) dpMask |= static_cast<uint16_t>(1u << i);
-    }
-    uint8_t dp = result.dpPos;
-    if (dp >= 2 && dp <= 13) dpMask |= static_cast<uint16_t>(1u << (dp - 2));
-
     if (m_dispFilter >= 3) {
         // Blanked during computation: hide all segments and decimal-point dots.
         // Afterglow counters continue ticking down so elapsed time is accounted for.
@@ -309,6 +300,14 @@ DisplaySnapshot TMC0501::getDisplay() const {
         result.dpPos = 0;
         result.dpAfterglowMask = 0;
     } else {
+        // Build decimal-point afterglow bitmask: bit (pos-2) for positions 2..13.
+        // Includes the current buffered dpPos plus any positions with an active afterglow counter.
+        uint16_t dpMask = 0;
+        for (int i = 0; i < 12; ++i) {
+            if (m_dpAfterglowCounters[i] > 0) dpMask |= static_cast<uint16_t>(1u << i);
+        }
+        uint8_t dp = result.dpPos;
+        if (dp >= 2 && dp <= 13) dpMask |= static_cast<uint16_t>(1u << (dp - 2));
         result.dpAfterglowMask = dpMask;
     }
     result.calcIndicator = cLevel;
@@ -866,13 +865,10 @@ int TMC0501::step() {
                 }
             } else {
                 m_prevR5dp = curR5dp;
-                m_dpActivityMask = 0;
             }
         }
 
     if (digit == 0) {
-        std::lock_guard<std::mutex> lock(m_displayMutex);
-
         // Decay decimal-point afterglow counters at every digit-cycle (IDLE or RUN),
         // before any seeding so that a newly-vacated position gets the full 2-cycle count.
         for (int i = 0; i < 12; ++i) {
@@ -895,18 +891,18 @@ int TMC0501::step() {
                 }
             }
 
+            std::lock_guard<std::mutex> lock(m_displayMutex);
             for (int i = 0; i < 12; ++i) {
                 m_display.digits[i] = A[i + 2] & 0x0F;
                 m_display.ctrl[i]   = B[i + 2] & 0x0F;
             }
             m_display.dpPos = newDpPos;
-            m_dpActivityMask = 0;
         } else {
             if (m_dispFilter < 3) {
                 m_dispFilter++;
             }
-            m_dpActivityMask = 0;
         }
+        m_dpActivityMask = 0;
     }
 
     // ── PREG redirect (after instruction execution) ───────────────────
