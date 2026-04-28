@@ -152,6 +152,8 @@ void TMC0501::reset() {
     m_display = {};
     m_dispFilter = 0;
     memset(m_dpAfterglowCounters, 0, sizeof(m_dpAfterglowCounters));
+        m_prevR5dp = 0;
+        m_dpActivityMask = 0;
     // Reset card state; caller (TI59Machine) re-presses the card-switch key.
     m_cardPresent    = false;
     m_waitingForCard = false;
@@ -850,11 +852,29 @@ int TMC0501::step() {
     // IDLE set:   reset filter and commit pending snapshot to the display buffer.
     // IDLE clear: increment filter; at 3 counts getDisplay() will blank the LEDs,
     //             reproducing the dark-display-during-computation hardware behaviour.
+
+        // Track dp-nibble transitions only while IDLE is active.
+        // In RUN mode, decimal-point location must not move or add new dots.
+        {
+            uint8_t curR5dp = R5 & 0x0F;
+            if (flags & FLG_IDLE) {
+                if (curR5dp != m_prevR5dp) {
+                    if (m_prevR5dp >= 2 && m_prevR5dp <= 13) {
+                        m_dpActivityMask |= static_cast<uint16_t>(1u << (m_prevR5dp - 2));
+                    }
+                    m_prevR5dp = curR5dp;
+                }
+            } else {
+                m_prevR5dp = curR5dp;
+                m_dpActivityMask = 0;
+            }
+        }
+
     if (digit == 0) {
         std::lock_guard<std::mutex> lock(m_displayMutex);
 
         // Decay decimal-point afterglow counters at every digit-cycle (IDLE or RUN),
-        // before any seeding so that a newly-vacated position gets the full 3-cycle count.
+        // before any seeding so that a newly-vacated position gets the full 2-cycle count.
         for (int i = 0; i < 12; ++i) {
             if (m_dpAfterglowCounters[i] > 0) m_dpAfterglowCounters[i]--;
         }
@@ -865,11 +885,14 @@ int TMC0501::step() {
             // Display reflects A/B/R5 changes immediately while idle.
 
             uint8_t newDpPos = R5 & 0x0F;
-            uint8_t oldDpPos = m_display.dpPos;
-            // When dp position vacates a valid slot, seed that slot's afterglow counter.
-            // Seeding happens after the global decrement so the full 3-cycle count is preserved.
-            if (newDpPos != oldDpPos && oldDpPos >= 2 && oldDpPos <= 13) {
-                m_dpAfterglowCounters[oldDpPos - 2] = 3;
+
+            // Seed all positions visited and vacated since the last digit==0 boundary.
+            // This captures DPT round-robin patterns where R5 changes every instruction
+            // but may return to one endpoint before sampling.
+            for (int i = 0; i < 12; ++i) {
+                if ((m_dpActivityMask >> i) & 1) {
+                    m_dpAfterglowCounters[i] = 2;
+                }
             }
 
             for (int i = 0; i < 12; ++i) {
@@ -877,8 +900,12 @@ int TMC0501::step() {
                 m_display.ctrl[i]   = B[i + 2] & 0x0F;
             }
             m_display.dpPos = newDpPos;
-        } else if (m_dispFilter < 3) {
-            m_dispFilter++;
+            m_dpActivityMask = 0;
+        } else {
+            if (m_dispFilter < 3) {
+                m_dispFilter++;
+            }
+            m_dpActivityMask = 0;
         }
     }
 
