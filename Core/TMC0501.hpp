@@ -20,11 +20,14 @@ class RAM;
 // annunciator are captured and buffered the same way.
 
 struct DisplaySnapshot {
-    uint8_t digits[12]{};        ///< A[2..13] — BCD digit values (0–9, A–F)
-    uint8_t ctrl[12]{};          ///< B[2..13] — display-control nibbles (select digit vs. minus/degree/blank)
-    uint8_t dpPos{0};            ///< R5 — decimal-point position within the mantissa
-    float   calcIndicator{0.0f}; ///< fraction of the last poll interval where C LED was driven:
-                                 ///<   RUN mode: any fA≠0; IDLE mode: fA bit 14 (SH pin, per HW guide). (0.0–1.0)
+    uint8_t  digits[12]{};        ///< A[2..13] — BCD digit values (0–9, A–F)
+    uint8_t  ctrl[12]{};          ///< B[2..13] — display-control nibbles (select digit vs. minus/degree/blank)
+    uint8_t  dpPos{0};            ///< R5 — decimal-point position within the mantissa (0 = none, 2–13 valid)
+    uint16_t dpAfterglowMask{0};  ///< Bitmask of dp positions with active afterglow: bit (pos-2) for positions 2..13.
+                                  ///< Includes the current dpPos plus any recently-vacated positions still glowing.
+                                  ///< Zero when display is blanked (m_dispFilter ≥ 3).
+    float    calcIndicator{0.0f}; ///< fraction of the last poll interval where C LED was driven:
+                                  ///<   RUN mode: any fA≠0; IDLE mode: fA bit 14 (SH pin, per HW guide). (0.0–1.0)
 };
 
 // ── Internal CPU flags ────────────────────────────────────────────────────────
@@ -315,6 +318,9 @@ private:
     DisplaySnapshot m_display{};       // Last stable snapshot, updated at digit=0 on SET IDLE.
     uint8_t  m_dispFilter{};   // Counts digit-counter wrap-arounds since the last IDLE.
                                 // At 3, the display is blanked (CPU is busy computing).
+    uint8_t  m_dpAfterglowCounters[12]{}; // Per-position afterglow counters for dp positions 2..13.
+                                          // counter[i] → position (i+2); decrement each digit==0 cycle.
+                                          // Seeded to 3 when dp position vacates; zero = no afterglow.
     mutable std::atomic<uint32_t> m_cSteps{0};          // Steps (IDLE or non-IDLE) where fA≠0 since last getDisplay().
     mutable std::atomic<uint32_t> m_pollSteps{0};       // Weighted step count since last getDisplay() (non-IDLE=1, IDLE=4).
 

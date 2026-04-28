@@ -6,6 +6,7 @@ struct LEDDisplayView: View, Equatable {
     let digits:    [UInt8]   // 12 elements: A[2..13]
     let ctrl:      [UInt8]   // 12 elements: B[2..13]
     let dpPos:     UInt8
+    let dpAfterglowMask: UInt16  // Bit (pos-2) for dp positions 2..13 that should be visible
     let calcIndicatorOpacity: Double
     let fontStyle: LEDFontStyle
 
@@ -75,10 +76,12 @@ struct LEDDisplayView: View, Equatable {
                 let digitRect = CGRect(origin: .zero, size: rect.size)
                 drawSegments(ctx: &digitCtx, rect: digitRect, segments: segs, segmentOpacity: cOpacity, fontStyle: fontStyle)
 
-                if dpDigitIndex == i {
-                    // Decimal point is usually NOT slanted or handled separately
+                // Draw decimal point dot for all positions with active afterglow.
+                // dpAfterglowMask includes the current dpPos, so a single bit check suffices.
+                // bit i corresponds to canvas index i (dp position i+2).
+                if (dpAfterglowMask >> i) & 1 == 1 {
                     var dpCtx = ctx
-                    drawDecimalPoint(ctx: &dpCtx, rect: rect)
+                    drawDecimalPoint(ctx: &dpCtx, rect: rect, opacity: 1.0)
                 }
             }
         }
@@ -258,7 +261,7 @@ struct LEDDisplayView: View, Equatable {
         }
     }
 
-    private func drawDecimalPoint(ctx: inout GraphicsContext, rect: CGRect) {
+    private func drawDecimalPoint(ctx: inout GraphicsContext, rect: CGRect, opacity: Double = 1.0) {
         let dotSize: CGFloat = rect.height * 0.13
         let dotRect = CGRect(x: rect.maxX - dotSize * 1.1,
                              y: rect.maxY - dotSize * 1.4,
@@ -267,8 +270,8 @@ struct LEDDisplayView: View, Equatable {
         let activeColor = Color(red: 1.0, green: 0.1, blue: 0.1)
 
         let path = CGPath(ellipseIn: dotRect, transform: nil)
-        drawGlowingPath(ctx: &ctx, path: path, color: activeColor, blurRadius: dotSize * Self.modernizedGlowBlurMultiplier, glowOpacity: Self.modernizedGlowOpacityFactor, segmentOpacity: 1.0)
-        ctx.fill(Path(ellipseIn: dotRect), with: .color(activeColor))
+        drawGlowingPath(ctx: &ctx, path: path, color: activeColor, blurRadius: dotSize * Self.modernizedGlowBlurMultiplier, glowOpacity: Self.modernizedGlowOpacityFactor, segmentOpacity: opacity)
+        ctx.fill(Path(ellipseIn: dotRect), with: .color(activeColor.opacity(opacity)))
     }
 
     // MARK: - Path helpers (hexagonal chamfered segments)
@@ -305,6 +308,7 @@ struct LEDDisplayView: View, Equatable {
         digits:        [8,8,8,8,8,8,8,8,8,8,8,8],
         ctrl:          [0,0,0,0,0,0,0,0,0,0,0,0],
         dpPos:         4,
+        dpAfterglowMask: 0b0000_0000_0000_1100,  // positions 2 & 3 lit
         calcIndicatorOpacity: 1.0,
         fontStyle:     .modernized
     )

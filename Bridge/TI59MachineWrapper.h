@@ -5,11 +5,13 @@ NS_ASSUME_NONNULL_BEGIN
 
 /// Display snapshot passed from C++ core to Swift.
 typedef struct {
-    uint8_t digits[12];      ///< A[2..13] BCD digit values
-    uint8_t ctrl[12];        ///< B[2..13] display control nibbles
-    uint8_t dpPos;           ///< R5 — decimal-point position index
-    float   calcIndicator;   ///< fraction of last poll interval where C LED was driven (0.0–1.0)
-                             ///<   RUN mode: any fA≠0; IDLE mode: fA bit 14 only (SH pin)
+    uint8_t  digits[12];      ///< A[2..13] BCD digit values
+    uint8_t  ctrl[12];        ///< B[2..13] display control nibbles
+    uint8_t  dpPos;           ///< R5 — current decimal-point position index (0 = none, 2..13 valid)
+    uint16_t dpAfterglowMask; ///< Bitmask of positions with active afterglow: bit (pos-2) for pos 2..13.
+                              ///<   Includes current dpPos. Zero when display is blanked.
+    float    calcIndicator;   ///< fraction of last poll interval where C LED was driven (0.0–1.0)
+                              ///<   RUN mode: any fA≠0; IDLE mode: fA bit 14 only (SH pin)
 } TIDisplaySnapshot;
 
 // ── Trace / debug types ───────────────────────────────────────────────────────

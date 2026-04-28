@@ -72,8 +72,9 @@ static const int kbits[] = {0, 1, 2, 3, 5, 6};  // index 0 unused; index col
     _Static_assert(sizeof(s.ctrl)   == sizeof(out.ctrl),   "ctrl size mismatch");
     memcpy(out.digits, s.digits, sizeof(out.digits));
     memcpy(out.ctrl,   s.ctrl,   sizeof(out.ctrl));
-    out.dpPos         = s.dpPos;
-    out.calcIndicator = s.calcIndicator;
+    out.dpPos            = s.dpPos;
+    out.dpAfterglowMask  = s.dpAfterglowMask;
+    out.calcIndicator    = s.calcIndicator;
     return out;
 }
 

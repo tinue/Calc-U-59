@@ -151,6 +151,7 @@ void TMC0501::reset() {
     flags = FLG_COND | FLG_DISP;  // COND starts true; display active
     m_display = {};
     m_dispFilter = 0;
+    memset(m_dpAfterglowCounters, 0, sizeof(m_dpAfterglowCounters));
     // Reset card state; caller (TI59Machine) re-presses the card-switch key.
     m_cardPresent    = false;
     m_waitingForCard = false;
@@ -290,14 +291,26 @@ DisplaySnapshot TMC0501::getDisplay() const {
 
     DisplaySnapshot result = m_display;
 
+    // Build decimal-point afterglow bitmask: bit (pos-2) for positions 2..13.
+    // Includes the current buffered dpPos plus any positions with an active afterglow counter.
+    uint16_t dpMask = 0;
+    for (int i = 0; i < 12; ++i) {
+        if (m_dpAfterglowCounters[i] > 0) dpMask |= static_cast<uint16_t>(1u << i);
+    }
+    uint8_t dp = result.dpPos;
+    if (dp >= 2 && dp <= 13) dpMask |= static_cast<uint16_t>(1u << (dp - 2));
+
     if (m_dispFilter >= 3) {
-        // Post-blanking, force all digits to blank (ctrl=7) to match the hardware's dark segments.
+        // Blanked during computation: hide all segments and decimal-point dots.
+        // Afterglow counters continue ticking down so elapsed time is accounted for.
         for (auto& ctrl : result.ctrl) ctrl = 7;
+        result.dpPos = 0;
+        result.dpAfterglowMask = 0;
+    } else {
+        result.dpAfterglowMask = dpMask;
     }
     result.calcIndicator = cLevel;
 
-    // Experiment
-    result.dpPos = (R5 & 0x0Fu);  // Expose the raw R5 value for debugging; matches the DPT position for DPT-based masks.
     return result;
 }
 
@@ -838,18 +851,32 @@ int TMC0501::step() {
     // IDLE clear: increment filter; at 3 counts getDisplay() will blank the LEDs,
     //             reproducing the dark-display-during-computation hardware behaviour.
     if (digit == 0) {
+        std::lock_guard<std::mutex> lock(m_displayMutex);
+
+        // Decay decimal-point afterglow counters at every digit-cycle (IDLE or RUN),
+        // before any seeding so that a newly-vacated position gets the full 3-cycle count.
+        for (int i = 0; i < 12; ++i) {
+            if (m_dpAfterglowCounters[i] > 0) m_dpAfterglowCounters[i]--;
+        }
+
         if (flags & FLG_IDLE) {
             m_dispFilter = 0;
             // Auto-update display every digit cycle while in IDLE mode.
             // Display reflects A/B/R5 changes immediately while idle.
 
-            std::lock_guard<std::mutex> lock(m_displayMutex);
+            uint8_t newDpPos = R5 & 0x0F;
+            uint8_t oldDpPos = m_display.dpPos;
+            // When dp position vacates a valid slot, seed that slot's afterglow counter.
+            // Seeding happens after the global decrement so the full 3-cycle count is preserved.
+            if (newDpPos != oldDpPos && oldDpPos >= 2 && oldDpPos <= 13) {
+                m_dpAfterglowCounters[oldDpPos - 2] = 3;
+            }
 
             for (int i = 0; i < 12; ++i) {
                 m_display.digits[i] = A[i + 2] & 0x0F;
                 m_display.ctrl[i]   = B[i + 2] & 0x0F;
             }
-            m_display.dpPos = R5 & 0x0F;
+            m_display.dpPos = newDpPos;
         } else if (m_dispFilter < 3) {
             m_dispFilter++;
         }

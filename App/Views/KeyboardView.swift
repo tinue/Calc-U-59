@@ -167,6 +167,7 @@ struct KeyboardView: View {
                     digits:        viewModel.displayDigits,
                     ctrl:          viewModel.displayCtrl,
                     dpPos:         viewModel.dpPos,
+                    dpAfterglowMask: viewModel.dpAfterglowMask,
                     calcIndicatorOpacity: viewModel.calcIndicatorOpacity,
                     fontStyle:     fontStyle
                 )

@@ -29,6 +29,7 @@ class EmulatorViewModel {
     var displayDigits: [UInt8]  = Array(repeating: 0, count: 12)
     var displayCtrl:   [UInt8]  = Array(repeating: 0, count: 12)
     var dpPos:          UInt8   = 0
+    var dpAfterglowMask: UInt16 = 0  // Bit (pos-2) set for each dp position 2..13 with active afterglow
     var calcIndicatorOpacity: Double = 0.0
     var model: MachineModel     = .ti59
     var errorMessage: String?
@@ -356,6 +357,7 @@ class EmulatorViewModel {
             if displayDigits    != d               { displayDigits    = d }
             if displayCtrl      != c               { displayCtrl      = c }
             if dpPos            != snap.dpPos      { dpPos            = snap.dpPos }
+            if dpAfterglowMask  != snap.dpAfterglowMask { dpAfterglowMask = snap.dpAfterglowMask }
         }
         // C indicator opacity driven by the integrated duty cycle from the C++ core.
         //
