@@ -1261,12 +1261,6 @@ void TMC0501::beginNextStep() {
     if (tf != TRACE_NONE && m_frameHead > 0) {
         CpuFrame& prev = m_frameRing[(m_frameHead - 1) & kFrameRingMask];
 
-        // Display snapshot: captured for every trace (not conditional on trace flags)
-        // At this point, SET.IDLE has executed and the display buffer has been updated
-        memcpy(prev.displayDigits, m_display.digits, 12);
-        memcpy(prev.displayCtrl, m_display.ctrl, 12);
-        prev.displayDpPos = m_display.dpPos;
-
         if (tf & (TRACE_REGS_LIGHT | TRACE_REGS_FULL)) {
             prev.KR       = KR;
             prev.SR       = SR;
@@ -1452,11 +1446,6 @@ CpuFrame TMC0501::snapshotCPU() const {
     frame.fB = fB;
     frame.cpuFlags = flags;
     frame.R5 = R5;
-
-    // Display snapshot (what Swift actually displays)
-    memcpy(frame.displayDigits, m_display.digits, 12);
-    memcpy(frame.displayCtrl, m_display.ctrl, 12);
-    frame.displayDpPos = m_display.dpPos;
 
     // Full registers
     memcpy(frame.A, A, 16);

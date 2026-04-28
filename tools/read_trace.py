@@ -62,9 +62,9 @@ def _parse_file_header(f):
         raise ValueError(f"Unsupported version: {version} (expected {VERSION})")
 
 def _parse_trace_event(payload):
-    """Parse a 162-byte TRACE_EVENT payload into a dict (includes display snapshot and rendered string)."""
-    if len(payload) != 162:
-        raise ValueError(f"TRACE_EVENT payload length {len(payload)}, expected 162")
+    """Parse a 124-byte TRACE_EVENT payload into a dict."""
+    if len(payload) != 124:
+        raise ValueError(f"TRACE_EVENT payload length {len(payload)}, expected 124")
 
     # Fixed fields (36 bytes)
     # Unpacks: suppressed(4) + seqno(4) + pc(2) + opcode(2) + fA(2) + fB(2) + KR(2) + SR(2) +
@@ -74,8 +74,6 @@ def _parse_trace_event(payload):
      EXT, PREG, cpu_flags, m_libAddr, R5, digit,
      RAM_ADDR, RAM_OP, REG_ADDR, m_libAddrReadPos, cycle_weight, dispFilter) = struct.unpack_from(
         '<IIHHHHHHHHHH BBBBBBBB', payload, 0)
-
-    dpPos_captured = R5  # For compatibility, but actual buffered position comes from display snapshot
 
     # A–E registers: 16 unpacked nibbles each (index 0 = LSN)
     # Fixed fields total 36 bytes (2 I's + 10 H's + 8 B's)
@@ -91,21 +89,6 @@ def _parse_trace_event(payload):
         sout.append(b & 0x0F)
         sout.append((b >> 4) & 0x0F)
     off += 8
-
-    # Display snapshot: 12 bytes (displayDigits) + 12 bytes (displayCtrl) + 1 byte (displayDpPos) = 25 bytes
-    # Display starts at byte 124 (36 fixed + 80 A-E + 8 Sout)
-    display_digits = list(payload[off:off+12])  # displayDigits[12] at offset 124-135
-    off += 12
-    display_ctrl = list(payload[off:off+12])    # displayCtrl[12] at offset 136-147
-    off += 12
-    display_dpPos = payload[off]                 # displayDpPos at offset 148
-    off += 1
-
-    # Swift-rendered display string: 13 bytes (what user actually sees on screen)
-    display_rendered_bytes = payload[off:off+13]  # displayRendered[13] at offset 149-161
-    # Convert to string, stopping at null terminator if present
-    display_rendered = display_rendered_bytes.rstrip(b'\x00').decode('ascii', errors='replace')
-    off += 13
 
     cond = 1 if (cpu_flags & 0x0800) else 0
     idle = 1 if (cpu_flags & 0x0001) else 0
@@ -131,7 +114,6 @@ def _parse_trace_event(payload):
         'IDLE':         str(idle),
         'dispFilter':   dispFilter,
         'R5':           f'{R5:X}',
-        'dpPos_captured': f'{dpPos_captured:X}',  # Live R5 value at instruction capture
         'ROM':          f'{m_libAddr:04d}.{m_libAddrReadPos}',
         'digit':        digit,
         'RAM_ADDR':     RAM_ADDR,
@@ -148,11 +130,6 @@ def _parse_trace_event(payload):
         # raw nibble lists (index 0 = LSN) for any tool that wants them
         '_A': regs['A'], '_B': regs['B'], '_C': regs['C'],
         '_D': regs['D'], '_E': regs['E'], '_Sout': sout,
-        # display snapshot fields (buffered display state that Swift renders)
-        '_displayDigits': display_digits,      # A[2..13] buffered values (what display shows)
-        '_displayCtrl': display_ctrl,          # B[2..13] buffered control nibbles
-        '_displayDpPos': display_dpPos,        # Buffered decimal point position (what Swift shows)
-        '_displayRendered': display_rendered,  # Swift-rendered display string (actual screen content)
     }
 
 def _parse_user_event(payload):
@@ -238,33 +215,6 @@ def trace_events_only(records):
 def _bin16(v):
     return ''.join(str((v >> (15 - i)) & 1) for i in range(16))
 
-def _format_display_content(rec):
-    """Format display content from both raw buffered snapshot AND Swift-rendered string.
-
-    Returns: "digits=[...] ctrl=[...] dpPos=N | Swift shows: '...'"
-
-    The raw values show what the CPU buffered at capture time.
-    The Swift-rendered string shows what the user actually saw on their screen.
-    """
-    # Get raw buffered snapshot
-    display_digits = rec.get('_displayDigits', [0] * 12)
-    display_ctrl = rec.get('_displayCtrl', [0] * 12)
-    display_dpPos = rec.get('_displayDpPos', 0)
-    display_rendered = rec.get('_displayRendered', '')
-
-    # Format raw values mechanically (no interpretation)
-    digits_str = '[' + ','.join(f'{d:X}' for d in display_digits) + ']'
-    ctrl_str = '[' + ','.join(f'{c:X}' for c in display_ctrl) + ']'
-
-    # Build output: raw values + Swift-rendered string
-    result = f"raw: digits={digits_str} ctrl={ctrl_str} dpPos={display_dpPos}"
-
-    # Add what Swift actually displayed
-    if display_rendered:
-        result += f" | Swift showed: '{display_rendered}'"
-
-    return result
-
 def _format_trace_record(rec, trace_number=None):
     """Format a single trace record as 5 lines of output.
 
@@ -289,9 +239,7 @@ def _format_trace_record(rec, trace_number=None):
              f"RAMOP={ramop_str} RAMREG={rec['RAM_ADDR']:03d} "
              f"ROMREG={rec['REG_ADDR']:02d}")
 
-    # Display content: show the actual rendered display using buffered display snapshot
-    display_content = _format_display_content(rec)
-    line5 = f"DISP: {rec['dispFilter']} ({disp_status}) | {display_content}"
+    line5 = f"DISP: {rec['dispFilter']} ({disp_status})"
 
     if trace_number is not None:
         trace_num_str = f"{trace_number:>8d}"

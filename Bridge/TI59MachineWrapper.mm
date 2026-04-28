@@ -222,11 +222,6 @@ static TICpuFrame marshalCpuFrame(const CpuFrame& f) {
     // Light registers
     frame.KR = f.KR; frame.SR = f.SR; frame.fA = f.fA; frame.fB = f.fB;
     frame.cpuFlags = f.cpuFlags; frame.R5 = f.R5;
-    // Display snapshot
-    memcpy(frame.displayDigits, f.displayDigits, 12);
-    memcpy(frame.displayCtrl, f.displayCtrl, 12);
-    frame.displayDpPos = f.displayDpPos;
-    memcpy(frame.displayRendered, f.displayRendered, 13);
     // Full snapshot
     memcpy(frame.A, f.A, 16);
     memcpy(frame.B, f.B, 16);
