@@ -1278,9 +1278,21 @@ void TMC0501::beginNextStep() {
 }
 
 void TMC0501::postOperation() {
-    // ── Display state capture & afterglow ─────────────────────────────
+    // ── Per-step display capture & decay ────────────────────────────────────
+    // Must run after every instruction because each cycles the digit counter (see line 462).
+    // Strobe capture is triggered when the digit counter indicates a visible position
+    // (strobeDigit 2..13); skipping any cycle would break scan-chain timing and lose
+    // display updates. This ensures both branch and normal execution paths maintain
+    // identical display semantics.
+
+    // CPU state (A/B/C/D/R5/flags/digit) is stable at this point: all instruction
+    // execution is complete and no concurrent modifications occur before the next instruction.
+
     // Per-digit strobe-latched capture: during IDLE, when each digit position
     // is active (strobeDigit ∈ [2..13]), latch the corresponding segments and DP.
+    // strobeDigit must reflect the digit *after* this instruction completes.
+    // Since digit is decremented at step() entry (line 462), we compute the
+    // "active display position" from that decremented value.
     uint8_t strobeDigit = digit ? static_cast<uint8_t>(digit - 1) : 15;
     if ((flags & FLG_IDLE) && strobeDigit >= 2 && strobeDigit <= 13) {
         std::lock_guard<std::mutex> lock(m_displayMutex);
@@ -1292,7 +1304,10 @@ void TMC0501::postOperation() {
         m_currentDpPos = R5;
 
         // Emulate zero-suppression circuit during scan: one digit decision per strobe.
-        // The scan order for visible digits is 13→...→2 (idx 11→...→0).
+        // The scan order for visible digits is 13→...→2 (idx 11→...→0), with state
+        // carried forward via m_zeroSuppressRunning. The scan-chain breaks silently
+        // if strobes occur out of order; this assumption is guarded by monotonic digit
+        // decrement and deterministic strobeDigit calculation.
         if (idx == 11) {
             m_zeroSuppressRunning = true;
         }

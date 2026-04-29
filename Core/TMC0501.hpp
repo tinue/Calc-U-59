@@ -317,9 +317,12 @@ private:
     // ── Display state (shared between CPU thread and UI thread) ───────
     // Per-digit live buffers: updated during each digit's strobe phase when IDLE.
     // getDisplay() reads these directly at query time (no stale batch snapshot).
+    // IMPORTANT: All access to display state members (below) must be guarded by
+    // m_displayMutex. Updated exclusively by postOperation() (CPU thread), read only
+    // by getDisplay() (UI thread, ~60 Hz) and computeDisplayTraceState() (CPU thread).
     mutable std::mutex m_displayMutex;
-    uint8_t  m_digitSegmentsA[12]{};  // A[2..13] → m_digitSegmentsA[0..11] per strobe
-    uint8_t  m_digitSegmentsB[12]{};  // B[2..13] → m_digitSegmentsB[0..11] per strobe
+    uint8_t  m_digitSegmentsA[12]{};  // A[2..13] → m_digitSegmentsA[0..11] per strobe (CPU thread write, UI thread read)
+    uint8_t  m_digitSegmentsB[12]{};  // B[2..13] → m_digitSegmentsB[0..11] per strobe (CPU thread write, UI thread read)
     uint8_t  m_digitAfterglowCounters[12]{}; // Digit (segment) afterglow counter per position.
                                              // counter[i] → position (i+2); decrement each digit==0 cycle.
                                              // Seeded when the position is actively driven (not suppressed) during IDLE scan.
