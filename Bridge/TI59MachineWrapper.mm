@@ -237,6 +237,8 @@ static TICpuFrame marshalCpuFrame(const CpuFrame& f) {
     frame.REG_ADDR = f.REG_ADDR; frame.RAM_ADDR = f.RAM_ADDR; frame.RAM_OP = f.RAM_OP;
     frame.m_libAddrReadPos = f.m_libAddrReadPos;
     frame.dispFilter = f.dispFilter;
+    frame.displayOn = f.displayOn;
+    frame.maxDigitDecay = f.maxDigitDecay;
     return frame;
 }
 

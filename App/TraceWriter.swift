@@ -225,11 +225,11 @@ final class TraceWriter {
 
     // ── Serialisation ─────────────────────────────────────────────────────────
 
-    // Full 124-byte TRACE_EVENT payload from a unified CpuFrame.
+    // Full 126-byte TRACE_EVENT payload from a unified CpuFrame.
     private func makeFramePayload(frame: TICpuFrame) -> Data {
-        var d = Data(capacity: 124)
+        var d = Data(capacity: 126)
 
-        // Control fields (suppressed count is always 0; kept for format compatibility) — 34 bytes
+        // Control fields (suppressed count is always 0; kept for format compatibility) — 38 bytes
         d.appendLE(UInt32(0))
         d.appendLE(frame.seqno)
         d.appendLE(frame.pc)
@@ -250,6 +250,8 @@ final class TraceWriter {
         d.append(frame.m_libAddrReadPos)
         d.append(frame.cycleWeight)
         d.append(frame.dispFilter)
+        d.append(frame.displayOn)
+        d.append(frame.maxDigitDecay)
 
         // Registers A–E: one nibble per byte, index 0 = LSN (digit 0) — 80 bytes
         var a = frame.A; d.append(contentsOf: tupleBytes(&a))

@@ -347,8 +347,8 @@ class EmulatorViewModel {
         // after exiting IDLE, while still showing the last captured display state.
         let cpuFrame = machine.snapshotCPU()
         let isIdle = (cpuFrame.flags & 0x0001) != 0          // FLG_IDLE
-        let displayOn = cpuFrame.dispFilter < 3              // Display still on (not blanked yet)
-        let shouldFreeze = displayOn && !isIdle              // Afterglow with RUN mode
+        let displayOn = cpuFrame.displayOn != 0               // One or more digits/dots currently visible
+        let shouldFreeze = displayOn && !isIdle               // Afterglow with RUN mode
 
         // Guard each assignment: @Observable only notifies SwiftUI when a property
         // is actually written, but the write itself counts as a change even if the

@@ -154,12 +154,12 @@ void TMC0501::reset() {
     memset(m_digitSegmentsB, 0, sizeof(m_digitSegmentsB));
     memset(m_digitAfterglowCounters, 0, sizeof(m_digitAfterglowCounters));
     memset(m_dpAfterglowCounters, 0, sizeof(m_dpAfterglowCounters));
+    memset(m_digitLitInLastStrobe, 0, sizeof(m_digitLitInLastStrobe));
+    memset(m_dpLitInLastStrobe, 0, sizeof(m_dpLitInLastStrobe));
     m_currentDpPos = 0;
     m_digitSuppressedMask = 0;
     m_zeroSuppressRunning = true;
     m_dispFilter = 0;
-    m_digitActivityMask = 0;
-    m_dpActivityMask = 0;
     // Reset card state; caller (TI59Machine) re-presses the card-switch key.
     m_cardPresent    = false;
     m_waitingForCard = false;
@@ -263,6 +263,23 @@ void TMC0501::releaseKey(int row, int col) {
         key[col] &= static_cast<uint8_t>(~(1U << row));
 }
 
+void TMC0501::computeDisplayTraceState(uint8_t& displayOn, uint8_t& maxDigitDecay) const {
+    std::lock_guard<std::mutex> lock(m_displayMutex);
+
+    uint8_t maxDecay = 0;
+    bool anyVisible = false;
+    for (int i = 0; i < 12; ++i) {
+        const uint8_t digitDecay = m_digitAfterglowCounters[i];
+        if (digitDecay > maxDecay) maxDecay = digitDecay;
+        if (digitDecay > 0 || m_dpAfterglowCounters[i] > 0) {
+            anyVisible = true;
+        }
+    }
+
+    displayOn = anyVisible ? 1u : 0u;
+    maxDigitDecay = maxDecay;
+}
+
 // ── Display read-out ──────────────────────────────────────────────────────────
 //
 // Called by the UI thread at ~60 Hz.  Returns a stable, mutex-protected copy
@@ -297,43 +314,31 @@ DisplaySnapshot TMC0501::getDisplay() const {
     const uint32_t pollSteps = m_pollSteps.exchange(0, std::memory_order_relaxed);
     const float cLevel = pollSteps ? (float)cSteps / (float)pollSteps : 0.0f;
 
-    // Build snapshot on-demand from live per-digit buffers (no stale batch snapshot).
+    // Build snapshot from per-position decay counters and latched LED state.
     DisplaySnapshot result;
-    
-    // Copy live digit segments to snapshot
-    for (int i = 0; i < 12; ++i) {
-        result.digits[i] = m_digitSegmentsA[i] & 0x0F;
-        result.ctrl[i]   = m_digitSegmentsB[i] & 0x0F;
-    }
-    result.dpPos = m_currentDpPos;
-    uint16_t effectiveSuppressedMask = m_digitSuppressedMask;
-    // Honor segment afterglow: a recently-driven position should not be blanked
-    // immediately by zero suppression.
-    for (int i = 0; i < 12; ++i) {
-        if (m_digitAfterglowCounters[i] > 0) {
-            effectiveSuppressedMask &= static_cast<uint16_t>(~(1u << i));
-        }
-    }
-    result.suppressedMask = effectiveSuppressedMask;
 
-    if (m_dispFilter >= 3) {
-        // Blanked during computation: hide all segments and decimal-point dots.
-        // Afterglow counters continue ticking down so elapsed time is accounted for.
-        for (auto& ctrl : result.ctrl) ctrl = 7;
-        result.dpPos = 0;
-        result.dpAfterglowMask = 0;
-        result.suppressedMask = 0;
-    } else {
-        // Build decimal-point afterglow bitmask: bit (pos-2) for positions 2..13.
-        // Includes the current dpPos plus any positions with active DP afterglow counters.
-        uint16_t dpMask = 0;
-        for (int i = 0; i < 12; ++i) {
-            if (m_dpAfterglowCounters[i] > 0) dpMask |= static_cast<uint16_t>(1u << i);
+    uint16_t effectiveSuppressedMask = m_digitSuppressedMask;
+    for (int i = 0; i < 12; ++i) {
+        const bool visible = m_digitAfterglowCounters[i] > 0;
+        if (visible) {
+            result.digits[i] = m_digitSegmentsA[i] & 0x0F;
+            result.ctrl[i]   = m_digitSegmentsB[i] & 0x0F;
+            effectiveSuppressedMask &= static_cast<uint16_t>(~(1u << i));
+        } else {
+            result.digits[i] = 0;
+            result.ctrl[i]   = 7; // blank when this position's decay reached zero
         }
-        uint8_t dp = result.dpPos;
-        if (dp >= 2 && dp <= 13) dpMask |= static_cast<uint16_t>(1u << (dp - 2));
-        result.dpAfterglowMask = dpMask;
     }
+
+    // Decimal point visibility is fully per-position afterglow.
+    uint16_t dpMask = 0;
+    for (int i = 0; i < 12; ++i) {
+        if (m_dpAfterglowCounters[i] > 0) dpMask |= static_cast<uint16_t>(1u << i);
+    }
+
+    result.dpPos = m_currentDpPos;
+    result.dpAfterglowMask = dpMask;
+    result.suppressedMask = effectiveSuppressedMask;
     result.calcIndicator = cLevel;
 
     return result;
@@ -892,9 +897,6 @@ int TMC0501::step() {
             const uint8_t a = static_cast<uint8_t>(A[strobeDigit] & 0x0F);
             const uint8_t b = static_cast<uint8_t>(B[strobeDigit] & 0x0F);
 
-            // Capture full digit: A segments, B segments, DP position
-            m_digitSegmentsA[idx] = a;
-            m_digitSegmentsB[idx] = b;
             m_currentDpPos = R5;
 
             // Emulate zero-suppression circuit during scan: one digit decision per strobe.
@@ -924,21 +926,34 @@ int TMC0501::step() {
             }
             m_zeroSuppressRunning = zero;
 
-            // Track activity for afterglow seeding at digit==0.
-            if (!suppressed) {
-                m_digitActivityMask |= static_cast<uint16_t>(1u << idx);
+            // Segment visibility for this strobe: when lit, refresh this digit's decay and
+            // latch the current glyph. When removed (suppression/blank/space), start decay.
+            const bool emitsGlyph = (b == 0 || b == 1 || b == 5 || b == 6 || b == 8 || b == 9);
+            const bool litNow = (!suppressed && emitsGlyph);
+            const bool wasLit = m_digitLitInLastStrobe[idx];
+            if (litNow) {
+                m_digitSegmentsA[idx] = a;
+                m_digitSegmentsB[idx] = b;
+                m_digitAfterglowCounters[idx] = 6;
+            } else if (wasLit) {
+                m_digitAfterglowCounters[idx] = 6;
             }
+            m_digitLitInLastStrobe[idx] = litNow;
 
-            // Mark this position as having active DP if R5 matches.
-            if (R5 == strobeDigit) {
-                m_dpActivityMask |= static_cast<uint16_t>(1u << idx);
+            // Decimal-point strobe: R5 indicates the currently driven dot position.
+            const bool dpLitNow = (R5 == strobeDigit);
+            const bool dpWasLit = m_dpLitInLastStrobe[idx];
+            if (dpLitNow) {
+                m_dpAfterglowCounters[idx] = 3;
+            } else if (dpWasLit) {
+                m_dpAfterglowCounters[idx] = 3;
             }
+            m_dpLitInLastStrobe[idx] = dpLitNow;
         }
 
     if (digit == 0) {
         std::lock_guard<std::mutex> lock(m_displayMutex);
-        // Decay digit and DP afterglow counters at every digit-cycle,
-        // before any seeding so newly-captured positions get the full 3-cycle count.
+        // Decay digit and DP afterglow counters once per full digit-counter cycle.
         for (int i = 0; i < 12; ++i) {
             if (m_digitAfterglowCounters[i] > 0) m_digitAfterglowCounters[i]--;
             if (m_dpAfterglowCounters[i] > 0) m_dpAfterglowCounters[i]--;
@@ -946,22 +961,11 @@ int TMC0501::step() {
 
         if (flags & FLG_IDLE) {
             m_dispFilter = 0;
-            // Seed segment afterglow for positions actively driven during this IDLE scan cycle.
-            for (int i = 0; i < 12; ++i) {
-                if ((m_digitActivityMask >> i) & 1) {
-                    m_digitAfterglowCounters[i] = 6;
-                }
-                if ((m_dpActivityMask >> i) & 1) {
-                    m_dpAfterglowCounters[i] = 3;
-                }
-            }
         } else {
             if (m_dispFilter < 3) {
                 m_dispFilter++;
             }
         }
-        m_digitActivityMask = 0;
-        m_dpActivityMask = 0;
     }
 
     // ── PREG redirect (after instruction execution) ───────────────────
@@ -1328,6 +1332,7 @@ void TMC0501::beginNextStep() {
             prev.cpuFlags = flags;
             prev.R5       = R5;
             prev.postDigit = digit;
+            prev.dispFilter = m_dispFilter;
         }
         if (tf & TRACE_REGS_FULL) {
             memcpy(prev.A,    A,    16);
@@ -1350,6 +1355,7 @@ void TMC0501::beginNextStep() {
             prev.RAM_OP = RAM_OP;
             prev.dispFilter = m_dispFilter;
         }
+        computeDisplayTraceState(prev.displayOn, prev.maxDigitDecay);
     }
 
     // Capture pre-execution snapshot for the instruction about to run.
@@ -1393,6 +1399,8 @@ void TMC0501::tracePreStep(uint32_t tf, uint16_t opcode) {
         frame.fB       = fB;
         frame.cpuFlags = flags;
         frame.R5       = R5;
+        frame.dispFilter = m_dispFilter;
+        computeDisplayTraceState(frame.displayOn, frame.maxDigitDecay);
     }
 
     // Full registers (previously in mid-step block)
@@ -1530,6 +1538,7 @@ CpuFrame TMC0501::snapshotCPU() const {
     frame.RAM_OP = RAM_OP;
     frame.m_libAddrReadPos = m_libAddrReadPos;
     frame.dispFilter = m_dispFilter;
+    computeDisplayTraceState(frame.displayOn, frame.maxDigitDecay);
 
     return frame;
 }

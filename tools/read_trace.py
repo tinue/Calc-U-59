@@ -62,23 +62,38 @@ def _parse_file_header(f):
         raise ValueError(f"Unsupported version: {version} (expected {VERSION})")
 
 def _parse_trace_event(payload):
-    """Parse a 124-byte TRACE_EVENT payload into a dict."""
-    if len(payload) != 124:
-        raise ValueError(f"TRACE_EVENT payload length {len(payload)}, expected 124")
+    """Parse a TRACE_EVENT payload into a dict.
 
-    # Fixed fields (36 bytes)
-    # Unpacks: suppressed(4) + seqno(4) + pc(2) + opcode(2) + fA(2) + fB(2) + KR(2) + SR(2) +
-    #          EXT(2) + PREG(2) + flags(2) + m_libAddr(2) + R5(1) + digit(1) + RAM_ADDR(1) +
-    #          RAM_OP(1) + REG_ADDR(1) + m_libAddrReadPos(1) + cycle_weight(1) + dispFilter(1) = 36 bytes
-    (suppressed, seqno, pc, opcode, fA, fB, KR, SR,
-     EXT, PREG, cpu_flags, m_libAddr, R5, digit,
-     RAM_ADDR, RAM_OP, REG_ADDR, m_libAddrReadPos, cycle_weight, dispFilter) = struct.unpack_from(
-        '<IIHHHHHHHHHH BBBBBBBB', payload, 0)
+    Supports both legacy v1 payloads (124 bytes) and extended payloads (126 bytes)
+    that include displayOn/maxDigitDecay.
+    """
+    if len(payload) not in (124, 126):
+        raise ValueError(f"TRACE_EVENT payload length {len(payload)}, expected 124 or 126")
+
+    if len(payload) == 126:
+        # Fixed fields (38 bytes)
+        # Unpacks: suppressed(4) + seqno(4) + pc(2) + opcode(2) + fA(2) + fB(2) + KR(2) + SR(2) +
+        #          EXT(2) + PREG(2) + flags(2) + m_libAddr(2) + R5(1) + digit(1) + RAM_ADDR(1) +
+        #          RAM_OP(1) + REG_ADDR(1) + m_libAddrReadPos(1) + cycle_weight(1) + dispFilter(1) +
+        #          displayOn(1) + maxDigitDecay(1) = 38 bytes
+        (suppressed, seqno, pc, opcode, fA, fB, KR, SR,
+         EXT, PREG, cpu_flags, m_libAddr, R5, digit,
+         RAM_ADDR, RAM_OP, REG_ADDR, m_libAddrReadPos, cycle_weight, dispFilter,
+         displayOn, maxDigitDecay) = struct.unpack_from(
+            '<IIHHHHHHHHHH BBBBBBBBBB', payload, 0)
+        off = 38
+    else:
+        # Legacy fixed fields (36 bytes)
+        (suppressed, seqno, pc, opcode, fA, fB, KR, SR,
+         EXT, PREG, cpu_flags, m_libAddr, R5, digit,
+         RAM_ADDR, RAM_OP, REG_ADDR, m_libAddrReadPos, cycle_weight, dispFilter) = struct.unpack_from(
+            '<IIHHHHHHHHHH BBBBBBBB', payload, 0)
+        displayOn = 0 if dispFilter >= 3 else 1
+        maxDigitDecay = dispFilter
+        off = 36
 
     # A–E registers: 16 unpacked nibbles each (index 0 = LSN)
-    # Fixed fields total 36 bytes (2 I's + 10 H's + 8 B's)
     regs = {}
-    off = 36
     for name in ('A', 'B', 'C', 'D', 'E'):
         regs[name] = list(payload[off:off+16])
         off += 16
@@ -113,6 +128,8 @@ def _parse_trace_event(payload):
         'COND':         str(cond),
         'IDLE':         str(idle),
         'dispFilter':   dispFilter,
+        'displayOn':    1 if displayOn else 0,
+        'maxDigitDecay': maxDigitDecay,
         'R5':           f'{R5:X}',
         'ROM':          f'{m_libAddr:04d}.{m_libAddrReadPos}',
         'digit':        digit,
@@ -232,14 +249,15 @@ def _format_trace_record(rec, trace_number=None):
              f"EXT={rec['EXT']} COND={rec['COND']} IDLE={rec['IDLE']} "
              f"IO={rec['IO']}")
     rom_str = rec.get('ROM', '0000')
-    # Display status based on blanking filter: OFF if blanked (>= 3), else ON
-    disp_status = "OFF" if rec['dispFilter'] >= 3 else "ON"
+    # New traces carry displayOn explicitly; old traces derive it from dispFilter.
+    disp_status = "ON" if rec.get('displayOn', 0 if rec['dispFilter'] >= 3 else 1) else "OFF"
+    decay = rec.get('maxDigitDecay', rec['dispFilter'])
     line4 = (f"FB={rec['fB']} [{_bin16(int(rec['fB'],16))}] "
              f"SR={rec['SR']} R5={rec['R5']} ROM={rom_str} PREG={rec['PREG']} "
              f"RAMOP={ramop_str} RAMREG={rec['RAM_ADDR']:03d} "
              f"ROMREG={rec['REG_ADDR']:02d}")
 
-    line5 = f"DISP: {rec['dispFilter']} ({disp_status})"
+    line5 = f"DISPLAY={disp_status} DECAY={decay} FILTER={rec['dispFilter']}"
 
     if trace_number is not None:
         trace_num_str = f"{trace_number:>8d}"
@@ -265,7 +283,7 @@ def _apply_color(formatted, rec, color):
     if not color:
         return formatted
 
-    disp_status = "OFF" if rec['dispFilter'] >= 3 else "ON"
+    disp_status = "ON" if rec.get('displayOn', 0 if rec['dispFilter'] >= 3 else 1) else "OFF"
     idle = rec['IDLE'] == '1'
 
     if idle and disp_status == "ON":

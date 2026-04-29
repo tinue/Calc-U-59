@@ -41,6 +41,8 @@ struct CpuFrame {
     uint16_t EXT, PREG, flags, m_libAddr;
     uint8_t  REG_ADDR, RAM_ADDR, RAM_OP, m_libAddrReadPos;
     uint8_t  dispFilter; ///< Display blanking filter counter (0–3; ≥3 = display blanked during compute)
+    uint8_t  displayOn;  ///< 1 when one or more digits or decimal dots are currently visible, else 0.
+    uint8_t  maxDigitDecay; ///< Maximum active digit afterglow counter across display positions (0..N).
 };
 
 // ── Debug event ───────────────────────────────────────────────────────────────

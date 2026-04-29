@@ -168,12 +168,14 @@ struct CPUInspectorView: View {
 
                             // Display state
                             inspectorSection(title: "DISPLAY STATE") {
-                                let displayOn = cpu.dispFilter < 3
+                                let displayOn = cpu.displayOn != 0
                                 VStack(alignment: .leading, spacing: 2) {
                                     HStack(spacing: 16) {
                                         Text("Filter: \(cpu.dispFilter)")
                                             .foregroundStyle(.white.opacity(0.85))
-                                        Text(displayOn ? "ON" : "BLANKED")
+                                        Text("Decay: \(cpu.maxDigitDecay)")
+                                            .foregroundStyle(.white.opacity(0.85))
+                                        Text(displayOn ? "ON" : "OFF")
                                             .foregroundStyle(displayOn ? Color.green.opacity(0.85) : Color.red.opacity(0.7))
                                         Spacer()
                                     }

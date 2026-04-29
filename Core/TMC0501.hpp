@@ -325,6 +325,8 @@ private:
                                              // Seeded when the position is actively driven (not suppressed) during IDLE scan.
     uint8_t  m_dpAfterglowCounters[12]{};    // Decimal-point afterglow counter per position.
                                              // Seeded only when R5 matches the currently strobed position.
+    bool     m_digitLitInLastStrobe[12]{};   // Per-position segment lit state from previous strobe.
+    bool     m_dpLitInLastStrobe[12]{};      // Per-position decimal-point lit state from previous strobe.
     uint8_t  m_currentDpPos{0};       // Live R5 DP position (updated per strobe capture)
     uint16_t m_digitSuppressedMask{0}; // Zero-suppression circuit output bitmask for indices 0..11.
     bool     m_zeroSuppressRunning{true}; // Scan-chain running state for leading-zero suppression.
@@ -332,9 +334,6 @@ private:
     uint8_t  m_dispFilter{};   // Counts digit-counter wrap-arounds since the last IDLE.
                                 // At 3, the display is blanked (CPU is busy computing).
 
-    // CPU-thread-private (no mutex): activity tracking for seeding afterglow at digit==0.
-    uint16_t m_digitActivityMask{0};  // Bit set for positions actively driven (segments lit path, not suppressed).
-    uint16_t m_dpActivityMask{0};     // Bit set for positions where R5 matched the current strobe digit.
     mutable std::atomic<uint32_t> m_cSteps{0};          // Steps (IDLE or non-IDLE) where fA≠0 since last getDisplay().
     mutable std::atomic<uint32_t> m_pollSteps{0};       // Weighted step count since last getDisplay() (non-IDLE=1, IDLE=4).
 
@@ -415,4 +414,7 @@ private:
 
     // Decode and execute all ALU-class opcodes (bits 12=0, hi nibble ∉ {0,8,A}).
     void execALU(uint16_t opcode);
+
+    // Compute trace-facing display state from per-position afterglow counters.
+    void computeDisplayTraceState(uint8_t& displayOn, uint8_t& maxDigitDecay) const;
 };
