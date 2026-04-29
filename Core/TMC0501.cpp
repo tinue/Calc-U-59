@@ -548,8 +548,11 @@ int TMC0501::step() {
         switch (opcode & 0x000Fu) {
 
         case 0x0:  // WAIT Dn — hold until digit counter == arg
-            // The counter is decremented before this test (see above), so the
-            // ROM encodes the target as n+1 (e.g. "WAIT D1" waits for digit 0).
+            // The counter is decremented before this test (see above). The ROM
+            // encodes the target as n+1: WAIT D1 fires when digit==1 so the
+            // *next* instruction runs at digit==0.  E.g. WAIT D1 + KEY FB
+            // samples key[0] (KP.D0).  WAIT D0 (encoded 0) wraps: fires at
+            // digit==15 (benign; not used meaningfully in TI-59 ROMs).
             if (digit != ((opcode >> 4) & 0x000Fu)) {
                 flags |= FLG_HOLD;
             }
@@ -855,9 +858,10 @@ int TMC0501::step() {
         // while digit n's LED strobe is active.
         //
         // The CPU-visible `digit` here is post-decrement state for the current
-        // instruction. Empirical timing (e.g. DPT.asm with WAIT D15) indicates the
-        // active display strobe aligns one slot behind that value, so use the
-        // effective strobe digit = (digit - 1) mod 16.
+        // instruction. The active LED strobe slot lags one step behind: when
+        // MOV R5,#N executes at digit D, the strobe lighting position D is
+        // already past; the segment driven now corresponds to D-1. Use
+        // strobeDigit = (digit-1) mod 16 to align R5 with the active strobe.
         uint8_t strobeDigit = digit ? static_cast<uint8_t>(digit - 1) : 15;
         if ((flags & FLG_IDLE) && strobeDigit >= 2 && strobeDigit <= 13 && R5 == strobeDigit) {
             m_dpActivityMask |= static_cast<uint16_t>(1u << (strobeDigit - 2));
