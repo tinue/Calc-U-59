@@ -314,16 +314,21 @@ private:
     mutable std::mutex                   m_prnMutex;
 
     // ── Display state (shared between CPU thread and UI thread) ───────
+    // Per-digit live buffers: updated during each digit's strobe phase when IDLE.
+    // getDisplay() reads these directly at query time (no stale batch snapshot).
     mutable std::mutex m_displayMutex;
-    DisplaySnapshot m_display{};       // Last stable snapshot, updated at digit=0 on SET IDLE.
+    uint8_t  m_digitSegmentsA[12]{};  // A[2..13] → m_digitSegmentsA[0..11] per strobe
+    uint8_t  m_digitSegmentsB[12]{};  // B[2..13] → m_digitSegmentsB[0..11] per strobe
+    uint8_t  m_digitAfterglowCounters[12]{}; // Unified 3-cycle afterglow counter per position (digit+DP combined).
+                                             // counter[i] → position (i+2); decrement each digit==0 cycle.
+                                             // Seeded to 3 when position captured during IDLE scan; zero = no afterglow.
+    uint8_t  m_currentDpPos{0};       // Live R5 DP position (updated per strobe capture)
+
     uint8_t  m_dispFilter{};   // Counts digit-counter wrap-arounds since the last IDLE.
                                 // At 3, the display is blanked (CPU is busy computing).
-    uint8_t  m_dpAfterglowCounters[12]{}; // Per-position afterglow counters for dp positions 2..13.
-                                          // counter[i] → position (i+2); decrement each digit==0 cycle.
-                                          // Seeded to 2 when dp position vacates; zero = no afterglow.
 
-    // CPU-thread-private (no mutex): decimal-point drive accumulator for the current scan cycle.
-    uint16_t m_dpActivityMask{0};    // Bit (pos-2) set for each position where R5==digit during this IDLE scan.
+    // CPU-thread-private (no mutex): digit activity tracking for seeding afterglow at digit==0.
+    uint16_t m_digitActivityMask{0};  // Bit (pos-2) set for each position where a strobe occurred during this IDLE scan.
     mutable std::atomic<uint32_t> m_cSteps{0};          // Steps (IDLE or non-IDLE) where fA≠0 since last getDisplay().
     mutable std::atomic<uint32_t> m_pollSteps{0};       // Weighted step count since last getDisplay() (non-IDLE=1, IDLE=4).
 
