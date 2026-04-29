@@ -1,4 +1,7 @@
 import SwiftUI
+#if os(macOS)
+import AppKit
+#endif
 
 @main
 struct CalcU59App: App {
@@ -24,6 +27,13 @@ struct CalcU59App: App {
         #if os(macOS)
         Settings {
             SettingsView()
+        }
+        .commands {
+            CommandGroup(replacing: .appInfo) {
+                Button("About Calc-U-59") {
+                    NSApp.orderFrontStandardAboutPanel(options: AppInfo.aboutPanelOptions)
+                }
+            }
         }
         #endif
     }
