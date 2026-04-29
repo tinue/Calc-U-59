@@ -949,7 +949,7 @@ int TMC0501::step() {
             // Seed segment afterglow for positions actively driven during this IDLE scan cycle.
             for (int i = 0; i < 12; ++i) {
                 if ((m_digitActivityMask >> i) & 1) {
-                    m_digitAfterglowCounters[i] = 3;
+                    m_digitAfterglowCounters[i] = 6;
                 }
                 if ((m_dpActivityMask >> i) & 1) {
                     m_dpAfterglowCounters[i] = 3;
