@@ -42,6 +42,21 @@ The app intentionally **caps Dynamic Type to .small ... .large** at the top of `
 - **Next statement**: Shows PC and mnemonic of next (not-yet-executed) statement, with empty/blank register state
 - **Bridge optimization**: Use `nonZeroDataRegisterIndices()` to fetch non-zero data registers in a single call, not 100 individual bridge calls per frame
 
+### IDLE/SCOM Synchronization (Hardware Detail)
+The SCOM chip (TMC0571) has its **own digit counter** that must be synchronized with the CPU's digit counter via the RUN→IDLE transition. Per hardware manual:
+
+> "Transition from RUN to IDLE mode is used to synchronize SCOM digit counter to CPU digit counter. If this instruction is not executed in the right digit cycle, digit counter in CPU and SCOM differ; display and keyboard results are unpredictable."
+
+The CPU must execute `WAIT D1` **before** `SET IDLE` to ensure both counters are at D1 when the transition occurs. If `SET IDLE` is issued at the wrong digit phase, display positions and keyboard rows become misaligned.
+
+**Emulator simplification:** The emulator does not explicitly model the SCOM's independent digit counter. Instead, it:
+- Assumes the ROM always uses the correct `WAIT D1` + `SET IDLE` pattern (verified in actual TI-59/58 ROM)
+- Seeds afterglow at digit==0 boundaries during IDLE, which naturally coincides with Display Mode multiplexing cycles (~4.5 ms per complete scan)
+- Approximates the dual-counter synchronization as a CPU-cycle-based model
+- Uses a "phase-independent snapshot" at digit==0, capturing the full A/B register arrays unconditionally
+
+This works for correctly-written ROM code but **cannot handle programs that intentionally misalign counters** (e.g., `examples/assembly/Decoder.asm`), which exploit phase-dependent display behavior. See `CPU_SCOM_Interconnect.md` for details on this known limitation.
+
 ### Mnemonics Workflow
 - **Single source of truth**: `tools/mnemonics.tsv`
 - **Python**: Auto-reads TSV at runtime (disasm.py, read_trace.py), no regeneration needed
