@@ -493,6 +493,7 @@ int TMC0501::step() {
         } else {
             addr++;
         }
+        postOperation();
         // TI-58C runs at constant speed; TI-59/58 slow to 1/4 speed during IDLE
         int w = ((flags & FLG_IDLE) && !hasConstantMemory(m_variant)) ? 4 : 1;
         if (tf != TRACE_NONE) [[unlikely]] { tracePostStep(tf, w); }
@@ -878,93 +879,7 @@ int TMC0501::step() {
         break;
     }
 
-    // ── Display snapshot / flicker filter ────────────────────────────
-    // Sampled once per full digit-counter cycle (at digit == 0).
-    // IDLE set:   reset filter and commit pending snapshot to the display buffer.
-    // IDLE clear: increment filter; at 3 counts getDisplay() will blank the LEDs,
-    //             reproducing the dark-display-during-computation hardware behaviour.
-
-    // ── Display state capture & afterglow ─────────────────────────────
-    // Per-digit strobe-latched capture: during IDLE, when each digit position
-    // is active (strobeDigit ∈ [2..13]), latch the corresponding segments and DP.
-    // DP activity is recorded only when R5 matches the strobe digit (for afterglow seeding at digit==0).
-
-        uint8_t strobeDigit = digit ? static_cast<uint8_t>(digit - 1) : 15;
-        if ((flags & FLG_IDLE) && strobeDigit >= 2 && strobeDigit <= 13) {
-            std::lock_guard<std::mutex> lock(m_displayMutex);
-
-            const int idx = static_cast<int>(strobeDigit - 2); // display index 0..11
-            const uint8_t a = static_cast<uint8_t>(A[strobeDigit] & 0x0F);
-            const uint8_t b = static_cast<uint8_t>(B[strobeDigit] & 0x0F);
-
-            m_currentDpPos = R5;
-
-            // Emulate zero-suppression circuit during scan: one digit decision per strobe.
-            // The scan order for visible digits is 13→...→2 (idx 11→...→0).
-            if (idx == 11) {
-                m_zeroSuppressRunning = true;
-            }
-            bool zero = m_zeroSuppressRunning;
-            const int dpDigitIndex = (R5 >= 2 && R5 <= 13) ? static_cast<int>(R5 - 2) : -1;
-
-            if (idx == 1 || dpDigitIndex == idx || b >= 8) {
-                zero = false;
-            }
-            if (idx == 0) {
-                zero = true;
-            }
-
-            const bool suppressed = (b == 7 || b == 3 || (b <= 4 && zero && a == 0));
-            if (suppressed) {
-                m_digitSuppressedMask |= static_cast<uint16_t>(1u << idx);
-            } else {
-                m_digitSuppressedMask &= static_cast<uint16_t>(~(1u << idx));
-            }
-
-            if (!suppressed && b <= 1 && a != 0) {
-                zero = false;
-            }
-            m_zeroSuppressRunning = zero;
-
-            // Segment visibility for this strobe: when lit, refresh this digit's decay and
-            // latch the current glyph. When removed (suppression/blank/space), start decay.
-            const bool emitsGlyph = (b == 0 || b == 1 || b == 5 || b == 6 || b == 8 || b == 9);
-            const bool litNow = (!suppressed && emitsGlyph);
-            const bool wasLit = m_digitLitInLastStrobe[idx];
-            if (litNow) {
-                m_digitSegmentsA[idx] = a;
-                m_digitSegmentsB[idx] = b;
-                m_digitAfterglowCounters[idx] = 6;
-            } else if (wasLit) {
-                m_digitAfterglowCounters[idx] = 6;
-            }
-            m_digitLitInLastStrobe[idx] = litNow;
-
-            // Decimal-point strobe: R5 indicates the currently driven dot position.
-            const bool dpLitNow = (R5 == strobeDigit);
-            const bool dpWasLit = m_dpLitInLastStrobe[idx];
-            if (dpLitNow || dpWasLit) {
-                m_dpAfterglowCounters[idx] = 3;
-            }
-            m_dpLitInLastStrobe[idx] = dpLitNow;
-        }
-
-    if (digit == 0) {
-        std::lock_guard<std::mutex> lock(m_displayMutex);
-        // Decay digit and DP afterglow counters once per full digit-counter cycle.
-        for (int i = 0; i < 12; ++i) {
-            if (m_digitAfterglowCounters[i] > 0) m_digitAfterglowCounters[i]--;
-            if (m_dpAfterglowCounters[i] > 0) m_dpAfterglowCounters[i]--;
-        }
-
-        if (flags & FLG_IDLE) {
-            m_dispFilter = 0;
-        } else {
-            if (m_dispFilter < 3) {
-                m_dispFilter++;
-            }
-        }
-    }
+    postOperation();
 
     // ── PREG redirect (after instruction execution) ───────────────────
     // If PREG is set (SET KR[1] was executed in the previous instruction),
@@ -1359,6 +1274,88 @@ void TMC0501::beginNextStep() {
     // Capture pre-execution snapshot for the instruction about to run.
     if (tf != TRACE_NONE) {
         tracePreStep(tf, m_pendingOpcode);
+    }
+}
+
+void TMC0501::postOperation() {
+    // ── Display state capture & afterglow ─────────────────────────────
+    // Per-digit strobe-latched capture: during IDLE, when each digit position
+    // is active (strobeDigit ∈ [2..13]), latch the corresponding segments and DP.
+    uint8_t strobeDigit = digit ? static_cast<uint8_t>(digit - 1) : 15;
+    if ((flags & FLG_IDLE) && strobeDigit >= 2 && strobeDigit <= 13) {
+        std::lock_guard<std::mutex> lock(m_displayMutex);
+
+        const int idx = static_cast<int>(strobeDigit - 2); // display index 0..11
+        const uint8_t a = static_cast<uint8_t>(A[strobeDigit] & 0x0F);
+        const uint8_t b = static_cast<uint8_t>(B[strobeDigit] & 0x0F);
+
+        m_currentDpPos = R5;
+
+        // Emulate zero-suppression circuit during scan: one digit decision per strobe.
+        // The scan order for visible digits is 13→...→2 (idx 11→...→0).
+        if (idx == 11) {
+            m_zeroSuppressRunning = true;
+        }
+        bool zero = m_zeroSuppressRunning;
+        const int dpDigitIndex = (R5 >= 2 && R5 <= 13) ? static_cast<int>(R5 - 2) : -1;
+
+        if (idx == 1 || dpDigitIndex == idx || b >= 8) {
+            zero = false;
+        }
+        if (idx == 0) {
+            zero = true;
+        }
+
+        const bool suppressed = (b == 7 || b == 3 || (b <= 4 && zero && a == 0));
+        if (suppressed) {
+            m_digitSuppressedMask |= static_cast<uint16_t>(1u << idx);
+        } else {
+            m_digitSuppressedMask &= static_cast<uint16_t>(~(1u << idx));
+        }
+
+        if (!suppressed && b <= 1 && a != 0) {
+            zero = false;
+        }
+        m_zeroSuppressRunning = zero;
+
+        // Segment visibility for this strobe: when lit, refresh this digit's decay and
+        // latch the current glyph. When removed (suppression/blank/space), start decay.
+        const bool emitsGlyph = (b == 0 || b == 1 || b == 5 || b == 6 || b == 8 || b == 9);
+        const bool litNow = (!suppressed && emitsGlyph);
+        const bool wasLit = m_digitLitInLastStrobe[idx];
+        if (litNow) {
+            m_digitSegmentsA[idx] = a;
+            m_digitSegmentsB[idx] = b;
+            m_digitAfterglowCounters[idx] = 6;
+        } else if (wasLit) {
+            m_digitAfterglowCounters[idx] = 6;
+        }
+        m_digitLitInLastStrobe[idx] = litNow;
+
+        // Decimal-point strobe: R5 indicates the currently driven dot position.
+        const bool dpLitNow = (R5 == strobeDigit);
+        const bool dpWasLit = m_dpLitInLastStrobe[idx];
+        if (dpLitNow || dpWasLit) {
+            m_dpAfterglowCounters[idx] = 3;
+        }
+        m_dpLitInLastStrobe[idx] = dpLitNow;
+    }
+
+    if (digit == 0) {
+        std::lock_guard<std::mutex> lock(m_displayMutex);
+        // Decay digit and DP afterglow counters once per full digit-counter cycle.
+        for (int i = 0; i < 12; ++i) {
+            if (m_digitAfterglowCounters[i] > 0) m_digitAfterglowCounters[i]--;
+            if (m_dpAfterglowCounters[i] > 0) m_dpAfterglowCounters[i]--;
+        }
+
+        if (flags & FLG_IDLE) {
+            m_dispFilter = 0;
+        } else {
+            if (m_dispFilter < 3) {
+                m_dispFilter++;
+            }
+        }
     }
 }
 

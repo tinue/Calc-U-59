@@ -415,6 +415,9 @@ private:
     // Decode and execute all ALU-class opcodes (bits 12=0, hi nibble ∉ {0,8,A}).
     void execALU(uint16_t opcode);
 
+    // Per-step post-execution work that must run for every instruction.
+    void postOperation();
+
     // Compute trace-facing display state from per-position afterglow counters.
     void computeDisplayTraceState(uint8_t& displayOn, uint8_t& maxDigitDecay) const;
 };
