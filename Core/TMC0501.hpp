@@ -26,6 +26,7 @@ struct DisplaySnapshot {
     uint16_t dpAfterglowMask{0};  ///< Bitmask of dp positions with active afterglow: bit (pos-2) for positions 2..13.
                                   ///< Includes the current dpPos plus any recently-vacated positions still glowing.
                                   ///< Zero when display is blanked (m_dispFilter ≥ 3).
+    uint16_t suppressedMask{0};   ///< Zero-suppression circuit output: bit i suppresses digit index i (0..11).
     float    calcIndicator{0.0f}; ///< fraction of the last poll interval where C LED was driven:
                                   ///<   RUN mode: any fA≠0; IDLE mode: fA bit 14 (SH pin, per HW guide). (0.0–1.0)
 };
@@ -319,16 +320,21 @@ private:
     mutable std::mutex m_displayMutex;
     uint8_t  m_digitSegmentsA[12]{};  // A[2..13] → m_digitSegmentsA[0..11] per strobe
     uint8_t  m_digitSegmentsB[12]{};  // B[2..13] → m_digitSegmentsB[0..11] per strobe
-    uint8_t  m_digitAfterglowCounters[12]{}; // Unified 3-cycle afterglow counter per position (digit+DP combined).
+    uint8_t  m_digitAfterglowCounters[12]{}; // Digit (segment) afterglow counter per position.
                                              // counter[i] → position (i+2); decrement each digit==0 cycle.
-                                             // Seeded to 3 when position captured during IDLE scan; zero = no afterglow.
+                                             // Seeded when the position is actively driven (not suppressed) during IDLE scan.
+    uint8_t  m_dpAfterglowCounters[12]{};    // Decimal-point afterglow counter per position.
+                                             // Seeded only when R5 matches the currently strobed position.
     uint8_t  m_currentDpPos{0};       // Live R5 DP position (updated per strobe capture)
+    uint16_t m_digitSuppressedMask{0}; // Zero-suppression circuit output bitmask for indices 0..11.
+    bool     m_zeroSuppressRunning{true}; // Scan-chain running state for leading-zero suppression.
 
     uint8_t  m_dispFilter{};   // Counts digit-counter wrap-arounds since the last IDLE.
                                 // At 3, the display is blanked (CPU is busy computing).
 
-    // CPU-thread-private (no mutex): digit activity tracking for seeding afterglow at digit==0.
-    uint16_t m_digitActivityMask{0};  // Bit (pos-2) set for each position where a strobe occurred during this IDLE scan.
+    // CPU-thread-private (no mutex): activity tracking for seeding afterglow at digit==0.
+    uint16_t m_digitActivityMask{0};  // Bit set for positions actively driven (segments lit path, not suppressed).
+    uint16_t m_dpActivityMask{0};     // Bit set for positions where R5 matched the current strobe digit.
     mutable std::atomic<uint32_t> m_cSteps{0};          // Steps (IDLE or non-IDLE) where fA≠0 since last getDisplay().
     mutable std::atomic<uint32_t> m_pollSteps{0};       // Weighted step count since last getDisplay() (non-IDLE=1, IDLE=4).
 

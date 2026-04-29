@@ -153,9 +153,13 @@ void TMC0501::reset() {
     memset(m_digitSegmentsA, 0, sizeof(m_digitSegmentsA));
     memset(m_digitSegmentsB, 0, sizeof(m_digitSegmentsB));
     memset(m_digitAfterglowCounters, 0, sizeof(m_digitAfterglowCounters));
+    memset(m_dpAfterglowCounters, 0, sizeof(m_dpAfterglowCounters));
     m_currentDpPos = 0;
+    m_digitSuppressedMask = 0;
+    m_zeroSuppressRunning = true;
     m_dispFilter = 0;
     m_digitActivityMask = 0;
+    m_dpActivityMask = 0;
     // Reset card state; caller (TI59Machine) re-presses the card-switch key.
     m_cardPresent    = false;
     m_waitingForCard = false;
@@ -302,6 +306,15 @@ DisplaySnapshot TMC0501::getDisplay() const {
         result.ctrl[i]   = m_digitSegmentsB[i] & 0x0F;
     }
     result.dpPos = m_currentDpPos;
+    uint16_t effectiveSuppressedMask = m_digitSuppressedMask;
+    // Honor segment afterglow: a recently-driven position should not be blanked
+    // immediately by zero suppression.
+    for (int i = 0; i < 12; ++i) {
+        if (m_digitAfterglowCounters[i] > 0) {
+            effectiveSuppressedMask &= static_cast<uint16_t>(~(1u << i));
+        }
+    }
+    result.suppressedMask = effectiveSuppressedMask;
 
     if (m_dispFilter >= 3) {
         // Blanked during computation: hide all segments and decimal-point dots.
@@ -309,12 +322,13 @@ DisplaySnapshot TMC0501::getDisplay() const {
         for (auto& ctrl : result.ctrl) ctrl = 7;
         result.dpPos = 0;
         result.dpAfterglowMask = 0;
+        result.suppressedMask = 0;
     } else {
         // Build decimal-point afterglow bitmask: bit (pos-2) for positions 2..13.
-        // Includes the current dpPos plus any positions with active afterglow counters (unified digit+DP).
+        // Includes the current dpPos plus any positions with active DP afterglow counters.
         uint16_t dpMask = 0;
         for (int i = 0; i < 12; ++i) {
-            if (m_digitAfterglowCounters[i] > 0) dpMask |= static_cast<uint16_t>(1u << i);
+            if (m_dpAfterglowCounters[i] > 0) dpMask |= static_cast<uint16_t>(1u << i);
         }
         uint8_t dp = result.dpPos;
         if (dp >= 2 && dp <= 13) dpMask |= static_cast<uint16_t>(1u << (dp - 2));
@@ -872,30 +886,73 @@ int TMC0501::step() {
 
         uint8_t strobeDigit = digit ? static_cast<uint8_t>(digit - 1) : 15;
         if ((flags & FLG_IDLE) && strobeDigit >= 2 && strobeDigit <= 13) {
+            std::lock_guard<std::mutex> lock(m_displayMutex);
+
+            const int idx = static_cast<int>(strobeDigit - 2); // display index 0..11
+            const uint8_t a = static_cast<uint8_t>(A[strobeDigit] & 0x0F);
+            const uint8_t b = static_cast<uint8_t>(B[strobeDigit] & 0x0F);
+
             // Capture full digit: A segments, B segments, DP position
-            m_digitSegmentsA[strobeDigit - 2] = A[strobeDigit];
-            m_digitSegmentsB[strobeDigit - 2] = B[strobeDigit];
+            m_digitSegmentsA[idx] = a;
+            m_digitSegmentsB[idx] = b;
             m_currentDpPos = R5;
-            // Mark this position as having active DP if R5 matches (for afterglow seeding at digit==0)
+
+            // Emulate zero-suppression circuit during scan: one digit decision per strobe.
+            // The scan order for visible digits is 13→...→2 (idx 11→...→0).
+            if (idx == 11) {
+                m_zeroSuppressRunning = true;
+            }
+            bool zero = m_zeroSuppressRunning;
+            const int dpDigitIndex = (R5 >= 2 && R5 <= 13) ? static_cast<int>(R5 - 2) : -1;
+
+            if (idx == 1 || dpDigitIndex == idx || b >= 8) {
+                zero = false;
+            }
+            if (idx == 0) {
+                zero = true;
+            }
+
+            const bool suppressed = (b == 7 || b == 3 || (b <= 4 && zero && a == 0));
+            if (suppressed) {
+                m_digitSuppressedMask |= static_cast<uint16_t>(1u << idx);
+            } else {
+                m_digitSuppressedMask &= static_cast<uint16_t>(~(1u << idx));
+            }
+
+            if (!suppressed && b <= 1 && a != 0) {
+                zero = false;
+            }
+            m_zeroSuppressRunning = zero;
+
+            // Track activity for afterglow seeding at digit==0.
+            if (!suppressed) {
+                m_digitActivityMask |= static_cast<uint16_t>(1u << idx);
+            }
+
+            // Mark this position as having active DP if R5 matches.
             if (R5 == strobeDigit) {
-                m_digitActivityMask |= static_cast<uint16_t>(1u << (strobeDigit - 2));
+                m_dpActivityMask |= static_cast<uint16_t>(1u << idx);
             }
         }
 
     if (digit == 0) {
-        // Decay all digit afterglow counters (unified digit+DP) at every digit-cycle,
-        // before any seeding so that a newly-captured position gets the full 3-cycle count.
+        std::lock_guard<std::mutex> lock(m_displayMutex);
+        // Decay digit and DP afterglow counters at every digit-cycle,
+        // before any seeding so newly-captured positions get the full 3-cycle count.
         for (int i = 0; i < 12; ++i) {
             if (m_digitAfterglowCounters[i] > 0) m_digitAfterglowCounters[i]--;
+            if (m_dpAfterglowCounters[i] > 0) m_dpAfterglowCounters[i]--;
         }
 
         if (flags & FLG_IDLE) {
             m_dispFilter = 0;
-            // Seed afterglow for every position that was captured (strobed) during this IDLE scan cycle.
-            // Activity is tracked in m_digitActivityMask (set during strobe capture phase).
+            // Seed segment afterglow for positions actively driven during this IDLE scan cycle.
             for (int i = 0; i < 12; ++i) {
                 if ((m_digitActivityMask >> i) & 1) {
-                    m_digitAfterglowCounters[i] = 3;  // Unified 3-cycle afterglow (digit + DP)
+                    m_digitAfterglowCounters[i] = 3;
+                }
+                if ((m_dpActivityMask >> i) & 1) {
+                    m_dpAfterglowCounters[i] = 3;
                 }
             }
         } else {
@@ -903,7 +960,8 @@ int TMC0501::step() {
                 m_dispFilter++;
             }
         }
-        m_digitActivityMask = 0;  // Reset activity tracking for next scan cycle
+        m_digitActivityMask = 0;
+        m_dpActivityMask = 0;
     }
 
     // ── PREG redirect (after instruction execution) ───────────────────

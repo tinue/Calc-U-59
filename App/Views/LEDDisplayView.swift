@@ -5,6 +5,7 @@ import SwiftUI
 struct LEDDisplayView: View, Equatable {
     let digits:    [UInt8]   // 12 elements: A[2..13]
     let ctrl:      [UInt8]   // 12 elements: B[2..13]
+    let suppressedMask: UInt16 // Bit i suppresses display index i (zero-suppression circuit from core)
     let dpPos:     UInt8
     let dpAfterglowMask: UInt16  // Bit (pos-2) for dp positions 2..13 that should be visible
     let calcIndicatorOpacity: Double
@@ -14,39 +15,6 @@ struct LEDDisplayView: View, Equatable {
         Canvas { ctx, size in
             let digitWidth = size.width / 12.0
             let height     = size.height
-
-            // Zero suppression — mirrors the TI-59 display driver's leading-zero blanking.
-            // Scan right-to-left (MSD→LSD, index 11→0); `zero` tracks whether all more-
-            // significant digits seen so far have been zero.
-            //
-            // A digit breaks the zero run (stays visible) when:
-            //   - it is at index 1 (the units column immediately left of the decimal point)
-            //   - it is the decimal-point column (dpPos - 2 == i)
-            //   - ctrl ≥ 8  (ROM-forced display, e.g. exponent digits in scientific notation)
-            //   - ctrl ≤ 1 and digit ≠ 0  (plain BCD digit mode, non-zero)
-            //
-            // Index 0 (leftmost — "C" annunciator position) always resets zero=true so that
-            // the digit just to its right is never suppressed by the annunciator slot itself.
-            //
-            // A digit is suppressed when:
-            //   - ctrl == 7 (blank) or ctrl == 3 (positive-sign placeholder)
-            //   - ctrl ≤ 4 and digit == 0 and zero == true  (leading zero)
-            var suppressed = [Bool](repeating: false, count: 12)
-            var zero = true
-            let dpPosInt = Int(dpPos)
-            let dpDigitIndex = dpPosInt >= 2 ? dpPosInt - 2 : -1
-            for i in stride(from: 11, through: 0, by: -1) {
-                if i == 1 || dpDigitIndex == i || ctrl[i] >= 8 {
-                    zero = false
-                }
-                if i == 0 { zero = true }
-                if ctrl[i] == 7 || ctrl[i] == 3
-                    || (ctrl[i] <= 4 && zero && digits[i] == 0) {
-                    suppressed[i] = true
-                } else if ctrl[i] <= 1 && digits[i] != 0 {
-                    zero = false
-                }
-            }
 
             // Compute slant once, reuse for all digits
             let slant: CGFloat = (fontStyle == .modernized) ? 0.14 : 0.1139
@@ -61,8 +29,8 @@ struct LEDDisplayView: View, Equatable {
                     segs = segmentsC
                     cOpacity = calcIndicatorOpacity
                 } else {
-                    let ch = suppressed[i] ? DisplayChar.space
-                                           : displayChar(digit: digits[i], ctrl: ctrl[i])
+                    let isSuppressed = ((suppressedMask >> i) & 1) == 1
+                    let ch = isSuppressed ? DisplayChar.space : displayChar(digit: digits[i], ctrl: ctrl[i])
                     segs = segmentMask(for: ch)
                     cOpacity = 1.0
                 }
@@ -307,6 +275,7 @@ struct LEDDisplayView: View, Equatable {
     LEDDisplayView(
         digits:        [8,8,8,8,8,8,8,8,8,8,8,8],
         ctrl:          [0,0,0,0,0,0,0,0,0,0,0,0],
+        suppressedMask: 0,
         dpPos:         4,
         dpAfterglowMask: 0b0000_0000_0000_1100,  // positions 2 & 3 lit
         calcIndicatorOpacity: 1.0,

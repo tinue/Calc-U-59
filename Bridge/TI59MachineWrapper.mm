@@ -74,6 +74,7 @@ static const int kbits[] = {0, 1, 2, 3, 5, 6};  // index 0 unused; index col
     memcpy(out.ctrl,   s.ctrl,   sizeof(out.ctrl));
     out.dpPos            = s.dpPos;
     out.dpAfterglowMask  = s.dpAfterglowMask;
+    out.suppressedMask   = s.suppressedMask;
     out.calcIndicator    = s.calcIndicator;
     return out;
 }

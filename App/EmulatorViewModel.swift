@@ -28,6 +28,7 @@ enum DebugLevel: Int, Comparable {
 class EmulatorViewModel {
     var displayDigits: [UInt8]  = Array(repeating: 0, count: 12)
     var displayCtrl:   [UInt8]  = Array(repeating: 0, count: 12)
+    var displaySuppressedMask: UInt16 = 0
     var dpPos:          UInt8   = 0
     var dpAfterglowMask: UInt16 = 0  // Bit (pos-2) set for each dp position 2..13 with active afterglow
     var calcIndicatorOpacity: Double = 0.0
@@ -356,6 +357,7 @@ class EmulatorViewModel {
         if !shouldFreeze {
             if displayDigits    != d               { displayDigits    = d }
             if displayCtrl      != c               { displayCtrl      = c }
+            if displaySuppressedMask != snap.suppressedMask { displaySuppressedMask = snap.suppressedMask }
             if dpPos            != snap.dpPos      { dpPos            = snap.dpPos }
             if dpAfterglowMask  != snap.dpAfterglowMask { dpAfterglowMask = snap.dpAfterglowMask }
         }
