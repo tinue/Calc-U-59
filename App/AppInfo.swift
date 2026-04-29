@@ -17,6 +17,10 @@ enum AppInfo {
         "Version: \(marketingVersion) (\(buildNumber))"
     }
 
+    static var versionNumberString: String {
+        "\(marketingVersion) (\(buildNumber))"
+    }
+
     // Mirrors text from appstore/metadata/subtitle.txt
     static let subtitle = "Calc-U-59 Calculator Emulation"
 

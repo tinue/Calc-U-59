@@ -22,7 +22,7 @@ struct SettingsView: View {
     var body: some View {
         #if os(macOS)
         settingsForm
-            .frame(width: 400)
+            .frame(minWidth: 460, minHeight: 540)
             .padding()
         #else
         NavigationStack {
@@ -60,6 +60,22 @@ struct SettingsView: View {
                     }
                 }
                 #endif
+
+                HStack {
+                    Text("Version")
+                    Spacer()
+                    Text(AppInfo.versionNumberString)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Section("About") {
+                HStack {
+                    Text("App")
+                    Spacer()
+                    Text(AppInfo.subtitle)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             Section("Display") {
