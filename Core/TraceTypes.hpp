@@ -27,6 +27,7 @@ struct CpuFrame {
     uint16_t pc;
     uint16_t opcode;
     uint8_t  digit;
+    uint8_t  postDigit;   // Digit counter in post-operation state (after executed instruction)
     uint8_t  cycleWeight;
 
     // Light registers (captured when TRACE_REGS_LIGHT is set)

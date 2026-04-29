@@ -136,6 +136,7 @@ struct CPUInspectorView: View {
                             inspectorSection(title: "CONTROL REGISTERS") {
                                 let cond = (cpu.flags & 0x0800) != 0 ? 1 : 0
                                 let idle = (cpu.flags & 0x0001) != 0 ? 1 : 0
+                                let postDigit = Int(cpu.postDigit)
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text("KR: \(String(format: "%04X", cpu.KR)) [\(bin16(cpu.KR))]")
                                         .foregroundStyle(.white.opacity(0.85))
@@ -151,10 +152,12 @@ struct CPUInspectorView: View {
                                         Spacer()
                                     }
                                     HStack(spacing: 16) {
-                                        Text("COND:\(cond)")
+                                        Text(String(format: "COND: %d", cond))
                                             .foregroundStyle(cond == 1 ? Color.yellow.opacity(0.4) : Color.yellow)
-                                        Text("IDLE:\(idle)")
+                                        Text(String(format: "IDLE: %d", idle))
                                             .foregroundStyle(idle == 1 ? .white : .white.opacity(0.45))
+                                        Text(String(format: "DIGIT: %2d", postDigit))
+                                            .foregroundStyle(.white.opacity(0.85))
                                         Spacer()
                                     }
                                 }

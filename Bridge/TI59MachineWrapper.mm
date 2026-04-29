@@ -218,6 +218,7 @@ static TICpuFrame marshalCpuFrame(const CpuFrame& f) {
     frame.pc = f.pc;
     frame.opcode = f.opcode;
     frame.digit = f.digit;
+    frame.postDigit = f.postDigit;
     frame.cycleWeight = f.cycleWeight;
     // Light registers
     frame.KR = f.KR; frame.SR = f.SR; frame.fA = f.fA; frame.fB = f.fB;
@@ -343,6 +344,7 @@ static TICpuFrame marshalCpuFrame(const CpuFrame& f) {
     out.pc = frame.pc;
     out.opcode = frame.opcode;
     out.digit = frame.digit;
+    out.postDigit = frame.postDigit;
     out.cycleWeight = frame.cycleWeight;
     out.KR = frame.KR; out.SR = frame.SR; out.fA = frame.fA; out.fB = frame.fB;
     out.cpuFlags = frame.cpuFlags;

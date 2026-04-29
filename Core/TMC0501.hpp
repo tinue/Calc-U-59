@@ -322,9 +322,8 @@ private:
                                           // counter[i] → position (i+2); decrement each digit==0 cycle.
                                           // Seeded to 2 when dp position vacates; zero = no afterglow.
 
-    // CPU-thread-private (no mutex): track inter-digit R5 dp changes for the DPT scan pattern.
-    uint8_t  m_prevR5dp{0};          // R5 dp nibble seen at end of previous step().
-    uint16_t m_dpActivityMask{0};    // Bits set for each dp position R5 vacated since last digit==0.
+    // CPU-thread-private (no mutex): decimal-point drive accumulator for the current scan cycle.
+    uint16_t m_dpActivityMask{0};    // Bit (pos-2) set for each position where R5==digit during this IDLE scan.
     mutable std::atomic<uint32_t> m_cSteps{0};          // Steps (IDLE or non-IDLE) where fA≠0 since last getDisplay().
     mutable std::atomic<uint32_t> m_pollSteps{0};       // Weighted step count since last getDisplay() (non-IDLE=1, IDLE=4).
 

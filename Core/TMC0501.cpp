@@ -152,7 +152,6 @@ void TMC0501::reset() {
     m_display = {};
     m_dispFilter = 0;
     memset(m_dpAfterglowCounters, 0, sizeof(m_dpAfterglowCounters));
-    m_prevR5dp = 0;
     m_dpActivityMask = 0;
     // Reset card state; caller (TI59Machine) re-presses the card-switch key.
     m_cardPresent    = false;
@@ -852,20 +851,16 @@ int TMC0501::step() {
     // IDLE clear: increment filter; at 3 counts getDisplay() will blank the LEDs,
     //             reproducing the dark-display-during-computation hardware behaviour.
 
-        // Track dp-nibble transitions only while IDLE is active.
-        // In RUN mode, decimal-point location must not move or add new dots.
-        {
-            uint8_t curR5dp = R5 & 0x0F;
-            if (flags & FLG_IDLE) {
-                if (curR5dp != m_prevR5dp) {
-                    if (m_prevR5dp >= 2 && m_prevR5dp <= 13) {
-                        m_dpActivityMask |= static_cast<uint16_t>(1u << (m_prevR5dp - 2));
-                    }
-                    m_prevR5dp = curR5dp;
-                }
-            } else {
-                m_prevR5dp = curR5dp;
-            }
+        // Phase-accurate decimal-point drive: position n is lit only when R5 == n
+        // while digit n's LED strobe is active.
+        //
+        // The CPU-visible `digit` here is post-decrement state for the current
+        // instruction. Empirical timing (e.g. DPT.asm with WAIT D15) indicates the
+        // active display strobe aligns one slot behind that value, so use the
+        // effective strobe digit = (digit - 1) mod 16.
+        uint8_t strobeDigit = digit ? static_cast<uint8_t>(digit - 1) : 15;
+        if ((flags & FLG_IDLE) && strobeDigit >= 2 && strobeDigit <= 13 && R5 == strobeDigit) {
+            m_dpActivityMask |= static_cast<uint16_t>(1u << (strobeDigit - 2));
         }
 
     if (digit == 0) {
@@ -882,9 +877,8 @@ int TMC0501::step() {
 
             uint8_t newDpPos = R5 & 0x0F;
 
-            // Seed all positions visited and vacated since the last digit==0 boundary.
-            // This captures DPT round-robin patterns where R5 changes every instruction
-            // but may return to one endpoint before sampling.
+            // Seed afterglow for every dp position that was actively driven
+            // (R5 == digit) during this scan cycle.
             for (int i = 0; i < 12; ++i) {
                 if ((m_dpActivityMask >> i) & 1) {
                     m_dpAfterglowCounters[i] = 2;
@@ -1268,6 +1262,7 @@ void TMC0501::beginNextStep() {
             prev.fB       = fB;
             prev.cpuFlags = flags;
             prev.R5       = R5;
+            prev.postDigit = digit;
         }
         if (tf & TRACE_REGS_FULL) {
             memcpy(prev.A,    A,    16);
@@ -1284,6 +1279,7 @@ void TMC0501::beginNextStep() {
             prev.m_libAddrReadPos = m_libAddrReadPos;
             prev.R5 = R5;
             prev.digit = digit;
+            prev.postDigit = digit;
             prev.REG_ADDR = REG_ADDR;
             prev.RAM_ADDR = RAM_ADDR;
             prev.RAM_OP = RAM_OP;
@@ -1346,6 +1342,7 @@ void TMC0501::tracePreStep(uint32_t tf, uint16_t opcode) {
         frame.EXT = EXT; frame.PREG = PREG; frame.flags = flags;
         frame.m_libAddr = m_libAddr; frame.m_libAddrReadPos = m_libAddrReadPos;
         frame.digit = digit;
+        frame.postDigit = digit;
         frame.REG_ADDR = REG_ADDR; frame.RAM_ADDR = RAM_ADDR; frame.RAM_OP = RAM_OP;
         frame.dispFilter = m_dispFilter;
     }
@@ -1364,6 +1361,7 @@ void TMC0501::tracePostStep(uint32_t tf, int weight) {
     // Identity fields only known after execution
     frame.seqno       = m_traceSeqno++;
     frame.digit       = digit;
+    frame.postDigit   = digit;
     frame.cycleWeight = static_cast<uint8_t>(weight);
 
     m_frameHead++;
@@ -1437,6 +1435,7 @@ CpuFrame TMC0501::snapshotCPU() const {
     frame.pc = addr;
     frame.opcode = rom.read(addr);
     frame.digit = digit;
+    frame.postDigit = digit;
     frame.cycleWeight = 0;
 
     // Light registers
