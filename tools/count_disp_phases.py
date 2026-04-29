@@ -36,9 +36,7 @@ def analyze_phases(path, show_raw=True, show_visible=True):
     states = []
     cycle_weights = []
     for trace in traces:
-        display_on = trace.get('displayOn')
-        if display_on is None:
-            display_on = 0 if trace['dispFilter'] >= 3 else 1
+        display_on = trace.get('displayOn', 0 if trace['dispFilter'] >= 3 else 1)
         state = 'ON' if display_on else 'OFF'
         states.append(state)
         cycle_weights.append(trace['cycleWeight'])

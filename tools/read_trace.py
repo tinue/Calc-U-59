@@ -47,6 +47,10 @@ BANNER = '-' * 80
 
 # ── Low-level reader ──────────────────────────────────────────────────────────
 
+def _display_on_from_record(rec):
+    """Get displayOn status, with fallback for legacy traces (dispFilter-based)."""
+    return rec.get('displayOn', 0 if rec['dispFilter'] >= 3 else 1)
+
 def _read_exact(f, n):
     data = f.read(n)
     if len(data) != n:
@@ -88,7 +92,8 @@ def _parse_trace_event(payload):
          EXT, PREG, cpu_flags, m_libAddr, R5, digit,
          RAM_ADDR, RAM_OP, REG_ADDR, m_libAddrReadPos, cycle_weight, dispFilter) = struct.unpack_from(
             '<IIHHHHHHHHHH BBBBBBBB', payload, 0)
-        displayOn = 0 if dispFilter >= 3 else 1
+        # Will reconstruct displayOn from dispFilter via _display_on_from_record()
+        displayOn = 0  # placeholder (computed after dict construction)
         maxDigitDecay = dispFilter
         off = 36
 
@@ -250,7 +255,7 @@ def _format_trace_record(rec, trace_number=None):
              f"IO={rec['IO']}")
     rom_str = rec.get('ROM', '0000')
     # New traces carry displayOn explicitly; old traces derive it from dispFilter.
-    disp_status = "ON" if rec.get('displayOn', 0 if rec['dispFilter'] >= 3 else 1) else "OFF"
+    disp_status = "ON" if _display_on_from_record(rec) else "OFF"
     decay = rec.get('maxDigitDecay', rec['dispFilter'])
     line4 = (f"FB={rec['fB']} [{_bin16(int(rec['fB'],16))}] "
              f"SR={rec['SR']} R5={rec['R5']} ROM={rom_str} PREG={rec['PREG']} "
@@ -283,7 +288,7 @@ def _apply_color(formatted, rec, color):
     if not color:
         return formatted
 
-    disp_status = "ON" if rec.get('displayOn', 0 if rec['dispFilter'] >= 3 else 1) else "OFF"
+    disp_status = "ON" if _display_on_from_record(rec) else "OFF"
     idle = rec['IDLE'] == '1'
 
     if idle and disp_status == "ON":

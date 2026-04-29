@@ -42,7 +42,7 @@ extension AppInfo {
         ]
     }
 
-    private static var aboutCredits: NSAttributedString {
+    private static let aboutCredits: NSAttributedString = {
         let text = NSMutableAttributedString()
 
         let centered = NSMutableParagraphStyle()
@@ -70,7 +70,7 @@ extension AppInfo {
         text.append(linkLine(title: "Privacy", urlString: privacyURL, paragraph: centered))
 
         return text
-    }
+    }()
 
     private static func linkLine(title: String, urlString: String, paragraph: NSParagraphStyle) -> NSAttributedString {
         guard let url = URL(string: urlString) else {

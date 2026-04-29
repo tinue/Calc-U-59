@@ -943,9 +943,7 @@ int TMC0501::step() {
             // Decimal-point strobe: R5 indicates the currently driven dot position.
             const bool dpLitNow = (R5 == strobeDigit);
             const bool dpWasLit = m_dpLitInLastStrobe[idx];
-            if (dpLitNow) {
-                m_dpAfterglowCounters[idx] = 3;
-            } else if (dpWasLit) {
+            if (dpLitNow || dpWasLit) {
                 m_dpAfterglowCounters[idx] = 3;
             }
             m_dpLitInLastStrobe[idx] = dpLitNow;

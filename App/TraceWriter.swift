@@ -269,7 +269,7 @@ final class TraceWriter {
             d.append(lo | (hi << 4))
         }
 
-        assert(d.count == 124)
+        assert(d.count == 126)
         return d
     }
 

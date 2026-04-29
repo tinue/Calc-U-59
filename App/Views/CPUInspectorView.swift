@@ -152,9 +152,9 @@ struct CPUInspectorView: View {
                                         Spacer()
                                     }
                                     HStack(spacing: 16) {
-                                        Text(String(format: "COND: %d", cond))
+                                        Text("COND: \(cond)")
                                             .foregroundStyle(cond == 1 ? Color.yellow.opacity(0.4) : Color.yellow)
-                                        Text(String(format: "IDLE: %d", idle))
+                                        Text("IDLE: \(idle)")
                                             .foregroundStyle(idle == 1 ? .white : .white.opacity(0.45))
                                         Text(String(format: "DIGIT: %2d", postDigit))
                                             .foregroundStyle(.white.opacity(0.85))
