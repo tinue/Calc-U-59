@@ -42,7 +42,6 @@ typedef struct {
     uint8_t  Sout[16];
     uint16_t EXT, PREG, flags, m_libAddr;
     uint8_t  REG_ADDR, RAM_ADDR, RAM_OP, m_libAddrReadPos;
-    uint8_t  dispFilter;
     uint8_t  displayOn;
     uint8_t  maxDigitDecay;
 } TICpuFrame;

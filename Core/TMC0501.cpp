@@ -148,7 +148,7 @@ void TMC0501::reset() {
     m_libAddrWasWriting = false;
     R5 = digit = RAM_ADDR = RAM_OP = REG_ADDR = 0;
     addr  = 0;
-    flags = FLG_COND | FLG_DISP;  // COND starts true; display active
+    flags = FLG_COND;  // COND starts true; display active
     // Initialize per-digit live buffers
     memset(m_digitSegmentsA, 0, sizeof(m_digitSegmentsA));
     memset(m_digitSegmentsB, 0, sizeof(m_digitSegmentsB));
@@ -159,7 +159,6 @@ void TMC0501::reset() {
     m_currentDpPos = 0;
     m_digitSuppressedMask = 0;
     m_zeroSuppressRunning = true;
-    m_dispFilter = 0;
     // Reset card state; caller (TI59Machine) re-presses the card-switch key.
     m_cardPresent    = false;
     m_waitingForCard = false;
@@ -1245,7 +1244,6 @@ void TMC0501::beginNextStep() {
             prev.cpuFlags = flags;
             prev.R5       = R5;
             prev.postDigit = digit;
-            prev.dispFilter = m_dispFilter;
         }
         if (tf & TRACE_REGS_FULL) {
             memcpy(prev.A,    A,    16);
@@ -1266,7 +1264,6 @@ void TMC0501::beginNextStep() {
             prev.REG_ADDR = REG_ADDR;
             prev.RAM_ADDR = RAM_ADDR;
             prev.RAM_OP = RAM_OP;
-            prev.dispFilter = m_dispFilter;
         }
         computeDisplayTraceState(prev.displayOn, prev.maxDigitDecay);
     }
@@ -1364,13 +1361,6 @@ void TMC0501::postOperation() {
             if (m_dpAfterglowCounters[i] > 0) m_dpAfterglowCounters[i]--;
         }
 
-        if (flags & FLG_IDLE) {
-            m_dispFilter = 0;
-        } else {
-            if (m_dispFilter < 3) {
-                m_dispFilter++;
-            }
-        }
     }
 }
 
@@ -1409,7 +1399,6 @@ void TMC0501::tracePreStep(uint32_t tf, uint16_t opcode) {
         frame.fB       = fB;
         frame.cpuFlags = flags;
         frame.R5       = R5;
-        frame.dispFilter = m_dispFilter;
         computeDisplayTraceState(frame.displayOn, frame.maxDigitDecay);
     }
 
@@ -1427,7 +1416,6 @@ void TMC0501::tracePreStep(uint32_t tf, uint16_t opcode) {
         frame.digit = digit;
         frame.postDigit = digit;
         frame.REG_ADDR = REG_ADDR; frame.RAM_ADDR = RAM_ADDR; frame.RAM_OP = RAM_OP;
-        frame.dispFilter = m_dispFilter;
     }
 }
 
@@ -1547,7 +1535,6 @@ CpuFrame TMC0501::snapshotCPU() const {
     frame.RAM_ADDR = RAM_ADDR;
     frame.RAM_OP = RAM_OP;
     frame.m_libAddrReadPos = m_libAddrReadPos;
-    frame.dispFilter = m_dispFilter;
     computeDisplayTraceState(frame.displayOn, frame.maxDigitDecay);
 
     return frame;

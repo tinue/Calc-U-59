@@ -32,11 +32,10 @@ def analyze_phases(path, show_raw=True, show_visible=True):
         print("No trace events found")
         return
 
-    # Prefer explicit displayOn (new traces); fallback to dispFilter for older traces.
     states = []
     cycle_weights = []
     for trace in traces:
-        display_on = trace.get('displayOn', 0 if trace['dispFilter'] >= 3 else 1)
+        display_on = _display_on_from_record(trace)
         state = 'ON' if display_on else 'OFF'
         states.append(state)
         cycle_weights.append(trace['cycleWeight'])

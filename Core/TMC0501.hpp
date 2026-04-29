@@ -25,7 +25,7 @@ struct DisplaySnapshot {
     uint8_t  dpPos{0};            ///< R5 — decimal-point position within the mantissa (0 = none, 2–13 valid)
     uint16_t dpAfterglowMask{0};  ///< Bitmask of dp positions with active afterglow: bit (pos-2) for positions 2..13.
                                   ///< Includes the current dpPos plus any recently-vacated positions still glowing.
-                                  ///< Zero when display is blanked (m_dispFilter ≥ 3).
+                                  ///< Zero when no afterglow counter is active.
     uint16_t suppressedMask{0};   ///< Zero-suppression circuit output: bit i suppresses digit index i (0..11).
     float    calcIndicator{0.0f}; ///< fraction of the last poll interval where C LED was driven:
                                   ///<   RUN mode: any fA≠0; IDLE mode: fA bit 14 (SH pin, per HW guide). (0.0–1.0)
@@ -74,7 +74,6 @@ enum : uint16_t {
     FLG_COND      = 0x0800, // ← bit 11 — must match opcode bit 11 for the jump test
 
     // ── Miscellaneous ───────────────────────────────────────────────────
-    FLG_DISP      = 0x1000, // Display active flag (set at reset alongside FLG_COND).
     FLG_BUSY      = 0x8000, // Printer / peripheral busy signal; tested by TST BUSY.
 };
 
@@ -334,8 +333,6 @@ private:
     uint16_t m_digitSuppressedMask{0}; // Zero-suppression circuit output bitmask for indices 0..11.
     bool     m_zeroSuppressRunning{true}; // Scan-chain running state for leading-zero suppression.
 
-    uint8_t  m_dispFilter{};   // Counts digit-counter wrap-arounds since the last IDLE.
-                                // At 3, the display is blanked (CPU is busy computing).
 
     mutable std::atomic<uint32_t> m_cSteps{0};          // Steps (IDLE or non-IDLE) where fA≠0 since last getDisplay().
     mutable std::atomic<uint32_t> m_pollSteps{0};       // Weighted step count since last getDisplay() (non-IDLE=1, IDLE=4).

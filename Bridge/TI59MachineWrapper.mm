@@ -236,7 +236,6 @@ static TICpuFrame marshalCpuFrame(const CpuFrame& f) {
     frame.m_libAddr = f.m_libAddr;
     frame.REG_ADDR = f.REG_ADDR; frame.RAM_ADDR = f.RAM_ADDR; frame.RAM_OP = f.RAM_OP;
     frame.m_libAddrReadPos = f.m_libAddrReadPos;
-    frame.dispFilter = f.dispFilter;
     frame.displayOn = f.displayOn;
     frame.maxDigitDecay = f.maxDigitDecay;
     return frame;
@@ -360,7 +359,6 @@ static TICpuFrame marshalCpuFrame(const CpuFrame& f) {
     out.m_libAddr = frame.m_libAddr;
     out.REG_ADDR = frame.REG_ADDR; out.RAM_ADDR = frame.RAM_ADDR; out.RAM_OP = frame.RAM_OP;
     out.m_libAddrReadPos = frame.m_libAddrReadPos;
-    out.dispFilter = frame.dispFilter;
     return out;
 }
 

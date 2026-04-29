@@ -48,8 +48,8 @@ BANNER = '-' * 80
 # ── Low-level reader ──────────────────────────────────────────────────────────
 
 def _display_on_from_record(rec):
-    """Get displayOn status, with fallback for legacy traces (dispFilter-based)."""
-    return rec.get('displayOn', 0 if rec['dispFilter'] >= 3 else 1)
+    """Get displayOn status from the trace record."""
+    return rec.get('displayOn', 0)
 
 def _read_exact(f, n):
     data = f.read(n)
@@ -71,30 +71,30 @@ def _parse_trace_event(payload):
     Supports both legacy v1 payloads (124 bytes) and extended payloads (126 bytes)
     that include displayOn/maxDigitDecay.
     """
-    if len(payload) not in (124, 126):
-        raise ValueError(f"TRACE_EVENT payload length {len(payload)}, expected 124 or 126")
+    if len(payload) not in (124, 125):
+        raise ValueError(f"TRACE_EVENT payload length {len(payload)}, expected 124 or 125")
 
-    if len(payload) == 126:
+    if len(payload) == 125:
         # Fixed fields (38 bytes)
         # Unpacks: suppressed(4) + seqno(4) + pc(2) + opcode(2) + fA(2) + fB(2) + KR(2) + SR(2) +
         #          EXT(2) + PREG(2) + flags(2) + m_libAddr(2) + R5(1) + digit(1) + RAM_ADDR(1) +
-        #          RAM_OP(1) + REG_ADDR(1) + m_libAddrReadPos(1) + cycle_weight(1) + dispFilter(1) +
-        #          displayOn(1) + maxDigitDecay(1) = 38 bytes
+        #          RAM_OP(1) + REG_ADDR(1) + m_libAddrReadPos(1) + cycle_weight(1) +
+        #          displayOn(1) + maxDigitDecay(1) = 37 bytes
         (suppressed, seqno, pc, opcode, fA, fB, KR, SR,
          EXT, PREG, cpu_flags, m_libAddr, R5, digit,
-         RAM_ADDR, RAM_OP, REG_ADDR, m_libAddrReadPos, cycle_weight, dispFilter,
+         RAM_ADDR, RAM_OP, REG_ADDR, m_libAddrReadPos, cycle_weight,
          displayOn, maxDigitDecay) = struct.unpack_from(
-            '<IIHHHHHHHHHH BBBBBBBBBB', payload, 0)
-        off = 38
+            '<IIHHHHHHHHHH BBBBBBBBB', payload, 0)
+        off = 37
     else:
         # Legacy fixed fields (36 bytes)
         (suppressed, seqno, pc, opcode, fA, fB, KR, SR,
          EXT, PREG, cpu_flags, m_libAddr, R5, digit,
-         RAM_ADDR, RAM_OP, REG_ADDR, m_libAddrReadPos, cycle_weight, dispFilter) = struct.unpack_from(
+         RAM_ADDR, RAM_OP, REG_ADDR, m_libAddrReadPos, cycle_weight, _dispFilter) = struct.unpack_from(
             '<IIHHHHHHHHHH BBBBBBBB', payload, 0)
-        # Will reconstruct displayOn from dispFilter via _display_on_from_record()
-        displayOn = 0  # placeholder (computed after dict construction)
-        maxDigitDecay = dispFilter
+        # Legacy: derive displayOn from _dispFilter
+        displayOn = 0 if _dispFilter >= 3 else 1
+        maxDigitDecay = _dispFilter
         off = 36
 
     # A–E registers: 16 unpacked nibbles each (index 0 = LSN)
@@ -132,7 +132,6 @@ def _parse_trace_event(payload):
         'cpuFlags':     cpu_flags,
         'COND':         str(cond),
         'IDLE':         str(idle),
-        'dispFilter':   dispFilter,
         'displayOn':    1 if displayOn else 0,
         'maxDigitDecay': maxDigitDecay,
         'R5':           f'{R5:X}',
@@ -254,15 +253,14 @@ def _format_trace_record(rec, trace_number=None):
              f"EXT={rec['EXT']} COND={rec['COND']} IDLE={rec['IDLE']} "
              f"IO={rec['IO']}")
     rom_str = rec.get('ROM', '0000')
-    # New traces carry displayOn explicitly; old traces derive it from dispFilter.
     disp_status = "ON" if _display_on_from_record(rec) else "OFF"
-    decay = rec.get('maxDigitDecay', rec['dispFilter'])
+    decay = rec.get('maxDigitDecay', 0)
     line4 = (f"FB={rec['fB']} [{_bin16(int(rec['fB'],16))}] "
              f"SR={rec['SR']} R5={rec['R5']} ROM={rom_str} PREG={rec['PREG']} "
              f"RAMOP={ramop_str} RAMREG={rec['RAM_ADDR']:03d} "
              f"ROMREG={rec['REG_ADDR']:02d}")
 
-    line5 = f"DISPLAY={disp_status} DECAY={decay} FILTER={rec['dispFilter']}"
+    line5 = f"DISPLAY={disp_status} DECAY={decay}"
 
     if trace_number is not None:
         trace_num_str = f"{trace_number:>8d}"
