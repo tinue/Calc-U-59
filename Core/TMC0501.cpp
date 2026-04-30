@@ -1338,9 +1338,9 @@ void TMC0501::postOperation() {
         if (litNow) {
             m_digitSegmentsA[idx] = a;
             m_digitSegmentsB[idx] = b;
-            m_digitAfterglowCounters[idx] = 6;
+            m_digitAfterglowCounters[idx] = 4;
         } else if (wasLit) {
-            m_digitAfterglowCounters[idx] = 6;
+            m_digitAfterglowCounters[idx] = 4;
         }
         m_digitLitInLastStrobe[idx] = litNow;
 
