@@ -1274,6 +1274,8 @@ void TMC0501::beginNextStep() {
     }
 }
 
+static constexpr uint8_t kAfterglowRefresh = 4;
+
 void TMC0501::postOperation() {
     // ── Per-step display capture & decay ────────────────────────────────────
     // Must run after every instruction because each cycles the digit counter (see line 462).
@@ -1338,9 +1340,9 @@ void TMC0501::postOperation() {
         if (litNow) {
             m_digitSegmentsA[idx] = a;
             m_digitSegmentsB[idx] = b;
-            m_digitAfterglowCounters[idx] = 4;
-        } else if (wasLit) {
-            m_digitAfterglowCounters[idx] = 4;
+        }
+        if (litNow || wasLit) {
+            m_digitAfterglowCounters[idx] = kAfterglowRefresh;
         }
         m_digitLitInLastStrobe[idx] = litNow;
 
@@ -1348,14 +1350,15 @@ void TMC0501::postOperation() {
         const bool dpLitNow = (R5 == strobeDigit);
         const bool dpWasLit = m_dpLitInLastStrobe[idx];
         if (dpLitNow || dpWasLit) {
-            m_dpAfterglowCounters[idx] = 3;
+            m_dpAfterglowCounters[idx] = kAfterglowRefresh;
         }
         m_dpLitInLastStrobe[idx] = dpLitNow;
     }
 
     if (digit == 0) {
         std::lock_guard<std::mutex> lock(m_displayMutex);
-        // Decay digit and DP afterglow counters once per full digit-counter cycle.
+        // Decay once per full digit-counter cycle, unconditionally — not inside the
+        // IDLE-gated strobe block — so counters tick down during RUN mode too.
         for (int i = 0; i < 12; ++i) {
             if (m_digitAfterglowCounters[i] > 0) m_digitAfterglowCounters[i]--;
             if (m_dpAfterglowCounters[i] > 0) m_dpAfterglowCounters[i]--;
