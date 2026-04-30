@@ -39,8 +39,25 @@ PROJECT="Calc-U-59.xcodeproj"
 SCHEME="Calc-U-59"
 APP_NAME="Calc-U-59"
 BUILD_DIR="build/release"
-SIGN_IDENTITY="Developer ID Application: Martin Erzberger (7Q3QN9AV9J)"
+# Optional override; if empty, auto-detect from keychain.
+SIGN_IDENTITY="${SIGN_IDENTITY:-}"
 NOTARYTOOL_PROFILE="${NOTARYTOOL_PROFILE:-notarytool}"
+
+# Resolve a Developer ID Application identity from keychain unless explicitly set.
+if [ -z "$SIGN_IDENTITY" ]; then
+    SIGN_IDENTITY=$(security find-identity -v -p codesigning 2>/dev/null \
+        | sed -n 's/.*"\(Developer ID Application:.*\)".*/\1/p' \
+        | head -n 1)
+fi
+
+if [ -z "$SIGN_IDENTITY" ]; then
+    echo "Error: No 'Developer ID Application' signing identity found in keychain."
+    echo "Install one in Xcode (Settings -> Accounts -> Manage Certificates)"
+    echo "or set SIGN_IDENTITY explicitly before running this script."
+    exit 1
+fi
+
+echo "Using signing identity: $SIGN_IDENTITY"
 
 # ── Argument parsing ───────────────────────────────────────────────────────────
 
@@ -337,17 +354,57 @@ echo "Exported and signed: $APP_PATH"
 # ── 6. Package as DMG ─────────────────────────────────────────────────────────
 
 echo "Creating DMG…"
-create-dmg \
-    --volname "$APP_NAME $VERSION" \
-    --volicon "$APP_PATH/Contents/Resources/AppIcon.icns" \
-    --window-pos 200 120 \
-    --window-size 660 400 \
-    --icon-size 128 \
-    --icon "${APP_NAME}.app" 165 185 \
-    --app-drop-link 495 185 \
-    --no-internet-enable \
-    "$DMG_PATH" \
-    "$APP_PATH"
+CREATE_DMG_LOG=$(mktemp)
+
+run_create_dmg() {
+    create-dmg \
+        --volname "$APP_NAME $VERSION" \
+        --volicon "$APP_PATH/Contents/Resources/AppIcon.icns" \
+        --window-pos 200 120 \
+        --window-size 660 400 \
+        --icon-size 128 \
+        --icon "${APP_NAME}.app" 165 185 \
+        --app-drop-link 495 185 \
+        --no-internet-enable \
+        "$DMG_PATH" \
+        "$APP_PATH"
+}
+
+if ! run_create_dmg >"$CREATE_DMG_LOG" 2>&1; then
+    cat "$CREATE_DMG_LOG"
+
+    if grep -Eq "\(-1743\)|Apple[ -]Events.*Finder|Finder.*Apple[ -]Events" "$CREATE_DMG_LOG"; then
+        echo ""
+        echo "macOS blocked Apple Events automation for Finder (error -1743)."
+        echo "Grant permission for iTerm:"
+        echo "  1) Open System Settings → Privacy & Security → Automation"
+        echo "  2) Select iTerm"
+        echo "  3) Enable Finder"
+        echo ""
+        read -p "After granting permission, press Enter to retry DMG creation (or type 'abort' to stop): " -r RETRY_CREATE_DMG
+        if [[ "$RETRY_CREATE_DMG" =~ ^[Aa][Bb][Oo][Rr][Tt]$ ]]; then
+            rm -f "$CREATE_DMG_LOG"
+            echo "Aborted by user."
+            exit 1
+        fi
+
+        echo "Retrying DMG creation…"
+        : >"$CREATE_DMG_LOG"
+        if ! run_create_dmg >"$CREATE_DMG_LOG" 2>&1; then
+            cat "$CREATE_DMG_LOG"
+            rm -f "$CREATE_DMG_LOG"
+            echo "Error: create-dmg failed again after permission prompt."
+            exit 1
+        fi
+    else
+        rm -f "$CREATE_DMG_LOG"
+        echo "Error: create-dmg failed."
+        exit 1
+    fi
+fi
+
+cat "$CREATE_DMG_LOG"
+rm -f "$CREATE_DMG_LOG"
 
 # Sign the DMG itself
 codesign --force --sign "$SIGN_IDENTITY" "$DMG_PATH"
