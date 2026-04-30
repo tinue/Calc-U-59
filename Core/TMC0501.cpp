@@ -159,6 +159,8 @@ void TMC0501::reset() {
     m_currentDpPos = 0;
     m_digitSuppressedMask = 0;
     m_zeroSuppressRunning = true;
+    m_prevIdle     = false;
+    m_displayReady = false;
     // Reset card state; caller (TI59Machine) re-presses the card-switch key.
     m_cardPresent    = false;
     m_waitingForCard = false;
@@ -312,6 +314,9 @@ DisplaySnapshot TMC0501::getDisplay() const {
     const uint32_t cSteps    = m_cSteps.exchange(0, std::memory_order_relaxed);
     const uint32_t pollSteps = m_pollSteps.exchange(0, std::memory_order_relaxed);
     const float cLevel = pollSteps ? (float)cSteps / (float)pollSteps : 0.0f;
+
+    if (!m_displayReady)
+        return DisplaySnapshot{};  // first full scan not yet complete since SET.IDLE — hold dark
 
     // Build snapshot from per-position decay counters and latched LED state.
     DisplaySnapshot result;
@@ -1363,8 +1368,17 @@ void TMC0501::postOperation() {
             if (m_digitAfterglowCounters[i] > 0) m_digitAfterglowCounters[i]--;
             if (m_dpAfterglowCounters[i] > 0) m_dpAfterglowCounters[i]--;
         }
-
+        if (flags & FLG_IDLE) m_displayReady = true;
     }
+
+    // Detect SET.IDLE transition and clear m_displayReady AFTER the decay block,
+    // so the clear wins on the same step where digit==0 and SET.IDLE both fire.
+    const bool idleNow = (flags & FLG_IDLE) != 0;
+    if (idleNow && !m_prevIdle) {
+        std::lock_guard<std::mutex> lock(m_displayMutex);
+        m_displayReady = false;
+    }
+    m_prevIdle = idleNow;
 }
 
 // ── tracePreStep ──────────────────────────────────────────────────────────────

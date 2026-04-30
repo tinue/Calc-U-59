@@ -332,6 +332,8 @@ private:
     uint8_t  m_currentDpPos{0};       // Live R5 DP position (updated per strobe capture)
     uint16_t m_digitSuppressedMask{0}; // Zero-suppression circuit output bitmask for indices 0..11.
     bool     m_zeroSuppressRunning{true}; // Scan-chain running state for leading-zero suppression.
+    bool     m_prevIdle{false};           // Previous-step IDLE state; detects SET.IDLE transition.
+    bool     m_displayReady{false};       // True once a full scan has completed since last SET.IDLE.
 
 
     mutable std::atomic<uint32_t> m_cSteps{0};          // Steps (IDLE or non-IDLE) where fA≠0 since last getDisplay().
