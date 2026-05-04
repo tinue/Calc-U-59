@@ -1,10 +1,10 @@
-Calc-U-59 is a research tool for the Texas Instruments TI-59, TI-58, and TI-58C — built for anyone who wants to understand these machines, not just use them. Step through ROM code, inspect internal registers, trace printer output, and explore the architecture of one of the most capable handheld computers of the late 1970s.
+Calc-U-59 is a research tool for classic calculators TI-59, TI-58, and TI-58C — built for anyone who wants to understand these machines, not just use them. Step through ROM code, inspect internal registers, trace printer output, and explore the architecture of one of the most capable handheld computers of the late 1970s.
 
 CYCLE-ACCURATE EMULATION
 The TMC0501 processor is emulated at the cycle level, reproducing the exact behaviour of the original hardware — including the TI-58C's constant memory, preserved across restarts. The Master Library ROM is included.
 
 INTEGRATED DEBUGGER
-Inspect program memory, data registers, CPU state, and internal SCOM registers live as the machine runs. Step through instructions one at a time, or let the emulator run and freeze it at any point. Available on iPad (landscape) and Mac.
+Inspect program memory, data registers, CPU state, and internal SCOM registers live as the machine runs. Step through instructions one at a time, or let the emulator run and freeze it at any point. You can even run your own assembly programs! Available on iPad (landscape) and Mac.
 
 PAPER TAPE PRINTER
 A functional recreation of the PC-100C thermal printer with dot-matrix font rendering. Trace exactly what programs print and why. Copy output as plain text or as a high-resolution bitmap.
