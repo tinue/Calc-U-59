@@ -1,0 +1,70 @@
+# An early tester of Calc-U 59 by accident mistyped a program shown in TI PPC NOTES v6n6-7,1981
+# The program is in article "FAST MODE" by Bob Arendt.
+#
+# There are supposed to be five zeroes at the start. When only four (or even less) are used, the
+# calculator misbehaves in interesting ways.
+#
+# I want to preserve this interesting misbehave for future debug runs. Also, the program uncovered
+# an issue with the emulation that has been fixed before v1.0.0.
+#
+# Load the program, then press R/S, then LRN: The display shows "5281 09". The same is seen on a
+# real TI-59.
+# After pressing R/S again, a blinking zero appears. However, the emulator initially had a bug:
+# the display would flicker and briefly show "0.000 0" during this state.
+#
+# The root cause was that the emulator kept updating the display after the calculator entered
+# IDLE (idle/waiting state), overwriting the intentional afterglow effect.
+#
+# Why the display updates after leaving IDLE? The application refreshes at 60 Hz, but the physical TI-59
+# LEDs have a natural "afterglow"—they don't instantly vanish when turned off. To simulate this
+# without introducing aliasing artifacts, the emulation deliberately keeps the
+# display visible for several frames after the value stops changing. However, once the afterglow
+# phase begins, the display must fade naturally without being overwritten by new values.
+#
+# Note that this does not work on the TI-58C: This calculator uses a different ROM, and does not
+# fall into the same traps.
+
+PROGRAM:
+000  00  0
+001  00  0
+002  00  0
+003  00  0
+004  36 PGM
+005  02  02
+006  71 SBR
+007  02  02
+008  39  39
+009  09  9
+010  00  0
+011  66 PAU
+012  91 R/S
+013  66 PAU
+014  91 R/S
+015  02  2
+016  39 COS
+017  09  9
+018  00  0
+019  66 PAU
+020  91 R/S
+021  66 PAU
+022  91 R/S
+023  69 OP
+024  00  00
+025  01  1
+026  06  6
+027  03  3
+028  02  2
+029  03  3
+030  01  1
+031  01  1
+032  07  7
+033  00  0
+034  00  0
+035  69 OP
+036  01  01
+037  69 OP
+038  03  03
+039  69 OP
+040  05  05
+041  66 PAU
+042  91 R/S

@@ -14,16 +14,21 @@ class RAM;
 
 // ── Display snapshot ──────────────────────────────────────────────────────────
 //
-// Atomic copy of the display state, written by the CPU thread on every SET IDLE
-// and read by the UI thread at 60 Hz.  All 12 visible digit positions come from
-// the A and B registers; decimal point and the "C" annunciator are separate.
+// Atomic copy of the display state, written by the CPU thread at every digit==0
+// when IDLE is set, and read by the UI thread at 60 Hz.  All 12 visible digit
+// positions come from the A and B registers; decimal point (R5) and the "C"
+// annunciator are captured and buffered the same way.
 
 struct DisplaySnapshot {
-    uint8_t digits[12]{};        ///< A[2..13] — BCD digit values (0–9, A–F)
-    uint8_t ctrl[12]{};          ///< B[2..13] — display-control nibbles (select digit vs. minus/degree/blank)
-    uint8_t dpPos{0};            ///< R5 — decimal-point position within the mantissa
-    float   calcIndicator{0.0f}; ///< fraction of the last poll interval where C LED was driven:
-                                 ///<   RUN mode: any fA≠0; IDLE mode: fA bit 14 (SH pin, per HW guide). (0.0–1.0)
+    uint8_t  digits[12]{};        ///< A[2..13] — BCD digit values (0–9, A–F)
+    uint8_t  ctrl[12]{};          ///< B[2..13] — display-control nibbles (select digit vs. minus/degree/blank)
+    uint8_t  dpPos{0};            ///< R5 — decimal-point position within the mantissa (0 = none, 2–13 valid)
+    uint16_t dpAfterglowMask{0};  ///< Bitmask of dp positions with active afterglow: bit (pos-2) for positions 2..13.
+                                  ///< Includes the current dpPos plus any recently-vacated positions still glowing.
+                                  ///< Zero when no afterglow counter is active.
+    uint16_t suppressedMask{0};   ///< Zero-suppression circuit output: bit i suppresses digit index i (0..11).
+    float    calcIndicator{0.0f}; ///< fraction of the last poll interval where C LED was driven:
+                                  ///<   RUN mode: any fA≠0; IDLE mode: fA bit 14 (SH pin, per HW guide). (0.0–1.0)
 };
 
 // ── Internal CPU flags ────────────────────────────────────────────────────────
@@ -69,7 +74,6 @@ enum : uint16_t {
     FLG_COND      = 0x0800, // ← bit 11 — must match opcode bit 11 for the jump test
 
     // ── Miscellaneous ───────────────────────────────────────────────────
-    FLG_DISP      = 0x1000, // Display active flag (set at reset alongside FLG_COND).
     FLG_BUSY      = 0x8000, // Printer / peripheral busy signal; tested by TST BUSY.
 };
 
@@ -80,8 +84,10 @@ enum : uint16_t {
 // digit per instruction cycle via a serial ALU.  Field masks select which
 // subset of the 16 digits are actually written back to the destination.
 //
-// Clock: 455 kHz oscillator ÷ 2 (two-phase) ÷ 16 (digit-serial cycle)
+// Clock: TI-59: 455 kHz oscillator ÷ 2 (two-phase) ÷ 16 (digit-serial cycle)
 //        ≈ 14,219 instructions/sec in active mode; ÷4 further in idle mode.
+//        TI-58/58C: 384 kHz oscillator ÷ 2 ÷ 16 ≈ 12,000 instructions/sec
+//        (TI-58C runs at constant speed, no idle divisor).
 
 class TMC0501 {
 public:
@@ -308,10 +314,26 @@ private:
     mutable std::mutex                   m_prnMutex;
 
     // ── Display state (shared between CPU thread and UI thread) ───────
+    // Per-digit live buffers: updated during each digit's strobe phase when IDLE.
+    // getDisplay() reads these directly at query time (no stale batch snapshot).
+    // IMPORTANT: All access to display state members (below) must be guarded by
+    // m_displayMutex. Updated exclusively by postOperation() (CPU thread), read only
+    // by getDisplay() (UI thread, ~60 Hz) and computeDisplayTraceState() (CPU thread).
     mutable std::mutex m_displayMutex;
-    DisplaySnapshot m_display{};       // Last stable snapshot, updated at digit=0 on SET IDLE.
-    uint8_t  m_dispFilter{};   // Counts digit-counter wrap-arounds since the last IDLE.
-                                // At 3, the display is blanked (CPU is busy computing).
+    uint8_t  m_digitSegmentsA[12]{};  // A[2..13] → m_digitSegmentsA[0..11] per strobe (CPU thread write, UI thread read)
+    uint8_t  m_digitSegmentsB[12]{};  // B[2..13] → m_digitSegmentsB[0..11] per strobe (CPU thread write, UI thread read)
+    uint8_t  m_digitAfterglowCounters[12]{}; // Digit (segment) afterglow counter per position.
+                                             // counter[i] → position (i+2); decrement each digit==0 cycle.
+                                             // Seeded when the position is actively driven (not suppressed) during IDLE scan.
+    uint8_t  m_dpAfterglowCounters[12]{};    // Decimal-point afterglow counter per position.
+                                             // Seeded only when R5 matches the currently strobed position.
+    bool     m_digitLitInLastStrobe[12]{};   // Per-position segment lit state from previous strobe.
+    bool     m_dpLitInLastStrobe[12]{};      // Per-position decimal-point lit state from previous strobe.
+    uint8_t  m_currentDpPos{0};       // Live R5 DP position (updated per strobe capture)
+    uint16_t m_digitSuppressedMask{0}; // Zero-suppression circuit output bitmask for indices 0..11.
+    bool     m_zeroSuppressRunning{true}; // Scan-chain running state for leading-zero suppression.
+
+
     mutable std::atomic<uint32_t> m_cSteps{0};          // Steps (IDLE or non-IDLE) where fA≠0 since last getDisplay().
     mutable std::atomic<uint32_t> m_pollSteps{0};       // Weighted step count since last getDisplay() (non-IDLE=1, IDLE=4).
 
@@ -392,4 +414,10 @@ private:
 
     // Decode and execute all ALU-class opcodes (bits 12=0, hi nibble ∉ {0,8,A}).
     void execALU(uint16_t opcode);
+
+    // Per-step post-execution work that must run for every instruction.
+    void postOperation();
+
+    // Compute trace-facing display state from per-position afterglow counters.
+    void computeDisplayTraceState(uint8_t& displayOn, uint8_t& maxDigitDecay) const;
 };

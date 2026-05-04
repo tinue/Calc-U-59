@@ -1,4 +1,5 @@
 import SwiftUI
+import AudioToolbox
 
 /// Full calculator canvas: base image (display + empty card slot + keyboard),
 /// with runtime overlays for LED display and ML-01 card.
@@ -38,32 +39,53 @@ struct KeyboardView: View {
         // row 0
         [CGRect(x:0.0160, y:0.0365, width:0.1245, height:0.0486), CGRect(x:0.2277, y:0.0365, width:0.1245, height:0.0486), CGRect(x:0.4375, y:0.0365, width:0.1245, height:0.0486), CGRect(x:0.6483, y:0.0365, width:0.1245, height:0.0486), CGRect(x:0.8571, y:0.0365, width:0.1245, height:0.0486)],
         // row 1
-        [CGRect(x:0.0160, y:0.1484, width:0.1245, height:0.0508), CGRect(x:0.2277, y:0.1484, width:0.1245, height:0.0508), CGRect(x:0.4375, y:0.1484, width:0.1245, height:0.0508), CGRect(x:0.6483, y:0.1484, width:0.1245, height:0.0508), CGRect(x:0.8571, y:0.1484, width:0.1245, height:0.0508)],
+        [CGRect(x:0.0140, y:0.1484, width:0.1265, height:0.0508), CGRect(x:0.2277, y:0.1484, width:0.1245, height:0.0508), CGRect(x:0.4375, y:0.1484, width:0.1245, height:0.0508), CGRect(x:0.6483, y:0.1484, width:0.1245, height:0.0508), CGRect(x:0.8566, y:0.1484, width:0.1250, height:0.0508)],
         // row 2
         [CGRect(x:0.0160, y:0.2625, width:0.1245, height:0.0508), CGRect(x:0.2277, y:0.2625, width:0.1245, height:0.0508), CGRect(x:0.4375, y:0.2625, width:0.1245, height:0.0508), CGRect(x:0.6483, y:0.2625, width:0.1245, height:0.0508), CGRect(x:0.8571, y:0.2625, width:0.1245, height:0.0508)],
         // row 3
         [CGRect(x:0.0160, y:0.3753, width:0.1245, height:0.0508), CGRect(x:0.2277, y:0.3753, width:0.1245, height:0.0508), CGRect(x:0.4375, y:0.3753, width:0.1245, height:0.0508), CGRect(x:0.6483, y:0.3753, width:0.1245, height:0.0508), CGRect(x:0.8571, y:0.3753, width:0.1245, height:0.0508)],
         // row 4
-        [CGRect(x:0.0160, y:0.4853, width:0.1245, height:0.0508), CGRect(x:0.2277, y:0.4853, width:0.1245, height:0.0508), CGRect(x:0.4375, y:0.4853, width:0.1245, height:0.0508), CGRect(x:0.6483, y:0.4853, width:0.1245, height:0.0508), CGRect(x:0.8571, y:0.4853, width:0.1279, height:0.0508)],
+        [CGRect(x:0.0160, y:0.4853, width:0.1245, height:0.0508), CGRect(x:0.2277, y:0.4853, width:0.1245, height:0.0508), CGRect(x:0.4375, y:0.4853, width:0.1245, height:0.0508), CGRect(x:0.6483, y:0.4853, width:0.1245, height:0.0508), CGRect(x:0.8566, y:0.4853, width:0.1284, height:0.0508)],
         // row 5
-        [CGRect(x:0.0160, y:0.5987, width:0.1245, height:0.0508), CGRect(x:0.2001, y:0.5963, width:0.1623, height:0.0534), CGRect(x:0.4186, y:0.5959, width:0.1623, height:0.0537), CGRect(x:0.6371, y:0.5963, width:0.1623, height:0.0534), CGRect(x:0.8571, y:0.5963, width:0.1284, height:0.0534)],
+        [CGRect(x:0.0155, y:0.5987, width:0.1250, height:0.0508), CGRect(x:0.2001, y:0.5963, width:0.1623, height:0.0534), CGRect(x:0.4186, y:0.5959, width:0.1623, height:0.0537), CGRect(x:0.6366, y:0.5963, width:0.1628, height:0.0534), CGRect(x:0.8566, y:0.5963, width:0.1289, height:0.0534)],
         // row 6
-        [CGRect(x:0.0160, y:0.7110, width:0.1245, height:0.0508), CGRect(x:0.2001, y:0.7091, width:0.1623, height:0.0528), CGRect(x:0.4186, y:0.7084, width:0.1623, height:0.0534), CGRect(x:0.6371, y:0.7094, width:0.1623, height:0.0524), CGRect(x:0.8571, y:0.7094, width:0.1284, height:0.0537)],
+        [CGRect(x:0.0160, y:0.7110, width:0.1245, height:0.0508), CGRect(x:0.2001, y:0.7091, width:0.1623, height:0.0528), CGRect(x:0.4186, y:0.7084, width:0.1623, height:0.0534), CGRect(x:0.6366, y:0.7094, width:0.1628, height:0.0524), CGRect(x:0.8566, y:0.7091, width:0.1289, height:0.0528)],
         // row 7
-        [CGRect(x:0.0160, y:0.8232, width:0.1245, height:0.0508), CGRect(x:0.2001, y:0.8219, width:0.1623, height:0.0537), CGRect(x:0.4186, y:0.8213, width:0.1623, height:0.0528), CGRect(x:0.6371, y:0.8223, width:0.1623, height:0.0537), CGRect(x:0.8571, y:0.8217, width:0.1284, height:0.0537)],
+        [CGRect(x:0.0160, y:0.8232, width:0.1245, height:0.0508), CGRect(x:0.2001, y:0.8219, width:0.1623, height:0.0537), CGRect(x:0.4186, y:0.8213, width:0.1623, height:0.0528), CGRect(x:0.6371, y:0.8223, width:0.1623, height:0.0537), CGRect(x:0.8566, y:0.8217, width:0.1289, height:0.0537)],
         // row 8
-        [CGRect(x:0.0160, y:0.9360, width:0.1245, height:0.0508), CGRect(x:0.2001, y:0.9336, width:0.1623, height:0.0541), CGRect(x:0.4186, y:0.9336, width:0.1623, height:0.0534), CGRect(x:0.6366, y:0.9336, width:0.1623, height:0.0556), CGRect(x:0.8571, y:0.9345, width:0.1289, height:0.0537)],
+        [CGRect(x:0.0160, y:0.9360, width:0.1245, height:0.0508), CGRect(x:0.2001, y:0.9336, width:0.1623, height:0.0541), CGRect(x:0.4186, y:0.9336, width:0.1623, height:0.0534), CGRect(x:0.6366, y:0.9336, width:0.1623, height:0.0556), CGRect(x:0.8566, y:0.9340, width:0.1294, height:0.0557)],
     ]
 
     // ── Key hit-test ──────────────────────────────────────────────────────
 
+    /// Expand each key rect horizontally for hit-testing.
+    /// **Tunable: 0.15 = add 15% of width left AND right**
+    private static let hitTestExpansionHorizontal: CGFloat = 0.15
+
+    /// Expand each key rect vertically for hit-testing.
+    /// **Tunable: 0.35 = add 35% of height top AND bottom**
+    private static let hitTestExpansionVertical: CGFloat = 0.35
+
+    /// Get the expanded detection rect for a key (in keyboard-image space)
+    private static func expandedKeyRect(row: Int, col: Int) -> CGRect {
+        let rect = keyRects[row][col]
+        let expandWidth = rect.width * hitTestExpansionHorizontal
+        let expandHeight = rect.height * hitTestExpansionVertical
+        return CGRect(
+            x: rect.minX - expandWidth,
+            y: rect.minY - expandHeight,
+            width: rect.width + expandWidth * 2,
+            height: rect.height + expandHeight * 2
+        )
+    }
+
     /// Scan all 45 rects (in keyboard-image space) for the one containing (nx, ny).
-    /// Non-overlapping so at most one matches.
+    /// Rects are expanded independently on horizontal/vertical axes. At most one matches unless rects overlap.
     private static func keyAt(nx: CGFloat, ny: CGFloat) -> (Int, Int)? {
         let pt = CGPoint(x: nx, y: ny)
         for row in 0..<9 {
             for col in 0..<5 {
-                if keyRects[row][col].contains(pt) { return (row, col) }
+                if expandedKeyRect(row: row, col: col).contains(pt) { return (row, col) }
             }
         }
         return nil
@@ -77,10 +99,38 @@ struct KeyboardView: View {
     }
 
     @State private var pressedKey: Int? = nil   // physRow * 5 + physCol
+    @AppStorage(SettingsKey.ledFontStyle) private var ledFontStyleRaw: Int = LEDFontStyle.modernized.rawValue
+
+    private var fontStyle: LEDFontStyle {
+        LEDFontStyle(rawValue: ledFontStyleRaw) ?? .modernized
+    }
 
     #if canImport(UIKit)
     private let haptic = UIImpactFeedbackGenerator(style: .rigid)
     #endif
+
+    private func triggerFeedback() {
+        #if os(iOS)
+        let feedbackType = AppSettings.resolvedKeyboardFeedback()
+        switch feedbackType {
+        case .off:
+            // No feedback
+            break
+        case .haptic:
+            haptic.impactOccurred()
+        case .click:
+            playClickSound()
+        }
+        #endif
+        // macOS: No audio feedback
+    }
+
+    private func playClickSound() {
+        // iOS only: Use system UI click sound
+        #if os(iOS)
+        AudioServicesPlaySystemSound(1104)
+        #endif
+    }
 
     // ── Body ───────────────────────────────────────────────────────────────
 
@@ -116,8 +166,11 @@ struct KeyboardView: View {
                 LEDDisplayView(
                     digits:        viewModel.displayDigits,
                     ctrl:          viewModel.displayCtrl,
+                    suppressedMask: viewModel.displaySuppressedMask,
                     dpPos:         viewModel.dpPos,
-                    calcIndicatorOpacity: viewModel.calcIndicatorOpacity
+                    dpAfterglowMask: viewModel.dpAfterglowMask,
+                    calcIndicatorOpacity: viewModel.calcIndicatorOpacity,
+                    fontStyle:     fontStyle
                 )
                 .equatable()
                 .frame(width:  w * Self.displayRect.width,
@@ -135,7 +188,9 @@ struct KeyboardView: View {
                                 let ny = value.location.y / h
                                 // Convert canvas coords → keyboard-image coords
                                 let kbNy = (ny - Self.kbYStart) / Self.kbYScale
-                                guard kbNy >= 0 && kbNy <= 1 else {
+                                // Allow margin for vertical expansion (20% of max key height ≈ 0.015)
+                                let verticalMargin: CGFloat = 0.025
+                                guard kbNy >= -verticalMargin && kbNy <= 1 + verticalMargin else {
                                     if let prev = pressedKey {
                                         viewModel.releaseKey(row: prev / 5, col: prev % 5)
                                         pressedKey = nil
@@ -150,9 +205,7 @@ struct KeyboardView: View {
                                 }
                                 pressedKey = keyID
                                 viewModel.pressKey(row: row, col: col)
-                                #if canImport(UIKit)
-                                haptic.impactOccurred()
-                                #endif
+                                triggerFeedback()
                             }
                             .onEnded { _ in
                                 if let prev = pressedKey {
@@ -163,16 +216,35 @@ struct KeyboardView: View {
                     )
 
                 // ── Press highlight ─────────────────────────────────────
-                // keyRects are in keyboard-image space; convert to canvas space for rendering
+                // Simulate key press: shift key down-right and expose black background
                 if let pk = pressedKey {
                     let r = Self.keyRects[pk / 5][pk % 5]
-                    let canvasY = Self.kbYStart + r.midY * Self.kbYScale
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.white.opacity(0.35))
-                        .frame(width:  w * r.width,
-                               height: h * r.height * Self.kbYScale)
-                        .position(x: w * r.midX,
-                                  y: h * canvasY)
+                    let keyW = w * r.width
+                    let keyH = h * r.height * Self.kbYScale
+                    let canvasX = w * r.minX
+                    let canvasY = h * (Self.kbYStart + r.minY * Self.kbYScale)
+                    let shiftX: CGFloat = 3    // tunable: shift right (points)
+                    let shiftY: CGFloat = 3    // tunable: shift down (points)
+
+                    // Layer 1 — black fill at original key position (erases the key)
+                    Rectangle()
+                        .fill(Color.black)
+                        .frame(width: keyW, height: keyH)
+                        .position(x: canvasX + keyW / 2,
+                                  y: canvasY + keyH / 2)
+                        .allowsHitTesting(false)
+
+                    // Layer 2 — key region of base image, shifted down-right
+                    // Crop the image to show only the key rect, then position it shifted
+                    Image(canvasImageName)
+                        .resizable()
+                        .frame(width: w, height: h)
+                        .offset(x: -canvasX, y: -canvasY)   // align key's top-left to frame origin
+                        .frame(width: keyW, height: keyH,
+                               alignment: .topLeading)
+                        .clipped()
+                        .position(x: canvasX + keyW / 2 + shiftX,
+                                  y: canvasY + keyH / 2 + shiftY)
                         .allowsHitTesting(false)
                 }
             }

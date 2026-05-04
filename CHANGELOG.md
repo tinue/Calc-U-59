@@ -1,6 +1,19 @@
 # Changelog
 
-## [0.4.0] - WIP
+## [1.0.0] - 2026-05-04
+First iOS / iPadOS release in the App Store.
+
+**UI:** Improved key detection and feedback with refined key rectangles for better visual press simulation and more accurate hit-testing. New classic display font with dot-matrix LED segments, offering an authentic retro aesthetic alongside the existing modernized font style.
+
+**Display:** Fixed display content artefacts during afterglow phase. When exiting IDLE mode, the display now correctly freezes its content (digits, decimal point) until returning to IDLE, preventing stale register values (e.g., R5) from appearing visually during computation. Added per-position decimal-point afterglow (phosphor persistence): each decimal-point position now independently decays over a short window (tuned to 2 display cycles), accurately reproducing the phosphor persistence of the original LED hardware.
+
+**Emulation:** Implemented accurate TI-58/58C clock speed. Implement constant-speed IDLE behavior for the TI-58C. The emulator now runs at the correct machine frequency and maintains a stable cadence in the IDLE state for the TI-58C.
+
+**Battery/Performance:** Fixed background behavior to freeze CPU emulation loop and display timer when the app is backgrounded, eliminating battery drain while the app is suspended. On return to foreground, emulation automatically resumes (preserving any debug-mode freeze). App eviction is handled gracefully with state persisted on background transition; fresh launch after eviction reads startup settings and restores TI-58C CMOS RAM, matching iPhone reboot behavior. Afterglow lock contention reduced: mutex scope narrowed to protect only display register writes; decimal-point mask computation skipped when display is blanked.
+
+**Documentation:** Added example programs documenting fast-mode quirks and explaining why certain programs behave differently in the emulator.
+
+## [0.4.0] - 2026-04-24
 
 **UI:** Full GUI rework of the main calculator panel. The layout now uses an edge-to-edge canvas with a runtime card overlay, replacing the previous button-based layout. The ML-01 reference card was regenerated at full canvas width. The LED display was repositioned to avoid overlap with the card slot. Key rectangles were recalculated from accurate image extraction. Fixed wide borders on iPad Mini in landscape mode. Dark mode is now enforced app-wide.
 

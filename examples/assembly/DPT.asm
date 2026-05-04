@@ -1,9 +1,10 @@
 PROGRAM:
-; This doesn't work great on the emulator, because its simulated LED is too fast. On the
-; real hardware, the LEDs have a bit of afterglow, and it looks as if all decimal dots
+; The emulator now simulates the afterglow of a real calculator, and the example works fine.
+; On the real hardware, the LEDs have a bit of afterglow, and it looks as if all decimal dots
 ; are on at the same time.
-; To test, first fill the display with numbers, e.g. "-88888888-88", the load and start.
-; You'll see the decimal point jumping around.
+; To test, first fill the display with numbers, e.g. "-88888888-88", then load and start.
+; It also works with an empty display, of course, but it doesn't look as good.
+;
 ; Original comment:
 ;
 ; DPT test

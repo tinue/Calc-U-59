@@ -5,44 +5,19 @@ import SwiftUI
 struct LEDDisplayView: View, Equatable {
     let digits:    [UInt8]   // 12 elements: A[2..13]
     let ctrl:      [UInt8]   // 12 elements: B[2..13]
+    let suppressedMask: UInt16 // Bit i suppresses display index i (zero-suppression circuit from core)
     let dpPos:     UInt8
+    let dpAfterglowMask: UInt16  // Bit (pos-2) for dp positions 2..13 that should be visible
     let calcIndicatorOpacity: Double
+    let fontStyle: LEDFontStyle
 
     var body: some View {
         Canvas { ctx, size in
             let digitWidth = size.width / 12.0
             let height     = size.height
 
-            // Zero suppression — mirrors the TI-59 display driver's leading-zero blanking.
-            // Scan right-to-left (MSD→LSD, index 11→0); `zero` tracks whether all more-
-            // significant digits seen so far have been zero.
-            //
-            // A digit breaks the zero run (stays visible) when:
-            //   - it is at index 1 (the units column immediately left of the decimal point)
-            //   - it is the decimal-point column (dpPos - 2 == i)
-            //   - ctrl ≥ 8  (ROM-forced display, e.g. exponent digits in scientific notation)
-            //   - ctrl ≤ 1 and digit ≠ 0  (plain BCD digit mode, non-zero)
-            //
-            // Index 0 (leftmost — "C" annunciator position) always resets zero=true so that
-            // the digit just to its right is never suppressed by the annunciator slot itself.
-            //
-            // A digit is suppressed when:
-            //   - ctrl == 7 (blank) or ctrl == 3 (positive-sign placeholder)
-            //   - ctrl ≤ 4 and digit == 0 and zero == true  (leading zero)
-            var suppressed = [Bool](repeating: false, count: 12)
-            var zero = true
-            for i in stride(from: 11, through: 0, by: -1) {
-                if i == 1 || (Int(dpPos) >= 2 && Int(dpPos) - 2 == i) || ctrl[i] >= 8 {
-                    zero = false
-                }
-                if i == 0 { zero = true }
-                if ctrl[i] == 7 || ctrl[i] == 3
-                    || (ctrl[i] <= 4 && zero && digits[i] == 0) {
-                    suppressed[i] = true
-                } else if ctrl[i] <= 1 && digits[i] != 0 {
-                    zero = false
-                }
-            }
+            // Compute slant once, reuse for all digits
+            let slant: CGFloat = (fontStyle == .modernized) ? 0.14 : 0.1139
 
             for i in 0..<12 {
                 let x = CGFloat(11 - i) * digitWidth
@@ -54,26 +29,27 @@ struct LEDDisplayView: View, Equatable {
                     segs = segmentsC
                     cOpacity = calcIndicatorOpacity
                 } else {
-                    let ch = suppressed[i] ? DisplayChar.space
-                                           : displayChar(digit: digits[i], ctrl: ctrl[i])
+                    let isSuppressed = ((suppressedMask >> i) & 1) == 1
+                    let ch = isSuppressed ? DisplayChar.space : displayChar(digit: digits[i], ctrl: ctrl[i])
                     segs = segmentMask(for: ch)
                     cOpacity = 1.0
                 }
 
-                // Slant transform for the digit (around 8 degrees)
-                let slant: CGFloat = 0.14
+                // Slant transform for the digit
                 var digitCtx = ctx
                 digitCtx.translateBy(x: rect.minX, y: rect.minY)
                 // Shear: x' = x + slant * (height - y). To fix bottom, we shift right by slant*height.
                 digitCtx.concatenate(CGAffineTransform(1, 0, -slant, 1, height * slant, 0))
 
                 let digitRect = CGRect(origin: .zero, size: rect.size)
-                drawSegments(ctx: &digitCtx, rect: digitRect, segments: segs, segmentOpacity: cOpacity)
-                
-                if Int(dpPos) >= 2 && Int(dpPos) - 2 == i {
-                    // Decimal point is usually NOT slanted or handled separately
+                drawSegments(ctx: &digitCtx, rect: digitRect, segments: segs, segmentOpacity: cOpacity, fontStyle: fontStyle)
+
+                // Draw decimal point dot for all positions with active afterglow.
+                // dpAfterglowMask includes the current dpPos, so a single bit check suffices.
+                // bit i corresponds to canvas index i (dp position i+2).
+                if (dpAfterglowMask >> i) & 1 == 1 {
                     var dpCtx = ctx
-                    drawDecimalPoint(ctx: &dpCtx, rect: rect)
+                    drawDecimalPoint(ctx: &dpCtx, rect: rect, opacity: 1.0)
                 }
             }
         }
@@ -131,7 +107,32 @@ struct LEDDisplayView: View, Equatable {
 
     // MARK: - Drawing
 
-    private func drawSegments(ctx: inout GraphicsContext, rect: CGRect, segments: UInt8, segmentOpacity: Double = 1.0) {
+    // Glow effect constants
+    private static let modernizedGlowBlurMultiplier: CGFloat = 0.8
+    private static let modernizedGlowOpacityFactor: Double = 0.6
+    private static let modernizedBloomBlurMultiplier: CGFloat = 0.2
+    private static let classicGlowBlurMultiplier: CGFloat = 1.3
+    private static let classicGlowOpacityFactor: Double = 0.65
+    private static let dotRadiusMultiplier: CGFloat = 0.45
+
+    // Draw a glowing path (reusable helper for both modernized and classic styles)
+    private func drawGlowingPath(ctx: inout GraphicsContext, path: CGPath, color: Color,
+                                blurRadius: CGFloat, glowOpacity: Double, segmentOpacity: Double) {
+        var glow = ctx
+        glow.addFilter(.blur(radius: blurRadius))
+        glow.fill(Path(path), with: .color(color.opacity(glowOpacity * segmentOpacity)))
+    }
+
+    private func drawSegments(ctx: inout GraphicsContext, rect: CGRect, segments: UInt8,
+                              segmentOpacity: Double = 1.0, fontStyle: LEDFontStyle) {
+        if fontStyle == .classic {
+            drawSegmentsClassic(ctx: &ctx, rect: rect, segments: segments, segmentOpacity: segmentOpacity)
+        } else {
+            drawSegmentsModernized(ctx: &ctx, rect: rect, segments: segments, segmentOpacity: segmentOpacity)
+        }
+    }
+
+    private func drawSegmentsModernized(ctx: inout GraphicsContext, rect: CGRect, segments: UInt8, segmentOpacity: Double = 1.0) {
         let padX = rect.width * 0.22
         let padY = rect.height * 0.10
         let r = rect.insetBy(dx: padX, dy: padY)
@@ -156,31 +157,89 @@ struct LEDDisplayView: View, Equatable {
         for (path, bit) in paths {
             let active = (segments >> bit) & 1 == 1
             if active {
-                var glow = ctx
-                glow.addFilter(.blur(radius: sw * 0.8))
-                glow.fill(Path(path), with: .color(activeColor.opacity(0.6 * segmentOpacity)))
-
-                var bloom = ctx
-                bloom.addFilter(.blur(radius: sw * 0.2))
-                bloom.fill(Path(path), with: .color(activeColor.opacity(segmentOpacity)))
+                drawGlowingPath(ctx: &ctx, path: path, color: activeColor, blurRadius: sw * Self.modernizedGlowBlurMultiplier, glowOpacity: Self.modernizedGlowOpacityFactor, segmentOpacity: segmentOpacity)
+                drawGlowingPath(ctx: &ctx, path: path, color: activeColor, blurRadius: sw * Self.modernizedBloomBlurMultiplier, glowOpacity: 1.0, segmentOpacity: segmentOpacity)
             }
             ctx.fill(Path(path), with: .color(active ? activeColor.opacity(segmentOpacity) : inactiveColor))
         }
     }
 
-    private func drawDecimalPoint(ctx: inout GraphicsContext, rect: CGRect) {
+    private func drawSegmentsClassic(ctx: inout GraphicsContext, rect: CGRect,
+                                     segments: UInt8, segmentOpacity: Double = 1.0) {
+        let padX = rect.width * 0.22
+        let padY = rect.height * 0.10
+        let r = rect.insetBy(dx: padX, dy: padY)
+        let sw: CGFloat = r.width * 0.16
+
+        let activeColor   = Color(red: 1.0, green: 0.2, blue: 0.2)
+        let inactiveColor = Color(red: 0.2, green: 0.0, blue: 0.0, opacity: 0.2)
+
+        let hh = r.height / 2
+        // (isHorizontal, x, y, length, bitIndex)
+        // Vertical segments define the boundaries; horizontal segments just touch them
+        let segs: [(Bool, CGFloat, CGFloat, CGFloat, Int)] = [
+            (true,  r.minX + sw,         r.minY,             r.width - 2*sw,      0), // A top
+            (false, r.maxX - sw,         r.minY,             hh,                  1), // B upper-right
+            (false, r.maxX - sw,         r.midY,             hh,                  2), // C lower-right
+            (true,  r.minX + sw,         r.maxY - sw,        r.width - 2*sw,      3), // D bottom
+            (false, r.minX,              r.midY,             hh,                  4), // E lower-left
+            (false, r.minX,              r.minY,             hh,                  5), // F upper-left
+            (true,  r.minX + sw,         r.midY - sw/2,      r.width - 2*sw,      6), // G middle
+        ]
+
+        for (isH, sx, sy, len, bit) in segs {
+            let active = (segments >> UInt8(bit)) & 1 == 1
+            let color  = active ? activeColor.opacity(segmentOpacity) : inactiveColor
+            drawDotSegment(ctx: &ctx, x: sx, y: sy, length: len, sw: sw,
+                          isHorizontal: isH, color: color, active: active, opacity: segmentOpacity)
+        }
+    }
+
+    // Draw a dot segment grid (horizontal: 2 rows × N cols; vertical: 2 cols × N rows)
+    private func drawDotSegment(ctx: inout GraphicsContext,
+                               x: CGFloat, y: CGFloat, length: CGFloat, sw: CGFloat,
+                               isHorizontal: Bool, color: Color, active: Bool, opacity: Double) {
+        let (cols, rows): (Int, Int)
+        if isHorizontal {
+            let rows2 = 2
+            let cellH = sw / CGFloat(rows2)
+            cols = max(2, Int(length / cellH))
+            rows = rows2
+        } else {
+            let cols2 = 2
+            let cellW = sw / CGFloat(cols2)
+            rows = max(2, Int(length / cellW))
+            cols = cols2
+        }
+
+        let cellW = isHorizontal ? length / CGFloat(cols) : sw / CGFloat(cols)
+        let cellH = isHorizontal ? sw / CGFloat(rows) : length / CGFloat(rows)
+        let dotR = min(cellW, cellH) * Self.dotRadiusMultiplier
+
+        for row in 0..<rows {
+            for col in 0..<cols {
+                let cx = x + (CGFloat(col) + 0.5) * cellW
+                let cy = y + (CGFloat(row) + 0.5) * cellH
+                let dotRect = CGRect(x: cx - dotR, y: cy - dotR, width: dotR*2, height: dotR*2)
+                if active {
+                    drawGlowingPath(ctx: &ctx, path: CGPath(ellipseIn: dotRect, transform: nil), color: color, blurRadius: dotR * Self.classicGlowBlurMultiplier, glowOpacity: Self.classicGlowOpacityFactor, segmentOpacity: opacity)
+                }
+                ctx.fill(Path(ellipseIn: dotRect), with: .color(color))
+            }
+        }
+    }
+
+    private func drawDecimalPoint(ctx: inout GraphicsContext, rect: CGRect, opacity: Double = 1.0) {
         let dotSize: CGFloat = rect.height * 0.13
         let dotRect = CGRect(x: rect.maxX - dotSize * 1.1,
                              y: rect.maxY - dotSize * 1.4,
                              width: dotSize, height: dotSize)
-        
+
         let activeColor = Color(red: 1.0, green: 0.1, blue: 0.1)
-        
-        var glow = ctx
-        glow.addFilter(.blur(radius: dotSize * 0.8))
-        glow.fill(Path(ellipseIn: dotRect), with: .color(activeColor.opacity(0.6)))
-        
-        ctx.fill(Path(ellipseIn: dotRect), with: .color(activeColor))
+
+        let path = CGPath(ellipseIn: dotRect, transform: nil)
+        drawGlowingPath(ctx: &ctx, path: path, color: activeColor, blurRadius: dotSize * Self.modernizedGlowBlurMultiplier, glowOpacity: Self.modernizedGlowOpacityFactor, segmentOpacity: opacity)
+        ctx.fill(Path(ellipseIn: dotRect), with: .color(activeColor.opacity(opacity)))
     }
 
     // MARK: - Path helpers (hexagonal chamfered segments)
@@ -216,8 +275,11 @@ struct LEDDisplayView: View, Equatable {
     LEDDisplayView(
         digits:        [8,8,8,8,8,8,8,8,8,8,8,8],
         ctrl:          [0,0,0,0,0,0,0,0,0,0,0,0],
+        suppressedMask: 0,
         dpPos:         4,
-        calcIndicatorOpacity: 1.0
+        dpAfterglowMask: 0b0000_0000_0000_1100,  // positions 2 & 3 lit
+        calcIndicatorOpacity: 1.0,
+        fontStyle:     .modernized
     )
     .frame(width: 360, height: 50)
 }

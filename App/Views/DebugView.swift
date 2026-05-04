@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 struct DebugView: View {
     @Environment(EmulatorViewModel.self) var vm
     @State private var tab: DebugTab = .live
-    @State private var showingASMFileImporter = false
+    @Binding var showingASMFileImporter: Bool
     enum DebugTab { case live, cpu, log }
 
     var body: some View {
@@ -47,17 +47,6 @@ struct DebugView: View {
         .background(Color(white: 0.10))
         .onChange(of: vm.asmOverlayActive) { _, active in
             if active { tab = .cpu }
-        }
-        .fileImporter(
-            isPresented: $showingASMFileImporter,
-            allowedContentTypes: [
-                UTType(filenameExtension: "asm") ?? .plainText,
-            ],
-            allowsMultipleSelection: false
-        ) { result in
-            if case .success(let urls) = result, let url = urls.first {
-                vm.loadASMOverlayFile(url)
-            }
         }
     }
 
@@ -280,7 +269,8 @@ private struct ASMDebugContent: View {
 }
 
 #Preview {
-    DebugView()
+    @Previewable @State var showingASMFileImporter = false
+    DebugView(showingASMFileImporter: $showingASMFileImporter)
         .environment({
             let vm = EmulatorViewModel()
             vm.debugLevel = .info

@@ -28,7 +28,9 @@ enum DebugLevel: Int, Comparable {
 class EmulatorViewModel {
     var displayDigits: [UInt8]  = Array(repeating: 0, count: 12)
     var displayCtrl:   [UInt8]  = Array(repeating: 0, count: 12)
+    var displaySuppressedMask: UInt16 = 0
     var dpPos:          UInt8   = 0
+    var dpAfterglowMask: UInt16 = 0  // Bit (pos-2) set for each dp position 2..13 with active afterglow
     var calcIndicatorOpacity: Double = 0.0
     var model: MachineModel     = .ti59
     var errorMessage: String?
@@ -150,6 +152,7 @@ class EmulatorViewModel {
     private let emulQueue = DispatchQueue(label: "calc-u-59.emulation", qos: .userInteractive)
     private var displayTimer: Timer?
     private var isRunning = false
+    private var suspendedByLifecycle = false
     private static let constantMemoryFileName = "ti58c.mem"
     private static var constantMemoryURL: URL {
         CardStorage.directoryURL.appendingPathComponent(constantMemoryFileName)
@@ -225,10 +228,11 @@ class EmulatorViewModel {
             guard let self else { return }
             var cyclesDone: Int32 = 0
             // Hardware clock: 455 kHz crystal ÷ 2 (two-phase) ÷ 16 (digit-serial)
-            // = 14,218.75 instructions/sec in active mode.  Idle mode runs at ÷4
-            // (step() returns 4 instead of 1), so the loop naturally slows down
-            // when the calculator is waiting for a keypress.
-            let targetHz: Double = 14218.75
+            // = 14,218.75 instructions/sec in active mode (TI-59).
+            // TI-58/58C: 384 kHz ÷ 2 ÷ 16 = 12,000 instructions/sec.
+            // Idle mode runs at ÷4 (step() returns 4 instead of 1, except TI-58C constant speed),
+            // so the loop naturally slows down when the calculator is waiting for a keypress.
+            let targetHz: Double = model == .ti59 ? 14218.75 : 12000.0
             let batchMs: Double = 0.020  // 20 ms batches keep latency low
             let targetBatchCycles = Int32(targetHz * batchMs) // ≈ 284
 
@@ -337,13 +341,26 @@ class EmulatorViewModel {
         var c = [UInt8](repeating: 0, count: 12)
         withUnsafeBytes(of: snap.digits) { b in for i in 0..<12 { d[i] = b[i] } }
         withUnsafeBytes(of: snap.ctrl)   { b in for i in 0..<12 { c[i] = b[i] } }
+
+        // Display content freeze: while display is ON (afterglow) but IDLE is 0 (RUN mode),
+        // do not update display content. This prevents stale values (e.g., R5) from appearing
+        // after exiting IDLE, while still showing the last captured display state.
+        let cpuFrame = machine.snapshotCPU()
+        let isIdle = (cpuFrame.flags & 0x0001) != 0          // FLG_IDLE
+        let displayOn = cpuFrame.displayOn != 0               // One or more digits/dots currently visible
+        let shouldFreeze = displayOn && !isIdle               // Afterglow with RUN mode
+
         // Guard each assignment: @Observable only notifies SwiftUI when a property
         // is actually written, but the write itself counts as a change even if the
         // value is identical.  The guards prevent 60 Hz spurious re-renders when
         // the display is static (e.g. calculator idle showing a number).
-        if displayDigits    != d               { displayDigits    = d }
-        if displayCtrl      != c               { displayCtrl      = c }
-        if dpPos            != snap.dpPos      { dpPos            = snap.dpPos }
+        if !shouldFreeze {
+            if displayDigits    != d               { displayDigits    = d }
+            if displayCtrl      != c               { displayCtrl      = c }
+            if displaySuppressedMask != snap.suppressedMask { displaySuppressedMask = snap.suppressedMask }
+            if dpPos            != snap.dpPos      { dpPos            = snap.dpPos }
+            if dpAfterglowMask  != snap.dpAfterglowMask { dpAfterglowMask = snap.dpAfterglowMask }
+        }
         // C indicator opacity driven by the integrated duty cycle from the C++ core.
         //
         // Hardware model (per Sladký 2014 HW guide):
@@ -404,6 +421,29 @@ class EmulatorViewModel {
         isRunning = false
         displayTimer?.invalidate()
         displayTimer = nil
+    }
+
+    /// Suspend emulation when the app enters the background.
+    /// Stops the CPU loop and display timer to prevent battery drain.
+    /// Does not destroy machine state — resumeFromBackground() will restart both.
+    func suspendForBackground() {
+        persistConstantMemory()
+        suspendedByLifecycle = isRunning
+        isRunning = false
+        displayTimer?.invalidate()
+        displayTimer = nil
+    }
+
+    /// Resume emulation after the app returns to the foreground.
+    /// Restarts the CPU loop only if it was running at suspension time,
+    /// so a user-triggered debug freeze is preserved across backgrounding.
+    func resumeFromBackground() {
+        guard machine != nil else { return }
+        startDisplayRefresh()
+        if suspendedByLifecycle {
+            suspendedByLifecycle = false
+            startEmulationLoop()
+        }
     }
 
     /// Wait for any in-flight emulation batch to finish.
@@ -1900,6 +1940,7 @@ class EmulatorViewModel {
         for frameVal in framesNS {
             var frame = TICpuFrame()
             frameVal.getValue(&frame)
+
             traceWriter.write(frame: frame)
         }
     }

@@ -1,6 +1,34 @@
 PROGRAM:
 ; This program *doesn't work* on the emulator. The emulator takes shortcuts when synchronizing
-; WAIT and KEY, and the bad timing that this program apparently uses does not trigger.
+; WAIT and KEY, and the bad timing that this program uses does not trigger.
+;
+; If you are interested in details:
+;
+; The program calls WAIT D12 (opcode 0x0AC0) instead of the canonical WAIT D1 before SET IDLE.
+; This shifts the IDLE loop 11 digit positions out of phase with the display strobe cycle.
+;
+; On real hardware the display is multiplexed in real time: at each digit time Dn, the SCOM chip
+; asserts the LED strobe for digit n while the CPU must simultaneously drive the segment data for
+; that position. When SET IDLE is phase-shifted, CPU data and strobe get misaligned — the B
+; register's DPT nibble (which the 7-segment decoder maps to a hex glyph 0x0–0xF) ends up driving
+; an LED position it normally never would. That exposes all 16 hex segment combinations, which is
+; exactly the test's goal.
+
+; The emulator's display on the other hand is a phase-independent snapshot taken at digit == 0
+; This copies the whole A/B register arrays unconditionally at digit 0. The phase shift from WAIT D12
+; has zero influence on which index lands in which slot. The display always shows expected content;
+; the DPT-as-digit trick is invisible.
+;
+; The same is true for keyboard scans. Phase shifted, keys are detected wrongly, or do not even exist.
+; Since the ROM often dispatches key presses via the scan code using the PREG mechanism, the handler for
+; inexistent keys is just some arbitrary ROM location, and can have any effect.
+;
+; The emulator again does not phase shift, and reads the keys correctly.
+;
+; Without some significant rework, the emulator cannot handle this particular ROM program. So far
+; it's unknown if other tricks discovered in the 80ies do not work due to the shortcut taken by
+; the emulator. It's possible that this needs to be changed in the future.
+
 ; Original comment follows:
 ;
 ; 7-segment decoder test

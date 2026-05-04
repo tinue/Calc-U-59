@@ -47,6 +47,10 @@ BANNER = '-' * 80
 
 # ── Low-level reader ──────────────────────────────────────────────────────────
 
+def _display_on_from_record(rec):
+    """Get displayOn status from the trace record."""
+    return rec.get('displayOn', 0)
+
 def _read_exact(f, n):
     data = f.read(n)
     if len(data) != n:
@@ -62,21 +66,39 @@ def _parse_file_header(f):
         raise ValueError(f"Unsupported version: {version} (expected {VERSION})")
 
 def _parse_trace_event(payload):
-    """Parse a 124-byte TRACE_EVENT payload into a dict."""
-    if len(payload) != 124:
-        raise ValueError(f"TRACE_EVENT payload length {len(payload)}, expected 124")
+    """Parse a TRACE_EVENT payload into a dict.
 
-    # Fixed fields (36 bytes)
-    (suppressed, seqno, pc, opcode, fA, fB, KR, SR,
-     EXT, PREG, cpu_flags, m_libAddr, R5, digit,
-     RAM_ADDR, RAM_OP, REG_ADDR, m_libAddrReadPos, cycle_weight, dispFilter) = struct.unpack_from(
-        '<IIHHHHHHHHHH BBBBBBBB', payload, 0)
+    Supports both legacy v1 payloads (124 bytes) and extended payloads (126 bytes)
+    that include displayOn/maxDigitDecay.
+    """
+    if len(payload) not in (124, 125):
+        raise ValueError(f"TRACE_EVENT payload length {len(payload)}, expected 124 or 125")
+
+    if len(payload) == 125:
+        # Fixed fields (38 bytes)
+        # Unpacks: suppressed(4) + seqno(4) + pc(2) + opcode(2) + fA(2) + fB(2) + KR(2) + SR(2) +
+        #          EXT(2) + PREG(2) + flags(2) + m_libAddr(2) + R5(1) + digit(1) + RAM_ADDR(1) +
+        #          RAM_OP(1) + REG_ADDR(1) + m_libAddrReadPos(1) + cycle_weight(1) +
+        #          displayOn(1) + maxDigitDecay(1) = 37 bytes
+        (suppressed, seqno, pc, opcode, fA, fB, KR, SR,
+         EXT, PREG, cpu_flags, m_libAddr, R5, digit,
+         RAM_ADDR, RAM_OP, REG_ADDR, m_libAddrReadPos, cycle_weight,
+         displayOn, maxDigitDecay) = struct.unpack_from(
+            '<IIHHHHHHHHHH BBBBBBBBB', payload, 0)
+        off = 37
+    else:
+        # Legacy fixed fields (36 bytes)
+        (suppressed, seqno, pc, opcode, fA, fB, KR, SR,
+         EXT, PREG, cpu_flags, m_libAddr, R5, digit,
+         RAM_ADDR, RAM_OP, REG_ADDR, m_libAddrReadPos, cycle_weight, _dispFilter) = struct.unpack_from(
+            '<IIHHHHHHHHHH BBBBBBBB', payload, 0)
+        # Legacy: derive displayOn from _dispFilter
+        displayOn = 0 if _dispFilter >= 3 else 1
+        maxDigitDecay = _dispFilter
+        off = 36
 
     # A–E registers: 16 unpacked nibbles each (index 0 = LSN)
-    # Fixed fields total 36 bytes: seqno(4) + pc(2) + opcode(2) + digit(1) + cycleWeight(1) +
-    #   KR(2) + SR(2) + fA(2) + fB(2) + cpuFlags(2) + R5(1) = 36 bytes
     regs = {}
-    off = 36
     for name in ('A', 'B', 'C', 'D', 'E'):
         regs[name] = list(payload[off:off+16])
         off += 16
@@ -86,6 +108,7 @@ def _parse_trace_event(payload):
     for b in payload[off:off+8]:
         sout.append(b & 0x0F)
         sout.append((b >> 4) & 0x0F)
+    off += 8
 
     cond = 1 if (cpu_flags & 0x0800) else 0
     idle = 1 if (cpu_flags & 0x0001) else 0
@@ -109,7 +132,8 @@ def _parse_trace_event(payload):
         'cpuFlags':     cpu_flags,
         'COND':         str(cond),
         'IDLE':         str(idle),
-        'dispFilter':   dispFilter,
+        'displayOn':    1 if displayOn else 0,
+        'maxDigitDecay': maxDigitDecay,
         'R5':           f'{R5:X}',
         'ROM':          f'{m_libAddr:04d}.{m_libAddrReadPos}',
         'digit':        digit,
@@ -229,13 +253,14 @@ def _format_trace_record(rec, trace_number=None):
              f"EXT={rec['EXT']} COND={rec['COND']} IDLE={rec['IDLE']} "
              f"IO={rec['IO']}")
     rom_str = rec.get('ROM', '0000')
-    # Display status based on blanking filter: OFF if blanked (>= 3), else ON
-    disp_status = "OFF" if rec['dispFilter'] >= 3 else "ON"
+    disp_status = "ON" if _display_on_from_record(rec) else "OFF"
+    decay = rec.get('maxDigitDecay', 0)
     line4 = (f"FB={rec['fB']} [{_bin16(int(rec['fB'],16))}] "
              f"SR={rec['SR']} R5={rec['R5']} ROM={rom_str} PREG={rec['PREG']} "
              f"RAMOP={ramop_str} RAMREG={rec['RAM_ADDR']:03d} "
              f"ROMREG={rec['REG_ADDR']:02d}")
-    line5 = f"DISP: {rec['dispFilter']} ({disp_status})"
+
+    line5 = f"DISPLAY={disp_status} DECAY={decay}"
 
     if trace_number is not None:
         trace_num_str = f"{trace_number:>8d}"
@@ -252,28 +277,29 @@ def _user_banner(rec):
 def _apply_color(formatted, rec, color):
     """Apply ANSI color codes to formatted trace output if color=True.
 
-    Color rules:
-      - DISP ON and IDLE=1: dark yellow (\033[33m)
-      - DISP ON only: light yellow (\033[93m)
-      - IDLE=1 only: darker white (\033[90m)
-      - Otherwise: no coloring
+    Color rules (four states):
+      - IDLE=1 / DISP=ON:  light yellow (\033[93m) — display mode (genuinely active)
+      - IDLE=1 / DISP=OFF: red (\033[91m) — anomaly (should not happen)
+      - IDLE=0 / DISP=ON:  dark olive (\033[38;5;100m) — afterglow fade (display fading)
+      - IDLE=0 / DISP=OFF: white (\033[0m) — normal RUN mode (no color)
     """
     if not color:
         return formatted
 
-    disp_status = "OFF" if rec['dispFilter'] >= 3 else "ON"
+    disp_status = "ON" if _display_on_from_record(rec) else "OFF"
     idle = rec['IDLE'] == '1'
 
-    if disp_status == "ON" and idle:
-        # Dark yellow
-        return f"\033[33m{formatted}\033[0m"
-    elif disp_status == "ON":
-        # Light yellow
+    if idle and disp_status == "ON":
+        # IDLE=1 / DISP=ON: light yellow (display genuinely active)
         return f"\033[93m{formatted}\033[0m"
-    elif idle:
-        # Darker white
-        return f"\033[90m{formatted}\033[0m"
+    elif idle and disp_status == "OFF":
+        # IDLE=1 / DISP=OFF: red (anomaly — should not happen)
+        return f"\033[91m{formatted}\033[0m"
+    elif not idle and disp_status == "ON":
+        # IDLE=0 / DISP=ON: dark olive (display fading)
+        return f"\033[38;5;100m{formatted}\033[0m"
     else:
+        # IDLE=0 / DISP=OFF: white (normal RUN mode)
         return formatted
 
 def _apply_dedup(records):

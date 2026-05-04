@@ -13,6 +13,8 @@ struct SettingsView: View {
     @AppStorage(SettingsKey.traceLocation)   private var traceLocationRaw: Int = TraceLocation.iCloud.rawValue
     @AppStorage(SettingsKey.traceCustomPath) private var traceCustomPath: String = ""
     @AppStorage(SettingsKey.traceMaxFileSizeMB) private var traceMaxFileSizeMB: Int = 10
+    @AppStorage(SettingsKey.keyboardFeedback) private var keyboardFeedbackRaw: Int = KeyboardFeedbackType.off.rawValue
+    @AppStorage(SettingsKey.ledFontStyle) private var ledFontStyleRaw: Int = LEDFontStyle.modernized.rawValue
 
     // Trigger refresh of warning after re-authorization
     @State private var authRefreshTrigger: UUID = UUID()
@@ -20,7 +22,7 @@ struct SettingsView: View {
     var body: some View {
         #if os(macOS)
         settingsForm
-            .frame(width: 400)
+            .frame(minWidth: 460, minHeight: 540)
             .padding()
         #else
         NavigationStack {
@@ -48,6 +50,39 @@ struct SettingsView: View {
                     }
                     Divider()
                     Text("Last Used").tag(-1)
+                }
+
+                // Keyboard feedback only on iOS
+                #if os(iOS)
+                Picker("Keyboard Feedback", selection: $keyboardFeedbackRaw) {
+                    ForEach(KeyboardFeedbackType.allCases) { feedback in
+                        Text(feedback.displayName).tag(feedback.rawValue)
+                    }
+                }
+                #endif
+
+                HStack {
+                    Text("Version")
+                    Spacer()
+                    Text(AppInfo.versionNumberString)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Section("About") {
+                HStack {
+                    Text("App")
+                    Spacer()
+                    Text(AppInfo.subtitle)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Section("Display") {
+                Picker("Segment Style", selection: $ledFontStyleRaw) {
+                    ForEach(LEDFontStyle.allCases) { style in
+                        Text(style.displayName).tag(style.rawValue)
+                    }
                 }
             }
 

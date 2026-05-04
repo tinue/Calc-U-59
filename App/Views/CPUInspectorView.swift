@@ -136,6 +136,7 @@ struct CPUInspectorView: View {
                             inspectorSection(title: "CONTROL REGISTERS") {
                                 let cond = (cpu.flags & 0x0800) != 0 ? 1 : 0
                                 let idle = (cpu.flags & 0x0001) != 0 ? 1 : 0
+                                let postDigit = Int(cpu.postDigit)
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text("KR: \(String(format: "%04X", cpu.KR)) [\(bin16(cpu.KR))]")
                                         .foregroundStyle(.white.opacity(0.85))
@@ -151,10 +152,12 @@ struct CPUInspectorView: View {
                                         Spacer()
                                     }
                                     HStack(spacing: 16) {
-                                        Text("COND:\(cond)")
+                                        Text("COND: \(cond)")
                                             .foregroundStyle(cond == 1 ? Color.yellow.opacity(0.4) : Color.yellow)
-                                        Text("IDLE:\(idle)")
+                                        Text("IDLE: \(idle)")
                                             .foregroundStyle(idle == 1 ? .white : .white.opacity(0.45))
+                                        Text(String(format: "DIGIT: %2d", postDigit))
+                                            .foregroundStyle(.white.opacity(0.85))
                                         Spacer()
                                     }
                                 }
@@ -165,12 +168,12 @@ struct CPUInspectorView: View {
 
                             // Display state
                             inspectorSection(title: "DISPLAY STATE") {
-                                let displayOn = cpu.dispFilter < 3
+                                let displayOn = cpu.displayOn != 0
                                 VStack(alignment: .leading, spacing: 2) {
                                     HStack(spacing: 16) {
-                                        Text("Filter: \(cpu.dispFilter)")
+                                        Text("Decay: \(cpu.maxDigitDecay)")
                                             .foregroundStyle(.white.opacity(0.85))
-                                        Text(displayOn ? "ON" : "BLANKED")
+                                        Text(displayOn ? "ON" : "OFF")
                                             .foregroundStyle(displayOn ? Color.green.opacity(0.85) : Color.red.opacity(0.7))
                                         Spacer()
                                     }

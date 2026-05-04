@@ -148,9 +148,17 @@ void TMC0501::reset() {
     m_libAddrWasWriting = false;
     R5 = digit = RAM_ADDR = RAM_OP = REG_ADDR = 0;
     addr  = 0;
-    flags = FLG_COND | FLG_DISP;  // COND starts true; display active
-    m_display = {};
-    m_dispFilter = 0;
+    flags = FLG_COND;  // COND starts true; display active
+    // Initialize per-digit live buffers
+    memset(m_digitSegmentsA, 0, sizeof(m_digitSegmentsA));
+    memset(m_digitSegmentsB, 0, sizeof(m_digitSegmentsB));
+    memset(m_digitAfterglowCounters, 0, sizeof(m_digitAfterglowCounters));
+    memset(m_dpAfterglowCounters, 0, sizeof(m_dpAfterglowCounters));
+    memset(m_digitLitInLastStrobe, 0, sizeof(m_digitLitInLastStrobe));
+    memset(m_dpLitInLastStrobe, 0, sizeof(m_dpLitInLastStrobe));
+    m_currentDpPos = 0;
+    m_digitSuppressedMask = 0;
+    m_zeroSuppressRunning = true;
     // Reset card state; caller (TI59Machine) re-presses the card-switch key.
     m_cardPresent    = false;
     m_waitingForCard = false;
@@ -254,6 +262,23 @@ void TMC0501::releaseKey(int row, int col) {
         key[col] &= static_cast<uint8_t>(~(1U << row));
 }
 
+void TMC0501::computeDisplayTraceState(uint8_t& displayOn, uint8_t& maxDigitDecay) const {
+    std::lock_guard<std::mutex> lock(m_displayMutex);
+
+    uint8_t maxDecay = 0;
+    bool anyVisible = false;
+    for (int i = 0; i < 12; ++i) {
+        const uint8_t digitDecay = m_digitAfterglowCounters[i];
+        if (digitDecay > maxDecay) maxDecay = digitDecay;
+        if (digitDecay > 0 || m_dpAfterglowCounters[i] > 0) {
+            anyVisible = true;
+        }
+    }
+
+    displayOn = anyVisible ? 1u : 0u;
+    maxDigitDecay = maxDecay;
+}
+
 // ── Display read-out ──────────────────────────────────────────────────────────
 //
 // Called by the UI thread at ~60 Hz.  Returns a stable, mutex-protected copy
@@ -288,16 +313,34 @@ DisplaySnapshot TMC0501::getDisplay() const {
     const uint32_t pollSteps = m_pollSteps.exchange(0, std::memory_order_relaxed);
     const float cLevel = pollSteps ? (float)cSteps / (float)pollSteps : 0.0f;
 
-    if (m_dispFilter >= 3) {
-        DisplaySnapshot blank{};
-        for (auto& ctrl : blank.ctrl) ctrl = 7;
-        blank.calcIndicator = cLevel;
-        return blank;
+    // Build snapshot from per-position decay counters and latched LED state.
+    DisplaySnapshot result;
+
+    uint16_t effectiveSuppressedMask = m_digitSuppressedMask;
+    for (int i = 0; i < 12; ++i) {
+        const bool visible = m_digitAfterglowCounters[i] > 0;
+        if (visible) {
+            result.digits[i] = m_digitSegmentsA[i] & 0x0F;
+            result.ctrl[i]   = m_digitSegmentsB[i] & 0x0F;
+            effectiveSuppressedMask &= static_cast<uint16_t>(~(1u << i));
+        } else {
+            result.digits[i] = 0;
+            result.ctrl[i]   = 7; // blank when this position's decay reached zero
+        }
     }
-    DisplaySnapshot s = m_display;
-    s.dpPos = R5 & 0x0F;  // Live R5 value for POV decimal-point effect
-    s.calcIndicator = cLevel;
-    return s;
+
+    // Decimal point visibility is fully per-position afterglow.
+    uint16_t dpMask = 0;
+    for (int i = 0; i < 12; ++i) {
+        if (m_dpAfterglowCounters[i] > 0) dpMask |= static_cast<uint16_t>(1u << i);
+    }
+
+    result.dpPos = m_currentDpPos;
+    result.dpAfterglowMask = dpMask;
+    result.suppressedMask = effectiveSuppressedMask;
+    result.calcIndicator = cLevel;
+
+    return result;
 }
 
 // ── BCD digit-serial ALU ──────────────────────────────────────────────────────
@@ -417,26 +460,6 @@ int TMC0501::step() {
     //   digit  0    → display latch point (snapshot captured here on IDLE)
     digit = digit ? (digit - 1) : 15;
 
-    // ── Display snapshot / flicker filter ────────────────────────────
-    // Sampled once per full digit-counter cycle (at digit == 0).
-    // IDLE set:   reset filter and commit pending snapshot to the display buffer.
-    // IDLE clear: increment filter; at 3 counts getDisplay() will blank the LEDs,
-    //             reproducing the dark-display-during-computation hardware behaviour.
-    if (digit == 0) {
-        if (flags & FLG_IDLE) {
-            m_dispFilter = 0;
-            // Auto-update display every digit cycle while in IDLE mode.
-            // Display reflects A/B changes immediately while idle.
-            std::lock_guard<std::mutex> lock(m_displayMutex);
-            for (int i = 0; i < 12; ++i) {
-                m_display.digits[i] = A[i + 2] & 0x0F;
-                m_display.ctrl[i]   = B[i + 2] & 0x0F;
-            }
-        } else if (m_dispFilter < 3) {
-            m_dispFilter++;
-        }
-    }
-
     // ── Clear HOLD ────────────────────────────────────────────────────
     // HOLD is re-asserted each cycle by WAIT Dn / KEY scan-all if the
     // condition isn't yet satisfied; clearing it here is the default.
@@ -469,7 +492,9 @@ int TMC0501::step() {
         } else {
             addr++;
         }
-        int w = (flags & FLG_IDLE) ? 4 : 1;
+        postOperation();
+        // TI-58C runs at constant speed; TI-59/58 slow to 1/4 speed during IDLE
+        int w = ((flags & FLG_IDLE) && !hasConstantMemory(m_variant)) ? 4 : 1;
         if (tf != TRACE_NONE) [[unlikely]] { tracePostStep(tf, w); }
         if ((flags & FLG_IDLE) ? (fA & 0x4000u) : fA) m_cSteps.fetch_add(1, std::memory_order_relaxed);
         m_pollSteps.fetch_add(static_cast<uint32_t>(w), std::memory_order_relaxed);
@@ -553,8 +578,11 @@ int TMC0501::step() {
         switch (opcode & 0x000Fu) {
 
         case 0x0:  // WAIT Dn — hold until digit counter == arg
-            // The counter is decremented before this test (see above), so the
-            // ROM encodes the target as n+1 (e.g. "WAIT D1" waits for digit 0).
+            // The counter is decremented before this test (see above). The ROM
+            // encodes the target as n+1: WAIT D1 fires when digit==1 so the
+            // *next* instruction runs at digit==0.  E.g. WAIT D1 + KEY FB
+            // samples key[0] (KP.D0).  WAIT D0 (encoded 0) wraps: fires at
+            // digit==15 (benign; not used meaningfully in TI-59 ROMs).
             if (digit != ((opcode >> 4) & 0x000Fu)) {
                 flags |= FLG_HOLD;
             }
@@ -581,10 +609,17 @@ int TMC0501::step() {
             break;
 
         case 0x6: {
-            // TI-58C uses 0xA76 (MEMWR) and 0xA86 (MEMRD); reserve bits 7:4 = 0x7/0x8
-            // TI-59/58 use these bits for MOV R5 operand selection (bit 4 = fA/fB choice)
+            // bits 7:4 of the opcode select the operation:
+            //   0x7 → MEMWR (TI-58C constant-RAM write): capture Sout[1:0] as address;
+            //          actual data arrives via the IO bus at end of the next cycle
+            //          (handled by FLG_RAM_WRITE below).
+            //   0x8 → MEMRD (TI-58C constant-RAM read): read RAM[Sout[1:0]] next cycle.
+            //   0x0 → MOV R5,fA[1..4]  (bit 4 = 0 selects fA)
+            //   0x1 → MOV R5,fB[1..4]  (bit 4 = 1 selects fB)
+            //   others → unused by any known ROM
+            // TI-59 ROM never emits 0x7 or 0x8 here, so no machine-variant guard is needed.
             uint8_t bits_7_4 = static_cast<uint8_t>((opcode >> 4) & 0x000Fu);
-            if (hasConstantMemory(m_variant) && bits_7_4 == 0x7) {
+            if (bits_7_4 == 0x7) {
                 // MEMWR — deferred write: capture address from Sout now; the
                 // actual data comes from the IO bus at the END of the next
                 // instruction cycle (deferred to FLG_RAM_WRITE handler below).
@@ -594,14 +629,13 @@ int TMC0501::step() {
                 RAM_ADDR = static_cast<uint8_t>((Sout[1] * 16u) + Sout[0]);
                 if (RAM_ADDR < ram.size())
                     flags |= FLG_RAM_WRITE;
-            } else if (hasConstantMemory(m_variant) && bits_7_4 == 0x8) {
-                // MEMRD — read RAM[RAM_ADDR] into next MOV #0 as srcY (set up by preceding ALU opcode)
-                // Address is encoded in Sout[1:0] as two hex nibbles.
+            } else if (bits_7_4 == 0x8) {
+                // MEMRD — read RAM[Sout[1:0]] into the next ALU op as srcY.
                 RAM_ADDR = static_cast<uint8_t>((Sout[1] * 16u) + Sout[0]);
                 if (RAM_ADDR < ram.size())
                     flags |= FLG_RAM_READ;
             } else {
-                // MOV R5,fA[1..4] or fB[1..4] — copy bits 1-4 into R5
+                // MOV R5,fA[1..4] or fB[1..4] — bit 4 selects fA (0) or fB (1)
                 uint16_t flagReg = (opcode & 0x0010u) ? fB : fA;
                 R5 = static_cast<uint8_t>((flagReg >> 1) & 0x0Fu);
             }
@@ -724,7 +758,10 @@ int TMC0501::step() {
                         m_prnCodeLines.push_back(codes);
                     }
                     flags |= FLG_BUSY;
-                    m_prnBusyCycles = 2808;  // (197.5ms * 455kHz) / 2 / 16 / 1000
+                    // Printer busy time: 197.5ms.
+                    // TI-59: (197.5ms * 455kHz) / 2 / 16 / 1000 = 2808 cycles
+                    // TI-58/58C: (197.5ms * 384kHz) / 2 / 16 / 1000 = 2370 cycles
+                    m_prnBusyCycles = hasLargeMemory(m_variant) ? 2808 : 2370;
                 }
                 break;
             }
@@ -741,7 +778,10 @@ int TMC0501::step() {
                     m_prnCodeLines.emplace_back();  // zero-filled
                 }
                 flags |= FLG_BUSY;
-                m_prnBusyCycles = 2808;  // (197.5ms * 455kHz) / 2 / 16 / 1000
+                // Printer busy time: 197.5ms.
+                // TI-59: (197.5ms * 455kHz) / 2 / 16 / 1000 = 2808 cycles
+                // TI-58/58C: (197.5ms * 384kHz) / 2 / 16 / 1000 = 2370 cycles
+                m_prnBusyCycles = hasLargeMemory(m_variant) ? 2808 : 2370;
                 break;
             case 0xF0: // RAM_OP — deferred decode: next Sout encodes operation + address
                 // Deferred operation: capture operation and address from Sout.
@@ -844,6 +884,8 @@ int TMC0501::step() {
         break;
     }
 
+    postOperation();
+
     // ── PREG redirect (after instruction execution) ───────────────────
     // If PREG is set (SET KR[1] was executed in the previous instruction),
     // the next instruction has now completed. Redirect PC to the latched
@@ -854,7 +896,8 @@ int TMC0501::step() {
     } else if (!(flags & FLG_HOLD)) {
         addr++;
     }
-    int w = (flags & FLG_IDLE) ? 4 : 1;
+    // TI-58C runs at constant speed; TI-59/58 slow to 1/4 speed during IDLE
+    int w = ((flags & FLG_IDLE) && !hasConstantMemory(m_variant)) ? 4 : 1;
     if (tf != TRACE_NONE) [[unlikely]] { tracePostStep(tf, w); }
     if ((flags & FLG_IDLE) ? (fA & 0x4000u) : fA) m_cSteps.fetch_add(1, std::memory_order_relaxed);
     m_pollSteps.fetch_add(static_cast<uint32_t>(w), std::memory_order_relaxed);
@@ -1198,6 +1241,7 @@ void TMC0501::beginNextStep() {
     // including COND after auto-restore handling.
     if (tf != TRACE_NONE && m_frameHead > 0) {
         CpuFrame& prev = m_frameRing[(m_frameHead - 1) & kFrameRingMask];
+
         if (tf & (TRACE_REGS_LIGHT | TRACE_REGS_FULL)) {
             prev.KR       = KR;
             prev.SR       = SR;
@@ -1205,6 +1249,7 @@ void TMC0501::beginNextStep() {
             prev.fB       = fB;
             prev.cpuFlags = flags;
             prev.R5       = R5;
+            prev.postDigit = digit;
         }
         if (tf & TRACE_REGS_FULL) {
             memcpy(prev.A,    A,    16);
@@ -1221,16 +1266,110 @@ void TMC0501::beginNextStep() {
             prev.m_libAddrReadPos = m_libAddrReadPos;
             prev.R5 = R5;
             prev.digit = digit;
+            prev.postDigit = digit;
             prev.REG_ADDR = REG_ADDR;
             prev.RAM_ADDR = RAM_ADDR;
             prev.RAM_OP = RAM_OP;
-            prev.dispFilter = m_dispFilter;
         }
+        computeDisplayTraceState(prev.displayOn, prev.maxDigitDecay);
     }
 
     // Capture pre-execution snapshot for the instruction about to run.
     if (tf != TRACE_NONE) {
         tracePreStep(tf, m_pendingOpcode);
+    }
+}
+
+static constexpr uint8_t kAfterglowRefresh = 4;
+
+void TMC0501::postOperation() {
+    // ── Per-step display capture & decay ────────────────────────────────────
+    // Must run after every instruction because each cycles the digit counter (see line 462).
+    // Strobe capture is triggered when the digit counter indicates a visible position
+    // (strobeDigit 2..13); skipping any cycle would break scan-chain timing and lose
+    // display updates. This ensures both branch and normal execution paths maintain
+    // identical display semantics.
+
+    // CPU state (A/B/C/D/R5/flags/digit) is stable at this point: all instruction
+    // execution is complete and no concurrent modifications occur before the next instruction.
+
+    // Per-digit strobe-latched capture: during IDLE, when each digit position
+    // is active (strobeDigit ∈ [2..13]), latch the corresponding segments and DP.
+    // strobeDigit must reflect the digit *after* this instruction completes.
+    // Since digit is decremented at step() entry (line 462), we compute the
+    // "active display position" from that decremented value.
+    uint8_t strobeDigit = digit ? static_cast<uint8_t>(digit - 1) : 15;
+    if ((flags & FLG_IDLE) && strobeDigit >= 2 && strobeDigit <= 13) {
+        std::lock_guard<std::mutex> lock(m_displayMutex);
+
+        const int idx = static_cast<int>(strobeDigit - 2); // display index 0..11
+        const uint8_t a = static_cast<uint8_t>(A[strobeDigit] & 0x0F);
+        const uint8_t b = static_cast<uint8_t>(B[strobeDigit] & 0x0F);
+
+        m_currentDpPos = R5;
+
+        // Emulate zero-suppression circuit during scan: one digit decision per strobe.
+        // The scan order for visible digits is 13→...→2 (idx 11→...→0), with state
+        // carried forward via m_zeroSuppressRunning. The scan-chain breaks silently
+        // if strobes occur out of order; this assumption is guarded by monotonic digit
+        // decrement and deterministic strobeDigit calculation.
+        if (idx == 11) {
+            m_zeroSuppressRunning = true;
+        }
+        bool zero = m_zeroSuppressRunning;
+        const int dpDigitIndex = (R5 >= 2 && R5 <= 13) ? static_cast<int>(R5 - 2) : -1;
+
+        if (idx == 1 || dpDigitIndex == idx || b >= 8) {
+            zero = false;
+        }
+        if (idx == 0) {
+            zero = true;
+        }
+
+        const bool suppressed = (b == 7 || b == 3 || (b <= 4 && zero && a == 0));
+        if (suppressed) {
+            m_digitSuppressedMask |= static_cast<uint16_t>(1u << idx);
+        } else {
+            m_digitSuppressedMask &= static_cast<uint16_t>(~(1u << idx));
+        }
+
+        if (!suppressed && b <= 1 && a != 0) {
+            zero = false;
+        }
+        m_zeroSuppressRunning = zero;
+
+        // Segment visibility for this strobe: when lit, refresh this digit's decay and
+        // latch the current glyph. When removed (suppression/blank/space), start decay.
+        const bool emitsGlyph = (b == 0 || b == 1 || b == 5 || b == 6 || b == 8 || b == 9);
+        const bool litNow = (!suppressed && emitsGlyph);
+        const bool wasLit = m_digitLitInLastStrobe[idx];
+        if (litNow) {
+            m_digitSegmentsA[idx] = a;
+            m_digitSegmentsB[idx] = b;
+        }
+        if (litNow || wasLit) {
+            m_digitAfterglowCounters[idx] = kAfterglowRefresh;
+        }
+        m_digitLitInLastStrobe[idx] = litNow;
+
+        // Decimal-point strobe: R5 indicates the currently driven dot position.
+        const bool dpLitNow = (R5 == strobeDigit);
+        const bool dpWasLit = m_dpLitInLastStrobe[idx];
+        if (dpLitNow || dpWasLit) {
+            m_dpAfterglowCounters[idx] = kAfterglowRefresh;
+        }
+        m_dpLitInLastStrobe[idx] = dpLitNow;
+    }
+
+    if (digit == 0) {
+        std::lock_guard<std::mutex> lock(m_displayMutex);
+        // Decay once per full digit-counter cycle, unconditionally — not inside the
+        // IDLE-gated strobe block — so counters tick down during RUN mode too.
+        for (int i = 0; i < 12; ++i) {
+            if (m_digitAfterglowCounters[i] > 0) m_digitAfterglowCounters[i]--;
+            if (m_dpAfterglowCounters[i] > 0) m_dpAfterglowCounters[i]--;
+        }
+
     }
 }
 
@@ -1259,6 +1398,8 @@ void TMC0501::tracePreStep(uint32_t tf, uint16_t opcode) {
     frame.pc     = addr;
     frame.opcode = opcode;
 
+    // Display snapshot will be captured at the end of step() after display buffer update
+
     // Light registers (previously deferred to tracePostStep for non-branch)
     if (tf & (TRACE_REGS_LIGHT | TRACE_REGS_FULL)) {
         frame.KR       = KR;
@@ -1267,6 +1408,7 @@ void TMC0501::tracePreStep(uint32_t tf, uint16_t opcode) {
         frame.fB       = fB;
         frame.cpuFlags = flags;
         frame.R5       = R5;
+        computeDisplayTraceState(frame.displayOn, frame.maxDigitDecay);
     }
 
     // Full registers (previously in mid-step block)
@@ -1281,8 +1423,8 @@ void TMC0501::tracePreStep(uint32_t tf, uint16_t opcode) {
         frame.EXT = EXT; frame.PREG = PREG; frame.flags = flags;
         frame.m_libAddr = m_libAddr; frame.m_libAddrReadPos = m_libAddrReadPos;
         frame.digit = digit;
+        frame.postDigit = digit;
         frame.REG_ADDR = REG_ADDR; frame.RAM_ADDR = RAM_ADDR; frame.RAM_OP = RAM_OP;
-        frame.dispFilter = m_dispFilter;
     }
 }
 
@@ -1299,6 +1441,7 @@ void TMC0501::tracePostStep(uint32_t tf, int weight) {
     // Identity fields only known after execution
     frame.seqno       = m_traceSeqno++;
     frame.digit       = digit;
+    frame.postDigit   = digit;
     frame.cycleWeight = static_cast<uint8_t>(weight);
 
     m_frameHead++;
@@ -1372,6 +1515,7 @@ CpuFrame TMC0501::snapshotCPU() const {
     frame.pc = addr;
     frame.opcode = rom.read(addr);
     frame.digit = digit;
+    frame.postDigit = digit;
     frame.cycleWeight = 0;
 
     // Light registers
@@ -1400,7 +1544,7 @@ CpuFrame TMC0501::snapshotCPU() const {
     frame.RAM_ADDR = RAM_ADDR;
     frame.RAM_OP = RAM_OP;
     frame.m_libAddrReadPos = m_libAddrReadPos;
-    frame.dispFilter = m_dispFilter;
+    computeDisplayTraceState(frame.displayOn, frame.maxDigitDecay);
 
     return frame;
 }

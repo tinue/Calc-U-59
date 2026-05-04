@@ -72,8 +72,10 @@ static const int kbits[] = {0, 1, 2, 3, 5, 6};  // index 0 unused; index col
     _Static_assert(sizeof(s.ctrl)   == sizeof(out.ctrl),   "ctrl size mismatch");
     memcpy(out.digits, s.digits, sizeof(out.digits));
     memcpy(out.ctrl,   s.ctrl,   sizeof(out.ctrl));
-    out.dpPos         = s.dpPos;
-    out.calcIndicator = s.calcIndicator;
+    out.dpPos            = s.dpPos;
+    out.dpAfterglowMask  = s.dpAfterglowMask;
+    out.suppressedMask   = s.suppressedMask;
+    out.calcIndicator    = s.calcIndicator;
     return out;
 }
 
@@ -217,6 +219,7 @@ static TICpuFrame marshalCpuFrame(const CpuFrame& f) {
     frame.pc = f.pc;
     frame.opcode = f.opcode;
     frame.digit = f.digit;
+    frame.postDigit = f.postDigit;
     frame.cycleWeight = f.cycleWeight;
     // Light registers
     frame.KR = f.KR; frame.SR = f.SR; frame.fA = f.fA; frame.fB = f.fB;
@@ -233,7 +236,8 @@ static TICpuFrame marshalCpuFrame(const CpuFrame& f) {
     frame.m_libAddr = f.m_libAddr;
     frame.REG_ADDR = f.REG_ADDR; frame.RAM_ADDR = f.RAM_ADDR; frame.RAM_OP = f.RAM_OP;
     frame.m_libAddrReadPos = f.m_libAddrReadPos;
-    frame.dispFilter = f.dispFilter;
+    frame.displayOn = f.displayOn;
+    frame.maxDigitDecay = f.maxDigitDecay;
     return frame;
 }
 
@@ -342,6 +346,7 @@ static TICpuFrame marshalCpuFrame(const CpuFrame& f) {
     out.pc = frame.pc;
     out.opcode = frame.opcode;
     out.digit = frame.digit;
+    out.postDigit = frame.postDigit;
     out.cycleWeight = frame.cycleWeight;
     out.KR = frame.KR; out.SR = frame.SR; out.fA = frame.fA; out.fB = frame.fB;
     out.cpuFlags = frame.cpuFlags;
@@ -354,7 +359,6 @@ static TICpuFrame marshalCpuFrame(const CpuFrame& f) {
     out.m_libAddr = frame.m_libAddr;
     out.REG_ADDR = frame.REG_ADDR; out.RAM_ADDR = frame.RAM_ADDR; out.RAM_OP = frame.RAM_OP;
     out.m_libAddrReadPos = frame.m_libAddrReadPos;
-    out.dispFilter = frame.dispFilter;
     return out;
 }
 
