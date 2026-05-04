@@ -609,10 +609,17 @@ int TMC0501::step() {
             break;
 
         case 0x6: {
-            // TI-58C uses 0xA76 (MEMWR) and 0xA86 (MEMRD); reserve bits 7:4 = 0x7/0x8
-            // TI-59/58 use these bits for MOV R5 operand selection (bit 4 = fA/fB choice)
+            // bits 7:4 of the opcode select the operation:
+            //   0x7 → MEMWR (TI-58C constant-RAM write): capture Sout[1:0] as address;
+            //          actual data arrives via the IO bus at end of the next cycle
+            //          (handled by FLG_RAM_WRITE below).
+            //   0x8 → MEMRD (TI-58C constant-RAM read): read RAM[Sout[1:0]] next cycle.
+            //   0x0 → MOV R5,fA[1..4]  (bit 4 = 0 selects fA)
+            //   0x1 → MOV R5,fB[1..4]  (bit 4 = 1 selects fB)
+            //   others → unused by any known ROM
+            // TI-59 ROM never emits 0x7 or 0x8 here, so no machine-variant guard is needed.
             uint8_t bits_7_4 = static_cast<uint8_t>((opcode >> 4) & 0x000Fu);
-            if (hasConstantMemory(m_variant) && bits_7_4 == 0x7) {
+            if (bits_7_4 == 0x7) {
                 // MEMWR — deferred write: capture address from Sout now; the
                 // actual data comes from the IO bus at the END of the next
                 // instruction cycle (deferred to FLG_RAM_WRITE handler below).
@@ -622,14 +629,13 @@ int TMC0501::step() {
                 RAM_ADDR = static_cast<uint8_t>((Sout[1] * 16u) + Sout[0]);
                 if (RAM_ADDR < ram.size())
                     flags |= FLG_RAM_WRITE;
-            } else if (hasConstantMemory(m_variant) && bits_7_4 == 0x8) {
-                // MEMRD — read RAM[RAM_ADDR] into next MOV #0 as srcY (set up by preceding ALU opcode)
-                // Address is encoded in Sout[1:0] as two hex nibbles.
+            } else if (bits_7_4 == 0x8) {
+                // MEMRD — read RAM[Sout[1:0]] into the next ALU op as srcY.
                 RAM_ADDR = static_cast<uint8_t>((Sout[1] * 16u) + Sout[0]);
                 if (RAM_ADDR < ram.size())
                     flags |= FLG_RAM_READ;
             } else {
-                // MOV R5,fA[1..4] or fB[1..4] — copy bits 1-4 into R5
+                // MOV R5,fA[1..4] or fB[1..4] — bit 4 selects fA (0) or fB (1)
                 uint16_t flagReg = (opcode & 0x0010u) ? fB : fA;
                 R5 = static_cast<uint8_t>((flagReg >> 1) & 0x0Fu);
             }

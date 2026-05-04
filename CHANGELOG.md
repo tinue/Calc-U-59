@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.0.0] - WIP
+## [1.0.0] - 2026-05-04
 First iOS / iPadOS release in the App Store.
 
 **UI:** Improved key detection and feedback with refined key rectangles for better visual press simulation and more accurate hit-testing. New classic display font with dot-matrix LED segments, offering an authentic retro aesthetic alongside the existing modernized font style.
