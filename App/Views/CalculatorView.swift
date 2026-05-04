@@ -3,6 +3,7 @@ import UniformTypeIdentifiers
 
 struct CalculatorView: View {
     @Environment(EmulatorViewModel.self) var viewModel
+    @State private var showingASMFileImporter = false
     #if os(macOS)
     @State private var isCommandPressed = false
     #else
@@ -27,6 +28,17 @@ struct CalculatorView: View {
                 case .load: viewModel.insertCard(from: url)
                 case .save: viewModel.insertBlankCard(savingTo: url)
                 }
+            }
+        }
+        .fileImporter(
+            isPresented: $showingASMFileImporter,
+            allowedContentTypes: [
+                UTType(filenameExtension: "asm") ?? .plainText,
+            ],
+            allowsMultipleSelection: false
+        ) { result in
+            if case .success(let urls) = result, let url = urls.first {
+                viewModel.loadASMOverlayFile(url)
             }
         }
         #if !os(macOS)
@@ -83,7 +95,7 @@ struct CalculatorView: View {
             PrinterView()
                 .frame(minWidth: 220, maxWidth: 320)
             Divider()
-            DebugView()
+            DebugView(showingASMFileImporter: $showingASMFileImporter)
                 .frame(minWidth: 220)
         }
         #else
@@ -100,7 +112,7 @@ struct CalculatorView: View {
                         .frame(minWidth: 290, maxWidth: 360)
                     if UIDevice.current.userInterfaceIdiom == .pad {
                         Divider()
-                        DebugView()
+                        DebugView(showingASMFileImporter: $showingASMFileImporter)
                             .frame(minWidth: 220)
                     }
                 }
