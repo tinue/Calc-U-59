@@ -1869,6 +1869,12 @@ class EmulatorViewModel {
         let programRegs = (parsed.partitionMaxStep + 1) / 8
         m.partitionProgramRegs = programRegs
 
+        // Clear entire RAM (all 120 registers) before loading new state
+        let zeroNibbles = Data(repeating: UInt8(0), count: 16)
+        for regNum in 0..<120 {
+            m.setRawRegister(regNum, nibbles: zeroNibbles)
+        }
+
         // Expand sparse steps into a full zero-padded array so unlisted steps are 00.
         let totalSteps = parsed.partitionMaxStep + 1
         var programArray = [UInt8](repeating: 0, count: totalSteps)
@@ -1884,13 +1890,6 @@ class EmulatorViewModel {
                 // Normal data registers: use the reversed mapping
                 m.writeDataRegister(regNum, nibbles: Data(nibbles))
             }
-        }
-
-        // Clear out-of-range data registers to prevent corruption from stale state files
-        let dataRegCount = 120 - programRegs
-        let zeroNibbles = Data(repeating: UInt8(0), count: 16)
-        for regNum in dataRegCount..<120 {
-            m.setRawRegister(regNum, nibbles: zeroNibbles)
         }
 
         startEmulationLoop()
