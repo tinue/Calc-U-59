@@ -609,13 +609,15 @@ def _apply_clean_heavy(records):
     if not model:
         model = 'TI-59'
 
-    # Find reset start
-    reset_idx = _find_reset_start(records)
-    records = records[reset_idx:]
+    loop_start, loop_end = _get_scan_loop_range(model)
+    if not loop_start:
+        return records
 
-    # Find where the scan loop finally exits
+    # Find where the scan loop finally exits (without first finding reset)
+    # This handles multi-session traces where reset appears multiple times
     loop_exit_idx = _find_scan_loop_completion(records, model)
-    records = records[loop_exit_idx:]
+    if loop_exit_idx > 0:
+        records = records[loop_exit_idx:]
 
     # Remove incomplete scan loop at end
     records = _remove_incomplete_scan_loop(records, model)
