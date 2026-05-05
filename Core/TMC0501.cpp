@@ -1641,15 +1641,31 @@ std::string TMC0501::disassemble(uint16_t pc, uint16_t opcode) {
     if (hi == 0x8) {
         bool    single = (opcode & 0x0008) != 0;
         // Reconstruct the 7-bit K-line mask using the same formula as execution:
-        // bits 2:0 → K-lines KN/KO/KP
-        // bits 10:4 → K-lines KQ/KR/KS/KT (extracted via >> 1)
+        // bits 2:0 → K-lines N/O/P
+        // bits 6:3 → K-lines Q/R/S/T (extracted via >> 1)
         uint8_t kmask_raw = static_cast<uint8_t>(
             (opcode & 0x07u) | ((opcode >> 1) & 0x78u));
         uint8_t kmask  = static_cast<uint8_t>(kmask_raw ^ 0x7Fu);
+
+        // Build selected lines string
+        const char* lines[] = {"N", "O", "P", "Q", "R", "S", "T"};
+        std::string selected;
+        for (int i = 0; i < 7; ++i) {
+            if (kmask & (1u << i)) {
+                if (!selected.empty()) selected += ",";
+                selected += lines[i];
+            }
+        }
+
         if (single) {
-            snprintf(buf, sizeof(buf), "KEY %u,D%u", kmask, opcode & 7u);
+            uint8_t digit = opcode & 7u;
+            if (kmask == 0x7Fu) {  // All lines
+                snprintf(buf, sizeof(buf), "KEY ALL D%u", digit);
+            } else {
+                snprintf(buf, sizeof(buf), "KEY [%s] D%u", selected.c_str(), digit);
+            }
         } else {
-            snprintf(buf, sizeof(buf), "KEY_ALL %u", kmask);
+            snprintf(buf, sizeof(buf), "KEY [%s] ALL", selected.c_str());
         }
         return buf;
     }

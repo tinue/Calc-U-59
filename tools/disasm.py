@@ -127,7 +127,27 @@ def disasm(addr: int, opcode: int, model: str = "59") -> str:
 
     # ── Keyboard scan  (hi = 0x8) ───────────────────────────────────────────
     if hi == 0x8:
-        return f"KEY {opcode & 0xFF:02X}"
+        single = (opcode & 0x0008) != 0
+        # Reconstruct the 7-bit K-line mask using the same formula as TMC0501.cpp:
+        # bits 2:0 → K-lines N/O/P
+        # bits 6:3 → K-lines Q/R/S/T (extracted via >> 1)
+        kmask_raw = (opcode & 0x07) | ((opcode >> 1) & 0x78)
+        kmask = kmask_raw ^ 0x7F
+
+        # Map bits to keyboard lines
+        lines = ['N', 'O', 'P', 'Q', 'R', 'S', 'T']
+        selected = [lines[i] for i in range(7) if kmask & (1 << i)]
+
+        if single:
+            digit = opcode & 0x7
+            if kmask == 0x7F:  # All lines selected
+                return f"KEY ALL D{digit}"
+            else:
+                line_str = ','.join(selected)
+                return f"KEY [{line_str}] D{digit}"
+        else:
+            line_str = ','.join(selected)
+            return f"KEY [{line_str}] ALL"
 
     # ── Wait / control  (hi = 0xA) ──────────────────────────────────────────
     if hi == 0xA:
