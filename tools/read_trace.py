@@ -29,11 +29,13 @@ Flags:
     --json                 Output as JSON array
     --dedup                Remove consecutive records with same PC (filter duplicates)
     --skip-repeating       Apply dedup first, then collapse repeating PC sequences
-    --clean                Find reset start (PC=0000) and remove incomplete final scan loop
-                           (063C-0658). Only for TI-58/59, ignored for TI-58C.
-    --clean-heavy          Skip reset (PC=0000) and the entire first keyboard scan loop
-                           (063C-0658). Useful to start from when calculator is ready.
-                           Takes precedence over --clean. Only for TI-58/59, ignored for TI-58C.
+    --clean                Find reset start (PC=0000) and remove incomplete final scan loop.
+                           TI-59/58: 063C-0658 (10-instr). TI-58C: 063D-0A2E (25-instr).
+    --clean-heavy          Skip reset (PC=0000) and the entire keyboard scan loop.
+                           Skips all iterations until loop exits. Useful to start from
+                           when calculator is ready for input.
+                           TI-59/58: 063C-0658. TI-58C: 063D-0A2E.
+                           Takes precedence over --clean.
     --color                Colorize trace entries (DISP ON: light yellow, IDLE=1: darker white,
                            both: dark yellow). Works with any filter combination.
 
@@ -467,17 +469,20 @@ def _find_reset_start(records):
             return i
     return 0
 
-def _find_scan_loop_completion(records):
-    """Find the index where the keyboard scan loop (063C-0658) finally exits.
+def _find_scan_loop_completion(records, model):
+    """Find the index where the keyboard scan loop finally exits.
 
-    The loop normally repeats: 063C...0658 (jump back to 063C).
+    For TI-59/58: loop is 063C-0658
+    For TI-58C: loop is 063D-0A2E
+
     Returns the index of the first instruction after the loop, which is
-    the first PC outside the range 063C-0658 after the loop has started.
+    the first PC outside the loop range after the loop has started.
 
     If no exit is found (trace ends inside loop), returns 0.
     """
-    SCAN_LOOP_START = '063C'
-    SCAN_LOOP_END = '0658'
+    loop_start, loop_end = _get_scan_loop_range(model)
+    if not loop_start:
+        return 0
 
     found_loop_start = False
 
@@ -488,24 +493,41 @@ def _find_scan_loop_completion(records):
         pc = rec['pc']
 
         # Mark when we see the loop start
-        if pc == SCAN_LOOP_START:
+        if pc == loop_start:
             found_loop_start = True
 
         # Once loop has started, look for first PC outside the range
-        if found_loop_start and not (SCAN_LOOP_START <= pc <= SCAN_LOOP_END):
+        if found_loop_start and not (loop_start <= pc <= loop_end):
             return i
 
     # No exit found (loop ends at EOF or never exits)
     return 0
 
-def _remove_incomplete_scan_loop(records):
-    """Remove the last incomplete keyboard scan loop (063C-0658).
+def _get_scan_loop_range(model):
+    """Get the scan loop range (start, end, jump_instr) for the given model.
 
-    The scan loop executes at the end. If the trace is interrupted mid-loop,
-    we remove this incomplete final cycle to clean up the output.
+    Returns (start_pc, end_pc) tuple:
+    - TI-59/58: ('063C', '0658') - 10-instruction loop
+    - TI-58C: ('063D', '0A2E') - 25-instruction loop
+    - Other/None: (None, None)
     """
-    SCAN_LOOP_START = '063C'
-    SCAN_LOOP_END = '0658'
+    if model in ('TI-59', 'TI-58'):
+        return ('063C', '0658')
+    elif model == 'TI-58C':
+        return ('063D', '0A2E')
+    return (None, None)
+
+def _remove_incomplete_scan_loop(records, model):
+    """Remove the last incomplete keyboard scan loop.
+
+    For TI-59/58: 063C-0658 loop
+    For TI-58C: 063D-0A2E loop
+
+    If the trace is interrupted mid-loop, we remove this incomplete final cycle.
+    """
+    loop_start, loop_end = _get_scan_loop_range(model)
+    if not loop_start:
+        return records
 
     # Find last trace record
     last_trace_idx = -1
@@ -520,7 +542,7 @@ def _remove_incomplete_scan_loop(records):
     last_pc = records[last_trace_idx]['pc']
 
     # Check if last trace is within the scan loop range
-    if last_pc < SCAN_LOOP_START or last_pc > SCAN_LOOP_END:
+    if last_pc < loop_start or last_pc > loop_end:
         # No scan loop at end
         return records
 
@@ -529,16 +551,16 @@ def _remove_incomplete_scan_loop(records):
     for i in range(last_trace_idx, -1, -1):
         if records[i]['type'] == 'trace':
             pc = records[i]['pc']
-            if pc == SCAN_LOOP_START:
+            if pc == loop_start:
                 loop_start_idx = i
                 break
-            elif pc < SCAN_LOOP_START or pc > SCAN_LOOP_END:
+            elif pc < loop_start or pc > loop_end:
                 # Reached before the scan loop
                 loop_start_idx = i + 1
                 break
 
     # If last trace is not at the end of the loop, it's incomplete
-    if last_pc != SCAN_LOOP_END:
+    if last_pc != loop_end:
         return records[:loop_start_idx]
 
     return records
@@ -546,56 +568,57 @@ def _remove_incomplete_scan_loop(records):
 def _apply_clean(records):
     """Apply --clean filter: find reset start and remove incomplete scan loop.
 
-    Only applies to TI-59 and TI-58 (silently ignores TI-58C).
+    Supports TI-59, TI-58, and TI-58C with their respective loop ranges.
     """
-    # Check model - skip for TI-58C
+    # Get model
     model = None
     for rec in records:
         if rec['type'] == 'session_start' and rec.get('model'):
             model = rec['model']
             break
 
-    # If model is specified and it's TI-58C, don't apply clean
-    if model == 'TI-58C':
-        return records
+    # If no model, try to infer from presence of loop PCs (fallback to TI-59)
+    if not model:
+        model = 'TI-59'
 
     # Find reset start and trim leading records
     reset_idx = _find_reset_start(records)
     records = records[reset_idx:]
 
     # Remove incomplete scan loop at end
-    records = _remove_incomplete_scan_loop(records)
+    records = _remove_incomplete_scan_loop(records, model)
 
     return records
 
 def _apply_clean_heavy(records):
     """Apply --clean-heavy filter: skip reset and entire keyboard scan loop.
 
-    Finds PC=0000 (reset), then skips all iterations of the scan loop (063C-0658)
+    Finds PC=0000 (reset), then skips all iterations of the scan loop
     until it exits. Starts output from the first instruction after the loop completes.
-    Only applies to TI-59 and TI-58 (silently ignores TI-58C).
+
+    Supports TI-59, TI-58 (loop 063C-0658), and TI-58C (loop 063D-0A2E).
     """
-    # Check model - skip for TI-58C
+    # Get model
     model = None
     for rec in records:
         if rec['type'] == 'session_start' and rec.get('model'):
             model = rec['model']
             break
 
-    # If model is specified and it's TI-58C, don't apply clean
-    if model == 'TI-58C':
-        return records
+    # If no model, try to infer (fallback to TI-59)
+    if not model:
+        model = 'TI-59'
 
     # Find reset start
     reset_idx = _find_reset_start(records)
     records = records[reset_idx:]
 
     # Find where the scan loop finally exits
-    loop_exit_idx = _find_scan_loop_completion(records)
+    loop_exit_idx = _find_scan_loop_completion(records, model)
     records = records[loop_exit_idx:]
 
     # Remove incomplete scan loop at end
-    records = _remove_incomplete_scan_loop(records)
+    records = _remove_incomplete_scan_loop(records, model)
 
     return records
 
