@@ -2,16 +2,26 @@
 """
 read_trace.py — TI-59 binary trace reader with disassembly.
 
-Parses TI59_TRACE.bin (format documented in DebugAPI.md) and either:
+Parses TI59_TRACE.bin (and variant filenames) in format documented in DebugAPI.md and either:
   • Prints a human-readable TI59E.LOG-style text trace to stdout (default)
     Includes disassembled mnemonics (e.g., "11DA 0A76 MEMWR")
   • Emits a JSON array (--json)
   • Exposes load_trace(path) for import by compare_trace.py
 
+Version support:
+  • v1 (released in v1.0.0): stable, backwards-compatible. File header has no model field.
+  • v2+ (after v1.0.0): volatile, may change without backwards-compat guarantees.
+    v2 adds model indicator to file header and SESSION_START record.
+
 Usage:
     python3 read_trace.py TI59_TRACE.bin                       # output everything
     python3 read_trace.py --dedup TI59_TRACE.bin               # filter consecutive same-PC
     python3 read_trace.py --skip-repeating TI59_TRACE.bin      # dedup + collapse repeating loops
+    python3 read_trace.py --clean TI59_TRACE.bin               # find reset, skip to after first scan loop
+    python3 read_trace.py --clean-heavy TI59_TRACE.bin         # skip reset and first keyboard scan loop
+    python3 read_trace.py --clean --dedup TI59_TRACE.bin       # clean + dedup
+    python3 read_trace.py --clean-heavy --color TI59_TRACE.bin # clean-heavy + coloring
+    python3 read_trace.py --clean --json TI59_TRACE.bin        # clean + JSON output
     python3 read_trace.py --dedup --color TI59_TRACE.bin       # filters + coloring
     python3 read_trace.py --json TI59_TRACE.bin
 
@@ -19,6 +29,11 @@ Flags:
     --json                 Output as JSON array
     --dedup                Remove consecutive records with same PC (filter duplicates)
     --skip-repeating       Apply dedup first, then collapse repeating PC sequences
+    --clean                Find reset start (PC=0000) and remove incomplete final scan loop
+                           (063C-0658). Only for TI-58/59, ignored for TI-58C.
+    --clean-heavy          Skip reset (PC=0000) and the entire first keyboard scan loop
+                           (063C-0658). Useful to start from when calculator is ready.
+                           Takes precedence over --clean. Only for TI-58/59, ignored for TI-58C.
     --color                Colorize trace entries (DISP ON: light yellow, IDLE=1: darker white,
                            both: dark yellow). Works with any filter combination.
 
@@ -32,8 +47,11 @@ from disasm import disasm
 
 # ── Constants (must match DebugAPI.md) ────────────────────────────────────────
 
-MAGIC   = 0x54493539   # 'TI59' in LE memory
-VERSION = 1            # Baseline version for initial release; do not increment until v1.0.0 ships
+MAGIC      = 0x54493539   # 'TI59' in LE memory
+VERSION_V1 = 1             # v1: baseline (released in v1.0.0, stable, no model field)
+VERSION_V2 = 2             # v2+: volatile, may change. v2 adds model to header and SESSION_START
+
+MODEL_NAMES = {0: 'TI-59', 1: 'TI-58', 2: 'TI-58C'}
 
 REC_SESSION_START = 0x01
 REC_TRACE_EVENT   = 0x02
@@ -58,12 +76,21 @@ def _read_exact(f, n):
     return data
 
 def _parse_file_header(f):
+    """Parse and validate file header (16 bytes). Returns model indicator or None."""
     hdr = _read_exact(f, 16)
     magic, version = struct.unpack_from('<IH', hdr, 0)
     if magic != MAGIC:
         raise ValueError(f"Bad magic: 0x{magic:08X} (expected 0x{MAGIC:08X})")
-    if version != VERSION:
-        raise ValueError(f"Unsupported version: {version} (expected {VERSION})")
+    if version not in (VERSION_V1, VERSION_V2):
+        raise ValueError(f"Unsupported version: {version} (expected {VERSION_V1} or {VERSION_V2})")
+
+    # v1: no model field (reserved space). v2: model at offset 6–7
+    model = None
+    if version >= VERSION_V2:
+        model_code, = struct.unpack_from('<H', hdr, 6)
+        model = MODEL_NAMES.get(model_code, f'Unknown({model_code})')
+
+    return version, model
 
 def _parse_trace_event(payload):
     """Parse a TRACE_EVENT payload into a dict.
@@ -164,9 +191,17 @@ def _parse_user_event(payload):
         e['col'] = p2
     return e
 
-def _parse_session_start(payload):
+def _parse_session_start(payload, file_version):
+    """Parse SESSION_START record. v1: 8 bytes (timestamp only).
+    v2+: 9 bytes (timestamp + model byte)."""
     ts, = struct.unpack_from('<Q', payload, 0)
-    return {'type': 'session_start', 'timestamp': ts}
+    rec = {'type': 'session_start', 'timestamp': ts, 'model': None}
+
+    if file_version >= VERSION_V2 and len(payload) >= 9:
+        model_code = payload[8]
+        rec['model'] = MODEL_NAMES.get(model_code, f'Unknown({model_code})')
+
+    return rec
 
 def _parse_session_end(payload):
     count, suppressed = struct.unpack_from('<II', payload, 0)
@@ -176,10 +211,10 @@ def _parse_session_end(payload):
 
 def load_trace(path):
     """
-    Parse TI59_TRACE.bin and return a list of record dicts.
+    Parse TI59_TRACE.bin (or variant) and return a list of record dicts.
 
     Record types:
-      'session_start'  — session boundary
+      'session_start'  — session boundary with optional model field
       'session_end'    — session boundary with counts
       'trace'          — CPU instruction snapshot
       'user'           — user interaction (key, card)
@@ -198,7 +233,7 @@ def load_trace(path):
     trace_index = 0
     with open(path, 'rb') as f:
         try:
-            _parse_file_header(f)
+            file_version, file_model = _parse_file_header(f)
         except (ValueError, EOFError) as exc:
             raise ValueError(f"Cannot read {path}: {exc}") from exc
 
@@ -213,7 +248,7 @@ def load_trace(path):
             payload = f.read(payload_len)
 
             if rec_type == REC_SESSION_START:
-                records.append(_parse_session_start(payload))
+                records.append(_parse_session_start(payload, file_version))
             elif rec_type == REC_TRACE_EVENT:
                 trace_index += 1
                 rec = _parse_trace_event(payload)
@@ -424,6 +459,146 @@ def _skip_repeating(records):
 
     return out
 
+def _find_reset_start(records):
+    """Find the index of the first trace record with PC='0000'.
+    Returns the index, or 0 if not found."""
+    for i, rec in enumerate(records):
+        if rec['type'] == 'trace' and rec['pc'] == '0000':
+            return i
+    return 0
+
+def _find_scan_loop_completion(records):
+    """Find the index where the keyboard scan loop (063C-0658) finally exits.
+
+    The loop normally repeats: 063C...0658 (jump back to 063C).
+    Returns the index of the first instruction after the loop, which is
+    the first PC outside the range 063C-0658 after the loop has started.
+
+    If no exit is found (trace ends inside loop), returns 0.
+    """
+    SCAN_LOOP_START = '063C'
+    SCAN_LOOP_END = '0658'
+
+    found_loop_start = False
+
+    for i, rec in enumerate(records):
+        if rec['type'] != 'trace':
+            continue
+
+        pc = rec['pc']
+
+        # Mark when we see the loop start
+        if pc == SCAN_LOOP_START:
+            found_loop_start = True
+
+        # Once loop has started, look for first PC outside the range
+        if found_loop_start and not (SCAN_LOOP_START <= pc <= SCAN_LOOP_END):
+            return i
+
+    # No exit found (loop ends at EOF or never exits)
+    return 0
+
+def _remove_incomplete_scan_loop(records):
+    """Remove the last incomplete keyboard scan loop (063C-0658).
+
+    The scan loop executes at the end. If the trace is interrupted mid-loop,
+    we remove this incomplete final cycle to clean up the output.
+    """
+    SCAN_LOOP_START = '063C'
+    SCAN_LOOP_END = '0658'
+
+    # Find last trace record
+    last_trace_idx = -1
+    for i in range(len(records) - 1, -1, -1):
+        if records[i]['type'] == 'trace':
+            last_trace_idx = i
+            break
+
+    if last_trace_idx == -1:
+        return records
+
+    last_pc = records[last_trace_idx]['pc']
+
+    # Check if last trace is within the scan loop range
+    if last_pc < SCAN_LOOP_START or last_pc > SCAN_LOOP_END:
+        # No scan loop at end
+        return records
+
+    # Find where this loop started (look back for start)
+    loop_start_idx = last_trace_idx
+    for i in range(last_trace_idx, -1, -1):
+        if records[i]['type'] == 'trace':
+            pc = records[i]['pc']
+            if pc == SCAN_LOOP_START:
+                loop_start_idx = i
+                break
+            elif pc < SCAN_LOOP_START or pc > SCAN_LOOP_END:
+                # Reached before the scan loop
+                loop_start_idx = i + 1
+                break
+
+    # If last trace is not at the end of the loop, it's incomplete
+    if last_pc != SCAN_LOOP_END:
+        return records[:loop_start_idx]
+
+    return records
+
+def _apply_clean(records):
+    """Apply --clean filter: find reset start and remove incomplete scan loop.
+
+    Only applies to TI-59 and TI-58 (silently ignores TI-58C).
+    """
+    # Check model - skip for TI-58C
+    model = None
+    for rec in records:
+        if rec['type'] == 'session_start' and rec.get('model'):
+            model = rec['model']
+            break
+
+    # If model is specified and it's TI-58C, don't apply clean
+    if model == 'TI-58C':
+        return records
+
+    # Find reset start and trim leading records
+    reset_idx = _find_reset_start(records)
+    records = records[reset_idx:]
+
+    # Remove incomplete scan loop at end
+    records = _remove_incomplete_scan_loop(records)
+
+    return records
+
+def _apply_clean_heavy(records):
+    """Apply --clean-heavy filter: skip reset and entire keyboard scan loop.
+
+    Finds PC=0000 (reset), then skips all iterations of the scan loop (063C-0658)
+    until it exits. Starts output from the first instruction after the loop completes.
+    Only applies to TI-59 and TI-58 (silently ignores TI-58C).
+    """
+    # Check model - skip for TI-58C
+    model = None
+    for rec in records:
+        if rec['type'] == 'session_start' and rec.get('model'):
+            model = rec['model']
+            break
+
+    # If model is specified and it's TI-58C, don't apply clean
+    if model == 'TI-58C':
+        return records
+
+    # Find reset start
+    reset_idx = _find_reset_start(records)
+    records = records[reset_idx:]
+
+    # Find where the scan loop finally exits
+    loop_exit_idx = _find_scan_loop_completion(records)
+    records = records[loop_exit_idx:]
+
+    # Remove incomplete scan loop at end
+    records = _remove_incomplete_scan_loop(records)
+
+    return records
+
 def format_as_log(records, dedup=False, skip_repeating=False, color=False):
     """
     Render records as TI59E.LOG-style text.
@@ -459,7 +634,8 @@ def format_as_log(records, dedup=False, skip_repeating=False, color=False):
         if t == 'session_start':
             import datetime
             ts = datetime.datetime.fromtimestamp(rec['timestamp'])
-            out.append(f"\n; SESSION START  {ts.isoformat()}\n")
+            model_str = f"  model={rec['model']}" if rec.get('model') else ""
+            out.append(f"\n; SESSION START  {ts.isoformat()}{model_str}\n")
         elif t == 'session_end':
             out.append(f"; SESSION END  events={rec['eventCount']}  "
                        f"suppressed={rec['suppressedTotal']}\n")
@@ -483,6 +659,8 @@ def main():
     dedup = '--dedup' in args
     skip_repeating = '--skip-repeating' in args
     color = '--color' in args
+    clean_heavy = '--clean-heavy' in args
+    clean = '--clean' in args and not clean_heavy
     paths = [a for a in args if not a.startswith('--')]
     if not paths:
         print(__doc__)
@@ -490,6 +668,10 @@ def main():
 
     for path in paths:
         records = load_trace(path)
+        if clean_heavy:
+            records = _apply_clean_heavy(records)
+        elif clean:
+            records = _apply_clean(records)
         if as_json:
             print(json.dumps(records, indent=2))
         else:
