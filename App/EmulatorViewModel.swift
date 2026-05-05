@@ -35,6 +35,10 @@ class EmulatorViewModel {
     var model: MachineModel     = .ti59
     var errorMessage: String?
 
+    // ── Display interaction state ────────────────────────────────────────────────
+    var isDisplayPressed: Bool = false
+    var isFullSpeedMode: Bool = false  // true when user is pressing display; emulation runs unrestricted
+
     // ── Printer state ────────────────────────────────────────────────────────
     var printerLines: [String] = []
     var printerCodeLines: [Data] = []  // parallel to printerLines; 20 raw codes per line
@@ -276,11 +280,14 @@ class EmulatorViewModel {
                     }
                 }
 
-                let end = DispatchTime.now()
-                let elapsed = Double(end.uptimeNanoseconds - start.uptimeNanoseconds) / 1e9
-                let remaining = batchMs - elapsed
-                if remaining > 0 {
-                    Thread.sleep(forTimeInterval: remaining)
+                // Skip timing throttle when in full-speed mode (user pressing display)
+                if !self.isFullSpeedMode {
+                    let end = DispatchTime.now()
+                    let elapsed = Double(end.uptimeNanoseconds - start.uptimeNanoseconds) / 1e9
+                    let remaining = batchMs - elapsed
+                    if remaining > 0 {
+                        Thread.sleep(forTimeInterval: remaining)
+                    }
                 }
 
                 // Persist TI-58C state after each 20 ms batch if needed

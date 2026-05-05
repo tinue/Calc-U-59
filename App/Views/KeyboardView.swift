@@ -186,6 +186,26 @@ struct KeyboardView: View {
                             .onChanged { value in
                                 let nx = value.location.x / w
                                 let ny = value.location.y / h
+
+                                // Check if press is on display area
+                                let isOnDisplay = nx >= Self.displayRect.minX && nx <= Self.displayRect.maxX &&
+                                                ny >= Self.displayRect.minY && ny <= Self.displayRect.maxY
+                                if isOnDisplay {
+                                    viewModel.isDisplayPressed = true
+                                    viewModel.isFullSpeedMode = true
+                                    if let prev = pressedKey {
+                                        viewModel.releaseKey(row: prev / 5, col: prev % 5)
+                                        pressedKey = nil
+                                    }
+                                    return
+                                }
+
+                                // Release display press if moving to keyboard
+                                if viewModel.isDisplayPressed {
+                                    viewModel.isDisplayPressed = false
+                                    viewModel.isFullSpeedMode = false
+                                }
+
                                 // Convert canvas coords → keyboard-image coords
                                 let kbNy = (ny - Self.kbYStart) / Self.kbYScale
                                 // Allow margin for vertical expansion (20% of max key height ≈ 0.015)
@@ -208,6 +228,8 @@ struct KeyboardView: View {
                                 triggerFeedback()
                             }
                             .onEnded { _ in
+                                viewModel.isDisplayPressed = false
+                                viewModel.isFullSpeedMode = false
                                 if let prev = pressedKey {
                                     viewModel.releaseKey(row: prev / 5, col: prev % 5)
                                 }
