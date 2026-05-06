@@ -21,6 +21,8 @@ Unsorted collection of ideas, bugs, observations etc.
 ### CPU Debugger
 - **Break points** Support break points (e.g. register content, IDLE-RUN change, PGM counter, and more)
 - **Latch keyboard entries** Support catching a keypress in single step mode
+- **Heatmap** Add a heatmap of the entire ROM. Start with green (never touched), and go through yellow to red
+- **Live Register** The current live view (not frozen) only shows program steps. Add flags and registers as well
 
 ### Calculator Debugger
 - **Live mode** Support additional live mode pgm sources (fast mode, solid state ROM)
