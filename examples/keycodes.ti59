@@ -12,6 +12,13 @@
 # 028: SBR 475 7 OP 17 .001 SUM 60 DSZ O A' R/S
 # All key codes are listed at step 478. Needless to say, you need the PC1O0A.
 
+# Prepare the magnet card inlay
+CUECARD:
+Template: MagnetCard
+Title: Print all keycodes
+Banks: 1
+A: PRINT
+
 PROGRAM:
 000  76 LBL
 001  11  A

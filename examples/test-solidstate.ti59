@@ -1,0 +1,17 @@
+# Testfile for a SolidStateCard
+
+CUECARD:
+Template: SolidStateCard
+Title: Financial
+Id: ML-01
+IdAlign: right
+Row1: DIAGNOSTIC: SBR =
+Row1Align: center
+Row2: L.R. INIT: SBR CLR
+Row2Align: left
+Row2R: PRINT: mm STO 00
+Row2RAlign: right
+
+REGISTERS:
+00 = 1000
+01 = 0.05

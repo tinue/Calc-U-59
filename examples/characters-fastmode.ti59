@@ -9,6 +9,16 @@
 # The same table is printed, but ever so siowly. Note also that this program prints the extended print code table.
 # The author of this jewel is K-J Meusch, Koenigsdorf, West Germany.
 
+# Prepare the magnet card inlay
+CUECARD:
+Template: MagnetCard
+Title: Print Characters
+Banks: 1
+A: R/S after load
+B: Then
+C: reinsert
+D: card
+
 PROGRAM:
       000  00  0
       001  00  0

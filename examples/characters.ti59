@@ -1,16 +1,23 @@
-     # characters.ti59 — Print a full character table with row/column headers
-     # Output format (20-char wide lines):
-     #
-     #    0 1 2 3 4 5 6 7
-     #
-     # 0    0 1 2 3 4 5 6
-     # 1  7 8 9 A B C D E
-     # ...
-     #
-     # Press "A" to print.  Uses R00–R04, R10–R17.
-     #
-     # Layout per data row (positions 0–17):
-     #   R sp sp c0 sp | c1 sp c2 sp c3 | sp c4 sp c5 sp | c6 sp c7 sp sp
+# characters.ti59 — Print a full character table with row/column headers
+# Output format (20-char wide lines):
+#
+#    0 1 2 3 4 5 6 7
+#
+# 0    0 1 2 3 4 5 6
+# 1  7 8 9 A B C D E
+# ...
+#
+# Press "A" to print.  Uses R00–R04, R10–R17.
+#
+# Layout per data row (positions 0–17):
+#   R sp sp c0 sp | c1 sp c2 sp c3 | sp c4 sp c5 sp | c6 sp c7 sp sp
+
+# Prepare the magnet card inlay
+CUECARD:
+Template: MagnetCard
+Title: Print character table
+Banks: 1
+A: PRINT
 
 PROGRAM:
   000  76  LBL

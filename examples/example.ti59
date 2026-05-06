@@ -5,6 +5,13 @@
 
 PARTITION: 799.19   # 800 steps, 19 data registers (R00–R19) — "2 OP 17"
 
+# Prepare the magnet card inlay
+CUECARD:
+Template: MagnetCard
+Title: Example
+Banks: 1,2
+A: Start
+
 PROGRAM:
 # --- Format 1: bare keycodes (no step numbers) ---
 76 11                   # LBL A
