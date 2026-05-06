@@ -43,37 +43,48 @@ struct CueCardView: View {
 
     @ViewBuilder
     private func cueCardContent(w: CGFloat, h: CGFloat) -> some View {
-        let titleY = h * 0.28
-        let gridY0 = h * 0.57
-        let gridY1 = h * 0.82
-        let fontSize: CGFloat = 11
+        let titleY = h * 0.18
+        let gridY0 = h * 0.50
+        let gridY1 = h * 0.75
+        let titleFontSize: CGFloat = 16
+        let gridFontSize: CGFloat = 9.5
 
         // Title row
         Text(card.title)
-            .font(.system(size: fontSize, weight: .bold, design: .monospaced))
-            .foregroundColor(goldColor)
+            .font(.system(size: titleFontSize, weight: .bold, design: .monospaced))
+            .foregroundColor(.black)
             .lineLimit(1)
             .position(x: w / 2, y: titleY)
 
         // Grid row 0: A–E
         let xPositions = [0.10, 0.30, 0.50, 0.70, 0.90]
         ForEach(0..<5, id: \.self) { i in
-            Text(card.labels[i])
-                .font(.system(size: fontSize - 1, weight: .bold, design: .monospaced))
-                .foregroundColor(goldColor)
-                .lineLimit(2)
-                .frame(width: w * 0.15, height: h * 0.12)
-                .position(x: w * xPositions[i], y: gridY0)
+            VStack(spacing: 0) {
+                Text(card.labels[i])
+                    .font(.system(size: gridFontSize, weight: .bold, design: .monospaced))
+                    .foregroundColor(.black)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: .infinity, alignment: .center)
+            }
+            .frame(width: w * 0.15, height: h * 0.09)
+            .clipped()
+            .position(x: w * xPositions[i], y: gridY0)
         }
 
         // Grid row 1: A'–E'
         ForEach(0..<5, id: \.self) { i in
-            Text(card.labels[5 + i])
-                .font(.system(size: fontSize - 1, weight: .bold, design: .monospaced))
-                .foregroundColor(goldColor)
-                .lineLimit(2)
-                .frame(width: w * 0.15, height: h * 0.12)
-                .position(x: w * xPositions[i], y: gridY1)
+            VStack(spacing: 0) {
+                Text(card.labels[5 + i])
+                    .font(.system(size: gridFontSize, weight: .bold, design: .monospaced))
+                    .foregroundColor(.black)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: .infinity, alignment: .center)
+            }
+            .frame(width: w * 0.15, height: h * 0.09)
+            .clipped()
+            .position(x: w * xPositions[i], y: gridY1)
         }
     }
 
@@ -82,10 +93,11 @@ struct CueCardView: View {
     @ViewBuilder
     private func magnetCardContent(w: CGFloat, h: CGFloat) -> some View {
         let bankFontSize: CGFloat = 16
-        let titleY = h * 0.38
-        let gridY0 = h * 0.57
-        let gridY1 = h * 0.82
-        let fontSize: CGFloat = 10
+        let titleY = h * 0.32
+        let gridY0 = h * 0.53
+        let gridY1 = h * 0.75
+        let titleFontSize: CGFloat = 12
+        let gridFontSize: CGFloat = 10
 
         // Left bank badge
         if let leftBank = card.banks.0 {
@@ -93,6 +105,7 @@ struct CueCardView: View {
                 .font(.system(size: bankFontSize, weight: .bold, design: .monospaced))
                 .foregroundColor(.black)
                 .frame(width: w * 0.12, height: h * 0.15)
+                .clipped()
                 .position(x: w * 0.08, y: h * 0.12)
         }
 
@@ -102,35 +115,46 @@ struct CueCardView: View {
                 .font(.system(size: bankFontSize, weight: .bold, design: .monospaced))
                 .foregroundColor(.black)
                 .frame(width: w * 0.12, height: h * 0.15)
+                .clipped()
                 .position(x: w * 0.92, y: h * 0.12)
         }
 
         // Title row
         Text(card.title)
-            .font(.system(size: fontSize + 1, weight: .bold, design: .monospaced))
-            .foregroundColor(goldColor)
+            .font(.system(size: titleFontSize, weight: .bold, design: .monospaced))
+            .foregroundColor(.black)
             .lineLimit(1)
             .position(x: w / 2, y: titleY)
 
         // Grid row 0: A–E
         let xPositions = [0.10, 0.30, 0.50, 0.70, 0.90]
         ForEach(0..<5, id: \.self) { i in
-            Text(card.labels[i])
-                .font(.system(size: fontSize - 1, weight: .bold, design: .monospaced))
-                .foregroundColor(goldColor)
-                .lineLimit(2)
-                .frame(width: w * 0.15, height: h * 0.12)
-                .position(x: w * xPositions[i], y: gridY0)
+            VStack(spacing: 0) {
+                Text(card.labels[i])
+                    .font(.system(size: gridFontSize, weight: .bold, design: .monospaced))
+                    .foregroundColor(.black)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: .infinity, alignment: .center)
+            }
+            .frame(width: w * 0.15, height: h * 0.09)
+            .clipped()
+            .position(x: w * xPositions[i], y: gridY0)
         }
 
         // Grid row 1: A'–E'
         ForEach(0..<5, id: \.self) { i in
-            Text(card.labels[5 + i])
-                .font(.system(size: fontSize - 1, weight: .bold, design: .monospaced))
-                .foregroundColor(goldColor)
-                .lineLimit(2)
-                .frame(width: w * 0.15, height: h * 0.12)
-                .position(x: w * xPositions[i], y: gridY1)
+            VStack(spacing: 0) {
+                Text(card.labels[5 + i])
+                    .font(.system(size: gridFontSize, weight: .bold, design: .monospaced))
+                    .foregroundColor(.black)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: .infinity, alignment: .center)
+            }
+            .frame(width: w * 0.15, height: h * 0.09)
+            .clipped()
+            .position(x: w * xPositions[i], y: gridY1)
         }
     }
 
