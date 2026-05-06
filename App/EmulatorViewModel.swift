@@ -150,6 +150,9 @@ class EmulatorViewModel {
     /// Display name of the last card file loaded.
     var cardFileName: String = "card.U59"
 
+    // ── Cue card state ───────────────────────────────────────────────────────
+    var cueCardContent: CueCardContent? = nil
+
     private static let cardFileHeader = Data("Calc-U-59-CRD".utf8)
 
     private var machine: TI59MachineWrapper?
@@ -493,6 +496,7 @@ class EmulatorViewModel {
         unfreeze()  // exit freeze mode when resetting
         asmOverlayActive = false
         cardState = .noCard
+        cueCardContent = nil
         printerTrace = false
         machine?.setPrinterTrace(false)
         machine?.reset()
@@ -516,6 +520,7 @@ class EmulatorViewModel {
         asmOverlayActive = false
         machine?.deserialiseRAM(Data(repeating: 0, count: 120 * 16))
         cardState = .noCard
+        cueCardContent = nil
         printerTrace = false
         machine?.setPrinterTrace(false)
         machine?.reset()
@@ -1903,6 +1908,9 @@ class EmulatorViewModel {
 
         // Persist the loaded state once after all writes complete
         persistConstantMemory()
+
+        // Set cue card if present in file
+        self.cueCardContent = parsed.cueCardContent
 
         if !parsed.keystrokes.isEmpty {
             Task { await playKeystrokes(parsed.keystrokes) }
