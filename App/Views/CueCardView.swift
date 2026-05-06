@@ -10,15 +10,15 @@ struct CueCardView: View {
     private let goldColor = Color(red: 0xC4/255, green: 0x92/255, blue: 0x23/255)
 
     var body: some View {
-        ZStack {
-            // Template background
-            Image(card.template.rawValue)
-                .resizable()
-                .scaledToFill()
+        GeometryReader { geo in
+            let w = geo.size.width
+            let h = geo.size.height
 
-            GeometryReader { geo in
-                let w = geo.size.width
-                let h = geo.size.height
+            ZStack {
+                // Use exact view dimensions to keep artwork and overlay coordinates aligned.
+                Image(card.template.rawValue)
+                    .resizable()
+                    .frame(width: w, height: h)
 
                 switch card.template {
                 case .cueCard:
@@ -43,11 +43,15 @@ struct CueCardView: View {
 
     @ViewBuilder
     private func cueCardContent(w: CGFloat, h: CGFloat) -> some View {
-        let titleY = h * 0.18
-        let gridY0 = h * 0.50
-        let gridY1 = h * 0.75
+        // CueCard uses three visible text bands in this order:
+        // title (124..227), row1 (227..329), row2 (329..430).
+        // Keep anchors at each band's center to avoid per-device drift.
+        let titleY = h * 0.399
+        let gridY0 = h * 0.632
+        let gridY1 = h * 0.862
         let titleFontSize: CGFloat = 16
         let gridFontSize: CGFloat = 9.5
+        let cellWidth = w * 0.16
 
         // Title row
         Text(card.title)
@@ -56,35 +60,30 @@ struct CueCardView: View {
             .lineLimit(1)
             .position(x: w / 2, y: titleY)
 
-        // Grid row 0: A–E
-        let xPositions = [0.10, 0.30, 0.50, 0.70, 0.90]
+        // Grid row 0/1 centers from MagnetCard.png vertical dividers
+        // (x px: 0, 416, 818, 1221, 1623, 2026 on 2064px asset).
+        let xPositions = [0.101, 0.299, 0.494, 0.689, 0.884]
         ForEach(0..<5, id: \.self) { i in
-            VStack(spacing: 0) {
-                Text(card.labels[i])
-                    .font(.system(size: gridFontSize, weight: .bold, design: .monospaced))
-                    .foregroundColor(.black)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: .infinity, alignment: .center)
-            }
-            .frame(width: w * 0.15, height: h * 0.09)
-            .clipped()
-            .position(x: w * xPositions[i], y: gridY0)
+            Text(card.labels[i])
+                .font(.system(size: gridFontSize, weight: .bold, design: .monospaced))
+                .foregroundColor(.black)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+                .truncationMode(.tail)
+                .frame(width: cellWidth, alignment: .center)
+                .position(x: w * xPositions[i], y: gridY0)
         }
 
         // Grid row 1: A'–E'
         ForEach(0..<5, id: \.self) { i in
-            VStack(spacing: 0) {
-                Text(card.labels[5 + i])
-                    .font(.system(size: gridFontSize, weight: .bold, design: .monospaced))
-                    .foregroundColor(.black)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: .infinity, alignment: .center)
-            }
-            .frame(width: w * 0.15, height: h * 0.09)
-            .clipped()
-            .position(x: w * xPositions[i], y: gridY1)
+            Text(card.labels[5 + i])
+                .font(.system(size: gridFontSize, weight: .bold, design: .monospaced))
+                .foregroundColor(.black)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+                .truncationMode(.tail)
+                .frame(width: cellWidth, alignment: .center)
+                .position(x: w * xPositions[i], y: gridY1)
         }
     }
 
@@ -93,11 +92,14 @@ struct CueCardView: View {
     @ViewBuilder
     private func magnetCardContent(w: CGFloat, h: CGFloat) -> some View {
         let bankFontSize: CGFloat = 16
-        let titleY = h * 0.32
-        let gridY0 = h * 0.53
-        let gridY1 = h * 0.75
+        // Derived from MagnetCard.png separator rows (px on 440px-high asset):
+        // separators≈100/223/331. Place text at each row band's center.
+        let titleY = h * 0.385
+        let gridY0 = h * 0.635
+        let gridY1 = h * 0.875
         let titleFontSize: CGFloat = 12
         let gridFontSize: CGFloat = 10
+        let cellWidth = w * 0.16
 
         // Left bank badge
         if let leftBank = card.banks.0 {
@@ -106,7 +108,7 @@ struct CueCardView: View {
                 .foregroundColor(.black)
                 .frame(width: w * 0.12, height: h * 0.15)
                 .clipped()
-                .position(x: w * 0.08, y: h * 0.12)
+                .position(x: w * 0.08, y: h * 0.14)
         }
 
         // Right bank badge
@@ -116,7 +118,7 @@ struct CueCardView: View {
                 .foregroundColor(.black)
                 .frame(width: w * 0.12, height: h * 0.15)
                 .clipped()
-                .position(x: w * 0.92, y: h * 0.12)
+                .position(x: w * 0.92, y: h * 0.14)
         }
 
         // Title row
@@ -129,32 +131,26 @@ struct CueCardView: View {
         // Grid row 0: A–E
         let xPositions = [0.10, 0.30, 0.50, 0.70, 0.90]
         ForEach(0..<5, id: \.self) { i in
-            VStack(spacing: 0) {
-                Text(card.labels[i])
-                    .font(.system(size: gridFontSize, weight: .bold, design: .monospaced))
-                    .foregroundColor(.black)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: .infinity, alignment: .center)
-            }
-            .frame(width: w * 0.15, height: h * 0.09)
-            .clipped()
-            .position(x: w * xPositions[i], y: gridY0)
+            Text(card.labels[i])
+                .font(.system(size: gridFontSize, weight: .bold, design: .monospaced))
+                .foregroundColor(.black)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+                .truncationMode(.tail)
+                .frame(width: cellWidth, alignment: .center)
+                .position(x: w * xPositions[i], y: gridY0)
         }
 
         // Grid row 1: A'–E'
         ForEach(0..<5, id: \.self) { i in
-            VStack(spacing: 0) {
-                Text(card.labels[5 + i])
-                    .font(.system(size: gridFontSize, weight: .bold, design: .monospaced))
-                    .foregroundColor(.black)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: .infinity, alignment: .center)
-            }
-            .frame(width: w * 0.15, height: h * 0.09)
-            .clipped()
-            .position(x: w * xPositions[i], y: gridY1)
+            Text(card.labels[5 + i])
+                .font(.system(size: gridFontSize, weight: .bold, design: .monospaced))
+                .foregroundColor(.black)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+                .truncationMode(.tail)
+                .frame(width: cellWidth, alignment: .center)
+                .position(x: w * xPositions[i], y: gridY1)
         }
     }
 
