@@ -285,26 +285,27 @@ private func parseCueCardLine(_ line: String, into card: inout CueCardContent) {
         card.banks = (left, right)
     case "id":
         card.id = value
+    // A–E map to the bottom row (indices 5–9); A′–E′ map to the top row (indices 0–4).
     case "a":
-        if card.labels.count > 0 { card.labels[0] = value }
-    case "b":
-        if card.labels.count > 1 { card.labels[1] = value }
-    case "c":
-        if card.labels.count > 2 { card.labels[2] = value }
-    case "d":
-        if card.labels.count > 3 { card.labels[3] = value }
-    case "e":
-        if card.labels.count > 4 { card.labels[4] = value }
-    case "a'", "a′":
         if card.labels.count > 5 { card.labels[5] = value }
-    case "b'", "b′":
+    case "b":
         if card.labels.count > 6 { card.labels[6] = value }
-    case "c'", "c′":
+    case "c":
         if card.labels.count > 7 { card.labels[7] = value }
-    case "d'", "d′":
+    case "d":
         if card.labels.count > 8 { card.labels[8] = value }
-    case "e'", "e′":
+    case "e":
         if card.labels.count > 9 { card.labels[9] = value }
+    case "a'", "a′":
+        if card.labels.count > 0 { card.labels[0] = value }
+    case "b'", "b′":
+        if card.labels.count > 1 { card.labels[1] = value }
+    case "c'", "c′":
+        if card.labels.count > 2 { card.labels[2] = value }
+    case "d'", "d′":
+        if card.labels.count > 3 { card.labels[3] = value }
+    case "e'", "e′":
+        if card.labels.count > 4 { card.labels[4] = value }
     case "row1":
         card.row1 = value
     case "row2":
