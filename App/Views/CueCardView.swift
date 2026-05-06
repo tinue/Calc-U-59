@@ -60,8 +60,7 @@ struct CueCardView: View {
             .lineLimit(1)
             .position(x: w / 2, y: titleY)
 
-        // Grid row 0/1 centers from MagnetCard.png vertical dividers
-        // (x px: 0, 416, 818, 1221, 1623, 2026 on 2064px asset).
+        // CueCard template column centers.
         let xPositions = [0.101, 0.299, 0.494, 0.689, 0.884]
         ForEach(0..<5, id: \.self) { i in
             Text(card.labels[i])
@@ -128,8 +127,9 @@ struct CueCardView: View {
             .lineLimit(1)
             .position(x: w / 2, y: titleY)
 
-        // Grid row 0: A–E
-        let xPositions = [0.10, 0.30, 0.50, 0.70, 0.90]
+        // MagnetCard template column centers (measured from its own divider lines).
+        // (x px approx: 0, 399, 796, 1191, 1587, 2022 on 2064px asset).
+        let xPositions = [0.097, 0.289, 0.481, 0.673, 0.874]
         ForEach(0..<5, id: \.self) { i in
             Text(card.labels[i])
                 .font(.system(size: gridFontSize, weight: .bold, design: .monospaced))
