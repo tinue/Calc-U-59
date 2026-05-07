@@ -238,13 +238,11 @@ struct PrinterView: View {
 
         #if os(macOS)
         NSPasteboard.general.clearContents()
-        let item = NSPasteboardItem()
-        item.setString(text, forType: .string)
-        if let image = renderer.nsImage,
-           let tiff = image.tiffRepresentation {
-            item.setData(tiff, forType: .tiff)
+        var objects: [NSPasteboardWriting] = [text as NSString]
+        if let nsImage = renderer.nsImage {
+            objects.insert(nsImage, at: 0)  // image first so it is the primary item
         }
-        NSPasteboard.general.writeObjects([item])
+        NSPasteboard.general.writeObjects(objects)
         #else
         var pbItem: [String: Any] = [UTType.utf8PlainText.identifier: text]
         if let image = renderer.uiImage, let png = image.pngData() {
