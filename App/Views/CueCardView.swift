@@ -16,6 +16,7 @@ struct CueCardView: View {
         let gridFontSize: CGFloat
         let bankFontSize: CGFloat
         let titleYFraction: CGFloat
+        let titleWidthFraction: CGFloat
         let gridY0Fraction: CGFloat
         let gridY1Fraction: CGFloat
         let xFractions: [CGFloat]
@@ -33,7 +34,8 @@ struct CueCardView: View {
     // CueCard uses three visible text bands: title (124..227), row0 (227..329), row1 (329..430).
     private static let cueLayout = GridCardLayout(
         titleFontSize: 16, gridFontSize: 9.5, bankFontSize: 16,
-        titleYFraction: 0.399, gridY0Fraction: 0.632, gridY1Fraction: 0.862,
+        titleYFraction: 0.399, titleWidthFraction: 0.92,
+        gridY0Fraction: 0.632, gridY1Fraction: 0.862,
         xFractions: [0.101, 0.299, 0.494, 0.689, 0.884],
         cellWidthFraction: 0.16
     )
@@ -41,7 +43,8 @@ struct CueCardView: View {
     // Derived from MagnetCard.png separator rows (px on 440px-high asset): separators≈100/223/331.
     private static let magnetLayout = GridCardLayout(
         titleFontSize: 12, gridFontSize: 10, bankFontSize: 16,
-        titleYFraction: 0.385, gridY0Fraction: 0.635, gridY1Fraction: 0.875,
+        titleYFraction: 0.385, titleWidthFraction: 0.70,
+        gridY0Fraction: 0.635, gridY1Fraction: 0.875,
         xFractions: [0.097, 0.289, 0.481, 0.673, 0.874],
         cellWidthFraction: 0.16
     )
@@ -93,28 +96,32 @@ struct CueCardView: View {
         let gridY1   = h * layout.gridY1Fraction
         let cellWidth = w * layout.cellWidthFraction
 
-        // Bank badges (magnetCard only — cueCard has nil banks)
-        if let leftBank = card.banks.0 {
-            Text("\(leftBank)")
-                .font(.system(size: layout.bankFontSize, weight: .bold, design: .monospaced))
-                .foregroundColor(.black)
-                .frame(width: w * 0.12, height: h * 0.15)
-                .clipped()
-                .position(x: w * 0.08, y: h * 0.14)
-        }
-        if let rightBank = card.banks.1 {
-            Text("\(rightBank)")
-                .font(.system(size: layout.bankFontSize, weight: .bold, design: .monospaced))
-                .foregroundColor(.black)
-                .frame(width: w * 0.12, height: h * 0.15)
-                .clipped()
-                .position(x: w * 0.92, y: h * 0.14)
+        // Bank badges: magnetCard only
+        if card.template == .magnetCard {
+            if let leftBank = card.banks.0 {
+                Text("\(leftBank)")
+                    .font(.system(size: layout.bankFontSize, weight: .bold, design: .monospaced))
+                    .foregroundColor(.black)
+                    .frame(width: w * 0.12, height: h * 0.15)
+                    .clipped()
+                    .position(x: w * 0.08, y: h * 0.14)
+            }
+            if let rightBank = card.banks.1 {
+                Text("\(rightBank)")
+                    .font(.system(size: layout.bankFontSize, weight: .bold, design: .monospaced))
+                    .foregroundColor(.black)
+                    .frame(width: w * 0.12, height: h * 0.15)
+                    .clipped()
+                    .position(x: w * 0.92, y: h * 0.14)
+            }
         }
 
         Text(card.title)
             .font(.system(size: layout.titleFontSize, weight: .bold, design: .monospaced))
             .foregroundColor(.black)
             .lineLimit(1)
+            .minimumScaleFactor(0.5)
+            .frame(width: w * layout.titleWidthFraction)
             .position(x: w / 2, y: titleY)
 
         ForEach(0..<2, id: \.self) { row in
