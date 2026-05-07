@@ -17,7 +17,6 @@ struct CueCardView: View {
         let bankFontSize: CGFloat
         let titleYFraction: CGFloat
         let titleWidthFraction: CGFloat
-        let titleHeightFraction: CGFloat
         let gridY0Fraction: CGFloat
         let gridY1Fraction: CGFloat
         let xFractions: [CGFloat]
@@ -35,7 +34,7 @@ struct CueCardView: View {
     // CueCard uses three visible text bands: title (124..227), row0 (227..329), row1 (329..430).
     private static let cueLayout = GridCardLayout(
         titleFontSize: 19, gridFontSize: 14, bankFontSize: 16,
-        titleYFraction: 0.399, titleWidthFraction: 0.92, titleHeightFraction: 0.18,
+        titleYFraction: 0.399, titleWidthFraction: 0.92,
         gridY0Fraction: 0.632, gridY1Fraction: 0.862,
         xFractions: [0.101, 0.299, 0.494, 0.689, 0.884],
         cellWidthFraction: 0.16
@@ -44,7 +43,7 @@ struct CueCardView: View {
     // Derived from MagnetCard.png separator rows (px on 440px-high asset): separators≈100/223/331.
     private static let magnetLayout = GridCardLayout(
         titleFontSize: 19, gridFontSize: 14, bankFontSize: 16,
-        titleYFraction: 0.385, titleWidthFraction: 0.70, titleHeightFraction: 0.18,
+        titleYFraction: 0.385, titleWidthFraction: 0.70,
         gridY0Fraction: 0.635, gridY1Fraction: 0.875,
         xFractions: [0.097, 0.289, 0.481, 0.673, 0.874],
         cellWidthFraction: 0.16
@@ -92,10 +91,15 @@ struct CueCardView: View {
 
     @ViewBuilder
     private func gridCardContent(layout: GridCardLayout, w: CGFloat, h: CGFloat) -> some View {
-        let titleY   = h * layout.titleYFraction
-        let gridY0   = h * layout.gridY0Fraction
-        let gridY1   = h * layout.gridY1Fraction
-        let cellWidth = w * layout.cellWidthFraction
+        let titleY = h * layout.titleYFraction
+        let gridY0 = h * layout.gridY0Fraction
+        let gridY1 = h * layout.gridY1Fraction
+
+        // Title: width-constrained only — no height cap so the band height never shrinks the font.
+        let titleAvailW = w * layout.titleWidthFraction
+        let titleByWidth = card.title.isEmpty ? layout.titleFontSize
+            : titleAvailW / (CGFloat(card.title.count) * 0.64)
+        let titleFS = min(layout.titleFontSize, titleByWidth)
 
         // Bank badges: magnetCard only
         if card.template == .magnetCard {
@@ -118,19 +122,19 @@ struct CueCardView: View {
         }
 
         Text(card.title)
-            .font(.system(size: layout.titleFontSize, weight: .bold, design: .monospaced))
+            .font(.system(size: titleFS, weight: .bold, design: .monospaced))
             .foregroundColor(.black)
             .lineLimit(1)
-            .minimumScaleFactor(0.5)
-            .frame(width: w * layout.titleWidthFraction, height: h * layout.titleHeightFraction)
+            .frame(width: titleAvailW)
             .position(x: w / 2, y: titleY)
 
-        gridRow(row: 0, layout: layout, w: w, y: gridY0)
-        gridRow(row: 1, layout: layout, w: w, y: gridY1)
+        // Labels are capped at titleFS so they never exceed the title.
+        gridRow(row: 0, layout: layout, w: w, y: gridY0, cap: titleFS)
+        gridRow(row: 1, layout: layout, w: w, y: gridY1, cap: titleFS)
     }
 
     @ViewBuilder
-    private func gridRow(row: Int, layout: GridCardLayout, w: CGFloat, y: CGFloat) -> some View {
+    private func gridRow(row: Int, layout: GridCardLayout, w: CGFloat, y: CGFloat, cap: CGFloat) -> some View {
         let base = row * 5
         let onlyFirst = !card.labels[base].isEmpty
             && (1..<5).allSatisfy { card.labels[base + $0].isEmpty }
@@ -138,15 +142,17 @@ struct CueCardView: View {
             // Single label: span the full grid width, ignoring column dividers
             let fullWidth = w * (layout.xFractions[4] - layout.xFractions[0] + layout.cellWidthFraction)
             let centerX   = w * (layout.xFractions[0] + layout.xFractions[4]) / 2
-            Text(card.labels[base])
-                .font(.system(size: layout.gridFontSize, weight: .bold, design: .monospaced))
+            let label     = card.labels[base]
+            let labelFS   = min(cap, label.isEmpty ? 0
+                : min(layout.gridFontSize, fullWidth / (CGFloat(label.count) * 0.64)))
+            Text(label)
+                .font(.system(size: labelFS, weight: .bold, design: .monospaced))
                 .foregroundColor(.black)
                 .lineLimit(1)
-                .minimumScaleFactor(0.5)
                 .frame(width: fullWidth, alignment: .leading)
                 .position(x: centerX, y: y)
         } else {
-            let fontSize = uniformFontSize(row: row, layout: layout, w: w)
+            let fontSize = min(cap, uniformFontSize(row: row, layout: layout, w: w))
             ForEach(0..<5, id: \.self) { col in
                 Text(card.labels[base + col])
                     .font(.system(size: fontSize, weight: .bold, design: .monospaced))
