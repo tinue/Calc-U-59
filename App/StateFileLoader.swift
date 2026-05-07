@@ -167,7 +167,7 @@ func parseStateFile(_ text: String, maxStepAddr: Int = 479, allowHiddenRegisters
             }
         case .cuecard:
             if var card = result.cueCardContent {
-                parseCueCardLine(line, into: &card)
+                card.parseLine(line)
                 result.cueCardContent = card
             }
         }
@@ -263,82 +263,6 @@ private func parseWaitLine(_ line: String) -> TimeInterval? {
 
 // MARK: - BCD encoder
 
-// MARK: - Cue card parser
-
-private func parseCueCardLine(_ line: String, into card: inout CueCardContent) {
-    let parts = line.components(separatedBy: ":")
-    guard parts.count >= 2 else { return }
-    let key = parts[0].trimmingCharacters(in: .whitespaces).lowercased()
-    let value = parts[1...].joined(separator: ":").trimmingCharacters(in: .whitespaces)
-
-    switch key {
-    case "template":
-        if let template = CueCardTemplate(rawValue: value) {
-            card.template = template
-        }
-    case "title":
-        card.title = value
-    case "banks":
-        let parts = value.components(separatedBy: ",")
-        let left = parts.count > 0 ? Int(parts[0].trimmingCharacters(in: .whitespaces)) : nil
-        let right = parts.count > 1 ? Int(parts[1].trimmingCharacters(in: .whitespaces)) : nil
-        card.banks = (left, right)
-    case "id":
-        card.id = value
-    // A–E map to the bottom row (indices 5–9); A′–E′ map to the top row (indices 0–4).
-    case "a":
-        if card.labels.count > 5 { card.labels[5] = value }
-    case "b":
-        if card.labels.count > 6 { card.labels[6] = value }
-    case "c":
-        if card.labels.count > 7 { card.labels[7] = value }
-    case "d":
-        if card.labels.count > 8 { card.labels[8] = value }
-    case "e":
-        if card.labels.count > 9 { card.labels[9] = value }
-    case "a'", "a′":
-        if card.labels.count > 0 { card.labels[0] = value }
-    case "b'", "b′":
-        if card.labels.count > 1 { card.labels[1] = value }
-    case "c'", "c′":
-        if card.labels.count > 2 { card.labels[2] = value }
-    case "d'", "d′":
-        if card.labels.count > 3 { card.labels[3] = value }
-    case "e'", "e′":
-        if card.labels.count > 4 { card.labels[4] = value }
-    case "row1":
-        card.row1 = value
-    case "row2":
-        card.row2 = value
-    case "row2r":
-        card.row2R = value
-    case "style":
-        if let style = CardButtonStyle(rawValue: value.lowercased()) {
-            card.style = style
-        }
-    case "idalign":
-        card.idAlign = parseAlignment(value)
-    case "row1align":
-        card.row1Align = parseAlignment(value)
-    case "row2align":
-        card.row2Align = parseAlignment(value)
-    case "row2ralign":
-        card.row2RAlign = parseAlignment(value)
-    default:
-        break
-    }
-}
-
-private func parseAlignment(_ value: String) -> TextAlign {
-    switch value.lowercased() {
-    case "right":
-        return .right
-    case "center":
-        return .center
-    default:
-        return .left
-    }
-}
 
 // MARK: - .U59 card file parser
 
@@ -366,7 +290,7 @@ private func parseAlignment(_ value: String) -> TextAlign {
 //       D29: HH HH HH HH HH HH HH HH
 //
 // Comments (# …) are stripped.  All section keywords and HEADER keys are
-// case-insensitive.  CUECARD lines are parsed by the shared parseCueCardLine helper.
+// case-insensitive.  CUECARD lines are parsed by the CueCardContent.parseLine helper.
 // The bank badge for the MagnetCard cue card is injected from HEADER Bank: value.
 
 struct CardFileResult {
@@ -407,7 +331,7 @@ func parseCardFile(_ text: String) -> CardFileResult? {
         case .none: continue
 
         case .cuecard:
-            parseCueCardLine(line, into: &cueCard)
+            cueCard.parseLine(line)
 
         case .header:
             let parts = line.components(separatedBy: ":")

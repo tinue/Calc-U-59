@@ -47,4 +47,127 @@ struct CueCardContent {
         row2RAlign: .right,
         style: .none
     )
+
+    /// Parse a single cuecard key:value line and update self.
+    mutating func parseLine(_ line: String) {
+        let parts = line.components(separatedBy: ":")
+        guard parts.count >= 2 else { return }
+        let key = parts[0].trimmingCharacters(in: .whitespaces).lowercased()
+        let value = parts[1...].joined(separator: ":").trimmingCharacters(in: .whitespaces)
+
+        switch key {
+        case "template":
+            if let template = CueCardTemplate(rawValue: value) {
+                self.template = template
+            }
+        case "title":
+            self.title = value
+        case "banks":
+            let parts = value.components(separatedBy: ",")
+            let left = parts.count > 0 ? Int(parts[0].trimmingCharacters(in: .whitespaces)) : nil
+            let right = parts.count > 1 ? Int(parts[1].trimmingCharacters(in: .whitespaces)) : nil
+            self.banks = (left, right)
+        case "id":
+            self.id = value
+        case "a":
+            if self.labels.count > 5 { self.labels[5] = value }
+        case "b":
+            if self.labels.count > 6 { self.labels[6] = value }
+        case "c":
+            if self.labels.count > 7 { self.labels[7] = value }
+        case "d":
+            if self.labels.count > 8 { self.labels[8] = value }
+        case "e":
+            if self.labels.count > 9 { self.labels[9] = value }
+        case "a'", "a′":
+            if self.labels.count > 0 { self.labels[0] = value }
+        case "b'", "b′":
+            if self.labels.count > 1 { self.labels[1] = value }
+        case "c'", "c′":
+            if self.labels.count > 2 { self.labels[2] = value }
+        case "d'", "d′":
+            if self.labels.count > 3 { self.labels[3] = value }
+        case "e'", "e′":
+            if self.labels.count > 4 { self.labels[4] = value }
+        case "row1":
+            self.row1 = value
+        case "row2":
+            self.row2 = value
+        case "row2r":
+            self.row2R = value
+        case "style":
+            if let style = CardButtonStyle(rawValue: value.lowercased()) {
+                self.style = style
+            }
+        case "idalign":
+            self.idAlign = Self.parseAlignment(value)
+        case "row1align":
+            self.row1Align = Self.parseAlignment(value)
+        case "row2align":
+            self.row2Align = Self.parseAlignment(value)
+        case "row2ralign":
+            self.row2RAlign = Self.parseAlignment(value)
+        default:
+            break
+        }
+    }
+
+    /// Convert self to lines of text (key: value format).
+    /// - Parameter writeTemplate: if provided, writes "Template: X" line first. Only writes "Banks:" for MagnetCard template.
+    func encodeToLines(writeTemplate: CueCardTemplate? = nil) -> [String] {
+        var lines: [String] = []
+
+        if let tmpl = writeTemplate {
+            lines.append("Template: \(tmpl.rawValue)")
+        }
+
+        if !title.isEmpty { lines.append("Title: \(title)") }
+
+        // Only write Banks for MagnetCard template
+        if writeTemplate == .magnetCard, banks.0 != nil || banks.1 != nil {
+            let leftStr = banks.0.map(String.init) ?? ""
+            let rightStr = banks.1.map(String.init) ?? ""
+            lines.append("Banks: \(leftStr), \(rightStr)")
+        }
+
+        if !id.isEmpty { lines.append("ID: \(id)") }
+
+        let primeKeys = ["A'", "B'", "C'", "D'", "E'"]
+        for (i, key) in primeKeys.enumerated() {
+            if i < labels.count && !labels[i].isEmpty {
+                lines.append("\(key): \(labels[i])")
+            }
+        }
+
+        let plainKeys = ["A", "B", "C", "D", "E"]
+        for (i, key) in plainKeys.enumerated() {
+            let idx = i + 5
+            if idx < labels.count && !labels[idx].isEmpty {
+                lines.append("\(key): \(labels[idx])")
+            }
+        }
+
+        if !row1.isEmpty { lines.append("Row1: \(row1)") }
+        if row1Align != .center { lines.append("Row1Align: \(row1Align.rawValue)") }
+        if !row2.isEmpty { lines.append("Row2: \(row2)") }
+        if row2Align != .left { lines.append("Row2Align: \(row2Align.rawValue)") }
+        if !row2R.isEmpty { lines.append("Row2R: \(row2R)") }
+        if row2RAlign != .left { lines.append("Row2RAlign: \(row2RAlign.rawValue)") }
+
+        if style != .none { lines.append("Style: \(style.rawValue)") }
+        if idAlign != .left { lines.append("IDAlign: \(idAlign.rawValue)") }
+
+        return lines
+    }
+
+    private static func parseAlignment(_ value: String) -> TextAlign {
+        switch value.lowercased() {
+        case "right":
+            return .right
+        case "center":
+            return .center
+        default:
+            return .left
+        }
+    }
 }

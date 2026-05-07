@@ -644,7 +644,7 @@ class EmulatorViewModel {
 
     func persistConstantMemory() {
         guard model.hasConstantMemory, let data = machine?.serialiseRAM() else { return }
-        let text = encodeConstantMemoryToText(data)
+        let text = encodeConstantMemoryToText(data, cueCard: cueCardContent)
         let url = Self.constantMemoryURL
         try? text.write(to: url, atomically: true, encoding: .utf8)
     }
@@ -660,9 +660,12 @@ class EmulatorViewModel {
         guard let rawData = rawFileData else { return nil }
 
         // Decode text format; invalid files are treated as load failure.
-        if let text = String(data: rawData, encoding: .utf8),
-           let decodedData = decodeConstantMemoryFromText(text) {
-            return decodedData
+        if let text = String(data: rawData, encoding: .utf8) {
+            let (data, cueCard) = decodeConstantMemoryFromText(text)
+            if let data = data {
+                self.cueCardContent = cueCard
+                return data
+            }
         }
 
         // Silently fail; caller resets RAM to zeros.
@@ -677,21 +680,7 @@ class EmulatorViewModel {
         if let card = cueCard {
             lines.append("")
             lines.append("CUECARD:")
-            lines.append("Template: MagnetCard")
-            if !card.title.isEmpty { lines.append("Title: \(card.title)") }
-            let primeKeys = ["A'", "B'", "C'", "D'", "E'"]
-            let plainKeys = ["A",  "B",  "C",  "D",  "E" ]
-            for (i, key) in primeKeys.enumerated() {
-                if i < card.labels.count && !card.labels[i].isEmpty {
-                    lines.append("\(key): \(card.labels[i])")
-                }
-            }
-            for (i, key) in plainKeys.enumerated() {
-                let idx = i + 5
-                if idx < card.labels.count && !card.labels[idx].isEmpty {
-                    lines.append("\(key): \(card.labels[idx])")
-                }
-            }
+            lines.append(contentsOf: card.encodeToLines(writeTemplate: .magnetCard))
         }
 
         let partition  = data.count > 0 ? data[0] : 0
@@ -733,9 +722,17 @@ class EmulatorViewModel {
     }
 
     /// Encode RAM data (120 regs × 16 nibbles) as human-readable text.
-    /// Only includes non-zero registers.
-    private func encodeConstantMemoryToText(_ data: Data) -> String {
+    /// Only includes non-zero registers. Optionally includes CUECARD section if provided.
+    private func encodeConstantMemoryToText(_ data: Data, cueCard: CueCardContent? = nil) -> String {
         var lines: [String] = []
+
+        // Include CUECARD section if present
+        if let card = cueCard {
+            lines.append("CUECARD:")
+            lines.append(contentsOf: card.encodeToLines(writeTemplate: .cueCard))
+            lines.append("")
+        }
+
         lines.append("── Registers (raw values) ──")
 
         for regNum in 0..<120 {
@@ -758,43 +755,66 @@ class EmulatorViewModel {
         return lines.joined(separator: "\n")
     }
 
-    /// Decode human-readable text format back to RAM data (120 regs × 16 nibbles).
-    /// Format: header line, then non-zero registers with 8 hex byte pairs each (reversed order).
-    /// Returns nil on parse error.
-    private func decodeConstantMemoryFromText(_ text: String) -> Data? {
+    /// Decode human-readable text format back to RAM data (120 regs × 16 nibbles) and optional CUECARD.
+    /// Format: optional CUECARD section, then non-zero registers with 8 hex byte pairs each (reversed order).
+    /// Returns (Data, CueCardContent?) tuple; returns (nil, nil) on parse error.
+    private func decodeConstantMemoryFromText(_ text: String) -> (Data?, CueCardContent?) {
         var resultBytes = [UInt8](repeating: 0, count: 120 * 16)
+        var cueCard: CueCardContent?
+        var inCueCardSection = false
 
         for line in text.components(separatedBy: .newlines) {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
-            // Skip header and empty lines
-            if trimmed.isEmpty || trimmed.hasPrefix("──") { continue }
 
-            guard trimmed.hasPrefix("R") else { continue }
+            // Skip empty lines
+            if trimmed.isEmpty { continue }
 
-            let parts = trimmed.components(separatedBy: ":")
-            guard parts.count == 2 else { return nil }
+            // Check for section headers
+            if trimmed.hasPrefix("CUECARD:") {
+                inCueCardSection = true
+                cueCard = CueCardContent()
+                continue
+            }
 
-            let regStr = String(parts[0].dropFirst())
-            guard let regNum = Int(regStr), regNum >= 0, regNum < 120 else { return nil }
+            if trimmed.hasPrefix("──") {
+                inCueCardSection = false
+                continue
+            }
 
-            // Parse 8 hex byte pairs (reversed order)
-            let hexPart = parts[1].trimmingCharacters(in: .whitespaces)
-            let hexTokens = hexPart.components(separatedBy: " ").filter { !$0.isEmpty }
-            guard hexTokens.count == 8 else { return nil }
+            // Parse CUECARD section
+            if inCueCardSection {
+                cueCard?.parseLine(trimmed)
+                continue
+            }
 
-            let offset = regNum * 16
-            for (i, token) in hexTokens.enumerated() {
-                guard token.count == 2,
-                      let byte = UInt8(token, radix: 16) else { return nil }
-                // Unpack byte into nibbles at reversed positions
-                let nibIdx = 14 - 2 * i
-                let hi = (byte >> 4) & 0x0F
-                let lo = byte & 0x0F
-                resultBytes[offset + nibIdx] = hi
-                resultBytes[offset + nibIdx + 1] = lo
+            // Parse registers
+            if trimmed.hasPrefix("R") {
+                let parts = trimmed.components(separatedBy: ":")
+                guard parts.count == 2 else { return (nil, nil) }
+
+                let regStr = String(parts[0].dropFirst())
+                guard let regNum = Int(regStr), regNum >= 0, regNum < 120 else { return (nil, nil) }
+
+                // Parse 8 hex byte pairs (reversed order)
+                let hexPart = parts[1].trimmingCharacters(in: .whitespaces)
+                let hexTokens = hexPart.components(separatedBy: " ").filter { !$0.isEmpty }
+                guard hexTokens.count == 8 else { return (nil, nil) }
+
+                let offset = regNum * 16
+                for (i, token) in hexTokens.enumerated() {
+                    guard token.count == 2,
+                          let byte = UInt8(token, radix: 16) else { return (nil, nil) }
+                    // Unpack byte into nibbles at reversed positions
+                    let nibIdx = 14 - 2 * i
+                    let hi = (byte >> 4) & 0x0F
+                    let lo = byte & 0x0F
+                    resultBytes[offset + nibIdx] = hi
+                    resultBytes[offset + nibIdx + 1] = lo
+                }
             }
         }
-        return Data(resultBytes)
+
+        return (Data(resultBytes), cueCard)
     }
 
 
