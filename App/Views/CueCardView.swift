@@ -159,7 +159,7 @@ struct CueCardView: View {
     }
 
     // Compute the largest font size at which every non-empty label in the row fits its cell.
-    // SF Mono Bold advance width ≈ 0.6 × font size (monospaced, so exact per character).
+    // SF Mono Bold advance width ≈ 0.64 × font size (monospaced, so exact per character).
     private func uniformFontSize(row: Int, layout: GridCardLayout, w: CGFloat) -> CGFloat {
         let cellWidth = w * layout.cellWidthFraction
         var size = layout.gridFontSize
@@ -167,7 +167,7 @@ struct CueCardView: View {
         for col in 0..<5 {
             let label = card.labels[base + col]
             guard !label.isEmpty else { continue }
-            let fitting = cellWidth / (CGFloat(label.count) * 0.6)
+            let fitting = cellWidth / (CGFloat(label.count) * 0.64)
             if fitting < size { size = fitting }
         }
         return max(size, layout.gridFontSize * 0.4)
