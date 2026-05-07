@@ -9,6 +9,51 @@ struct CueCardView: View {
 
     private let goldColor = Color(red: 0xC4/255, green: 0x92/255, blue: 0x23/255)
 
+    // MARK: - Layout constants
+
+    private struct GridCardLayout {
+        let titleFontSize: CGFloat
+        let gridFontSize: CGFloat
+        let bankFontSize: CGFloat
+        let titleYFraction: CGFloat
+        let gridY0Fraction: CGFloat
+        let gridY1Fraction: CGFloat
+        let xFractions: [CGFloat]
+        let cellWidthFraction: CGFloat
+    }
+
+    private struct SolidStateLayout {
+        let fontSize: CGFloat
+        let row1YFraction: CGFloat
+        let row2YFraction: CGFloat
+        let row3YFraction: CGFloat
+        let rightXFraction: CGFloat
+    }
+
+    // CueCard uses three visible text bands: title (124..227), row0 (227..329), row1 (329..430).
+    private static let cueLayout = GridCardLayout(
+        titleFontSize: 16, gridFontSize: 9.5, bankFontSize: 16,
+        titleYFraction: 0.399, gridY0Fraction: 0.632, gridY1Fraction: 0.862,
+        xFractions: [0.101, 0.299, 0.494, 0.689, 0.884],
+        cellWidthFraction: 0.16
+    )
+
+    // Derived from MagnetCard.png separator rows (px on 440px-high asset): separators≈100/223/331.
+    private static let magnetLayout = GridCardLayout(
+        titleFontSize: 12, gridFontSize: 10, bankFontSize: 16,
+        titleYFraction: 0.385, gridY0Fraction: 0.635, gridY1Fraction: 0.875,
+        xFractions: [0.097, 0.289, 0.481, 0.673, 0.874],
+        cellWidthFraction: 0.16
+    )
+
+    private static let solidLayout = SolidStateLayout(
+        fontSize: 12,
+        row1YFraction: 0.38, row2YFraction: 0.62, row3YFraction: 0.84,
+        rightXFraction: 0.80
+    )
+
+    // MARK: - Body
+
     var body: some View {
         GeometryReader { geo in
             let w = geo.size.width
@@ -22,11 +67,11 @@ struct CueCardView: View {
 
                 switch card.template {
                 case .cueCard:
-                    cueCardContent(w: w, h: h)
+                    gridCardContent(layout: Self.cueLayout, w: w, h: h)
                 case .magnetCard:
-                    magnetCardContent(w: w, h: h)
+                    gridCardContent(layout: Self.magnetLayout, w: w, h: h)
                 case .solidState:
-                    solidStateContent(w: w, h: h)
+                    solidStateContent(layout: Self.solidLayout, w: w, h: h)
                 }
 
                 // Top-wash overlay: exactly 28% of card height, same as original
@@ -39,144 +84,74 @@ struct CueCardView: View {
         .clipped()
     }
 
-    // MARK: - CueCard layout
+    // MARK: - Grid card layout (cueCard + magnetCard)
 
     @ViewBuilder
-    private func cueCardContent(w: CGFloat, h: CGFloat) -> some View {
-        // CueCard uses three visible text bands in this order:
-        // title (124..227), row1 (227..329), row2 (329..430).
-        // Keep anchors at each band's center to avoid per-device drift.
-        let titleY = h * 0.399
-        let gridY0 = h * 0.632
-        let gridY1 = h * 0.862
-        let titleFontSize: CGFloat = 16
-        let gridFontSize: CGFloat = 9.5
-        let cellWidth = w * 0.16
+    private func gridCardContent(layout: GridCardLayout, w: CGFloat, h: CGFloat) -> some View {
+        let titleY   = h * layout.titleYFraction
+        let gridY0   = h * layout.gridY0Fraction
+        let gridY1   = h * layout.gridY1Fraction
+        let cellWidth = w * layout.cellWidthFraction
 
-        // Title row
-        Text(card.title)
-            .font(.system(size: titleFontSize, weight: .bold, design: .monospaced))
-            .foregroundColor(.black)
-            .lineLimit(1)
-            .position(x: w / 2, y: titleY)
-
-        // CueCard template column centers.
-        let xPositions = [0.101, 0.299, 0.494, 0.689, 0.884]
-        ForEach(0..<5, id: \.self) { i in
-            Text(card.labels[i])
-                .font(.system(size: gridFontSize, weight: .bold, design: .monospaced))
-                .foregroundColor(.black)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-                .truncationMode(.tail)
-                .frame(width: cellWidth, alignment: .center)
-                .position(x: w * xPositions[i], y: gridY0)
-        }
-
-        // Grid row 1: A'–E'
-        ForEach(0..<5, id: \.self) { i in
-            Text(card.labels[5 + i])
-                .font(.system(size: gridFontSize, weight: .bold, design: .monospaced))
-                .foregroundColor(.black)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-                .truncationMode(.tail)
-                .frame(width: cellWidth, alignment: .center)
-                .position(x: w * xPositions[i], y: gridY1)
-        }
-    }
-
-    // MARK: - MagnetCard layout
-
-    @ViewBuilder
-    private func magnetCardContent(w: CGFloat, h: CGFloat) -> some View {
-        let bankFontSize: CGFloat = 16
-        // Derived from MagnetCard.png separator rows (px on 440px-high asset):
-        // separators≈100/223/331. Place text at each row band's center.
-        let titleY = h * 0.385
-        let gridY0 = h * 0.635
-        let gridY1 = h * 0.875
-        let titleFontSize: CGFloat = 12
-        let gridFontSize: CGFloat = 10
-        let cellWidth = w * 0.16
-
-        // Left bank badge
+        // Bank badges (magnetCard only — cueCard has nil banks)
         if let leftBank = card.banks.0 {
             Text("\(leftBank)")
-                .font(.system(size: bankFontSize, weight: .bold, design: .monospaced))
+                .font(.system(size: layout.bankFontSize, weight: .bold, design: .monospaced))
                 .foregroundColor(.black)
                 .frame(width: w * 0.12, height: h * 0.15)
                 .clipped()
                 .position(x: w * 0.08, y: h * 0.14)
         }
-
-        // Right bank badge
         if let rightBank = card.banks.1 {
             Text("\(rightBank)")
-                .font(.system(size: bankFontSize, weight: .bold, design: .monospaced))
+                .font(.system(size: layout.bankFontSize, weight: .bold, design: .monospaced))
                 .foregroundColor(.black)
                 .frame(width: w * 0.12, height: h * 0.15)
                 .clipped()
                 .position(x: w * 0.92, y: h * 0.14)
         }
 
-        // Title row
         Text(card.title)
-            .font(.system(size: titleFontSize, weight: .bold, design: .monospaced))
+            .font(.system(size: layout.titleFontSize, weight: .bold, design: .monospaced))
             .foregroundColor(.black)
             .lineLimit(1)
             .position(x: w / 2, y: titleY)
 
-        // MagnetCard template column centers (measured from its own divider lines).
-        // (x px approx: 0, 399, 796, 1191, 1587, 2022 on 2064px asset).
-        let xPositions = [0.097, 0.289, 0.481, 0.673, 0.874]
-        ForEach(0..<5, id: \.self) { i in
-            Text(card.labels[i])
-                .font(.system(size: gridFontSize, weight: .bold, design: .monospaced))
-                .foregroundColor(.black)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-                .truncationMode(.tail)
-                .frame(width: cellWidth, alignment: .center)
-                .position(x: w * xPositions[i], y: gridY0)
-        }
-
-        // Grid row 1: A'–E'
-        ForEach(0..<5, id: \.self) { i in
-            Text(card.labels[5 + i])
-                .font(.system(size: gridFontSize, weight: .bold, design: .monospaced))
-                .foregroundColor(.black)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-                .truncationMode(.tail)
-                .frame(width: cellWidth, alignment: .center)
-                .position(x: w * xPositions[i], y: gridY1)
+        ForEach(0..<2, id: \.self) { row in
+            ForEach(0..<5, id: \.self) { col in
+                Text(card.labels[row * 5 + col])
+                    .font(.system(size: layout.gridFontSize, weight: .bold, design: .monospaced))
+                    .foregroundColor(.black)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                    .truncationMode(.tail)
+                    .frame(width: cellWidth, alignment: .center)
+                    .position(x: w * layout.xFractions[col], y: row == 0 ? gridY0 : gridY1)
+            }
         }
     }
 
     // MARK: - SolidStateCard layout
 
     @ViewBuilder
-    private func solidStateContent(w: CGFloat, h: CGFloat) -> some View {
-        let fontSize: CGFloat = 12
-        let row1Y = h * 0.38
-        let row2Y = h * 0.62
-        let row3Y = h * 0.84
+    private func solidStateContent(layout: SolidStateLayout, w: CGFloat, h: CGFloat) -> some View {
+        let row1Y  = h * layout.row1YFraction
+        let row2Y  = h * layout.row2YFraction
+        let row3Y  = h * layout.row3YFraction
         // Right margin: same for both id and row2R, positioned left of yellow border
-        let rightX = w * 0.80
+        let rightX = w * layout.rightXFraction
+        let fs     = layout.fontSize
 
         // Program name row: title (left) and id (right, aligned with row2R)
-        alignedText(card.title, fontSize: fontSize, align: .left, x: w * 0.35, y: row1Y, width: w * 0.65)
-
-        alignedText(card.id, fontSize: fontSize, align: card.idAlign, x: rightX, y: row1Y, width: w * 0.25)
+        alignedText(card.title, fontSize: fs, align: .left,        x: w * 0.35, y: row1Y, width: w * 0.65)
+        alignedText(card.id,    fontSize: fs, align: card.idAlign,  x: rightX,   y: row1Y, width: w * 0.25)
 
         // Row 1: full width
-        alignedText(card.row1, fontSize: fontSize, align: card.row1Align, x: w / 2, y: row2Y, width: w * 0.9)
+        alignedText(card.row1,  fontSize: fs, align: card.row1Align, x: w / 2,   y: row2Y, width: w * 0.9)
 
         // Row 2: left and right (same right margin as id)
-        alignedText(card.row2, fontSize: fontSize, align: card.row2Align, x: w * 0.35, y: row3Y, width: w * 0.65)
-
-        alignedText(card.row2R, fontSize: fontSize, align: card.row2RAlign, x: rightX, y: row3Y, width: w * 0.25)
+        alignedText(card.row2,  fontSize: fs, align: card.row2Align,  x: w * 0.35, y: row3Y, width: w * 0.65)
+        alignedText(card.row2R, fontSize: fs, align: card.row2RAlign, x: rightX,   y: row3Y, width: w * 0.25)
     }
 
     @ViewBuilder
