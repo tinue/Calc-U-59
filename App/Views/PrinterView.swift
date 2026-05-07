@@ -90,28 +90,21 @@ struct PrinterView: View {
     // MARK: - Paper strip
 
     private var paperStrip: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                if dotMode {
-                    dotStrip
-                } else {
-                    textStrip
-                }
-                Color.clear.frame(height: 1).id("bottom")
-            }
-            .scrollIndicators(.hidden)
-            .background(Color(red: 0.96, green: 0.94, blue: 0.88))
-            .overlay(
-                RoundedRectangle(cornerRadius: 2)
-                    .stroke(Color(white: 0.7), lineWidth: 0.5)
-            )
-            .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
-            .onChange(of: viewModel.printerLines.count) {
-                withAnimation(.easeOut(duration: 0.2)) {
-                    proxy.scrollTo("bottom", anchor: .bottom)
-                }
+        ScrollView {
+            if dotMode {
+                dotStrip
+            } else {
+                textStrip
             }
         }
+        .scrollIndicators(.never)
+        .defaultScrollAnchor(.bottom)
+        .background(Color(red: 0.96, green: 0.94, blue: 0.88))
+        .overlay(
+            RoundedRectangle(cornerRadius: 2)
+                .stroke(Color(white: 0.7), lineWidth: 0.5)
+        )
+        .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
     }
 
     // MARK: - Dot strip
