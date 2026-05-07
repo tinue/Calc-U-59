@@ -692,6 +692,7 @@ class EmulatorViewModel {
         let dataType   = data.count > 1 ? data[1] : 0x11
         let pageByte   = data.count > 2 ? data[2] : 0x10
         let protection = data.count > 3 ? data[3] : 0x00
+        let checksum   = data.count > 244 ? data[244] : 0x00
         let bankNum    = Int((pageByte & 0x0F) / 3) + 1
         let dataTypeStr   = dataType == 0x11 ? "program" : "data"
         let protectionStr = protection == 0x10 ? "yes" : "no"
@@ -702,18 +703,16 @@ class EmulatorViewModel {
         lines.append("DataType: \(dataTypeStr)")
         lines.append("Bank: \(bankNum)")
         lines.append("Protection: \(protectionStr)")
+        lines.append(String(format: "Checksum: %02X", checksum))
 
         lines.append("")
         lines.append("DATA:")
-        // Bytes 4–245: 15 rows of 16 + 1 row of 2
-        let dataStart = 4
-        var offset = dataStart
-        while offset < 246 && offset < data.count {
-            let rowCount = min(16, 246 - offset)
-            let bytes = (0..<rowCount).map { data[offset + $0] }
+        // Bytes 4–243: 30 rows of 8 bytes; offsets start at D000 (relative to data start).
+        for row in 0..<30 {
+            let bankOffset = 4 + row * 8
+            let bytes = (0..<8).map { data.count > bankOffset + $0 ? data[bankOffset + $0] : 0 }
             let hex = bytes.map { String(format: "%02X", $0) }.joined(separator: " ")
-            lines.append(String(format: "D%03d: %@", offset, hex as NSString))
-            offset += rowCount
+            lines.append(String(format: "D%03d: %@", row * 8, hex as NSString))
         }
 
         return lines.joined(separator: "\n")

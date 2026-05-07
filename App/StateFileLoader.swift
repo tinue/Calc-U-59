@@ -353,16 +353,17 @@ private func parseAlignment(_ value: String) -> TextAlign {
 //       Title: …
 //       A: …  …  E:  A': …  …  E':  (same fields as .ti59 CUECARD section)
 //
-//   HEADER:                     ← required; decoded from binary bytes 0–3
+//   HEADER:                     ← required; decoded from binary bytes 0–3 and 244–245
 //       Partition: 1C           ← hex byte (0x1C = 959 steps, 0x13 = 239 steps, …)
 //       DataType: program       ← "program" | "data"
 //       Bank: 1                 ← bank number 1–4; encodes as page byte 10,13,16,19
 //       Protection: no          ← "yes" | "no"
+//       Checksum: 02            ← hex byte; stored in bytes 244–245 of the 246-byte bank
 //
-//   DATA:                       ← required; bytes 4–245 of the 246-byte bank
-//       D004: HH HH … (16 bytes per row, offset matches full-bank byte index)
+//   DATA:                       ← required; 30 rows of 8 bytes (bank bytes 4–243)
+//       D000: HH HH HH HH HH HH HH HH   ← D-offsets are relative to data start, not bank
 //       …
-//       D244: HH HH             ← 2-byte checksum row
+//       D232: HH HH HH HH HH HH HH HH
 //
 // Comments (# …) are stripped.  All section keywords and HEADER keys are
 // case-insensitive.  CUECARD lines are parsed by the shared parseCueCardLine helper.
@@ -388,7 +389,8 @@ func parseCardFile(_ text: String) -> CardFileResult? {
     var pageByte: UInt8 = 0x10
     var protection: UInt8 = 0x00
     var hasHeader = false
-    var dataBytes = [UInt8](repeating: 0, count: 242)  // bytes 4–245
+    var checksum: UInt8 = 0x00
+    var dataBytes = [UInt8](repeating: 0, count: 240)  // bank bytes 4–243 (30 × 8)
     var hasData = false
 
     for raw in lines {
@@ -423,23 +425,26 @@ func parseCardFile(_ text: String) -> CardFileResult? {
                 pageByte = UInt8(0x10 | ((n - 1) * 3))
             case "protection":
                 protection = val == "yes" ? 0x10 : 0x00
+            case "checksum":
+                guard let v = UInt8(val, radix: 16) else { return nil }
+                checksum = v
             default: break
             }
 
         case .data:
+            // D-offsets are relative to data start (D000 = bank byte 4).
             guard line.hasPrefix("D") else { return nil }
             let parts = line.components(separatedBy: ":")
             guard parts.count >= 2,
                   let offset = Int(parts[0].dropFirst()),
-                  offset >= 4, offset <= 244 else { return nil }
+                  offset >= 0, offset <= 232 else { return nil }
             let hexTokens = parts[1...].joined(separator: ":")
                 .trimmingCharacters(in: .whitespaces)
                 .components(separatedBy: .whitespaces).filter { !$0.isEmpty }
-            let dataIndex = offset - 4
             for (i, tok) in hexTokens.enumerated() {
                 guard let byte = UInt8(tok, radix: 16) else { return nil }
-                let idx = dataIndex + i
-                guard idx < 242 else { return nil }
+                let idx = offset + i
+                guard idx < 240 else { return nil }
                 dataBytes[idx] = byte
             }
         }
@@ -452,7 +457,9 @@ func parseCardFile(_ text: String) -> CardFileResult? {
     bank246[1] = dataType
     bank246[2] = pageByte
     bank246[3] = protection
-    bank246.replaceSubrange(4..<246, with: dataBytes)
+    bank246.replaceSubrange(4..<244, with: dataBytes)
+    bank246[244] = checksum
+    bank246[245] = checksum
 
     if hasCueCard {
         cueCard.template = .magnetCard
