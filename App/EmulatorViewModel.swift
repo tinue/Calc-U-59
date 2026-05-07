@@ -705,16 +705,16 @@ class EmulatorViewModel {
         lines.append("DATA:")
         // 30 registers per bank, 8 bytes (16 nibbles) each. Same format as ti58c.mem.
         // Bank 0 → R000-R029, Bank 1 → R030-R059, Bank 2 → R060-R089, Bank 3 → R090-R119.
+        // Swap nibbles within each byte, then reverse byte order.
         // data is guaranteed 246 bytes; bank bytes 4–243 always in bounds.
         let startReg = (bankNum - 1) * 30
         for row in 0..<30 {
             let bankOffset = 4 + row * 8
             let raw: [UInt8] = (0..<8).map { data[bankOffset + $0] }
-            // Convert to 16 nibbles per register, then swap nibbles within bytes and reverse byte order.
-            let nibbles: [UInt8] = raw.flatMap { b in [b >> 4, b & 0x0F] }
-            let bytes = stride(from: 14, through: 0, by: -2).map { i in
-                (nibbles[i] << 4) | nibbles[i + 1]
-            }
+            // Swap nibbles within each byte
+            let swapped: [UInt8] = raw.map { b in ((b & 0x0F) << 4) | ((b >> 4) & 0x0F) }
+            // Reverse byte order
+            let bytes = Array(swapped.reversed())
             let hex = bytes.map { String(format: "%02X", $0) }.joined(separator: " ")
             lines.append(String(format: "R%03d: %@", startReg + row, hex as NSString))
         }

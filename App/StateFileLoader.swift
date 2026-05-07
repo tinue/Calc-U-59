@@ -359,8 +359,8 @@ func parseCardFile(_ text: String) -> CardFileResult? {
         case .data:
             // R### format: 30 registers per bank, 8 bytes each. Same format as ti58c.mem.
             // Labels are informational only; don't validate against bank header.
-            // The write transformation packs nibbles at indices 14,12,10,... then reverses bytes,
-            // so to reverse: just reverse the bytes back.
+            // The write transformation: swaps nibbles within bytes, then reverses byte order.
+            // So to reverse: reverse bytes back, then swap nibbles again.
             guard line.hasPrefix("R") else { return nil }
             let parts = line.components(separatedBy: ":")
             guard parts.count >= 2 else { return nil }
@@ -371,8 +371,9 @@ func parseCardFile(_ text: String) -> CardFileResult? {
             let fileBytes = hexTokens.compactMap { UInt8($0, radix: 16) }
             guard fileBytes.count == 8 else { return nil }
 
-            // Reverse the byte order to get back bank bytes
-            let bankBytes = Array(fileBytes.reversed())
+            // Reverse byte order, then swap nibbles within each byte
+            let reversed = Array(fileBytes.reversed())
+            let bankBytes = reversed.map { b in ((b & 0x0F) << 4) | ((b >> 4) & 0x0F) }
 
             // Store at current row offset
             let dataIndex = dataRowIndex * 8
