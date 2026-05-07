@@ -561,6 +561,17 @@ class EmulatorViewModel {
             return
         }
         let data: Data
+        if let text = String(data: raw, encoding: .utf8), text.hasPrefix("Calc-U-59 Card ") {
+            guard let result = parseCardFile(text) else {
+                errorMessage = "Card file \"\(url.lastPathComponent)\" could not be parsed."
+                return
+            }
+            cueCardContent = result.cueCard
+            cardFileName = url.lastPathComponent
+            pendingSaveURL = url
+            beginSwipe(data: result.data)
+            return
+        }
         let hdr = Self.cardFileHeader
         if raw.prefix(hdr.count) == hdr {
             // New format: strip header, then expect exactly 246 bytes of card data.
@@ -595,7 +606,11 @@ class EmulatorViewModel {
     }
 
     func saveCard(_ data: Data, to url: URL) {
-        let fileData = Self.cardFileHeader + data
+        let text = encodeCardFileToText(data, cueCard: cueCardContent)
+        guard let fileData = text.data(using: .utf8) else {
+            errorMessage = "Card save failed: UTF-8 encoding error."
+            return
+        }
         let coordinator = NSFileCoordinator()
         var coordinatorError: NSError?
         var writeError: Error?
@@ -646,6 +661,62 @@ class EmulatorViewModel {
 
         // Otherwise, silently fail and return nil (RAM will be initialized to zeros)
         return nil
+    }
+
+    /// Encode card data (246-byte bank) as human-readable text .U59 format.
+    private func encodeCardFileToText(_ data: Data, cueCard: CueCardContent?) -> String {
+        var lines: [String] = []
+        lines.append("Calc-U-59 Card 1.0")
+
+        if let card = cueCard {
+            lines.append("")
+            lines.append("CUECARD:")
+            lines.append("Template: MagnetCard")
+            if !card.title.isEmpty { lines.append("Title: \(card.title)") }
+            let primeKeys = ["A'", "B'", "C'", "D'", "E'"]
+            let plainKeys = ["A",  "B",  "C",  "D",  "E" ]
+            for (i, key) in primeKeys.enumerated() {
+                if i < card.labels.count && !card.labels[i].isEmpty {
+                    lines.append("\(key): \(card.labels[i])")
+                }
+            }
+            for (i, key) in plainKeys.enumerated() {
+                let idx = i + 5
+                if idx < card.labels.count && !card.labels[idx].isEmpty {
+                    lines.append("\(key): \(card.labels[idx])")
+                }
+            }
+        }
+
+        let partition  = data.count > 0 ? data[0] : 0
+        let dataType   = data.count > 1 ? data[1] : 0x11
+        let pageByte   = data.count > 2 ? data[2] : 0x10
+        let protection = data.count > 3 ? data[3] : 0x00
+        let bankNum    = Int((pageByte & 0x0F) / 3) + 1
+        let dataTypeStr   = dataType == 0x11 ? "program" : "data"
+        let protectionStr = protection == 0x10 ? "yes" : "no"
+
+        lines.append("")
+        lines.append("HEADER:")
+        lines.append(String(format: "Partition: %02X", partition))
+        lines.append("DataType: \(dataTypeStr)")
+        lines.append("Bank: \(bankNum)")
+        lines.append("Protection: \(protectionStr)")
+
+        lines.append("")
+        lines.append("DATA:")
+        // Bytes 4–245: 15 rows of 16 + 1 row of 2
+        let dataStart = 4
+        var offset = dataStart
+        while offset < 246 && offset < data.count {
+            let rowCount = min(16, 246 - offset)
+            let bytes = (0..<rowCount).map { data[offset + $0] }
+            let hex = bytes.map { String(format: "%02X", $0) }.joined(separator: " ")
+            lines.append(String(format: "D%03d: %@", offset, hex as NSString))
+            offset += rowCount
+        }
+
+        return lines.joined(separator: "\n")
     }
 
     /// Encode RAM data (120 regs × 16 nibbles) as human-readable text.

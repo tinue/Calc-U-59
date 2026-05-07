@@ -340,6 +340,129 @@ private func parseAlignment(_ value: String) -> TextAlign {
     }
 }
 
+// MARK: - .U59 card file parser
+
+// ── .U59 text card file format ────────────────────────────────────────────────
+//
+// A plain UTF-8 text file with four sections, in this order:
+//
+//   Calc-U-59 Card 1.0          ← magic / version line (required, first line)
+//
+//   CUECARD:                    ← optional; same key: value syntax as .ti59 files
+//       Template: MagnetCard    ← always MagnetCard; Banks: is omitted (comes from HEADER)
+//       Title: …
+//       A: …  …  E:  A': …  …  E':  (same fields as .ti59 CUECARD section)
+//
+//   HEADER:                     ← required; decoded from binary bytes 0–3
+//       Partition: 1C           ← hex byte (0x1C = 959 steps, 0x13 = 239 steps, …)
+//       DataType: program       ← "program" | "data"
+//       Bank: 1                 ← bank number 1–4; encodes as page byte 10,13,16,19
+//       Protection: no          ← "yes" | "no"
+//
+//   DATA:                       ← required; bytes 4–245 of the 246-byte bank
+//       D004: HH HH … (16 bytes per row, offset matches full-bank byte index)
+//       …
+//       D244: HH HH             ← 2-byte checksum row
+//
+// Comments (# …) are stripped.  All section keywords and HEADER keys are
+// case-insensitive.  CUECARD lines are parsed by the shared parseCueCardLine helper.
+// The bank badge for the MagnetCard cue card is injected from HEADER Bank: value.
+
+struct CardFileResult {
+    var data: Data           // full 246-byte bank buffer
+    var cueCard: CueCardContent?
+}
+
+private enum CardSection { case none, cuecard, header, data }
+
+func parseCardFile(_ text: String) -> CardFileResult? {
+    var lines = text.components(separatedBy: .newlines)
+    guard let firstLine = lines.first, firstLine.hasPrefix("Calc-U-59 Card ") else { return nil }
+    lines.removeFirst()
+
+    var section: CardSection = .none
+    var cueCard = CueCardContent()
+    var hasCueCard = false
+    var partition: UInt8 = 0
+    var dataType: UInt8 = 0x11
+    var pageByte: UInt8 = 0x10
+    var protection: UInt8 = 0x00
+    var hasHeader = false
+    var dataBytes = [UInt8](repeating: 0, count: 242)  // bytes 4–245
+    var hasData = false
+
+    for raw in lines {
+        let line = raw.components(separatedBy: "#").first?
+            .trimmingCharacters(in: .whitespaces) ?? ""
+        if line.isEmpty { continue }
+
+        let upper = line.uppercased()
+        if upper == "CUECARD:" { section = .cuecard; hasCueCard = true; continue }
+        if upper == "HEADER:"  { section = .header; continue }
+        if upper == "DATA:"    { section = .data; hasData = true; continue }
+
+        switch section {
+        case .none: continue
+
+        case .cuecard:
+            parseCueCardLine(line, into: &cueCard)
+
+        case .header:
+            let parts = line.components(separatedBy: ":")
+            guard parts.count >= 2 else { continue }
+            let key = parts[0].trimmingCharacters(in: .whitespaces).lowercased()
+            let val = parts[1...].joined(separator: ":").trimmingCharacters(in: .whitespaces).lowercased()
+            switch key {
+            case "partition":
+                guard let v = UInt8(val, radix: 16) else { return nil }
+                partition = v; hasHeader = true
+            case "datatype":
+                dataType = val == "program" ? 0x11 : 0x10
+            case "bank":
+                guard let n = Int(val), n >= 1, n <= 4 else { return nil }
+                pageByte = UInt8(0x10 | ((n - 1) * 3))
+            case "protection":
+                protection = val == "yes" ? 0x10 : 0x00
+            default: break
+            }
+
+        case .data:
+            guard line.hasPrefix("D") else { return nil }
+            let parts = line.components(separatedBy: ":")
+            guard parts.count >= 2,
+                  let offset = Int(parts[0].dropFirst()),
+                  offset >= 4, offset <= 244 else { return nil }
+            let hexTokens = parts[1...].joined(separator: ":")
+                .trimmingCharacters(in: .whitespaces)
+                .components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+            let dataIndex = offset - 4
+            for (i, tok) in hexTokens.enumerated() {
+                guard let byte = UInt8(tok, radix: 16) else { return nil }
+                let idx = dataIndex + i
+                guard idx < 242 else { return nil }
+                dataBytes[idx] = byte
+            }
+        }
+    }
+
+    guard hasHeader && hasData else { return nil }
+
+    var bank246 = [UInt8](repeating: 0, count: 246)
+    bank246[0] = partition
+    bank246[1] = dataType
+    bank246[2] = pageByte
+    bank246[3] = protection
+    bank246.replaceSubrange(4..<246, with: dataBytes)
+
+    if hasCueCard {
+        cueCard.template = .magnetCard
+        let bankNum = Int((pageByte & 0x0F) / 3) + 1
+        cueCard.banks = (bankNum, nil)
+    }
+
+    return CardFileResult(data: Data(bank246), cueCard: hasCueCard ? cueCard : nil)
+}
+
 // MARK: - BCD encoder
 
 /// Encode a Double as TI-59 BCD: 16 nibbles.
