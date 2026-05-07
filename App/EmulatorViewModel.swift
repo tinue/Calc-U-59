@@ -1972,9 +1972,12 @@ class EmulatorViewModel {
         let programRegs = (parsed.partitionMaxStep + 1) / 8
         m.partitionProgramRegs = programRegs
 
-        // Clear entire RAM (all 120 registers) before loading new state
+        // Clear RAM before loading new state, but preserve hidden registers (60-63) on TI-58C
+        // Register 60 contains SCOM reconstruction data; clearing it triggers ROM memory clear
         let zeroNibbles = Data(repeating: UInt8(0), count: 16)
-        for regNum in 0..<120 {
+        let preserveHiddenRegs = model.hasConstantMemory
+        let clearUpTo = preserveHiddenRegs ? 60 : 120
+        for regNum in 0..<clearUpTo {
             m.setRawRegister(regNum, nibbles: zeroNibbles)
         }
 
