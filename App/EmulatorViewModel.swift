@@ -1756,7 +1756,7 @@ class EmulatorViewModel {
             debugLines.append("── Vars: no data registers in current partition ──")
             return
         }
-        var lines: [String] = [String(format: "── Vars R00–R%02d ──", visibleDataRegCount - 1)]
+        var lines: [String] = [String(format: "── Vars V00–V%02d ──", visibleDataRegCount - 1)]
 
         // Collect all non-zero registers with labels, then sort for consistent output
         var regEntries: [(label: String, value: Double)] = []
@@ -1782,7 +1782,7 @@ class EmulatorViewModel {
             if raw.contains(where: { $0 != 0 }) {
                 let v = TI59MachineWrapper.decodeBCD(raw)
                 let dataIdx = displayableRegs - 1 - ramIdx
-                regEntries.append((label: String(format: "R%02d", dataIdx), value: v))
+                regEntries.append((label: String(format: "V%02d", dataIdx), value: v))
             }
         }
 
@@ -1815,13 +1815,14 @@ class EmulatorViewModel {
     func debugDumpProg() {
         guard let m = machine else { return }
         let progRegs = Int(m.partitionProgramRegs)
-        var lines: [String] = [String(format: "── Prog R00–R%02d (raw nibbles) ──", progRegs - 1)]
+        var lines: [String] = [String(format: "── Prog P000–P%03d (key codes) ──", progRegs - 1)]
         for reg in 0..<progRegs {
             let n = Array(m.rawRegister(reg) as Data)
+            if n.allSatisfy({ $0 == 0 }) { continue }
             let pairs = stride(from: 0, to: 16, by: 2)
-                .map { String(format: "%X%X", n[$0], n[$0 + 1]) }
+                .map { String(format: "%X%X", n[$0 + 1], n[$0]) }
                 .joined(separator: " ")
-            lines.append(String(format: "R%02d: %@", reg, pairs))
+            lines.append(String(format: "P%03d: %@", reg, pairs))
         }
         debugLines.append(contentsOf: lines)
     }
@@ -1830,7 +1831,7 @@ class EmulatorViewModel {
     /// Shows only non-zero registers as raw nibble pairs using raw indices.
     func debugDumpMemory() {
         guard let m = machine else { return }
-        var lines: [String] = ["── Memory (non-zero registers) ──"]
+        var lines: [String] = ["── Registers (raw values) ──"]
 
         let totalRegs = Int(m.ramRegisterCount)
 

@@ -118,10 +118,10 @@ private struct StaticDebugContent: View {
         VStack(spacing: 8) {
             // Row 1: Main action buttons
             HStack(spacing: 8) {
-                Button("Vars") { vm.debugDumpVars() }
                 Button("SCOM") { vm.debugDumpSCOM() }
-                Button("Prog") { vm.debugDumpProg() }
                 Button("Memory") { vm.debugDumpMemory() }
+                Button("Prog") { vm.debugDumpProg() }
+                Button("Vars") { vm.debugDumpVars() }
 
                 Spacer()
 
