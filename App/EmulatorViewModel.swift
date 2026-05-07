@@ -1840,8 +1840,8 @@ class EmulatorViewModel {
             // Skip if all zeros
             if n.allSatisfy({ $0 == 0 }) { continue }
 
-            let pairs = stride(from: 0, to: 16, by: 2)
-                .map { String(format: "%X%X", n[$0 + 1], n[$0]) }
+            let pairs = stride(from: 14, through: 0, by: -2)
+                .map { String(format: "%X%X", n[$0], n[$0 + 1]) }
                 .joined(separator: " ")
             lines.append(String(format: "R%03d: %@", reg, pairs))
         }
