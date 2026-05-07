@@ -369,11 +369,9 @@ func parseCardFile(_ text: String) -> CardFileResult? {
             let fileBytes = hexTokens.compactMap { UInt8($0, radix: 16) }
             guard fileBytes.count == 8 else { return nil }
 
-            // Decode using shared helper: convert display bytes back to nibbles, then pack to bank bytes
-            let nibbles = decodeRegisterLine(fileBytes)
-            let bankBytes: [UInt8] = (0..<8).map { i in
-                (nibbles[2*i] << 4) | nibbles[2*i + 1]
-            }
+            // Reverse bytes and swap nibbles within each byte (inverse of encode)
+            let reversed = Array(fileBytes.reversed())
+            let bankBytes = reversed.map { b in ((b & 0x0F) << 4) | ((b >> 4) & 0x0F) }
 
             // Store at current row offset
             let dataIndex = dataRowIndex * 8

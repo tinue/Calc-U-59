@@ -13,12 +13,16 @@ func encodeRegisterLine(_ nibbles: [UInt8]) -> [UInt8] {
 }
 
 /// Convert 8 hex bytes in display format back to 16 nibbles (register data).
-/// Example: bytes [17,20,63,00,00,00,00,00] → nibbles [1,7,2,0,6,3,0,0,0,0,0,0,0,0,0,0]
+/// Example: bytes [17,20,63,00,00,00,00,00] → nibbles [0,0,0,0,0,0,0,0,0,0,6,3,2,0,1,7]
+/// (restores nibbles to original positions: byte[0]=0x17 unpacks to nibbles[14]=1, nibbles[15]=7, etc.)
 func decodeRegisterLine(_ bytes: [UInt8]) -> [UInt8] {
     guard bytes.count == 8 else { return [] }
-    let nibbles: [UInt8] = bytes.flatMap { b in [b >> 4, b & 0x0F] }
-    let reversed = Array(nibbles.reversed())
-    return (0..<8).map { i in
-        (reversed[2*i] << 4) | reversed[2*i + 1]
+    var result = [UInt8](repeating: 0, count: 16)
+    for i in 0..<8 {
+        let hi = bytes[i] >> 4
+        let lo = bytes[i] & 0x0F
+        result[14 - 2*i] = hi
+        result[15 - 2*i] = lo
     }
+    return result
 }
