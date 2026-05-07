@@ -369,9 +369,13 @@ func parseCardFile(_ text: String) -> CardFileResult? {
             let fileBytes = hexTokens.compactMap { UInt8($0, radix: 16) }
             guard fileBytes.count == 8 else { return nil }
 
-            // Reverse bytes and swap nibbles within each byte (inverse of encode)
-            let reversed = Array(fileBytes.reversed())
-            let bankBytes = reversed.map { b in ((b & 0x0F) << 4) | ((b >> 4) & 0x0F) }
+            // Card files reverse the bytes compared to ti58c.mem format.
+            // So: reverse file bytes, then decode using shared logic.
+            let fileReversed = Array(fileBytes.reversed())
+            let nibbles = decodeRegisterLine(fileReversed)
+            let bankBytes: [UInt8] = (0..<8).map { i in
+                (nibbles[2*i] << 4) | nibbles[2*i + 1]
+            }
 
             // Store at current row offset
             let dataIndex = dataRowIndex * 8

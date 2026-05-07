@@ -712,7 +712,9 @@ class EmulatorViewModel {
             let bankOffset = 4 + row * 8
             let raw: [UInt8] = (0..<8).map { data[bankOffset + $0] }
             let nibbles: [UInt8] = raw.flatMap { b in [b >> 4, b & 0x0F] }
-            let bytes = encodeRegisterLine(nibbles)
+            // Card files reverse the bytes compared to ti58c.mem format
+            let encoded = encodeRegisterLine(nibbles)
+            let bytes = Array(encoded.reversed())
             let hex = bytes.map { String(format: "%02X", $0) }.joined(separator: " ")
             lines.append(String(format: "R%03d: %@", startReg + row, hex as NSString))
         }
