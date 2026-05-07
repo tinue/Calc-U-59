@@ -1847,6 +1847,8 @@ class EmulatorViewModel {
         for reg in 0..<progRegs {
             let n = Array(m.rawRegister(reg) as Data)
             if n.allSatisfy({ $0 == 0 }) { continue }
+            // Intentional: display program nibbles in storage order (units-tens pairs),
+            // NOT the display format used by encodeRegisterLine (which reverses bytes).
             let pairs = stride(from: 0, to: 16, by: 2)
                 .map { String(format: "%X%X", n[$0 + 1], n[$0]) }
                 .joined(separator: " ")
