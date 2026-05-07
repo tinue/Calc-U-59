@@ -33,7 +33,7 @@ struct CueCardView: View {
 
     // CueCard uses three visible text bands: title (124..227), row0 (227..329), row1 (329..430).
     private static let cueLayout = GridCardLayout(
-        titleFontSize: 16, gridFontSize: 9.5, bankFontSize: 16,
+        titleFontSize: 19, gridFontSize: 14, bankFontSize: 16,
         titleYFraction: 0.399, titleWidthFraction: 0.92,
         gridY0Fraction: 0.632, gridY1Fraction: 0.862,
         xFractions: [0.101, 0.299, 0.494, 0.689, 0.884],
@@ -42,7 +42,7 @@ struct CueCardView: View {
 
     // Derived from MagnetCard.png separator rows (px on 440px-high asset): separators≈100/223/331.
     private static let magnetLayout = GridCardLayout(
-        titleFontSize: 12, gridFontSize: 10, bankFontSize: 16,
+        titleFontSize: 19, gridFontSize: 14, bankFontSize: 16,
         titleYFraction: 0.385, titleWidthFraction: 0.70,
         gridY0Fraction: 0.635, gridY1Fraction: 0.875,
         xFractions: [0.097, 0.289, 0.481, 0.673, 0.874],

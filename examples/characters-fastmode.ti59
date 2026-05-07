@@ -14,10 +14,7 @@ CUECARD:
 Template: MagnetCard
 Title: Print Characters
 Banks: 1
-A: R/S after load
-B: Then
-C: reinsert
-D: card
+A: R/S after load, then reinsert card
 
 PROGRAM:
       000  00  0
