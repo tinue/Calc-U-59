@@ -202,11 +202,13 @@ class EmulatorViewModel {
                 wrapper.loadConstants(constData)
             }
 
-            if model.hasConstantMemory, let saved = loadConstantMemory() {
-                // Restore RAM before the emulation loop starts so the ROM's startup
-                // routine sees the warm-start flag and skips its RAM clear —
-                // matching the real TI-58C where CMOS RAM was always live.
-                wrapper.deserialiseRAM(saved)
+            if model.hasConstantMemory {
+                // Run ROM startup once, then restore RAM. This matches the preset-load
+                // path and avoids startup code mutating freshly restored registers.
+                _ = wrapper.stepN(300_000)
+                if let saved = loadConstantMemory() {
+                    wrapper.deserialiseRAM(saved)
+                }
             }
 
             if !asmOverlayWords.isEmpty {
@@ -501,6 +503,15 @@ class EmulatorViewModel {
         machine?.setPrinterTrace(false)
         machine?.reset()
 
+        // TI-58C: restore persisted memory after reset
+        if model.hasConstantMemory {
+            if let saved = loadConstantMemory() {
+                machine?.deserialiseRAM(saved)
+            }
+            debugAppend(["Calculator Reset"])
+            return
+        }
+
         // Clear out-of-range registers for the current model
         let programRegs  = Int(machine?.partitionProgramRegs ?? 60)
         let totalRegs    = Int(machine?.ramRegisterCount ?? (model.hasLargeMemory ? 120 : model.hasConstantMemory ? 64 : 60))
@@ -648,18 +659,13 @@ class EmulatorViewModel {
         }
         guard let rawData = rawFileData else { return nil }
 
-        // Try to decode as text format (new format)
+        // Decode text format; invalid files are treated as load failure.
         if let text = String(data: rawData, encoding: .utf8),
            let decodedData = decodeConstantMemoryFromText(text) {
             return decodedData
         }
 
-        // Fallback: if file is exactly 120*16 bytes, treat as old binary format
-        if rawData.count == 120 * 16 {
-            return rawData
-        }
-
-        // Otherwise, silently fail and return nil (RAM will be initialized to zeros)
+        // Silently fail; caller resets RAM to zeros.
         return nil
     }
 
@@ -730,7 +736,7 @@ class EmulatorViewModel {
     /// Only includes non-zero registers.
     private func encodeConstantMemoryToText(_ data: Data) -> String {
         var lines: [String] = []
-        lines.append("── Memory (non-zero registers) ──")
+        lines.append("── Registers (raw values) ──")
 
         for regNum in 0..<120 {
             let offset = regNum * 16
@@ -741,8 +747,11 @@ class EmulatorViewModel {
             // Check if register is all zeros
             if nibbles.allSatisfy({ $0 == 0 }) { continue }
 
-            // Format: RXXX: HH HH HH HH HH HH HH HH
-            let hexBytes = nibbles.map { String(format: "%02X", $0) }.joined(separator: " ")
+            // Pack pairs of nibbles into bytes, then format as hex (reversed order)
+            let bytes = stride(from: 14, through: 0, by: -2).map { i in
+                (nibbles[i] << 4) | nibbles[i + 1]
+            }
+            let hexBytes = bytes.map { String(format: "%02X", $0) }.joined(separator: " ")
             lines.append(String(format: "R%03d: %@", regNum, hexBytes as NSString))
         }
 
@@ -750,42 +759,45 @@ class EmulatorViewModel {
     }
 
     /// Decode human-readable text format back to RAM data (120 regs × 16 nibbles).
-    /// Returns nil on parse error (which triggers fallback to old binary format).
-    /// All registers are initialized to zero; only those in the text are updated.
+    /// Format: header line, then non-zero registers with 8 hex byte pairs each (reversed order).
+    /// Returns nil on parse error.
     private func decodeConstantMemoryFromText(_ text: String) -> Data? {
         var resultBytes = [UInt8](repeating: 0, count: 120 * 16)
 
         for line in text.components(separatedBy: .newlines) {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
-
-            // Skip empty lines and header line
+            // Skip header and empty lines
             if trimmed.isEmpty || trimmed.hasPrefix("──") { continue }
 
-            // Expected format: "RXXX: HH HH HH HH HH HH HH HH"
             guard trimmed.hasPrefix("R") else { continue }
 
-            // Split on colon
             let parts = trimmed.components(separatedBy: ":")
             guard parts.count == 2 else { return nil }
 
-            let regStr = String(parts[0].dropFirst())  // Remove "R" prefix
+            let regStr = String(parts[0].dropFirst())
             guard let regNum = Int(regStr), regNum >= 0, regNum < 120 else { return nil }
 
-            // Parse hex bytes from the second part
+            // Parse 8 hex byte pairs (reversed order)
             let hexPart = parts[1].trimmingCharacters(in: .whitespaces)
             let hexTokens = hexPart.components(separatedBy: " ").filter { !$0.isEmpty }
-
-            guard hexTokens.count == 16 else { return nil }
+            guard hexTokens.count == 8 else { return nil }
 
             let offset = regNum * 16
-            for (i, hexToken) in hexTokens.enumerated() {
-                guard let byte = UInt8(hexToken, radix: 16) else { return nil }
-                resultBytes[offset + i] = byte
+            for (i, token) in hexTokens.enumerated() {
+                guard token.count == 2,
+                      let byte = UInt8(token, radix: 16) else { return nil }
+                // Unpack byte into nibbles at reversed positions
+                let nibIdx = 14 - 2 * i
+                let hi = (byte >> 4) & 0x0F
+                let lo = byte & 0x0F
+                resultBytes[offset + nibIdx] = hi
+                resultBytes[offset + nibIdx + 1] = lo
             }
         }
-
         return Data(resultBytes)
     }
+
+
 
     // MARK: - Trace / debug
 
