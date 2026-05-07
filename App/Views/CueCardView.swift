@@ -124,16 +124,36 @@ struct CueCardView: View {
             .frame(width: w * layout.titleWidthFraction)
             .position(x: w / 2, y: titleY)
 
-        ForEach(0..<2, id: \.self) { row in
+        gridRow(row: 0, layout: layout, w: w, y: gridY0)
+        gridRow(row: 1, layout: layout, w: w, y: gridY1)
+    }
+
+    @ViewBuilder
+    private func gridRow(row: Int, layout: GridCardLayout, w: CGFloat, y: CGFloat) -> some View {
+        let base = row * 5
+        let onlyFirst = !card.labels[base].isEmpty
+            && (1..<5).allSatisfy { card.labels[base + $0].isEmpty }
+        if onlyFirst {
+            // Single label: span the full grid width, ignoring column dividers
+            let fullWidth = w * (layout.xFractions[4] - layout.xFractions[0] + layout.cellWidthFraction)
+            let centerX   = w * (layout.xFractions[0] + layout.xFractions[4]) / 2
+            Text(card.labels[base])
+                .font(.system(size: layout.gridFontSize, weight: .bold, design: .monospaced))
+                .foregroundColor(.black)
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
+                .frame(width: fullWidth, alignment: .leading)
+                .position(x: centerX, y: y)
+        } else {
             ForEach(0..<5, id: \.self) { col in
-                Text(card.labels[row * 5 + col])
+                Text(card.labels[base + col])
                     .font(.system(size: layout.gridFontSize, weight: .bold, design: .monospaced))
                     .foregroundColor(.black)
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
                     .truncationMode(.tail)
-                    .frame(width: cellWidth, alignment: .center)
-                    .position(x: w * layout.xFractions[col], y: row == 0 ? gridY0 : gridY1)
+                    .frame(width: w * layout.cellWidthFraction, alignment: .center)
+                    .position(x: w * layout.xFractions[col], y: y)
             }
         }
     }
