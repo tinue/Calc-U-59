@@ -711,10 +711,8 @@ class EmulatorViewModel {
         for row in 0..<30 {
             let bankOffset = 4 + row * 8
             let raw: [UInt8] = (0..<8).map { data[bankOffset + $0] }
-            // Swap nibbles within each byte
-            let swapped: [UInt8] = raw.map { b in ((b & 0x0F) << 4) | ((b >> 4) & 0x0F) }
-            // Reverse byte order
-            let bytes = Array(swapped.reversed())
+            let nibbles: [UInt8] = raw.flatMap { b in [b >> 4, b & 0x0F] }
+            let bytes = encodeRegisterLine(nibbles)
             let hex = bytes.map { String(format: "%02X", $0) }.joined(separator: " ")
             lines.append(String(format: "R%03d: %@", startReg + row, hex as NSString))
         }
@@ -745,10 +743,7 @@ class EmulatorViewModel {
             // Check if register is all zeros
             if nibbles.allSatisfy({ $0 == 0 }) { continue }
 
-            // Pack pairs of nibbles into bytes, then format as hex (reversed order)
-            let bytes = stride(from: 14, through: 0, by: -2).map { i in
-                (nibbles[i] << 4) | nibbles[i + 1]
-            }
+            let bytes = encodeRegisterLine(nibbles)
             let hexBytes = bytes.map { String(format: "%02X", $0) }.joined(separator: " ")
             lines.append(String(format: "R%03d: %@", regNum, hexBytes as NSString))
         }
@@ -796,21 +791,19 @@ class EmulatorViewModel {
                 let regStr = String(parts[0].dropFirst())
                 guard let regNum = Int(regStr), regNum >= 0, regNum < 120 else { return (nil, nil) }
 
-                // Parse 8 hex byte pairs (reversed order)
+                // Parse 8 hex byte pairs
                 let hexPart = parts[1].trimmingCharacters(in: .whitespaces)
                 let hexTokens = hexPart.components(separatedBy: " ").filter { !$0.isEmpty }
                 guard hexTokens.count == 8 else { return (nil, nil) }
 
+                let fileBytes = hexTokens.compactMap { UInt8($0, radix: 16) }
+                guard fileBytes.count == 8 else { return (nil, nil) }
+
+                let nibbles = decodeRegisterLine(fileBytes)
                 let offset = regNum * 16
-                for (i, token) in hexTokens.enumerated() {
-                    guard token.count == 2,
-                          let byte = UInt8(token, radix: 16) else { return (nil, nil) }
-                    // Unpack byte into nibbles at reversed positions
-                    let nibIdx = 14 - 2 * i
-                    let hi = (byte >> 4) & 0x0F
-                    let lo = byte & 0x0F
-                    resultBytes[offset + nibIdx] = hi
-                    resultBytes[offset + nibIdx + 1] = lo
+                for (i, nibble) in nibbles.enumerated() {
+                    guard offset + i < resultBytes.count else { break }
+                    resultBytes[offset + i] = nibble
                 }
             }
         }
@@ -1870,14 +1863,13 @@ class EmulatorViewModel {
 
         for reg in 0..<totalRegs {
             guard reg >= 0 && reg < totalRegs else { continue }
-            let n = Array(m.rawRegister(reg) as Data)
+            let nibbles = Array(m.rawRegister(reg) as Data)
             // Skip if all zeros
-            if n.allSatisfy({ $0 == 0 }) { continue }
+            if nibbles.allSatisfy({ $0 == 0 }) { continue }
 
-            let pairs = stride(from: 14, through: 0, by: -2)
-                .map { String(format: "%X%X", n[$0], n[$0 + 1]) }
-                .joined(separator: " ")
-            lines.append(String(format: "R%03d: %@", reg, pairs))
+            let bytes = encodeRegisterLine(nibbles)
+            let hex = bytes.map { String(format: "%02X", $0) }.joined(separator: " ")
+            lines.append(String(format: "R%03d: %@", reg, hex as NSString))
         }
         debugLines.append(contentsOf: lines)
     }
