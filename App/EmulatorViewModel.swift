@@ -178,6 +178,7 @@ class EmulatorViewModel {
         stop()
         await drainEmulQueue()   // ensure old loop has exited before starting the new one
         self.model = model
+        cueCardContent = nil  // clear cuecard when switching models
         traceWriter = TraceWriter(model: model)  // reinitialize with new model for correct trace filename
         UserDefaults.standard.set(model.rawValue, forKey: SettingsKey.lastUsedModel)
         await withCheckedContinuation { continuation in
