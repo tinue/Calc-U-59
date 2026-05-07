@@ -164,6 +164,8 @@ class EmulatorViewModel {
     private static var constantMemoryURL: URL {
         CardStorage.directoryURL.appendingPathComponent(constantMemoryFileName)
     }
+    private var persistPending = false
+    private var persistDebounceTimer: Timer?
 
     init() {
         // Initialize traceWriter with default model
@@ -296,9 +298,9 @@ class EmulatorViewModel {
                     }
                 }
 
-                // Persist TI-58C state after each 20 ms batch if needed
+                // Mark TI-58C state for persist (debounced, non-blocking)
                 if self.model.hasConstantMemory {
-                    self.persistConstantMemory()
+                    self.persistPending = true
                 }
             }
         }
@@ -341,6 +343,14 @@ class EmulatorViewModel {
                     let text = String(msg.dropFirst(2))
                     debugAppend([text], level: msgLevel)
                 }
+            }
+        }
+
+        // Debounce TI-58C persist: schedule write if pending and timer not already running
+        if persistPending && persistDebounceTimer == nil {
+            persistDebounceTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { [weak self] _ in
+                self?.performPersistWrite()
+                self?.persistDebounceTimer = nil
             }
         }
 
@@ -650,6 +660,13 @@ class EmulatorViewModel {
         try? text.write(to: url, atomically: true, encoding: .utf8)
     }
 
+    private func performPersistWrite() {
+        persistPending = false
+        DispatchQueue.global(qos: .background).async { [weak self] in
+            self?.persistConstantMemory()
+        }
+    }
+
     private func loadConstantMemory() -> Data? {
         let url = Self.constantMemoryURL
         var rawFileData: Data?
@@ -720,6 +737,13 @@ class EmulatorViewModel {
         }
 
         return lines.joined(separator: "\n")
+    }
+
+    private func parseHexBytes(_ hexString: String, count: Int) -> [UInt8]? {
+        let tokens = hexString.components(separatedBy: " ").filter { !$0.isEmpty }
+        guard tokens.count == count else { return nil }
+        let bytes = tokens.compactMap { UInt8($0, radix: 16) }
+        return bytes.count == count ? bytes : nil
     }
 
     /// Encode RAM data (120 regs × 16 nibbles) as human-readable text.
@@ -795,11 +819,7 @@ class EmulatorViewModel {
 
                 // Parse 8 hex byte pairs
                 let hexPart = parts[1].trimmingCharacters(in: .whitespaces)
-                let hexTokens = hexPart.components(separatedBy: " ").filter { !$0.isEmpty }
-                guard hexTokens.count == 8 else { return (nil, nil) }
-
-                let fileBytes = hexTokens.compactMap { UInt8($0, radix: 16) }
-                guard fileBytes.count == 8 else { return (nil, nil) }
+                guard let fileBytes = parseHexBytes(hexPart, count: 8) else { return (nil, nil) }
 
                 let nibbles = decodeRegisterLine(fileBytes)
                 let offset = regNum * 16

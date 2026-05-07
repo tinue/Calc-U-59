@@ -85,15 +85,25 @@ struct LoadStateResult {
 
 private enum ParseSection { case none, partition, program, registers, keystrokes, cuecard }
 
+private func stripInlineComment(_ line: String) -> String {
+    line.components(separatedBy: "#").first?
+        .trimmingCharacters(in: .whitespaces) ?? ""
+}
+
+private func parseHexBytes(_ hexString: String, count: Int) -> [UInt8]? {
+    let tokens = hexString.components(separatedBy: " ").filter { !$0.isEmpty }
+    guard tokens.count == count else { return nil }
+    let bytes = tokens.compactMap { UInt8($0, radix: 16) }
+    return bytes.count == count ? bytes : nil
+}
+
 func parseStateFile(_ text: String, maxStepAddr: Int = 479, allowHiddenRegisters: Bool = false) -> LoadStateResult {
     var result = LoadStateResult()
     var section: ParseSection = .none
     var currentStep = 0
 
     for rawLine in text.components(separatedBy: .newlines) {
-        // Strip inline comment, then trim
-        let line = rawLine.components(separatedBy: "#").first!
-            .trimmingCharacters(in: .whitespaces)
+        let line = stripInlineComment(rawLine)
         if line.isEmpty { continue }
 
         let upper = line.uppercased()
@@ -319,8 +329,7 @@ func parseCardFile(_ text: String) -> CardFileResult? {
     var dataRowIndex = 0  // track which register we're reading
 
     for raw in lines {
-        let line = raw.components(separatedBy: "#").first?
-            .trimmingCharacters(in: .whitespaces) ?? ""
+        let line = stripInlineComment(raw)
         if line.isEmpty { continue }
 
         let upper = line.uppercased()
@@ -362,12 +371,8 @@ func parseCardFile(_ text: String) -> CardFileResult? {
             guard line.hasPrefix("R") else { return nil }
             let parts = line.components(separatedBy: ":")
             guard parts.count >= 2 else { return nil }
-            let hexTokens = parts[1...].joined(separator: ":")
-                .trimmingCharacters(in: .whitespaces)
-                .components(separatedBy: .whitespaces).filter { !$0.isEmpty }
-            guard hexTokens.count == 8 else { return nil }
-            let fileBytes = hexTokens.compactMap { UInt8($0, radix: 16) }
-            guard fileBytes.count == 8 else { return nil }
+            let hexString = parts[1...].joined(separator: ":").trimmingCharacters(in: .whitespaces)
+            guard let fileBytes = parseHexBytes(hexString, count: 8) else { return nil }
 
             // Card files reverse the bytes compared to ti58c.mem format.
             // So: reverse file bytes, then decode using shared logic.

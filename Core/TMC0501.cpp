@@ -279,6 +279,17 @@ void TMC0501::computeDisplayTraceState(uint8_t& displayOn, uint8_t& maxDigitDeca
     maxDigitDecay = maxDecay;
 }
 
+uint32_t TMC0501::getPrinterBusyCycles() const {
+    // Printer busy time: 197.5ms.
+    // TI-59: (197.5ms * 455kHz) / 2 / 16 / 1000 = 2808 cycles
+    // TI-58/58C: (197.5ms * 384kHz) / 2 / 16 / 1000 = 2370 cycles
+    return hasLargeMemory(m_variant) ? 2808 : 2370;
+}
+
+int TMC0501::getStepWeight() const {
+    return ((flags & FLG_IDLE) && !hasConstantMemory(m_variant)) ? 4 : 1;
+}
+
 // ── Display read-out ──────────────────────────────────────────────────────────
 //
 // Called by the UI thread at ~60 Hz.  Returns a stable, mutex-protected copy
@@ -494,7 +505,7 @@ int TMC0501::step() {
         }
         postOperation();
         // TI-58C runs at constant speed; TI-59/58 slow to 1/4 speed during IDLE
-        int w = ((flags & FLG_IDLE) && !hasConstantMemory(m_variant)) ? 4 : 1;
+        int w = getStepWeight();
         if (tf != TRACE_NONE) [[unlikely]] { tracePostStep(tf, w); }
         if ((flags & FLG_IDLE) ? (fA & 0x4000u) : fA) m_cSteps.fetch_add(1, std::memory_order_relaxed);
         m_pollSteps.fetch_add(static_cast<uint32_t>(w), std::memory_order_relaxed);
@@ -758,10 +769,7 @@ int TMC0501::step() {
                         m_prnCodeLines.push_back(codes);
                     }
                     flags |= FLG_BUSY;
-                    // Printer busy time: 197.5ms.
-                    // TI-59: (197.5ms * 455kHz) / 2 / 16 / 1000 = 2808 cycles
-                    // TI-58/58C: (197.5ms * 384kHz) / 2 / 16 / 1000 = 2370 cycles
-                    m_prnBusyCycles = hasLargeMemory(m_variant) ? 2808 : 2370;
+                    m_prnBusyCycles = getPrinterBusyCycles();
                 }
                 break;
             }
@@ -778,10 +786,7 @@ int TMC0501::step() {
                     m_prnCodeLines.emplace_back();  // zero-filled
                 }
                 flags |= FLG_BUSY;
-                // Printer busy time: 197.5ms.
-                // TI-59: (197.5ms * 455kHz) / 2 / 16 / 1000 = 2808 cycles
-                // TI-58/58C: (197.5ms * 384kHz) / 2 / 16 / 1000 = 2370 cycles
-                m_prnBusyCycles = hasLargeMemory(m_variant) ? 2808 : 2370;
+                m_prnBusyCycles = getPrinterBusyCycles();
                 break;
             case 0xF0: // RAM_OP — deferred decode: next Sout encodes operation + address
                 // Deferred operation: capture operation and address from Sout.
@@ -897,7 +902,7 @@ int TMC0501::step() {
         addr++;
     }
     // TI-58C runs at constant speed; TI-59/58 slow to 1/4 speed during IDLE
-    int w = ((flags & FLG_IDLE) && !hasConstantMemory(m_variant)) ? 4 : 1;
+    int w = getStepWeight();
     if (tf != TRACE_NONE) [[unlikely]] { tracePostStep(tf, w); }
     if ((flags & FLG_IDLE) ? (fA & 0x4000u) : fA) m_cSteps.fetch_add(1, std::memory_order_relaxed);
     m_pollSteps.fetch_add(static_cast<uint32_t>(w), std::memory_order_relaxed);
