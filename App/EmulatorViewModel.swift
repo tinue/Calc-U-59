@@ -703,20 +703,20 @@ class EmulatorViewModel {
 
         lines.append("")
         lines.append("DATA:")
-        // 30 rows (D00–D29), 8 bytes each. The 16 nibbles per row are stored reversed
-        // relative to the bank buffer so that significant data reads left-to-right.
+        // 30 registers per bank, 8 bytes (16 nibbles) each. Same format as ti58c.mem.
+        // Bank 0 → R000-R029, Bank 1 → R030-R059, Bank 2 → R060-R089, Bank 3 → R090-R119.
         // data is guaranteed 246 bytes; bank bytes 4–243 always in bounds.
+        let startReg = (bankNum - 1) * 30
         for row in 0..<30 {
             let bankOffset = 4 + row * 8
             let raw: [UInt8] = (0..<8).map { data[bankOffset + $0] }
-            // Nibbles stored reversed so significant data reads left-to-right in the file.
+            // Convert to 16 nibbles per register, then swap nibbles within bytes and reverse byte order.
             let nibbles: [UInt8] = raw.flatMap { b in [b >> 4, b & 0x0F] }
-            let rev = Array(nibbles.reversed())
-            let repacked: [UInt8] = stride(from: 0, to: 16, by: 2).map { i in
-                (rev[i] << 4) | rev[i + 1]
+            let bytes = stride(from: 14, through: 0, by: -2).map { i in
+                (nibbles[i] << 4) | nibbles[i + 1]
             }
-            let hex = repacked.map { String(format: "%02X", $0) }.joined(separator: " ")
-            lines.append(String(format: "D%02d: %@", row, hex as NSString))
+            let hex = bytes.map { String(format: "%02X", $0) }.joined(separator: " ")
+            lines.append(String(format: "R%03d: %@", startReg + row, hex as NSString))
         }
 
         return lines.joined(separator: "\n")

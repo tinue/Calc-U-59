@@ -316,6 +316,7 @@ func parseCardFile(_ text: String) -> CardFileResult? {
     var checksum: UInt8 = 0x00
     var dataBytes = [UInt8](repeating: 0, count: 240)  // bank bytes 4–243 (30 × 8)
     var hasData = false
+    var dataRowIndex = 0  // track which register we're reading
 
     for raw in lines {
         let line = raw.components(separatedBy: "#").first?
@@ -325,7 +326,7 @@ func parseCardFile(_ text: String) -> CardFileResult? {
         let upper = line.uppercased()
         if upper == "CUECARD:" { section = .cuecard; hasCueCard = true; continue }
         if upper == "HEADER:"  { section = .header; continue }
-        if upper == "DATA:"    { section = .data; hasData = true; continue }
+        if upper == "DATA:"    { section = .data; hasData = true; dataRowIndex = 0; continue }
 
         switch section {
         case .none: continue
@@ -356,29 +357,30 @@ func parseCardFile(_ text: String) -> CardFileResult? {
             }
 
         case .data:
-            // D00–D29, each 8 bytes. Nibble sequence is reversed in the file,
-            // so apply the inverse: unpack, reverse, repack before storing.
-            guard line.hasPrefix("D") else { return nil }
+            // R### format: 30 registers per bank, 8 bytes each. Same format as ti58c.mem.
+            // Labels are informational only; don't validate against bank header.
+            // The write transformation packs nibbles at indices 14,12,10,... then reverses bytes,
+            // so to reverse: just reverse the bytes back.
+            guard line.hasPrefix("R") else { return nil }
             let parts = line.components(separatedBy: ":")
-            guard parts.count >= 2,
-                  let row = Int(parts[0].dropFirst()),
-                  row >= 0, row <= 29 else { return nil }
+            guard parts.count >= 2 else { return nil }
             let hexTokens = parts[1...].joined(separator: ":")
                 .trimmingCharacters(in: .whitespaces)
                 .components(separatedBy: .whitespaces).filter { !$0.isEmpty }
             guard hexTokens.count == 8 else { return nil }
             let fileBytes = hexTokens.compactMap { UInt8($0, radix: 16) }
             guard fileBytes.count == 8 else { return nil }
-            let nibbles: [UInt8] = fileBytes.flatMap { b in [b >> 4, b & 0x0F] }
-            let rev = Array(nibbles.reversed())
-            let bankBytes: [UInt8] = stride(from: 0, to: 16, by: 2).map { i in
-                (rev[i] << 4) | rev[i + 1]
-            }
-            let dataIndex = row * 8
+
+            // Reverse the byte order to get back bank bytes
+            let bankBytes = Array(fileBytes.reversed())
+
+            // Store at current row offset
+            let dataIndex = dataRowIndex * 8
             for (i, byte) in bankBytes.enumerated() {
                 guard dataIndex + i < 240 else { break }
                 dataBytes[dataIndex + i] = byte
             }
+            dataRowIndex += 1
         }
     }
 
