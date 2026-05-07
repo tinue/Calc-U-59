@@ -17,6 +17,7 @@ struct CueCardView: View {
         let bankFontSize: CGFloat
         let titleYFraction: CGFloat
         let titleWidthFraction: CGFloat
+        let titleHeightFraction: CGFloat
         let gridY0Fraction: CGFloat
         let gridY1Fraction: CGFloat
         let xFractions: [CGFloat]
@@ -34,7 +35,7 @@ struct CueCardView: View {
     // CueCard uses three visible text bands: title (124..227), row0 (227..329), row1 (329..430).
     private static let cueLayout = GridCardLayout(
         titleFontSize: 19, gridFontSize: 14, bankFontSize: 16,
-        titleYFraction: 0.399, titleWidthFraction: 0.92,
+        titleYFraction: 0.399, titleWidthFraction: 0.92, titleHeightFraction: 0.18,
         gridY0Fraction: 0.632, gridY1Fraction: 0.862,
         xFractions: [0.101, 0.299, 0.494, 0.689, 0.884],
         cellWidthFraction: 0.16
@@ -43,7 +44,7 @@ struct CueCardView: View {
     // Derived from MagnetCard.png separator rows (px on 440px-high asset): separators≈100/223/331.
     private static let magnetLayout = GridCardLayout(
         titleFontSize: 19, gridFontSize: 14, bankFontSize: 16,
-        titleYFraction: 0.385, titleWidthFraction: 0.70,
+        titleYFraction: 0.385, titleWidthFraction: 0.70, titleHeightFraction: 0.18,
         gridY0Fraction: 0.635, gridY1Fraction: 0.875,
         xFractions: [0.097, 0.289, 0.481, 0.673, 0.874],
         cellWidthFraction: 0.16
@@ -121,7 +122,7 @@ struct CueCardView: View {
             .foregroundColor(.black)
             .lineLimit(1)
             .minimumScaleFactor(0.5)
-            .frame(width: w * layout.titleWidthFraction)
+            .frame(width: w * layout.titleWidthFraction, height: h * layout.titleHeightFraction)
             .position(x: w / 2, y: titleY)
 
         gridRow(row: 0, layout: layout, w: w, y: gridY0)
@@ -145,17 +146,31 @@ struct CueCardView: View {
                 .frame(width: fullWidth, alignment: .leading)
                 .position(x: centerX, y: y)
         } else {
+            let fontSize = uniformFontSize(row: row, layout: layout, w: w)
             ForEach(0..<5, id: \.self) { col in
                 Text(card.labels[base + col])
-                    .font(.system(size: layout.gridFontSize, weight: .bold, design: .monospaced))
+                    .font(.system(size: fontSize, weight: .bold, design: .monospaced))
                     .foregroundColor(.black)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.75)
-                    .truncationMode(.tail)
                     .frame(width: w * layout.cellWidthFraction, alignment: .center)
                     .position(x: w * layout.xFractions[col], y: y)
             }
         }
+    }
+
+    // Compute the largest font size at which every non-empty label in the row fits its cell.
+    // SF Mono Bold advance width ≈ 0.6 × font size (monospaced, so exact per character).
+    private func uniformFontSize(row: Int, layout: GridCardLayout, w: CGFloat) -> CGFloat {
+        let cellWidth = w * layout.cellWidthFraction
+        var size = layout.gridFontSize
+        let base = row * 5
+        for col in 0..<5 {
+            let label = card.labels[base + col]
+            guard !label.isEmpty else { continue }
+            let fitting = cellWidth / (CGFloat(label.count) * 0.6)
+            if fitting < size { size = fitting }
+        }
+        return max(size, layout.gridFontSize * 0.4)
     }
 
     // MARK: - SolidStateCard layout
