@@ -361,9 +361,9 @@ private func parseAlignment(_ value: String) -> TextAlign {
 //       Checksum: 02            ← hex byte; stored in bytes 244–245 of the 246-byte bank
 //
 //   DATA:                       ← required; 30 rows of 8 bytes (bank bytes 4–243)
-//       D000: HH HH HH HH HH HH HH HH   ← D-offsets are relative to data start, not bank
-//       …
-//       D232: HH HH HH HH HH HH HH HH
+//       D00: HH HH HH HH HH HH HH HH    ← D00–D29; nibble sequence per row is reversed
+//       …                                   so significant data reads left-to-right
+//       D29: HH HH HH HH HH HH HH HH
 //
 // Comments (# …) are stripped.  All section keywords and HEADER keys are
 // case-insensitive.  CUECARD lines are parsed by the shared parseCueCardLine helper.
@@ -432,20 +432,28 @@ func parseCardFile(_ text: String) -> CardFileResult? {
             }
 
         case .data:
-            // D-offsets are relative to data start (D000 = bank byte 4).
+            // D00–D29, each 8 bytes. Nibble sequence is reversed in the file,
+            // so apply the inverse: unpack, reverse, repack before storing.
             guard line.hasPrefix("D") else { return nil }
             let parts = line.components(separatedBy: ":")
             guard parts.count >= 2,
-                  let offset = Int(parts[0].dropFirst()),
-                  offset >= 0, offset <= 232 else { return nil }
+                  let row = Int(parts[0].dropFirst()),
+                  row >= 0, row <= 29 else { return nil }
             let hexTokens = parts[1...].joined(separator: ":")
                 .trimmingCharacters(in: .whitespaces)
                 .components(separatedBy: .whitespaces).filter { !$0.isEmpty }
-            for (i, tok) in hexTokens.enumerated() {
-                guard let byte = UInt8(tok, radix: 16) else { return nil }
-                let idx = offset + i
-                guard idx < 240 else { return nil }
-                dataBytes[idx] = byte
+            guard hexTokens.count == 8 else { return nil }
+            let fileBytes = hexTokens.compactMap { UInt8($0, radix: 16) }
+            guard fileBytes.count == 8 else { return nil }
+            let nibbles: [UInt8] = fileBytes.flatMap { b in [b >> 4, b & 0x0F] }
+            let rev = Array(nibbles.reversed())
+            let bankBytes: [UInt8] = stride(from: 0, to: 16, by: 2).map { i in
+                (rev[i] << 4) | rev[i + 1]
+            }
+            let dataIndex = row * 8
+            for (i, byte) in bankBytes.enumerated() {
+                guard dataIndex + i < 240 else { break }
+                dataBytes[dataIndex + i] = byte
             }
         }
     }
