@@ -69,26 +69,6 @@ struct CueCardContent {
             self.banks = (left, right)
         case "id":
             self.id = value
-        case "a":
-            if self.labels.count > 5 { self.labels[5] = value }
-        case "b":
-            if self.labels.count > 6 { self.labels[6] = value }
-        case "c":
-            if self.labels.count > 7 { self.labels[7] = value }
-        case "d":
-            if self.labels.count > 8 { self.labels[8] = value }
-        case "e":
-            if self.labels.count > 9 { self.labels[9] = value }
-        case "a'", "a′":
-            if self.labels.count > 0 { self.labels[0] = value }
-        case "b'", "b′":
-            if self.labels.count > 1 { self.labels[1] = value }
-        case "c'", "c′":
-            if self.labels.count > 2 { self.labels[2] = value }
-        case "d'", "d′":
-            if self.labels.count > 3 { self.labels[3] = value }
-        case "e'", "e′":
-            if self.labels.count > 4 { self.labels[4] = value }
         case "row1":
             self.row1 = value
         case "row2":
@@ -108,7 +88,15 @@ struct CueCardContent {
         case "row2ralign":
             self.row2RAlign = Self.parseAlignment(value)
         default:
-            break
+            // Map label keys to indices: A′–E′ → [0–4], A–E → [5–9]
+            let labelMap: [String: Int] = [
+                "a": 5, "b": 6, "c": 7, "d": 8, "e": 9,
+                "a'": 0, "a′": 0, "b'": 1, "b′": 1, "c'": 2, "c′": 2,
+                "d'": 3, "d′": 3, "e'": 4, "e′": 4
+            ]
+            if let idx = labelMap[key], idx < self.labels.count {
+                self.labels[idx] = value
+            }
         }
     }
 
