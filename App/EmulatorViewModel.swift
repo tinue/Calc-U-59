@@ -709,15 +709,15 @@ class EmulatorViewModel {
         lines.append("DATA:")
         // 30 rows (D00–D29), 8 bytes each. The 16 nibbles per row are stored reversed
         // relative to the bank buffer so that significant data reads left-to-right.
+        // data is guaranteed 246 bytes; bank bytes 4–243 always in bounds.
         for row in 0..<30 {
             let bankOffset = 4 + row * 8
-            let raw = (0..<8).map { data.count > bankOffset + $0 ? data[bankOffset + $0] : UInt8(0) }
-            // Unpack to 16 nibbles, reverse, repack — this swaps nibble pairs and reverses byte order.
+            let raw: [UInt8] = (0..<8).map { data[bankOffset + $0] }
+            // Nibbles stored reversed so significant data reads left-to-right in the file.
             let nibbles: [UInt8] = raw.flatMap { b in [b >> 4, b & 0x0F] }
-            let rev = nibbles.reversed()
+            let rev = Array(nibbles.reversed())
             let repacked: [UInt8] = stride(from: 0, to: 16, by: 2).map { i in
-                let arr = Array(rev)
-                return (arr[i] << 4) | arr[i + 1]
+                (rev[i] << 4) | rev[i + 1]
             }
             let hex = repacked.map { String(format: "%02X", $0) }.joined(separator: " ")
             lines.append(String(format: "D%02d: %@", row, hex as NSString))
