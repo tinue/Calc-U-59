@@ -391,14 +391,10 @@ class EmulatorViewModel {
         let shouldFreeze = displayOn && !isIdle               // Afterglow with RUN mode
 
         // Detect active program number via SCOM[9] nibbles 3 and 4.
-        // Only update cueCardContent if program actually changed to avoid spurious re-renders.
         let detectedProgram = Int(cpuFrame.SCOM.9.4) * 10 + Int(cpuFrame.SCOM.9.3)
         if detectedProgram != activeProgramNumber {
             activeProgramNumber = detectedProgram
-            let newCard = resolvedCueCard()
-            if newCard != cueCardContent {
-                cueCardContent = newCard
-            }
+            cueCardContent = resolvedCueCard()
         }
 
         // Guard each assignment: @Observable only notifies SwiftUI when a property
