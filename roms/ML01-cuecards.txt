@@ -52,7 +52,7 @@ Title: DAY OF WEEK, DAYS BETWEEN DATES
 ID: ML-20
 IDAlign: right
 A': (M M D D. Y Y Y Y)
-B': \blank
+B':
 C': \blank
 D': \blank
 E': \blank
