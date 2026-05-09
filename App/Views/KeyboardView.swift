@@ -24,8 +24,8 @@ struct KeyboardView: View {
 
     /// Keyboard section position within canvas.
     /// Keyboard image is placed at this y-offset, scaled by this factor.
-    private static let kbYStart: CGFloat = 0.2324   // top of keyboard
-    private static let kbYScale: CGFloat = 0.7676   // height factor
+    static let kbYStart: CGFloat = 0.2324   // top of keyboard
+    static let kbYScale: CGFloat = 0.7676   // height factor
 
     // ── Colors ──────────────────────────────────────────────────────────
 
@@ -35,7 +35,7 @@ struct KeyboardView: View {
     // ── Key rects — keyboard-image space (0..1) ────────────────────────
     /// Extracted from key_rectangles.png, converted to keyboard-image-space coords.
     /// All 9×5 = 45 keys.
-    private static let keyRects: [[CGRect]] = [
+    static let keyRects: [[CGRect]] = [
         // row 0
         [CGRect(x:0.0160, y:0.0365, width:0.1245, height:0.0486), CGRect(x:0.2277, y:0.0365, width:0.1245, height:0.0486), CGRect(x:0.4375, y:0.0365, width:0.1245, height:0.0486), CGRect(x:0.6483, y:0.0365, width:0.1245, height:0.0486), CGRect(x:0.8571, y:0.0365, width:0.1245, height:0.0486)],
         // row 1
@@ -183,11 +183,14 @@ struct KeyboardView: View {
                                 let isOnDisplay = nx >= Self.displayRect.minX && nx <= Self.displayRect.maxX &&
                                                 ny >= Self.displayRect.minY && ny <= Self.displayRect.maxY
                                 if isOnDisplay {
-                                    viewModel.isDisplayPressed = true
-                                    viewModel.isFullSpeedMode = true
-                                    if let prev = pressedKey {
-                                        viewModel.releaseKey(row: prev / 5, col: prev % 5)
-                                        pressedKey = nil
+                                    // Only update if state actually changed
+                                    if !viewModel.isDisplayPressed {
+                                        viewModel.isDisplayPressed = true
+                                        viewModel.isFullSpeedMode = true
+                                        if let prev = pressedKey {
+                                            viewModel.releaseKey(row: prev / 5, col: prev % 5)
+                                            pressedKey = nil
+                                        }
                                     }
                                     return
                                 }
@@ -209,9 +212,18 @@ struct KeyboardView: View {
                                     }
                                     return
                                 }
-                                guard let (row, col) = Self.keyAt(nx: nx, ny: kbNy) else { return }
+                                guard let (row, col) = Self.keyAt(nx: nx, ny: kbNy) else {
+                                    // Only update if state actually changed
+                                    if pressedKey != nil {
+                                        if let prev = pressedKey {
+                                            viewModel.releaseKey(row: prev / 5, col: prev % 5)
+                                            pressedKey = nil
+                                        }
+                                    }
+                                    return
+                                }
                                 let keyID = row * 5 + col
-                                guard pressedKey != keyID else { return }
+                                guard pressedKey != keyID else { return }  // Only update if different key
                                 if let prev = pressedKey {
                                     viewModel.releaseKey(row: prev / 5, col: prev % 5)
                                 }
@@ -231,39 +243,67 @@ struct KeyboardView: View {
 
                 // ── Press highlight ─────────────────────────────────────
                 // Simulate key press: shift key down-right and expose black background
-                if let pk = pressedKey {
-                    let r = Self.keyRects[pk / 5][pk % 5]
-                    let keyW = w * r.width
-                    let keyH = h * r.height * Self.kbYScale
-                    let canvasX = w * r.minX
-                    let canvasY = h * (Self.kbYStart + r.minY * Self.kbYScale)
-                    let shiftX: CGFloat = 3    // tunable: shift right (points)
-                    let shiftY: CGFloat = 3    // tunable: shift down (points)
-
-                    // Layer 1 — black fill at original key position (erases the key)
-                    Rectangle()
-                        .fill(Color.black)
-                        .frame(width: keyW, height: keyH)
-                        .position(x: canvasX + keyW / 2,
-                                  y: canvasY + keyH / 2)
-                        .allowsHitTesting(false)
-
-                    // Layer 2 — key region of base image, shifted down-right
-                    // Crop the image to show only the key rect, then position it shifted
-                    Image(canvasImageName)
-                        .resizable()
-                        .frame(width: w, height: h)
-                        .offset(x: -canvasX, y: -canvasY)   // align key's top-left to frame origin
-                        .frame(width: keyW, height: keyH,
-                               alignment: .topLeading)
-                        .clipped()
-                        .position(x: canvasX + keyW / 2 + shiftX,
-                                  y: canvasY + keyH / 2 + shiftY)
-                        .allowsHitTesting(false)
-                }
+                KeyPressHighlight(
+                    pressedKey: pressedKey,
+                    canvasImageName: canvasImageName,
+                    width: w,
+                    height: h
+                )
+                .equatable()
             }
         }
         .aspectRatio(Self.imageAspect, contentMode: .fit)
+    }
+}
+
+/// Separate view for key press highlight to enable .equatable() optimization.
+/// Only re-renders when pressedKey actually changes.
+struct KeyPressHighlight: View, Equatable {
+    let pressedKey: Int?
+    let canvasImageName: String
+    let width: CGFloat
+    let height: CGFloat
+
+    static func == (lhs: KeyPressHighlight, rhs: KeyPressHighlight) -> Bool {
+        lhs.pressedKey == rhs.pressedKey &&
+        lhs.canvasImageName == rhs.canvasImageName &&
+        lhs.width == rhs.width &&
+        lhs.height == rhs.height
+    }
+
+    var body: some View {
+        if let pk = pressedKey {
+            let r = KeyboardView.keyRects[pk / 5][pk % 5]
+            let keyW = width * r.width
+            let keyH = height * r.height * KeyboardView.kbYScale
+            let canvasX = width * r.minX
+            let canvasY = height * (KeyboardView.kbYStart + r.minY * KeyboardView.kbYScale)
+            let shiftX: CGFloat = 3    // tunable: shift right (points)
+            let shiftY: CGFloat = 3    // tunable: shift down (points)
+
+            ZStack(alignment: .topLeading) {
+                // Layer 1 — black fill at original key position (erases the key)
+                Rectangle()
+                    .fill(Color.black)
+                    .frame(width: keyW, height: keyH)
+                    .position(x: canvasX + keyW / 2,
+                              y: canvasY + keyH / 2)
+                    .allowsHitTesting(false)
+
+                // Layer 2 — key region of base image, shifted down-right
+                // Crop the image to show only the key rect, then position it shifted
+                Image(canvasImageName)
+                    .resizable()
+                    .frame(width: width, height: height)
+                    .offset(x: -canvasX, y: -canvasY)   // align key's top-left to frame origin
+                    .frame(width: keyW, height: keyH,
+                           alignment: .topLeading)
+                    .clipped()
+                    .position(x: canvasX + keyW / 2 + shiftX,
+                              y: canvasY + keyH / 2 + shiftY)
+                    .allowsHitTesting(false)
+            }
+        }
     }
 }
 
