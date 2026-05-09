@@ -46,6 +46,22 @@ C: j: b_{i}_{j}
 D: \lambda_{1},\lambda_{2}
 E: \lambda_{1}A + \lambda_{2}B
 
+CUECARD: 4
+Template: SolidStateGridCard
+Title: COMPLEX ARITHMETIC
+ID: ML-04
+IDAlign: right
+A': Y
+B': \to X - Y
+C': \to X ÷ Y
+D': \to log_{y}X
+E': X \leftrightarrows Y
+A: X
+B: \to X + Y
+C: \to X × Y
+D: \to Y^x
+E: \to Y^(1/x)
+
 CUECARD: 19
 Template: SolidStateGridCard
 Title: ANNUITIES

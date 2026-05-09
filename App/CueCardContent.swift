@@ -34,13 +34,17 @@ func expandMathTokens(_ input: String) -> String {
         ("\\pi", "π"),       // U+03C0
         ("\\Pi", "Π"),       // U+03A0
 
-        // Arrows
-        ("\\to", "→"),       // U+2192
-        ("\\leftarrow", "←"), // U+2190
+        // Arrows (longer before shorter)
+        ("\\leftrightarrows", "⇄"), // U+21C4 (right arrow over left arrow)
+        ("\\leftrightarrow", "↔"), // U+2194 (bidirectional)
         ("\\updownarrow", "↕"), // U+2195
+        ("\\leftarrow", "←"), // U+2190
+        ("\\to", "→"),       // U+2192
 
         // Math symbols
-        ("\\sqrt", "√"),     // U+221A
+        ("\\sqrt", "√"),     // U+221A (square root)
+        ("\\cbrt", "∛"),     // U+221B (cube root)
+        ("\\fourthroot", "∜"), // U+221C (fourth root)
         ("\\inf", "∞"),      // U+221E
         ("\\sum", "∑"),      // U+2211
         ("\\product", "∏"),  // U+220F
@@ -93,6 +97,9 @@ func expandMathTokens(_ input: String) -> String {
         ("_{e}", "ₑ"),       // U+2091
         ("_{o}", "ₒ"),       // U+2092
         ("_{x}", "ₓ"),       // U+2093
+        ("_{X}", "ₓ"),       // U+2093 (uppercase X → subscript x)
+        ("_{y}", "ᵧ"),       // U+1D67 (subscript y)
+        ("_{Y}", "ᵧ"),       // U+1D67 (uppercase Y → subscript y)
         ("_{n}", "ₙ"),       // U+2099
         ("_{m}", "ₘ"),       // U+2098
         ("_{k}", "ₖ"),       // U+2096
