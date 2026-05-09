@@ -154,6 +154,7 @@ class EmulatorViewModel {
     var cueCardContent: CueCardContent? = nil
     private var userCueCardContent: CueCardContent? = nil  // set by preset/card/file load
     private var moduleCueCards: [Int: CueCardContent] = [:]  // program number → card
+    private var moduleMetadata: ModuleMetadata = ModuleMetadata()  // module-level metadata
     private var activeProgramNumber: Int = 0  // 0 = none, 1+ = active program
 
     private static let cardFileHeader = Data("Calc-U-59-CRD".utf8)
@@ -182,7 +183,21 @@ class EmulatorViewModel {
     /// Resolve which cue card to display based on current program number.
     private func resolvedCueCard() -> CueCardContent? {
         if activeProgramNumber > 0 {
-            return moduleCueCards[activeProgramNumber]  // nil if no card for this program
+            // Try to find the specific program card
+            if let card = moduleCueCards[activeProgramNumber] {
+                return card
+            }
+            // Fallback: if card not found but a program is active, show default with module metadata
+            if !moduleMetadata.title.isEmpty || !moduleMetadata.id.isEmpty {
+                return CueCardContent(
+                    template: .solidState,
+                    title: moduleMetadata.title,
+                    id: moduleMetadata.id,
+                    idAlign: .right,
+                    labels: Array(repeating: "", count: 10)
+                )
+            }
+            return nil
         }
         return userCueCardContent  // nil when no user card loaded → blank
     }
@@ -211,11 +226,13 @@ class EmulatorViewModel {
                 wrapper.loadROM(data)
             }
 
-            // Load ML01 library (only supported module)
+            // Load LE07 library (only supported module)
             if let libData = ROMLoader.loadModuleLibrary() {
                 wrapper.loadLibrary(libData)
             }
-            moduleCueCards = ROMLoader.loadModuleCueCards()
+            let (cards, metadata) = ROMLoader.loadModuleCardsAndMetadata()
+            moduleCueCards = cards
+            moduleMetadata = metadata
 
             if let constData = try? ROMLoader.loadConstants(model: model) {
                 wrapper.loadConstants(constData)
@@ -1406,11 +1423,17 @@ class EmulatorViewModel {
         snap.engIndicator = engBit ? "Eng" : ""
 
         // Program steps window — source depends on PRG SOURCE flag
-        let decodedPC = decodeProgramCounter(from: cpu)
+        // Note: PC calculation for program source 0 (user RAM) is currently disabled
+        // until we understand how ROM PC maps to user-loaded programs
+        let decodedPC = snap.prSourceFlag == 0 ? -1 : decodeProgramCounter(from: cpu)
 
         // When frozen: currentStep is the last executed instruction,
         // nextStep is what PC points to (next to execute)
-        if isFrozen {
+        if snap.prSourceFlag == 0 {
+            // User RAM: PC not yet supported
+            snap.currentStep = -1
+            snap.nextStepNum = -1
+        } else if isFrozen {
             snap.currentStep = max(0, decodedPC - 1)
             snap.nextStepNum = decodedPC
         } else {
@@ -1467,6 +1490,7 @@ class EmulatorViewModel {
 
             // Build array of keycodes for this range
             var keycodes: [UInt8] = []
+            guard lo <= hi else { break }
             for addr in lo...hi {
                 keycodes.append(m.romKeycode(at: addr))
             }

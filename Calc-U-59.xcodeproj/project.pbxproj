@@ -14,6 +14,8 @@
 		7BAEB40743290D11F6AC8AB9 /* roms/TMC0583.txt in Resources */ = {isa = PBXBuildFile; fileRef = 922A6D0E64ED7C6A5E52CCD5 /* roms/TMC0583.txt */; };
 		A1B2C3D4E5F6A7B8C9D0E1F2 /* roms/ML01-MasterLibrary.hex in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6A7B8C9D0E1F3 /* roms/ML01-MasterLibrary.hex */; };
 		A1B2C3D4E5F6A7B8C9D0E1F4 /* roms/ML01-cuecards.txt in Resources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6A7B8C9D0E1F5 /* roms/ML01-cuecards.txt */; };
+		B2C3D4E5F6A7B8C9D0E1F2A3 /* roms/LE07-LeisureLibrary.hex in Resources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F6A7B8C9D0E1F2A4 /* roms/LE07-LeisureLibrary.hex */; };
+		C3D4E5F6A7B8C9D0E1F2A3B4 /* roms/LE07-cuecards.txt in Resources */ = {isa = PBXBuildFile; fileRef = C3D4E5F6A7B8C9D0E1F2A3B5 /* roms/LE07-cuecards.txt */; };
 		ABC5638C64E47FADBF40BFEA /* roms/TMC0571B.txt in Resources */ = {isa = PBXBuildFile; fileRef = 4E36B672AB3C06A1BC192AA5 /* roms/TMC0571B.txt */; };
 		B87F745B7F9EC349D0ECBF2F /* roms/CD2400.txt in Resources */ = {isa = PBXBuildFile; fileRef = 5193840AC3BCB5AC128C8565 /* roms/CD2400.txt */; };
 		D33A7AEB1F005859A35CAB9E /* roms/CD2401-CONST-K.txt in Resources */ = {isa = PBXBuildFile; fileRef = 5E899B70D779E3C3D40E77C0 /* roms/CD2401-CONST-K.txt */; };
@@ -35,6 +37,8 @@
 		A03FEEC869500F2ED42C8381 /* roms/CD2400-CONST-K.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "roms/CD2400-CONST-K.txt"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6A7B8C9D0E1F3 /* roms/ML01-MasterLibrary.hex */ = {isa = PBXFileReference; lastKnownFileType = text; path = "roms/ML01-MasterLibrary.hex"; sourceTree = "<group>"; };
 		A1B2C3D4E5F6A7B8C9D0E1F5 /* roms/ML01-cuecards.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "roms/ML01-cuecards.txt"; sourceTree = "<group>"; };
+		B2C3D4E5F6A7B8C9D0E1F2A4 /* roms/LE07-LeisureLibrary.hex */ = {isa = PBXFileReference; lastKnownFileType = text; path = "roms/LE07-LeisureLibrary.hex"; sourceTree = "<group>"; };
+		C3D4E5F6A7B8C9D0E1F2A3B5 /* roms/LE07-cuecards.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "roms/LE07-cuecards.txt"; sourceTree = "<group>"; };
 		E08C9C771806E7B736D15277 /* roms/CD2401.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = roms/CD2401.txt; sourceTree = "<group>"; };
 		E2B162B7479B9E09AE31CB82 /* roms/TMC0573.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = roms/TMC0573.txt; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -73,6 +77,8 @@
 			children = (
 				A1B2C3D4E5F6A7B8C9D0E1F3 /* roms/ML01-MasterLibrary.hex */,
 				A1B2C3D4E5F6A7B8C9D0E1F5 /* roms/ML01-cuecards.txt */,
+				B2C3D4E5F6A7B8C9D0E1F2A4 /* roms/LE07-LeisureLibrary.hex */,
+				C3D4E5F6A7B8C9D0E1F2A3B5 /* roms/LE07-cuecards.txt */,
 			);
 			name = "Recovered References";
 			sourceTree = "<group>";
@@ -176,6 +182,8 @@
 			files = (
 				A1B2C3D4E5F6A7B8C9D0E1F2 /* roms/ML01-MasterLibrary.hex in Resources */,
 				A1B2C3D4E5F6A7B8C9D0E1F4 /* roms/ML01-cuecards.txt in Resources */,
+				B2C3D4E5F6A7B8C9D0E1F2A3 /* roms/LE07-LeisureLibrary.hex in Resources */,
+				C3D4E5F6A7B8C9D0E1F2A3B4 /* roms/LE07-cuecards.txt in Resources */,
 				E492E897460954A16FFCE97D /* roms/TMC0582.txt in Resources */,
 				7BAEB40743290D11F6AC8AB9 /* roms/TMC0583.txt in Resources */,
 				ABC5638C64E47FADBF40BFEA /* roms/TMC0571B.txt in Resources */,
@@ -331,7 +339,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "Calc-U-59.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEAD_CODE_STRIPPING = NO;
 				DEVELOPMENT_TEAM = 7Q3QN9AV9J;
 				ENABLE_APP_SANDBOX = YES;
@@ -393,7 +401,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "Calc-U-59.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_TEAM = 7Q3QN9AV9J;
 				ENABLE_APP_SANDBOX = YES;

@@ -7,6 +7,12 @@ enum ROMLoaderError: Error {
     case wrongWordCount(Int)
 }
 
+struct ModuleMetadata {
+    var title: String = ""
+    var sort: String = ""
+    var id: String = ""
+}
+
 struct ROMLoader {
     /// Load the appropriate ROM files from the app bundle and return a [UInt16] array of 13-bit words.
     /// TI-58C uses CD2400, CD2401, TMC0573; TI-59 and TI-58 use TMC0582, TMC0583, TMC0571B.
@@ -151,10 +157,10 @@ struct ROMLoader {
         return bytes.isEmpty ? nil : Data(bytes)
     }
 
-    /// Load library ROM for ML01 (the only supported solid-state module).
-    /// Searches for ML01-*.hex in the bundle.
+    /// Load library ROM for LE07 (the only supported solid-state module).
+    /// Searches for LE07-*.hex in the bundle.
     static func loadModuleLibrary() -> Data? {
-        let prefix = "ML01-"
+        let prefix = "LE07-"
         // Search the entire bundle for matching files (no subdirectory constraint)
         guard let urls = Bundle.main.urls(forResourcesWithExtension: "hex",
                                           subdirectory: nil) else { return nil }
@@ -167,19 +173,27 @@ struct ROMLoader {
     /// Returns dict: program number → CueCardContent.
     /// Key 0 (module default) is included but not used in the new display logic.
     static func loadModuleCueCards() -> [Int: CueCardContent] {
+        let (cards, _) = loadModuleCardsAndMetadata()
+        return cards
+    }
+
+    /// Load per-program cue cards and module metadata for LE07.
+    /// Returns (cards dict, metadata).
+    static func loadModuleCardsAndMetadata() -> ([Int: CueCardContent], ModuleMetadata) {
         guard let urls = Bundle.main.urls(forResourcesWithExtension: "txt", subdirectory: nil),
-              let url = urls.first(where: { $0.lastPathComponent.hasPrefix("ML01") && $0.lastPathComponent.contains("cuecards") }),
-              let text = try? String(contentsOf: url, encoding: .utf8) else { return [:] }
-        return parseCueCardFile(text)  // already returns [Int: CueCardContent]
+              let url = urls.first(where: { $0.lastPathComponent.hasPrefix("LE07") && $0.lastPathComponent.contains("cuecards") }),
+              let text = try? String(contentsOf: url, encoding: .utf8) else { return ([:], ModuleMetadata()) }
+        return parseCueCardFile(text)
     }
 
     /// Parse a cue cards text file.
-    /// Format: CUECARD: or CUECARD: N for program N (0 = module default).
-    /// Returns a dict: program number → CueCardContent.
-    private static func parseCueCardFile(_ text: String) -> [Int: CueCardContent] {
+    /// Format: MODULE-* metadata lines, then CUECARD: or CUECARD: N for program N.
+    /// Returns (cards dict, metadata).
+    private static func parseCueCardFile(_ text: String) -> ([Int: CueCardContent], ModuleMetadata) {
         var result: [Int: CueCardContent] = [:]
         var current: CueCardContent? = nil
         var currentKey: Int = 0
+        var metadata = ModuleMetadata()
 
         for rawLine in text.components(separatedBy: .newlines) {
             // Strip comments and leading/trailing whitespace
@@ -188,6 +202,27 @@ struct ROMLoader {
             guard !line.isEmpty else { continue }
 
             let upper = line.uppercased()
+
+            // Parse module-level metadata
+            if upper.hasPrefix("MODULE-TITLE:") {
+                let value = String(line.dropFirst("MODULE-TITLE:".count))
+                    .trimmingCharacters(in: .whitespaces)
+                metadata.title = value
+                continue
+            }
+            if upper.hasPrefix("MODULE-SORT:") {
+                let value = String(line.dropFirst("MODULE-SORT:".count))
+                    .trimmingCharacters(in: .whitespaces)
+                metadata.sort = value
+                continue
+            }
+            if upper.hasPrefix("MODULE-ID:") {
+                let value = String(line.dropFirst("MODULE-ID:".count))
+                    .trimmingCharacters(in: .whitespaces)
+                metadata.id = value
+                continue
+            }
+
             if upper.hasPrefix("CUECARD:") {
                 // Save the previous card if one exists
                 if let card = current {
@@ -209,6 +244,6 @@ struct ROMLoader {
         if let card = current {
             result[currentKey] = card
         }
-        return result
+        return (result, metadata)
     }
 }

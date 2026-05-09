@@ -1,6 +1,10 @@
 # ML01 – Master Library Module 1
 # Cue cards for the TI-59 Master Library solid-state module.
 # Math notation: Use \lambda, \to, _{i}, ^{-1}, etc. for subscripts/superscripts.
+MODULE-TITLE: MASTER LIBRARY MODULE -1-
+MODULE-SORT: 01 - MASTER LIBRARY MODULE
+MODULE-ID: ML01
+MODULE-ROM: ML01-MasterLibrary.hex
 
 CUECARD: 1
 Template: SolidStateCard

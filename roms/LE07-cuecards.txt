@@ -1,0 +1,337 @@
+# ML07 – Leisure Library Module 7
+# Cue cards for the TI-59 Master Library solid-state module.
+# Math notation: Use \lambda, \to, _{i}, ^{-1}, etc. for subscripts/superscripts.
+MODULE-TITLE: LEISURE LIBRARY MODULE -7-
+MODULE-SORT: 07 - LEISURE LIBRARY MODULE
+MODULE-ID: LE07
+MODULE-ROM: LE07-LeisureLibrary.hex
+
+CUECARD: 1
+Template: SolidStateCard
+Title: LEISURE LIBRARY DIAGNOSTIC
+ID: LE-01
+IDAlign: right
+Row1: DIAGNOSTIC: SBR =
+Row1Align: center
+Row2: L.R. LINEAR REGRESSION INITIALIZATION: SBR CLR
+Row2Align: left
+
+CUECARD: 2
+Template: SolidStateGridCard
+Title: PHOTO I - EXPOSURE COMPENSATION
+ID: LE02
+IDAlign: right
+A': f(n)
+B': D(n)
+C': \blank
+D': \blank
+E': \blank
+A: f(mm)
+B: D(mm)
+C: t
+D: m
+E: \blank
+
+CUECARD: 3
+Template: SolidStateGridCard
+Title: PHOTO II - FILL-IN FLASH
+ID: LE-03
+IDAlign: right
+A': \blank
+B': \blank
+C': \blank
+D': \blank
+E': \blank
+A: f stops
+B: Light ratio
+C: Guide #
+D: f \leftrightarrow dist
+E: \blank
+
+CUECARD: 4
+Template: SolidStateGridCard
+Title: FOOTBALL PREDICTOR
+ID: LE-04
+IDAlign: right
+A': \blank
+B': \blank
+C': \blank
+D': Opponent
+E': \blank
+A: \blank
+B: Home
+C: \blank
+D: \blank
+E: Prediction
+
+CUECARD: 5
+Template: SolidStateGridCard
+Title: BOWLING SCOREKEEPER
+ID: LE-05
+IDAlign: right
+A': #Bowlers
+B': \blank
+C': \blank
+D': \blank
+E': \blank
+A: Bowler#
+B: Pins(1)
+C: Pins(2)
+D: + Pins(10)
+E: Score
+
+CUECARD: 6
+Template: SolidStateGridCard
+Title: CHESS RATER
+ID: LE-06
+IDAlign: right
+A': Prov Games
+B': Edit Opp.
+C': \blank
+D': \blank
+E': \blank
+A: Old Rating
+B: Opp. Rating
+C: Bonus
+D: Wins
+E: New Rating
+
+CUECARD: 7
+Template: SolidStateGridCard
+Title: GOLF HANDICAPPER
+ID: LE-07
+IDAlign: right
+A': #Rounds
+B': Latest AS.CR
+C': \blank
+D': \blank
+E': \blank
+A: AS.CR
+B: Handicap
+C: \blank
+D: \blank
+E: Dekete
+
+CUECARD: 8
+Template: SolidStateGridCard
+Title: BRIDGE SCORER
+ID: LE-08
+IDAlign: right
+A': \blank
+B': \blank
+C': \blank
+D': Over
+E': Down
+A: Trick
+B: Bid
+C: Vulnerable
+D: Doubled
+E: Contract
+
+CUECARD: 9
+Template: SolidStateGridCard
+Title: CODEBREAKER
+ID: LE-09
+IDAlign: right
+A': \blank
+B': \blank
+C': \blank
+D': \blank
+E': \blank
+A: Guess
+B: \blank
+C: \blank
+D: \blank
+E: Seed
+
+CUECARD: 10
+Template: SolidStateGridCard
+Title: MEMO PAD
+ID: LE-10
+IDAlign: right
+A': New Line
+B': Print All
+C': Edit
+D': Line Print
+E': \blank
+A: Left
+B: Center
+C: Right
+D: Number
+E: Space
+
+CUECARD: 11
+Template: SolidStateGridCard
+Title: BLACKJACK
+ID: LE-11
+IDAlign: right
+A': Ace
+B': \blank
+C': \blank
+D': \blank
+E': \blank
+A: Hit
+B: Stand
+C: \blank
+D: New Game
+E: Seed
+
+CUECARD: 12
+Template: SolidStateGridCard
+Title: ACEY-DEUCY
+ID: LE-12
+IDAlign: right
+A': Bet
+B': Number
+C': Bankroll
+D': \blank
+E': \blank
+A: Seed
+B: Number 1
+C: Number 2
+D: \blank
+E: Odds
+
+CUECARD: 13
+Template: SolidStateGridCard
+Title: CRAPS
+ID: LE-13
+IDAlign: right
+A': \blank
+B': \blank
+C': \blank
+D': \blank
+E': \blank
+A: Roll
+B: \blank
+C: Bet
+D: Last Roll
+E: Seed
+
+CUECARD: 14
+Template: SolidStateGridCard
+Title: MARS LANDER
+ID: LE-14
+IDAlign: right
+A': \blank
+B': \blank
+C': \blank
+D': \blank
+E': \blank
+A: Burn
+B: Fuel
+C: Vel. Alt
+D: \blank
+E: Start
+
+CUECARD: 15
+Template: SolidStateGridCard
+Title: JIVE TURKEY
+ID: LE-15
+IDAlign: right
+A': \blank
+B': \blank
+C': \blank
+D': \blank
+E': \blank
+A: % Truth
+B: Seed
+C: \blank
+D: Score
+E: Guess
+
+CUECARD: 16
+Template: SolidStateGridCard
+Title: HANGMAN
+ID: LE-16
+IDAlign: right
+A': \blank
+B': \blank
+C': \blank
+D': \blank
+E': \blank
+A: Left
+B: Center
+C: Right
+D: Enter
+E: Word Guess
+
+CUECARD: 17
+Template: SolidStateGridCard
+Title: LEARNING NIM
+ID: LE-17
+IDAlign: right
+A': \blank
+B': \blank
+C': \blank
+D': \blank
+E': \blank
+A: You 1st
+B: Calc 1st
+C: \blank
+D: \blank
+E: New Game
+
+CUECARD: 18
+Template: SolidStateGridCard
+Title: FOOTBALL
+ID: LE-18
+IDAlign: right
+A': \blank
+B': \blank
+C': \blank
+D': \blank
+E': \blank
+A: Play
+B: \blank
+C: \blank
+D: \blank
+E: Seed
+
+CUECARD: 19
+Template: SolidStateGridCard
+Title: COMPUTER ART
+ID: LE-19
+IDAlign: right
+A': \blank
+B': \blank
+C': \blank
+D': \blank
+E': \blank
+A: P.S 1st
+B: P.S 2nd
+C: P.S 3rd
+D: P.S 4th
+E: Prediction
+
+CUECARD: 20
+Template: SolidStateGridCard
+Title: SEA BATTLE
+ID: LE-20
+IDAlign: right
+A': \blank
+B': \blank
+C': \blank
+D': \blank
+E': Start
+A: Range
+B: Bear\degree
+C: Status
+D: Display
+E: Fire
+
+CUECARD: 21
+Template: SolidStateGridCard
+Title: BIORHYTHMS
+ID: ML-21
+IDAlign: right
+A': (MM DD.YYYY)
+B':
+C': Compat
+D': \blank
+E': Chart
+A: Date 1
+B: Date 2
+C: P
+D: E
+E: I

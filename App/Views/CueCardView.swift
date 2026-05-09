@@ -439,7 +439,7 @@ struct CueCardView: View, Equatable {
         ))
         .frame(height: 100)
 
-        Text("SolidState (ML01)")
+        Text("SolidState (LE07)")
             .font(.headline)
         CueCardView(content: .ml01Default)
             .frame(height: 100)
