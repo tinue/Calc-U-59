@@ -198,7 +198,6 @@ struct ROMLoader {
             if upper.hasPrefix("CUECARD:") {
                 // Save the previous card if one exists
                 if let card = current {
-                    print("[ROMLoader] Saved card \(currentKey): template=\(card.template.rawValue), title=\(card.title)")
                     result[currentKey] = card
                 }
                 // Parse the program number (if any) from the header
@@ -206,7 +205,6 @@ struct ROMLoader {
                     .trimmingCharacters(in: .whitespaces)
                 currentKey = Int(rest) ?? 0
                 current = CueCardContent()
-                print("[ROMLoader] Starting card \(currentKey)")
                 continue
             }
 
@@ -216,11 +214,8 @@ struct ROMLoader {
 
         // Don't forget the last card
         if let card = current {
-            print("[ROMLoader] Saved card \(currentKey): template=\(card.template.rawValue), title=\(card.title), labels=\(card.labels.filter { !$0.isEmpty })")
             result[currentKey] = card
         }
-
-        print("[ROMLoader] Total cards loaded: \(result.count)")
         return result
     }
 }
