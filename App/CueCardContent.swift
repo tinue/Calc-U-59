@@ -108,9 +108,10 @@ enum TextAlign: String {
 }
 
 enum CueCardTemplate: String {
-    case cueCard      = "CueCard"
-    case magnetCard   = "MagnetCard"
-    case solidState   = "SolidStateCard"
+    case cueCard         = "CueCard"
+    case magnetCard      = "MagnetCard"
+    case solidState      = "SolidStateCard"
+    case solidStateGrid  = "SolidStateGridCard"
 }
 
 enum CardButtonStyle: String {
@@ -159,10 +160,14 @@ struct CueCardContent: Equatable {
         switch key {
         case "template":
             if let template = CueCardTemplate(rawValue: value) {
+                print("[CueCard] Template parsed: \(value)")
                 self.template = template
+            } else {
+                print("[CueCard ERROR] Unknown template: \(value)")
             }
         case "title":
             self.title = expandMathTokens(value)
+            print("[CueCard] Title parsed: \(self.title)")
         case "banks":
             let parts = value.components(separatedBy: ",")
             let left = parts.count > 0 ? Int(parts[0].trimmingCharacters(in: .whitespaces)) : nil
@@ -170,6 +175,7 @@ struct CueCardContent: Equatable {
             self.banks = (left, right)
         case "id":
             self.id = expandMathTokens(value)
+            print("[CueCard] ID parsed: \(self.id)")
         case "row1":
             self.row1 = expandMathTokens(value)
         case "row2":
@@ -197,6 +203,11 @@ struct CueCardContent: Equatable {
             ]
             if let idx = labelMap[key], idx < self.labels.count {
                 self.labels[idx] = expandMathTokens(value)
+                print("[CueCard] Label[\(idx)] (\(key)) parsed: \(self.labels[idx])")
+            } else if !key.isEmpty {
+                // Debug: show the actual characters in the key
+                let chars = key.map { String(format: "U+%04X", $0.unicodeScalars.first?.value ?? 0) }
+                print("[CueCard WARNING] Label key not recognized: '\(key)' chars: \(chars)")
             }
         }
     }

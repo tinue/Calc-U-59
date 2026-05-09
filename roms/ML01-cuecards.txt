@@ -15,37 +15,49 @@ Row2R: PRINT: mm STO 00
 Row2RAlign: right
 
 CUECARD: 2
-Template: SolidStateCard
+Template: SolidStateGridCard
 Title: DETERMINANT, MATRIX, & SIMUL. EQ.
 ID: ML-02
 IDAlign: right
-Row1: i; \to x_{i} | \to A^{-1} | j; \to a_{i}_{j}^{-1} | | \to |A|, A^{-1}
-Row1Align: center
-Row2: n | j: a_{i}_{j} | \to |A| | i: b_{i} | \to x
-Row2Align: left
-Row2R:
-Row2RAlign: right
+A': i; \to x_{i}
+B': \to A^{-1}
+C': j; \to a_{i}_{j}^{-1}
+D':
+E': \to |A|, A^{-1}
+A: n
+B: j: a_{i}_{j}
+C: \to |A|
+D: i: b_{i}
+E: \to x
 
 CUECARD: 3
-Template: SolidStateCard
+Template: SolidStateGridCard
 Title: MATRIX ADDITION AND MULTIPLICATION
 ID: ML-03
 IDAlign: right
-Row1: j: c_{i}_{j} | i; x_{i} | \to Ax | i; \to y_{i}
-Row1Align: center
-Row2: m,n | j: a_{i}_{j} | j: b_{i}_{j} | \lambda_{1},\lambda_{2} | \lambda_{1}A + \lambda_{2}B
-Row2Align: left
-Row2R:
-Row2RAlign: right
+A': j: c_{i}_{j}
+B': i; x_{i}
+C': \to Ax
+D': i; \to y_{i}
+E':
+A: m,n
+B: j: a_{i}_{j}
+C: j: b_{i}_{j}
+D: \lambda_{1},\lambda_{2}
+E: \lambda_{1}A + \lambda_{2}B
 
 CUECARD: 20
-Template: SolidStateCard
+Template: SolidStateGridCard
 Title: DAY OF WEEK, DAYS BETWEEN DATES
 ID: ML-20
 IDAlign: right
-Row1: (M M D D. Y Y Y Y)
-Row1Align: center
-Row2: DATE 1 | DATE 2 | No. DAYS | D \to D of W
-Row2Align: left
-Row2R:
-Row2RAlign: right
+A': (M M D D. Y Y Y Y)
+B':
+C':
+D':
+E':
+A: DATE 1
+B: DATE 2
+C: No. DAYS
+D: D \to D of W
+E:

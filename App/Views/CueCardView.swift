@@ -59,6 +59,16 @@ struct CueCardView: View, Equatable {
         rightXFraction: 0.80
     )
 
+    // SolidStateGrid: 5-column layout with dividers, title + 2 rows of labels
+    // Uses exact vertical positions from proven SolidStateCard template
+    private static let solidGridLayout = GridCardLayout(
+        titleFontSize: 14, gridFontSize: 12, bankFontSize: 14,
+        titleYFraction: 0.38, titleWidthFraction: 0.90,
+        gridY0Fraction: 0.62, gridY1Fraction: 0.84,
+        xFractions: [0.10, 0.30, 0.50, 0.70, 0.90],
+        cellWidthFraction: 0.14
+    )
+
     // MARK: - Body
 
     var body: some View {
@@ -69,7 +79,9 @@ struct CueCardView: View, Equatable {
 
                 ZStack {
                     // Use exact view dimensions to keep artwork and overlay coordinates aligned.
-                    Image(card.template.rawValue)
+                    // SolidStateGrid uses the same image as SolidStateCard (just adds dividers)
+                    let imageName = card.template == .solidStateGrid ? "SolidStateCard" : card.template.rawValue
+                    Image(imageName)
                         .resizable()
                         .frame(width: w, height: h)
 
@@ -80,6 +92,8 @@ struct CueCardView: View, Equatable {
                         gridCardContent(layout: Self.magnetLayout, w: w, h: h)
                     case .solidState:
                         solidStateContent(layout: Self.solidLayout, w: w, h: h)
+                    case .solidStateGrid:
+                        solidStateGridContent(layout: Self.solidGridLayout, w: w, h: h)
                     }
 
                     // Top-wash overlay: exactly 28% of card height, same as original
@@ -208,6 +222,77 @@ struct CueCardView: View, Equatable {
         alignedText(card.row2R, fontSize: fs, align: card.row2RAlign, x: rightX,   y: row3Y, width: w * 0.25)
     }
 
+    // MARK: - SolidStateGrid layout (grid with vertical dividers)
+
+    @ViewBuilder
+    private func solidStateGridContent(layout: GridCardLayout, w: CGFloat, h: CGFloat) -> some View {
+        let titleY = h * layout.titleYFraction
+        let gridY0 = h * layout.gridY0Fraction
+        let gridY1 = h * layout.gridY1Fraction
+
+        // Title: width-constrained, centered
+        let titleAvailW = w * layout.titleWidthFraction
+        let titleByWidth = card.title.isEmpty ? layout.titleFontSize
+            : titleAvailW / (CGFloat(card.title.count) * 0.64)
+        let titleFS = min(layout.titleFontSize, titleByWidth)
+
+        Text(card.title)
+            .font(.system(size: titleFS, weight: .bold, design: .monospaced))
+            .foregroundColor(goldColor)
+            .lineLimit(1)
+            .frame(width: titleAvailW)
+            .position(x: w / 2, y: titleY)
+
+        // Render grid: 5 columns with dividers
+        let fontSize = min(layout.titleFontSize, uniformGridFontSize(layout: layout, w: w))
+        let dividerColor = goldColor.opacity(0.6)  // Gold dividers matching card design
+        let dividerWidth: CGFloat = 1
+        let dividerHeight = h * 0.20  // Spans from row 0 to row 1
+        let dividerY = h * 0.73  // Centered between rows
+
+        // Vertical dividers between columns (render in back)
+        ForEach(1..<5, id: \.self) { i in
+            let x = w * layout.xFractions[i]
+            Rectangle()
+                .fill(dividerColor)
+                .frame(width: dividerWidth, height: dividerHeight)
+                .position(x: x, y: dividerY)
+        }
+
+        // Row 0 (labels[0:5])
+        ForEach(0..<5, id: \.self) { col in
+            Text(card.labels[col])
+                .font(.system(size: fontSize, weight: .bold, design: .monospaced))
+                .foregroundColor(goldColor)
+                .lineLimit(1)
+                .frame(width: w * layout.cellWidthFraction, alignment: .center)
+                .position(x: w * layout.xFractions[col], y: gridY0)
+        }
+
+        // Row 1 (labels[5:10])
+        ForEach(0..<5, id: \.self) { col in
+            Text(card.labels[5 + col])
+                .font(.system(size: fontSize, weight: .bold, design: .monospaced))
+                .foregroundColor(goldColor)
+                .lineLimit(1)
+                .frame(width: w * layout.cellWidthFraction, alignment: .center)
+                .position(x: w * layout.xFractions[col], y: gridY1)
+        }
+    }
+
+    // Compute the largest font size at which every non-empty label in the grid fits its cell.
+    private func uniformGridFontSize(layout: GridCardLayout, w: CGFloat) -> CGFloat {
+        let cellWidth = w * layout.cellWidthFraction
+        var size = layout.gridFontSize
+        for idx in 0..<10 {
+            let label = card.labels[idx]
+            guard !label.isEmpty else { continue }
+            let fitting = cellWidth / (CGFloat(label.count) * 0.64)
+            if fitting < size { size = fitting }
+        }
+        return max(size, layout.gridFontSize * 0.4)
+    }
+
     @ViewBuilder
     private func alignedText(_ text: String, fontSize: CGFloat, align: TextAlign, x: CGFloat, y: CGFloat, width: CGFloat) -> some View {
         let swiftAlign: Alignment = align == .right ? .trailing : (align == .center ? .center : .leading)
@@ -268,6 +353,20 @@ struct CueCardView: View, Equatable {
             idAlign: .right,
             row1: "i: \u{2192} x\u{1D62} | \u{2192} A⁻¹ | j: \u{2192} a\u{1D62}\u{1D6A}⁻¹ || \u{2192} |A|, A⁻¹",
             row1Align: .center
+        ))
+        .frame(height: 100)
+
+        Text("SolidStateGrid (ML02)")
+            .font(.headline)
+        CueCardView(content: CueCardContent(
+            template: .solidStateGrid,
+            title: "DETERMINANT, MATRIX, & SIMUL. EQ.",
+            id: "ML-02",
+            idAlign: .right,
+            labels: [
+                "i; \u{2192} x\u{1D62}", "\u{2192} A⁻¹", "j; \u{2192} a\u{1D62}\u{1D6A}⁻¹", "", "\u{2192} |A|, A⁻¹",
+                "n", "j: a\u{1D62}\u{1D6A}", "\u{2192} |A|", "i: b\u{1D62}", "\u{2192} x"
+            ]
         ))
         .frame(height: 100)
 
