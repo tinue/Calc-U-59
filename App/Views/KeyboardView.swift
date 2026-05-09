@@ -151,7 +151,6 @@ struct KeyboardView: View {
                 let cardY = h * Self.cardRect.minY
 
                 CueCardView(content: viewModel.cueCardContent)
-                    .equatable()
                     .frame(width: cardW, height: cardH)
                     .position(x: cardW / 2, y: cardY + cardH / 2)
 
@@ -184,11 +183,13 @@ struct KeyboardView: View {
                                 let isOnDisplay = nx >= Self.displayRect.minX && nx <= Self.displayRect.maxX &&
                                                 ny >= Self.displayRect.minY && ny <= Self.displayRect.maxY
                                 if isOnDisplay {
-                                    viewModel.isDisplayPressed = true
-                                    viewModel.isFullSpeedMode = true
-                                    if let prev = pressedKey {
-                                        viewModel.releaseKey(row: prev / 5, col: prev % 5)
-                                        pressedKey = nil
+                                    if !viewModel.isDisplayPressed {
+                                        viewModel.isDisplayPressed = true
+                                        viewModel.isFullSpeedMode = true
+                                        if let prev = pressedKey {
+                                            viewModel.releaseKey(row: prev / 5, col: prev % 5)
+                                            pressedKey = nil
+                                        }
                                     }
                                     return
                                 }

@@ -477,12 +477,16 @@ class EmulatorViewModel {
         }
     }
 
-    func stop() {
-        isRunning = false
+    private func invalidateAllTimers() {
         displayTimer?.invalidate()
         displayTimer = nil
         programCheckTimer?.invalidate()
         programCheckTimer = nil
+    }
+
+    func stop() {
+        isRunning = false
+        invalidateAllTimers()
     }
 
     /// Suspend emulation when the app enters the background.
@@ -492,10 +496,7 @@ class EmulatorViewModel {
         persistConstantMemory()
         suspendedByLifecycle = isRunning
         isRunning = false
-        displayTimer?.invalidate()
-        displayTimer = nil
-        programCheckTimer?.invalidate()
-        programCheckTimer = nil
+        invalidateAllTimers()
     }
 
     /// Resume emulation after the app returns to the foreground.

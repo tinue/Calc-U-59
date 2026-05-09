@@ -209,6 +209,24 @@ struct CueCardView: View, Equatable {
     // MARK: - SolidStateCard layout
 
     @ViewBuilder
+    private func titleAndIdRow(title: String, id: String, fontSize: CGFloat, x: CGFloat, y: CGFloat, width: CGFloat) -> some View {
+        Text(title)
+            .font(.system(size: fontSize, weight: .bold))
+            .foregroundColor(goldColor)
+            .lineLimit(1)
+            .frame(width: width, alignment: .leading)
+            .position(x: x, y: y)
+        if !id.isEmpty {
+            Text(id)
+                .font(.system(size: fontSize, weight: .bold))
+                .foregroundColor(goldColor)
+                .lineLimit(1)
+                .frame(width: width, alignment: .trailing)
+                .position(x: x, y: y)
+        }
+    }
+
+    @ViewBuilder
     private func solidStateContent(layout: SolidStateLayout, w: CGFloat, h: CGFloat) -> some View {
         let row1Y = h * layout.row1YFraction
         let row2Y = h * layout.row2YFraction
@@ -227,21 +245,7 @@ struct CueCardView: View, Equatable {
         let gridWidth     = gridRightX - gridLeftX
         let gridCenterX   = (gridLeftX + gridRightX) / 2
 
-        // Title row: title left-aligned, ID right-aligned — both in the same frame.
-        Text(card.title)
-            .font(.system(size: titleFS, weight: .bold))
-            .foregroundColor(goldColor)
-            .lineLimit(1)
-            .frame(width: gridWidth, alignment: .leading)
-            .position(x: gridCenterX, y: row1Y)
-        if !card.id.isEmpty {
-            Text(card.id)
-                .font(.system(size: titleFS, weight: .bold))
-                .foregroundColor(goldColor)
-                .lineLimit(1)
-                .frame(width: gridWidth, alignment: .trailing)
-                .position(x: gridCenterX, y: row1Y)
-        }
+        titleAndIdRow(title: card.title, id: card.id, fontSize: titleFS, x: gridCenterX, y: row1Y, width: gridWidth)
 
         // Row 1: spans full grid width.
         alignedText(card.row1, fontSize: contentFS, align: card.row1Align,
@@ -309,43 +313,53 @@ struct CueCardView: View, Equatable {
     }
 
     @ViewBuilder
+    private func dividerLine(dividerIndices: [Int], yPosition: CGFloat, dividerColor: Color, dividerWidth: CGFloat, dividerHeight: CGFloat, layout: GridCardLayout, w: CGFloat) -> some View {
+        ForEach(dividerIndices, id: \.self) { i in
+            let x = w * ((layout.xFractions[i] + layout.xFractions[i + 1]) / 2)
+            Rectangle()
+                .fill(dividerColor)
+                .frame(width: dividerWidth, height: dividerHeight)
+                .position(x: x, y: yPosition)
+        }
+    }
+
+    @ViewBuilder
+    private func gridRowLabels(spans: [(startCol: Int, endCol: Int, label: String)], fontSize: CGFloat, yPosition: CGFloat, layout: GridCardLayout, w: CGFloat) -> some View {
+        ForEach(0..<spans.count, id: \.self) { spanIdx in
+            let span = spans[spanIdx]
+            let startX = w * layout.xFractions[span.startCol]
+            let endX = w * layout.xFractions[span.endCol]
+            let spanCenterX = (startX + endX) / 2
+            let spanWidth = w * layout.cellWidthFraction * CGFloat(span.endCol - span.startCol + 1)
+
+            Text(span.label)
+                .font(.system(size: fontSize, weight: .bold))
+                .foregroundColor(goldColor)
+                .lineLimit(1)
+                .frame(width: spanWidth, alignment: .center)
+                .position(x: spanCenterX, y: yPosition)
+        }
+    }
+
+    @ViewBuilder
     private func solidStateGridContent(layout: GridCardLayout, w: CGFloat, h: CGFloat) -> some View {
         let titleY = h * layout.titleYFraction
         let gridY0 = h * layout.gridY0Fraction
         let gridY1 = h * layout.gridY1Fraction
 
         // Scale font proportionally to view width.
-        // Reference: 800 pt width → layout.gridFontSize pt labels, (gridFontSize+1) pt title.
-        // No minimum floor: fonts shrink freely so text never clips on small screens.
         let scaleFactor = w / 800
         let fontSize = layout.gridFontSize * scaleFactor
         let titleFontSize = (layout.gridFontSize + 1) * scaleFactor
 
-        // Title row spans the same horizontal extent as the grid columns,
-        // with hardware-accurate padding: ~0.5 char left, ~1 char right.
+        // Title row spans the same horizontal extent as the grid columns.
         let charW = titleFontSize * 0.64
         let gridLeftX  = w * (layout.xFractions[0] - layout.cellWidthFraction / 2) + charW * 0.5
         let gridRightX = w * (layout.xFractions[4] + layout.cellWidthFraction / 2) - charW * 1.0
         let gridWidth  = gridRightX - gridLeftX
         let gridCenterX = (gridLeftX + gridRightX) / 2
 
-        // Title: left-aligned within grid bounds
-        Text(card.title)
-            .font(.system(size: titleFontSize, weight: .bold))
-            .foregroundColor(goldColor)
-            .lineLimit(1)
-            .frame(width: gridWidth, alignment: .leading)
-            .position(x: gridCenterX, y: titleY)
-
-        // ID: right-aligned within grid bounds (same frame, trailing)
-        if !card.id.isEmpty {
-            Text(card.id)
-                .font(.system(size: titleFontSize, weight: .bold))
-                .foregroundColor(goldColor)
-                .lineLimit(1)
-                .frame(width: gridWidth, alignment: .trailing)
-                .position(x: gridCenterX, y: titleY)
-        }
+        titleAndIdRow(title: card.title, id: card.id, fontSize: titleFontSize, x: gridCenterX, y: titleY, width: gridWidth)
 
         // Compute spans before rendering
         let row0Spans = getColumnSpans(row: 0)
@@ -354,69 +368,16 @@ struct CueCardView: View, Equatable {
         // Render grid: 5 columns with dividers
         let dividerColor = Color(red: 188/255.0, green: 157/255.0, blue: 96/255.0)  // RGB(188, 157, 96)
         let dividerWidth: CGFloat = 1
-        let dividerHeightRow = h * 0.202  // Full height of each row (measured: 89px / 440px)
+        let dividerHeightRow = h * 0.202
 
-        // Vertical dividers in top row
         let row0Dividers = dividersToDraw(for: row0Spans)
-        ForEach(row0Dividers, id: \.self) { i in
-            let x = w * ((layout.xFractions[i] + layout.xFractions[i + 1]) / 2)
-            Rectangle()
-                .fill(dividerColor)
-                .frame(width: dividerWidth, height: dividerHeightRow)
-                .position(x: x, y: gridY0)
-        }
+        dividerLine(dividerIndices: row0Dividers, yPosition: gridY0, dividerColor: dividerColor, dividerWidth: dividerWidth, dividerHeight: dividerHeightRow, layout: layout, w: w)
 
-        // Vertical dividers in bottom row
         let row1Dividers = dividersToDraw(for: row1Spans)
-        ForEach(row1Dividers, id: \.self) { i in
-            let x = w * ((layout.xFractions[i] + layout.xFractions[i + 1]) / 2)
-            Rectangle()
-                .fill(dividerColor)
-                .frame(width: dividerWidth, height: dividerHeightRow)
-                .position(x: x, y: gridY1)
-        }
+        dividerLine(dividerIndices: row1Dividers, yPosition: gridY1, dividerColor: dividerColor, dividerWidth: dividerWidth, dividerHeight: dividerHeightRow, layout: layout, w: w)
 
-        // Row 0 (labels[0:5]) - render with column spanning support
-        ForEach(0..<row0Spans.count, id: \.self) { spanIdx in
-            let span = row0Spans[spanIdx]
-            let startCol = span.startCol
-            let endCol = span.endCol
-            let label = span.label
-
-            // Calculate centered position and width for spanned columns
-            let startX = w * layout.xFractions[startCol]
-            let endX = w * layout.xFractions[endCol]
-            let spanCenterX = (startX + endX) / 2
-            let spanWidth = w * layout.cellWidthFraction * CGFloat(endCol - startCol + 1)
-
-            Text(label)
-                .font(.system(size: fontSize, weight: .bold))
-                .foregroundColor(goldColor)
-                .lineLimit(1)
-                .frame(width: spanWidth, alignment: .center)
-                .position(x: spanCenterX, y: gridY0)
-        }
-
-        // Row 1 (labels[5:10]) - render with column spanning support
-        ForEach(0..<row1Spans.count, id: \.self) { spanIdx in
-            let span = row1Spans[spanIdx]
-            let startCol = span.startCol
-            let endCol = span.endCol
-            let label = span.label
-
-            // Calculate centered position and width for spanned columns
-            let startX = w * layout.xFractions[startCol]
-            let endX = w * layout.xFractions[endCol]
-            let spanCenterX = (startX + endX) / 2
-            let spanWidth = w * layout.cellWidthFraction * CGFloat(endCol - startCol + 1)
-
-            Text(label)
-                .font(.system(size: fontSize, weight: .bold))
-                .foregroundColor(goldColor)
-                .lineLimit(1)
-                .frame(width: spanWidth, alignment: .center)
-                .position(x: spanCenterX, y: gridY1)
-        }
+        gridRowLabels(spans: row0Spans, fontSize: fontSize, yPosition: gridY0, layout: layout, w: w)
+        gridRowLabels(spans: row1Spans, fontSize: fontSize, yPosition: gridY1, layout: layout, w: w)
     }
 
     // Compute the largest font size at which every non-empty label in the grid fits its cell.
