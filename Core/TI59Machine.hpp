@@ -45,6 +45,10 @@ public:
     /// programRAMregs must be a multiple of 10 in the range 0–120.
     void setPartitionProgramRegs(int programRAMregs);
 
+    /// Current solid-state module number from SCOM[9] nibbles 3 (units) and 4 (tens).
+    /// Returns 0 for no module, 1–30 for ML01–ML30.
+    int insertedModuleNumber() const;
+
     // ── Magnetic card reader ─────────────────────────────────────────────────
     /// Insert a card immediately.  data/count non-zero = read card (feeds IN CRD);
     /// zero = blank write card (OUT CRD captured).

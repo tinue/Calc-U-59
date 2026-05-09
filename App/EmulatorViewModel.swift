@@ -152,6 +152,9 @@ class EmulatorViewModel {
 
     // ── Cue card state ───────────────────────────────────────────────────────
     var cueCardContent: CueCardContent? = nil
+    private var userCueCardContent: CueCardContent? = nil  // set by preset/card/file load
+    private var moduleCueCards: [Int: CueCardContent] = [:]  // program number → card
+    private var activeProgramNumber: Int = 0  // 0 = none, 1+ = active program
 
     private static let cardFileHeader = Data("Calc-U-59-CRD".utf8)
 
@@ -175,11 +178,21 @@ class EmulatorViewModel {
         Task { await self.start(model: AppSettings.resolvedStartupModel()) }
     }
 
+    /// Resolve which cue card to display based on current program number.
+    private func resolvedCueCard() -> CueCardContent? {
+        if activeProgramNumber > 0 {
+            return moduleCueCards[activeProgramNumber]  // nil if no card for this program
+        }
+        return userCueCardContent  // nil when no user card loaded → blank
+    }
+
     func start(model: MachineModel) async {
         persistConstantMemory()  // save TI-58C RAM before switching away
         stop()
         await drainEmulQueue()   // ensure old loop has exited before starting the new one
         self.model = model
+        userCueCardContent = nil
+        activeProgramNumber = 0
         cueCardContent = nil  // clear cuecard when switching models
         traceWriter = TraceWriter(model: model)  // reinitialize with new model for correct trace filename
         UserDefaults.standard.set(model.rawValue, forKey: SettingsKey.lastUsedModel)
@@ -197,9 +210,13 @@ class EmulatorViewModel {
                 wrapper.loadROM(data)
             }
 
-            if let libData = ROMLoader.loadLibrary() {
+            // Load ML01 library (only supported module)
+            if let libData = ROMLoader.loadModuleLibrary() {
                 wrapper.loadLibrary(libData)
+            } else if let libData = ROMLoader.loadLibrary() {
+                wrapper.loadLibrary(libData)  // legacy fallback
             }
+            moduleCueCards = ROMLoader.loadModuleCueCards()
 
             if let constData = try? ROMLoader.loadConstants(model: model) {
                 wrapper.loadConstants(constData)
@@ -373,6 +390,13 @@ class EmulatorViewModel {
         let displayOn = cpuFrame.displayOn != 0               // One or more digits/dots currently visible
         let shouldFreeze = displayOn && !isIdle               // Afterglow with RUN mode
 
+        // Detect active program number via SCOM[9] nibbles 3 and 4.
+        let detectedProgram = Int(cpuFrame.SCOM.9.4) * 10 + Int(cpuFrame.SCOM.9.3)
+        if detectedProgram != activeProgramNumber {
+            activeProgramNumber = detectedProgram
+            cueCardContent = resolvedCueCard()
+        }
+
         // Guard each assignment: @Observable only notifies SwiftUI when a property
         // is actually written, but the write itself counts as a change even if the
         // value is identical.  The guards prevent 60 Hz spurious re-renders when
@@ -509,7 +533,9 @@ class EmulatorViewModel {
         unfreeze()  // exit freeze mode when resetting
         asmOverlayActive = false
         cardState = .noCard
-        cueCardContent = nil
+        userCueCardContent = nil
+        activeProgramNumber = 0
+        cueCardContent = resolvedCueCard()
         printerTrace = false
         machine?.setPrinterTrace(false)
         machine?.reset()
@@ -542,7 +568,9 @@ class EmulatorViewModel {
         asmOverlayActive = false
         machine?.deserialiseRAM(Data(repeating: 0, count: 120 * 16))
         cardState = .noCard
-        cueCardContent = nil
+        userCueCardContent = nil
+        activeProgramNumber = 0
+        cueCardContent = resolvedCueCard()
         printerTrace = false
         machine?.setPrinterTrace(false)
         machine?.reset()
@@ -588,7 +616,8 @@ class EmulatorViewModel {
                 errorMessage = "Card file \"\(url.lastPathComponent)\" could not be parsed."
                 return
             }
-            cueCardContent = result.cueCard
+            userCueCardContent = result.cueCard
+            cueCardContent = resolvedCueCard()
             cardFileName = url.lastPathComponent
             pendingSaveURL = url
             beginSwipe(data: result.data)
@@ -681,7 +710,8 @@ class EmulatorViewModel {
         if let text = String(data: rawData, encoding: .utf8) {
             let (data, cueCard) = decodeConstantMemoryFromText(text)
             if let data = data {
-                self.cueCardContent = cueCard
+                self.userCueCardContent = cueCard
+                self.cueCardContent = resolvedCueCard()
                 return data
             }
         }
@@ -2041,7 +2071,8 @@ class EmulatorViewModel {
         persistConstantMemory()
 
         // Set cue card if present in file
-        self.cueCardContent = parsed.cueCardContent
+        self.userCueCardContent = parsed.cueCardContent
+        self.cueCardContent = resolvedCueCard()
 
         if !parsed.keystrokes.isEmpty {
             Task { await playKeystrokes(parsed.keystrokes) }

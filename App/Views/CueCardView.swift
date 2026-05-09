@@ -58,33 +58,35 @@ struct CueCardView: View {
     // MARK: - Body
 
     var body: some View {
-        GeometryReader { geo in
-            let w = geo.size.width
-            let h = geo.size.height
+        if content != nil {
+            GeometryReader { geo in
+                let w = geo.size.width
+                let h = geo.size.height
 
-            ZStack {
-                // Use exact view dimensions to keep artwork and overlay coordinates aligned.
-                Image(card.template.rawValue)
-                    .resizable()
-                    .frame(width: w, height: h)
+                ZStack {
+                    // Use exact view dimensions to keep artwork and overlay coordinates aligned.
+                    Image(card.template.rawValue)
+                        .resizable()
+                        .frame(width: w, height: h)
 
-                switch card.template {
-                case .cueCard:
-                    gridCardContent(layout: Self.cueLayout, w: w, h: h)
-                case .magnetCard:
-                    gridCardContent(layout: Self.magnetLayout, w: w, h: h)
-                case .solidState:
-                    solidStateContent(layout: Self.solidLayout, w: w, h: h)
+                    switch card.template {
+                    case .cueCard:
+                        gridCardContent(layout: Self.cueLayout, w: w, h: h)
+                    case .magnetCard:
+                        gridCardContent(layout: Self.magnetLayout, w: w, h: h)
+                    case .solidState:
+                        solidStateContent(layout: Self.solidLayout, w: w, h: h)
+                    }
+
+                    // Top-wash overlay: exactly 28% of card height, same as original
+                    Rectangle()
+                        .fill(Color(red: 0.1, green: 0.02, blue: 0.02).opacity(0.4))
+                        .frame(height: h * 0.28)
+                        .position(x: w / 2, y: h * 0.14)
                 }
-
-                // Top-wash overlay: exactly 28% of card height, same as original
-                Rectangle()
-                    .fill(Color(red: 0.1, green: 0.02, blue: 0.02).opacity(0.4))
-                    .frame(height: h * 0.28)
-                    .position(x: w / 2, y: h * 0.14)
             }
+            .clipped()
         }
-        .clipped()
     }
 
     // MARK: - Grid card layout (cueCard + magnetCard)

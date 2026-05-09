@@ -132,11 +132,17 @@ struct ROMLoader {
         return rows
     }
 
-    /// Load MasterLibrary.hex from the app bundle.
+    /// Load MasterLibrary.hex from the app bundle (legacy path).
     static func loadLibrary() -> Data? {
         guard let url = Bundle.main.url(forResource: "MasterLibrary", withExtension: "hex"),
               let text = try? String(contentsOf: url, encoding: .utf8) else { return nil }
-        // Decode the hex bytes directly (no longer using decodeHex helper)
+        return decodeHexFile(text)
+    }
+
+    /// Decode a hex text file into Data.
+    /// Each line contains pairs of hex digits (no spaces), which decode to bytes.
+    /// Blank lines and comment lines are skipped.
+    private static func decodeHexFile(_ text: String) -> Data? {
         var bytes = [UInt8]()
         for line in text.components(separatedBy: .newlines) {
             let s = line.trimmingCharacters(in: .whitespaces)
@@ -150,5 +156,67 @@ struct ROMLoader {
             }
         }
         return bytes.isEmpty ? nil : Data(bytes)
+    }
+
+    /// Load library ROM for ML01 (the only supported solid-state module).
+    /// Searches for ML01-*.hex in the bundle.
+    static func loadModuleLibrary() -> Data? {
+        let prefix = "ML01-"
+        // Search the entire bundle for matching files (no subdirectory constraint)
+        guard let urls = Bundle.main.urls(forResourcesWithExtension: "hex",
+                                          subdirectory: nil) else { return nil }
+        guard let url = urls.first(where: { $0.lastPathComponent.hasPrefix(prefix) }),
+              let text = try? String(contentsOf: url, encoding: .utf8) else { return nil }
+        return decodeHexFile(text)
+    }
+
+    /// Load per-program cue cards for ML01 from the bundle.
+    /// Returns dict: program number → CueCardContent.
+    /// Key 0 (module default) is included but not used in the new display logic.
+    static func loadModuleCueCards() -> [Int: CueCardContent] {
+        guard let urls = Bundle.main.urls(forResourcesWithExtension: "txt", subdirectory: nil),
+              let url = urls.first(where: { $0.lastPathComponent.hasPrefix("ML01") && $0.lastPathComponent.contains("cuecards") }),
+              let text = try? String(contentsOf: url, encoding: .utf8) else { return [:] }
+        return parseCueCardFile(text)  // already returns [Int: CueCardContent]
+    }
+
+    /// Parse a cue cards text file.
+    /// Format: CUECARD: or CUECARD: N for program N (0 = module default).
+    /// Returns a dict: program number → CueCardContent.
+    private static func parseCueCardFile(_ text: String) -> [Int: CueCardContent] {
+        var result: [Int: CueCardContent] = [:]
+        var current: CueCardContent? = nil
+        var currentKey: Int = 0
+
+        for rawLine in text.components(separatedBy: .newlines) {
+            // Strip comments and leading/trailing whitespace
+            let line = rawLine.components(separatedBy: "#").first?
+                .trimmingCharacters(in: .whitespaces) ?? ""
+            guard !line.isEmpty else { continue }
+
+            let upper = line.uppercased()
+            if upper.hasPrefix("CUECARD:") {
+                // Save the previous card if one exists
+                if let card = current {
+                    result[currentKey] = card
+                }
+                // Parse the program number (if any) from the header
+                let rest = String(line.dropFirst("CUECARD:".count))
+                    .trimmingCharacters(in: .whitespaces)
+                currentKey = Int(rest) ?? 0
+                current = CueCardContent()
+                continue
+            }
+
+            // Feed non-header lines to the current card
+            current?.parseLine(line)
+        }
+
+        // Don't forget the last card
+        if let card = current {
+            result[currentKey] = card
+        }
+
+        return result
     }
 }
