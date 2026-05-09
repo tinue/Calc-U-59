@@ -46,6 +46,22 @@ C: j: b_{i}_{j}
 D: \lambda_{1},\lambda_{2}
 E: \lambda_{1}A + \lambda_{2}B
 
+CUECARD: 19
+Template: SolidStateGridCard
+Title: ANNUITIES
+ID: ML-19
+IDAlign: right
+A': Sinking Fund
+B': Ann Due/FV
+C': Ord Ann/PV
+D': Ann Due/PV
+E': INIT
+A: N
+B: %I
+C: PMT
+D: PV/FV
+E: B. PMT
+
 CUECARD: 20
 Template: SolidStateGridCard
 Title: DAY OF WEEK, DAYS BETWEEN DATES

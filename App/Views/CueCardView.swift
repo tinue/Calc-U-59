@@ -61,8 +61,9 @@ struct CueCardView: View, Equatable {
 
     // SolidStateGrid: 5-column layout with dividers, title + 2 rows of labels
     // Column positions and widths extracted by analyzing SolidStateCardAreas.png
+    // Uses proportional font at fixed base size (scales with view)
     private static let solidGridLayout = GridCardLayout(
-        titleFontSize: 14, gridFontSize: 15, bankFontSize: 14,
+        titleFontSize: 14, gridFontSize: 16, bankFontSize: 14,
         titleYFraction: 0.38, titleWidthFraction: 0.90,
         gridY0Fraction: 0.62, gridY1Fraction: 0.84,
         xFractions: [0.097, 0.288, 0.478, 0.668, 0.859],
@@ -175,7 +176,7 @@ struct CueCardView: View, Equatable {
             let fontSize = min(cap, uniformFontSize(row: row, layout: layout, w: w))
             ForEach(0..<5, id: \.self) { col in
                 Text(card.labels[base + col])
-                    .font(.system(size: fontSize, weight: .bold, design: .monospaced))
+                    .font(.system(size: fontSize, weight: .bold))
                     .foregroundColor(.black)
                     .lineLimit(1)
                     .frame(width: w * layout.cellWidthFraction, alignment: .center)
@@ -296,7 +297,8 @@ struct CueCardView: View, Equatable {
         let row1Spans = getColumnSpans(row: 1)
 
         // Render grid: 5 columns with dividers
-        let fontSize = min(layout.titleFontSize, uniformGridFontSize(layout: layout, w: w))
+        // Use fixed font size (proportional font scales naturally with view)
+        let fontSize = min(layout.titleFontSize, layout.gridFontSize)
         let dividerColor = Color(red: 188/255.0, green: 157/255.0, blue: 96/255.0)  // RGB(188, 157, 96)
         let dividerWidth: CGFloat = 1
         let dividerHeightRow = h * 0.202  // Full height of each row (measured: 89px / 440px)
@@ -335,7 +337,7 @@ struct CueCardView: View, Equatable {
             let spanWidth = w * layout.cellWidthFraction * CGFloat(endCol - startCol + 1)
 
             Text(label)
-                .font(.system(size: fontSize, weight: .bold, design: .monospaced))
+                .font(.system(size: fontSize, weight: .bold))
                 .foregroundColor(goldColor)
                 .lineLimit(1)
                 .frame(width: spanWidth, alignment: .center)
@@ -356,7 +358,7 @@ struct CueCardView: View, Equatable {
             let spanWidth = w * layout.cellWidthFraction * CGFloat(endCol - startCol + 1)
 
             Text(label)
-                .font(.system(size: fontSize, weight: .bold, design: .monospaced))
+                .font(.system(size: fontSize, weight: .bold))
                 .foregroundColor(goldColor)
                 .lineLimit(1)
                 .frame(width: spanWidth, alignment: .center)
@@ -383,7 +385,7 @@ struct CueCardView: View, Equatable {
 
         if card.style == .button {
             Text(text)
-                .font(.system(size: fontSize, weight: .bold, design: .monospaced))
+                .font(.system(size: fontSize, weight: .bold))
                 .foregroundColor(goldColor)
                 .lineLimit(1)
                 .frame(width: width, alignment: swiftAlign)
@@ -393,7 +395,7 @@ struct CueCardView: View, Equatable {
                 .position(x: x, y: y)
         } else {
             Text(text)
-                .font(.system(size: fontSize, weight: .bold, design: .monospaced))
+                .font(.system(size: fontSize, weight: .bold))
                 .foregroundColor(goldColor)
                 .lineLimit(1)
                 .frame(width: width, alignment: swiftAlign)
