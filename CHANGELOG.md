@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.0] - In Progress
+
+**Cue Cards:** Complete Master Library module reference (ML-01 through ML-25): all 25 program cards now have dedicated layouts with accurate titles, labels, and descriptions. Cards automatically switch based on detected program number (SCOM[9]). New SolidStateGridCard template with 5-column grid layout, column spanning support, and proportional font scaling for responsive layout. Shared Y-position constants ensure consistent alignment across all card variants.
+
+**Math Notation:** Extended math token support for cue card labels and titles. Added Greek letters (α, β, ε, Δ, π, Π, Θ), variables with mean notation (x̄, ȳ, z̄, n̄, m̄), arrows (↔, ↕, ←, →), roots (√, ∛, ∜), trigonometric notation (∠, △), and superscript/subscript variants (^{x}, ^{y}, ^{z}, _{X}, _{Y}). Zero-width blank marker (\blank) for invisible grid columns.
+
+**Code Quality:** Simplified layout rendering code by extracting reusable helpers (titleAndIdRow, dividerLine, gridRowLabels), reducing duplication by 37 lines. Fixed performance regression in display press detection (restored guard to prevent spurious @Observable updates during touch drag). Unified timer cleanup in lifecycle methods.
+
 ## [1.0.0] - 2026-05-04
 First iOS / iPadOS release in the App Store.
 
