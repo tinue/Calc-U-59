@@ -285,10 +285,12 @@ struct CueCardView: View, Equatable {
             : titleAvailW / (CGFloat(card.title.count) * 0.64)
         let titleFS = min(layout.titleFontSize, titleByWidth)
 
-        // Use fixed font sizes; the entire card scales proportionally with view size.
-        // If it fits perfectly on iPad at 16 pt, it will fit perfectly on iPhone at scaled 16 pt.
-        let fontSize = layout.gridFontSize
-        let titleFontSize = fontSize + 1
+        // Scale font proportionally to view width
+        // Reference: 800 pt width (iPad-like) → 16 pt labels, 17 pt title
+        // Smaller screens get proportionally smaller fonts, with 10 pt minimum
+        let scaleFactor = w / 800
+        let fontSize = max(10, layout.gridFontSize * scaleFactor)
+        let titleFontSize = max(11, (layout.gridFontSize + 1) * scaleFactor)
 
         Text(card.title)
             .font(.system(size: titleFontSize, weight: .bold))
