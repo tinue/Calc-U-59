@@ -204,24 +204,52 @@ struct CueCardView: View, Equatable {
 
     @ViewBuilder
     private func solidStateContent(layout: SolidStateLayout, w: CGFloat, h: CGFloat) -> some View {
-        let row1Y  = h * layout.row1YFraction
-        let row2Y  = h * layout.row2YFraction
-        let row3Y  = h * layout.row3YFraction
-        // Right margin: same for both id and row2R, positioned left of yellow border
-        let rightX = w * layout.rightXFraction
-        // Scale font proportionally to view width (same 800pt reference as solidStateGrid).
-        let fs     = layout.fontSize * (w / 800)
+        let row1Y = h * layout.row1YFraction
+        let row2Y = h * layout.row2YFraction
+        let row3Y = h * layout.row3YFraction
 
-        // Program name row: title (left) and id (right, aligned with row2R)
-        alignedText(card.title, fontSize: fs, align: .left,        x: w * 0.35, y: row1Y, width: w * 0.65)
-        alignedText(card.id,    fontSize: fs, align: card.idAlign,  x: rightX,   y: row1Y, width: w * 0.25)
+        // Same font scale as solidStateGrid (800pt reference width).
+        let gl = Self.solidGridLayout
+        let scaleFactor   = w / 800
+        let titleFS       = gl.titleFontSize * scaleFactor
+        let contentFS     = gl.gridFontSize  * scaleFactor
 
-        // Row 1: full width
-        alignedText(card.row1,  fontSize: fs, align: card.row1Align, x: w / 2,   y: row2Y, width: w * 0.9)
+        // Horizontal bounds: identical to solidStateGrid — same card image, same margins.
+        let charW         = titleFS * 0.64
+        let gridLeftX     = w * (gl.xFractions[0] - gl.cellWidthFraction / 2) + charW * 0.5
+        let gridRightX    = w * (gl.xFractions[4] + gl.cellWidthFraction / 2) - charW * 1.0
+        let gridWidth     = gridRightX - gridLeftX
+        let gridCenterX   = (gridLeftX + gridRightX) / 2
 
-        // Row 2: left and right (same right margin as id)
-        alignedText(card.row2,  fontSize: fs, align: card.row2Align,  x: w * 0.35, y: row3Y, width: w * 0.65)
-        alignedText(card.row2R, fontSize: fs, align: card.row2RAlign, x: rightX,   y: row3Y, width: w * 0.25)
+        // Title row: title left-aligned, ID right-aligned — both in the same frame.
+        Text(card.title)
+            .font(.system(size: titleFS, weight: .bold))
+            .foregroundColor(goldColor)
+            .lineLimit(1)
+            .frame(width: gridWidth, alignment: .leading)
+            .position(x: gridCenterX, y: row1Y)
+        if !card.id.isEmpty {
+            Text(card.id)
+                .font(.system(size: titleFS, weight: .bold))
+                .foregroundColor(goldColor)
+                .lineLimit(1)
+                .frame(width: gridWidth, alignment: .trailing)
+                .position(x: gridCenterX, y: row1Y)
+        }
+
+        // Row 1: spans full grid width.
+        alignedText(card.row1, fontSize: contentFS, align: card.row1Align,
+                    x: gridCenterX, y: row2Y, width: gridWidth)
+
+        // Row 2: left portion (~70 %) + right portion (~30 %), right edge = gridRightX.
+        let leftWidth  = gridWidth * 0.70
+        let rightWidth = gridWidth * 0.30
+        let leftCenterX  = gridLeftX  + leftWidth  / 2
+        let rightCenterX = gridRightX - rightWidth / 2
+        alignedText(card.row2,  fontSize: contentFS, align: card.row2Align,
+                    x: leftCenterX,  y: row3Y, width: leftWidth)
+        alignedText(card.row2R, fontSize: contentFS, align: card.row2RAlign,
+                    x: rightCenterX, y: row3Y, width: rightWidth)
     }
 
     // MARK: - SolidStateGrid layout (grid with vertical dividers)
@@ -280,12 +308,6 @@ struct CueCardView: View, Equatable {
         let gridY0 = h * layout.gridY0Fraction
         let gridY1 = h * layout.gridY1Fraction
 
-        // Title: width-constrained, centered
-        let titleAvailW = w * layout.titleWidthFraction
-        let titleByWidth = card.title.isEmpty ? layout.titleFontSize
-            : titleAvailW / (CGFloat(card.title.count) * 0.64)
-        let titleFS = min(layout.titleFontSize, titleByWidth)
-
         // Scale font proportionally to view width.
         // Reference: 800 pt width → layout.gridFontSize pt labels, (gridFontSize+1) pt title.
         // No minimum floor: fonts shrink freely so text never clips on small screens.
@@ -293,12 +315,31 @@ struct CueCardView: View, Equatable {
         let fontSize = layout.gridFontSize * scaleFactor
         let titleFontSize = (layout.gridFontSize + 1) * scaleFactor
 
+        // Title row spans the same horizontal extent as the grid columns,
+        // with hardware-accurate padding: ~0.5 char left, ~1 char right.
+        let charW = titleFontSize * 0.64
+        let gridLeftX  = w * (layout.xFractions[0] - layout.cellWidthFraction / 2) + charW * 0.5
+        let gridRightX = w * (layout.xFractions[4] + layout.cellWidthFraction / 2) - charW * 1.0
+        let gridWidth  = gridRightX - gridLeftX
+        let gridCenterX = (gridLeftX + gridRightX) / 2
+
+        // Title: left-aligned within grid bounds
         Text(card.title)
             .font(.system(size: titleFontSize, weight: .bold))
             .foregroundColor(goldColor)
             .lineLimit(1)
-            .frame(width: titleAvailW)
-            .position(x: w / 2, y: titleY)
+            .frame(width: gridWidth, alignment: .leading)
+            .position(x: gridCenterX, y: titleY)
+
+        // ID: right-aligned within grid bounds (same frame, trailing)
+        if !card.id.isEmpty {
+            Text(card.id)
+                .font(.system(size: titleFontSize, weight: .bold))
+                .foregroundColor(goldColor)
+                .lineLimit(1)
+                .frame(width: gridWidth, alignment: .trailing)
+                .position(x: gridCenterX, y: titleY)
+        }
 
         // Compute spans before rendering
         let row0Spans = getColumnSpans(row: 0)
