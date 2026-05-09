@@ -12,6 +12,7 @@ import Foundation
 /// - Subscripts: `_{i}`, `_{j}`, `_{0}`…`_{9}`, `_{a}`, `_{e}`, `_{o}`, `_{x}`, `_{n}`, `_{m}`, `_{k}`
 /// - Superscripts: `^{0}`…`^{9}`, `^{-1}`, `^{-}`, `^{+}`, `^{n}`, `^{T}`
 /// - Symbols: `\sqrt`, `\inf`, `\sum`, `\product`, `\integral`, `\approx`, `\neq`, `\leq`, `\geq`
+/// - Grid markers: `\blank` (invisible column marker for grid cards)
 ///
 /// Example: `a_{i}_{j}^{-1}` → `aᵢⱼ⁻¹`
 func expandMathTokens(_ input: String) -> String {
@@ -48,6 +49,9 @@ func expandMathTokens(_ input: String) -> String {
         ("\\neq", "≠"),      // U+2260
         ("\\leq", "≤"),      // U+2264
         ("\\geq", "≥"),      // U+2265
+
+        // Grid markers
+        ("\\blank", "\u{200B}"),  // Zero-width space for invisible columns
 
         // Superscript: multi-char first
         ("^{-1}", "⁻¹"),     // U+207B + U+00B9
