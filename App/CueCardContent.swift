@@ -1,5 +1,106 @@
 import Foundation
 
+// MARK: - Math token expansion
+
+/// Expands math-notation shorthand tokens to Unicode characters.
+/// Used in cue card content files to make math notation (Greek letters, subscripts, superscripts)
+/// easy to author without requiring a Unicode picker.
+///
+/// Supported tokens:
+/// - Greek: `\lambda`, `\sigma`, `\mu`, `\theta`, `\alpha`, `\beta`, `\Delta`, `\Sigma`, etc.
+/// - Arrows: `\to`, `\leftarrow`, `\updownarrow`
+/// - Subscripts: `_{i}`, `_{j}`, `_{0}`…`_{9}`, `_{a}`, `_{e}`, `_{o}`, `_{x}`, `_{n}`, `_{m}`, `_{k}`
+/// - Superscripts: `^{0}`…`^{9}`, `^{-1}`, `^{-}`, `^{+}`, `^{n}`, `^{T}`
+/// - Symbols: `\sqrt`, `\inf`, `\sum`, `\product`, `\integral`, `\approx`, `\neq`, `\leq`, `\geq`
+///
+/// Example: `a_{i}_{j}^{-1}` → `aᵢⱼ⁻¹`
+func expandMathTokens(_ input: String) -> String {
+    var result = input
+
+    // Tokens are processed in order: longer matches before shorter ones that share a prefix
+    let tokens: [(String, String)] = [
+        // Greek letters
+        ("\\lambda", "λ"),   // U+03BB
+        ("\\Lambda", "Λ"),   // U+039B
+        ("\\sigma", "σ"),    // U+03C3
+        ("\\Sigma", "Σ"),    // U+03A3
+        ("\\mu", "μ"),       // U+03BC
+        ("\\theta", "θ"),    // U+03B8
+        ("\\Theta", "Θ"),    // U+0398
+        ("\\alpha", "α"),    // U+03B1
+        ("\\beta", "β"),     // U+03B2
+        ("\\Delta", "Δ"),    // U+0394
+        ("\\pi", "π"),       // U+03C0
+        ("\\Pi", "Π"),       // U+03A0
+
+        // Arrows
+        ("\\to", "→"),       // U+2192
+        ("\\leftarrow", "←"), // U+2190
+        ("\\updownarrow", "↕"), // U+2195
+
+        // Math symbols
+        ("\\sqrt", "√"),     // U+221A
+        ("\\inf", "∞"),      // U+221E
+        ("\\sum", "∑"),      // U+2211
+        ("\\product", "∏"),  // U+220F
+        ("\\integral", "∫"), // U+222B
+        ("\\approx", "≈"),   // U+2248
+        ("\\neq", "≠"),      // U+2260
+        ("\\leq", "≤"),      // U+2264
+        ("\\geq", "≥"),      // U+2265
+
+        // Superscript: multi-char first
+        ("^{-1}", "⁻¹"),     // U+207B + U+00B9
+        ("^{-2}", "⁻²"),     // U+207B + U+00B2
+        ("^{-3}", "⁻³"),     // U+207B + U+00B3
+        ("^{-}", "⁻"),       // U+207B
+        ("^{+}", "⁺"),       // U+207A
+        ("^{*}", "ˣ"),       // U+02E3
+        ("^{n}", "ⁿ"),       // U+207F
+        ("^{T}", "ᵀ"),       // U+1D40 (transpose)
+        ("^{0}", "⁰"),       // U+2070
+        ("^{1}", "¹"),       // U+00B9
+        ("^{2}", "²"),       // U+00B2
+        ("^{3}", "³"),       // U+00B3
+        ("^{4}", "⁴"),       // U+2074
+        ("^{5}", "⁵"),       // U+2075
+        ("^{6}", "⁶"),       // U+2076
+        ("^{7}", "⁷"),       // U+2077
+        ("^{8}", "⁸"),       // U+2078
+        ("^{9}", "⁹"),       // U+2079
+
+        // Subscript: multi-char first
+        ("_{-1}", "₋₁"),     // U+2215 + U+2081
+        ("_{-}", "₋"),       // U+2215
+        ("_{+}", "₊"),       // U+208A
+        ("_{0}", "₀"),       // U+2080
+        ("_{1}", "₁"),       // U+2081
+        ("_{2}", "₂"),       // U+2082
+        ("_{3}", "₃"),       // U+2083
+        ("_{4}", "₄"),       // U+2084
+        ("_{5}", "₅"),       // U+2085
+        ("_{6}", "₆"),       // U+2086
+        ("_{7}", "₇"),       // U+2087
+        ("_{8}", "₈"),       // U+2088
+        ("_{9}", "₉"),       // U+2089
+        ("_{i}", "ᵢ"),       // U+1D62
+        ("_{j}", "ⱼ"),       // U+1D6A
+        ("_{a}", "ₐ"),       // U+2090
+        ("_{e}", "ₑ"),       // U+2091
+        ("_{o}", "ₒ"),       // U+2092
+        ("_{x}", "ₓ"),       // U+2093
+        ("_{n}", "ₙ"),       // U+2099
+        ("_{m}", "ₘ"),       // U+2098
+        ("_{k}", "ₖ"),       // U+2096
+    ]
+
+    for (token, unicode) in tokens {
+        result = result.replacingOccurrences(of: token, with: unicode)
+    }
+
+    return result
+}
+
 enum TextAlign: String {
     case left
     case center
@@ -61,20 +162,20 @@ struct CueCardContent {
                 self.template = template
             }
         case "title":
-            self.title = value
+            self.title = expandMathTokens(value)
         case "banks":
             let parts = value.components(separatedBy: ",")
             let left = parts.count > 0 ? Int(parts[0].trimmingCharacters(in: .whitespaces)) : nil
             let right = parts.count > 1 ? Int(parts[1].trimmingCharacters(in: .whitespaces)) : nil
             self.banks = (left, right)
         case "id":
-            self.id = value
+            self.id = expandMathTokens(value)
         case "row1":
-            self.row1 = value
+            self.row1 = expandMathTokens(value)
         case "row2":
-            self.row2 = value
+            self.row2 = expandMathTokens(value)
         case "row2r":
-            self.row2R = value
+            self.row2R = expandMathTokens(value)
         case "style":
             if let style = CardButtonStyle(rawValue: value.lowercased()) {
                 self.style = style
@@ -95,7 +196,7 @@ struct CueCardContent {
                 "d'": 3, "d′": 3, "e'": 4, "e′": 4
             ]
             if let idx = labelMap[key], idx < self.labels.count {
-                self.labels[idx] = value
+                self.labels[idx] = expandMathTokens(value)
             }
         }
     }

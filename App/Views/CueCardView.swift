@@ -255,6 +255,18 @@ struct CueCardView: View {
         CueCardView(content: .ml01Default)
             .frame(height: 100)
 
+        Text("SolidState (ML02 with math tokens)")
+            .font(.headline)
+        CueCardView(content: CueCardContent(
+            template: .solidState,
+            title: "DETERMINANT, MATRIX, & SIMUL. EQ.",
+            id: "ML-02",
+            idAlign: .right,
+            row1: "i: \u{2192} x\u{1D62} | \u{2192} A⁻¹ | j: \u{2192} a\u{1D62}\u{1D6A}⁻¹ || \u{2192} |A|, A⁻¹",
+            row1Align: .center
+        ))
+        .frame(height: 100)
+
         Text("Default (nil)")
             .font(.headline)
         CueCardView(content: nil)

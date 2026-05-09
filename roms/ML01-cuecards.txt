@@ -1,0 +1,51 @@
+# ML01 – Master Library Module 1
+# Cue cards for the TI-59 Master Library solid-state module.
+# Math notation: Use \lambda, \to, _{i}, ^{-1}, etc. for subscripts/superscripts.
+
+CUECARD: 1
+Template: SolidStateCard
+Title: MASTER LIBRARY DIAGNOSTIC
+ID: ML-01
+IDAlign: right
+Row1: DIAGNOSTIC: SBR =
+Row1Align: center
+Row2: L.R. INIT: SBR CLR
+Row2Align: left
+Row2R: PRINT: mm STO 00
+Row2RAlign: right
+
+CUECARD: 2
+Template: SolidStateCard
+Title: DETERMINANT, MATRIX, & SIMUL. EQ.
+ID: ML-02
+IDAlign: right
+Row1: i; \to x_{i} | \to A^{-1} | j; \to a_{i}_{j}^{-1} | | \to |A|, A^{-1}
+Row1Align: center
+Row2: n | j: a_{i}_{j} | \to |A| | i: b_{i} | \to x
+Row2Align: left
+Row2R:
+Row2RAlign: right
+
+CUECARD: 3
+Template: SolidStateCard
+Title: MATRIX ADDITION AND MULTIPLICATION
+ID: ML-03
+IDAlign: right
+Row1: j: c_{i}_{j} | i; x_{i} | \to Ax | i; \to y_{i}
+Row1Align: center
+Row2: m,n | j: a_{i}_{j} | j: b_{i}_{j} | \lambda_{1},\lambda_{2} | \lambda_{1}A + \lambda_{2}B
+Row2Align: left
+Row2R:
+Row2RAlign: right
+
+CUECARD: 20
+Template: SolidStateCard
+Title: DAY OF WEEK, DAYS BETWEEN DATES
+ID: ML-20
+IDAlign: right
+Row1: (M M D D. Y Y Y Y)
+Row1Align: center
+Row2: DATE 1 | DATE 2 | No. DAYS | D \to D of W
+Row2Align: left
+Row2R:
+Row2RAlign: right

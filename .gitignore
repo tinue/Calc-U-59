@@ -27,7 +27,7 @@ __pycache__/
 debug/
 
 # Trace files (debug artifacts)
-*.txt
+/*.txt
 *.ans
 *.bin
 
