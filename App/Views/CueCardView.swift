@@ -289,8 +289,15 @@ struct CueCardView: View, Equatable {
         // Reference width ~700 pt (iPad Air), scale between 0.7x–1.8x for smaller/larger devices
         let scaleFactor = max(0.7, min(1.8, w / 700))
 
+        // Calculate minimum font size needed to fit the longest label
+        let minFittingSize = uniformGridFontSize(layout: layout, w: w)
+
+        // Grid labels: ensure they fit, allow scaling above minimum
+        let scaledGridFontSize = layout.gridFontSize * scaleFactor
+        let gridFontSize = max(minFittingSize, scaledGridFontSize)
+
         Text(card.title)
-            .font(.system(size: titleFS * scaleFactor, weight: .bold, design: .monospaced))
+            .font(.system(size: gridFontSize + 1, weight: .bold))
             .foregroundColor(goldColor)
             .lineLimit(1)
             .frame(width: titleAvailW)
@@ -301,9 +308,7 @@ struct CueCardView: View, Equatable {
         let row1Spans = getColumnSpans(row: 1)
 
         // Render grid: 5 columns with dividers
-        // Scale grid labels proportionally, keeping title ≥ labels
-        let scaledGridFontSize = layout.gridFontSize * scaleFactor
-        let fontSize = min(titleFS * scaleFactor, scaledGridFontSize)
+        let fontSize = gridFontSize
         let dividerColor = Color(red: 188/255.0, green: 157/255.0, blue: 96/255.0)  // RGB(188, 157, 96)
         let dividerWidth: CGFloat = 1
         let dividerHeightRow = h * 0.202  // Full height of each row (measured: 89px / 440px)
