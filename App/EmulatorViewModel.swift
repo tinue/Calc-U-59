@@ -169,6 +169,7 @@ class EmulatorViewModel {
     }
     private var persistPending = false
     private var persistDebounceTimer: Timer?
+    private var programCheckTimer: Timer?
 
     init() {
         // Initialize traceWriter with default model
@@ -333,6 +334,24 @@ class EmulatorViewModel {
         }
         RunLoop.main.add(timer, forMode: .common)
         displayTimer = timer
+
+        // Separate 2 Hz timer for program number detection to avoid UI blocking.
+        programCheckTimer?.invalidate()
+        let progTimer = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in
+            self?.checkProgramNumber()
+        }
+        RunLoop.main.add(progTimer, forMode: .common)
+        programCheckTimer = progTimer
+    }
+
+    private func checkProgramNumber() {
+        guard let machine else { return }
+        let cpuFrame = machine.snapshotCPU()
+        let detectedProgram = Int(cpuFrame.SCOM.9.4) * 10 + Int(cpuFrame.SCOM.9.3)
+        if detectedProgram != activeProgramNumber {
+            activeProgramNumber = detectedProgram
+            cueCardContent = resolvedCueCard()
+        }
     }
 
     private func tick() {
@@ -390,12 +409,6 @@ class EmulatorViewModel {
         let displayOn = cpuFrame.displayOn != 0               // One or more digits/dots currently visible
         let shouldFreeze = displayOn && !isIdle               // Afterglow with RUN mode
 
-        // Detect active program number via SCOM[9] nibbles 3 and 4.
-        let detectedProgram = Int(cpuFrame.SCOM.9.4) * 10 + Int(cpuFrame.SCOM.9.3)
-        if detectedProgram != activeProgramNumber {
-            activeProgramNumber = detectedProgram
-            cueCardContent = resolvedCueCard()
-        }
 
         // Guard each assignment: @Observable only notifies SwiftUI when a property
         // is actually written, but the write itself counts as a change even if the
@@ -468,6 +481,8 @@ class EmulatorViewModel {
         isRunning = false
         displayTimer?.invalidate()
         displayTimer = nil
+        programCheckTimer?.invalidate()
+        programCheckTimer = nil
     }
 
     /// Suspend emulation when the app enters the background.
@@ -479,6 +494,8 @@ class EmulatorViewModel {
         isRunning = false
         displayTimer?.invalidate()
         displayTimer = nil
+        programCheckTimer?.invalidate()
+        programCheckTimer = nil
     }
 
     /// Resume emulation after the app returns to the foreground.

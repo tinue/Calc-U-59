@@ -118,7 +118,7 @@ enum CardButtonStyle: String {
     case button  // draw rectangle border around text
 }
 
-struct CueCardContent {
+struct CueCardContent: Equatable {
     var template: CueCardTemplate = .cueCard
     var title: String = ""
     var banks: (Int?, Int?) = (nil, nil)  // MagnetCard: (left badge, right badge), nil = blank
@@ -258,5 +258,21 @@ struct CueCardContent {
         default:
             return .left
         }
+    }
+
+    static func == (lhs: CueCardContent, rhs: CueCardContent) -> Bool {
+        lhs.template == rhs.template &&
+        lhs.title == rhs.title &&
+        lhs.banks == rhs.banks &&
+        lhs.id == rhs.id &&
+        lhs.idAlign == rhs.idAlign &&
+        lhs.labels == rhs.labels &&
+        lhs.row1 == rhs.row1 &&
+        lhs.row1Align == rhs.row1Align &&
+        lhs.row2 == rhs.row2 &&
+        lhs.row2Align == rhs.row2Align &&
+        lhs.row2R == rhs.row2R &&
+        lhs.row2RAlign == rhs.row2RAlign &&
+        lhs.style == rhs.style
     }
 }

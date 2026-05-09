@@ -151,6 +151,7 @@ struct KeyboardView: View {
                 let cardY = h * Self.cardRect.minY
 
                 CueCardView(content: viewModel.cueCardContent)
+                    .equatable()
                     .frame(width: cardW, height: cardH)
                     .position(x: cardW / 2, y: cardY + cardH / 2)
 

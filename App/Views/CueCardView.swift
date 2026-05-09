@@ -1,7 +1,11 @@
 import SwiftUI
 
-struct CueCardView: View {
+struct CueCardView: View, Equatable {
     let content: CueCardContent?
+
+    static func == (lhs: CueCardView, rhs: CueCardView) -> Bool {
+        lhs.content == rhs.content
+    }
 
     private var card: CueCardContent {
         content ?? CueCardContent.ml01Default
