@@ -296,7 +296,7 @@ struct CueCardView: View, Equatable {
         let row1Spans = getColumnSpans(row: 1)
 
         // Render grid: 5 columns with dividers
-        let fontSize = uniformGridFontSize(layout: layout, w: w)
+        let fontSize = min(layout.titleFontSize, uniformGridFontSize(layout: layout, w: w))
         let dividerColor = Color(red: 188/255.0, green: 157/255.0, blue: 96/255.0)  // RGB(188, 157, 96)
         let dividerWidth: CGFloat = 1
         let dividerHeightRow = h * 0.202  // Full height of each row (measured: 89px / 440px)
@@ -371,7 +371,7 @@ struct CueCardView: View, Equatable {
         for idx in 0..<10 {
             let label = card.labels[idx]
             guard !label.isEmpty else { continue }
-            let fitting = cellWidth / (CGFloat(label.count) * 0.64)
+            let fitting = cellWidth / (CGFloat(label.count) * 0.55)
             if fitting < size { size = fitting }
         }
         return max(size, layout.gridFontSize * 0.4)
