@@ -35,6 +35,11 @@ struct CueCardView: View, Equatable {
         let rightXFraction: CGFloat
     }
 
+    // Shared Y positions for SolidState layouts (both use the same card image)
+    private static let solidStateTitleYFraction: CGFloat = 0.355
+    private static let solidStateRow1YFraction: CGFloat = 0.60
+    private static let solidStateRow2YFraction: CGFloat = 0.84
+
     // CueCard uses three visible text bands: title (124..227), row0 (227..329), row1 (329..430).
     private static let cueLayout = GridCardLayout(
         titleFontSize: 19, gridFontSize: 14, bankFontSize: 16,
@@ -55,17 +60,18 @@ struct CueCardView: View, Equatable {
 
     private static let solidLayout = SolidStateLayout(
         fontSize: 12,
-        row1YFraction: 0.38, row2YFraction: 0.62, row3YFraction: 0.84,
+        row1YFraction: solidStateTitleYFraction, row2YFraction: solidStateRow1YFraction, row3YFraction: solidStateRow2YFraction,
         rightXFraction: 0.80
     )
 
     // SolidStateGrid: 5-column layout with dividers, title + 2 rows of labels
     // Column positions and widths extracted by analyzing SolidStateCardAreas.png
     // Uses proportional font at fixed base size (scales with view)
+    // Y fractions shared with solidLayout to keep both in sync
     private static let solidGridLayout = GridCardLayout(
         titleFontSize: 22, gridFontSize: 21, bankFontSize: 14,
-        titleYFraction: 0.38, titleWidthFraction: 0.90,
-        gridY0Fraction: 0.62, gridY1Fraction: 0.84,
+        titleYFraction: solidStateTitleYFraction, titleWidthFraction: 0.90,
+        gridY0Fraction: solidStateRow1YFraction, gridY1Fraction: solidStateRow2YFraction,
         xFractions: [0.097, 0.288, 0.478, 0.668, 0.859],
         cellWidthFraction: 0.186
     )

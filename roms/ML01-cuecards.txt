@@ -80,23 +80,23 @@ E: \to 1/X
 
 CUECARD: 6
 Template: SolidStateGridCard
-Title: CHANGEME
+Title: COMPLEX TRIG FUNCTIONS
 ID: ML-06
 IDAlign: right
 A': \blank
-B': \blank
-C': \blank
-D': \blank
+B': \to sin^{-1}X
+C': \to cos^{-1}X
+D': \to tan^{-1}X
 E': \blank
-A: \blank
-B: \blank
-C: \blank
-D: \blank
+A: X
+B: \to sin X
+C: \to cos X
+D: \to tan X
 E: \blank
 
 CUECARD: 7
 Template: SolidStateGridCard
-Title: CHANGEME
+Title: POLYNOMINAL EVALUATION
 ID: ML-07
 IDAlign: right
 A': \blank
@@ -104,15 +104,15 @@ B': \blank
 C': \blank
 D': \blank
 E': \blank
-A: \blank
-B: \blank
-C: \blank
+A: n
+B: i;a_{i}
+C: x \to P(x)
 D: \blank
 E: \blank
 
 CUECARD: 8
 Template: SolidStateGridCard
-Title: CHANGEME
+Title: ZEROS OF FUNCTIONS
 ID: ML-08
 IDAlign: right
 A': \blank
@@ -120,15 +120,15 @@ B': \blank
 C': \blank
 D': \blank
 E': \blank
-A: \blank
-B: \blank
-C: \blank
-D: \blank
-E: \blank
+A: a
+B: b
+C: \Delta x
+D: \epsilon
+E: \to x
 
 CUECARD: 9
 Template: SolidStateGridCard
-Title: CHANGEME
+Title: SIMPSON'S APPROXIMATION (CONTINUOUS)
 ID: ML-09
 IDAlign: right
 A': \blank
@@ -136,15 +136,15 @@ B': \blank
 C': \blank
 D': \blank
 E': \blank
-A: \blank
-B: \blank
-C: \blank
-D: \blank
+A: x_{0}
+B: x_{n}
+C: n
+D: \to I
 E: \blank
 
 CUECARD: 10
 Template: SolidStateGridCard
-Title: CHANGEME
+Title: SIMPSON'S APPROXIMATION (DISCRETE)
 ID: ML-10
 IDAlign: right
 A': \blank
@@ -152,63 +152,63 @@ B': \blank
 C': \blank
 D': \blank
 E': \blank
-A: \blank
-B: \blank
-C: \blank
-D: \blank
+A: n
+B: h
+C: i, f_{i}
+D: \to I
 E: \blank
 
 CUECARD: 11
 Template: SolidStateGridCard
-Title: CHANGEME
+Title: TRIANGLE SOLUTION (1)
 ID: ML-11
 IDAlign: right
-A': \blank
-B': \blank
-C': \blank
+A': SSS \angleA'
+B': \angleB'
+C': \angleC'  \angleA'
 D': \blank
-E': \blank
-A: \blank
-B: \blank
-C: \blank
-D: \blank
-E: \blank
+E': INIT
+A: a
+B: b
+C: c. \angleA.  \angleC
+D: SSA c'
+E: SAS c'
 
 CUECARD: 12
 Template: SolidStateGridCard
-Title: CHANGEME
+Title: TRIANGLE SOLUTION (2)
 ID: ML-12
 IDAlign: right
-A': \blank
-B': \blank
-C': \blank
+A': ASA \angleA'
+B': SAA \angleB'
+C': AREA
 D': \blank
 E': \blank
-A: \blank
-B: \blank
-C: \blank
-D: \blank
-E: \blank
+A: a
+B: \angleA, \angleB
+C: \angle C
+D: b
+E: c
 
 CUECARD: 13
 Template: SolidStateGridCard
-Title: CHANGEME
+Title: CURVE SOLUTION
 ID: ML-13
 IDAlign: right
-A': \blank
-B': \blank
-C': \blank
-D': \blank
-E': \blank
-A: \blank
-B: \blank
-C: \blank
-D: \blank
-E: \blank
+A': \Theta'
+B': r'
+C': s'
+D': c'
+E': a'
+A: \Theta
+B: r
+C: s
+D: c
+E: A'
 
 CUECARD: 14
 Template: SolidStateGridCard
-Title: CHANGEME
+Title: NORMAL DISTRIBUTION
 ID: ML-14
 IDAlign: right
 A': \blank
@@ -216,31 +216,31 @@ B': \blank
 C': \blank
 D': \blank
 E': \blank
-A: \blank
-B: \blank
+A: x \to Z(x)
+B: Q(x)
 C: \blank
 D: \blank
 E: \blank
 
 CUECARD: 15
 Template: SolidStateGridCard
-Title: CHANGEME
+Title: RANDOM NUMBER GENERATOR
 ID: ML-15
 IDAlign: right
 A': \blank
 B': \blank
-C': \blank
+C': No. (\xbar, \sigma)
 D': \blank
-E': \blank
-A: \blank
-B: \blank
-C: \blank
+E': INIT
+A: A, \xbar
+B: B, \sigma
+C: No. (A,B)
 D: \blank
-E: \blank
+E: SEED
 
 CUECARD: 16
 Template: SolidStateGridCard
-Title: CHANGEME
+Title: COMBINATIONS, PERMUTATIONS, FACTORIALS
 ID: ML-16
 IDAlign: right
 A': \blank
@@ -248,42 +248,42 @@ B': \blank
 C': \blank
 D': \blank
 E': \blank
-A: \blank
-B: \blank
-C: \blank
-D: \blank
-E: \blank
+A: n
+B: r
+C: n!
+D: P(n,r)
+E: C(n,r)
 
 CUECARD: 17
 Template: SolidStateGridCard
-Title: CHANGEME
+Title: MOVING AVERAGES
 ID: ML-17
 IDAlign: right
 A': \blank
 B': \blank
 C': \blank
 D': \blank
-E': \blank
-A: \blank
-B: \blank
+E': INIT
+A: NUMBER
+B: m \to AVG
 C: \blank
 D: \blank
 E: \blank
 
 CUECARD: 18
 Template: SolidStateGridCard
-Title: CHANGEME
+Title: COMPOUND INTEREST
 ID: ML-18
 IDAlign: right
-A': \blank
-B': \blank
-C': \blank
-D': \blank
-E': \blank
-A: \blank
-B: \blank
-C: \blank
-D: \blank
+A': S \nbar|i
+B': (1+i) S \nbar|i
+C': a \nbar|i
+D': (1+i) a \nbar|i
+E': INIT
+A: N
+B: % I
+C: PV
+D: FV
 E: \blank
 
 CUECARD: 19
@@ -320,80 +320,80 @@ E: \blank
 
 CUECARD: 21
 Template: SolidStateGridCard
-Title: CHANGEME
+Title: HI-LO GAME
 ID: ML-21
 IDAlign: right
-A': \blank
-B': \blank
-C': \blank
-D': \blank
+A': M INIT
+B': M LO
+C': M HI
+D': M CORR
 E': \blank
-A: \blank
-B: \blank
-C: \blank
-D: \blank
+A: INIT
+B: GO
+C: GUESS
+D: SCORE
 E: \blank
 
 CUECARD: 22
 Template: SolidStateGridCard
-Title: CHANGEME
+Title: CHECKING/SAVINGS ACCOUNT
 ID: ML-22
 IDAlign: right
-A': \blank
-B': \blank
-C': \blank
-D': \blank
+A': Checking
+B': Savings
+C': I %/Yr
+D': Periods/Yr
 E': \blank
-A: \blank
-B: \blank
-C: \blank
-D: \blank
-E: \blank
+A: Balance
+B: Deposit
+C: Withdrawal
+D: No Periods
+E: New Bal
 
 CUECARD: 23
 Template: SolidStateGridCard
-Title: CHANGEME
+Title: DMS OPERATIONS
 ID: ML-23
 IDAlign: right
-A': \blank
-B': \blank
+A': (d d. m m s s)
+B':
 C': \blank
 D': \blank
 E': \blank
-A: \blank
-B: \blank
-C: \blank
-D: \blank
+A: n
+B: ± p \to n ± p
+C: a \to n × a
+D: a \to n ÷ a
 E: \blank
 
 CUECARD: 24
 Template: SolidStateGridCard
-Title: CHANGEME
+Title: UNIT CONVERSIONS (1)
 ID: ML-24
 IDAlign: right
-A': \blank
-B': \blank
-C': \blank
-D': \blank
-E': \blank
-A: \blank
-B: \blank
-C: \blank
-D: \blank
-E: \blank
+A': cm \to in
+B': m \to ft
+C': m \to yd
+D': km \to mi
+E': n mi \to mi
+A: in \to cm
+B: ft \to m
+C: yd \to m
+D: mi \to km
+E: mi \to n mi
 
 CUECARD: 25
 Template: SolidStateGridCard
-Title: CHANGEME
+Title: UNIT CONVERSIONS (2)
 ID: ML-25
 IDAlign: right
-A': \blank
-B': \blank
-C': \blank
-D': \blank
-E': \blank
-A: \blank
-B: \blank
-C: \blank
-D: \blank
-E: \blank
+A': °C \to °F
+B': lit \to oz
+C': lit \to US gal
+D': gm \to oz
+E': kg \to lb
+A: °F \to °C
+B: oz \to lit
+C: US gal \to lit
+D: oz \to gm
+E: lb \to kg

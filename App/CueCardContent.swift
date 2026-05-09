@@ -30,9 +30,18 @@ func expandMathTokens(_ input: String) -> String {
         ("\\Theta", "Θ"),    // U+0398
         ("\\alpha", "α"),    // U+03B1
         ("\\beta", "β"),     // U+03B2
+        ("\\epsilon", "ε"),  // U+03B5
+        ("\\Epsilon", "Ε"),  // U+0395
         ("\\Delta", "Δ"),    // U+0394
         ("\\pi", "π"),       // U+03C0
         ("\\Pi", "Π"),       // U+03A0
+
+        // Variables with overline (mean/average notation)
+        ("\\xbar", "x̄"),     // x + combining overline (U+0305)
+        ("\\ybar", "ȳ"),     // y + combining overline
+        ("\\zbar", "z̄"),     // z + combining overline
+        ("\\nbar", "n̄"),     // n + combining overline
+        ("\\mbar", "m̄"),     // m + combining overline
 
         // Arrows (longer before shorter)
         ("\\leftrightarrows", "⇄"), // U+21C4 (right arrow over left arrow)
@@ -45,6 +54,8 @@ func expandMathTokens(_ input: String) -> String {
         ("\\sqrt", "√"),     // U+221A (square root)
         ("\\cbrt", "∛"),     // U+221B (cube root)
         ("\\fourthroot", "∜"), // U+221C (fourth root)
+        ("\\triangle", "△"),  // U+25B3 (triangle)
+        ("\\angle", "∠"),    // U+2220 (angle)
         ("\\inf", "∞"),      // U+221E
         ("\\sum", "∑"),      // U+2211
         ("\\product", "∏"),  // U+220F
@@ -66,6 +77,12 @@ func expandMathTokens(_ input: String) -> String {
         ("^{*}", "ˣ"),       // U+02E3
         ("^{n}", "ⁿ"),       // U+207F
         ("^{T}", "ᵀ"),       // U+1D40 (transpose)
+        ("^{x}", "ˣ"),       // U+02E3
+        ("^{X}", "ˣ"),       // U+02E3 (capital X → superscript x)
+        ("^{y}", "ʸ"),       // U+02B8
+        ("^{Y}", "ʸ"),       // U+02B8 (capital Y → superscript y)
+        ("^{z}", "ᶻ"),       // U+1D7A
+        ("^{Z}", "ᶻ"),       // U+1D7A (capital Z → superscript z)
         ("^{0}", "⁰"),       // U+2070
         ("^{1}", "¹"),       // U+00B9
         ("^{2}", "²"),       // U+00B2
