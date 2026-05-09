@@ -297,8 +297,11 @@ struct CueCardView: View, Equatable {
         let row1Spans = getColumnSpans(row: 1)
 
         // Render grid: 5 columns with dividers
-        // Use fixed font size (proportional font scales naturally with view)
-        let fontSize = min(layout.titleFontSize, layout.gridFontSize)
+        // Scale font size responsively based on view width
+        // Reference width ~700 pt (iPad Air), scale between 0.7x–1.8x for smaller/larger devices
+        let scaleFactor = max(0.7, min(1.8, w / 700))
+        let scaledGridFontSize = layout.gridFontSize * scaleFactor
+        let fontSize = min(layout.titleFontSize, scaledGridFontSize)
         let dividerColor = Color(red: 188/255.0, green: 157/255.0, blue: 96/255.0)  // RGB(188, 157, 96)
         let dividerWidth: CGFloat = 1
         let dividerHeightRow = h * 0.202  // Full height of each row (measured: 89px / 440px)
