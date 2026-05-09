@@ -60,13 +60,13 @@ struct CueCardView: View, Equatable {
     )
 
     // SolidStateGrid: 5-column layout with dividers, title + 2 rows of labels
-    // Uses exact vertical positions from proven SolidStateCard template
+    // Column positions and widths extracted by analyzing SolidStateCardAreas.png
     private static let solidGridLayout = GridCardLayout(
-        titleFontSize: 14, gridFontSize: 12, bankFontSize: 14,
+        titleFontSize: 14, gridFontSize: 15, bankFontSize: 14,
         titleYFraction: 0.38, titleWidthFraction: 0.90,
         gridY0Fraction: 0.62, gridY1Fraction: 0.84,
-        xFractions: [0.10, 0.30, 0.50, 0.70, 0.90],
-        cellWidthFraction: 0.14
+        xFractions: [0.097, 0.288, 0.478, 0.668, 0.859],
+        cellWidthFraction: 0.186
     )
 
     // MARK: - Body
@@ -245,18 +245,26 @@ struct CueCardView: View, Equatable {
 
         // Render grid: 5 columns with dividers
         let fontSize = min(layout.titleFontSize, uniformGridFontSize(layout: layout, w: w))
-        let dividerColor = goldColor.opacity(0.6)  // Gold dividers matching card design
+        let dividerColor = Color(red: 188/255.0, green: 157/255.0, blue: 96/255.0)  // RGB(188, 157, 96)
         let dividerWidth: CGFloat = 1
-        let dividerHeight = h * 0.20  // Spans from row 0 to row 1
-        let dividerY = h * 0.73  // Centered between rows
+        let dividerHeightRow = h * 0.202  // Full height of each row (measured: 89px / 440px)
 
-        // Vertical dividers between columns (render in back)
-        ForEach(1..<5, id: \.self) { i in
-            let x = w * layout.xFractions[i]
+        // Vertical dividers in top row (between columns at row 0)
+        ForEach(0..<4, id: \.self) { i in
+            let x = w * ((layout.xFractions[i] + layout.xFractions[i + 1]) / 2)
             Rectangle()
                 .fill(dividerColor)
-                .frame(width: dividerWidth, height: dividerHeight)
-                .position(x: x, y: dividerY)
+                .frame(width: dividerWidth, height: dividerHeightRow)
+                .position(x: x, y: gridY0)
+        }
+
+        // Vertical dividers in bottom row (between columns at row 1)
+        ForEach(0..<4, id: \.self) { i in
+            let x = w * ((layout.xFractions[i] + layout.xFractions[i + 1]) / 2)
+            Rectangle()
+                .fill(dividerColor)
+                .frame(width: dividerWidth, height: dividerHeightRow)
+                .position(x: x, y: gridY1)
         }
 
         // Row 0 (labels[0:5])
