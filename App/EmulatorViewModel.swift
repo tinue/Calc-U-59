@@ -214,8 +214,6 @@ class EmulatorViewModel {
             // Load ML01 library (only supported module)
             if let libData = ROMLoader.loadModuleLibrary() {
                 wrapper.loadLibrary(libData)
-            } else if let libData = ROMLoader.loadLibrary() {
-                wrapper.loadLibrary(libData)  // legacy fallback
             }
             moduleCueCards = ROMLoader.loadModuleCueCards()
 

@@ -44,7 +44,7 @@ Support files:
 | `Calc-U-59App.swift` | App entry; persists TI-58C constant memory on scene background/inactive |
 | `MachineModel.swift` | Variant enum with hardware-specific metadata (card-switch col, RAM limits) |
 | `EmulatorViewModel.swift` | Central `@Observable` view model; owns the emulation loop, 60 Hz timer, and all I/O state |
-| `ROMLoader.swift` | Loads per-chip `.txt` ROM files and `MasterLibrary.hex` from the app bundle into `[UInt16]` word arrays |
+| `ROMLoader.swift` | Loads per-chip `.txt` ROM files and module library `.hex` files from the app bundle into `[UInt16]` word arrays |
 | `CardStorage.swift` | Resolves the card file URL in the iCloud container (or local Documents) and provides atomic read/write |
 | `StateFileLoader.swift` | Parses `.ti59`/`.ti58` state files; encodes `Double` values to TI-59 BCD nibble format |
 | `PC100CFont.swift` | 64-entry × 7-row dot-matrix bitmaps for the PC-100C printer character set |
@@ -243,8 +243,8 @@ Two sentinel values validate the TI-59 ROM image:
 - `words[0]   == 0x0A01` — first opcode (`CLR IDL` at address 0)
 - `words[6143] == 0x1987` — last opcode (also encodes the chip revision year)
 
-`MasterLibrary.hex` (a flat hex byte dump) is loaded by `ROMLoader.loadLibrary`
-and fed to `wrapper.loadLibrary`, populating the CPU's 5,000-byte library module
+The module library (ML01, e.g., `ML01-MasterLibrary.hex`) is loaded by `ROMLoader.loadModuleLibrary()`
+and fed to `wrapper.loadLibrary()`, populating the CPU's 5,000-byte library module
 buffer.
 
 ---

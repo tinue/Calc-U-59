@@ -132,13 +132,6 @@ struct ROMLoader {
         return rows
     }
 
-    /// Load MasterLibrary.hex from the app bundle (legacy path).
-    static func loadLibrary() -> Data? {
-        guard let url = Bundle.main.url(forResource: "MasterLibrary", withExtension: "hex"),
-              let text = try? String(contentsOf: url, encoding: .utf8) else { return nil }
-        return decodeHexFile(text)
-    }
-
     /// Decode a hex text file into Data.
     /// Each line contains pairs of hex digits (no spaces), which decode to bytes.
     /// Blank lines and comment lines are skipped.
