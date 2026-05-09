@@ -59,8 +59,232 @@ E': X \leftrightarrows Y
 A: X
 B: \to X + Y
 C: \to X × Y
-D: \to Y^x
-E: \to Y^(1/x)
+D: \to Y^{X}
+E: \to ^{X}\sqrt Y
+
+CUECARD: 5
+Template: SolidStateGridCard
+Title: COMPLEX FUNCTIONS
+ID: ML-05
+IDAlign: right
+A': \to ln X
+B': \to e^{x}
+C': \blank
+D': \blank
+E': \blank
+A: X
+B: \to r. \Theta
+C: \to X^{2}
+D: \to \sqrt X
+E: \to 1/X
+
+CUECARD: 6
+Template: SolidStateGridCard
+Title: CHANGEME
+ID: ML-06
+IDAlign: right
+A': \blank
+B': \blank
+C': \blank
+D': \blank
+E': \blank
+A: \blank
+B: \blank
+C: \blank
+D: \blank
+E: \blank
+
+CUECARD: 7
+Template: SolidStateGridCard
+Title: CHANGEME
+ID: ML-07
+IDAlign: right
+A': \blank
+B': \blank
+C': \blank
+D': \blank
+E': \blank
+A: \blank
+B: \blank
+C: \blank
+D: \blank
+E: \blank
+
+CUECARD: 8
+Template: SolidStateGridCard
+Title: CHANGEME
+ID: ML-08
+IDAlign: right
+A': \blank
+B': \blank
+C': \blank
+D': \blank
+E': \blank
+A: \blank
+B: \blank
+C: \blank
+D: \blank
+E: \blank
+
+CUECARD: 9
+Template: SolidStateGridCard
+Title: CHANGEME
+ID: ML-09
+IDAlign: right
+A': \blank
+B': \blank
+C': \blank
+D': \blank
+E': \blank
+A: \blank
+B: \blank
+C: \blank
+D: \blank
+E: \blank
+
+CUECARD: 10
+Template: SolidStateGridCard
+Title: CHANGEME
+ID: ML-10
+IDAlign: right
+A': \blank
+B': \blank
+C': \blank
+D': \blank
+E': \blank
+A: \blank
+B: \blank
+C: \blank
+D: \blank
+E: \blank
+
+CUECARD: 11
+Template: SolidStateGridCard
+Title: CHANGEME
+ID: ML-11
+IDAlign: right
+A': \blank
+B': \blank
+C': \blank
+D': \blank
+E': \blank
+A: \blank
+B: \blank
+C: \blank
+D: \blank
+E: \blank
+
+CUECARD: 12
+Template: SolidStateGridCard
+Title: CHANGEME
+ID: ML-12
+IDAlign: right
+A': \blank
+B': \blank
+C': \blank
+D': \blank
+E': \blank
+A: \blank
+B: \blank
+C: \blank
+D: \blank
+E: \blank
+
+CUECARD: 13
+Template: SolidStateGridCard
+Title: CHANGEME
+ID: ML-13
+IDAlign: right
+A': \blank
+B': \blank
+C': \blank
+D': \blank
+E': \blank
+A: \blank
+B: \blank
+C: \blank
+D: \blank
+E: \blank
+
+CUECARD: 14
+Template: SolidStateGridCard
+Title: CHANGEME
+ID: ML-14
+IDAlign: right
+A': \blank
+B': \blank
+C': \blank
+D': \blank
+E': \blank
+A: \blank
+B: \blank
+C: \blank
+D: \blank
+E: \blank
+
+CUECARD: 15
+Template: SolidStateGridCard
+Title: CHANGEME
+ID: ML-15
+IDAlign: right
+A': \blank
+B': \blank
+C': \blank
+D': \blank
+E': \blank
+A: \blank
+B: \blank
+C: \blank
+D: \blank
+E: \blank
+
+CUECARD: 16
+Template: SolidStateGridCard
+Title: CHANGEME
+ID: ML-16
+IDAlign: right
+A': \blank
+B': \blank
+C': \blank
+D': \blank
+E': \blank
+A: \blank
+B: \blank
+C: \blank
+D: \blank
+E: \blank
+
+CUECARD: 17
+Template: SolidStateGridCard
+Title: CHANGEME
+ID: ML-17
+IDAlign: right
+A': \blank
+B': \blank
+C': \blank
+D': \blank
+E': \blank
+A: \blank
+B: \blank
+C: \blank
+D: \blank
+E: \blank
+
+CUECARD: 18
+Template: SolidStateGridCard
+Title: CHANGEME
+ID: ML-18
+IDAlign: right
+A': \blank
+B': \blank
+C': \blank
+D': \blank
+E': \blank
+A: \blank
+B: \blank
+C: \blank
+D: \blank
+E: \blank
 
 CUECARD: 19
 Template: SolidStateGridCard
@@ -92,4 +316,84 @@ A: DATE 1
 B: DATE 2
 C: No. DAYS
 D: D \to D of W
+E: \blank
+
+CUECARD: 21
+Template: SolidStateGridCard
+Title: CHANGEME
+ID: ML-21
+IDAlign: right
+A': \blank
+B': \blank
+C': \blank
+D': \blank
+E': \blank
+A: \blank
+B: \blank
+C: \blank
+D: \blank
+E: \blank
+
+CUECARD: 22
+Template: SolidStateGridCard
+Title: CHANGEME
+ID: ML-22
+IDAlign: right
+A': \blank
+B': \blank
+C': \blank
+D': \blank
+E': \blank
+A: \blank
+B: \blank
+C: \blank
+D: \blank
+E: \blank
+
+CUECARD: 23
+Template: SolidStateGridCard
+Title: CHANGEME
+ID: ML-23
+IDAlign: right
+A': \blank
+B': \blank
+C': \blank
+D': \blank
+E': \blank
+A: \blank
+B: \blank
+C: \blank
+D: \blank
+E: \blank
+
+CUECARD: 24
+Template: SolidStateGridCard
+Title: CHANGEME
+ID: ML-24
+IDAlign: right
+A': \blank
+B': \blank
+C': \blank
+D': \blank
+E': \blank
+A: \blank
+B: \blank
+C: \blank
+D: \blank
+E: \blank
+
+CUECARD: 25
+Template: SolidStateGridCard
+Title: CHANGEME
+ID: ML-25
+IDAlign: right
+A': \blank
+B': \blank
+C': \blank
+D': \blank
+E': \blank
+A: \blank
+B: \blank
+C: \blank
+D: \blank
 E: \blank
