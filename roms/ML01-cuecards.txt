@@ -22,7 +22,7 @@ IDAlign: right
 A': i; \to x_{i}
 B': \to A^{-1}
 C': j; \to a_{i}_{j}^{-1}
-D':
+D': \blank
 E': \to |A|, A^{-1}
 A: n
 B: j: a_{i}_{j}
@@ -39,7 +39,7 @@ A': j: c_{i}_{j}
 B': i; x_{i}
 C': \to Ax
 D': i; \to y_{i}
-E':
+E': \blank
 A: m,n
 B: j: a_{i}_{j}
 C: j: b_{i}_{j}

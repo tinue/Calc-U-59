@@ -63,7 +63,7 @@ struct CueCardView: View, Equatable {
     // Column positions and widths extracted by analyzing SolidStateCardAreas.png
     // Uses proportional font at fixed base size (scales with view)
     private static let solidGridLayout = GridCardLayout(
-        titleFontSize: 14, gridFontSize: 16, bankFontSize: 14,
+        titleFontSize: 22, gridFontSize: 21, bankFontSize: 14,
         titleYFraction: 0.38, titleWidthFraction: 0.90,
         gridY0Fraction: 0.62, gridY1Fraction: 0.84,
         xFractions: [0.097, 0.288, 0.478, 0.668, 0.859],
@@ -209,7 +209,8 @@ struct CueCardView: View, Equatable {
         let row3Y  = h * layout.row3YFraction
         // Right margin: same for both id and row2R, positioned left of yellow border
         let rightX = w * layout.rightXFraction
-        let fs     = layout.fontSize
+        // Scale font proportionally to view width (same 800pt reference as solidStateGrid).
+        let fs     = layout.fontSize * (w / 800)
 
         // Program name row: title (left) and id (right, aligned with row2R)
         alignedText(card.title, fontSize: fs, align: .left,        x: w * 0.35, y: row1Y, width: w * 0.65)
@@ -285,12 +286,12 @@ struct CueCardView: View, Equatable {
             : titleAvailW / (CGFloat(card.title.count) * 0.64)
         let titleFS = min(layout.titleFontSize, titleByWidth)
 
-        // Scale font proportionally to view width
-        // Reference: 800 pt width (iPad-like) → 16 pt labels, 17 pt title
-        // Smaller screens get proportionally smaller fonts, with 10 pt minimum
+        // Scale font proportionally to view width.
+        // Reference: 800 pt width → layout.gridFontSize pt labels, (gridFontSize+1) pt title.
+        // No minimum floor: fonts shrink freely so text never clips on small screens.
         let scaleFactor = w / 800
-        let fontSize = max(10, layout.gridFontSize * scaleFactor)
-        let titleFontSize = max(11, (layout.gridFontSize + 1) * scaleFactor)
+        let fontSize = layout.gridFontSize * scaleFactor
+        let titleFontSize = (layout.gridFontSize + 1) * scaleFactor
 
         Text(card.title)
             .font(.system(size: titleFontSize, weight: .bold))
