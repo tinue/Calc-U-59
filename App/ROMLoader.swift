@@ -7,6 +7,9 @@ enum ROMLoaderError: Error {
     case wrongWordCount(Int)
 }
 
+// Module ID to load (set to a constant for easy testing; can be changed quickly)
+private let moduleIDToLoad = "LE"
+
 struct ModuleMetadata {
     var title: String = ""
     var sort: String = ""
@@ -48,6 +51,43 @@ struct ROMLoader {
             }
         }
         return words
+    }
+
+    /// Parse a solid-state module TMC*.txt file (decimal address + BCD byte values).
+    /// Format: header (5 lines), dashes separator, "ADDR: BCD DATA" column header, then lines like "0000: 21 00 ... (20 bytes)"
+    /// Each value is a 2-digit BCD number (00-99), stored as the hex representation (0x00-0x99).
+    static func parseTMCTxt(_ text: String) -> Data? {
+        var bytes = [UInt8](repeating: 0, count: 5000)
+        var maxAddr = 0
+        var pastHeader = false
+
+        for line in text.components(separatedBy: .newlines) {
+            let s = line.trimmingCharacters(in: .whitespaces)
+            if !pastHeader {
+                if s.hasPrefix("ADDR:") && s.contains("DATA") {
+                    pastHeader = true
+                }
+                continue
+            }
+            guard !s.isEmpty else { continue }
+
+            let parts = s.split(separator: ":", maxSplits: 1)
+            guard parts.count == 2 else { continue }
+            guard let addr = Int(parts[0].trimmingCharacters(in: .whitespaces)) else { continue }
+
+            // Parse BCD values: "21" means 0x21, not decimal 21
+            let values = parts[1].split(separator: " ").compactMap { UInt8(String($0), radix: 16) }
+            for (i, v) in values.enumerated() {
+                let idx = addr + i
+                if idx < 5000 {
+                    bytes[idx] = v
+                    maxAddr = max(maxAddr, idx + 1)
+                }
+            }
+        }
+
+        guard maxAddr > 0 else { return nil }
+        return Data(bytes[0..<maxAddr])
     }
 
     /// Parse a ROM .txt file (format: header block terminated by ---, then AAAA: WWWW WWWW ... lines).
@@ -138,35 +178,32 @@ struct ROMLoader {
         return rows
     }
 
-    /// Decode a hex text file into Data.
-    /// Each line contains pairs of hex digits (no spaces), which decode to bytes.
-    /// Blank lines and comment lines are skipped.
-    private static func decodeHexFile(_ text: String) -> Data? {
-        var bytes = [UInt8]()
-        for line in text.components(separatedBy: .newlines) {
-            let s = line.trimmingCharacters(in: .whitespaces)
-            guard !s.isEmpty else { continue }
-            var i = s.startIndex
-            while i < s.endIndex {
-                let j = s.index(i, offsetBy: 2, limitedBy: s.endIndex) ?? s.endIndex
-                guard j > i, let b = UInt8(s[i..<j], radix: 16) else { break }
-                bytes.append(b)
-                i = j
-            }
-        }
-        return bytes.isEmpty ? nil : Data(bytes)
+/// Load library ROM for the solid-state module specified by moduleIDToLoad.
+    /// Gets the ROM filename from cuecards.txt and loads the corresponding TMC*.txt file.
+    static func loadModuleLibrary() -> Data? {
+        guard let filename = romFilename(forModuleID: moduleIDToLoad) else { return nil }
+        let name = (filename as NSString).deletingPathExtension
+        let ext  = (filename as NSString).pathExtension
+        guard let url  = Bundle.main.url(forResource: name, withExtension: ext),
+              let text = try? String(contentsOf: url, encoding: .utf8) else { return nil }
+        return parseTMCTxt(text)
     }
 
-    /// Load library ROM for LE07 (the only supported solid-state module).
-    /// Searches for LE07-*.hex in the bundle.
-    static func loadModuleLibrary() -> Data? {
-        let prefix = "LE07-"
-        // Search the entire bundle for matching files (no subdirectory constraint)
-        guard let urls = Bundle.main.urls(forResourcesWithExtension: "hex",
-                                          subdirectory: nil) else { return nil }
-        guard let url = urls.first(where: { $0.lastPathComponent.hasPrefix(prefix) }),
-              let text = try? String(contentsOf: url, encoding: .utf8) else { return nil }
-        return decodeHexFile(text)
+    /// Get the ROM filename for a given module ID from cuecards.txt.
+    private static func romFilename(forModuleID id: String) -> String? {
+        guard let url = Bundle.main.url(forResource: "cuecards", withExtension: "txt") else { return nil }
+        guard let text = try? String(contentsOf: url, encoding: .utf8) else { return nil }
+
+        var currentModuleID: String? = nil
+        for line in text.components(separatedBy: .newlines) {
+            let s = line.components(separatedBy: "#").first?.trimmingCharacters(in: .whitespaces) ?? ""
+            if s.uppercased().hasPrefix("MODULE-ID:") {
+                currentModuleID = String(s.dropFirst("MODULE-ID:".count)).trimmingCharacters(in: .whitespaces)
+            } else if s.uppercased().hasPrefix("MODULE-ROM:"), currentModuleID == id {
+                return String(s.dropFirst("MODULE-ROM:".count)).trimmingCharacters(in: .whitespaces)
+            }
+        }
+        return nil
     }
 
     /// Load per-program cue cards for ML01 from the bundle.
@@ -177,33 +214,46 @@ struct ROMLoader {
         return cards
     }
 
-    /// Load per-program cue cards and module metadata for LE07.
-    /// Returns (cards dict, metadata).
+    /// Load per-program cue cards and module metadata from cuecards.txt.
+    /// Returns (cards dict, metadata) for the module specified by moduleIDToLoad.
     static func loadModuleCardsAndMetadata() -> ([Int: CueCardContent], ModuleMetadata) {
-        guard let urls = Bundle.main.urls(forResourcesWithExtension: "txt", subdirectory: nil),
-              let url = urls.first(where: { $0.lastPathComponent.hasPrefix("LE07") && $0.lastPathComponent.contains("cuecards") }),
+        guard let url = Bundle.main.url(forResource: "cuecards", withExtension: "txt"),
               let text = try? String(contentsOf: url, encoding: .utf8) else { return ([:], ModuleMetadata()) }
-        return parseCueCardFile(text)
+        return parseCueCardFile(text, moduleID: moduleIDToLoad)
     }
 
-    /// Parse a cue cards text file.
-    /// Format: MODULE-* metadata lines, then CUECARD: or CUECARD: N for program N.
-    /// Returns (cards dict, metadata).
-    private static func parseCueCardFile(_ text: String) -> ([Int: CueCardContent], ModuleMetadata) {
+    /// Parse cuecards.txt and extract cards and metadata for a specific module ID.
+    /// MODULE-ID is now the first line of each module section; this enables a simple state machine with no buffering.
+    private static func parseCueCardFile(_ text: String, moduleID: String) -> ([Int: CueCardContent], ModuleMetadata) {
         var result: [Int: CueCardContent] = [:]
         var current: CueCardContent? = nil
         var currentKey: Int = 0
         var metadata = ModuleMetadata()
+        var inTargetModule = false
 
         for rawLine in text.components(separatedBy: .newlines) {
-            // Strip comments and leading/trailing whitespace
             let line = rawLine.components(separatedBy: "#").first?
                 .trimmingCharacters(in: .whitespaces) ?? ""
             guard !line.isEmpty else { continue }
 
             let upper = line.uppercased()
 
-            // Parse module-level metadata
+            // MODULE-ID signals the start of a new module section.
+            // If we were already in the target module, flush the last card and stop.
+            if upper.hasPrefix("MODULE-ID:") {
+                if inTargetModule {
+                    if let card = current { result[currentKey] = card }
+                    break  // Done with target module
+                }
+                let id = String(line.dropFirst("MODULE-ID:".count)).trimmingCharacters(in: .whitespaces)
+                inTargetModule = (id == moduleID)
+                metadata.id = id
+                continue
+            }
+
+            guard inTargetModule else { continue }
+
+            // Parse module metadata (only when in target module)
             if upper.hasPrefix("MODULE-TITLE:") {
                 let value = String(line.dropFirst("MODULE-TITLE:".count))
                     .trimmingCharacters(in: .whitespaces)
@@ -216,19 +266,13 @@ struct ROMLoader {
                 metadata.sort = value
                 continue
             }
-            if upper.hasPrefix("MODULE-ID:") {
-                let value = String(line.dropFirst("MODULE-ID:".count))
-                    .trimmingCharacters(in: .whitespaces)
-                metadata.id = value
+            if upper.hasPrefix("MODULE-ROM:") {
+                // Skip; only used by romFilename(forModuleID:) lookup
                 continue
             }
 
             if upper.hasPrefix("CUECARD:") {
-                // Save the previous card if one exists
-                if let card = current {
-                    result[currentKey] = card
-                }
-                // Parse the program number (if any) from the header
+                if let card = current { result[currentKey] = card }
                 let rest = String(line.dropFirst("CUECARD:".count))
                     .trimmingCharacters(in: .whitespaces)
                 currentKey = Int(rest) ?? 0
@@ -236,12 +280,10 @@ struct ROMLoader {
                 continue
             }
 
-            // Feed non-header lines to the current card
             current?.parseLine(line)
         }
 
-        // Don't forget the last card
-        if let card = current {
+        if inTargetModule, let card = current {
             result[currentKey] = card
         }
         return (result, metadata)
