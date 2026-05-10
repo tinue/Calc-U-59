@@ -1,0 +1,72 @@
+# ret_bug_repo_2levels.ti59 — Reproduce bug with lost return address
+#
+# Note: The bug is fixed now, issue was in ALU/R5 interaction.
+#
+# The program is supposed to print this output and then stop:
+#         0.
+#        10.
+#        30.
+#        31.
+#        11.
+
+# However, the emulator loses the return address four times, before it finally retains it. Even then, it never reaches the 2nd subroutine. This leads to this output:
+#         0.
+#        10.
+#        30.
+#         0.
+#        10.
+#        30.
+#         0.
+#        10.
+#        30.
+#         0.
+#        10.
+#        30.
+#         0.
+#        10.
+#        30.
+#        11.
+#
+
+# Prepare the magnet card inlay
+CUECARD:
+Template: CueCard
+Title: Regression test for SBR issue
+A: Press R/S
+
+PROGRAM:
+000  25 CLR
+001  99 PRT
+002  71 SBR
+003  00  00
+004  10  10
+005  25 CLR
+006  01  1
+007  01  1
+008  99 PRT
+009  91 R/S
+010  25 CLR
+011  01  1
+012  00  0
+013  99 PRT
+014  71 SBR
+015  00  00
+016  30  30
+017  25 CLR
+018  03  3
+019  01  1
+020  99 PRT
+021  92 RTN
+022  00  0
+023  00  0
+024  00  0
+025  00  0
+026  00  0
+027  00  0
+028  00  0
+029  00  0
+030  25 CLR
+031  03  3
+032  00  0
+033  99 PRT
+034  92 RTN

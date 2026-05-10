@@ -1,0 +1,20 @@
+# Testfile for a MagnetCard
+
+CUECARD:
+Template: MagnetCard
+Title: Interest Rate Calc
+Banks: 1,2
+A: Principal
+B: Rate
+C: Time
+D: Amount
+E: Interest
+A': Monthly
+B': Quarterly
+C': Semi-Annual
+D': Annual
+E': Compound
+
+REGISTERS:
+00 = 5000
+01 = 8.5
