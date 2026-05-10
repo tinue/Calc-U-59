@@ -2,24 +2,7 @@ import Foundation
 
 // MARK: - Math token expansion
 
-/// Expands math-notation shorthand tokens to Unicode characters.
-/// Used in cue card content files to make math notation (Greek letters, subscripts, superscripts)
-/// easy to author without requiring a Unicode picker.
-///
-/// Supported tokens:
-/// - Greek: `\lambda`, `\sigma`, `\mu`, `\theta`, `\alpha`, `\beta`, `\Delta`, `\Sigma`, etc.
-/// - Arrows: `\to`, `\leftarrow`, `\updownarrow`
-/// - Subscripts: `_{i}`, `_{j}`, `_{0}`…`_{9}`, `_{a}`, `_{e}`, `_{o}`, `_{x}`, `_{n}`, `_{m}`, `_{k}`
-/// - Superscripts: `^{0}`…`^{9}`, `^{-1}`, `^{-}`, `^{+}`, `^{n}`, `^{T}`
-/// - Symbols: `\sqrt`, `\inf`, `\sum`, `\product`, `\integral`, `\approx`, `\neq`, `\leq`, `\geq`
-/// - Grid markers: `\blank` (invisible column marker for grid cards)
-///
-/// Example: `a_{i}_{j}^{-1}` → `aᵢⱼ⁻¹`
-func expandMathTokens(_ input: String) -> String {
-    var result = input
-
-    // Tokens are processed in order: longer matches before shorter ones that share a prefix
-    let tokens: [(String, String)] = [
+private let mathTokens: [(String, String)] = [
         // Greek letters
         ("\\lambda", "λ"),   // U+03BB
         ("\\Lambda", "Λ"),   // U+039B
@@ -122,10 +105,14 @@ func expandMathTokens(_ input: String) -> String {
         ("_{k}", "ₖ"),       // U+2096
     ]
 
-    for (token, unicode) in tokens {
+/// Expands math-notation shorthand tokens to Unicode characters.
+/// Used in cue card content files to make math notation (Greek letters, subscripts, superscripts)
+/// easy to author without requiring a Unicode picker.
+func expandMathTokens(_ input: String) -> String {
+    var result = input
+    for (token, unicode) in mathTokens {
         result = result.replacingOccurrences(of: token, with: unicode)
     }
-
     return result
 }
 
@@ -209,9 +196,6 @@ struct CueCardContent: Equatable {
             if let style = CardButtonStyle(rawValue: value.lowercased()) {
                 self.style = style
             }
-        case "idalign":
-            // Deprecated: idAlign field removed, always render id right-aligned
-            break
         case "row1align":
             self.row1Align = Self.parseAlignment(value)
         case "row2align":

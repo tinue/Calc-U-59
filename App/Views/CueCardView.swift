@@ -12,6 +12,7 @@ struct CueCardView: View, Equatable {
     }
 
     private static let goldColor = Color(red: 0xC4/255, green: 0x92/255, blue: 0x23/255)
+    private static let dividerColor = Color(red: 188/255.0, green: 157/255.0, blue: 96/255.0)
 
     // MARK: - Layout constants
 
@@ -280,9 +281,8 @@ struct CueCardView: View, Equatable {
             if !row0Spans.isEmpty {
                 let fontSize0 = min(scaledGridFS, cellFittingFontSize(spans: row0Spans, layout: layout, w: w))
                 if layout.drawsDividers {
-                    let dividerColor = Color(red: 188/255.0, green: 157/255.0, blue: 96/255.0)
                     let row0Dividers = dividersToDraw(for: row0Spans)
-                    dividerLine(dividerIndices: row0Dividers, yPosition: gridY0, dividerColor: dividerColor, dividerWidth: 1, dividerHeight: h * 0.202, layout: layout, w: w)
+                    dividerLine(dividerIndices: row0Dividers, yPosition: gridY0, dividerColor: Self.dividerColor, dividerWidth: 1, dividerHeight: h * 0.202, layout: layout, w: w)
                 }
                 gridRowLabels(spans: row0Spans, fontSize: fontSize0, yPosition: gridY0, layout: layout, w: w, color: layout.textColor)
             }
@@ -308,9 +308,8 @@ struct CueCardView: View, Equatable {
             if !row1Spans.isEmpty {
                 let fontSize1 = min(scaledGridFS, cellFittingFontSize(spans: row1Spans, layout: layout, w: w))
                 if layout.drawsDividers {
-                    let dividerColor = Color(red: 188/255.0, green: 157/255.0, blue: 96/255.0)
                     let row1Dividers = dividersToDraw(for: row1Spans)
-                    dividerLine(dividerIndices: row1Dividers, yPosition: gridY1, dividerColor: dividerColor, dividerWidth: 1, dividerHeight: h * 0.202, layout: layout, w: w)
+                    dividerLine(dividerIndices: row1Dividers, yPosition: gridY1, dividerColor: Self.dividerColor, dividerWidth: 1, dividerHeight: h * 0.202, layout: layout, w: w)
                 }
                 gridRowLabels(spans: row1Spans, fontSize: fontSize1, yPosition: gridY1, layout: layout, w: w, color: layout.textColor)
             }
