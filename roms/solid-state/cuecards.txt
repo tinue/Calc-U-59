@@ -8,7 +8,6 @@ CUECARD: 1
 Template: SolidStateCard
 Title: MASTER LIBRARY DIAGNOSTIC
 ID: ML-01
-IDAlign: right
 Row1: DIAGNOSTIC: SBR =
 Row1Align: center
 Row2: L.R. INIT: SBR CLR
@@ -17,10 +16,9 @@ Row2R: PRINT: mm STO 00
 Row2RAlign: right
 
 CUECARD: 2
-Template: SolidStateGridCard
+Template: SolidStateCard
 Title: DETERMINANT, MATRIX, & SIMUL. EQ.
 ID: ML-02
-IDAlign: right
 A': i; \to x_{i}
 B': \to A^{-1}
 C': j; \to a_{i}_{j}^{-1}
@@ -33,10 +31,9 @@ D: i: b_{i}
 E: \to x
 
 CUECARD: 3
-Template: SolidStateGridCard
+Template: SolidStateCard
 Title: MATRIX ADDITION AND MULTIPLICATION
 ID: ML-03
-IDAlign: right
 A': j: c_{i}_{j}
 B': i; x_{i}
 C': \to Ax
@@ -49,10 +46,9 @@ D: \lambda_{1},\lambda_{2}
 E: \lambda_{1}A + \lambda_{2}B
 
 CUECARD: 4
-Template: SolidStateGridCard
+Template: SolidStateCard
 Title: COMPLEX ARITHMETIC
 ID: ML-04
-IDAlign: right
 A': Y
 B': \to X - Y
 C': \to X ÷ Y
@@ -65,10 +61,9 @@ D: \to Y^{X}
 E: \to ^{X}\sqrt Y
 
 CUECARD: 5
-Template: SolidStateGridCard
+Template: SolidStateCard
 Title: COMPLEX FUNCTIONS
 ID: ML-05
-IDAlign: right
 A': \to ln X
 B': \to e^{x}
 C': \blank
@@ -81,10 +76,9 @@ D: \to \sqrt X
 E: \to 1/X
 
 CUECARD: 6
-Template: SolidStateGridCard
+Template: SolidStateCard
 Title: COMPLEX TRIG FUNCTIONS
 ID: ML-06
-IDAlign: right
 A': \blank
 B': \to sin^{-1}X
 C': \to cos^{-1}X
@@ -97,10 +91,9 @@ D: \to tan X
 E: \blank
 
 CUECARD: 7
-Template: SolidStateGridCard
+Template: SolidStateCard
 Title: POLYNOMINAL EVALUATION
 ID: ML-07
-IDAlign: right
 A': \blank
 B': \blank
 C': \blank
@@ -113,10 +106,9 @@ D: \blank
 E: \blank
 
 CUECARD: 8
-Template: SolidStateGridCard
+Template: SolidStateCard
 Title: ZEROS OF FUNCTIONS
 ID: ML-08
-IDAlign: right
 A': \blank
 B': \blank
 C': \blank
@@ -129,10 +121,9 @@ D: \epsilon
 E: \to x
 
 CUECARD: 9
-Template: SolidStateGridCard
+Template: SolidStateCard
 Title: SIMPSON'S APPROXIMATION (CONTINUOUS)
 ID: ML-09
-IDAlign: right
 A': \blank
 B': \blank
 C': \blank
@@ -145,10 +136,9 @@ D: \to I
 E: \blank
 
 CUECARD: 10
-Template: SolidStateGridCard
+Template: SolidStateCard
 Title: SIMPSON'S APPROXIMATION (DISCRETE)
 ID: ML-10
-IDAlign: right
 A': \blank
 B': \blank
 C': \blank
@@ -161,10 +151,9 @@ D: \to I
 E: \blank
 
 CUECARD: 11
-Template: SolidStateGridCard
+Template: SolidStateCard
 Title: TRIANGLE SOLUTION (1)
 ID: ML-11
-IDAlign: right
 A': SSS \angleA'
 B': \angleB'
 C': \angleC'  \angleA'
@@ -177,10 +166,9 @@ D: SSA c'
 E: SAS c'
 
 CUECARD: 12
-Template: SolidStateGridCard
+Template: SolidStateCard
 Title: TRIANGLE SOLUTION (2)
 ID: ML-12
-IDAlign: right
 A': ASA \angleA'
 B': SAA \angleB'
 C': AREA
@@ -193,10 +181,9 @@ D: b
 E: c
 
 CUECARD: 13
-Template: SolidStateGridCard
+Template: SolidStateCard
 Title: CURVE SOLUTION
 ID: ML-13
-IDAlign: right
 A': \Theta'
 B': r'
 C': s'
@@ -209,10 +196,9 @@ D: c
 E: A'
 
 CUECARD: 14
-Template: SolidStateGridCard
+Template: SolidStateCard
 Title: NORMAL DISTRIBUTION
 ID: ML-14
-IDAlign: right
 A': \blank
 B': \blank
 C': \blank
@@ -225,10 +211,9 @@ D: \blank
 E: \blank
 
 CUECARD: 15
-Template: SolidStateGridCard
+Template: SolidStateCard
 Title: RANDOM NUMBER GENERATOR
 ID: ML-15
-IDAlign: right
 A': \blank
 B': \blank
 C': No. (\xbar, \sigma)
@@ -241,10 +226,9 @@ D: \blank
 E: SEED
 
 CUECARD: 16
-Template: SolidStateGridCard
+Template: SolidStateCard
 Title: COMBINATIONS, PERMUTATIONS, FACTORIALS
 ID: ML-16
-IDAlign: right
 A': \blank
 B': \blank
 C': \blank
@@ -257,10 +241,9 @@ D: P(n,r)
 E: C(n,r)
 
 CUECARD: 17
-Template: SolidStateGridCard
+Template: SolidStateCard
 Title: MOVING AVERAGES
 ID: ML-17
-IDAlign: right
 A': \blank
 B': \blank
 C': \blank
@@ -273,10 +256,9 @@ D: \blank
 E: \blank
 
 CUECARD: 18
-Template: SolidStateGridCard
+Template: SolidStateCard
 Title: COMPOUND INTEREST
 ID: ML-18
-IDAlign: right
 A': S \nbar|i
 B': (1+i) S \nbar|i
 C': a \nbar|i
@@ -289,10 +271,9 @@ D: FV
 E: \blank
 
 CUECARD: 19
-Template: SolidStateGridCard
+Template: SolidStateCard
 Title: ANNUITIES
 ID: ML-19
-IDAlign: right
 A': Sinking Fund
 B': Ann Due/FV
 C': Ord Ann/PV
@@ -305,10 +286,9 @@ D: PV/FV
 E: B. PMT
 
 CUECARD: 20
-Template: SolidStateGridCard
+Template: SolidStateCard
 Title: DAY OF WEEK, DAYS BETWEEN DATES
 ID: ML-20
-IDAlign: right
 A': (M M D D. Y Y Y Y)
 B':
 C': \blank
@@ -321,10 +301,9 @@ D: D \to D of W
 E: \blank
 
 CUECARD: 21
-Template: SolidStateGridCard
+Template: SolidStateCard
 Title: HI-LO GAME
 ID: ML-21
-IDAlign: right
 A': M INIT
 B': M LO
 C': M HI
@@ -337,10 +316,9 @@ D: SCORE
 E: \blank
 
 CUECARD: 22
-Template: SolidStateGridCard
+Template: SolidStateCard
 Title: CHECKING/SAVINGS ACCOUNT
 ID: ML-22
-IDAlign: right
 A': Checking
 B': Savings
 C': I %/Yr
@@ -353,10 +331,9 @@ D: No Periods
 E: New Bal
 
 CUECARD: 23
-Template: SolidStateGridCard
+Template: SolidStateCard
 Title: DMS OPERATIONS
 ID: ML-23
-IDAlign: right
 A': (d d. m m s s)
 B':
 C': \blank
@@ -369,10 +346,9 @@ D: a \to n ÷ a
 E: \blank
 
 CUECARD: 24
-Template: SolidStateGridCard
+Template: SolidStateCard
 Title: UNIT CONVERSIONS (1)
 ID: ML-24
-IDAlign: right
 A': cm \to in
 B': m \to ft
 C': m \to yd
@@ -385,10 +361,9 @@ D: mi \to km
 E: mi \to n mi
 
 CUECARD: 25
-Template: SolidStateGridCard
+Template: SolidStateCard
 Title: UNIT CONVERSIONS (2)
 ID: ML-25
-IDAlign: right
 A': °C \to °F
 B': lit \to oz
 C': lit \to US gal
@@ -436,17 +411,15 @@ CUECARD: 1
 Template: SolidStateCard
 Title: LEISURE LIBRARY DIAGNOSTIC
 ID: LE-01
-IDAlign: right
 Row1: DIAGNOSTIC: SBR =
 Row1Align: center
 Row2: L.R. LINEAR REGRESSION INITIALIZATION: SBR CLR
 Row2Align: left
 
 CUECARD: 2
-Template: SolidStateGridCard
+Template: SolidStateCard
 Title: PHOTO I - EXPOSURE COMPENSATION
 ID: LE02
-IDAlign: right
 A': f(n)
 B': D(n)
 C': \blank
@@ -459,10 +432,9 @@ D: m
 E: \blank
 
 CUECARD: 3
-Template: SolidStateGridCard
+Template: SolidStateCard
 Title: PHOTO II - FILL-IN FLASH
 ID: LE-03
-IDAlign: right
 A': \blank
 B': \blank
 C': \blank
@@ -475,10 +447,9 @@ D: f \leftrightarrow dist
 E: \blank
 
 CUECARD: 4
-Template: SolidStateGridCard
+Template: SolidStateCard
 Title: FOOTBALL PREDICTOR
 ID: LE-04
-IDAlign: right
 A': \blank
 B': \blank
 C': \blank
@@ -491,10 +462,9 @@ D: \blank
 E: Prediction
 
 CUECARD: 5
-Template: SolidStateGridCard
+Template: SolidStateCard
 Title: BOWLING SCOREKEEPER
 ID: LE-05
-IDAlign: right
 A': #Bowlers
 B': \blank
 C': \blank
@@ -507,10 +477,9 @@ D: + Pins(10)
 E: Score
 
 CUECARD: 6
-Template: SolidStateGridCard
+Template: SolidStateCard
 Title: CHESS RATER
 ID: LE-06
-IDAlign: right
 A': Prov Games
 B': Edit Opp.
 C': \blank
@@ -523,10 +492,9 @@ D: Wins
 E: New Rating
 
 CUECARD: 7
-Template: SolidStateGridCard
+Template: SolidStateCard
 Title: GOLF HANDICAPPER
 ID: LE-07
-IDAlign: right
 A': #Rounds
 B': Latest AS.CR
 C': \blank
@@ -539,10 +507,9 @@ D: \blank
 E: Dekete
 
 CUECARD: 8
-Template: SolidStateGridCard
+Template: SolidStateCard
 Title: BRIDGE SCORER
 ID: LE-08
-IDAlign: right
 A': \blank
 B': \blank
 C': \blank
@@ -555,10 +522,9 @@ D: Doubled
 E: Contract
 
 CUECARD: 9
-Template: SolidStateGridCard
+Template: SolidStateCard
 Title: CODEBREAKER
 ID: LE-09
-IDAlign: right
 A': \blank
 B': \blank
 C': \blank
@@ -571,10 +537,9 @@ D: \blank
 E: Seed
 
 CUECARD: 10
-Template: SolidStateGridCard
+Template: SolidStateCard
 Title: MEMO PAD
 ID: LE-10
-IDAlign: right
 A': New Line
 B': Print All
 C': Edit
@@ -587,10 +552,9 @@ D: Number
 E: Space
 
 CUECARD: 11
-Template: SolidStateGridCard
+Template: SolidStateCard
 Title: BLACKJACK
 ID: LE-11
-IDAlign: right
 A': Ace
 B': \blank
 C': \blank
@@ -603,10 +567,9 @@ D: New Game
 E: Seed
 
 CUECARD: 12
-Template: SolidStateGridCard
+Template: SolidStateCard
 Title: ACEY-DEUCY
 ID: LE-12
-IDAlign: right
 A': Bet
 B': Number
 C': Bankroll
@@ -619,10 +582,9 @@ D: \blank
 E: Odds
 
 CUECARD: 13
-Template: SolidStateGridCard
+Template: SolidStateCard
 Title: CRAPS
 ID: LE-13
-IDAlign: right
 A': \blank
 B': \blank
 C': \blank
@@ -635,10 +597,9 @@ D: Last Roll
 E: Seed
 
 CUECARD: 14
-Template: SolidStateGridCard
+Template: SolidStateCard
 Title: MARS LANDER
 ID: LE-14
-IDAlign: right
 A': \blank
 B': \blank
 C': \blank
@@ -651,10 +612,9 @@ D: \blank
 E: Start
 
 CUECARD: 15
-Template: SolidStateGridCard
+Template: SolidStateCard
 Title: JIVE TURKEY
 ID: LE-15
-IDAlign: right
 A': \blank
 B': \blank
 C': \blank
@@ -667,10 +627,9 @@ D: Score
 E: Guess
 
 CUECARD: 16
-Template: SolidStateGridCard
+Template: SolidStateCard
 Title: HANGMAN
 ID: LE-16
-IDAlign: right
 A': \blank
 B': \blank
 C': \blank
@@ -683,10 +642,9 @@ D: Enter
 E: Word Guess
 
 CUECARD: 17
-Template: SolidStateGridCard
+Template: SolidStateCard
 Title: LEARNING NIM
 ID: LE-17
-IDAlign: right
 A': \blank
 B': \blank
 C': \blank
@@ -699,10 +657,9 @@ D: \blank
 E: New Game
 
 CUECARD: 18
-Template: SolidStateGridCard
+Template: SolidStateCard
 Title: FOOTBALL
 ID: LE-18
-IDAlign: right
 A': \blank
 B': \blank
 C': \blank
@@ -715,10 +672,9 @@ D: \blank
 E: Seed
 
 CUECARD: 19
-Template: SolidStateGridCard
+Template: SolidStateCard
 Title: COMPUTER ART
 ID: LE-19
-IDAlign: right
 A': \blank
 B': \blank
 C': \blank
@@ -731,10 +687,9 @@ D: P.S 4th
 E: Prediction
 
 CUECARD: 20
-Template: SolidStateGridCard
+Template: SolidStateCard
 Title: SEA BATTLE
 ID: LE-20
-IDAlign: right
 A': \blank
 B': \blank
 C': \blank
@@ -747,10 +702,9 @@ D: Display
 E: Fire
 
 CUECARD: 21
-Template: SolidStateGridCard
+Template: SolidStateCard
 Title: BIORHYTHMS
 ID: ML-21
-IDAlign: right
 A': (MM DD.YYYY)
 B':
 C': Compat

@@ -139,7 +139,6 @@ enum CueCardTemplate: String {
     case cueCard         = "CueCard"
     case magnetCard      = "MagnetCard"
     case solidState      = "SolidStateCard"
-    case solidStateGrid  = "SolidStateGridCard"
 }
 
 enum CardButtonStyle: String {
@@ -152,7 +151,6 @@ struct CueCardContent: Equatable {
     var title: String = ""
     var banks: (Int?, Int?) = (nil, nil)  // MagnetCard: (left badge, right badge), nil = blank
     var id: String = ""                   // SolidState: right of program-name row
-    var idAlign: TextAlign = .left
     var labels: [String] = Array(repeating: "", count: 10)  // [A,B,C,D,E, A′,B′,C′,D′,E′]
     var row1: String = ""
     var row1Align: TextAlign = .center
@@ -167,7 +165,6 @@ struct CueCardContent: Equatable {
         title: "MASTER LIBRARY DIAGNOSTIC",
         banks: (nil, nil),
         id: "ML-01",
-        idAlign: .right,
         labels: Array(repeating: "", count: 10),
         row1: "DIAGNOSTIC: SBR =",
         row1Align: .center,
@@ -199,6 +196,9 @@ struct CueCardContent: Equatable {
             self.banks = (left, right)
         case "id":
             self.id = expandMathTokens(value)
+        case "idalign":
+            // Deprecated: idAlign field removed, always render id right-aligned
+            break
         case "row1":
             self.row1 = expandMathTokens(value)
         case "row2":
@@ -210,7 +210,8 @@ struct CueCardContent: Equatable {
                 self.style = style
             }
         case "idalign":
-            self.idAlign = Self.parseAlignment(value)
+            // Deprecated: idAlign field removed, always render id right-aligned
+            break
         case "row1align":
             self.row1Align = Self.parseAlignment(value)
         case "row2align":
@@ -273,7 +274,6 @@ struct CueCardContent: Equatable {
         if row2RAlign != .left { lines.append("Row2RAlign: \(row2RAlign.rawValue)") }
 
         if style != .none { lines.append("Style: \(style.rawValue)") }
-        if idAlign != .left { lines.append("IDAlign: \(idAlign.rawValue)") }
 
         return lines
     }
@@ -294,7 +294,6 @@ struct CueCardContent: Equatable {
         lhs.title == rhs.title &&
         lhs.banks == rhs.banks &&
         lhs.id == rhs.id &&
-        lhs.idAlign == rhs.idAlign &&
         lhs.labels == rhs.labels &&
         lhs.row1 == rhs.row1 &&
         lhs.row1Align == rhs.row1Align &&

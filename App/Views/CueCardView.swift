@@ -27,15 +27,7 @@ struct CueCardView: View, Equatable {
         let cellWidthFraction: CGFloat
     }
 
-    private struct SolidStateLayout {
-        let fontSize: CGFloat
-        let row1YFraction: CGFloat
-        let row2YFraction: CGFloat
-        let row3YFraction: CGFloat
-        let rightXFraction: CGFloat
-    }
-
-    // Shared Y positions for SolidState layouts (both use the same card image)
+    // Shared Y positions for SolidState template (uses the same card image)
     private static let solidStateTitleYFraction: CGFloat = 0.355
     private static let solidStateRow1YFraction: CGFloat = 0.60
     private static let solidStateRow2YFraction: CGFloat = 0.84
@@ -58,17 +50,10 @@ struct CueCardView: View, Equatable {
         cellWidthFraction: 0.16
     )
 
-    private static let solidLayout = SolidStateLayout(
-        fontSize: 12,
-        row1YFraction: solidStateTitleYFraction, row2YFraction: solidStateRow1YFraction, row3YFraction: solidStateRow2YFraction,
-        rightXFraction: 0.80
-    )
-
-    // SolidStateGrid: 5-column layout with dividers, title + 2 rows of labels
+    // SolidState: unified layout for both free-text rows and label grids
     // Column positions and widths extracted by analyzing SolidStateCardAreas.png
     // Uses proportional font at fixed base size (scales with view)
-    // Y fractions shared with solidLayout to keep both in sync
-    private static let solidGridLayout = GridCardLayout(
+    private static let solidLayout = GridCardLayout(
         titleFontSize: 22, gridFontSize: 21, bankFontSize: 14,
         titleYFraction: solidStateTitleYFraction, titleWidthFraction: 0.90,
         gridY0Fraction: solidStateRow1YFraction, gridY1Fraction: solidStateRow2YFraction,
@@ -86,9 +71,7 @@ struct CueCardView: View, Equatable {
 
                 ZStack {
                     // Use exact view dimensions to keep artwork and overlay coordinates aligned.
-                    // SolidStateGrid uses the same image as SolidStateCard (just adds dividers)
-                    let imageName = card.template == .solidStateGrid ? "SolidStateCard" : card.template.rawValue
-                    Image(imageName)
+                    Image(card.template.rawValue)
                         .resizable()
                         .frame(width: w, height: h)
 
@@ -99,8 +82,6 @@ struct CueCardView: View, Equatable {
                         gridCardContent(layout: Self.magnetLayout, w: w, h: h)
                     case .solidState:
                         solidStateContent(layout: Self.solidLayout, w: w, h: h)
-                    case .solidStateGrid:
-                        solidStateGridContent(layout: Self.solidGridLayout, w: w, h: h)
                     }
 
                     // Top-wash overlay: exactly 28% of card height, same as original
@@ -206,7 +187,7 @@ struct CueCardView: View, Equatable {
         return max(size, layout.gridFontSize * 0.4)
     }
 
-    // MARK: - SolidStateCard layout
+    // MARK: - SolidStateCard layout (unified: free-text rows or label grids)
 
     @ViewBuilder
     private func titleAndIdRow(title: String, id: String, fontSize: CGFloat, x: CGFloat, y: CGFloat, width: CGFloat) -> some View {
@@ -225,44 +206,6 @@ struct CueCardView: View, Equatable {
                 .position(x: x, y: y)
         }
     }
-
-    @ViewBuilder
-    private func solidStateContent(layout: SolidStateLayout, w: CGFloat, h: CGFloat) -> some View {
-        let row1Y = h * layout.row1YFraction
-        let row2Y = h * layout.row2YFraction
-        let row3Y = h * layout.row3YFraction
-
-        // Same font scale as solidStateGrid (800pt reference width).
-        let gl = Self.solidGridLayout
-        let scaleFactor   = w / 800
-        let titleFS       = gl.titleFontSize * scaleFactor
-        let contentFS     = gl.gridFontSize  * scaleFactor
-
-        // Horizontal bounds: identical to solidStateGrid — same card image, same margins.
-        let charW         = titleFS * 0.64
-        let gridLeftX     = w * (gl.xFractions[0] - gl.cellWidthFraction / 2) + charW * 0.5
-        let gridRightX    = w * (gl.xFractions[4] + gl.cellWidthFraction / 2) - charW * 1.0
-        let gridWidth     = gridRightX - gridLeftX
-        let gridCenterX   = (gridLeftX + gridRightX) / 2
-
-        titleAndIdRow(title: card.title, id: card.id, fontSize: titleFS, x: gridCenterX, y: row1Y, width: gridWidth)
-
-        // Row 1: spans full grid width.
-        alignedText(card.row1, fontSize: contentFS, align: card.row1Align,
-                    x: gridCenterX, y: row2Y, width: gridWidth)
-
-        // Row 2: left portion (~70 %) + right portion (~30 %), right edge = gridRightX.
-        let leftWidth  = gridWidth * 0.70
-        let rightWidth = gridWidth * 0.30
-        let leftCenterX  = gridLeftX  + leftWidth  / 2
-        let rightCenterX = gridRightX - rightWidth / 2
-        alignedText(card.row2,  fontSize: contentFS, align: card.row2Align,
-                    x: leftCenterX,  y: row3Y, width: leftWidth)
-        alignedText(card.row2R, fontSize: contentFS, align: card.row2RAlign,
-                    x: rightCenterX, y: row3Y, width: rightWidth)
-    }
-
-    // MARK: - SolidStateGrid layout (grid with vertical dividers)
 
     private let invisibleMarker = "\u{200B}"  // Zero-width space marks columns as invisible/combined
 
@@ -342,7 +285,7 @@ struct CueCardView: View, Equatable {
     }
 
     @ViewBuilder
-    private func solidStateGridContent(layout: GridCardLayout, w: CGFloat, h: CGFloat) -> some View {
+    private func solidStateContent(layout: GridCardLayout, w: CGFloat, h: CGFloat) -> some View {
         let titleY = h * layout.titleYFraction
         let gridY0 = h * layout.gridY0Fraction
         let gridY1 = h * layout.gridY1Fraction
@@ -361,36 +304,54 @@ struct CueCardView: View, Equatable {
 
         titleAndIdRow(title: card.title, id: card.id, fontSize: titleFontSize, x: gridCenterX, y: titleY, width: gridWidth)
 
-        // Compute spans before rendering
-        let row0Spans = getColumnSpans(row: 0)
-        let row1Spans = getColumnSpans(row: 1)
-
-        // Render grid: 5 columns with dividers
-        let dividerColor = Color(red: 188/255.0, green: 157/255.0, blue: 96/255.0)  // RGB(188, 157, 96)
-        let dividerWidth: CGFloat = 1
-        let dividerHeightRow = h * 0.202
-
-        let row0Dividers = dividersToDraw(for: row0Spans)
-        dividerLine(dividerIndices: row0Dividers, yPosition: gridY0, dividerColor: dividerColor, dividerWidth: dividerWidth, dividerHeight: dividerHeightRow, layout: layout, w: w)
-
-        let row1Dividers = dividersToDraw(for: row1Spans)
-        dividerLine(dividerIndices: row1Dividers, yPosition: gridY1, dividerColor: dividerColor, dividerWidth: dividerWidth, dividerHeight: dividerHeightRow, layout: layout, w: w)
-
-        gridRowLabels(spans: row0Spans, fontSize: fontSize, yPosition: gridY0, layout: layout, w: w)
-        gridRowLabels(spans: row1Spans, fontSize: fontSize, yPosition: gridY1, layout: layout, w: w)
-    }
-
-    // Compute the largest font size at which every non-empty label in the grid fits its cell.
-    private func uniformGridFontSize(layout: GridCardLayout, w: CGFloat) -> CGFloat {
-        let cellWidth = w * layout.cellWidthFraction
-        var size = layout.gridFontSize
-        for idx in 0..<10 {
-            let label = card.labels[idx]
-            guard !label.isEmpty else { continue }
-            let fitting = cellWidth / (CGFloat(label.count) * 0.55)
-            if fitting < size { size = fitting }
+        // Top row area (Y=0.60): render row1 text OR label grid (A'-E')
+        if !card.row1.isEmpty {
+            // Free-text row1: spans full grid width
+            alignedText(card.row1, fontSize: fontSize, align: card.row1Align,
+                        x: gridCenterX, y: gridY0, width: gridWidth)
+        } else {
+            // Render label grid for row 0 (A'-E')
+            let row0Spans = getColumnSpans(row: 0)
+            if !row0Spans.isEmpty {
+                let dividerColor = Color(red: 188/255.0, green: 157/255.0, blue: 96/255.0)
+                let dividerWidth: CGFloat = 1
+                let dividerHeightRow = h * 0.202
+                let row0Dividers = dividersToDraw(for: row0Spans)
+                dividerLine(dividerIndices: row0Dividers, yPosition: gridY0, dividerColor: dividerColor, dividerWidth: dividerWidth, dividerHeight: dividerHeightRow, layout: layout, w: w)
+                gridRowLabels(spans: row0Spans, fontSize: fontSize, yPosition: gridY0, layout: layout, w: w)
+            }
         }
-        return max(size, layout.gridFontSize * 0.4)
+
+        // Bottom row area (Y=0.84): render row2/row2R OR label grid (A-E)
+        if !card.row2.isEmpty || !card.row2R.isEmpty {
+            // Free-text rows: row2 and/or row2R
+            if card.row2R.isEmpty {
+                // Only row2: use full grid width
+                alignedText(card.row2, fontSize: fontSize, align: card.row2Align,
+                            x: gridCenterX, y: gridY1, width: gridWidth)
+            } else {
+                // Both row2 and row2R: split 70%/30%
+                let leftWidth  = gridWidth * 0.70
+                let rightWidth = gridWidth * 0.30
+                let leftCenterX  = gridLeftX  + leftWidth  / 2
+                let rightCenterX = gridRightX - rightWidth / 2
+                alignedText(card.row2,  fontSize: fontSize, align: card.row2Align,
+                            x: leftCenterX,  y: gridY1, width: leftWidth)
+                alignedText(card.row2R, fontSize: fontSize, align: card.row2RAlign,
+                            x: rightCenterX, y: gridY1, width: rightWidth)
+            }
+        } else {
+            // Render label grid for row 1 (A-E)
+            let row1Spans = getColumnSpans(row: 1)
+            if !row1Spans.isEmpty {
+                let dividerColor = Color(red: 188/255.0, green: 157/255.0, blue: 96/255.0)
+                let dividerWidth: CGFloat = 1
+                let dividerHeightRow = h * 0.202
+                let row1Dividers = dividersToDraw(for: row1Spans)
+                dividerLine(dividerIndices: row1Dividers, yPosition: gridY1, dividerColor: dividerColor, dividerWidth: dividerWidth, dividerHeight: dividerHeightRow, layout: layout, w: w)
+                gridRowLabels(spans: row1Spans, fontSize: fontSize, yPosition: gridY1, layout: layout, w: w)
+            }
+        }
     }
 
     @ViewBuilder
@@ -444,25 +405,23 @@ struct CueCardView: View, Equatable {
         CueCardView(content: .ml01Default)
             .frame(height: 100)
 
-        Text("SolidState (ML02 with math tokens)")
+        Text("SolidState (ML02 with math tokens and free-text row1)")
             .font(.headline)
         CueCardView(content: CueCardContent(
             template: .solidState,
             title: "DETERMINANT, MATRIX, & SIMUL. EQ.",
             id: "ML-02",
-            idAlign: .right,
             row1: "i: \u{2192} x\u{1D62} | \u{2192} A⁻¹ | j: \u{2192} a\u{1D62}\u{1D6A}⁻¹ || \u{2192} |A|, A⁻¹",
             row1Align: .center
         ))
         .frame(height: 100)
 
-        Text("SolidStateGrid (ML02)")
+        Text("SolidState (ML02 with label grid)")
             .font(.headline)
         CueCardView(content: CueCardContent(
-            template: .solidStateGrid,
+            template: .solidState,
             title: "DETERMINANT, MATRIX, & SIMUL. EQ.",
             id: "ML-02",
-            idAlign: .right,
             labels: [
                 "i; \u{2192} x\u{1D62}", "\u{2192} A⁻¹", "j; \u{2192} a\u{1D62}\u{1D6A}⁻¹", "", "\u{2192} |A|, A⁻¹",
                 "n", "j: a\u{1D62}\u{1D6A}", "\u{2192} |A|", "i: b\u{1D62}", "\u{2192} x"

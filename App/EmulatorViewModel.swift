@@ -193,7 +193,6 @@ class EmulatorViewModel {
                     template: .solidState,
                     title: moduleMetadata.title,
                     id: moduleMetadata.id,
-                    idAlign: .right,
                     labels: Array(repeating: "", count: 10)
                 )
             }
