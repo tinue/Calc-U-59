@@ -36,25 +36,25 @@ struct CueCardView: View, Equatable {
     private static let solidStateRow1YFraction: CGFloat = 0.60
     private static let solidStateRow2YFraction: CGFloat = 0.84
 
-    // CueCard uses three visible text bands: title (124..227), row0 (227..329), row1 (329..430).
-    // Font sizes tuned for 800pt reference width; scales to ~19/14 at typical 350pt card width.
+    // CueCard: same font sizes and cellWidthFraction as SolidStateCard/MagnetCard.
+    // Keeps its own Y-axis coordinates; only background image differs from MagnetCard.
     private static let cueLayout = GridCardLayout(
-        titleFontSize: 44, gridFontSize: 32, bankFontSize: 37,
-        titleYFraction: 0.399, titleWidthFraction: 0.92,
+        titleFontSize: 22, gridFontSize: 21, bankFontSize: 20,
+        titleYFraction: 0.399, titleWidthFraction: 0.90,
         gridY0Fraction: 0.632, gridY1Fraction: 0.862,
-        xFractions: [0.101, 0.299, 0.494, 0.689, 0.884],
-        cellWidthFraction: 0.16,
+        xFractions: [0.099, 0.293, 0.487, 0.681, 0.879],
+        cellWidthFraction: 0.186,
         drawsDividers: false, textColor: .black, hasId: false, referenceWidth: 800
     )
 
-    // Derived from MagnetCard.png separator rows (px on 440px-high asset): separators≈100/223/331.
-    // Font sizes tuned for 800pt reference width; scales to ~19/14 at typical 350pt card width.
+    // MagnetCard uses same font sizes as SolidStateCard for consistency.
+    // Different card background (image) but matching font rendering and x-axis coordinates.
     private static let magnetLayout = GridCardLayout(
-        titleFontSize: 44, gridFontSize: 32, bankFontSize: 37,
-        titleYFraction: 0.385, titleWidthFraction: 0.70,
+        titleFontSize: 22, gridFontSize: 21, bankFontSize: 20,
+        titleYFraction: 0.385, titleWidthFraction: 0.90,
         gridY0Fraction: 0.635, gridY1Fraction: 0.875,
-        xFractions: [0.097, 0.289, 0.481, 0.673, 0.874],
-        cellWidthFraction: 0.16,
+        xFractions: [0.097, 0.288, 0.478, 0.668, 0.859],
+        cellWidthFraction: 0.186,
         drawsDividers: false, textColor: .black, hasId: false, referenceWidth: 800
     )
 
@@ -106,11 +106,13 @@ struct CueCardView: View, Equatable {
 
     // MARK: - Helper: compute largest font where labels fit in cells
 
+    // Character width multiplier: 0.64 × fontSize for SwiftUI system fonts at .bold weight
+    // This is used consistently throughout font sizing and positioning calculations
     private func cellFittingFontSize(spans: [(startCol: Int, endCol: Int, label: String)], layout: GridCardLayout, w: CGFloat) -> CGFloat {
         var size = layout.gridFontSize
         for span in spans {
             let spanWidth = w * layout.cellWidthFraction * CGFloat(span.endCol - span.startCol + 1)
-            let fitting = spanWidth / (CGFloat(span.label.count) * 0.6)
+            let fitting = spanWidth / (CGFloat(span.label.count) * 0.64)
             if fitting < size { size = fitting }
         }
         return max(size, layout.gridFontSize * 0.4)
@@ -227,11 +229,13 @@ struct CueCardView: View, Equatable {
         // Title row: shrink if title is too wide
         let titleAvailW = w * layout.titleWidthFraction
         let titleByWidth = card.title.isEmpty ? scaledTitleFS
-            : titleAvailW / (CGFloat(card.title.count) * 0.6)
+            : titleAvailW / (CGFloat(card.title.count) * 0.64)
         let titleFS = min(scaledTitleFS, titleByWidth)
 
-        // Divider-based geometry for content rows (applies to all templates)
-        let charW = titleFS * 0.64
+        // Divider-based geometry for content rows: calculated from grid font size, not title.
+        // This decouples grid sizing from title sizing, ensuring consistent grid rendering
+        // regardless of how much the title gets shrunk.
+        let charW = scaledGridFS * 0.64
         let gridLeftX  = w * (layout.xFractions[0] - layout.cellWidthFraction / 2) + charW * 0.5
         let gridRightX = w * (layout.xFractions[4] + layout.cellWidthFraction / 2) - charW * 1.0
         let gridWidth  = gridRightX - gridLeftX
