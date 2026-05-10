@@ -255,21 +255,23 @@ struct CueCardView: View, Equatable {
         }
 
         // BANK BADGES (MagnetCard only)
-        if let leftBank = card.banks.0 {
-            Text("\(leftBank)")
-                .font(.system(size: scaledBankFS, weight: .bold))
-                .foregroundColor(.black)
-                .frame(width: w * 0.12, height: h * 0.15)
-                .clipped()
-                .position(x: w * 0.08, y: h * 0.14)
-        }
-        if let rightBank = card.banks.1 {
-            Text("\(rightBank)")
-                .font(.system(size: scaledBankFS, weight: .bold))
-                .foregroundColor(.black)
-                .frame(width: w * 0.12, height: h * 0.15)
-                .clipped()
-                .position(x: w * 0.92, y: h * 0.14)
+        if card.template == .magnetCard {
+            if let leftBank = card.banks.0 {
+                Text("\(leftBank)")
+                    .font(.system(size: scaledBankFS, weight: .bold))
+                    .foregroundColor(.black)
+                    .frame(width: w * 0.12, height: h * 0.15)
+                    .clipped()
+                    .position(x: w * 0.08, y: h * 0.14)
+            }
+            if let rightBank = card.banks.1 {
+                Text("\(rightBank)")
+                    .font(.system(size: scaledBankFS, weight: .bold))
+                    .foregroundColor(.black)
+                    .frame(width: w * 0.12, height: h * 0.15)
+                    .clipped()
+                    .position(x: w * 0.92, y: h * 0.14)
+            }
         }
 
         // TOP ROW (gridY0): Row1 text OR label grid (A'-E')
