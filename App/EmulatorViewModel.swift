@@ -1,4 +1,5 @@
 import Foundation
+import os
 import SwiftUI
 
 enum FreezeReason {
@@ -26,6 +27,8 @@ enum DebugLevel: Int, Comparable {
 
 @Observable
 class EmulatorViewModel {
+    private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "Calc-U-59", category: "EmulatorViewModel")
+
     var displayDigits: [UInt8]  = Array(repeating: 0, count: 12)
     var displayCtrl:   [UInt8]  = Array(repeating: 0, count: 12)
     var displaySuppressedMask: UInt16 = 0
@@ -228,6 +231,8 @@ class EmulatorViewModel {
             // Load LE07 library (only supported module)
             if let libData = ROMLoader.loadModuleLibrary() {
                 wrapper.loadLibrary(libData)
+            } else {
+                Self.logger.error("Solid-state module library was not loaded; continuing without library data")
             }
             let (cards, metadata) = ROMLoader.loadModuleCardsAndMetadata()
             moduleCueCards = cards

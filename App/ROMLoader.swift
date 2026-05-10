@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 enum ROMLoaderError: Error {
     case fileNotFound
@@ -17,6 +18,8 @@ struct ModuleMetadata {
 }
 
 struct ROMLoader {
+    private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "Calc-U-59", category: "ROMLoader")
+
     /// Load the appropriate ROM files from the app bundle and return a [UInt16] array of 13-bit words.
     /// TI-58C uses CD2400, CD2401, TMC0573; TI-59 and TI-58 use TMC0582, TMC0583, TMC0571B.
     static func load(model: MachineModel) throws -> [UInt16] {
@@ -54,21 +57,29 @@ struct ROMLoader {
     }
 
     /// Parse a solid-state module TMC*.txt file (decimal address + BCD byte values).
-    /// Format: header (5 lines), dashes separator, "ADDR: BCD DATA" column header, then lines like "0000: 21 00 ... (20 bytes)"
+    /// Format: header, dashes separator, optional "ADDR: BCD DATA" column header,
+    /// then lines like "0000: 21 00 ... (20 bytes)".
     /// Each value is a 2-digit BCD number (00-99), stored as the hex representation (0x00-0x99).
     static func parseTMCTxt(_ text: String) -> Data? {
         var bytes = [UInt8](repeating: 0, count: 5000)
         var maxAddr = 0
-        var pastHeader = false
+        var inDataSection = false
 
         for line in text.components(separatedBy: .newlines) {
             let s = line.trimmingCharacters(in: .whitespaces)
-            if !pastHeader {
-                if s.hasPrefix("ADDR:") && s.contains("DATA") {
-                    pastHeader = true
+
+            if !inDataSection {
+                if s.hasPrefix("---") {
+                    inDataSection = true
                 }
                 continue
             }
+
+            // Some dumps include this header line; others start directly with address rows.
+            if s.uppercased().hasPrefix("ADDR:") && s.uppercased().contains("DATA") {
+                continue
+            }
+
             guard !s.isEmpty else { continue }
 
             let parts = s.split(separator: ":", maxSplits: 1)
@@ -86,7 +97,10 @@ struct ROMLoader {
             }
         }
 
-        guard maxAddr > 0 else { return nil }
+        guard maxAddr > 0 else {
+            logger.error("Failed to parse TMC text: no data rows found after separator")
+            return nil
+        }
         return Data(bytes[0..<maxAddr])
     }
 
@@ -181,18 +195,47 @@ struct ROMLoader {
 /// Load library ROM for the solid-state module specified by moduleIDToLoad.
     /// Gets the ROM filename from cuecards.txt and loads the corresponding TMC*.txt file.
     static func loadModuleLibrary() -> Data? {
-        guard let filename = romFilename(forModuleID: moduleIDToLoad) else { return nil }
+        guard let filename = romFilename(forModuleID: moduleIDToLoad) else {
+            logger.error("Failed to resolve MODULE-ROM for module ID \(moduleIDToLoad, privacy: .public)")
+            return nil
+        }
         let name = (filename as NSString).deletingPathExtension
         let ext  = (filename as NSString).pathExtension
-        guard let url  = Bundle.main.url(forResource: name, withExtension: ext),
-              let text = try? String(contentsOf: url, encoding: .utf8) else { return nil }
-        return parseTMCTxt(text)
+        guard !ext.isEmpty else {
+            logger.error("Invalid MODULE-ROM filename without extension: \(filename, privacy: .public)")
+            return nil
+        }
+        guard let url = Bundle.main.url(forResource: name, withExtension: ext) else {
+            logger.error("Solid-state ROM resource not found in bundle: \(filename, privacy: .public)")
+            return nil
+        }
+        let text: String
+        do {
+            text = try String(contentsOf: url, encoding: .utf8)
+        } catch {
+            logger.error("Failed reading solid-state ROM \(filename, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+        guard let data = parseTMCTxt(text) else {
+            logger.error("Failed parsing solid-state ROM \(filename, privacy: .public)")
+            return nil
+        }
+        return data
     }
 
     /// Get the ROM filename for a given module ID from cuecards.txt.
     private static func romFilename(forModuleID id: String) -> String? {
-        guard let url = Bundle.main.url(forResource: "cuecards", withExtension: "txt") else { return nil }
-        guard let text = try? String(contentsOf: url, encoding: .utf8) else { return nil }
+        guard let url = Bundle.main.url(forResource: "cuecards", withExtension: "txt") else {
+            logger.error("cuecards.txt not found in app bundle")
+            return nil
+        }
+        let text: String
+        do {
+            text = try String(contentsOf: url, encoding: .utf8)
+        } catch {
+            logger.error("Failed reading cuecards.txt: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
 
         var currentModuleID: String? = nil
         for line in text.components(separatedBy: .newlines) {
@@ -203,6 +246,7 @@ struct ROMLoader {
                 return String(s.dropFirst("MODULE-ROM:".count)).trimmingCharacters(in: .whitespaces)
             }
         }
+        logger.error("No MODULE-ROM entry found for module ID \(id, privacy: .public)")
         return nil
     }
 
@@ -217,8 +261,17 @@ struct ROMLoader {
     /// Load per-program cue cards and module metadata from cuecards.txt.
     /// Returns (cards dict, metadata) for the module specified by moduleIDToLoad.
     static func loadModuleCardsAndMetadata() -> ([Int: CueCardContent], ModuleMetadata) {
-        guard let url = Bundle.main.url(forResource: "cuecards", withExtension: "txt"),
-              let text = try? String(contentsOf: url, encoding: .utf8) else { return ([:], ModuleMetadata()) }
+        guard let url = Bundle.main.url(forResource: "cuecards", withExtension: "txt") else {
+            logger.error("cuecards.txt not found while loading module cards/metadata")
+            return ([:], ModuleMetadata())
+        }
+        let text: String
+        do {
+            text = try String(contentsOf: url, encoding: .utf8)
+        } catch {
+            logger.error("Failed reading cuecards.txt for cards/metadata: \(error.localizedDescription, privacy: .public)")
+            return ([:], ModuleMetadata())
+        }
         return parseCueCardFile(text, moduleID: moduleIDToLoad)
     }
 

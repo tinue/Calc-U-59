@@ -3,7 +3,7 @@
 CUECARD:
 Template: CueCard
 Title: Quadratic Solver
-A: solve ax²+bx+c
+A: solve ax^{2}+bx+c
 B: roots
 C: discriminant
 D:
