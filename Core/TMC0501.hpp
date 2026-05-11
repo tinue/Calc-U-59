@@ -78,6 +78,11 @@ enum : uint16_t {
     FLG_BUSY      = 0x8000, // Printer / peripheral busy signal; tested by TST BUSY.
 };
 
+// ── SCOM layout constants ──────────────────────────────────────────────────────
+enum : uint8_t {
+    SCOM_PRG_SOURCE_NIBBLE = 3,  // SCOM[0][3] — program source flag (1=solid state, 8=ROM, 0/4=user)
+};
+
 // ── TMC0501 CPU ───────────────────────────────────────────────────────────────
 //
 // 4-bit BCD digit-serial processor at the heart of the TI-59/58/58C.
@@ -220,6 +225,16 @@ public:
     /// Direct SCOM nibble access (row 0–15, col 0–15).
     uint8_t  scomNibble(int row, int col) const { return SCOM[row][col]; }
     void setSCOMNibble(int row, int col, uint8_t val) { SCOM[row][col] = val & 0xF; }
+
+    /// Get the program counter encoded in SCOM[0] nibbles 4–7.
+    /// PC = n7×800 + n6×80 + n5×8 + n4 (see CLAUDE.md for encoding details).
+    uint16_t scomPC() const {
+        uint8_t n4 = scomNibble(0, 4);
+        uint8_t n5 = scomNibble(0, 5);
+        uint8_t n6 = scomNibble(0, 6);
+        uint8_t n7 = scomNibble(0, 7);
+        return (n7 * 800) + (n6 * 80) + (n5 * 8) + n4;
+    }
 
     /// Read a ROM keycode (PRG SOURCE = 8) by address 0–383.
     /// Returns 0 for out-of-range addresses.

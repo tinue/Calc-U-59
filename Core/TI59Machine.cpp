@@ -111,9 +111,7 @@ void TI59Machine::setPartitionProgramRegs(int programRAMregs) {
 }
 
 int TI59Machine::insertedModuleNumber() const {
-    // SCOM[9][4] = tens nibble, SCOM[9][3] = units nibble
-    // Matches Swift cue card logic: SCOM.9.4 * 10 + SCOM.9.3
-    // (hardware encoding: nibble4=0,nibble3=1 → ML01; nibble4=2,nibble3=0 → ML20)
+    // Module number: SCOM[9] nibbles 4 (tens) and 3 (units)
     int tens  = static_cast<int>(m_cpu.scomNibble(9, 4));
     int units = static_cast<int>(m_cpu.scomNibble(9, 3));
     return (tens * 10) + units;
@@ -240,14 +238,11 @@ uint32_t TI59Machine::stepN(uint32_t n, bool stopOnBreakpoint) {
 
 uint32_t TI59Machine::stepUntilNextKeycode(uint32_t maxCycles) {
     std::lock_guard<std::mutex> lock(m_keyMutex);
-    uint8_t prSourceFlag = m_cpu.scomNibble(0, 3);
+    uint8_t prSourceFlag = m_cpu.scomNibble(0, SCOM_PRG_SOURCE_NIBBLE);
     int initialVpc = -1;
-    uint8_t n4 = m_cpu.scomNibble(0, 4);
-    uint8_t n5 = m_cpu.scomNibble(0, 5);
-    uint8_t n6 = m_cpu.scomNibble(0, 6);
-    uint8_t n7 = m_cpu.scomNibble(0, 7);
+    uint16_t initialScomPC = m_cpu.scomPC();
 
-    // For solid state, capture the initial virtual PC
+    // For solid state (source 1), capture the initial virtual PC
     if (prSourceFlag == 1) {
         initialVpc = m_cpu.getVirtualLibPc();
     }
@@ -258,17 +253,19 @@ uint32_t TI59Machine::stepUntilNextKeycode(uint32_t maxCycles) {
         done += static_cast<uint32_t>(w);
         if (m_cpu.consumeBreakpointHit()) { break; }
 
-        // For solid state (source 1), check if virtual PC changed
+        // Check if keycode boundary was crossed (different for solid-state vs. other sources)
+        bool crossedBoundary = false;
         if (prSourceFlag == 1) {
+            // For solid state (source 1), check if virtual PC changed
             int vpc = m_cpu.getVirtualLibPc();
-            bool stepped = (initialVpc < 0 && vpc >= 0) ||   // entered program
-                           (initialVpc >= 0 && vpc >= 0 && vpc != initialVpc);  // advanced within program
-            if (stepped) { break; }
+            crossedBoundary = (initialVpc < 0 && vpc >= 0) ||           // entered program
+                              (initialVpc >= 0 && vpc >= 0 && vpc != initialVpc);  // advanced within program
         } else {
             // For other sources, check if SCOM[0] program counter changed
-            if (m_cpu.scomNibble(0, 4) != n4 || m_cpu.scomNibble(0, 5) != n5 ||
-                m_cpu.scomNibble(0, 6) != n6 || m_cpu.scomNibble(0, 7) != n7) { break; }
+            crossedBoundary = (m_cpu.scomPC() != initialScomPC);
         }
+
+        if (crossedBoundary) { break; }
     }
     return done;
 }
