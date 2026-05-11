@@ -112,10 +112,11 @@ void TI59Machine::setPartitionProgramRegs(int programRAMregs) {
 
 int TI59Machine::insertedModuleNumber() const {
     // SCOM[9][4] = tens nibble, SCOM[9][3] = units nibble
-    // (hardware encoding: nibble4=0,nibble3=1 → ML01; nibble4=1,nibble3=0 → ML10)
+    // Matches Swift cue card logic: SCOM.9.4 * 10 + SCOM.9.3
+    // (hardware encoding: nibble4=0,nibble3=1 → ML01; nibble4=2,nibble3=0 → ML20)
     int tens  = static_cast<int>(m_cpu.scomNibble(9, 4));
     int units = static_cast<int>(m_cpu.scomNibble(9, 3));
-    return tens * 10 + units;
+    return (tens * 10) + units;
 }
 
 // ── Magnetic card reader ───────────────────────────────────────────────────────
@@ -239,19 +240,45 @@ uint32_t TI59Machine::stepN(uint32_t n, bool stopOnBreakpoint) {
 
 uint32_t TI59Machine::stepUntilNextKeycode(uint32_t maxCycles) {
     std::lock_guard<std::mutex> lock(m_keyMutex);
+    uint8_t prSourceFlag = m_cpu.scomNibble(0, 3);
+    int initialVpc = -1;
     uint8_t n4 = m_cpu.scomNibble(0, 4);
     uint8_t n5 = m_cpu.scomNibble(0, 5);
     uint8_t n6 = m_cpu.scomNibble(0, 6);
     uint8_t n7 = m_cpu.scomNibble(0, 7);
+
+    // For solid state, capture the initial virtual PC
+    if (prSourceFlag == 1) {
+        initialVpc = m_cpu.getVirtualLibPc();
+    }
+
     uint32_t done = 0;
     while (done < maxCycles) {
         int w = m_cpu.step();          // returns 1 (active) or 4 (IDLE)
         done += static_cast<uint32_t>(w);
         if (m_cpu.consumeBreakpointHit()) { break; }
-        if (m_cpu.scomNibble(0, 4) != n4 || m_cpu.scomNibble(0, 5) != n5 ||
-            m_cpu.scomNibble(0, 6) != n6 || m_cpu.scomNibble(0, 7) != n7) { break; }
+
+        // For solid state (source 1), check if virtual PC changed
+        if (prSourceFlag == 1) {
+            int vpc = m_cpu.getVirtualLibPc();
+            bool stepped = (initialVpc < 0 && vpc >= 0) ||   // entered program
+                           (initialVpc >= 0 && vpc >= 0 && vpc != initialVpc);  // advanced within program
+            if (stepped) { break; }
+        } else {
+            // For other sources, check if SCOM[0] program counter changed
+            if (m_cpu.scomNibble(0, 4) != n4 || m_cpu.scomNibble(0, 5) != n5 ||
+                m_cpu.scomNibble(0, 6) != n6 || m_cpu.scomNibble(0, 7) != n7) { break; }
+        }
     }
     return done;
+}
+
+int TI59Machine::virtualLibPc() const {
+    return m_cpu.getVirtualLibPc();
+}
+
+int TI59Machine::currentProgramKeycodes(uint8_t* out, int maxOut) const {
+    return m_cpu.getCurrentProgramKeycodes(out, maxOut);
 }
 
 uint16_t TI59Machine::pc() const {
@@ -304,6 +331,10 @@ uint8_t TI59Machine::readProgramStep(int stepAddr) const {
 
 uint8_t TI59Machine::readROMKeycode(int addr) const {
     return m_cpu.romKeycode(addr);
+}
+
+uint8_t TI59Machine::readLibKeycode(int addr) const {
+    return m_cpu.libKeycode(addr);
 }
 
 CpuFrame TI59Machine::snapshotCPU() const {

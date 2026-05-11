@@ -8,6 +8,7 @@
 #include <vector>
 #include "TraceTypes.hpp"
 #include "MachineVariant.hpp"
+#include "TMC0540.hpp"
 
 class ROM;
 class RAM;
@@ -231,6 +232,27 @@ public:
         return static_cast<uint8_t>((tens * 10) + units);
     }
 
+    /// Read a library keycode (PRG SOURCE = 1) by address 0–4999.
+    /// Each byte is BCD: high nibble = tens, low nibble = units.
+    /// Returns 0 for out-of-range addresses.
+    uint8_t libKeycode(int addr) const {
+        return m_lib.libKeycode(addr);
+    }
+
+    /// Get the current library address counter (hardware counter in SecondROM chip).
+    /// Post-increments after each IN LIB fetch.
+    uint16_t getLibAddr() const { return m_lib.getAddr(); }
+
+    /// Get the virtual program counter for solid-state ROM (library).
+    /// Returns -1 when not in any program range; returns 0+ for program-relative step.
+    int getVirtualLibPc() const { return m_lib.getVirtualLibPc(); }
+
+    /// Get all keycodes from the current program in solid-state ROM.
+    /// Returns count; returns 0 if not in any program range.
+    int getCurrentProgramKeycodes(uint8_t* out, int maxOut) const {
+        return m_lib.getCurrentProgramKeycodes(out, maxOut);
+    }
+
 private:
     ROM& rom;
     RAM& ram;
@@ -280,10 +302,7 @@ private:
     MaskInfo RAM_MASK{0xFF, 0, 0, 0};  // Field mask for current RAM read/write operation.
 
     // ── Library module state ──────────────────────────────────────────
-    uint16_t m_libAddr{};       // Current address within the loaded library image.
-    uint8_t  m_libAddrReadPos{}; // Position counter for reading address digits (0-3, cycles).
-    bool     m_libAddrWasWriting{}; // Track direction: true=writing (OUT), false=reading (IN)
-    uint8_t  m_libData[5000]{}; // Library module byte image (up to 5,000 bytes).
+    TMC0540  m_lib;
 
     // ── Machine variant ───────────────────────────────────────────────
     MachineVariant       m_variant{};           // TI-59, TI-58, or TI-58C (affects instruction decoding).
