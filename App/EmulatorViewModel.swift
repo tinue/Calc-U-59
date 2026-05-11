@@ -721,7 +721,7 @@ class EmulatorViewModel {
 
     func persistConstantMemory() {
         guard model.hasConstantMemory, let data = machine?.serialiseRAM() else { return }
-        let text = encodeConstantMemoryToText(data, cueCard: cueCardContent)
+        let text = encodeConstantMemoryToText(data, cueCard: userCueCardContent)
         let url = Self.constantMemoryURL
         try? text.write(to: url, atomically: true, encoding: .utf8)
     }
@@ -2070,6 +2070,10 @@ class EmulatorViewModel {
 
         guard let m = machine else { return }
         m.reset()
+
+        // Clear program state: when loading a state file, no program should be active.
+        // This ensures that the loaded custom cue card (or nil) is displayed, not a leftover program card.
+        activeProgramNumber = 0
 
         // Run the ROM's power-on startup routine until it reaches idle mode.
         // 300,000 instructions is a conservative upper bound; the actual startup
