@@ -25,6 +25,13 @@ enum DebugLevel: Int, Comparable {
     }
 }
 
+enum ProgramSource: UInt8 {
+    case userProgram = 0
+    case solidState = 1
+    case fastMode = 4
+    case rom = 8
+}
+
 @Observable
 class EmulatorViewModel {
     private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "Calc-U-59", category: "EmulatorViewModel")
@@ -1014,9 +1021,9 @@ class EmulatorViewModel {
                 let currentStep = self.decodeProgramCounter(from: cpu)
                 let prSourceFlag = UInt8(cpu.SCOM.0.3)
                 self.cachedPrSourceFlag = prSourceFlag
-                if prSourceFlag == 0 {
+                if self.isUserProgramSource(prSourceFlag) {
                     self.frozenRAMCache = self.buildFullProgram(machine: m, currentStep: currentStep, prSourceFlag: 0)
-                } else if prSourceFlag == 8 {
+                } else if prSourceFlag == ProgramSource.rom.rawValue {
                     self.frozenROMCache = self.buildFullProgram(machine: m, currentStep: currentStep, prSourceFlag: 8)
                 }
                 if self.liveDebugEnabled {
@@ -1046,10 +1053,10 @@ class EmulatorViewModel {
                 // Check if Prg Source changed; if so, rebuild appropriate cache
                 if prSourceFlag != self.cachedPrSourceFlag {
                     self.cachedPrSourceFlag = prSourceFlag
-                    if prSourceFlag == 0 {
+                    if self.isUserProgramSource(prSourceFlag) {
                         self.frozenRAMCache = self.buildFullProgram(machine: m, currentStep: currentStep, prSourceFlag: 0)
                         self.frozenROMCache = nil
-                    } else if prSourceFlag == 8 {
+                    } else if prSourceFlag == ProgramSource.rom.rawValue {
                         self.frozenROMCache = self.buildFullProgram(machine: m, currentStep: currentStep, prSourceFlag: 8)
                         self.frozenRAMCache = nil
                     }
@@ -1119,12 +1126,12 @@ class EmulatorViewModel {
     /// Update isCurrent markers in the cached program for the given current step.
     /// Clears old current marker and sets new one.
     private func updateCachedProgramCurrent(to currentStep: Int, prSourceFlag: UInt8) {
-        if prSourceFlag == 0, var cache = frozenRAMCache {
+        if isUserProgramSource(prSourceFlag), var cache = frozenRAMCache {
             for i in 0..<cache.count {
                 cache[i].isCurrent = (cache[i].stepNum == currentStep)
             }
             frozenRAMCache = cache
-        } else if prSourceFlag == 8, var cache = frozenROMCache {
+        } else if prSourceFlag == ProgramSource.rom.rawValue, var cache = frozenROMCache {
             for i in 0..<cache.count {
                 cache[i].isCurrent = (cache[i].stepNum == currentStep)
             }
@@ -1134,9 +1141,9 @@ class EmulatorViewModel {
 
     /// Return the full cached program when frozen, or nil if not frozen.
     var frozenCachedProgram: [LiveDebugSnapshot.StepEntry]? {
-        if cachedPrSourceFlag == 0 {
+        if isUserProgramSource(cachedPrSourceFlag) {
             return frozenRAMCache
-        } else if cachedPrSourceFlag == 8 {
+        } else if cachedPrSourceFlag == ProgramSource.rom.rawValue {
             return frozenROMCache
         }
         return nil
@@ -1155,6 +1162,18 @@ class EmulatorViewModel {
         cachedPrSourceFlag = 0
         startEmulationLoop()
         startDisplayRefresh()
+    }
+
+    // MARK: - Program source helpers
+
+    /// Returns true if the flag represents a user-stored program (User RAM or Fast Mode).
+    private func isUserProgramSource(_ flag: UInt8) -> Bool {
+        flag == ProgramSource.userProgram.rawValue || flag == ProgramSource.fastMode.rawValue
+    }
+
+    /// Returns true if the flag represents a displayable program source in the debug window.
+    private func isDisplayableSource(_ flag: UInt8) -> Bool {
+        flag == ProgramSource.userProgram.rawValue || flag == ProgramSource.fastMode.rawValue || flag == ProgramSource.rom.rawValue
     }
 
     // MARK: - Calculator-level snapshot
@@ -1427,31 +1446,32 @@ class EmulatorViewModel {
         snap.engIndicator = engBit ? "Eng" : ""
 
         // Program steps window — source depends on PRG SOURCE flag
-        // Note: PC calculation for program source 0 (user RAM) is currently disabled
-        // until we understand how ROM PC maps to user-loaded programs
-        let decodedPC = snap.prSourceFlag == 0 ? -1 : decodeProgramCounter(from: cpu)
+        let decodedPC = decodeProgramCounter(from: cpu)
 
-        // When frozen: currentStep is the last executed instruction,
-        // nextStep is what PC points to (next to execute)
-        if snap.prSourceFlag == 0 {
-            // User RAM: PC not yet supported
-            snap.currentStep = -1
-            snap.nextStepNum = -1
-        } else if isFrozen {
-            snap.currentStep = max(0, decodedPC - 1)
-            snap.nextStepNum = decodedPC
+        // Only display for sources we can fetch: 0 (User), 4 (Fast Mode), 8 (ROM)
+        let canDisplay = isDisplayableSource(snap.prSourceFlag)
+
+        if canDisplay {
+            if isFrozen {
+                snap.currentStep = max(0, decodedPC - 1)
+                snap.nextStepNum = decodedPC
+            } else {
+                // When running: currentStep is the next to execute (pre-execution state)
+                snap.currentStep = decodedPC
+                snap.nextStepNum = -1
+            }
         } else {
-            // When running: currentStep is the next to execute (pre-execution state)
-            snap.currentStep = decodedPC
+            // Unknown source (e.g., 1 = Solid State): can't display
+            snap.currentStep = -1
             snap.nextStepNum = -1
         }
 
         // Pre-fetch RAM program steps once (used by both window and nextStep population)
-        let ramSteps = snap.prSourceFlag == 0 ? Array(m.allProgramSteps() as Data) : []
+        let ramSteps = isUserProgramSource(snap.prSourceFlag) ? Array(m.allProgramSteps() as Data) : []
 
         switch snap.prSourceFlag {
-        case 0:
-            // User RAM — existing behavior
+        case 0, 4:
+            // User RAM (0) or Fast Mode (4) — existing behavior
             let steps = ramSteps
             if !steps.isEmpty {
                 let center = snap.currentStep >= 0 ? snap.currentStep : 0
@@ -1529,8 +1549,8 @@ class EmulatorViewModel {
         // When frozen: populate nextStep fields from the next instruction to execute
         if isFrozen && snap.nextStepNum >= 0 {
             switch snap.prSourceFlag {
-            case 0:
-                // User RAM (steps already fetched above)
+            case 0, 4:
+                // User RAM (0) or Fast Mode (4) (steps already fetched above)
                 if snap.nextStepNum < ramSteps.count {
                     let nextKeycode = ramSteps[snap.nextStepNum]
                     snap.nextStepKeycode = nextKeycode

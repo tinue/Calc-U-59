@@ -9,7 +9,7 @@ enum ROMLoaderError: Error {
 }
 
 // Module ID to load (set to a constant for easy testing; can be changed quickly)
-private let moduleIDToLoad = "LE"
+private let moduleIDToLoad = "ML"
 
 struct ModuleMetadata {
     var title: String = ""

@@ -183,9 +183,7 @@ struct LiveDebugView: View {
         if vm.isFrozen, let program = vm.frozenCachedProgram {
             // Frozen mode: show full scrollable program
             let currentIdx = vm.frozenCachedCurrentIndex
-            let currentLineColor: Color = snap.prSourceFlag == 8
-                ? Color(red: 0.35, green: 0.28, blue: 0.10)  // Yellow for ROM
-                : Color(red: 0.10, green: 0.30, blue: 0.10)  // Green for RAM
+            let currentLineColor = programSourceHighlightColor(snap.prSourceFlag)
 
             SectionBox(title: "PROGRAM STEPS") {
                 ScrollViewReader { proxy in
@@ -251,9 +249,7 @@ struct LiveDebugView: View {
             }
         } else {
             // Normal mode: show current step window (±5 around current)
-            let currentLineColor: Color = snap.prSourceFlag == 8
-                ? Color(red: 0.35, green: 0.28, blue: 0.10)  // Darker yellow for ROM
-                : Color(red: 0.10, green: 0.30, blue: 0.10)  // Green for RAM
+            let currentLineColor = programSourceHighlightColor(snap.prSourceFlag)
 
             SectionBox(title: "PROGRAM STEPS") {
                 VStack(alignment: .leading, spacing: 0) {
@@ -445,13 +441,31 @@ struct LiveDebugView: View {
 
     private func prSourceFlagSection(baseFontSize: CGFloat) -> some View {
         let snap = vm.liveDebugSnapshot
+        let sourceText = resolvedProgramSource(snap.prSourceFlag)
         return SectionBox(title: "") {
-            Text(String(format: "Prg Source: %X", snap.prSourceFlag))
+            Text(sourceText)
                 .font(.system(size: baseFontSize + 2, design: .monospaced))
                 .foregroundStyle(Color(white: 0.85))
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
         }
+    }
+
+    private func resolvedProgramSource(_ flag: UInt8) -> String {
+        switch flag {
+        case 0: return "Prg Source: User Program"
+        case 1: return "Prg Source: Solid State Program"
+        case 4: return "Prg Source: User Program (Fast Mode)"
+        case 8: return "Prg Source: ROM Program"
+        default: return String(format: "Prg Source: Unknown (%X)", flag)
+        }
+    }
+
+    /// Returns the highlight color for the current step in the program window based on program source.
+    private func programSourceHighlightColor(_ flag: UInt8) -> Color {
+        flag == ProgramSource.rom.rawValue
+            ? Color(red: 0.35, green: 0.28, blue: 0.10)  // Yellow for ROM
+            : Color(red: 0.10, green: 0.30, blue: 0.10)  // Green for User Program (0, 4) and others
     }
 
 }
