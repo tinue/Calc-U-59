@@ -51,12 +51,17 @@ void TMC0540::loadLibrary(const uint8_t* data, size_t count) {
 }
 
 uint16_t TMC0540::inLib() {
+    if (m_addrWasWriting) m_addrReadPos = 0;  // Reset if switching from write to read
+    m_addrWasWriting = false;
     uint8_t byte = m_data[m_addr];
     m_addr = (m_addr + 1) % 5000;
     return static_cast<uint16_t>(byte);
 }
 
 void TMC0540::outLibPc(uint16_t KR) {
+    if (!m_addrWasWriting) m_addrReadPos = 0;  // Reset if switching from read to write
+    m_addrWasWriting = true;
+
     // Extract digit from KR[7:4]
     uint8_t digit = (KR >> 4) & 0xF;
 
@@ -69,6 +74,9 @@ void TMC0540::outLibPc(uint16_t KR) {
 }
 
 uint16_t TMC0540::inLibPc() {
+    if (m_addrWasWriting) m_addrReadPos = 0;  // Reset if switching from write to read
+    m_addrWasWriting = false;
+
     uint16_t shift = (3 - m_addrReadPos) * 4;
     uint8_t digit = (m_addr >> shift) & 0xF;
 
