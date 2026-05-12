@@ -55,6 +55,7 @@ private:
     static uint8_t bcdDecode(uint8_t byte);  // Decode BCD byte to 0–99
     void parseHeader();                       // Parse header from m_data[0..]
     int  findProgramRange(int addr, int& outStart, int& outEnd) const;  // Returns program index or -1
+    int  addrAsDecimal() const;               // Convert hex BCD nibbles to decimal (e.g., 0x1234 → 1234)
 };
 
 #endif // TMC0540_HPP

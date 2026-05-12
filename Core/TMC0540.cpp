@@ -50,11 +50,26 @@ void TMC0540::loadLibrary(const uint8_t* data, size_t count) {
     reset();
 }
 
+int TMC0540::addrAsDecimal() const {
+    // Convert hex nibbles (BCD-encoded) to decimal address.
+    // m_addr is stored with each nibble as a decimal digit (e.g., 0x1234 → 1234).
+    uint8_t n3 = (m_addr >> 12) & 0xF;
+    uint8_t n2 = (m_addr >> 8) & 0xF;
+    uint8_t n1 = (m_addr >> 4) & 0xF;
+    uint8_t n0 = m_addr & 0xF;
+    return (((((n3 * 10) + n2) * 10) + n1) * 10) + n0;
+}
+
 uint16_t TMC0540::inLib() {
     if (m_addrWasWriting) m_addrReadPos = 0;  // Reset if switching from write to read
     m_addrWasWriting = false;
-    uint8_t byte = m_data[m_addr];
-    m_addr = (m_addr + 1) % 5000;
+    int decimalAddr = addrAsDecimal();
+    uint8_t byte = m_data[decimalAddr];
+
+    // Post-increment the address (in BCD hex representation)
+    m_addr = (m_addr + 1) % 0x10000;  // Hex increment with 16-bit wraparound
+    if (addrAsDecimal() >= 5000) m_addr = 0;  // Wrap at 5000
+
     return static_cast<uint16_t>(byte);
 }
 
@@ -87,7 +102,8 @@ uint16_t TMC0540::inLibPc() {
 
 uint16_t TMC0540::inLibHigh() const {
     // Peek at high nibble of the byte at current address (no advance)
-    uint8_t byte = m_data[m_addr];
+    int decimalAddr = addrAsDecimal();
+    uint8_t byte = m_data[decimalAddr];
     return static_cast<uint16_t>(byte & 0xF0U);
 }
 
@@ -113,21 +129,23 @@ int TMC0540::findProgramRange(int addr, int& outStart, int& outEnd) const {
 int TMC0540::getVirtualLibPc() const {
     if (m_addr == 0) return -1;  // Not in any program (initial state)
 
-    int addr = m_addr - 1;  // Correct for post-increment
+    // Correct for post-increment: subtract 1 from the decimal address
+    int decimalAddr = addrAsDecimal() - 1;
     int start = 0, end = 0;
-    int progIdx = findProgramRange(addr, start, end);
+    int progIdx = findProgramRange(decimalAddr, start, end);
     if (progIdx < 0) {
         return -1;  // addr is in header or other non-program data
     }
-    return addr - start;  // Program-relative offset
+    return decimalAddr - start;  // Program-relative offset
 }
 
 int TMC0540::getCurrentProgramKeycodes(uint8_t* out, int maxOut) const {
     if (m_addr == 0 || maxOut <= 0) return 0;
 
-    int addr = m_addr - 1;  // Correct for post-increment
+    // Correct for post-increment: subtract 1 from the decimal address
+    int decimalAddr = addrAsDecimal() - 1;
     int start = 0, end = 0;
-    int progIdx = findProgramRange(addr, start, end);
+    int progIdx = findProgramRange(decimalAddr, start, end);
     if (progIdx < 0) {
         return 0;  // Not in any program
     }
