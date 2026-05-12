@@ -1,5 +1,11 @@
 PARTITION: 559.49
 
+# This progrma uses the Master Library module
+SOLID-STATE-MODULE: ML
+
+# Print output requires the printer to be active
+PRINTER: on
+
 PROGRAM:
 000  76 LBL
 001  11  A

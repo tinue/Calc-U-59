@@ -19,6 +19,9 @@ Title: Print all keycodes
 Banks: 1
 A: PRINT
 
+# Print output requires the printer to be active
+PRINTER: on
+
 PROGRAM:
 000  76 LBL
 001  11  A

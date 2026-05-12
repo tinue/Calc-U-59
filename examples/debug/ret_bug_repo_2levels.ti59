@@ -34,6 +34,8 @@ Template: CueCard
 Title: Regression test for SBR issue
 A: Press R/S
 
+# Print output requires the printer to be active
+PRINTER: on
 PROGRAM:
 000  25 CLR
 001  99 PRT

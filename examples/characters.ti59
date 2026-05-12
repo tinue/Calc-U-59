@@ -19,6 +19,9 @@ Title: Print character table
 Banks: 1
 A: PRINT
 
+# Print output requires the printer to be active
+PRINTER: on
+
 PROGRAM:
   000  76  LBL
   001  11  A              # press [A] to run

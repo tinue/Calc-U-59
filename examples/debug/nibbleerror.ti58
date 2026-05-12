@@ -10,6 +10,8 @@ Title: Reproduce lost nibble problem
 
 
 # Just 55s
+# This method of fastmode activation requires the master library module to be present
+SOLID-STATE-MODULE: ML
 PROGRAM:
 000  55  ÷
 001  55  ÷

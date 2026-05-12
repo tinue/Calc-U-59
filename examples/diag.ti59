@@ -12,6 +12,8 @@ Title: CALCULATOR DIAGNOSTIC - Consult Owner's Manual
 Banks: 1,2
 E: EXECUTE
 
+# Print output requires the printer to be active
+PRINTER: on
 
 # The programs contains many zeroes, which are skipped below.
 PROGRAM:

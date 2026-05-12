@@ -13,6 +13,8 @@
 # on TI-58, it finishes with 0.59 blinking...
 # ------------------------
 
+# Print output requires the printer to be active
+PRINTER: on
 
 PROGRAM:
 000	76	LBL
