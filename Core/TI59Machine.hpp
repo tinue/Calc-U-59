@@ -122,18 +122,6 @@ public:
     /// Read a ROM keycode at address 0–383.
     uint8_t readROMKeycode(int addr) const;
 
-    /// Read a library keycode at address 0–4999.
-    uint8_t readLibKeycode(int addr) const;
-
-    /// Get the virtual program counter for solid-state ROM (library).
-    /// Returns -1 when not in any program range (e.g., header reads);
-    /// returns 0+ for the program-relative step number.
-    int virtualLibPc() const;
-
-    /// Get all keycodes from the current program in solid-state ROM.
-    /// Returns 0 if not in any program range; otherwise fills buffer and returns count.
-    int currentProgramKeycodes(uint8_t* out, int maxOut) const;
-
     /// Capture a snapshot of all CPU registers at the current instant.
     CpuFrame snapshotCPU() const;
 

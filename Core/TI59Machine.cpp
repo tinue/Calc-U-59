@@ -111,10 +111,11 @@ void TI59Machine::setPartitionProgramRegs(int programRAMregs) {
 }
 
 int TI59Machine::insertedModuleNumber() const {
-    // Module number: SCOM[9] nibbles 4 (tens) and 3 (units)
+    // SCOM[9][4] = tens nibble, SCOM[9][3] = units nibble
+    // (hardware encoding: nibble4=0,nibble3=1 → ML01; nibble4=1,nibble3=0 → ML10)
     int tens  = static_cast<int>(m_cpu.scomNibble(9, 4));
     int units = static_cast<int>(m_cpu.scomNibble(9, 3));
-    return (tens * 10) + units;
+    return tens * 10 + units;
 }
 
 // ── Magnetic card reader ───────────────────────────────────────────────────────
@@ -238,44 +239,19 @@ uint32_t TI59Machine::stepN(uint32_t n, bool stopOnBreakpoint) {
 
 uint32_t TI59Machine::stepUntilNextKeycode(uint32_t maxCycles) {
     std::lock_guard<std::mutex> lock(m_keyMutex);
-    uint8_t prSourceFlag = m_cpu.scomNibble(0, SCOM_PRG_SOURCE_NIBBLE);
-    int initialVpc = -1;
-    uint16_t initialScomPC = m_cpu.scomPC();
-
-    // For solid state (source 1), capture the initial virtual PC
-    if (prSourceFlag == 1) {
-        initialVpc = m_cpu.getVirtualLibPc();
-    }
-
+    uint8_t n4 = m_cpu.scomNibble(0, 4);
+    uint8_t n5 = m_cpu.scomNibble(0, 5);
+    uint8_t n6 = m_cpu.scomNibble(0, 6);
+    uint8_t n7 = m_cpu.scomNibble(0, 7);
     uint32_t done = 0;
     while (done < maxCycles) {
         int w = m_cpu.step();          // returns 1 (active) or 4 (IDLE)
         done += static_cast<uint32_t>(w);
         if (m_cpu.consumeBreakpointHit()) { break; }
-
-        // Check if keycode boundary was crossed (different for solid-state vs. other sources)
-        bool crossedBoundary = false;
-        if (prSourceFlag == 1) {
-            // For solid state (source 1), check if virtual PC changed
-            int vpc = m_cpu.getVirtualLibPc();
-            crossedBoundary = (initialVpc < 0 && vpc >= 0) ||           // entered program
-                              (initialVpc >= 0 && vpc >= 0 && vpc != initialVpc);  // advanced within program
-        } else {
-            // For other sources, check if SCOM[0] program counter changed
-            crossedBoundary = (m_cpu.scomPC() != initialScomPC);
-        }
-
-        if (crossedBoundary) { break; }
+        if (m_cpu.scomNibble(0, 4) != n4 || m_cpu.scomNibble(0, 5) != n5 ||
+            m_cpu.scomNibble(0, 6) != n6 || m_cpu.scomNibble(0, 7) != n7) { break; }
     }
     return done;
-}
-
-int TI59Machine::virtualLibPc() const {
-    return m_cpu.getVirtualLibPc();
-}
-
-int TI59Machine::currentProgramKeycodes(uint8_t* out, int maxOut) const {
-    return m_cpu.getCurrentProgramKeycodes(out, maxOut);
 }
 
 uint16_t TI59Machine::pc() const {
@@ -328,10 +304,6 @@ uint8_t TI59Machine::readProgramStep(int stepAddr) const {
 
 uint8_t TI59Machine::readROMKeycode(int addr) const {
     return m_cpu.romKeycode(addr);
-}
-
-uint8_t TI59Machine::readLibKeycode(int addr) const {
-    return m_cpu.libKeycode(addr);
 }
 
 CpuFrame TI59Machine::snapshotCPU() const {

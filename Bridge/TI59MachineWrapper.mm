@@ -326,20 +326,6 @@ static TICpuFrame marshalCpuFrame(const CpuFrame& f) {
     return _machine->readROMKeycode((int)addr);
 }
 
-- (uint8_t)libKeycodeAt:(NSInteger)addr {
-    return _machine->readLibKeycode((int)addr);
-}
-
-- (NSInteger)virtualLibPc {
-    return (NSInteger)_machine->virtualLibPc();
-}
-
-- (NSData* _Nullable)currentProgramKeycodes {
-    uint8_t buf[5000];
-    int count = _machine->currentProgramKeycodes(buf, 5000);
-    return count > 0 ? [NSData dataWithBytes:buf length:count] : nil;
-}
-
 - (NSIndexSet*)nonZeroDataRegisterIndices {
     NSMutableIndexSet* result = [NSMutableIndexSet indexSet];
     int programRegs = (int)_machine->partitionProgramRegs();

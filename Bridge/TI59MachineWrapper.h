@@ -207,19 +207,6 @@ typedef struct {
 - (uint8_t)romKeycodeAt:(NSInteger)addr
     NS_SWIFT_NAME(romKeycode(at:));
 
-/// Read a library keycode at address 0–4999.
-- (uint8_t)libKeycodeAt:(NSInteger)addr
-    NS_SWIFT_NAME(libKeycode(at:));
-
-/// Get the virtual program counter for solid-state ROM (library).
-/// Returns -1 when not in any program range; returns 0+ for program-relative step.
-@property (readonly) NSInteger virtualLibPc;
-
-/// Get all keycodes from the current program in solid-state ROM.
-/// Returns nil when not in any program range.
-- (NSData* _Nullable)currentProgramKeycodes
-    NS_SWIFT_NAME(currentProgramKeycodes());
-
 /// Returns an index set of register numbers (0-based, user-visible) whose raw nibbles are non-zero.
 /// Scans only within the current partition's data register range.
 - (NSIndexSet*)nonZeroDataRegisterIndices

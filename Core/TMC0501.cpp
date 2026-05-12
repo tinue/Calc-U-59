@@ -144,8 +144,8 @@ void TMC0501::reset() {
     memset(SCOM, 0, sizeof(SCOM));
     memset(Sout, 0, sizeof(Sout));
     memset(key,  0, sizeof(key));
-    KR = SR = fA = fB = EXT = PREG = 0;
-    m_lib.reset();
+    KR = SR = fA = fB = EXT = PREG = m_libAddr = m_libAddrReadPos = 0;
+    m_libAddrWasWriting = false;
     R5 = digit = RAM_ADDR = RAM_OP = REG_ADDR = 0;
     addr  = 0;
     flags = FLG_COND;  // COND starts true; display active
@@ -174,7 +174,8 @@ void TMC0501::reset() {
 }
 
 void TMC0501::loadLibrary(const uint8_t* data, size_t count) {
-    m_lib.loadLibrary(data, count);
+    count = std::min(count, size_t{5000});
+    memcpy(m_libData, data, count);
 }
 
 void TMC0501::loadConstants(const uint8_t* data, size_t count) {
@@ -828,18 +829,38 @@ int TMC0501::step() {
         case 0xE:  // Library module operations
             switch (opcode & 0x00F0u) {
             case 0x00: // IN LIB — fetch one byte from library; advance pointer
-                EXT = m_lib.inLib() << 4;
+                EXT = static_cast<uint16_t>(m_libData[m_libAddr++]) << 4;
                 flags |= FLG_EXT_VALID;
+                m_libAddr %= 5000;
                 break;
             case 0x10: // OUT LIB_PC — load library pointer digit from KR[7:4]
-                m_lib.outLibPc(KR);
+                // The library address is encoded in BCD-like decimal: the ROM
+                // shifts it one decimal digit at a time using OUT LIB_PC / IN LIB_PC
+                // pairs. OUT LIB_PC shifts the address right by one nibble, then
+                // injects the new nibble into the most significant position:
+                //   new_addr = (old_addr / 10)         ← shift right (discard LSN)
+                //            + KR[7:4] * 1000          ← inject new MSN
+                // The ROM calls this instruction four times to load a full
+                // 4-digit address (once per BCD nibble, MSN first).
+                if (!m_libAddrWasWriting) m_libAddrReadPos = 0;  // Reset if switching from read to write
+                m_libAddr = static_cast<uint16_t>((m_libAddr / 10) + ((KR >> 4 & 0xFu) * 1000));
+                m_libAddrReadPos = (m_libAddrReadPos + 1) % 4;
+                m_libAddrWasWriting = true;
                 break;
             case 0x20: // IN LIB_PC — read library pointer digit into EXT
-                EXT = m_lib.inLibPc() << 4;
-                flags |= FLG_EXT_VALID;
+                // Reads the current digit of m_libAddr based on m_libAddrReadPos (0-3).
+                // Does not modify m_libAddr; only advances the read position counter.
+                {
+                    if (m_libAddrWasWriting) m_libAddrReadPos = 0;  // Reset if switching from write to read
+                    uint16_t divisors[4] = {1, 10, 100, 1000};
+                    EXT = static_cast<uint16_t>((m_libAddr / divisors[m_libAddrReadPos]) % 10) << 4;
+                    flags |= FLG_EXT_VALID;
+                    m_libAddrReadPos = (m_libAddrReadPos + 1) % 4;
+                    m_libAddrWasWriting = false;
+                }
                 break;
             case 0x30: // IN LIB_HIGH — fetch high nibble of current byte (no advance)
-                EXT = m_lib.inLibHigh();
+                EXT = static_cast<uint16_t>(m_libData[m_libAddr] & 0xF0u);
                 flags |= FLG_EXT_VALID;
                 break;
             default: break;
@@ -1246,8 +1267,8 @@ void TMC0501::beginNextStep() {
             prev.EXT = EXT;
             prev.PREG = PREG;
             prev.flags = flags;
-            prev.m_libAddr = m_lib.getAddr();
-            prev.m_libAddrReadPos = m_lib.getAddrReadPos();
+            prev.m_libAddr = m_libAddr;
+            prev.m_libAddrReadPos = m_libAddrReadPos;
             prev.R5 = R5;
             prev.digit = digit;
             prev.postDigit = digit;
@@ -1405,7 +1426,7 @@ void TMC0501::tracePreStep(uint32_t tf, uint16_t opcode) {
         memcpy(frame.SCOM, SCOM, sizeof(SCOM));
         memcpy(frame.Sout, Sout, 16);
         frame.EXT = EXT; frame.PREG = PREG; frame.flags = flags;
-        frame.m_libAddr = m_lib.getAddr(); frame.m_libAddrReadPos = m_lib.getAddrReadPos();
+        frame.m_libAddr = m_libAddr; frame.m_libAddrReadPos = m_libAddrReadPos;
         frame.digit = digit;
         frame.postDigit = digit;
         frame.REG_ADDR = REG_ADDR; frame.RAM_ADDR = RAM_ADDR; frame.RAM_OP = RAM_OP;
@@ -1523,11 +1544,11 @@ CpuFrame TMC0501::snapshotCPU() const {
     frame.EXT = EXT;
     frame.PREG = PREG;
     frame.flags = flags;
-    frame.m_libAddr = m_lib.getAddr();
+    frame.m_libAddr = m_libAddr;
     frame.REG_ADDR = REG_ADDR;
     frame.RAM_ADDR = RAM_ADDR;
     frame.RAM_OP = RAM_OP;
-    frame.m_libAddrReadPos = m_lib.getAddrReadPos();
+    frame.m_libAddrReadPos = m_libAddrReadPos;
     computeDisplayTraceState(frame.displayOn, frame.maxDigitDecay);
 
     return frame;

@@ -8,7 +8,6 @@
 #include <vector>
 #include "TraceTypes.hpp"
 #include "MachineVariant.hpp"
-#include "TMC0540.hpp"
 
 class ROM;
 class RAM;
@@ -76,11 +75,6 @@ enum : uint16_t {
 
     // ── Miscellaneous ───────────────────────────────────────────────────
     FLG_BUSY      = 0x8000, // Printer / peripheral busy signal; tested by TST BUSY.
-};
-
-// ── SCOM layout constants ──────────────────────────────────────────────────────
-enum : uint8_t {
-    SCOM_PRG_SOURCE_NIBBLE = 3,  // SCOM[0][3] — program source flag (1=solid state, 8=ROM, 0/4=user)
 };
 
 // ── TMC0501 CPU ───────────────────────────────────────────────────────────────
@@ -226,16 +220,6 @@ public:
     uint8_t  scomNibble(int row, int col) const { return SCOM[row][col]; }
     void setSCOMNibble(int row, int col, uint8_t val) { SCOM[row][col] = val & 0xF; }
 
-    /// Get the program counter encoded in SCOM[0] nibbles 4–7.
-    /// PC = n7×800 + n6×80 + n5×8 + n4 (see CLAUDE.md for encoding details).
-    uint16_t scomPC() const {
-        uint8_t n4 = scomNibble(0, 4);
-        uint8_t n5 = scomNibble(0, 5);
-        uint8_t n6 = scomNibble(0, 6);
-        uint8_t n7 = scomNibble(0, 7);
-        return (n7 * 800) + (n6 * 80) + (n5 * 8) + n4;
-    }
-
     /// Read a ROM keycode (PRG SOURCE = 8) by address 0–383.
     /// Returns 0 for out-of-range addresses.
     uint8_t romKeycode(int addr) const {
@@ -245,27 +229,6 @@ public:
         uint8_t units = m_constant[row][offset];
         uint8_t tens = m_constant[row][offset + 1];
         return static_cast<uint8_t>((tens * 10) + units);
-    }
-
-    /// Read a library keycode (PRG SOURCE = 1) by address 0–4999.
-    /// Each byte is BCD: high nibble = tens, low nibble = units.
-    /// Returns 0 for out-of-range addresses.
-    uint8_t libKeycode(int addr) const {
-        return m_lib.libKeycode(addr);
-    }
-
-    /// Get the current library address counter (hardware counter in SecondROM chip).
-    /// Post-increments after each IN LIB fetch.
-    uint16_t getLibAddr() const { return m_lib.getAddr(); }
-
-    /// Get the virtual program counter for solid-state ROM (library).
-    /// Returns -1 when not in any program range; returns 0+ for program-relative step.
-    int getVirtualLibPc() const { return m_lib.getVirtualLibPc(); }
-
-    /// Get all keycodes from the current program in solid-state ROM.
-    /// Returns count; returns 0 if not in any program range.
-    int getCurrentProgramKeycodes(uint8_t* out, int maxOut) const {
-        return m_lib.getCurrentProgramKeycodes(out, maxOut);
     }
 
 private:
@@ -317,7 +280,10 @@ private:
     MaskInfo RAM_MASK{0xFF, 0, 0, 0};  // Field mask for current RAM read/write operation.
 
     // ── Library module state ──────────────────────────────────────────
-    TMC0540  m_lib;
+    uint16_t m_libAddr{};       // Current address within the loaded library image.
+    uint8_t  m_libAddrReadPos{}; // Position counter for reading address digits (0-3, cycles).
+    bool     m_libAddrWasWriting{}; // Track direction: true=writing (OUT), false=reading (IN)
+    uint8_t  m_libData[5000]{}; // Library module byte image (up to 5,000 bytes).
 
     // ── Machine variant ───────────────────────────────────────────────
     MachineVariant       m_variant{};           // TI-59, TI-58, or TI-58C (affects instruction decoding).
