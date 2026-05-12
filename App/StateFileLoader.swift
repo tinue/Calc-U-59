@@ -57,6 +57,14 @@ import Foundation
 //           Wait: 1s
 //           42 00            # STO 00
 //
+//   SOLID-STATE-MODULE: ML
+//       Specifies the solid-state module to load. Module ID on same line.
+//       Valid IDs: ML, ST, RE, SY, NG, AV, LE, SA, BD, MU, EE, SE, AG, RP
+//
+//   PRINTER: on
+//       Specifies whether the printer is connected. Value on same line.
+//       Valid values: "on" / "off" / "true" / "false" / "1" / "0"
+//
 // Lines beginning with # (after optional leading whitespace) are comments.
 // Inline comments after # are also stripped.  All section keywords are
 // case-insensitive.
@@ -78,6 +86,8 @@ struct LoadStateResult {
     var registers: [(regNum: Int, nibbles: [UInt8])] = []
     var keystrokes: [KeystrokeEvent] = []
     var cueCardContent: CueCardContent? = nil
+    var solidStateModuleID: String? = nil
+    var printerConnected: Bool? = nil
     var errors: [String] = []
 }
 
@@ -107,6 +117,18 @@ func parseStateFile(_ text: String, maxStepAddr: Int = 479, allowHiddenRegisters
         if line.isEmpty { continue }
 
         let upper = line.uppercased()
+
+        // Inline-value directives (not section headers, can appear anywhere)
+        if upper.hasPrefix("SOLID-STATE-MODULE:") {
+            let id = String(line.dropFirst("SOLID-STATE-MODULE:".count)).trimmingCharacters(in: .whitespaces)
+            if !id.isEmpty { result.solidStateModuleID = id }
+            continue
+        }
+        if upper.hasPrefix("PRINTER:") {
+            let val = String(line.dropFirst("PRINTER:".count)).trimmingCharacters(in: .whitespaces).lowercased()
+            result.printerConnected = (val == "on" || val == "true" || val == "1")
+            continue
+        }
 
         // Section header: PARTITION:
         if upper.hasPrefix("PARTITION:") {

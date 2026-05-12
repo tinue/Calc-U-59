@@ -83,7 +83,7 @@ struct CalculatorView: View {
         }
         #if !os(macOS)
         .sheet(isPresented: $showingSettings) {
-            SettingsView()
+            SettingsView(viewModel: viewModel)
         }
         .fileImporter(
             isPresented: $showingStateFilePicker,

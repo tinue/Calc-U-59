@@ -39,6 +39,7 @@ enum KeyboardFeedbackType: Int, CaseIterable, Identifiable {
 enum SettingsKey {
     static let startupModel           = "startupModel"             // Int: MachineModel.rawValue, or -1 = last used
     static let lastUsedModel          = "lastUsedModel"            // Int: MachineModel.rawValue
+    static let solidStateModuleID     = "solidStateModuleID"       // String: module ID (default "ML")
     static let traceLocation          = "traceLocation"            // Int: TraceLocation.rawValue
     static let traceCustomPath        = "traceCustomPath"          // String: absolute directory path (macOS only)
     static let traceCustomPathBookmark = "traceCustomPathBookmark" // Data: security-scoped bookmark for custom path
@@ -109,6 +110,12 @@ enum AppSettings {
             return MachineModel(rawValue: lastRaw) ?? .ti59
         }
         return MachineModel(rawValue: raw) ?? .ti59
+    }
+
+    /// Returns the solid-state module ID from UserDefaults.
+    /// Defaults to "ML" if not set.
+    static func resolvedSolidStateModuleID() -> String {
+        return UserDefaults.standard.string(forKey: SettingsKey.solidStateModuleID) ?? "ML"
     }
 
     /// Returns the directory URL where the trace file should be written.

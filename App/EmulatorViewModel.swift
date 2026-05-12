@@ -167,6 +167,13 @@ class EmulatorViewModel {
     private var moduleMetadata: ModuleMetadata = ModuleMetadata()  // module-level metadata
     private var activeProgramNumber: Int = 0  // 0 = none, 1+ = active program
 
+    // ── Solid-state module state ─────────────────────────────────────────────
+    var selectedModuleID: String = AppSettings.resolvedSolidStateModuleID() {
+        didSet {
+            UserDefaults.standard.set(self.selectedModuleID, forKey: SettingsKey.solidStateModuleID)
+        }
+    }
+
     private static let cardFileHeader = Data("Calc-U-59-CRD".utf8)
 
     private var machine: TI59MachineWrapper?
@@ -235,13 +242,13 @@ class EmulatorViewModel {
                 wrapper.loadROM(data)
             }
 
-            // Load LE07 library (only supported module)
-            if let libData = ROMLoader.loadModuleLibrary() {
+            // Load solid-state library module
+            if let libData = ROMLoader.loadModuleLibrary(moduleID: self.selectedModuleID) {
                 wrapper.loadLibrary(libData)
             } else {
                 Self.logger.error("Solid-state module library was not loaded; continuing without library data")
             }
-            let (cards, metadata) = ROMLoader.loadModuleCardsAndMetadata()
+            let (cards, metadata) = ROMLoader.loadModuleCardsAndMetadata(moduleID: self.selectedModuleID)
             moduleCueCards = cards
             moduleMetadata = metadata
 
@@ -570,6 +577,33 @@ class EmulatorViewModel {
         machine?.setPrinterConnected(connected)
     }
     func cutPaper() { printerLines = []; printerCodeLines = []; printerClearID &+= 1 }
+
+    // MARK: - Solid-state module selection
+
+    /// Load ROM and cue cards for the specified module without resetting.
+    /// Used by both selectModule and loadStateFile.
+    private func applyModule(id: String) {
+        guard let m = machine else {
+            Self.logger.error("Cannot apply module \(id, privacy: .public): machine is not initialized")
+            return
+        }
+        if let libData = ROMLoader.loadModuleLibrary(moduleID: id) {
+            m.loadLibrary(libData)
+        } else {
+            Self.logger.error("Failed to load module ROM: \(id, privacy: .public)")
+        }
+        let (cards, meta) = ROMLoader.loadModuleCardsAndMetadata(moduleID: id)
+        moduleCueCards = cards
+        moduleMetadata = meta
+        selectedModuleID = id
+        UserDefaults.standard.set(id, forKey: SettingsKey.solidStateModuleID)
+    }
+
+    /// Change the solid-state module and perform a soft reset (preserves RAM).
+    func selectModule(id: String) {
+        applyModule(id: id)
+        resetMachine()
+    }
 
     // MARK: - Reset
 
@@ -2137,6 +2171,16 @@ class EmulatorViewModel {
 
         // Persist the loaded state once after all writes complete
         persistConstantMemory()
+
+        // Apply solid-state module if specified in file
+        if let moduleID = parsed.solidStateModuleID, moduleID != selectedModuleID {
+            applyModule(id: moduleID)
+        }
+
+        // Apply printer state if specified in file
+        if let connected = parsed.printerConnected {
+            setPrinterConnected(connected)
+        }
 
         // Set cue card if present in file
         self.userCueCardContent = parsed.cueCardContent

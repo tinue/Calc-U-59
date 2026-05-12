@@ -8,13 +8,12 @@ enum ROMLoaderError: Error {
     case wrongWordCount(Int)
 }
 
-// Module ID to load (set to a constant for easy testing; can be changed quickly)
-private let moduleIDToLoad = "ML"
-
 struct ModuleMetadata {
     var title: String = ""
     var sort: String = ""
     var id: String = ""
+    var menuTitle: String = ""
+    var menuSort: Int = 0
 }
 
 struct ROMLoader {
@@ -64,6 +63,7 @@ struct ROMLoader {
         var bytes = [UInt8](repeating: 0, count: 5000)
         var maxAddr = 0
         var inDataSection = false
+        var dataRowCount = 0
 
         for line in text.components(separatedBy: .newlines) {
             let s = line.trimmingCharacters(in: .whitespaces)
@@ -95,6 +95,7 @@ struct ROMLoader {
                     maxAddr = max(maxAddr, idx + 1)
                 }
             }
+            dataRowCount += 1
         }
 
         guard maxAddr > 0 else {
@@ -192,11 +193,82 @@ struct ROMLoader {
         return rows
     }
 
-/// Load library ROM for the solid-state module specified by moduleIDToLoad.
+/// Load metadata for all solid-state modules from cuecards.txt.
+    /// Returns an array sorted by menuSort, or empty array on failure.
+    static func loadAllModuleMetadata() -> [ModuleMetadata] {
+        guard let url = Bundle.main.url(forResource: "cuecards", withExtension: "txt") else {
+            logger.error("cuecards.txt not found while loading all modules")
+            return []
+        }
+        let text: String
+        do {
+            text = try String(contentsOf: url, encoding: .utf8)
+        } catch {
+            logger.error("Failed reading cuecards.txt for all modules: \(error.localizedDescription, privacy: .public)")
+            return []
+        }
+
+        var allMetadata: [ModuleMetadata] = []
+        var currentMetadata = ModuleMetadata()
+        var inModule = false
+
+        for rawLine in text.components(separatedBy: .newlines) {
+            let line = rawLine.components(separatedBy: "#").first?
+                .trimmingCharacters(in: .whitespaces) ?? ""
+            guard !line.isEmpty else { continue }
+
+            let upper = line.uppercased()
+
+            if upper.hasPrefix("MODULE-ID:") {
+                // Flush previous module if we were in one
+                if inModule && !currentMetadata.id.isEmpty {
+                    allMetadata.append(currentMetadata)
+                }
+                // Start new module
+                let id = String(line.dropFirst("MODULE-ID:".count)).trimmingCharacters(in: .whitespaces)
+                currentMetadata = ModuleMetadata(id: id)
+                inModule = true
+                continue
+            }
+
+            guard inModule else { continue }
+
+            if upper.hasPrefix("MODULE-TITLE:") {
+                let value = String(line.dropFirst("MODULE-TITLE:".count))
+                    .trimmingCharacters(in: .whitespaces)
+                currentMetadata.title = value
+                continue
+            }
+            if upper.hasPrefix("MODULE-MENU-TITLE:") {
+                let value = String(line.dropFirst("MODULE-MENU-TITLE:".count))
+                    .trimmingCharacters(in: .whitespaces)
+                currentMetadata.menuTitle = value
+                continue
+            }
+            if upper.hasPrefix("MODULE-MENU-SORT:") {
+                let value = String(line.dropFirst("MODULE-MENU-SORT:".count))
+                    .trimmingCharacters(in: .whitespaces)
+                if let sortInt = Int(value) {
+                    currentMetadata.menuSort = sortInt
+                }
+                continue
+            }
+        }
+
+        // Flush the last module
+        if inModule && !currentMetadata.id.isEmpty {
+            allMetadata.append(currentMetadata)
+        }
+
+        // Sort by menuSort
+        return allMetadata.sorted { $0.menuSort < $1.menuSort }
+    }
+
+    /// Load library ROM for the solid-state module with the given ID.
     /// Gets the ROM filename from cuecards.txt and loads the corresponding TMC*.txt file.
-    static func loadModuleLibrary() -> Data? {
-        guard let filename = romFilename(forModuleID: moduleIDToLoad) else {
-            logger.error("Failed to resolve MODULE-ROM for module ID \(moduleIDToLoad, privacy: .public)")
+    static func loadModuleLibrary(moduleID: String) -> Data? {
+        guard let filename = romFilename(forModuleID: moduleID) else {
+            logger.error("Failed to resolve MODULE-ROM for module ID \(moduleID, privacy: .public)")
             return nil
         }
         let name = (filename as NSString).deletingPathExtension
@@ -250,17 +322,17 @@ struct ROMLoader {
         return nil
     }
 
-    /// Load per-program cue cards for ML01 from the bundle.
+    /// Load per-program cue cards for the specified module from the bundle.
     /// Returns dict: program number → CueCardContent.
     /// Key 0 (module default) is included but not used in the new display logic.
-    static func loadModuleCueCards() -> [Int: CueCardContent] {
-        let (cards, _) = loadModuleCardsAndMetadata()
+    static func loadModuleCueCards(moduleID: String) -> [Int: CueCardContent] {
+        let (cards, _) = loadModuleCardsAndMetadata(moduleID: moduleID)
         return cards
     }
 
     /// Load per-program cue cards and module metadata from cuecards.txt.
-    /// Returns (cards dict, metadata) for the module specified by moduleIDToLoad.
-    static func loadModuleCardsAndMetadata() -> ([Int: CueCardContent], ModuleMetadata) {
+    /// Returns (cards dict, metadata) for the specified module ID.
+    static func loadModuleCardsAndMetadata(moduleID: String) -> ([Int: CueCardContent], ModuleMetadata) {
         guard let url = Bundle.main.url(forResource: "cuecards", withExtension: "txt") else {
             logger.error("cuecards.txt not found while loading module cards/metadata")
             return ([:], ModuleMetadata())
@@ -272,7 +344,7 @@ struct ROMLoader {
             logger.error("Failed reading cuecards.txt for cards/metadata: \(error.localizedDescription, privacy: .public)")
             return ([:], ModuleMetadata())
         }
-        return parseCueCardFile(text, moduleID: moduleIDToLoad)
+        return parseCueCardFile(text, moduleID: moduleID)
     }
 
     /// Parse cuecards.txt and extract cards and metadata for a specific module ID.
@@ -317,6 +389,20 @@ struct ROMLoader {
                 let value = String(line.dropFirst("MODULE-SORT:".count))
                     .trimmingCharacters(in: .whitespaces)
                 metadata.sort = value
+                continue
+            }
+            if upper.hasPrefix("MODULE-MENU-TITLE:") {
+                let value = String(line.dropFirst("MODULE-MENU-TITLE:".count))
+                    .trimmingCharacters(in: .whitespaces)
+                metadata.menuTitle = value
+                continue
+            }
+            if upper.hasPrefix("MODULE-MENU-SORT:") {
+                let value = String(line.dropFirst("MODULE-MENU-SORT:".count))
+                    .trimmingCharacters(in: .whitespaces)
+                if let sortInt = Int(value) {
+                    metadata.menuSort = sortInt
+                }
                 continue
             }
             if upper.hasPrefix("MODULE-ROM:") {
