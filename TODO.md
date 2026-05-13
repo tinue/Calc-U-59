@@ -14,8 +14,6 @@ Unsorted collection of ideas, bugs, observations etc.
 ## UI
 - **Keyboard support** Number keys, operators, "Enter" to trigger "=" etc.
 - **Keyboard support** for debugging panels
-- **Switch cue cards** Show the correct cue card based on currently selected PGM and Solid State Module.
-- **Custom cue cards** Dynamically generate a cue card, content specified in state file (.ti59 etc.)
 
 ## Debugger
 ### CPU Debugger
@@ -31,7 +29,6 @@ Unsorted collection of ideas, bugs, observations etc.
 
 ## Various
 - **Event callbacks** — push notifications for display updates and register changes, replacing the current polling model.
-- **Library module switching** — a UI picker to load different Solid State Library modules, with a machine reset on swap (matching real hardware behaviour).
 - **Card stacking** — a queue of cards fed automatically on successive read/write requests, for programs that use multiple cards.
 - **CMake build** — standalone build targeting the C++ core, enabling headless use and non-macOS platforms.
 - **Headless / REST API** — full GUI decoupling to enable scripted research workflows and alternative frontends.

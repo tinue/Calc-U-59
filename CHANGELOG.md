@@ -2,19 +2,25 @@
 
 ## [1.1.0] - In Progress
 
-**Cue Cards:** Complete Master Library module reference (ML-01 through ML-25): all 25 program cards now have dedicated layouts with accurate titles, labels, and descriptions. Cards automatically switch based on detected program number (SCOM[9]). New **SolidStateGridCard** template with 5-column grid layout, column spanning support (labels can span multiple columns), and proportional font scaling for responsive layout across device sizes. Shared Y-position constants ensure consistent alignment across all card variants. Dynamic template system allows cards to render using CueCard, MagnetCard, or SolidState layouts.
+**Solid-State Modules:** 14 library modules are now supported and can be selected in Settings. Previously only the ML-01 Master Library was available (hardcoded); 13 additional modules are now included, among them the LE07 Leisure Library.
 
-**Card File Format:** New text-based `.U59` card file format (Calc-U-59 Card 1.0) with human-readable HEADER and DATA sections. Unified card storage format across file types and TI-58C memory persistence. Fixed byte order and nibble handling in card encoding/decoding. Persistent cuecard support in TI-58C `.mem` file.
+**Cue Cards:** New cue card panel renders dynamically from a template system. All 25 ML-01 Master Library program cards are included with accurate titles, key labels, and descriptions, and each solid-state module has its own set of cards. Cards switch automatically when the calculator detects a new program number.
 
-**Math Notation:** Extended math token support for cue card labels and titles. Added Greek letters (α, β, ε, Δ, π, Π, Θ), variables with mean notation (x̄, ȳ, z̄, n̄, m̄), arrows (↔, ↕, ←, →), roots (√, ∛, ∜), trigonometric notation (∠, △), and superscript/subscript variants (^{x}, ^{y}, ^{z}, _{X}, _{Y}). Zero-width blank marker (\blank) for invisible grid columns and column spanning.
+**Card File Format:** A new human-readable `.U59` text format for card files, that includes the cue card for the card file.
 
-**Font & Layout:** Proportional font scaling for responsive design across all device sizes and orientations. Fixed font sizing to prevent text clipping and ensure labels fit within grid cells. Unified CueCard/MagnetCard layout system with shared grid coordinates and sizing logic.
+**State File Improvements:** Allow to specify the SolidState module to load. Allow to explicitly set the printer on or off.
 
-**UI/UX:** High-speed mode (touch and hold display) for rapid entry during long computations. Haptic and audio feedback for reset button. Fixed macOS copy functionality to support direct NSImage pasting in graphics apps like Pixelmator.
+ **TI-58C Persistency Fixes:** Fix the file format. The cue card is persisted inside the TI-58C `.mem` file and survives app restarts.
 
-**Bug Fixes:** Fixed display freeze when detecting program number for card switching. Fixed preset loading regression where parts of loaded programs were deleted. Fixed printer scroll hang and suppressed scrollbar on macOS. Fixed TI-58C nibble loss after preload. Fixed register decoding (restore nibbles to original positions).
+**High-Speed Mode:** Touch and hold the display to run the calculator at full speed — useful for long computations or to LIST a program on the printer.
 
-**Code Quality:** Simplified layout rendering code by extracting reusable helpers (titleAndIdRow, dividerLine, gridRowLabels), reducing duplication by 37 lines. Fixed performance regression in display press detection (restored guard to prevent spurious @Observable updates during touch drag). Unified timer cleanup in lifecycle methods. Refactored duplicate cue card label assignment patterns.
+**Haptic & Audio:** The reset button now produces haptic and audio feedback.
+
+### Fixes
+
+- Loading a preset could silently delete the tail of the stored program.
+- Printer scroll could hang the emulator on macOS.
+- Copying printer output on macOS now produces an image that can be pasted directly into Pixelmator and similar apps.
 
 ## [1.0.0] - 2026-05-04
 First iOS / iPadOS release in the App Store.
