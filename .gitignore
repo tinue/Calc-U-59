@@ -42,6 +42,10 @@ refs/
 # One-time setup per clone: git worktree add appstore appstore
 appstore/
 
+# Documentation website lives in the gh-pages branch, checked out as a worktree here.
+# One-time setup per clone: git worktree add docs gh-pages
+docs/
+
 # Local Claude Code settings (permissions only, no secrets — but local)
 .claude/settings.local.json
 
