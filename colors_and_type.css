@@ -1,0 +1,235 @@
+/* =========================================================================
+   Calc-U 59 Design System — Colors & Typography
+   Palette sampled DIRECTLY from the running iOS app (see
+   assets/app-screenshot.png) and the app icon (assets/app-icon.png).
+   The app is a TI-59 emulator; this guide is about the EMULATOR APP,
+   not the original calculator hardware.
+   ========================================================================= */
+
+/* ---------- Webfonts ---------------------------------------------------- */
+/* DSEG7 Classic — true 7-segment LED face for the red readout. */
+@font-face {
+  font-family: "DSEG7Classic";
+  src: url("https://cdn.jsdelivr.net/npm/dseg@0.46.0/fonts/DSEG7-Classic/DSEG7Classic-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Barlow Condensed — bold compressed sans for keycap labels + headings.   */
+@import url("https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&display=swap");
+
+/* IBM Plex Sans / Mono — body + monospace.                                 */
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap");
+
+:root {
+  /* =====================================================================
+     COLOR TOKENS — sampled from the iOS screenshot
+     ===================================================================== */
+
+  /* --- Background (the app sits on full black) -------------------------- */
+  --bg-black:             #000000;   /* app background, OLED-style         */
+  --bg-near-black:        #0a0806;   /* tiny lift if needed                */
+
+  /* --- Key chrome (dark brown function keys) ---------------------------- */
+  --key-dark:             #2a1f15;   /* dark brown function key face       */
+  --key-dark-2:           #1f1610;   /* deeper shadow under key            */
+  --key-dark-edge:        #0a0604;   /* hard black bevel below key         */
+  --key-dark-stroke:      #5a4628;   /* faint warm hairline around key     */
+
+  /* --- Number keys (cream / ivory) -------------------------------------- */
+  --key-cream:            #efe4cc;   /* number key face (top)              */
+  --key-cream-2:          #d8c8a8;   /* number key bottom of gradient      */
+  --key-cream-shadow:     #8a7a5c;   /* cast shadow under cream key        */
+
+  /* --- Accent keys (golden YELLOW operator column) ---------------------- */
+  --accent-yellow:        #f0c040;   /* 2nd, CLR, ÷, ×, −, +, =            */
+  --accent-yellow-2:      #d8a830;   /* gradient bottom                    */
+  --accent-yellow-deep:   #b88a20;   /* pressed / shadow                   */
+  --accent-yellow-soft:   #f5d878;   /* tinted accent surface              */
+
+  /* --- Display (mahogany strip with red LED) ---------------------------- */
+  --display-bezel:        #2c1812;   /* deep mahogany strip around LED     */
+  --display-bezel-2:      #1a0c08;   /* darker grain                       */
+  --display-stroke:       #5a3c20;   /* faint warm outline on display      */
+  --led-bg:               #1a0606;   /* near-black behind segments         */
+  --led-red:              #ff2614;   /* lit segment red                    */
+  --led-red-dim:          #4a1008;   /* unlit segment ghost                */
+  --led-glow:             #ff5a3c;   /* halation around digits             */
+
+  /* --- Printed text (silkscreen on dark surfaces) ----------------------- */
+  --silk-cream:           #d4c4a0;   /* "A'", "Pgm" etc above keys         */
+  --silk-cream-strong:    #efe4cc;   /* on-key labels for dark keys        */
+  --silk-yellow:          #d8a830;   /* yellow secondary labels            */
+  --silk-mahogany:        #8a4a28;   /* faint watermark text               */
+
+  /* --- iOS system tints (used in app toolbar only) ---------------------- */
+  --ios-blue:             #0a84ff;   /* "TI-59" picker, links              */
+  --ios-orange:           #ff9f0a;   /* undo icon                          */
+  --ios-gray:             #8e8e93;   /* secondary icons                    */
+
+  /* =====================================================================
+     SEMANTIC TOKENS — what to actually use in components
+     ===================================================================== */
+
+  /* Surfaces (DARK by default — this app is OLED-black) */
+  --bg:                   var(--bg-black);
+  --bg-elevated:          #14100c;   /* subtle card above black            */
+  --bg-inset:             #1a130d;   /* well / code block                  */
+  --bg-display:           var(--led-bg);
+  --bg-display-bezel:     var(--display-bezel);
+
+  /* Foregrounds */
+  --fg:                   #f4ecd6;   /* primary text on black              */
+  --fg-2:                 #d4c4a0;   /* secondary body text                */
+  --fg-3:                 #a89878;   /* tertiary / muted                   */
+  --fg-led:               var(--led-red);
+  --fg-on-cream:          #1a130d;   /* text on a cream key                */
+  --fg-on-yellow:         #2a1f10;   /* text on a yellow accent key        */
+
+  /* Strokes */
+  --stroke:               #2a1f15;   /* hairline divider on black          */
+  --stroke-2:             #3a2a1c;   /* heavier divider                    */
+  --stroke-warm:          #5a4628;   /* warm hairline around key/display   */
+
+  /* Accent */
+  --accent:               var(--accent-yellow);
+  --accent-deep:          var(--accent-yellow-deep);
+  --accent-soft:          var(--accent-yellow-soft);
+
+  /* iOS toolbar */
+  --link:                 var(--ios-blue);
+
+  /* =====================================================================
+     TYPOGRAPHY
+     ===================================================================== */
+  --font-display:         "DSEG7Classic", "Courier New", monospace;
+  --font-key:             "Barlow Condensed", "Helvetica Neue", "Arial Narrow", sans-serif;
+  --font-body:            "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono:            "IBM Plex Mono", "SF Mono", Menlo, Consolas, monospace;
+
+  --size-h1:              44px;
+  --size-h2:              30px;
+  --size-h3:              22px;
+  --size-h4:              17px;
+  --size-body:            16px;
+  --size-small:           14px;
+  --size-micro:           12px;
+  --size-label:           11px;
+
+  --leading-tight:        1.1;
+  --leading-snug:         1.25;
+  --leading-body:         1.55;
+
+  --track-key:            0.06em;
+  --track-label:          0.14em;
+
+  /* =====================================================================
+     SPACING / RADII / SHADOWS
+     ===================================================================== */
+  --space-1:              4px;
+  --space-2:              8px;
+  --space-3:              12px;
+  --space-4:              16px;
+  --space-5:              24px;
+  --space-6:              32px;
+  --space-7:              48px;
+  --space-8:              64px;
+
+  --radius-key:           7px;       /* keycap corner radius (softer)      */
+  --radius-key-cream:     6px;       /* number key (slightly less round)   */
+  --radius-card:          10px;      /* panel corner radius                */
+  --radius-display:       10px;      /* LED bezel radius                   */
+  --radius-pill:          999px;
+
+  /* Physical-button shadows — top highlight + hard bottom bevel */
+  --shadow-key:           0 1px 0 #000, 0 2px 4px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.04);
+  --shadow-key-cream:     0 1px 0 #4a3a2a, 0 2px 3px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.4);
+  --shadow-key-yellow:    0 1px 0 #5a3c10, 0 2px 3px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.25);
+  --shadow-key-pressed:   inset 0 2px 4px rgba(0,0,0,.6);
+  --shadow-card:          0 1px 0 #1a130d, 0 4px 16px rgba(0,0,0,.4);
+  --shadow-display-inset: inset 0 2px 8px rgba(0,0,0,.7);
+  --shadow-led-glow:      0 0 12px rgba(255,38,20,.5), 0 0 28px rgba(255,38,20,.25);
+}
+
+/* ===========================================================================
+   SEMANTIC ELEMENT STYLES — apply via `.calcu` class on a wrapper.
+   =========================================================================== */
+.calcu {
+  font-family: var(--font-body);
+  font-size: var(--size-body);
+  line-height: var(--leading-body);
+  color: var(--fg);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+.calcu h1, .calcu .h1 {
+  font-family: var(--font-key);
+  font-weight: 700;
+  font-size: var(--size-h1);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--track-key);
+  text-transform: uppercase;
+  color: var(--fg);
+  margin: 0 0 var(--space-4);
+}
+.calcu h2, .calcu .h2 {
+  font-family: var(--font-key);
+  font-weight: 700;
+  font-size: var(--size-h2);
+  line-height: var(--leading-snug);
+  letter-spacing: var(--track-key);
+  text-transform: uppercase;
+  margin: var(--space-6) 0 var(--space-3);
+}
+.calcu h3, .calcu .h3 {
+  font-family: var(--font-key);
+  font-weight: 600;
+  font-size: var(--size-h3);
+  line-height: var(--leading-snug);
+  letter-spacing: var(--track-key);
+  text-transform: uppercase;
+  margin: var(--space-5) 0 var(--space-2);
+}
+.calcu h4, .calcu .h4 {
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: var(--size-h4);
+  margin: var(--space-4) 0 var(--space-2);
+}
+.calcu .eyebrow {
+  font-family: var(--font-key);
+  font-weight: 600;
+  font-size: var(--size-label);
+  text-transform: uppercase;
+  letter-spacing: var(--track-label);
+  color: var(--accent-deep);
+}
+.calcu p {
+  margin: 0 0 var(--space-3);
+  text-wrap: pretty;
+  max-width: 68ch;
+  color: var(--fg-2);
+}
+.calcu a {
+  color: var(--link);
+  text-decoration: none;
+}
+.calcu a:hover { text-decoration: underline; text-underline-offset: 2px; }
+.calcu code, .calcu .mono {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  background: var(--bg-inset);
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 1px solid var(--stroke);
+  color: var(--silk-cream);
+}
+.calcu .led {
+  font-family: var(--font-display);
+  color: var(--led-red);
+  background: var(--led-bg);
+  text-shadow: var(--shadow-led-glow);
+  letter-spacing: 0.06em;
+}

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Calc-U 59 — Keystroke & module callout</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  html,body{margin:0;background:#000;}
+  .card{font-family:var(--font-body);padding:18px 22px;display:flex;flex-direction:column;gap:10px;}
+  .eyebrow{font-family:var(--font-key);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#f0c040;margin:0;}
+  .row{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
+  .k{display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:28px;padding:0 8px;font-family:var(--font-key);font-weight:700;font-size:13px;letter-spacing:.04em;text-transform:uppercase;border-radius:5px;box-shadow:0 1px 0 #000,0 1px 2px rgba(0,0,0,.5);}
+  .k.cream{background:linear-gradient(180deg,#efe4cc,#d8c8a8);color:#1a130d;}
+  .k.dark{background:linear-gradient(180deg,#2a1f15,#1f1610);color:#efe4cc;}
+  .k.yellow{background:linear-gradient(180deg,#f0c040,#d8a830);color:#2a1f10;}
+  .arrow{color:#7a6a55;font-family:var(--font-mono);}
+  .token{display:inline-block;border:1px solid #a87830;padding:0 6px;border-radius:2px;color:#c89858;font-family:var(--font-key);font-weight:700;font-size:11px;letter-spacing:.05em;}
+  .module-line{color:#a87830;font-family:var(--font-key);font-weight:500;font-size:11px;letter-spacing:.04em;}
+</style></head>
+<body class="calcu">
+<div class="card">
+  <p class="eyebrow">Keystroke sequence</p>
+  <div class="row">
+    <span class="k yellow">2nd</span>
+    <span class="k dark">LRN</span>
+    <span class="arrow">›</span>
+    <span class="k cream">5</span><span class="k cream">·</span><span class="k cream">7</span>
+    <span class="arrow">›</span>
+    <span class="k dark">STO</span><span class="k cream">0</span><span class="k cream">1</span>
+    <span class="arrow">›</span>
+    <span class="k dark">R/S</span>
+  </div>
+  <p class="eyebrow" style="color:#7a6a55;margin-top:4px">Module instruction strip</p>
+  <div class="module-line">DIAGNOSTIC: <span class="token">SBR</span> <span class="token">=</span> &nbsp; · &nbsp; L.R. INIT: <span class="token">SBR</span> <span class="token">CLR</span></div>
+</div>
+</body></html>

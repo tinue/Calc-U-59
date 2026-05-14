@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Calc-U 59 — Foreground text</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  html,body{margin:0;background:#000;}
+  .card{font-family:var(--font-body);padding:18px 20px;}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .panel{padding:14px 16px;border-radius:8px;border:1px solid #2a1f15;}
+  .panel.dark{background:#000;}
+  .panel.cream{background:#efe4cc;border-color:#8a7a5c;}
+  .panel.dark h1{color:#efe4cc;}
+  .panel.dark .l2{color:#b8a880;}
+  .panel.dark .l3{color:#7a6a55;}
+  .panel.dark .led{color:#ff2614;font-family:var(--font-display);text-shadow:0 0 6px rgba(255,38,20,.5);}
+  .panel.cream h1{color:#1a130d;}
+  .panel.cream .l2{color:#4a3a2a;}
+  .panel.cream .l3{color:#7a6a55;}
+  h1{font-family:var(--font-key);text-transform:uppercase;font-weight:700;font-size:20px;letter-spacing:.06em;margin:0 0 4px;}
+  .l2{font-size:13px;margin:6px 0 0;}
+  .l3{font-size:12px;margin:2px 0 0;}
+  .tag{display:inline-block;font-family:var(--font-mono);font-size:10px;background:rgba(255,200,100,.08);color:#b88a20;padding:1px 6px;border-radius:3px;margin-left:6px;}
+  .panel.cream .tag{background:rgba(0,0,0,.08);color:#4a3a2a;}
+</style></head>
+<body class="calcu">
+<div class="card">
+  <div class="row">
+    <div class="panel dark">
+      <h1>Primary <span class="tag">--fg</span></h1>
+      <p class="l2">Secondary body copy <span class="tag">--fg-2</span></p>
+      <p class="l3">Tertiary muted caption <span class="tag">--fg-3</span></p>
+      <p class="led">3.1415926 54</p>
+    </div>
+    <div class="panel cream">
+      <h1>On cream key <span class="tag">--fg-on-cream</span></h1>
+      <p class="l2">Numeric key labels live here</p>
+      <p class="l3">Used inside the cream keys only</p>
+    </div>
+  </div>
+</div>
+</body></html>

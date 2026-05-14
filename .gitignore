@@ -1,0 +1,12 @@
+# Uploads
+uploads/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
