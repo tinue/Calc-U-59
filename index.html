@@ -27,12 +27,15 @@
     return (
       <>
         <SiteHeader page={page} onNav={setPage} />
-        <WipBanner />
         {page === "home"    && <HomePage onNav={setPage} />}
         {page === "start"   && <GettingStartedPage />}
-        {page === "ref"     && <ReferencePage />}
+        {page === "install-mobile" && <InstallMobilePage onNav={setPage} />}
+        {page === "install-mac"    && <InstallMacPage onNav={setPage} />}
+        {page === "state-files"    && <StateFilesPage onNav={setPage} />}
+        {page === "debugger"       && <DebuggerPage onNav={setPage} />}
+        {page === "ref"     && <ReferencePage onNav={setPage} />}
         {page === "modules" && <ModulesPage />}
-        {page === "faq"     && <FaqPage />}
+        {page === "faq"     && <FaqPage onNav={setPage} />}
         <SiteFooter />
       </>
     );

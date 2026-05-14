@@ -31,8 +31,9 @@ function SiteHeader({ page, onNav }) {
               {i.label}
             </a>
           ))}
+          <a href="https://github.com/tinue/Calc-U-59">Github</a>
         </nav>
-        <a className="nav-cta" href="#">App Store</a>
+        <a className="nav-cta" href="https://apps.apple.com/us/app/calc-u-59/id6761413142">App Store</a>
       </div>
     </header>
   );
@@ -176,69 +177,7 @@ function Placeholder({ title, note }) {
 }
 
 Object.assign(window, {
-  SiteHeader, SiteFooter, K, KSeq, TopicCard, DocsSidebar, Placeholder, WipBanner
+  SiteHeader, SiteFooter, K, KSeq, TopicCard, DocsSidebar, Placeholder
 });
 
-/* =============================================================
-   Work-in-progress banner — sticky strip below the site header.
-   Diagonal yellow-on-black hazard stripes, LED-red label.
-   Remove this component (and its render in index.html) when the
-   site has real content.
-   ============================================================= */
-function WipBanner() {
-  const stripes = `repeating-linear-gradient(
-      135deg,
-      #f0c040 0 14px,
-      #2a1f10 14px 28px
-    )`;
-  return (
-    <div style={{
-      position: "sticky", top: 72, zIndex: 40,
-      background: stripes,
-      padding: "8px 0",
-      borderBottom: "1px solid #5a3c10",
-      borderTop: "1px solid #5a3c10",
-    }}>
-      <div style={{
-        maxWidth: 1120, margin: "0 auto", padding: "0 24px",
-        display: "flex", alignItems: "center", justifyContent: "center", gap: 16,
-      }}>
-        <span style={{
-          background: "#000",
-          color: "#ff2614",
-          padding: "8px 20px",
-          borderRadius: 6,
-          fontFamily: "var(--font-key)",
-          fontWeight: 700,
-          fontSize: 14,
-          letterSpacing: ".18em",
-          textTransform: "uppercase",
-          textShadow: "0 0 8px rgba(255,38,20,.5)",
-          border: "1px solid #5a1208",
-          display: "inline-flex", alignItems: "center", gap: 10,
-        }}>
-          <span style={{
-            display: "inline-block",
-            width: 8, height: 8, borderRadius: "50%",
-            background: "#ff2614",
-            boxShadow: "0 0 8px #ff2614",
-            animation: "wip-blink 1.2s ease-in-out infinite",
-          }}></span>
-          Work in progress
-          <span style={{
-            color: "#efe4cc",
-            fontFamily: "var(--font-body)",
-            fontWeight: 400,
-            fontSize: 13,
-            letterSpacing: 0,
-            textTransform: "none",
-            textShadow: "none",
-            opacity: .85,
-            marginLeft: 4,
-          }}>· content & screenshots being written</span>
-        </span>
-      </div>
-      <style>{`@keyframes wip-blink { 0%,100%{opacity:1} 50%{opacity:.35} }`}</style>
-    </div>
-  );
-}
+
