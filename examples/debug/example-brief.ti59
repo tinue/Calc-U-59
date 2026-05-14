@@ -1,0 +1,30 @@
+# 800 steps, 19 data registers (R00–R19) — "2 OP 17"
+PARTITION: 799.19
+# Magnetic card with one Label
+CUECARD:
+Template: MagnetCard
+Title: Example
+Banks: 1,2
+A: Start
+# Load the Master Library
+SOLID-STATE-MODULE: ML
+# Force Printer On
+PRINTER: on
+# Program Listing
+PROGRAM:
+001  76  LBL
+002  11. A
+003  89  π
+004  95  =
+005  91  R/S
+# Data Registers
+REGISTERS:
+00 = 3.141592653589793   # π  (verify RCL 00 → 3.141592654)
+# Type some keys after load / reset
+KEYSTROKES:
+84   3
+11   A
+Wait: 2s
+43   RCL
+92   0
+92   0

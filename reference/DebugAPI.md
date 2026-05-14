@@ -10,7 +10,7 @@ This document describes the two-layer debug API available in the TI-59 emulator.
 Both layers are thread-safe. All Swift entry points live in `EmulatorViewModel`;
 the underlying C++ is in `TI59Machine` and `TMC0501`.
 
-For a description of the debug GUI (tabs, buttons, ASM overlay), see [USERGUIDE.md](USERGUIDE.md).
+This reference is API-focused. For user-facing debug-pane behavior (LIVE/CPU/LOG, controls, workflows), see the user guide: https://www.calcu59.ch
 
 ---
 
