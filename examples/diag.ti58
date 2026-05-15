@@ -1,95 +1,105 @@
-      # diag.ti58 — TI-59 calculator diagnostic magnet card, shrunk to fit TI-58.
-      #
-      # After loading, press "E" to start. If ok, the calculator shows "-.8888888888" on the screen, and also prints this number.
+# diag.ti58 — TI-59 calculator diagnostic magnet card, shrunk to fit TI-58.
+#
+# After loading, press "E" to start. If ok, the calculator shows "-.8888888888" on the screen, and also prints this number.
 
-      # Default partitioning
-      PARTITION: 239.29   # 480 steps, 30 data registers (default)
+# Default partitioning
+PARTITION: 239.29   # 240 steps, 30 data registers (default)
 
-      # The programs contains many zeroes, which are skipped below.
-      PROGRAM:
-      000  76 LBL
-      001  12  B
-      002  85  +
-      003  04  4
-      004  95  =
-      005  34 √X
-      006  92 RTN
-      ...
-      100  76 LBL
-      101  11  A
-      102  89  p
-      103  33 X²
-      104  42 STO
-      105  01  01
-      106  22 INV
-      107  59 INT
-      108  42 STO
-      109  29  29
-      110  53  (
-      111  43 RCL
-      112  01  01
-      113  75  -
-      114  43 RCL
-      115  29  29
-      116  54  )
-      117  55  :
-      118  03  3
-      119  45 Y
-      120  02  2
-      121  75  -
-      122  01  1
-      123  95  =
-      124  92 RTN
-      125  76 LBL
-      126  15  E
-      127  08  8
-      128  09  9
-      129  06  6
-      130  12  B
-      131  42 STO
-      132  02  02
-      133  11  A
-      134  44 SUM
-      135  02  02
-      136  05  5
-      137  32 X_T
-      138  03  3
-      139  00  0
-      140  37 P/R
-      141  22 INV
-      142  37 P/R
-      143  75  -
-      144  43 RCL
-      145  02  02
-      146  95  =
-      147  29 CP
-      148  65  x
-      149  01  1
-      150  00  0
-      151  22 INV
-      152  28 LOG
-      153  95  =
-      154  59 INT
-      155  67  EQ
-      156  13  C
-      157  25 CLR
-      158  35 1/X
-      159  61 GTO
-      160  14  D
-      161  76 LBL
-      162  13  C
-      163  09  9
-      164  35 1/X
-      165  52 EE
-      166  65  x
-      167  08  8
-      168  94 +/-
-      169  22 INV
-      170  52 EE
-      171  95  =
-      172  76 LBL
-      173  14  D
-      174  98 ADV
-      175  99 PRT
-      176  98 ADV
-      177  92 RTN
+# Prepare the cue card inlay
+CUECARD:
+Template: CueCard
+Title: CALCULATOR DIAGNOSTIC - Consult Owner's Manual
+Banks: 1
+E: EXECUTE
+
+# Print output requires the printer to be active
+PRINTER: on
+
+# The programs contains many zeroes, which are skipped below.
+PROGRAM:
+000  76 LBL
+001  12  B
+002  85  +
+003  04  4
+004  95  =
+005  34 √X
+006  92 RTN
+...
+100  76 LBL
+101  11  A
+102  89  p
+103  33 X²
+104  42 STO
+105  01  01
+106  22 INV
+107  59 INT
+108  42 STO
+109  29  29
+110  53  (
+111  43 RCL
+112  01  01
+113  75  -
+114  43 RCL
+115  29  29
+116  54  )
+117  55  :
+118  03  3
+119  45 Y
+120  02  2
+121  75  -
+122  01  1
+123  95  =
+124  92 RTN
+125  76 LBL
+126  15  E
+127  08  8
+128  09  9
+129  06  6
+130  12  B
+131  42 STO
+132  02  02
+133  11  A
+134  44 SUM
+135  02  02
+136  05  5
+137  32 X_T
+138  03  3
+139  00  0
+140  37 P/R
+141  22 INV
+142  37 P/R
+143  75  -
+144  43 RCL
+145  02  02
+146  95  =
+147  29 CP
+148  65  x
+149  01  1
+150  00  0
+151  22 INV
+152  28 LOG
+153  95  =
+154  59 INT
+155  67  EQ
+156  13  C
+157  25 CLR
+158  35 1/X
+159  61 GTO
+160  14  D
+161  76 LBL
+162  13  C
+163  09  9
+164  35 1/X
+165  52 EE
+166  65  x
+167  08  8
+168  94 +/-
+169  22 INV
+170  52 EE
+171  95  =
+172  76 LBL
+173  14  D
+174  98 ADV
+175  99 PRT
+176  98 ADV
+177  92 RTN

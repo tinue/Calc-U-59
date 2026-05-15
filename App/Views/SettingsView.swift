@@ -8,6 +8,8 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     #endif
 
+    var viewModel: EmulatorViewModel
+
     // -1 = last used; 0/1/2 = specific MachineModel.rawValue
     @AppStorage(SettingsKey.startupModel)    private var startupModelRaw: Int = -1
     @AppStorage(SettingsKey.traceLocation)   private var traceLocationRaw: Int = TraceLocation.iCloud.rawValue
@@ -15,6 +17,9 @@ struct SettingsView: View {
     @AppStorage(SettingsKey.traceMaxFileSizeMB) private var traceMaxFileSizeMB: Int = 10
     @AppStorage(SettingsKey.keyboardFeedback) private var keyboardFeedbackRaw: Int = KeyboardFeedbackType.off.rawValue
     @AppStorage(SettingsKey.ledFontStyle) private var ledFontStyleRaw: Int = LEDFontStyle.modernized.rawValue
+
+    @State private var allModules: [ModuleMetadata] = []
+    @State private var pendingModuleID: String = ""
 
     // Trigger refresh of warning after re-authorization
     @State private var authRefreshTrigger: UUID = UUID()
@@ -24,6 +29,15 @@ struct SettingsView: View {
         settingsForm
             .frame(minWidth: 460, minHeight: 540)
             .padding()
+            .onAppear {
+                allModules = ROMLoader.loadAllModuleMetadata()
+                pendingModuleID = viewModel.selectedModuleID
+            }
+            .onDisappear {
+                if pendingModuleID != viewModel.selectedModuleID {
+                    viewModel.selectModule(id: pendingModuleID)
+                }
+            }
         #else
         NavigationStack {
             settingsForm
@@ -37,6 +51,13 @@ struct SettingsView: View {
         .onAppear {
             // Force iCloud on iOS/iPadOS
             traceLocationRaw = TraceLocation.iCloud.rawValue
+            allModules = ROMLoader.loadAllModuleMetadata()
+            pendingModuleID = viewModel.selectedModuleID
+        }
+        .onDisappear {
+            if pendingModuleID != viewModel.selectedModuleID {
+                viewModel.selectModule(id: pendingModuleID)
+            }
         }
         #endif
     }
@@ -50,6 +71,12 @@ struct SettingsView: View {
                     }
                     Divider()
                     Text("Last Used").tag(-1)
+                }
+
+                Picker("Solid State Module", selection: $pendingModuleID) {
+                    ForEach(allModules, id: \.id) { module in
+                        Text(module.menuTitle).tag(module.id)
+                    }
                 }
 
                 // Keyboard feedback only on iOS
@@ -155,5 +182,5 @@ struct SettingsView: View {
 }
 
 #Preview {
-    SettingsView()
+    SettingsView(viewModel: EmulatorViewModel())
 }

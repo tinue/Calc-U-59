@@ -3,31 +3,39 @@
 # Note: The bug is fixed now, issue was in ALU/R5 interaction.
 #
 # The program is supposed to print this output and then stop:
-          0.
-         10.
-         30.
-         31.
-         11.
+#         0.
+#        10.
+#        30.
+#        31.
+#        11.
 
 # However, the emulator loses the return address four times, before it finally retains it. Even then, it never reaches the 2nd subroutine. This leads to this output:
-          0.
-         10.
-         30.
-          0.
-         10.
-         30.
-          0.
-         10.
-         30.
-          0.
-         10.
-         30.
-          0.
-         10.
-         30.
-         11.
+#         0.
+#        10.
+#        30.
+#         0.
+#        10.
+#        30.
+#         0.
+#        10.
+#        30.
+#         0.
+#        10.
+#        30.
+#         0.
+#        10.
+#        30.
+#        11.
 #
 
+# Prepare the magnet card inlay
+CUECARD:
+Template: CueCard
+Title: Regression test for SBR issue
+A: Press R/S
+
+# Print output requires the printer to be active
+PRINTER: on
 PROGRAM:
 000  25 CLR
 001  99 PRT

@@ -2,9 +2,11 @@ import Foundation
 
 // ── TraceWriter ───────────────────────────────────────────────────────────────
 //
-// Writes TI59_TRACE.bin in the binary format documented in DebugAPI.md.
-// Append-mode: multiple sessions accumulate in the same file.
-// The user deletes the file manually between unrelated capture runs.
+// Writes TI59_TRACE.bin (or CALCU58_TRACE.bin, CALCU58C_TRACE.bin) in the binary
+// format documented in DebugAPI.md.
+//
+// Fresh-file mode: each open() call deletes the existing file and starts fresh.
+// This ensures each Trace button press captures a new, independent session.
 //
 // Thread safety: all methods must be called from the same serial queue
 // (emulQueue in EmulatorViewModel).  open()/close() are called from the
@@ -34,7 +36,7 @@ final class TraceWriter {
 
     // ── File header constants ─────────────────────────────────────────────────
     private static let magic: UInt32   = 0x54493539   // 'TI59' LE
-    private static let version: UInt16 = 1  // Baseline version for initial release; do not increment until v1.0.0 ships
+    private static let version: UInt16 = 2  // v1 (released in v1.0.0) is stable; v2+ can evolve without backwards-compat guarantees
     private static let headerSize      = 16
 
     // ── State ─────────────────────────────────────────────────────────────────
@@ -75,8 +77,9 @@ final class TraceWriter {
 
     // ── Public API ────────────────────────────────────────────────────────────
 
-    /// Resolve the trace file URL, open (or create+append) the file, and write
-    /// a SESSION_START record.  Returns true if successful, false if unavailable.
+    /// Resolve the trace file URL, delete any existing file, create a fresh one,
+    /// and write a SESSION_START record.  Returns true if successful, false if unavailable.
+    /// Each call to open() starts a new, independent session.
     @discardableResult
     func open() -> Bool {
         guard !isOpen else { return true }
@@ -85,39 +88,52 @@ final class TraceWriter {
         let url = self.traceFileURL()
         let fm = FileManager.default
 
-        // Check if file exists and enforce max file size
+        // Check if existing file is very large; if so, move it to timestamped backup
+        // before creating fresh file (preserves old data)
         if let attrs = try? fm.attributesOfItem(atPath: url.path),
            let fileSize = attrs[FileAttributeKey.size] as? NSNumber {
             let maxMB = UserDefaults.standard.integer(forKey: SettingsKey.traceMaxFileSizeMB)
             let maxBytes = UInt64(max(maxMB, Self.defaultMaxFileSizeMB)) * 1_000_000
             if UInt64(fileSize.int64Value) >= maxBytes {
-                // File exceeded; create timestamped backup and retry
-                let newURL = timestampedTraceURL(baseURL: url)
-                return openFile(at: newURL)
+                // File exceeded; move to timestamped backup before creating fresh one
+                let backupURL = timestampedTraceURL(baseURL: url)
+                do {
+                    try fm.moveItem(at: url, to: backupURL)
+                } catch {
+                    // If backup fails, just proceed with deletion
+                    _ = try? fm.removeItem(at: url)
+                }
             }
         }
 
         return openFile(at: url)
     }
 
-    /// Open file at the given URL. Creates it if needed. Returns true on success.
+    /// Open file at the given URL. Creates a new file (deletes existing). Returns true on success.
     private func openFile(at url: URL) -> Bool {
         let fm = FileManager.default
 
-        // Create file if it doesn't exist — try both methods
-        if !fm.fileExists(atPath: url.path) {
-            var created = fm.createFile(atPath: url.path, contents: nil)
-            if !created {
-                do {
-                    try Data().write(to: url)
-                    created = true
-                } catch {
-                    return false
-                }
-            }
-            if !created {
+        // Delete existing file to start fresh (no appending to previous session)
+        if fm.fileExists(atPath: url.path) {
+            do {
+                try fm.removeItem(at: url)
+            } catch {
                 return false
             }
+        }
+
+        // Create new file — try both methods
+        var created = fm.createFile(atPath: url.path, contents: nil)
+        if !created {
+            do {
+                try Data().write(to: url)
+                created = true
+            } catch {
+                return false
+            }
+        }
+        if !created {
+            return false
         }
 
         // Open for writing
@@ -127,7 +143,7 @@ final class TraceWriter {
 
         let fileOffset = fh.seekToEndOfFile()
         if fileOffset == 0 {
-            fh.write(Self.fileHeader())
+            fh.write(fileHeader())
         }
 
         fileHandle = fh
@@ -136,9 +152,16 @@ final class TraceWriter {
         sessionEventCount = 0
         sessionSuppressedTotal = 0
 
-        // Write SESSION_START record
-        var payload = Data(capacity: 8)
+        // Write SESSION_START record with timestamp and model
+        var payload = Data(capacity: 9)
         payload.appendLE(UInt64(Date().timeIntervalSince1970))
+        let modelByte: UInt8
+        switch model {
+        case .ti59:  modelByte = 0
+        case .ti58:  modelByte = 1
+        case .ti58c: modelByte = 2
+        }
+        payload.append(modelByte)
         writeRecord(.sessionStart, payload: payload)
 
         return true
@@ -274,13 +297,22 @@ final class TraceWriter {
 
     // ── File header ───────────────────────────────────────────────────────────
 
-    private static func fileHeader() -> Data {
-        var d = Data(capacity: headerSize)
-        d.appendLE(magic)
-        d.appendLE(version)
-        d.appendLE(UInt16(0))       // pad
-        d.appendLE(UInt64(0))       // reserved
-        assert(d.count == headerSize)
+    private func fileHeader() -> Data {
+        var d = Data(capacity: TraceWriter.headerSize)
+        d.appendLE(TraceWriter.magic)
+        d.appendLE(TraceWriter.version)
+
+        // Model indicator (v2): 0=TI-59, 1=TI-58, 2=TI-58C
+        let modelByte: UInt16
+        switch model {
+        case .ti59:  modelByte = 0
+        case .ti58:  modelByte = 1
+        case .ti58c: modelByte = 2
+        }
+        d.appendLE(modelByte)
+
+        d.appendLE(UInt64(0))       // reserved for future use
+        assert(d.count == TraceWriter.headerSize)
         return d
     }
 

@@ -14,8 +14,8 @@ If you are looking for a polished calculator app, this is probably not for you. 
 
 - Cycle-accurate TMC0501 CPU emulation
 - Integrated debugger with register inspection and program memory dump
-- [Debug GUI](docs/USERGUIDE.md) — three-tab debug panel (LIVE, CPU, LOG) with live register view, CPU inspector, and ROM overlay execution (ASM overlay controls are in the CPU tab)
-- [Debug API](docs/DebugAPI.md) for scripted access to CPU state, breakpoints, instruction tracing, and disassembly
+- [User Guide](https://www.calcu59.ch) — installation, operation, and debug-pane walkthroughs
+- [Debug API](reference/DebugAPI.md) for scripted access to CPU state, breakpoints, instruction tracing, and disassembly
 - Printer trace mode (functional simulation — see limitation below)
 - `.ti59` state file format for loading calculator state
 - Card reader emulation
@@ -34,42 +34,13 @@ single stepping, or any sort of dynamic freeze (e.g. on register change). The AP
 
 **Building from source:** The project contains your Apple Developer Team ID and bundle identifier (`ch.erzberger.calcu59`). To build it yourself, open the project in Xcode, go to the target's *Signing & Capabilities* tab, and change the team to your own Apple Developer account — Xcode will update the bundle identifier automatically. To run in the Simulator no changes are needed at all. If you want iCloud (card file syncing) to work on a real device, you also need to register a new iCloud container in your Apple Developer account and update the two container identifier strings in `Calc-U-59.entitlements` to match.
 
-## macOS Installation
+## User Guide
 
-A pre-built, notarized macOS DMG is available on the [Releases page](../../releases) of this repository.
+For installation and day-to-day operation (Mac, iPhone, iPad), use the user guide:
 
-**Install:**
+- https://www.calcu59.ch
 
-1. Download the `.dmg` file from the latest release.
-2. Open it and drag **Calc-U-59.app** into your Applications folder.
-3. Eject the disk image.
-
-**First launch:**
-
-Because Calc-U-59 is distributed outside the Mac App Store, macOS will show a security prompt the first time you open it — even though the app is notarized by Apple. Double-clicking the app will produce a message saying it cannot be opened.
-
-To open it the first time, right-click (or Control-click) the app icon and choose **Open** from the context menu. macOS will ask for confirmation once; after that, the app opens normally with a double-click.
-
-Alternatively, you can go to **System Settings → Privacy & Security**, scroll down to the security section, and click **Open Anyway** next to the Calc-U-59 entry.
-
-## iPhone and iPad
-
-### Installation
-
-There is no App Store version of Calc-U-59 for iPhone or iPad, and there may never be one. Apple's App Store regulations around emulators are strict and subject to change, so distribution through that channel is uncertain. For now, the only way to run Calc-U-59 on an iPhone or iPad is to build it yourself from source using Xcode and install it on your device directly (via a developer account or free provisioning profile, subject to Apple's usual limits on sideloaded apps).
-
-### iPad layout
-
-The iPad adapts its layout based on orientation:
-
-- **Landscape:** The layout mirrors the Mac experience — the calculator, printer tape, and debug panel are shown side by side.
-- **Portrait:** The layout matches the iPhone, with the printer accessible via navigation buttons (see below).
-
-### iPhone layout
-
-On iPhone (and iPad in portrait), only one panel is visible at a time. The calculator is shown by default. A chevron button in the top-right corner of the calculator switches to the printer tape view; a chevron button in the top-left of the printer view returns to the calculator.
-
-The debug panel is not available on iPhone.
+Pre-built macOS DMGs are available from this repository's [Releases page](../../releases).
 
 ## AI Programming Assistant
 

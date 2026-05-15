@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.1.0] - 2026-05-15
+
+**Solid-State Modules:** 14 library modules are now supported and can be selected in Settings. Previously only the ML-01 Master Library was available (hardcoded); 13 additional modules are now included, among them the LE07 Leisure Library.
+
+**Cue Cards:** New cue card panel renders dynamically from a template system. All 25 ML-01 Master Library program cards are included with accurate titles, key labels, and descriptions, and each solid-state module has its own set of cards. Cards switch automatically when the calculator detects a new program number.
+
+**Card File Format:** A new human-readable `.U59` text format for card files, that includes the cue card for the card file.
+
+**State File Improvements:** Allow to specify the SolidState module to load. Allow to explicitly set the printer on or off.
+
+ **TI-58C Persistency Fixes:** Fix the file format. The cue card is persisted inside the TI-58C `.mem` file and survives app restarts.
+
+**High-Speed Mode:** Touch and hold the display to run the calculator at full speed — useful for long computations or to LIST a program on the printer.
+
+**Haptic & Audio:** The reset button now produces haptic and audio feedback.
+
+**Help Site:** New help site at https://www.calcu59.ch provides documentation and user guides.
+
+### Fixes
+
+- Loading a preset could silently delete the tail of the stored program.
+- Printer scroll could hang the emulator on macOS.
+- Copying printer output on macOS now produces an image that can be pasted directly into Pixelmator and similar apps.
+
 ## [1.0.0] - 2026-05-04
 First iOS / iPadOS release in the App Store.
 

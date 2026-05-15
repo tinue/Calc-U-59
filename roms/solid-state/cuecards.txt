@@ -1,0 +1,766 @@
+# ML01 – Master Library Module 1
+MODULE-ID: ML
+MODULE-TITLE: MASTER LIBRARY MODULE -1-
+MODULE-MENU-TITLE: Master Library
+MODULE-MENU-SORT: 0
+MODULE-ROM: TMC0541.txt
+
+CUECARD: 1
+Template: SolidStateCard
+Title: MASTER LIBRARY DIAGNOSTIC
+ID: ML-01
+Row1: DIAGNOSTIC: SBR =
+Row1Align: center
+Row2: L.R. INIT: SBR CLR
+Row2Align: left
+Row2R: PRINT: mm STO 00
+Row2RAlign: right
+
+CUECARD: 2
+Template: SolidStateCard
+Title: DETERMINANT, MATRIX, & SIMUL. EQ.
+ID: ML-02
+A': i; \to x_{i}
+B': \to A^{-1}
+C': j; \to a_{i}_{j}^{-1}
+D': \blank
+E': \to |A|, A^{-1}
+A: n
+B: j: a_{i}_{j}
+C: \to |A|
+D: i: b_{i}
+E: \to x
+
+CUECARD: 3
+Template: SolidStateCard
+Title: MATRIX ADDITION AND MULTIPLICATION
+ID: ML-03
+A': j: c_{i}_{j}
+B': i; x_{i}
+C': \to Ax
+D': i; \to y_{i}
+E': \blank
+A: m,n
+B: j: a_{i}_{j}
+C: j: b_{i}_{j}
+D: \lambda_{1},\lambda_{2}
+E: \lambda_{1}A + \lambda_{2}B
+
+CUECARD: 4
+Template: SolidStateCard
+Title: COMPLEX ARITHMETIC
+ID: ML-04
+A': Y
+B': \to X - Y
+C': \to X ÷ Y
+D': \to log_{y}X
+E': X \leftrightarrows Y
+A: X
+B: \to X + Y
+C: \to X × Y
+D: \to Y^{X}
+E: \to ^{X}\sqrt Y
+
+CUECARD: 5
+Template: SolidStateCard
+Title: COMPLEX FUNCTIONS
+ID: ML-05
+A': \to ln X
+B': \to e^{x}
+C': \blank
+D': \blank
+E': \blank
+A: X
+B: \to r. \Theta
+C: \to X^{2}
+D: \to \sqrt X
+E: \to 1/X
+
+CUECARD: 6
+Template: SolidStateCard
+Title: COMPLEX TRIG FUNCTIONS
+ID: ML-06
+A': \blank
+B': \to sin^{-1}X
+C': \to cos^{-1}X
+D': \to tan^{-1}X
+E': \blank
+A: X
+B: \to sin X
+C: \to cos X
+D: \to tan X
+E: \blank
+
+CUECARD: 7
+Template: SolidStateCard
+Title: POLYNOMINAL EVALUATION
+ID: ML-07
+A': \blank
+B': \blank
+C': \blank
+D': \blank
+E': \blank
+A: n
+B: i;a_{i}
+C: x \to P(x)
+D: \blank
+E: \blank
+
+CUECARD: 8
+Template: SolidStateCard
+Title: ZEROS OF FUNCTIONS
+ID: ML-08
+A': \blank
+B': \blank
+C': \blank
+D': \blank
+E': \blank
+A: a
+B: b
+C: \Delta x
+D: \epsilon
+E: \to x
+
+CUECARD: 9
+Template: SolidStateCard
+Title: SIMPSON'S APPROXIMATION (CONTINUOUS)
+ID: ML-09
+A': \blank
+B': \blank
+C': \blank
+D': \blank
+E': \blank
+A: x_{0}
+B: x_{n}
+C: n
+D: \to I
+E: \blank
+
+CUECARD: 10
+Template: SolidStateCard
+Title: SIMPSON'S APPROXIMATION (DISCRETE)
+ID: ML-10
+A': \blank
+B': \blank
+C': \blank
+D': \blank
+E': \blank
+A: n
+B: h
+C: i, f_{i}
+D: \to I
+E: \blank
+
+CUECARD: 11
+Template: SolidStateCard
+Title: TRIANGLE SOLUTION (1)
+ID: ML-11
+A': SSS \angleA'
+B': \angleB'
+C': \angleC'  \angleA'
+D': \blank
+E': INIT
+A: a
+B: b
+C: c. \angleA.  \angleC
+D: SSA c'
+E: SAS c'
+
+CUECARD: 12
+Template: SolidStateCard
+Title: TRIANGLE SOLUTION (2)
+ID: ML-12
+A': ASA \angleA'
+B': SAA \angleB'
+C': AREA
+D': \blank
+E': \blank
+A: a
+B: \angleA, \angleB
+C: \angle C
+D: b
+E: c
+
+CUECARD: 13
+Template: SolidStateCard
+Title: CURVE SOLUTION
+ID: ML-13
+A': \Theta'
+B': r'
+C': s'
+D': c'
+E': a'
+A: \Theta
+B: r
+C: s
+D: c
+E: A'
+
+CUECARD: 14
+Template: SolidStateCard
+Title: NORMAL DISTRIBUTION
+ID: ML-14
+A': \blank
+B': \blank
+C': \blank
+D': \blank
+E': \blank
+A: x \to Z(x)
+B: Q(x)
+C: \blank
+D: \blank
+E: \blank
+
+CUECARD: 15
+Template: SolidStateCard
+Title: RANDOM NUMBER GENERATOR
+ID: ML-15
+A': \blank
+B': \blank
+C': No. (\xbar, \sigma)
+D': \blank
+E': INIT
+A: A, \xbar
+B: B, \sigma
+C: No. (A,B)
+D: \blank
+E: SEED
+
+CUECARD: 16
+Template: SolidStateCard
+Title: COMBINATIONS, PERMUTATIONS, FACTORIALS
+ID: ML-16
+A': \blank
+B': \blank
+C': \blank
+D': \blank
+E': \blank
+A: n
+B: r
+C: n!
+D: P(n,r)
+E: C(n,r)
+
+CUECARD: 17
+Template: SolidStateCard
+Title: MOVING AVERAGES
+ID: ML-17
+A': \blank
+B': \blank
+C': \blank
+D': \blank
+E': INIT
+A: NUMBER
+B: m \to AVG
+C: \blank
+D: \blank
+E: \blank
+
+CUECARD: 18
+Template: SolidStateCard
+Title: COMPOUND INTEREST
+ID: ML-18
+A': S \nbar|i
+B': (1+i) S \nbar|i
+C': a \nbar|i
+D': (1+i) a \nbar|i
+E': INIT
+A: N
+B: % I
+C: PV
+D: FV
+E: \blank
+
+CUECARD: 19
+Template: SolidStateCard
+Title: ANNUITIES
+ID: ML-19
+A': Sinking Fund
+B': Ann Due/FV
+C': Ord Ann/PV
+D': Ann Due/PV
+E': INIT
+A: N
+B: %I
+C: PMT
+D: PV/FV
+E: B. PMT
+
+CUECARD: 20
+Template: SolidStateCard
+Title: DAY OF WEEK, DAYS BETWEEN DATES
+ID: ML-20
+A': (M M D D. Y Y Y Y)
+B':
+C': \blank
+D': \blank
+E': \blank
+A: DATE 1
+B: DATE 2
+C: No. DAYS
+D: D \to D of W
+E: \blank
+
+CUECARD: 21
+Template: SolidStateCard
+Title: HI-LO GAME
+ID: ML-21
+A': M INIT
+B': M LO
+C': M HI
+D': M CORR
+E': \blank
+A: INIT
+B: GO
+C: GUESS
+D: SCORE
+E: \blank
+
+CUECARD: 22
+Template: SolidStateCard
+Title: CHECKING/SAVINGS ACCOUNT
+ID: ML-22
+A': Checking
+B': Savings
+C': I %/Yr
+D': Periods/Yr
+E': \blank
+A: Balance
+B: Deposit
+C: Withdrawal
+D: No Periods
+E: New Bal
+
+CUECARD: 23
+Template: SolidStateCard
+Title: DMS OPERATIONS
+ID: ML-23
+A': (d d. m m s s)
+B':
+C': \blank
+D': \blank
+E': \blank
+A: n
+B: ± p \to n ± p
+C: a \to n × a
+D: a \to n ÷ a
+E: \blank
+
+CUECARD: 24
+Template: SolidStateCard
+Title: UNIT CONVERSIONS (1)
+ID: ML-24
+A': cm \to in
+B': m \to ft
+C': m \to yd
+D': km \to mi
+E': n mi \to mi
+A: in \to cm
+B: ft \to m
+C: yd \to m
+D: mi \to km
+E: mi \to n mi
+
+CUECARD: 25
+Template: SolidStateCard
+Title: UNIT CONVERSIONS (2)
+ID: ML-25
+A': °C \to °F
+B': lit \to oz
+C': lit \to US gal
+D': gm \to oz
+E': kg \to lb
+A: °F \to °C
+B: oz \to lit
+C: US gal \to lit
+D: oz \to gm
+E: lb \to kg
+
+
+MODULE-ID: ST
+MODULE-TITLE: APPLIED STATISTICS MODULE -2-
+MODULE-MENU-TITLE: Applied Statistics
+MODULE-MENU-SORT: 5
+MODULE-ROM: TMC0542.txt
+
+MODULE-ID: RE
+MODULE-TITLE: R.E./INVESTMENT MODULE -3-
+MODULE-MENU-TITLE: Investment
+MODULE-MENU-SORT: 5
+MODULE-ROM: TMC0543.txt
+
+MODULE-ID: SY
+MODULE-TITLE: SURVEYING MODULE -4-
+MODULE-MENU-TITLE: Surveying
+MODULE-MENU-SORT: 7
+MODULE-ROM: TMC0544.txt
+
+MODULE-ID: NG
+MODULE-TITLE: MARINE NAVIGATION -5-
+MODULE-MENU-TITLE: Marine Navigation
+MODULE-MENU-SORT: 8
+MODULE-ROM: TMC0545.txt
+
+MODULE-ID: AV
+MODULE-TITLE: AVIATION MODULE -6-
+MODULE-MENU-TITLE: Aviation
+MODULE-MENU-SORT: 9
+MODULE-ROM: TMC0546.txt
+
+MODULE-ID: LE
+MODULE-TITLE: LEISURE LIBRARY MODULE -7-
+MODULE-MENU-TITLE: Leisure Library
+MODULE-MENU-SORT: 1
+MODULE-ROM: TMC0547.txt
+
+CUECARD: 1
+Template: SolidStateCard
+Title: LEISURE LIBRARY DIAGNOSTIC
+ID: LE-01
+Row1: DIAGNOSTIC: SBR =
+Row1Align: center
+Row2: L.R. LINEAR REGRESSION INITIALIZATION: SBR CLR
+Row2Align: left
+
+CUECARD: 2
+Template: SolidStateCard
+Title: PHOTO I - EXPOSURE COMPENSATION
+ID: LE02
+A': f(n)
+B': D(n)
+C': \blank
+D': \blank
+E': \blank
+A: f(mm)
+B: D(mm)
+C: t
+D: m
+E: \blank
+
+CUECARD: 3
+Template: SolidStateCard
+Title: PHOTO II - FILL-IN FLASH
+ID: LE-03
+A': \blank
+B': \blank
+C': \blank
+D': \blank
+E': \blank
+A: f stops
+B: Light ratio
+C: Guide #
+D: f \leftrightarrow dist
+E: \blank
+
+CUECARD: 4
+Template: SolidStateCard
+Title: FOOTBALL PREDICTOR
+ID: LE-04
+A': \blank
+B': \blank
+C': \blank
+D': Opponent
+E': \blank
+A: \blank
+B: Home
+C: \blank
+D: \blank
+E: Prediction
+
+CUECARD: 5
+Template: SolidStateCard
+Title: BOWLING SCOREKEEPER
+ID: LE-05
+A': #Bowlers
+B': \blank
+C': \blank
+D': \blank
+E': \blank
+A: Bowler#
+B: Pins(1)
+C: Pins(2)
+D: + Pins(10)
+E: Score
+
+CUECARD: 6
+Template: SolidStateCard
+Title: CHESS RATER
+ID: LE-06
+A': Prov Games
+B': Edit Opp.
+C': \blank
+D': \blank
+E': \blank
+A: Old Rating
+B: Opp. Rating
+C: Bonus
+D: Wins
+E: New Rating
+
+CUECARD: 7
+Template: SolidStateCard
+Title: GOLF HANDICAPPER
+ID: LE-07
+A': #Rounds
+B': Latest AS.CR
+C': \blank
+D': \blank
+E': \blank
+A: AS.CR
+B: Handicap
+C: \blank
+D: \blank
+E: Dekete
+
+CUECARD: 8
+Template: SolidStateCard
+Title: BRIDGE SCORER
+ID: LE-08
+A': \blank
+B': \blank
+C': \blank
+D': Over
+E': Down
+A: Trick
+B: Bid
+C: Vulnerable
+D: Doubled
+E: Contract
+
+CUECARD: 9
+Template: SolidStateCard
+Title: CODEBREAKER
+ID: LE-09
+A': \blank
+B': \blank
+C': \blank
+D': \blank
+E': \blank
+A: Guess
+B: \blank
+C: \blank
+D: \blank
+E: Seed
+
+CUECARD: 10
+Template: SolidStateCard
+Title: MEMO PAD
+ID: LE-10
+A': New Line
+B': Print All
+C': Edit
+D': Line Print
+E': \blank
+A: Left
+B: Center
+C: Right
+D: Number
+E: Space
+
+CUECARD: 11
+Template: SolidStateCard
+Title: BLACKJACK
+ID: LE-11
+A': Ace
+B': \blank
+C': \blank
+D': \blank
+E': \blank
+A: Hit
+B: Stand
+C: \blank
+D: New Game
+E: Seed
+
+CUECARD: 12
+Template: SolidStateCard
+Title: ACEY-DEUCY
+ID: LE-12
+A': Bet
+B': Number
+C': Bankroll
+D': \blank
+E': \blank
+A: Seed
+B: Number 1
+C: Number 2
+D: \blank
+E: Odds
+
+CUECARD: 13
+Template: SolidStateCard
+Title: CRAPS
+ID: LE-13
+A': \blank
+B': \blank
+C': \blank
+D': \blank
+E': \blank
+A: Roll
+B: \blank
+C: Bet
+D: Last Roll
+E: Seed
+
+CUECARD: 14
+Template: SolidStateCard
+Title: MARS LANDER
+ID: LE-14
+A': \blank
+B': \blank
+C': \blank
+D': \blank
+E': \blank
+A: Burn
+B: Fuel
+C: Vel. Alt
+D: \blank
+E: Start
+
+CUECARD: 15
+Template: SolidStateCard
+Title: JIVE TURKEY
+ID: LE-15
+A': \blank
+B': \blank
+C': \blank
+D': \blank
+E': \blank
+A: % Truth
+B: Seed
+C: \blank
+D: Score
+E: Guess
+
+CUECARD: 16
+Template: SolidStateCard
+Title: HANGMAN
+ID: LE-16
+A': \blank
+B': \blank
+C': \blank
+D': \blank
+E': \blank
+A: Left
+B: Center
+C: Right
+D: Enter
+E: Word Guess
+
+CUECARD: 17
+Template: SolidStateCard
+Title: LEARNING NIM
+ID: LE-17
+A': \blank
+B': \blank
+C': \blank
+D': \blank
+E': \blank
+A: You 1st
+B: Calc 1st
+C: \blank
+D: \blank
+E: New Game
+
+CUECARD: 18
+Template: SolidStateCard
+Title: FOOTBALL
+ID: LE-18
+A': \blank
+B': \blank
+C': \blank
+D': \blank
+E': \blank
+A: Play
+B: \blank
+C: \blank
+D: \blank
+E: Seed
+
+CUECARD: 19
+Template: SolidStateCard
+Title: COMPUTER ART
+ID: LE-19
+A': \blank
+B': \blank
+C': \blank
+D': \blank
+E': \blank
+A: P.S 1st
+B: P.S 2nd
+C: P.S 3rd
+D: P.S 4th
+E: Prediction
+
+CUECARD: 20
+Template: SolidStateCard
+Title: SEA BATTLE
+ID: LE-20
+A': \blank
+B': \blank
+C': \blank
+D': \blank
+E': Start
+A: Range
+B: Bear\degree
+C: Status
+D: Display
+E: Fire
+
+CUECARD: 21
+Template: SolidStateCard
+Title: BIORHYTHMS
+ID: ML-21
+A': (MM DD.YYYY)
+B':
+C': Compat
+D': \blank
+E': Chart
+A: Date 1
+B: Date 2
+C: P
+D: E
+E: I
+
+
+MODULE-ID: SA
+MODULE-TITLE: SECURITIES ANALYSIS MODULE -8-
+MODULE-MENU-TITLE: Securities Analysis
+MODULE-MENU-SORT: 10
+MODULE-ROM: TMC0548.txt
+
+MODULE-ID: BD
+MODULE-TITLE: BUSINESS DECISIONS MODULE -9-
+MODULE-MENU-TITLE: Business Decisions
+MODULE-MENU-SORT: 11
+MODULE-ROM: TMC0549.txt
+
+MODULE-ID: MU
+MODULE-TITLE: MATH/UTILITIES MODULE -10-
+MODULE-MENU-TITLE: Math/Utilities
+MODULE-MENU-SORT: 2
+MODULE-ROM: TMC0550.txt
+
+MODULE-ID: EE
+MODULE-TITLE: EE LIBRARY MODULE -11-
+MODULE-MENU-TITLE: EE Library
+MODULE-MENU-SORT: 3
+MODULE-ROM: TMC0551.txt
+
+MODULE-ID: SE
+MODULE-TITLE: STRUCTURAL ENGINEERING MODULE
+MODULE-MENU-TITLE: Structural Engineering
+MODULE-MENU-SORT: 12
+MODULE-ROM: TMC0553.txt
+
+MODULE-ID: AG
+MODULE-TITLE: AGRICULTURE MODULE -12-
+MODULE-MENU-TITLE: Agriculture
+MODULE-MENU-SORT: 13
+MODULE-ROM: TMC0554.txt
+
+MODULE-ID: RP
+MODULE-TITLE: RPN SIMULATOR MODULE -13-
+MODULE-MENU-TITLE: RPN Simulator
+MODULE-MENU-SORT: 4
+MODULE-ROM: TMC0555.txt

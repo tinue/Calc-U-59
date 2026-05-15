@@ -23,11 +23,12 @@ build/
 Pods/
 __pycache__/
 
-# Debug output
-debug/
+# Debug output (build artifacts only, not examples/debug/)
+/debug/
+build/debug/
 
 # Trace files (debug artifacts)
-*.txt
+/*.txt
 *.ans
 *.bin
 
@@ -40,6 +41,10 @@ refs/
 # App Store metadata lives in the appstore orphan branch, checked out as a worktree here.
 # One-time setup per clone: git worktree add appstore appstore
 appstore/
+
+# Documentation website lives in the gh-pages branch, checked out as a worktree here.
+# One-time setup per clone: git worktree add docs gh-pages
+docs/
 
 # Local Claude Code settings (permissions only, no secrets — but local)
 .claude/settings.local.json

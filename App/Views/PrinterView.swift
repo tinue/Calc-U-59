@@ -90,28 +90,21 @@ struct PrinterView: View {
     // MARK: - Paper strip
 
     private var paperStrip: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                if dotMode {
-                    dotStrip
-                } else {
-                    textStrip
-                }
-                Color.clear.frame(height: 1).id("bottom")
-            }
-            .scrollIndicators(.hidden)
-            .background(Color(red: 0.96, green: 0.94, blue: 0.88))
-            .overlay(
-                RoundedRectangle(cornerRadius: 2)
-                    .stroke(Color(white: 0.7), lineWidth: 0.5)
-            )
-            .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
-            .onChange(of: viewModel.printerLines.count) {
-                withAnimation(.easeOut(duration: 0.2)) {
-                    proxy.scrollTo("bottom", anchor: .bottom)
-                }
+        ScrollView {
+            if dotMode {
+                dotStrip
+            } else {
+                textStrip
             }
         }
+        .scrollIndicators(.never)
+        .defaultScrollAnchor(.bottom)
+        .background(Color(red: 0.96, green: 0.94, blue: 0.88))
+        .overlay(
+            RoundedRectangle(cornerRadius: 2)
+                .stroke(Color(white: 0.7), lineWidth: 0.5)
+        )
+        .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
     }
 
     // MARK: - Dot strip
@@ -245,13 +238,11 @@ struct PrinterView: View {
 
         #if os(macOS)
         NSPasteboard.general.clearContents()
-        let item = NSPasteboardItem()
-        item.setString(text, forType: .string)
-        if let image = renderer.nsImage,
-           let tiff = image.tiffRepresentation {
-            item.setData(tiff, forType: .tiff)
+        var objects: [NSPasteboardWriting] = [text as NSString]
+        if let nsImage = renderer.nsImage {
+            objects.insert(nsImage, at: 0)  // image first so it is the primary item
         }
-        NSPasteboard.general.writeObjects([item])
+        NSPasteboard.general.writeObjects(objects)
         #else
         var pbItem: [String: Any] = [UTType.utf8PlainText.identifier: text]
         if let image = renderer.uiImage, let png = image.pngData() {

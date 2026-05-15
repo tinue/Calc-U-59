@@ -1,0 +1,20 @@
+# Testfile for a CueCard
+
+CUECARD:
+Template: CueCard
+Title: Quadratic Solver
+A: solve ax^{2}+bx+c
+B: roots
+C: discriminant
+D:
+E:
+A': area
+B': perimeter
+C': volume
+D':
+E':
+
+REGISTERS:
+00 = 1
+01 = 2
+02 = 3

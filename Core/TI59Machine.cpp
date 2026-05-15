@@ -110,6 +110,14 @@ void TI59Machine::setPartitionProgramRegs(int programRAMregs) {
     m_cpu.setSCOMNibble(13, 9, static_cast<uint8_t>(n / 10));  // BCD tens
 }
 
+int TI59Machine::insertedModuleNumber() const {
+    // SCOM[9][4] = tens nibble, SCOM[9][3] = units nibble
+    // (hardware encoding: nibble4=0,nibble3=1 → ML01; nibble4=1,nibble3=0 → ML10)
+    int tens  = static_cast<int>(m_cpu.scomNibble(9, 4));
+    int units = static_cast<int>(m_cpu.scomNibble(9, 3));
+    return tens * 10 + units;
+}
+
 // ── Magnetic card reader ───────────────────────────────────────────────────────
 
 int TI59Machine::cardSwitchCol() const {

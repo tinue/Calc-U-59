@@ -9,6 +9,19 @@
 # The same table is printed, but ever so siowly. Note also that this program prints the extended print code table.
 # The author of this jewel is K-J Meusch, Koenigsdorf, West Germany.
 
+# Prepare the magnet card inlay
+CUECARD:
+Template: MagnetCard
+Title: Print Characters
+Banks: 1
+A: R/S after load, then reinsert card
+
+# This method of fastmode activation requires the master library module to be present
+SOLID-STATE-MODULE: ML
+
+# Print output requires the printer to be active
+PRINTER: on
+
 PROGRAM:
       000  00  0
       001  00  0

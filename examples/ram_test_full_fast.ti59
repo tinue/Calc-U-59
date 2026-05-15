@@ -40,6 +40,9 @@
 
 PARTITION: 159.99    # 160 steps (000–159), 100 data registers (R00–R99)
 
+# Print output requires the printer to be active
+PRINTER: on
+
 PROGRAM:
 # ── Entry point — fast mode jumps over this to step 001 ──────────────────────
 000  91  R/S         # halts in normal run; fast mode execution begins at 001

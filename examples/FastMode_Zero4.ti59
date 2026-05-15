@@ -24,6 +24,9 @@
 # Note that this does not work on the TI-58C: This calculator uses a different ROM, and does not
 # fall into the same traps.
 
+# This method of fastmode activation requires the master library module to be present
+SOLID-STATE-MODULE: ML
+
 PROGRAM:
 000  00  0
 001  00  0

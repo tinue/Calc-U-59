@@ -26,7 +26,7 @@ struct CalcU59App: App {
         }
         #if os(macOS)
         Settings {
-            SettingsView()
+            SettingsView(viewModel: viewModel)
         }
         .commands {
             CommandGroup(replacing: .appInfo) {

@@ -3,6 +3,13 @@
 # The bug is fixed, and the emulator now correctlxy shows "1" at the end (used to be a "5").
 #
 
+# Prepare the magnet card inlay
+CUECARD:
+Template: MagnetCard
+Title: Regression test for SBR issue
+Banks: 1
+A: Start
+
 PROGRAM:
 
 000  76 LBL

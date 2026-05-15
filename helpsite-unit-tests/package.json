@@ -1,0 +1,7 @@
+{
+  "name": "calc-u59-helpsite-tests",
+  "private": true,
+  "devDependencies": {
+    "@playwright/test": "^1.48.0"
+  }
+}

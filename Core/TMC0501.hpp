@@ -420,4 +420,8 @@ private:
 
     // Compute trace-facing display state from per-position afterglow counters.
     void computeDisplayTraceState(uint8_t& displayOn, uint8_t& maxDigitDecay) const;
+
+    uint32_t getPrinterBusyCycles() const;
+
+    int getStepWeight() const;
 };

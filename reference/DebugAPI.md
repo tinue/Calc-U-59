@@ -10,7 +10,7 @@ This document describes the two-layer debug API available in the TI-59 emulator.
 Both layers are thread-safe. All Swift entry points live in `EmulatorViewModel`;
 the underlying C++ is in `TI59Machine` and `TMC0501`.
 
-For a description of the debug GUI (tabs, buttons, ASM overlay), see [USERGUIDE.md](USERGUIDE.md).
+This reference is API-focused. For user-facing debug-pane behavior (LIVE/CPU/LOG, controls, workflows), see the user guide: https://www.calcu59.ch
 
 ---
 
@@ -589,10 +589,15 @@ Pure function — requires no machine state. Returns a mnemonic string for any
 
 ---
 
-## Trace File Format (CALCU59_TRACE.bin)
+## Trace File Format (CALCU59_TRACE.bin, CALCU58_TRACE.bin, CALCU58C_TRACE.bin)
 
 The binary trace file captures instruction-level CPU state at 60 Hz. It is used by
 `tools/read_trace.py` to generate human-readable logs and JSON exports.
+
+**Version Stability:**
+- **v1** (released in v1.0.0): Stable and backwards-compatible. Breaking changes require major version bump.
+- **v2+** (after v1.0.0): Volatile. May change without backwards-compatibility guarantees between v2 revisions.
+  Implementations should upgrade conservatively and handle both versions.
 
 ### File Structure
 
@@ -606,11 +611,21 @@ The binary trace file captures instruction-level CPU state at 60 Hz. It is used 
 
 ### File Header (16 bytes)
 
+**Version 1 (released in v1.0.0, stable):**
 ```
 Offset  Size  Type   Field        Description
 0       4     LE U32 magic        Magic: 0x54493539 ('TI59' in little-endian ASCII)
-4       2     LE U16 version      Format version (currently 1; baseline for v1.0.0 — do not increment before release)
+4       2     LE U16 version      Format version: 1
 6       10    —      reserved     Reserved; ignore for forward compatibility
+```
+
+**Version 2 (volatile, may change without backwards-compat guarantees):**
+```
+Offset  Size  Type   Field        Description
+0       4     LE U32 magic        Magic: 0x54493539 ('TI59' in little-endian ASCII)
+4       2     LE U16 version      Format version: 2
+6       2     LE U16 model        Calculator model: 0=TI-59, 1=TI-58, 2=TI-58C
+8       8     —      reserved     Reserved; ignore for forward compatibility
 ```
 
 ### Record Structure
@@ -626,10 +641,10 @@ Offset  Size  Type   Field           Description
 
 ### Record Types
 
-| Type | Name              | Payload | Purpose |
-|------|-------------------|---------|---------|
-| 0x01 | SESSION_START     | 8 bytes | Session boundary marker |
-| 0x02 | TRACE_EVENT       | 124 bytes | Unified CPU frame snapshot (combined instruction + state) |
+| Type | Name              | Payload (v1 / v2+) | Purpose |
+|------|-------------------|--------------------|---------|
+| 0x01 | SESSION_START     | 8 / 9 bytes | Session boundary marker with optional model |
+| 0x02 | TRACE_EVENT       | 125 bytes | Unified CPU frame snapshot (combined instruction + state) |
 | 0x03 | SESSION_END       | 8 bytes | Session terminator with counts |
 | 0x04 | USER_EVENT        | ≥4 bytes | User input (key press, card insert) |
 | 0x05 | TRACE_GAP         | 4 bytes | Ring overflow marker: UInt32 LE count of lost frames |
@@ -642,11 +657,19 @@ Unknown record types are silently skipped (forward-compatible).
 
 Marks the start of a trace session (e.g., app launch or emulator reset).
 
-**Payload (8 bytes):**
+**Payload v1 (8 bytes):**
 
 ```
 Offset  Size  Type   Field       Description
 0       8     LE U64 timestamp   Unix timestamp (seconds since epoch) when session began
+```
+
+**Payload v2+ (9 bytes):**
+
+```
+Offset  Size  Type   Field       Description
+0       8     LE U64 timestamp   Unix timestamp (seconds since epoch) when session began
+8       1     U8     model       Calculator model: 0=TI-59, 1=TI-58, 2=TI-58C
 ```
 
 #### TRACE_EVENT (0x02)

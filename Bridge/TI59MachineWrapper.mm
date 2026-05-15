@@ -109,6 +109,10 @@ static const int kbits[] = {0, 1, 2, 3, 5, 6};  // index 0 unused; index col
     _machine->setPartitionProgramRegs((int)n);
 }
 
+- (NSInteger)insertedModuleNumber {
+    return _machine->insertedModuleNumber();
+}
+
 - (void)insertCard:(NSData*)data {
     if (data.length > 0)
         _machine->insertCard((const uint8_t*)data.bytes, data.length);

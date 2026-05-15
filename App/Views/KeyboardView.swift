@@ -145,21 +145,13 @@ struct KeyboardView: View {
                 let w = geo.size.width
                 let h = geo.size.height
 
-                // ── ML-01 card overlay ──────────────────────────────────
+                // ── Cue card overlay ────────────────────────────────────
                 let cardW = w
                 let cardH = h * Self.cardRect.height
                 let cardY = h * Self.cardRect.minY
 
-                Image("ML01")
-                    .resizable()
+                CueCardView(content: viewModel.cueCardContent)
                     .frame(width: cardW, height: cardH)
-                    .background(Color(red: 29.0/255.0, green: 29.0/255.0, blue: 28.0/255.0))
-                    .overlay(alignment: .top) {
-                        // Top-wash: uniform dark overlay
-                        Rectangle()
-                            .fill(Color(red: 0.1, green: 0.02, blue: 0.02).opacity(0.95))
-                            .frame(height: cardH * 0.28)
-                    }
                     .position(x: cardW / 2, y: cardY + cardH / 2)
 
                 // ── LED display ─────────────────────────────────────────
@@ -186,6 +178,28 @@ struct KeyboardView: View {
                             .onChanged { value in
                                 let nx = value.location.x / w
                                 let ny = value.location.y / h
+
+                                // Check if press is on display area
+                                let isOnDisplay = nx >= Self.displayRect.minX && nx <= Self.displayRect.maxX &&
+                                                ny >= Self.displayRect.minY && ny <= Self.displayRect.maxY
+                                if isOnDisplay {
+                                    if !viewModel.isDisplayPressed {
+                                        viewModel.isDisplayPressed = true
+                                        viewModel.isFullSpeedMode = true
+                                        if let prev = pressedKey {
+                                            viewModel.releaseKey(row: prev / 5, col: prev % 5)
+                                            pressedKey = nil
+                                        }
+                                    }
+                                    return
+                                }
+
+                                // Release display press if moving to keyboard
+                                if viewModel.isDisplayPressed {
+                                    viewModel.isDisplayPressed = false
+                                    viewModel.isFullSpeedMode = false
+                                }
+
                                 // Convert canvas coords → keyboard-image coords
                                 let kbNy = (ny - Self.kbYStart) / Self.kbYScale
                                 // Allow margin for vertical expansion (20% of max key height ≈ 0.015)
@@ -208,6 +222,8 @@ struct KeyboardView: View {
                                 triggerFeedback()
                             }
                             .onEnded { _ in
+                                viewModel.isDisplayPressed = false
+                                viewModel.isFullSpeedMode = false
                                 if let prev = pressedKey {
                                     viewModel.releaseKey(row: prev / 5, col: prev % 5)
                                 }

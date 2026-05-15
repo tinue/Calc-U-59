@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import AudioToolbox
 
 struct CalculatorView: View {
     @Environment(EmulatorViewModel.self) var viewModel
@@ -10,7 +11,46 @@ struct CalculatorView: View {
     @State private var showingPrinter = false
     @State private var showingStateFilePicker = false
     @State private var showingSettings = false
+    @State private var resetLongPressTriggered = false
     #endif
+
+    #if canImport(UIKit)
+    private let haptic = UIImpactFeedbackGenerator(style: .rigid)
+    #endif
+
+    private func triggerResetFeedback() {
+        #if os(iOS)
+        let feedbackType = AppSettings.resolvedKeyboardFeedback()
+        switch feedbackType {
+        case .off:
+            break
+        case .haptic:
+            haptic.impactOccurred()
+        case .click:
+            AudioServicesPlaySystemSound(1104)
+        }
+        #endif
+    }
+
+    private func triggerMemoryClearFeedback() {
+        #if os(iOS)
+        let feedbackType = AppSettings.resolvedKeyboardFeedback()
+        switch feedbackType {
+        case .off:
+            break
+        case .haptic:
+            haptic.impactOccurred()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                haptic.impactOccurred()
+            }
+        case .click:
+            AudioServicesPlaySystemSound(1104)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                AudioServicesPlaySystemSound(1104)
+            }
+        }
+        #endif
+    }
 
     var body: some View {
         layout
@@ -43,7 +83,7 @@ struct CalculatorView: View {
         }
         #if !os(macOS)
         .sheet(isPresented: $showingSettings) {
-            SettingsView()
+            SettingsView(viewModel: viewModel)
         }
         .fileImporter(
             isPresented: $showingStateFilePicker,
@@ -178,13 +218,21 @@ struct CalculatorView: View {
             .labelStyle(showLabel: showLabels)
             #else
             Button("Reset", systemImage: "arrow.counterclockwise") {
-                viewModel.resetMachine()
+                if !resetLongPressTriggered {
+                    triggerResetFeedback()
+                    viewModel.resetMachine()
+                }
             }
             .foregroundStyle(.orange)
             .labelStyle(showLabel: showLabels)
-            .simultaneousGesture(
+            .highPriorityGesture(
                 LongPressGesture(minimumDuration: 1.0).onEnded { _ in
+                    triggerMemoryClearFeedback()
                     viewModel.cleanResetMachine()
+                    resetLongPressTriggered = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        resetLongPressTriggered = false
+                    }
                 }
             )
             #endif

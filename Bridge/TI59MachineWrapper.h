@@ -95,6 +95,10 @@ typedef struct {
 /// Current program register count (= data register base index).
 @property NSInteger partitionProgramRegs;
 
+/// The solid-state module currently inserted, derived from SCOM[9] nibbles 3 and 4.
+/// Returns 0 when no module is present. Returns N where N = nibble4*10 + nibble3 for ML01–ML30.
+@property (readonly) NSInteger insertedModuleNumber;
+
 // ── Magnetic card reader ─────────────────────────────────────────────────────
 
 /// Insert a card immediately.  Non-empty data = read card (fed via IN CRD);

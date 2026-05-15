@@ -3,6 +3,14 @@
 # Comment from the original author:
 # I made a code that sums all the numbers from N down to 1. Just type 5A and you will get the answer 15.
 # You can also use the code to measure how fast your phone or calculator is. When I typed 10000A, the phone took about 6 seconds to show 50005000.
+
+# Prepare the magnet card inlay
+CUECARD:
+Template: MagnetCard
+Title: Sum 1..N
+Banks: 1
+A: Sum
+
 PROGRAM:
 000 43 RCL
 001 00 00

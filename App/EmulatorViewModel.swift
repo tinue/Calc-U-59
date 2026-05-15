@@ -1,4 +1,5 @@
 import Foundation
+import os
 import SwiftUI
 
 enum FreezeReason {
@@ -24,8 +25,17 @@ enum DebugLevel: Int, Comparable {
     }
 }
 
+enum ProgramSource: UInt8 {
+    case userProgram = 0
+    case solidState = 1
+    case fastMode = 4
+    case rom = 8
+}
+
 @Observable
 class EmulatorViewModel {
+    private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "Calc-U-59", category: "EmulatorViewModel")
+
     var displayDigits: [UInt8]  = Array(repeating: 0, count: 12)
     var displayCtrl:   [UInt8]  = Array(repeating: 0, count: 12)
     var displaySuppressedMask: UInt16 = 0
@@ -34,6 +44,10 @@ class EmulatorViewModel {
     var calcIndicatorOpacity: Double = 0.0
     var model: MachineModel     = .ti59
     var errorMessage: String?
+
+    // ── Display interaction state ────────────────────────────────────────────────
+    var isDisplayPressed: Bool = false
+    var isFullSpeedMode: Bool = false  // true when user is pressing display; emulation runs unrestricted
 
     // ── Printer state ────────────────────────────────────────────────────────
     var printerLines: [String] = []
@@ -146,6 +160,20 @@ class EmulatorViewModel {
     /// Display name of the last card file loaded.
     var cardFileName: String = "card.U59"
 
+    // ── Cue card state ───────────────────────────────────────────────────────
+    var cueCardContent: CueCardContent? = nil
+    private var userCueCardContent: CueCardContent? = nil  // set by preset/card/file load
+    private var moduleCueCards: [Int: CueCardContent] = [:]  // program number → card
+    private var moduleMetadata: ModuleMetadata = ModuleMetadata()  // module-level metadata
+    private var activeProgramNumber: Int = 0  // 0 = none, 1+ = active program
+
+    // ── Solid-state module state ─────────────────────────────────────────────
+    var selectedModuleID: String = AppSettings.resolvedSolidStateModuleID() {
+        didSet {
+            UserDefaults.standard.set(self.selectedModuleID, forKey: SettingsKey.solidStateModuleID)
+        }
+    }
+
     private static let cardFileHeader = Data("Calc-U-59-CRD".utf8)
 
     private var machine: TI59MachineWrapper?
@@ -157,6 +185,9 @@ class EmulatorViewModel {
     private static var constantMemoryURL: URL {
         CardStorage.directoryURL.appendingPathComponent(constantMemoryFileName)
     }
+    private var persistPending = false
+    private var persistDebounceTimer: Timer?
+    private var programCheckTimer: Timer?
 
     init() {
         // Initialize traceWriter with default model
@@ -166,11 +197,35 @@ class EmulatorViewModel {
         Task { await self.start(model: AppSettings.resolvedStartupModel()) }
     }
 
+    /// Resolve which cue card to display based on current program number.
+    private func resolvedCueCard() -> CueCardContent? {
+        if activeProgramNumber > 0 {
+            // Try to find the specific program card
+            if let card = moduleCueCards[activeProgramNumber] {
+                return card
+            }
+            // Fallback: if card not found but a program is active, show default with module metadata
+            if !moduleMetadata.title.isEmpty || !moduleMetadata.id.isEmpty {
+                return CueCardContent(
+                    template: .solidState,
+                    title: moduleMetadata.title,
+                    id: moduleMetadata.id,
+                    labels: Array(repeating: "", count: 10)
+                )
+            }
+            return nil
+        }
+        return userCueCardContent  // nil when no user card loaded → blank
+    }
+
     func start(model: MachineModel) async {
         persistConstantMemory()  // save TI-58C RAM before switching away
         stop()
         await drainEmulQueue()   // ensure old loop has exited before starting the new one
         self.model = model
+        userCueCardContent = nil
+        activeProgramNumber = 0
+        cueCardContent = nil  // clear cuecard when switching models
         traceWriter = TraceWriter(model: model)  // reinitialize with new model for correct trace filename
         UserDefaults.standard.set(model.rawValue, forKey: SettingsKey.lastUsedModel)
         await withCheckedContinuation { continuation in
@@ -187,19 +242,27 @@ class EmulatorViewModel {
                 wrapper.loadROM(data)
             }
 
-            if let libData = ROMLoader.loadLibrary() {
+            // Load solid-state library module
+            if let libData = ROMLoader.loadModuleLibrary(moduleID: self.selectedModuleID) {
                 wrapper.loadLibrary(libData)
+            } else {
+                Self.logger.error("Solid-state module library was not loaded; continuing without library data")
             }
+            let (cards, metadata) = ROMLoader.loadModuleCardsAndMetadata(moduleID: self.selectedModuleID)
+            moduleCueCards = cards
+            moduleMetadata = metadata
 
             if let constData = try? ROMLoader.loadConstants(model: model) {
                 wrapper.loadConstants(constData)
             }
 
-            if model.hasConstantMemory, let saved = loadConstantMemory() {
-                // Restore RAM before the emulation loop starts so the ROM's startup
-                // routine sees the warm-start flag and skips its RAM clear —
-                // matching the real TI-58C where CMOS RAM was always live.
-                wrapper.deserialiseRAM(saved)
+            if model.hasConstantMemory {
+                // Run ROM startup once, then restore RAM. This matches the preset-load
+                // path and avoids startup code mutating freshly restored registers.
+                _ = wrapper.stepN(300_000)
+                if let saved = loadConstantMemory() {
+                    wrapper.deserialiseRAM(saved)
+                }
             }
 
             if !asmOverlayWords.isEmpty {
@@ -276,16 +339,19 @@ class EmulatorViewModel {
                     }
                 }
 
-                let end = DispatchTime.now()
-                let elapsed = Double(end.uptimeNanoseconds - start.uptimeNanoseconds) / 1e9
-                let remaining = batchMs - elapsed
-                if remaining > 0 {
-                    Thread.sleep(forTimeInterval: remaining)
+                // Skip timing throttle when in full-speed mode (user pressing display)
+                if !self.isFullSpeedMode {
+                    let end = DispatchTime.now()
+                    let elapsed = Double(end.uptimeNanoseconds - start.uptimeNanoseconds) / 1e9
+                    let remaining = batchMs - elapsed
+                    if remaining > 0 {
+                        Thread.sleep(forTimeInterval: remaining)
+                    }
                 }
 
-                // Persist TI-58C state after each 20 ms batch if needed
+                // Mark TI-58C state for persist (debounced, non-blocking)
                 if self.model.hasConstantMemory {
-                    self.persistConstantMemory()
+                    self.persistPending = true
                 }
             }
         }
@@ -301,6 +367,24 @@ class EmulatorViewModel {
         }
         RunLoop.main.add(timer, forMode: .common)
         displayTimer = timer
+
+        // Separate 2 Hz timer for program number detection to avoid UI blocking.
+        programCheckTimer?.invalidate()
+        let progTimer = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in
+            self?.checkProgramNumber()
+        }
+        RunLoop.main.add(progTimer, forMode: .common)
+        programCheckTimer = progTimer
+    }
+
+    private func checkProgramNumber() {
+        guard let machine else { return }
+        let cpuFrame = machine.snapshotCPU()
+        let detectedProgram = Int(cpuFrame.SCOM.9.4) * 10 + Int(cpuFrame.SCOM.9.3)
+        if detectedProgram != activeProgramNumber {
+            activeProgramNumber = detectedProgram
+            cueCardContent = resolvedCueCard()
+        }
     }
 
     private func tick() {
@@ -331,6 +415,14 @@ class EmulatorViewModel {
             }
         }
 
+        // Debounce TI-58C persist: schedule write if pending and timer not already running
+        if persistPending && persistDebounceTimer == nil {
+            persistDebounceTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { [weak self] _ in
+                self?.performPersistWrite()
+                self?.persistDebounceTimer = nil
+            }
+        }
+
         let codes = machine.drainPrinterCodeLines()
         if !codes.isEmpty {
             printerCodeLines.append(contentsOf: codes)
@@ -349,6 +441,7 @@ class EmulatorViewModel {
         let isIdle = (cpuFrame.flags & 0x0001) != 0          // FLG_IDLE
         let displayOn = cpuFrame.displayOn != 0               // One or more digits/dots currently visible
         let shouldFreeze = displayOn && !isIdle               // Afterglow with RUN mode
+
 
         // Guard each assignment: @Observable only notifies SwiftUI when a property
         // is actually written, but the write itself counts as a change even if the
@@ -417,10 +510,16 @@ class EmulatorViewModel {
         }
     }
 
-    func stop() {
-        isRunning = false
+    private func invalidateAllTimers() {
         displayTimer?.invalidate()
         displayTimer = nil
+        programCheckTimer?.invalidate()
+        programCheckTimer = nil
+    }
+
+    func stop() {
+        isRunning = false
+        invalidateAllTimers()
     }
 
     /// Suspend emulation when the app enters the background.
@@ -430,8 +529,7 @@ class EmulatorViewModel {
         persistConstantMemory()
         suspendedByLifecycle = isRunning
         isRunning = false
-        displayTimer?.invalidate()
-        displayTimer = nil
+        invalidateAllTimers()
     }
 
     /// Resume emulation after the app returns to the foreground.
@@ -480,15 +578,54 @@ class EmulatorViewModel {
     }
     func cutPaper() { printerLines = []; printerCodeLines = []; printerClearID &+= 1 }
 
+    // MARK: - Solid-state module selection
+
+    /// Load ROM and cue cards for the specified module without resetting.
+    /// Used by both selectModule and loadStateFile.
+    private func applyModule(id: String) {
+        guard let m = machine else {
+            Self.logger.error("Cannot apply module \(id, privacy: .public): machine is not initialized")
+            return
+        }
+        if let libData = ROMLoader.loadModuleLibrary(moduleID: id) {
+            m.loadLibrary(libData)
+        } else {
+            Self.logger.error("Failed to load module ROM: \(id, privacy: .public)")
+        }
+        let (cards, meta) = ROMLoader.loadModuleCardsAndMetadata(moduleID: id)
+        moduleCueCards = cards
+        moduleMetadata = meta
+        selectedModuleID = id
+        UserDefaults.standard.set(id, forKey: SettingsKey.solidStateModuleID)
+    }
+
+    /// Change the solid-state module and perform a soft reset (preserves RAM).
+    func selectModule(id: String) {
+        applyModule(id: id)
+        resetMachine()
+    }
+
     // MARK: - Reset
 
     func resetMachine() {
         unfreeze()  // exit freeze mode when resetting
         asmOverlayActive = false
         cardState = .noCard
+        userCueCardContent = nil
+        activeProgramNumber = 0
+        cueCardContent = resolvedCueCard()
         printerTrace = false
         machine?.setPrinterTrace(false)
         machine?.reset()
+
+        // TI-58C: restore persisted memory after reset
+        if model.hasConstantMemory {
+            if let saved = loadConstantMemory() {
+                machine?.deserialiseRAM(saved)
+            }
+            debugAppend(["Calculator Reset"])
+            return
+        }
 
         // Clear out-of-range registers for the current model
         let programRegs  = Int(machine?.partitionProgramRegs ?? 60)
@@ -509,6 +646,9 @@ class EmulatorViewModel {
         asmOverlayActive = false
         machine?.deserialiseRAM(Data(repeating: 0, count: 120 * 16))
         cardState = .noCard
+        userCueCardContent = nil
+        activeProgramNumber = 0
+        cueCardContent = resolvedCueCard()
         printerTrace = false
         machine?.setPrinterTrace(false)
         machine?.reset()
@@ -549,6 +689,18 @@ class EmulatorViewModel {
             return
         }
         let data: Data
+        if let text = String(data: raw, encoding: .utf8), text.hasPrefix("Calc-U-59 Card ") {
+            guard let result = parseCardFile(text) else {
+                errorMessage = "Card file \"\(url.lastPathComponent)\" could not be parsed."
+                return
+            }
+            userCueCardContent = result.cueCard
+            cueCardContent = resolvedCueCard()
+            cardFileName = url.lastPathComponent
+            pendingSaveURL = url
+            beginSwipe(data: result.data)
+            return
+        }
         let hdr = Self.cardFileHeader
         if raw.prefix(hdr.count) == hdr {
             // New format: strip header, then expect exactly 246 bytes of card data.
@@ -583,7 +735,11 @@ class EmulatorViewModel {
     }
 
     func saveCard(_ data: Data, to url: URL) {
-        let fileData = Self.cardFileHeader + data
+        let text = encodeCardFileToText(data, cueCard: cueCardContent)
+        guard let fileData = text.data(using: .utf8) else {
+            errorMessage = "Card save failed: UTF-8 encoding error."
+            return
+        }
         let coordinator = NSFileCoordinator()
         var coordinatorError: NSError?
         var writeError: Error?
@@ -606,9 +762,16 @@ class EmulatorViewModel {
 
     func persistConstantMemory() {
         guard model.hasConstantMemory, let data = machine?.serialiseRAM() else { return }
-        let text = encodeConstantMemoryToText(data)
+        let text = encodeConstantMemoryToText(data, cueCard: userCueCardContent)
         let url = Self.constantMemoryURL
         try? text.write(to: url, atomically: true, encoding: .utf8)
+    }
+
+    private func performPersistWrite() {
+        persistPending = false
+        DispatchQueue.global(qos: .background).async { [weak self] in
+            self?.persistConstantMemory()
+        }
     }
 
     private func loadConstantMemory() -> Data? {
@@ -621,26 +784,89 @@ class EmulatorViewModel {
         }
         guard let rawData = rawFileData else { return nil }
 
-        // Try to decode as text format (new format)
-        if let text = String(data: rawData, encoding: .utf8),
-           let decodedData = decodeConstantMemoryFromText(text) {
-            return decodedData
+        // Decode text format; invalid files are treated as load failure.
+        if let text = String(data: rawData, encoding: .utf8) {
+            let (data, cueCard) = decodeConstantMemoryFromText(text)
+            if let data = data {
+                self.userCueCardContent = cueCard
+                self.cueCardContent = resolvedCueCard()
+                return data
+            }
         }
 
-        // Fallback: if file is exactly 120*16 bytes, treat as old binary format
-        if rawData.count == 120 * 16 {
-            return rawData
-        }
-
-        // Otherwise, silently fail and return nil (RAM will be initialized to zeros)
+        // Silently fail; caller resets RAM to zeros.
         return nil
     }
 
-    /// Encode RAM data (120 regs × 16 nibbles) as human-readable text.
-    /// Only includes non-zero registers.
-    private func encodeConstantMemoryToText(_ data: Data) -> String {
+    /// Encode card data (246-byte bank) as human-readable text .U59 format.
+    private func encodeCardFileToText(_ data: Data, cueCard: CueCardContent?) -> String {
         var lines: [String] = []
-        lines.append("── Memory (non-zero registers) ──")
+        lines.append("Calc-U-59 Card 1.0")
+
+        if let card = cueCard {
+            lines.append("")
+            lines.append("CUECARD:")
+            lines.append(contentsOf: card.encodeToLines(writeTemplate: .magnetCard))
+        }
+
+        let partition  = data.count > 0 ? data[0] : 0
+        let dataType   = data.count > 1 ? data[1] : 0x11
+        let pageByte   = data.count > 2 ? data[2] : 0x10
+        let protection = data.count > 3 ? data[3] : 0x00
+        let checksum   = data.count > 244 ? data[244] : 0x00
+        let bankNum    = Int((pageByte & 0x0F) / 3) + 1
+        let dataTypeStr   = dataType == 0x11 ? "program" : "data"
+        let protectionStr = protection == 0x10 ? "yes" : "no"
+
+        lines.append("")
+        lines.append("HEADER:")
+        lines.append(String(format: "Partition: %02X", partition))
+        lines.append("DataType: \(dataTypeStr)")
+        lines.append("Bank: \(bankNum)")
+        lines.append("Protection: \(protectionStr)")
+        lines.append(String(format: "Checksum: %02X", checksum))
+
+        lines.append("")
+        lines.append("DATA:")
+        // 30 registers per bank, 8 bytes (16 nibbles) each. Same format as ti58c.mem.
+        // Bank 0 → R000-R029, Bank 1 → R030-R059, Bank 2 → R060-R089, Bank 3 → R090-R119.
+        // Swap nibbles within each byte, then reverse byte order.
+        // data is guaranteed 246 bytes; bank bytes 4–243 always in bounds.
+        let startReg = (bankNum - 1) * 30
+        for row in 0..<30 {
+            let bankOffset = 4 + row * 8
+            let raw: [UInt8] = (0..<8).map { data[bankOffset + $0] }
+            let nibbles: [UInt8] = raw.flatMap { b in [b >> 4, b & 0x0F] }
+            // Card files reverse the bytes compared to ti58c.mem format
+            let encoded = encodeRegisterLine(nibbles)
+            let bytes = Array(encoded.reversed())
+            let hex = bytes.map { String(format: "%02X", $0) }.joined(separator: " ")
+            lines.append(String(format: "R%03d: %@", startReg + row, hex as NSString))
+        }
+
+        return lines.joined(separator: "\n")
+    }
+
+    private func parseHexBytes(_ hexString: String, count: Int) -> [UInt8]? {
+        let tokens = hexString.components(separatedBy: " ").filter { !$0.isEmpty }
+        guard tokens.count == count else { return nil }
+        let bytes = tokens.compactMap { UInt8($0, radix: 16) }
+        return bytes.count == count ? bytes : nil
+    }
+
+    /// Encode RAM data (120 regs × 16 nibbles) as human-readable text.
+    /// Only includes non-zero registers. Optionally includes CUECARD section if provided.
+    private func encodeConstantMemoryToText(_ data: Data, cueCard: CueCardContent? = nil) -> String {
+        var lines: [String] = []
+
+        // Include CUECARD section if present
+        if let card = cueCard {
+            lines.append("CUECARD:")
+            lines.append(contentsOf: card.encodeToLines(writeTemplate: .cueCard))
+            lines.append("")
+        }
+
+        lines.append("── Registers (raw values) ──")
 
         for regNum in 0..<120 {
             let offset = regNum * 16
@@ -651,51 +877,71 @@ class EmulatorViewModel {
             // Check if register is all zeros
             if nibbles.allSatisfy({ $0 == 0 }) { continue }
 
-            // Format: RXXX: HH HH HH HH HH HH HH HH
-            let hexBytes = nibbles.map { String(format: "%02X", $0) }.joined(separator: " ")
+            let bytes = encodeRegisterLine(nibbles)
+            let hexBytes = bytes.map { String(format: "%02X", $0) }.joined(separator: " ")
             lines.append(String(format: "R%03d: %@", regNum, hexBytes as NSString))
         }
 
         return lines.joined(separator: "\n")
     }
 
-    /// Decode human-readable text format back to RAM data (120 regs × 16 nibbles).
-    /// Returns nil on parse error (which triggers fallback to old binary format).
-    /// All registers are initialized to zero; only those in the text are updated.
-    private func decodeConstantMemoryFromText(_ text: String) -> Data? {
+    /// Decode human-readable text format back to RAM data (120 regs × 16 nibbles) and optional CUECARD.
+    /// Format: optional CUECARD section, then non-zero registers with 8 hex byte pairs each (reversed order).
+    /// Returns (Data, CueCardContent?) tuple; returns (nil, nil) on parse error.
+    private func decodeConstantMemoryFromText(_ text: String) -> (Data?, CueCardContent?) {
         var resultBytes = [UInt8](repeating: 0, count: 120 * 16)
+        var cueCard: CueCardContent?
+        var inCueCardSection = false
 
         for line in text.components(separatedBy: .newlines) {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
 
-            // Skip empty lines and header line
-            if trimmed.isEmpty || trimmed.hasPrefix("──") { continue }
+            // Skip empty lines
+            if trimmed.isEmpty { continue }
 
-            // Expected format: "RXXX: HH HH HH HH HH HH HH HH"
-            guard trimmed.hasPrefix("R") else { continue }
+            // Check for section headers
+            if trimmed.hasPrefix("CUECARD:") {
+                inCueCardSection = true
+                cueCard = CueCardContent()
+                continue
+            }
 
-            // Split on colon
-            let parts = trimmed.components(separatedBy: ":")
-            guard parts.count == 2 else { return nil }
+            if trimmed.hasPrefix("──") {
+                inCueCardSection = false
+                continue
+            }
 
-            let regStr = String(parts[0].dropFirst())  // Remove "R" prefix
-            guard let regNum = Int(regStr), regNum >= 0, regNum < 120 else { return nil }
+            // Parse CUECARD section
+            if inCueCardSection {
+                cueCard?.parseLine(trimmed)
+                continue
+            }
 
-            // Parse hex bytes from the second part
-            let hexPart = parts[1].trimmingCharacters(in: .whitespaces)
-            let hexTokens = hexPart.components(separatedBy: " ").filter { !$0.isEmpty }
+            // Parse registers
+            if trimmed.hasPrefix("R") {
+                let parts = trimmed.components(separatedBy: ":")
+                guard parts.count == 2 else { return (nil, nil) }
 
-            guard hexTokens.count == 16 else { return nil }
+                let regStr = String(parts[0].dropFirst())
+                guard let regNum = Int(regStr), regNum >= 0, regNum < 120 else { return (nil, nil) }
 
-            let offset = regNum * 16
-            for (i, hexToken) in hexTokens.enumerated() {
-                guard let byte = UInt8(hexToken, radix: 16) else { return nil }
-                resultBytes[offset + i] = byte
+                // Parse 8 hex byte pairs
+                let hexPart = parts[1].trimmingCharacters(in: .whitespaces)
+                guard let fileBytes = parseHexBytes(hexPart, count: 8) else { return (nil, nil) }
+
+                let nibbles = decodeRegisterLine(fileBytes)
+                let offset = regNum * 16
+                for (i, nibble) in nibbles.enumerated() {
+                    guard offset + i < resultBytes.count else { break }
+                    resultBytes[offset + i] = nibble
+                }
             }
         }
 
-        return Data(resultBytes)
+        return (Data(resultBytes), cueCard)
     }
+
+
 
     // MARK: - Trace / debug
 
@@ -809,9 +1055,9 @@ class EmulatorViewModel {
                 let currentStep = self.decodeProgramCounter(from: cpu)
                 let prSourceFlag = UInt8(cpu.SCOM.0.3)
                 self.cachedPrSourceFlag = prSourceFlag
-                if prSourceFlag == 0 {
+                if self.isUserProgramSource(prSourceFlag) {
                     self.frozenRAMCache = self.buildFullProgram(machine: m, currentStep: currentStep, prSourceFlag: 0)
-                } else if prSourceFlag == 8 {
+                } else if prSourceFlag == ProgramSource.rom.rawValue {
                     self.frozenROMCache = self.buildFullProgram(machine: m, currentStep: currentStep, prSourceFlag: 8)
                 }
                 if self.liveDebugEnabled {
@@ -841,10 +1087,10 @@ class EmulatorViewModel {
                 // Check if Prg Source changed; if so, rebuild appropriate cache
                 if prSourceFlag != self.cachedPrSourceFlag {
                     self.cachedPrSourceFlag = prSourceFlag
-                    if prSourceFlag == 0 {
+                    if self.isUserProgramSource(prSourceFlag) {
                         self.frozenRAMCache = self.buildFullProgram(machine: m, currentStep: currentStep, prSourceFlag: 0)
                         self.frozenROMCache = nil
-                    } else if prSourceFlag == 8 {
+                    } else if prSourceFlag == ProgramSource.rom.rawValue {
                         self.frozenROMCache = self.buildFullProgram(machine: m, currentStep: currentStep, prSourceFlag: 8)
                         self.frozenRAMCache = nil
                     }
@@ -914,12 +1160,12 @@ class EmulatorViewModel {
     /// Update isCurrent markers in the cached program for the given current step.
     /// Clears old current marker and sets new one.
     private func updateCachedProgramCurrent(to currentStep: Int, prSourceFlag: UInt8) {
-        if prSourceFlag == 0, var cache = frozenRAMCache {
+        if isUserProgramSource(prSourceFlag), var cache = frozenRAMCache {
             for i in 0..<cache.count {
                 cache[i].isCurrent = (cache[i].stepNum == currentStep)
             }
             frozenRAMCache = cache
-        } else if prSourceFlag == 8, var cache = frozenROMCache {
+        } else if prSourceFlag == ProgramSource.rom.rawValue, var cache = frozenROMCache {
             for i in 0..<cache.count {
                 cache[i].isCurrent = (cache[i].stepNum == currentStep)
             }
@@ -929,9 +1175,9 @@ class EmulatorViewModel {
 
     /// Return the full cached program when frozen, or nil if not frozen.
     var frozenCachedProgram: [LiveDebugSnapshot.StepEntry]? {
-        if cachedPrSourceFlag == 0 {
+        if isUserProgramSource(cachedPrSourceFlag) {
             return frozenRAMCache
-        } else if cachedPrSourceFlag == 8 {
+        } else if cachedPrSourceFlag == ProgramSource.rom.rawValue {
             return frozenROMCache
         }
         return nil
@@ -950,6 +1196,18 @@ class EmulatorViewModel {
         cachedPrSourceFlag = 0
         startEmulationLoop()
         startDisplayRefresh()
+    }
+
+    // MARK: - Program source helpers
+
+    /// Returns true if the flag represents a user-stored program (User RAM or Fast Mode).
+    private func isUserProgramSource(_ flag: UInt8) -> Bool {
+        flag == ProgramSource.userProgram.rawValue || flag == ProgramSource.fastMode.rawValue
+    }
+
+    /// Returns true if the flag represents a displayable program source in the debug window.
+    private func isDisplayableSource(_ flag: UInt8) -> Bool {
+        flag == ProgramSource.userProgram.rawValue || flag == ProgramSource.fastMode.rawValue || flag == ProgramSource.rom.rawValue
     }
 
     // MARK: - Calculator-level snapshot
@@ -1224,23 +1482,30 @@ class EmulatorViewModel {
         // Program steps window — source depends on PRG SOURCE flag
         let decodedPC = decodeProgramCounter(from: cpu)
 
-        // When frozen: currentStep is the last executed instruction,
-        // nextStep is what PC points to (next to execute)
-        if isFrozen {
-            snap.currentStep = max(0, decodedPC - 1)
-            snap.nextStepNum = decodedPC
+        // Only display for sources we can fetch: 0 (User), 4 (Fast Mode), 8 (ROM)
+        let canDisplay = isDisplayableSource(snap.prSourceFlag)
+
+        if canDisplay {
+            if isFrozen {
+                snap.currentStep = max(0, decodedPC - 1)
+                snap.nextStepNum = decodedPC
+            } else {
+                // When running: currentStep is the next to execute (pre-execution state)
+                snap.currentStep = decodedPC
+                snap.nextStepNum = -1
+            }
         } else {
-            // When running: currentStep is the next to execute (pre-execution state)
-            snap.currentStep = decodedPC
+            // Unknown source (e.g., 1 = Solid State): can't display
+            snap.currentStep = -1
             snap.nextStepNum = -1
         }
 
         // Pre-fetch RAM program steps once (used by both window and nextStep population)
-        let ramSteps = snap.prSourceFlag == 0 ? Array(m.allProgramSteps() as Data) : []
+        let ramSteps = isUserProgramSource(snap.prSourceFlag) ? Array(m.allProgramSteps() as Data) : []
 
         switch snap.prSourceFlag {
-        case 0:
-            // User RAM — existing behavior
+        case 0, 4:
+            // User RAM (0) or Fast Mode (4) — existing behavior
             let steps = ramSteps
             if !steps.isEmpty {
                 let center = snap.currentStep >= 0 ? snap.currentStep : 0
@@ -1283,6 +1548,7 @@ class EmulatorViewModel {
 
             // Build array of keycodes for this range
             var keycodes: [UInt8] = []
+            guard lo <= hi else { break }
             for addr in lo...hi {
                 keycodes.append(m.romKeycode(at: addr))
             }
@@ -1317,8 +1583,8 @@ class EmulatorViewModel {
         // When frozen: populate nextStep fields from the next instruction to execute
         if isFrozen && snap.nextStepNum >= 0 {
             switch snap.prSourceFlag {
-            case 0:
-                // User RAM (steps already fetched above)
+            case 0, 4:
+                // User RAM (0) or Fast Mode (4) (steps already fetched above)
                 if snap.nextStepNum < ramSteps.count {
                     let nextKeycode = ramSteps[snap.nextStepNum]
                     snap.nextStepKeycode = nextKeycode
@@ -1666,7 +1932,7 @@ class EmulatorViewModel {
             debugLines.append("── Vars: no data registers in current partition ──")
             return
         }
-        var lines: [String] = [String(format: "── Vars R00–R%02d ──", visibleDataRegCount - 1)]
+        var lines: [String] = [String(format: "── Vars V00–V%02d ──", visibleDataRegCount - 1)]
 
         // Collect all non-zero registers with labels, then sort for consistent output
         var regEntries: [(label: String, value: Double)] = []
@@ -1692,7 +1958,7 @@ class EmulatorViewModel {
             if raw.contains(where: { $0 != 0 }) {
                 let v = TI59MachineWrapper.decodeBCD(raw)
                 let dataIdx = displayableRegs - 1 - ramIdx
-                regEntries.append((label: String(format: "R%02d", dataIdx), value: v))
+                regEntries.append((label: String(format: "V%02d", dataIdx), value: v))
             }
         }
 
@@ -1725,13 +1991,16 @@ class EmulatorViewModel {
     func debugDumpProg() {
         guard let m = machine else { return }
         let progRegs = Int(m.partitionProgramRegs)
-        var lines: [String] = [String(format: "── Prog R00–R%02d (raw nibbles) ──", progRegs - 1)]
+        var lines: [String] = [String(format: "── Prog P000–P%03d (key codes) ──", progRegs - 1)]
         for reg in 0..<progRegs {
             let n = Array(m.rawRegister(reg) as Data)
+            if n.allSatisfy({ $0 == 0 }) { continue }
+            // Intentional: display program nibbles in storage order (units-tens pairs),
+            // NOT the display format used by encodeRegisterLine (which reverses bytes).
             let pairs = stride(from: 0, to: 16, by: 2)
-                .map { String(format: "%X%X", n[$0], n[$0 + 1]) }
+                .map { String(format: "%X%X", n[$0 + 1], n[$0]) }
                 .joined(separator: " ")
-            lines.append(String(format: "R%02d: %@", reg, pairs))
+            lines.append(String(format: "P%03d: %@", reg, pairs))
         }
         debugLines.append(contentsOf: lines)
     }
@@ -1740,20 +2009,19 @@ class EmulatorViewModel {
     /// Shows only non-zero registers as raw nibble pairs using raw indices.
     func debugDumpMemory() {
         guard let m = machine else { return }
-        var lines: [String] = ["── Memory (non-zero registers) ──"]
+        var lines: [String] = ["── Registers (raw values) ──"]
 
         let totalRegs = Int(m.ramRegisterCount)
 
         for reg in 0..<totalRegs {
             guard reg >= 0 && reg < totalRegs else { continue }
-            let n = Array(m.rawRegister(reg) as Data)
+            let nibbles = Array(m.rawRegister(reg) as Data)
             // Skip if all zeros
-            if n.allSatisfy({ $0 == 0 }) { continue }
+            if nibbles.allSatisfy({ $0 == 0 }) { continue }
 
-            let pairs = stride(from: 0, to: 16, by: 2)
-                .map { String(format: "%X%X", n[$0], n[$0 + 1]) }
-                .joined(separator: " ")
-            lines.append(String(format: "R%03d: %@", reg, pairs))
+            let bytes = encodeRegisterLine(nibbles)
+            let hex = bytes.map { String(format: "%02X", $0) }.joined(separator: " ")
+            lines.append(String(format: "R%03d: %@", reg, hex as NSString))
         }
         debugLines.append(contentsOf: lines)
     }
@@ -1857,6 +2125,10 @@ class EmulatorViewModel {
         guard let m = machine else { return }
         m.reset()
 
+        // Clear program state: when loading a state file, no program should be active.
+        // This ensures that the loaded custom cue card (or nil) is displayed, not a leftover program card.
+        activeProgramNumber = 0
+
         // Run the ROM's power-on startup routine until it reaches idle mode.
         // 300,000 instructions is a conservative upper bound; the actual startup
         // (master-clear, display init) completes in well under 100k steps.
@@ -1868,6 +2140,15 @@ class EmulatorViewModel {
         // For TI-58, programRegs capped at 60; for TI-58C at 64; rounding above ensures this.
         let programRegs = (parsed.partitionMaxStep + 1) / 8
         m.partitionProgramRegs = programRegs
+
+        // Clear RAM before loading new state, but preserve hidden registers (60-63) on TI-58C
+        // Register 60 contains SCOM reconstruction data; clearing it triggers ROM memory clear
+        let zeroNibbles = Data(repeating: UInt8(0), count: 16)
+        let preserveHiddenRegs = model.hasConstantMemory
+        let clearUpTo = preserveHiddenRegs ? 60 : 120
+        for regNum in 0..<clearUpTo {
+            m.setRawRegister(regNum, nibbles: zeroNibbles)
+        }
 
         // Expand sparse steps into a full zero-padded array so unlisted steps are 00.
         let totalSteps = parsed.partitionMaxStep + 1
@@ -1886,17 +2167,24 @@ class EmulatorViewModel {
             }
         }
 
-        // Clear out-of-range data registers to prevent corruption from stale state files
-        let dataRegCount = 120 - programRegs
-        let zeroNibbles = Data(repeating: UInt8(0), count: 16)
-        for regNum in dataRegCount..<120 {
-            m.setRawRegister(regNum, nibbles: zeroNibbles)
-        }
-
         startEmulationLoop()
 
         // Persist the loaded state once after all writes complete
         persistConstantMemory()
+
+        // Apply solid-state module if specified in file
+        if let moduleID = parsed.solidStateModuleID, moduleID != selectedModuleID {
+            applyModule(id: moduleID)
+        }
+
+        // Apply printer state if specified in file
+        if let connected = parsed.printerConnected {
+            setPrinterConnected(connected)
+        }
+
+        // Set cue card if present in file
+        self.userCueCardContent = parsed.cueCardContent
+        self.cueCardContent = resolvedCueCard()
 
         if !parsed.keystrokes.isEmpty {
             Task { await playKeystrokes(parsed.keystrokes) }
