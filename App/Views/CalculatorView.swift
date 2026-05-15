@@ -8,6 +8,13 @@ struct CalculatorView: View {
     enum FilePickerMode { case asm, stateFile }
     @State private var activeFilePickerMode: FilePickerMode?
 
+    private static let asmTypes = [UTType(filenameExtension: "asm") ?? .plainText]
+    private static let stateFileTypes = [
+        UTType(filenameExtension: "ti59") ?? .data,
+        UTType(filenameExtension: "ti58") ?? .data,
+        UTType(filenameExtension: "ti58c") ?? .data
+    ]
+
     #if os(macOS)
     @State private var isCommandPressed = false
     #else
@@ -93,26 +100,21 @@ struct CalculatorView: View {
         .fileImporter(
             isPresented: .init(
                 get: { activeFilePickerMode != nil },
-                set: { _ in }  // Don't reset here; reset in result handler instead
+                set: { _ in }  // Intentionally no-op; reset in result handler to capture mode safely
             ),
             allowedContentTypes: {
-                switch activeFilePickerMode {
+                guard let mode = activeFilePickerMode else { return [] }
+                switch mode {
                 case .asm:
-                    return [UTType(filenameExtension: "asm") ?? .plainText]
+                    return Self.asmTypes
                 case .stateFile:
-                    return [
-                        UTType(filenameExtension: "ti59") ?? .data,
-                        UTType(filenameExtension: "ti58") ?? .data,
-                        UTType(filenameExtension: "ti58c") ?? .data
-                    ]
-                case .none:
-                    return []
+                    return Self.stateFileTypes
                 }
             }(),
             allowsMultipleSelection: false
         ) { result in
             let mode = activeFilePickerMode
-            activeFilePickerMode = nil
+            defer { activeFilePickerMode = nil }
 
             guard case .success(let urls) = result, let url = urls.first else { return }
 
@@ -282,9 +284,7 @@ struct CalculatorView: View {
             Divider().frame(height: 20)
             Button("Preset") {
                 let panel = NSOpenPanel()
-                panel.allowedContentTypes = [UTType(filenameExtension: "ti59") ?? .data,
-                                             UTType(filenameExtension: "ti58") ?? .data,
-                                             UTType(filenameExtension: "ti58c") ?? .data]
+                panel.allowedContentTypes = Self.stateFileTypes
                 panel.allowsOtherFileTypes = true
                 panel.message = "Select a .ti59, .ti58, or .ti58c state file"
                 if panel.runModal() == .OK, let url = panel.url {
