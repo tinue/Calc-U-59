@@ -4,7 +4,6 @@ import UniformTypeIdentifiers
 struct DebugView: View {
     @Environment(EmulatorViewModel.self) var vm
     @State private var tab: DebugTab = .live
-    @Binding var showingASMFileImporter: Bool
     enum DebugTab { case live, cpu, log }
 
     var body: some View {
@@ -36,9 +35,7 @@ struct DebugView: View {
 
                     Divider().background(Color(white: 0.25))
 
-                    ASMDebugContent {
-                        showingASMFileImporter = true
-                    }
+                    ASMDebugContent()
                 }
             case .log:
                 StaticDebugContent()
@@ -191,7 +188,7 @@ private struct StaticDebugContent: View {
 
 private struct ASMDebugContent: View {
     @Environment(EmulatorViewModel.self) var vm
-    let onPickFile: () -> Void
+    @State private var showingASMFileImporter = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -225,7 +222,7 @@ private struct ASMDebugContent: View {
 
             HStack(spacing: 8) {
                 Button("Select File") {
-                    onPickFile()
+                    showingASMFileImporter = true
                 }
                 .buttonStyle(.plain)
                 .font(.caption.bold())
@@ -265,12 +262,22 @@ private struct ASMDebugContent: View {
             .background(Color(white: 0.15))
         }
         .background(Color(white: 0.10))
+        .fileImporter(
+            isPresented: $showingASMFileImporter,
+            allowedContentTypes: [
+                UTType(filenameExtension: "asm") ?? .plainText,
+            ],
+            allowsMultipleSelection: false
+        ) { result in
+            if case .success(let urls) = result, let url = urls.first {
+                vm.loadASMOverlayFile(url)
+            }
+        }
     }
 }
 
 #Preview {
-    @Previewable @State var showingASMFileImporter = false
-    DebugView(showingASMFileImporter: $showingASMFileImporter)
+    DebugView()
         .environment({
             let vm = EmulatorViewModel()
             vm.debugLevel = .info
