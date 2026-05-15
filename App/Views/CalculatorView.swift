@@ -70,17 +70,6 @@ struct CalculatorView: View {
                 }
             }
         }
-        .fileImporter(
-            isPresented: $showingASMFileImporter,
-            allowedContentTypes: [
-                UTType(filenameExtension: "asm") ?? .plainText,
-            ],
-            allowsMultipleSelection: false
-        ) { result in
-            if case .success(let urls) = result, let url = urls.first {
-                viewModel.loadASMOverlayFile(url)
-            }
-        }
         #if !os(macOS)
         .sheet(isPresented: $showingSettings) {
             SettingsView(viewModel: viewModel)
@@ -111,6 +100,17 @@ struct CalculatorView: View {
             Button("OK") { viewModel.errorMessage = nil }
         } message: {
             Text(viewModel.errorMessage ?? "")
+        }
+        .fileImporter(
+            isPresented: $showingASMFileImporter,
+            allowedContentTypes: [
+                UTType(filenameExtension: "asm") ?? .plainText,
+            ],
+            allowsMultipleSelection: false
+        ) { result in
+            if case .success(let urls) = result, let url = urls.first {
+                viewModel.loadASMOverlayFile(url)
+            }
         }
         #if os(macOS)
         .task {
