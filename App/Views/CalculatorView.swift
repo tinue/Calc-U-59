@@ -95,20 +95,34 @@ struct CalculatorView: View {
                 get: { activeFilePickerMode != nil },
                 set: { if !$0 { activeFilePickerMode = nil } }
             ),
-            allowedContentTypes: filePickerContentTypes(),
+            allowedContentTypes: {
+                switch activeFilePickerMode {
+                case .asm:
+                    return [UTType(filenameExtension: "asm") ?? .plainText]
+                case .stateFile:
+                    return [
+                        UTType(filenameExtension: "ti59") ?? .data,
+                        UTType(filenameExtension: "ti58") ?? .data,
+                        UTType(filenameExtension: "ti58c") ?? .data
+                    ]
+                case .none:
+                    return []
+                }
+            }(),
             allowsMultipleSelection: false
         ) { result in
             let mode = activeFilePickerMode
             activeFilePickerMode = nil
-            if case .success(let urls) = result, let url = urls.first {
-                switch mode {
-                case .asm:
-                    viewModel.loadASMOverlayFile(url)
-                case .stateFile:
-                    viewModel.loadStateFile(url)
-                case .none:
-                    break
-                }
+
+            guard case .success(let urls) = result, let url = urls.first else { return }
+
+            switch mode {
+            case .asm:
+                viewModel.loadASMOverlayFile(url)
+            case .stateFile:
+                viewModel.loadStateFile(url)
+            case .none:
+                break
             }
         }
         #if os(macOS)
@@ -297,23 +311,6 @@ struct CalculatorView: View {
         .frame(height: 50)
         .background(Color(white: 0.15))
         .foregroundStyle(.white)
-    }
-
-    // MARK: - File picker helpers
-
-    private func filePickerContentTypes() -> [UTType] {
-        switch activeFilePickerMode {
-        case .asm:
-            return [UTType(filenameExtension: "asm") ?? .plainText]
-        case .stateFile:
-            return [
-                UTType(filenameExtension: "ti59") ?? .data,
-                UTType(filenameExtension: "ti58") ?? .data,
-                UTType(filenameExtension: "ti58c") ?? .data
-            ]
-        case .none:
-            return []
-        }
     }
 
     // MARK: - Model picker
