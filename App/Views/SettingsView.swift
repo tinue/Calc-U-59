@@ -48,6 +48,7 @@ struct SettingsView: View {
                     }
                 }
         }
+        .frame(maxHeight: .infinity)
         .onAppear {
             // Force iCloud on iOS/iPadOS
             traceLocationRaw = TraceLocation.iCloud.rawValue
@@ -92,15 +93,6 @@ struct SettingsView: View {
                     Text("Version")
                     Spacer()
                     Text(AppInfo.versionNumberString)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            Section("About") {
-                HStack {
-                    Text("App")
-                    Spacer()
-                    Text(AppInfo.subtitle)
                         .foregroundStyle(.secondary)
                 }
             }
