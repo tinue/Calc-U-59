@@ -98,8 +98,10 @@ struct CalculatorView: View {
             allowedContentTypes: filePickerContentTypes(),
             allowsMultipleSelection: false
         ) { result in
+            let mode = activeFilePickerMode
+            activeFilePickerMode = nil
             if case .success(let urls) = result, let url = urls.first {
-                switch activeFilePickerMode {
+                switch mode {
                 case .asm:
                     viewModel.loadASMOverlayFile(url)
                 case .stateFile:
@@ -108,7 +110,6 @@ struct CalculatorView: View {
                     break
                 }
             }
-            activeFilePickerMode = nil
         }
         #if os(macOS)
         .task {
