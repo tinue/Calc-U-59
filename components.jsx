@@ -5,18 +5,18 @@ const { useState, useEffect, useRef, useMemo } = React;
 /* =============================================================
    Header / nav
    ============================================================= */
-function SiteHeader({ page, onNav }) {
+function SiteHeader({ page }) {
   const items = [
-    { id: "home",     label: "Overview" },
-    { id: "start",    label: "Getting Started" },
-    { id: "ref",      label: "App Reference" },
-    { id: "modules",  label: "Modules" },
-    { id: "faq",      label: "FAQ" },
+    { id: "home",     label: "Overview",        href: "#home" },
+    { id: "start",    label: "Getting Started", href: "#start" },
+    { id: "ref",      label: "App Reference",   href: "#ref" },
+    { id: "modules",  label: "Modules",         href: "#modules" },
+    { id: "faq",      label: "FAQ",             href: "#faq" },
   ];
   return (
     <header className="site-header">
       <div className="inner">
-        <a className="brand" onClick={() => onNav("home")}>
+        <a className="brand" href="#home">
           <img className="app-icon" src="assets/app-icon.png" alt="Calc-U 59 app icon" />
           <div className="wm">
             <span className="top">Calc-U <em>59</em></span>
@@ -26,8 +26,8 @@ function SiteHeader({ page, onNav }) {
         <nav className="nav">
           {items.map(i => (
             <a key={i.id}
-               className={page === i.id ? "active" : ""}
-               onClick={() => onNav(i.id)}>
+               href={i.href}
+               className={page === i.id ? "active" : ""}>
               {i.label}
             </a>
           ))}
@@ -129,7 +129,8 @@ function DocsSidebar({ current, onPick, sections }) {
             {sec.items.map(it => (
               <li key={it.id}>
                 <a
-                  onClick={() => onPick(it.id)}
+                  href={"#start/" + it.id}
+                  onClick={e => { e.preventDefault(); onPick(it.id); }}
                   style={{
                     display: "block",
                     padding: "5px 10px", marginLeft: -12, paddingLeft: 12,

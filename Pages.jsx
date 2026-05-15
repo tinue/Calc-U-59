@@ -20,6 +20,14 @@ const STARTED_SECTIONS = [
   ]},
 ];
 
+function BackButton({ label = "← Return to start", onNav, fallback = "home" }) {
+  function handleBack() {
+    if (history.length > 1) { history.back(); }
+    else { onNav(fallback); }
+  }
+  return <button className="btn secondary" onClick={handleBack}>{label}</button>;
+}
+
 /* =============================================================
    HOME — overview page.
    ============================================================= */
@@ -121,8 +129,13 @@ function HomePage({ onNav }) {
 /* =============================================================
    GETTING STARTED — practical install, file, and debug guidance.
    ============================================================= */
-function GettingStartedPage() {
-  const [topic, setTopic] = useStateApp("install-mobile");
+function GettingStartedPage({ initialTopic = "install-mobile", onNav }) {
+  const [topic, setTopic] = useStateApp(initialTopic);
+
+  function handlePick(id) {
+    setTopic(id);
+    if (onNav) onNav({ page: "start", topic: id });
+  }
   const titles = {
     "install-mobile": "Installing on iPhone and iPad",
     "install-mac": "Installing on Mac",
@@ -294,7 +307,7 @@ PRINTER: on`;
 
   return (
     <main className="wrap" style={{ display: "flex", gap: 32, alignItems: "flex-start" }}>
-      <DocsSidebar current={topic} onPick={setTopic} sections={STARTED_SECTIONS} />
+      <DocsSidebar current={topic} onPick={handlePick} sections={STARTED_SECTIONS} />
       <article style={{ flex: 1, minWidth: 0 }} className="prose">
         <p className="eyebrow">Getting started</p>
         <h1 className="page-title" style={{ fontSize: 40 }}>{titles[topic]}</h1>
@@ -333,7 +346,7 @@ function InstallMobilePage({ onNav }) {
       </div>
 
       <div style={{ marginTop: 24 }}>
-        <button className="btn secondary" onClick={() => onNav("home")}>← Return to start</button>
+        <BackButton onNav={onNav} />
       </div>
     </main>
   );
@@ -363,7 +376,7 @@ function InstallMacPage({ onNav }) {
       </div>
 
       <div style={{ marginTop: 24 }}>
-        <button className="btn secondary" onClick={() => onNav("home")}>← Return to start</button>
+        <BackButton onNav={onNav} />
       </div>
     </main>
   );
@@ -430,7 +443,7 @@ Wait: 2s
       </div>
 
       <div style={{ marginTop: 24 }}>
-        <button className="btn secondary" onClick={() => onNav("home")}>← Return to start</button>
+        <BackButton onNav={onNav} />
       </div>
     </main>
   );
@@ -485,7 +498,7 @@ function DebuggerPage({ onNav }) {
       </div>
 
       <div style={{ marginTop: 24 }}>
-        <button className="btn secondary" onClick={() => onNav("home")}>← Return to start</button>
+        <BackButton onNav={onNav} />
       </div>
     </main>
   );
@@ -546,7 +559,7 @@ function ReferencePage({ onNav }) {
         </div>
 
         <div style={{ marginTop: 24 }}>
-          <button className="btn secondary" onClick={() => onNav("home")}>← Return to start</button>
+          <BackButton onNav={onNav} />
         </div>
       </div>
 
@@ -639,8 +652,16 @@ function FaqPage({ onNav }) {
       </div>
 
       <div style={{ marginTop: 24 }}>
-        <button className="btn secondary" onClick={() => onNav("home")}>← Return to start</button>
+        <BackButton onNav={onNav} />
       </div>
+    </main>
+  );
+}
+
+function ModulesPage() {
+  return (
+    <main className="wrap-narrow" style={{ paddingTop: 48 }}>
+      <Placeholder title="Modules" note="Coming soon." />
     </main>
   );
 }
@@ -653,5 +674,6 @@ Object.assign(window, {
   StateFilesPage,
   DebuggerPage,
   ReferencePage,
+  ModulesPage,
   FaqPage,
 });

@@ -22,20 +22,62 @@
 <script type="text/babel" src="Pages.jsx"></script>
 
 <script type="text/babel">
+  const VALID_PAGES = new Set([
+    "home","start","install-mobile","install-mac",
+    "state-files","debugger","ref","modules","faq"
+  ]);
+  const VALID_TOPICS = new Set([
+    "install-mobile","install-mac","state-files",
+    "debugger","printer","faq","readme"
+  ]);
+
+  function parseHash(hash) {
+    const raw = hash.replace(/^#/, "");
+    const [pageRaw, topicRaw] = raw.split("/");
+    const page = VALID_PAGES.has(pageRaw) ? pageRaw : "home";
+    const topic = (page === "start" && VALID_TOPICS.has(topicRaw))
+      ? topicRaw : "install-mobile";
+    return { page, topic };
+  }
+
+  function useHashNav() {
+    const [nav, setNav] = React.useState(() => parseHash(window.location.hash));
+    React.useEffect(() => {
+      // Normalize empty hash to #home on initial load
+      if (!window.location.hash) {
+        window.location.hash = "#home";
+      }
+    }, []);
+    React.useEffect(() => {
+      function onHashChange() {
+        setNav(parseHash(window.location.hash));
+        window.scrollTo(0, 0);
+      }
+      window.addEventListener("hashchange", onHashChange);
+      return () => window.removeEventListener("hashchange", onHashChange);
+    }, []);
+    function onNav(target) {
+      window.location.hash = typeof target === "string"
+        ? "#" + target
+        : "#" + target.page + (target.topic ? "/" + target.topic : "");
+    }
+    return { page: nav.page, topic: nav.topic, onNav };
+  }
+
   function App() {
-    const [page, setPage] = React.useState("home");
+    const { page, topic, onNav } = useHashNav();
     return (
       <>
-        <SiteHeader page={page} onNav={setPage} />
-        {page === "home"    && <HomePage onNav={setPage} />}
-        {page === "start"   && <GettingStartedPage />}
-        {page === "install-mobile" && <InstallMobilePage onNav={setPage} />}
-        {page === "install-mac"    && <InstallMacPage onNav={setPage} />}
-        {page === "state-files"    && <StateFilesPage onNav={setPage} />}
-        {page === "debugger"       && <DebuggerPage onNav={setPage} />}
-        {page === "ref"     && <ReferencePage onNav={setPage} />}
-        {page === "modules" && <ModulesPage />}
-        {page === "faq"     && <FaqPage onNav={setPage} />}
+        <SiteHeader page={page} />
+        {page === "home"           && <HomePage onNav={onNav} />}
+        {page === "start"          && <GettingStartedPage initialTopic={topic} onNav={onNav} />}
+        {page === "install-mobile" && <InstallMobilePage onNav={onNav} />}
+        {page === "install-mac"    && <InstallMacPage onNav={onNav} />}
+        {page === "state-files"    && <StateFilesPage onNav={onNav} />}
+        {page === "debugger"       && <DebuggerPage onNav={onNav} />}
+        {page === "ref"            && <ReferencePage onNav={onNav} />}
+        {page === "modules"        && <ModulesPage />}
+        {page === "faq"            && <FaqPage onNav={onNav} />}
         <SiteFooter />
       </>
     );
