@@ -15,6 +15,13 @@ struct CalculatorView: View {
         UTType(filenameExtension: "ti58c") ?? .data
     ]
 
+    private var filePickerBinding: Binding<Bool> {
+        Binding(
+            get: { activeFilePickerMode != nil },
+            set: { _ in }  // No-op setter; we reset state in result handler
+        )
+    }
+
     #if os(macOS)
     @State private var isCommandPressed = false
     #else
@@ -98,10 +105,7 @@ struct CalculatorView: View {
             Text(viewModel.errorMessage ?? "")
         }
         .fileImporter(
-            isPresented: .init(
-                get: { activeFilePickerMode != nil },
-                set: { _ in }  // Intentionally no-op; reset in result handler to capture mode safely
-            ),
+            isPresented: filePickerBinding,
             allowedContentTypes: {
                 guard let mode = activeFilePickerMode else { return [] }
                 switch mode {
@@ -114,17 +118,21 @@ struct CalculatorView: View {
             allowsMultipleSelection: false
         ) { result in
             let mode = activeFilePickerMode
-            defer { activeFilePickerMode = nil }
 
-            guard case .success(let urls) = result, let url = urls.first else { return }
+            guard case .success(let urls) = result, let url = urls.first else {
+                activeFilePickerMode = nil
+                return
+            }
 
             switch mode {
             case .asm:
                 viewModel.loadASMOverlayFile(url)
+                activeFilePickerMode = nil
             case .stateFile:
                 viewModel.loadStateFile(url)
+                activeFilePickerMode = nil
             case .none:
-                break
+                activeFilePickerMode = nil
             }
         }
         #if os(macOS)
