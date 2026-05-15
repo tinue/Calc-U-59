@@ -112,26 +112,16 @@ struct CalculatorView: View {
             allowsMultipleSelection: false
         ) { result in
             let mode = activeFilePickerMode
-            print("🔍 fileImporter result handler called. Mode: \(mode ?? .none), Result: \(result)")
-
             activeFilePickerMode = nil
 
-            guard case .success(let urls) = result, let url = urls.first else {
-                print("❌ Result failed or no URLs: \(result)")
-                return
-            }
-
-            print("📁 Selected file: \(url)")
+            guard case .success(let urls) = result, let url = urls.first else { return }
 
             switch mode {
             case .asm:
-                print("⚙️ Loading ASM file...")
                 viewModel.loadASMOverlayFile(url)
             case .stateFile:
-                print("⚙️ Loading state file...")
                 viewModel.loadStateFile(url)
             case .none:
-                print("⚠️ Mode is .none, skipping load")
                 break
             }
         }
