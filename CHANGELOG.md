@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.1.0] - In Progress
+## [1.1.0] - 2026-05-15
 
 **Solid-State Modules:** 14 library modules are now supported and can be selected in Settings. Previously only the ML-01 Master Library was available (hardcoded); 13 additional modules are now included, among them the LE07 Leisure Library.
 
@@ -15,6 +15,8 @@
 **High-Speed Mode:** Touch and hold the display to run the calculator at full speed — useful for long computations or to LIST a program on the printer.
 
 **Haptic & Audio:** The reset button now produces haptic and audio feedback.
+
+**Help Site:** New help site at https://www.calcu59.ch provides documentation and user guides.
 
 ### Fixes
 
