@@ -15,4 +15,7 @@ Load and save programs and data registers as card files, stored on your device a
 STATE FILES
 Load .ti59 and .ti58(c) state files to instantly configure the machine with a program, registers, and flags — ideal for sharing reproducible scenarios or revisiting known machine states.
 
+SOLID STATE MODULES
+Select a Solid State Module and run programs from there.
+
 Whether you are reconstructing programs from memory, tracing ROM internals, or studying how AOS operator precedence actually works at the instruction level, Calc-U-59 gives you the tools to go deep.
