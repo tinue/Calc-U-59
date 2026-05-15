@@ -607,11 +607,27 @@ function FaqPage({ onNav }) {
   const faqs = [
     {
       question: "Where do state files live?",
-      answer: "They are regular .ti59, .ti58, or .ti58c text files. On Mac, the preset picker opens them from disk; on iPhone and iPad, use the built-in file picker.",
+      answer: "They are regular .ti59, .ti58, or .ti58c text files that can be anywhere on the file system. On Mac, the preset picker opens them from disk; on iPhone and iPad, use the built-in file picker.",
     },
     {
-      question: "What should I check first if a file opens wrong?",
-      answer: "Check the partition, then the selected module, then the printer setting. Those three control the most visible parts of a loaded preset.",
+      question: "Are there examples of state files?",
+      answer: "Yes. The GitHub repository includes an 'examples' folder with a selection of .ti59, .ti58, and .ti58c files.",
+    },
+    {
+      question: "What are the 'assembly' examples here for?",
+      answer: "This feature is still a bit experimental. You can load these examples on the 'CPU' tab of the debugger. Use the buttons at the bottom to select a file, and run it.",
+    },
+    {
+      question: "The emulator always complains about 'ASM run timed out before HOLD (8192 step(s))' when I try to start an assembly program. What can I do?",
+      answer: "Click away the error, click 'Freeze', then click 'Resume', and you should be on your way.",
+    },
+    {
+      question: "Where do virtual magnetic cards live?",
+      answer: "The virtual cards are stored in the app's iCloud storage. On iOS and iPadOS, use the card picker to load or save them. On Mac, they are also available in the file picker under the 'iCloud Drive/Calc-U-59' folder.",
+    },
+    {
+      question: "Where is the TI-58C state file?",
+      answer: "The TI-58C state file is stored in the app's iCloud storage (ti58c.mem). The file is written and loaded automatically when you switch to the TI-58C model.",
     },
     {
       question: "Can I see what the emulator is doing internally?",
@@ -622,12 +638,12 @@ function FaqPage({ onNav }) {
       answer: "Open the debug pane, switch to LOG, and turn TRACE on. The app writes a binary session file to the configured trace location.",
     },
     {
-      question: "Why does the display look different between models?",
-      answer: "Calc-U 59 can start in TI-59, TI-58, or TI-58C mode. The model affects the startup state, memory layout, and the available controls.",
+      question: "What can I do with a trace file?",
+      answer: "You first need to download the trace file to your computer. If you use the Mac emulator, this is already a given. When you generate the trace file with an iPad, then use 'Settings' to choose a good location. One option is to save the file directly to iCloud, and let the iPad sync it for you. Retrieve the file from iCloud on your PC. Download the 'read_trace.py' script from GitHub to convert the binary file to a readable format. The script is available in the 'tools' directory of the GitHub repository.",
     },
     {
       question: "Is there a faster way to read long printer output?",
-      answer: "Yes. Switch the printer view to text mode, then copy or cut the strip on any build if you want a plain-text version quickly.",
+      answer: "Yes. Copy or cut the output, and paste it into a text editor.",
     },
   ];
   return (
