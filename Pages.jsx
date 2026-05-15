@@ -658,10 +658,71 @@ function FaqPage({ onNav }) {
   );
 }
 
-function ModulesPage() {
+function ModulesPage({ onNav }) {
+  const modules = [
+    { code: "ML", name: "Master Library" },
+    { code: "ST", name: "Applied Statistics" },
+    { code: "RE", name: "Investment" },
+    { code: "SY", name: "Surveying" },
+    { code: "NG", name: "Marine Navigation" },
+    { code: "AV", name: "Aviation" },
+    { code: "LE", name: "Leisure Library" },
+    { code: "SA", name: "Securities Analysis" },
+    { code: "BD", name: "Business Decisions" },
+    { code: "MU", name: "Math/Utilities" },
+    { code: "EE", name: "EE Library" },
+    { code: "SE", name: "Structural Engineering" },
+    { code: "AG", name: "Agriculture" },
+    { code: "RP", name: "RPN Simulator" },
+  ];
   return (
-    <main className="wrap-narrow" style={{ paddingTop: 48 }}>
-      <Placeholder title="Modules" note="Coming soon." />
+    <main className="wrap">
+      <p className="eyebrow">Modules</p>
+      <h1 className="page-title">Library modules</h1>
+      <p className="lede">The module picker changes the Solid State Software library loaded into the emulator. That affects the cue card, the available programs, and the labels shown on screen.</p>
+
+      <div className="panel" style={{ padding: 20, marginTop: 24, lineHeight: 1.7 }}>
+        <p style={{ marginTop: 0 }}>
+          Keep the selected module aligned with the file you are loading. If a state file includes a <strong>SOLID-STATE-MODULE:</strong> line, the emulator can switch to that module automatically.
+        </p>
+        <p style={{ marginBottom: 0 }}>
+          If the cue card or program list looks unexpected, the module selection is the first thing to check.
+        </p>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12, marginTop: 24 }}>
+        {modules.map(m => (
+          <div key={m.code} className="panel"
+               style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: 16, alignItems: "center" }}>
+            <div style={{
+              background: "linear-gradient(180deg,#1a0c08,#2c1812)",
+              color: "var(--accent)",
+              fontFamily: "var(--font-key)", fontWeight: 700,
+              padding: "8px 12px", borderRadius: 4,
+              letterSpacing: ".05em", fontSize: 13,
+              minWidth: 70, textAlign: "center",
+              border: "1px solid var(--stroke-warm)",
+            }}>{m.code}</div>
+            <div>
+              <h3 className="sub" style={{ margin: 0 }}>{m.name}</h3>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <h2 className="section">Per-module details</h2>
+      <div className="panel" style={{ padding: 20, lineHeight: 1.7 }}>
+        <p style={{ marginTop: 0 }}>
+          Each module has its own cue card content and program selection. The app loads the matching ROM/library data together with the module metadata so the on-screen card stays in sync with the selected library.
+        </p>
+        <p style={{ marginBottom: 0 }}>
+          This is an emulator feature, not a historical TI-59 walkthrough: the purpose is to make the active module understandable while you use the app.
+        </p>
+      </div>
+
+      <div style={{ marginTop: 24 }}>
+        <BackButton onNav={onNav} />
+      </div>
     </main>
   );
 }
