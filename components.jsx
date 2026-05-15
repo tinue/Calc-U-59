@@ -53,8 +53,8 @@ function SiteFooter() {
           color: "var(--fg-2)",
         }}>Calc-U 59</strong>
         <a href="https://github.com/tinue/Calc-U-59">GitHub</a>
-        <a href="#">Release notes</a>
-        <a href="#">Privacy</a>
+        <a href="https://github.com/tinue/Calc-U-59/blob/main/CHANGELOG.md">Release notes</a>
+        <a href="https://github.com/tinue/Calc-U-59/blob/main/PRIVACY.md">Privacy</a>
         <span className="credits">© 2026 · TI-59 emulator for Mac, iPhone, iPad</span>
       </div>
     </footer>
@@ -95,12 +95,12 @@ function TopicCard({ num, eyebrow, title, children, onClick }) {
       <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
         <span style={{
           fontFamily: "var(--font-display)",
-          color: "var(--accent)",
+          color: "var(--led-red)",
           fontSize: 26,
           letterSpacing: ".04em",
-          textShadow: "0 0 8px rgba(240,192,64,.25)",
+          textShadow: "0 0 8px rgba(255,38,20,.4)",
         }}>{num}</span>
-        <span className="eyebrow" style={{ margin: 0, color: "var(--fg-3)" }}>{eyebrow}</span>
+        <span className="eyebrow" style={{ margin: 0, color: "var(--accent)" }}>{eyebrow}</span>
       </div>
       <h3 style={{
         fontFamily: "var(--font-key)", fontWeight: 700, fontSize: 22,

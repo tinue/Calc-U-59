@@ -6,14 +6,17 @@ const { useState: useStateApp } = React;
 
 const STARTED_SECTIONS = [
   { title: "Setup", items: [
-    { id: "install", label: "Installing" },
-    { id: "state", label: "State files" },
-    { id: "debug", label: "Debugger" },
+    { id: "install-mobile", label: "Installing on iPhone and iPad" },
+    { id: "install-mac", label: "Installing on Mac" },
   ]},
-  { title: "Using the app", items: [
-    { id: "modules", label: "Modules" },
-    { id: "printer", label: "Printer" },
-    { id: "settings", label: "Settings" },
+  { title: "Using the emulator", items: [
+    { id: "state-files", label: "Loading a state file" },
+    { id: "debugger", label: "Using the debugger" },
+    { id: "printer", label: "Printer and card reader" },
+  ]},
+  { title: "Help", items: [
+    { id: "faq", label: "FAQ" },
+    { id: "readme", label: "Main README" },
   ]},
 ];
 
@@ -119,22 +122,24 @@ function HomePage({ onNav }) {
    GETTING STARTED — practical install, file, and debug guidance.
    ============================================================= */
 function GettingStartedPage() {
-  const [topic, setTopic] = useStateApp("install");
+  const [topic, setTopic] = useStateApp("install-mobile");
   const titles = {
-    install: "Installing Calc-U 59",
-    state: "Loading a state file",
-    debug: "Using the debugger",
-    modules: "Switching modules",
+    "install-mobile": "Installing on iPhone and iPad",
+    "install-mac": "Installing on Mac",
+    "state-files": "Loading a state file",
+    debugger: "Using the debugger",
     printer: "Printer and card reader",
-    settings: "Settings panel",
+    faq: "FAQ",
+    readme: "Main README",
   };
   const notes = {
-    install:  "Install on iPhone/iPad from the App Store; on Mac, use the GitHub release DMG.",
-    state:    "What .ti59/.ti58/.ti58c files contain and how the parser treats each section.",
-    debug:    "LIVE, CPU, LOG, freeze/step, and binary trace output.",
-    modules:  "What the module picker changes and how state files can select a module automatically.",
-    printer:  "The PC-100C panel, paper strip, copy/cut, and card file behaviour.",
-    settings: "Startup model, keyboard feedback, LED font style, and trace file location.",
+    "install-mobile": "Use the App Store build, then configure the model and load presets from inside the app.",
+    "install-mac": "Download the release from GitHub, then drag the app to Applications.",
+    "state-files": "What .ti59/.ti58/.ti58c files contain and how the parser treats each section.",
+    debugger: "LIVE, CPU, LOG, freeze/step, and binary trace output.",
+    printer: "The PC-100C panel, paper strip, copy/cut, and card file behaviour.",
+    faq: "Concise answers to the questions that usually come up first.",
+    readme: "Complete project overview, build instructions, and technical documentation.",
   };
 
   const stateFileExample = `PARTITION: 479
@@ -152,8 +157,8 @@ SOLID-STATE-MODULE: ML
 PRINTER: on`;
 
   const topicBody = {
-    install: (
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 16, marginTop: 20 }}>
+    "install-mobile": (
+      <div style={{ display: "grid", gap: 16, marginTop: 20 }}>
         <div className="panel" style={{ padding: 20 }}>
           <h3 className="sub" style={{ marginTop: 0 }}>iPhone and iPad</h3>
           <ol style={{ margin: 0, paddingLeft: 20, lineHeight: 1.7 }}>
@@ -165,6 +170,10 @@ PRINTER: on`;
             The mobile build uses the standard iOS app flow: there is no special setup beyond the App Store install.
           </p>
         </div>
+      </div>
+    ),
+    "install-mac": (
+      <div style={{ display: "grid", gap: 16, marginTop: 20 }}>
         <div className="panel" style={{ padding: 20 }}>
           <h3 className="sub" style={{ marginTop: 0 }}>Mac</h3>
           <ol style={{ margin: 0, paddingLeft: 20, lineHeight: 1.7 }}>
@@ -178,7 +187,7 @@ PRINTER: on`;
         </div>
       </div>
     ),
-    state: (
+    "state-files": (
       <div style={{ display: "grid", gap: 16, marginTop: 20 }}>
         <div className="panel" style={{ padding: 20 }}>
           <p style={{ marginTop: 0, lineHeight: 1.7 }}>
@@ -206,7 +215,7 @@ PRINTER: on`;
         </div>
       </div>
     ),
-    debug: (
+    debugger: (
       <div style={{ display: "grid", gap: 16, marginTop: 20 }}>
         <div className="panel" style={{ padding: 20, lineHeight: 1.7 }}>
           <p style={{ marginTop: 0 }}>
@@ -232,23 +241,6 @@ PRINTER: on`;
         </div>
       </div>
     ),
-    modules: (
-      <div style={{ display: "grid", gap: 16, marginTop: 20 }}>
-        <div className="panel" style={{ padding: 20, lineHeight: 1.7 }}>
-          <p style={{ marginTop: 0 }}>
-            The module picker changes the Solid State Software library that is loaded into the emulator. That affects the cue card, the available program listings, and the module name shown on screen.
-          </p>
-          <p style={{ marginBottom: 0 }}>
-            If a state file includes <strong>SOLID-STATE-MODULE:</strong>, the file can select the matching module automatically when it loads.
-          </p>
-        </div>
-        <div className="panel" style={{ padding: 20, lineHeight: 1.7 }}>
-          <p style={{ marginTop: 0, marginBottom: 0 }}>
-            Practical advice: keep the selected module aligned with the file you are loading. If a cue card looks wrong, the module choice is usually the first thing to check.
-          </p>
-        </div>
-      </div>
-    ),
     printer: (
       <div style={{ display: "grid", gap: 16, marginTop: 20 }}>
         <div className="panel" style={{ padding: 20, lineHeight: 1.7 }}>
@@ -269,20 +261,31 @@ PRINTER: on`;
         </div>
       </div>
     ),
-    settings: (
+    faq: (
+      <div style={{ display: "grid", gap: 8, marginTop: 20 }}>
+        {[
+          { q: "Where do state files live?", a: "They are regular .ti59, .ti58, or .ti58c text files. On Mac, the preset picker opens them from disk; on iPhone and iPad, use the built-in file picker." },
+          { q: "What should I check first if a file opens wrong?", a: "Check the partition, then the selected module, then the printer setting. Those three control the most visible parts of a loaded preset." },
+          { q: "Can I see what the emulator is doing internally?", a: "Yes. Use the debug pane: LIVE for real-time state, CPU for instruction history, and LOG for text output plus trace controls." },
+          { q: "How do I get a trace file?", a: "Open the debug pane, switch to LOG, and turn TRACE on. The app writes a binary session file to the configured trace location." },
+          { q: "Why does the display look different between models?", a: "Calc-U 59 can start in TI-59, TI-58, or TI-58C mode. The model affects the startup state, memory layout, and the available controls." },
+          { q: "Is there a faster way to read long printer output?", a: "Yes. Switch the printer view to text mode, then copy or cut the strip on any build if you want a plain-text version quickly." },
+        ].map((item, i) => (
+          <div key={i} className="panel" style={{ padding: "16px 20px", display: "grid", gap: 8 }}>
+            <span style={{ fontFamily: "var(--font-key)", fontWeight: 700, fontSize: 16, textTransform: "uppercase", letterSpacing: ".05em", color: "var(--fg)" }}>{item.q}</span>
+            <p style={{ margin: 0, lineHeight: 1.7, color: "var(--fg-2)" }}>{item.a}</p>
+          </div>
+        ))}
+      </div>
+    ),
+    readme: (
       <div style={{ display: "grid", gap: 16, marginTop: 20 }}>
         <div className="panel" style={{ padding: 20, lineHeight: 1.7 }}>
           <p style={{ marginTop: 0 }}>
-            Settings are intentionally small. The important ones are the startup model, the Solid State module, keyboard feedback on iOS, the LED font style, and the trace-file location.
-          </p>
-          <p>
-            On iPhone and iPad, trace storage is fixed to iCloud. On Mac, you can also pick a local or custom folder for trace files.
-          </p>
-          <p>
-            The trace-file size limit is adjustable on Mac and on iPad in landscape. Its main purpose is to prevent iCloud storage overcommit during long debug sessions when traces are written to iCloud Drive.
+            The main README on GitHub contains the complete project overview, build instructions, technical architecture, and development guidelines.
           </p>
           <p style={{ marginBottom: 0 }}>
-            If a custom trace folder stops working after a permission change, choose it again in Settings so the security-scoped bookmark is refreshed.
+            <a href="https://github.com/tinue/Calc-U-59/blob/main/README.md" style={{ color: "var(--accent)", textDecoration: "none", borderBottom: "1px solid var(--accent)" }}>View the README on GitHub →</a>
           </p>
         </div>
       </div>
@@ -559,7 +562,6 @@ function ReferencePage({ onNav }) {
             <div style={{ position: "absolute", top: "10%", left: "48%", transform: "translateX(-50%)", background: "rgba(0,0,0,.72)", color: "var(--accent)", border: "1px solid var(--accent)", borderRadius: 999, padding: "4px 8px", fontFamily: "var(--font-key)", fontSize: 11, letterSpacing: ".06em", textTransform: "uppercase" }}>Display</div>
             <div style={{ position: "absolute", top: "21%", left: "50%", transform: "translateX(-50%)", background: "rgba(0,0,0,.72)", color: "var(--accent)", border: "1px solid var(--accent)", borderRadius: 999, padding: "4px 8px", fontFamily: "var(--font-key)", fontSize: 11, letterSpacing: ".06em", textTransform: "uppercase" }}>Cue card</div>
             <div style={{ position: "absolute", top: "36%", left: "50%", transform: "translateX(-50%)", background: "rgba(0,0,0,.72)", color: "var(--accent)", border: "1px solid var(--accent)", borderRadius: 999, padding: "4px 8px", fontFamily: "var(--font-key)", fontSize: 11, letterSpacing: ".06em", textTransform: "uppercase" }}>Keyboard</div>
-              <div style={{ position: "absolute", top: "6%", right: "12%", background: "rgba(0,0,0,.72)", color: "var(--accent)", border: "1px solid var(--accent)", borderRadius: 999, padding: "4px 8px", fontFamily: "var(--font-key)", fontSize: 11, letterSpacing: ".06em", textTransform: "uppercase" }}>Swipe to printer</div>
 
               <div style={{ position: "absolute", bottom: "2.1%", left: "6%", width: 22, height: 22, borderRadius: 999, background: "var(--accent)", color: "#21170f", fontFamily: "var(--font-key)", fontWeight: 700, fontSize: 12, display: "grid", placeItems: "center" }}>1</div>
               <div style={{ position: "absolute", bottom: "2.1%", left: "17%", width: 22, height: 22, borderRadius: 999, background: "var(--accent)", color: "#21170f", fontFamily: "var(--font-key)", fontWeight: 700, fontSize: 12, display: "grid", placeItems: "center" }}>2</div>
@@ -567,6 +569,7 @@ function ReferencePage({ onNav }) {
               <div style={{ position: "absolute", bottom: "2.1%", left: "70%", width: 22, height: 22, borderRadius: 999, background: "var(--accent)", color: "#21170f", fontFamily: "var(--font-key)", fontWeight: 700, fontSize: 12, display: "grid", placeItems: "center" }}>4</div>
               <div style={{ position: "absolute", bottom: "2.1%", left: "80%", width: 22, height: 22, borderRadius: 999, background: "var(--accent)", color: "#21170f", fontFamily: "var(--font-key)", fontWeight: 700, fontSize: 12, display: "grid", placeItems: "center" }}>5</div>
               <div style={{ position: "absolute", bottom: "2.1%", left: "89%", width: 22, height: 22, borderRadius: 999, background: "var(--accent)", color: "#21170f", fontFamily: "var(--font-key)", fontWeight: 700, fontSize: 12, display: "grid", placeItems: "center" }}>6</div>
+              <div style={{ position: "absolute", top: "6%", right: "8%", width: 22, height: 22, borderRadius: 999, background: "var(--accent)", color: "#21170f", fontFamily: "var(--font-key)", fontWeight: 700, fontSize: 12, display: "grid", placeItems: "center" }}>7</div>
           </div>
 
           <ol style={{ margin: "12px 0 0", paddingLeft: 20, lineHeight: 1.65, color: "var(--fg-2)", fontSize: 14 }}>
@@ -576,79 +579,9 @@ function ReferencePage({ onNav }) {
             <li><strong>Write Magnetic Card</strong></li>
             <li><strong>Load State File</strong></li>
             <li><strong>Settings</strong></li>
+            <li><strong>Swipe to printer</strong></li>
           </ol>
-          <p style={{ margin: "10px 0 0", color: "var(--fg-3)", fontSize: 13, lineHeight: 1.6 }}>
-            The top-right swipe arrow opens the printer panel.
-          </p>
         </div>
-      </div>
-    </main>
-  );
-}
-
-/* =============================================================
-  MODULES — library module selection and cue cards.
-   ============================================================= */
-function ModulesPage() {
-  const modules = [
-    { code: "ML", name: "Master Library" },
-    { code: "ST", name: "Applied Statistics" },
-    { code: "RE", name: "Investment" },
-    { code: "SY", name: "Surveying" },
-    { code: "NG", name: "Marine Navigation" },
-    { code: "AV", name: "Aviation" },
-    { code: "LE", name: "Leisure Library" },
-    { code: "SA", name: "Securities Analysis" },
-    { code: "BD", name: "Business Decisions" },
-    { code: "MU", name: "Math/Utilities" },
-    { code: "EE", name: "EE Library" },
-    { code: "SE", name: "Structural Engineering" },
-    { code: "AG", name: "Agriculture" },
-    { code: "RP", name: "RPN Simulator" },
-  ];
-  return (
-    <main className="wrap">
-      <p className="eyebrow">Modules</p>
-      <h1 className="page-title">Library modules</h1>
-      <p className="lede">The module picker changes the Solid State Software library loaded into the emulator. That affects the cue card, the available programs, and the labels shown on screen.</p>
-
-      <div className="panel" style={{ padding: 20, marginTop: 24, lineHeight: 1.7 }}>
-        <p style={{ marginTop: 0 }}>
-          Keep the selected module aligned with the file you are loading. If a state file includes a <strong>SOLID-STATE-MODULE:</strong> line, the emulator can switch to that module automatically.
-        </p>
-        <p style={{ marginBottom: 0 }}>
-          If the cue card or program list looks unexpected, the module selection is the first thing to check.
-        </p>
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12, marginTop: 24 }}>
-        {modules.map(m => (
-          <div key={m.code} className="panel"
-               style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: 16, alignItems: "center" }}>
-            <div style={{
-              background: "linear-gradient(180deg,#1a0c08,#2c1812)",
-              color: "var(--accent)",
-              fontFamily: "var(--font-key)", fontWeight: 700,
-              padding: "8px 12px", borderRadius: 4,
-              letterSpacing: ".05em", fontSize: 13,
-              minWidth: 70, textAlign: "center",
-              border: "1px solid var(--stroke-warm)",
-            }}>{m.code}</div>
-            <div>
-              <h3 className="sub" style={{ margin: 0 }}>{m.name}</h3>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <h2 className="section">Per-module details</h2>
-      <div className="panel" style={{ padding: 20, lineHeight: 1.7 }}>
-        <p style={{ marginTop: 0 }}>
-          Each module has its own cue card content and program selection. The app loads the matching ROM/library data together with the module metadata so the on-screen card stays in sync with the selected library.
-        </p>
-        <p style={{ marginBottom: 0 }}>
-          This is an emulator feature, not a historical TI-59 walkthrough: the purpose is to make the active module understandable while you use the app.
-        </p>
       </div>
     </main>
   );
@@ -720,6 +653,5 @@ Object.assign(window, {
   StateFilesPage,
   DebuggerPage,
   ReferencePage,
-  ModulesPage,
   FaqPage,
 });
