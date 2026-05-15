@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 struct DebugView: View {
     @Environment(EmulatorViewModel.self) var vm
     @State private var tab: DebugTab = .live
-    @Binding var showingASMFileImporter: Bool
+    @Binding var activeFilePickerMode: CalculatorView.FilePickerMode?
     enum DebugTab { case live, cpu, log }
 
     var body: some View {
@@ -36,9 +36,7 @@ struct DebugView: View {
 
                     Divider().background(Color(white: 0.25))
 
-                    ASMDebugContent {
-                        showingASMFileImporter = true
-                    }
+                    ASMDebugContent(activeFilePickerMode: $activeFilePickerMode)
                 }
             case .log:
                 StaticDebugContent()
@@ -191,7 +189,7 @@ private struct StaticDebugContent: View {
 
 private struct ASMDebugContent: View {
     @Environment(EmulatorViewModel.self) var vm
-    let onPickFile: () -> Void
+    @Binding var activeFilePickerMode: CalculatorView.FilePickerMode?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -225,7 +223,7 @@ private struct ASMDebugContent: View {
 
             HStack(spacing: 8) {
                 Button("Select File") {
-                    onPickFile()
+                    activeFilePickerMode = .asm
                 }
                 .buttonStyle(.plain)
                 .font(.caption.bold())
@@ -269,8 +267,8 @@ private struct ASMDebugContent: View {
 }
 
 #Preview {
-    @Previewable @State var showingASMFileImporter = false
-    DebugView(showingASMFileImporter: $showingASMFileImporter)
+    @Previewable @State var mode: CalculatorView.FilePickerMode? = nil
+    DebugView(activeFilePickerMode: $mode)
         .environment({
             let vm = EmulatorViewModel()
             vm.debugLevel = .info

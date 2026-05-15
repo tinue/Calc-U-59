@@ -4,12 +4,14 @@ import AudioToolbox
 
 struct CalculatorView: View {
     @Environment(EmulatorViewModel.self) var viewModel
-    @State private var showingASMFileImporter = false
+
+    enum FilePickerMode { case asm, stateFile }
+    @State private var activeFilePickerMode: FilePickerMode?
+
     #if os(macOS)
     @State private var isCommandPressed = false
     #else
     @State private var showingPrinter = false
-    @State private var showingStateFilePicker = false
     @State private var showingSettings = false
     @State private var resetLongPressTriggered = false
     #endif
@@ -74,19 +76,6 @@ struct CalculatorView: View {
         .sheet(isPresented: $showingSettings) {
             SettingsView(viewModel: viewModel)
         }
-        .fileImporter(
-            isPresented: $showingStateFilePicker,
-            allowedContentTypes: [
-                UTType(filenameExtension: "ti59") ?? .data,
-                UTType(filenameExtension: "ti58") ?? .data,
-                UTType(filenameExtension: "ti58c") ?? .data
-            ],
-            allowsMultipleSelection: false
-        ) { result in
-            if case .success(let urls) = result, let url = urls.first {
-                viewModel.loadStateFile(url)
-            }
-        }
         #endif
         .toolbar {
             ToolbarItem(placement: .automatic) {
@@ -102,15 +91,24 @@ struct CalculatorView: View {
             Text(viewModel.errorMessage ?? "")
         }
         .fileImporter(
-            isPresented: $showingASMFileImporter,
-            allowedContentTypes: [
-                UTType(filenameExtension: "asm") ?? .plainText,
-            ],
+            isPresented: .init(
+                get: { activeFilePickerMode != nil },
+                set: { if !$0 { activeFilePickerMode = nil } }
+            ),
+            allowedContentTypes: filePickerContentTypes(),
             allowsMultipleSelection: false
         ) { result in
             if case .success(let urls) = result, let url = urls.first {
-                viewModel.loadASMOverlayFile(url)
+                switch activeFilePickerMode {
+                case .asm:
+                    viewModel.loadASMOverlayFile(url)
+                case .stateFile:
+                    viewModel.loadStateFile(url)
+                case .none:
+                    break
+                }
             }
+            activeFilePickerMode = nil
         }
         #if os(macOS)
         .task {
@@ -135,7 +133,7 @@ struct CalculatorView: View {
             PrinterView()
                 .frame(minWidth: 220, maxWidth: 320)
             Divider()
-            DebugView(showingASMFileImporter: $showingASMFileImporter)
+            DebugView(activeFilePickerMode: $activeFilePickerMode)
                 .frame(minWidth: 220)
         }
         #else
@@ -152,7 +150,7 @@ struct CalculatorView: View {
                         .frame(minWidth: 290, maxWidth: 360)
                     if UIDevice.current.userInterfaceIdiom == .pad {
                         Divider()
-                        DebugView(showingASMFileImporter: $showingASMFileImporter)
+                        DebugView(activeFilePickerMode: $activeFilePickerMode)
                             .frame(minWidth: 220)
                     }
                 }
@@ -281,7 +279,7 @@ struct CalculatorView: View {
             #else
             Divider().frame(height: 20)
             Button("Preset", systemImage: "doc.badge.arrow.up") {
-                showingStateFilePicker = true
+                activeFilePickerMode = .stateFile
             }
             .labelStyle(showLabel: showLabels)
             .controlSize(.large)
@@ -298,6 +296,23 @@ struct CalculatorView: View {
         .frame(height: 50)
         .background(Color(white: 0.15))
         .foregroundStyle(.white)
+    }
+
+    // MARK: - File picker helpers
+
+    private func filePickerContentTypes() -> [UTType] {
+        switch activeFilePickerMode {
+        case .asm:
+            return [UTType(filenameExtension: "asm") ?? .plainText]
+        case .stateFile:
+            return [
+                UTType(filenameExtension: "ti59") ?? .data,
+                UTType(filenameExtension: "ti58") ?? .data,
+                UTType(filenameExtension: "ti58c") ?? .data
+            ]
+        case .none:
+            return []
+        }
     }
 
     // MARK: - Model picker
