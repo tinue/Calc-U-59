@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.1] - 2026-05-15
+
+### Fixes
+
+- **File Picker Stability:** Fixed "Select File" (ASM overlay) and "Preset" file pickers becoming unresponsive after multiple uses, requiring app restart. Consolidated separate file picker modifiers into a single unified fileImporter to work around iOS/iPadOS modal stacking limitations, and improved state reset timing to prevent corruption.
+
+- **State Management:** Improved fileImporter binding stability by using a computed property instead of recreating the binding on every view render. Explicit state resets in all result handler code paths ensure the modal state machine never gets stuck in an inconsistent state.
+
 ## [1.1.0] - 2026-05-15
 
 **Solid-State Modules:** 14 library modules are now supported and can be selected in Settings. Previously only the ML-01 Master Library was available (hardcoded); 13 additional modules are now included, among them the LE07 Leisure Library.

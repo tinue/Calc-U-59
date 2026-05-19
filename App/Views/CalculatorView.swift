@@ -4,12 +4,28 @@ import AudioToolbox
 
 struct CalculatorView: View {
     @Environment(EmulatorViewModel.self) var viewModel
-    @State private var showingASMFileImporter = false
+
+    enum FilePickerMode { case asm, stateFile }
+    @State private var activeFilePickerMode: FilePickerMode?
+
+    private static let asmTypes = [UTType(filenameExtension: "asm") ?? .plainText]
+    private static let stateFileTypes = [
+        UTType(filenameExtension: "ti59") ?? .data,
+        UTType(filenameExtension: "ti58") ?? .data,
+        UTType(filenameExtension: "ti58c") ?? .data
+    ]
+
+    private var filePickerBinding: Binding<Bool> {
+        Binding(
+            get: { activeFilePickerMode != nil },
+            set: { _ in }  // No-op setter; we reset state in result handler
+        )
+    }
+
     #if os(macOS)
     @State private var isCommandPressed = false
     #else
     @State private var showingPrinter = false
-    @State private var showingStateFilePicker = false
     @State private var showingSettings = false
     @State private var resetLongPressTriggered = false
     #endif
@@ -70,33 +86,9 @@ struct CalculatorView: View {
                 }
             }
         }
-        .fileImporter(
-            isPresented: $showingASMFileImporter,
-            allowedContentTypes: [
-                UTType(filenameExtension: "asm") ?? .plainText,
-            ],
-            allowsMultipleSelection: false
-        ) { result in
-            if case .success(let urls) = result, let url = urls.first {
-                viewModel.loadASMOverlayFile(url)
-            }
-        }
         #if !os(macOS)
         .sheet(isPresented: $showingSettings) {
             SettingsView(viewModel: viewModel)
-        }
-        .fileImporter(
-            isPresented: $showingStateFilePicker,
-            allowedContentTypes: [
-                UTType(filenameExtension: "ti59") ?? .data,
-                UTType(filenameExtension: "ti58") ?? .data,
-                UTType(filenameExtension: "ti58c") ?? .data
-            ],
-            allowsMultipleSelection: false
-        ) { result in
-            if case .success(let urls) = result, let url = urls.first {
-                viewModel.loadStateFile(url)
-            }
         }
         #endif
         .toolbar {
@@ -111,6 +103,37 @@ struct CalculatorView: View {
             Button("OK") { viewModel.errorMessage = nil }
         } message: {
             Text(viewModel.errorMessage ?? "")
+        }
+        .fileImporter(
+            isPresented: filePickerBinding,
+            allowedContentTypes: {
+                guard let mode = activeFilePickerMode else { return [] }
+                switch mode {
+                case .asm:
+                    return Self.asmTypes
+                case .stateFile:
+                    return Self.stateFileTypes
+                }
+            }(),
+            allowsMultipleSelection: false
+        ) { result in
+            let mode = activeFilePickerMode
+
+            guard case .success(let urls) = result, let url = urls.first else {
+                activeFilePickerMode = nil
+                return
+            }
+
+            switch mode {
+            case .asm:
+                viewModel.loadASMOverlayFile(url)
+                activeFilePickerMode = nil
+            case .stateFile:
+                viewModel.loadStateFile(url)
+                activeFilePickerMode = nil
+            case .none:
+                activeFilePickerMode = nil
+            }
         }
         #if os(macOS)
         .task {
@@ -135,7 +158,7 @@ struct CalculatorView: View {
             PrinterView()
                 .frame(minWidth: 220, maxWidth: 320)
             Divider()
-            DebugView(showingASMFileImporter: $showingASMFileImporter)
+            DebugView(activeFilePickerMode: $activeFilePickerMode)
                 .frame(minWidth: 220)
         }
         #else
@@ -152,7 +175,7 @@ struct CalculatorView: View {
                         .frame(minWidth: 290, maxWidth: 360)
                     if UIDevice.current.userInterfaceIdiom == .pad {
                         Divider()
-                        DebugView(showingASMFileImporter: $showingASMFileImporter)
+                        DebugView(activeFilePickerMode: $activeFilePickerMode)
                             .frame(minWidth: 220)
                     }
                 }
@@ -269,9 +292,7 @@ struct CalculatorView: View {
             Divider().frame(height: 20)
             Button("Preset") {
                 let panel = NSOpenPanel()
-                panel.allowedContentTypes = [UTType(filenameExtension: "ti59") ?? .data,
-                                             UTType(filenameExtension: "ti58") ?? .data,
-                                             UTType(filenameExtension: "ti58c") ?? .data]
+                panel.allowedContentTypes = Self.stateFileTypes
                 panel.allowsOtherFileTypes = true
                 panel.message = "Select a .ti59, .ti58, or .ti58c state file"
                 if panel.runModal() == .OK, let url = panel.url {
@@ -281,7 +302,7 @@ struct CalculatorView: View {
             #else
             Divider().frame(height: 20)
             Button("Preset", systemImage: "doc.badge.arrow.up") {
-                showingStateFilePicker = true
+                activeFilePickerMode = .stateFile
             }
             .labelStyle(showLabel: showLabels)
             .controlSize(.large)

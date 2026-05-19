@@ -242,7 +242,8 @@ if ! $DO_BUILD_ONLY; then
         echo "Error: $CHANGELOG not found."
         exit 1
     fi
-    NOTES=$(sed -n "/## \[$VERSION\]/,/## /p" "$CHANGELOG" | sed '1d;$d' | sed '/^$/d')
+    ESCAPED_VERSION=$(printf '%s\n' "$VERSION" | sed 's/[.[\*^$/]/\\&/g')
+    NOTES=$(sed -n "/^## \[${ESCAPED_VERSION}\]/,/^## /p" "$CHANGELOG" | sed '1d;$d' | sed '/^$/d')
     if [ -z "$NOTES" ]; then
         echo "Error: No changelog entry found for version $VERSION in $CHANGELOG."
         echo "  Add an entry before releasing."
