@@ -11,7 +11,7 @@ struct DebugView: View {
         VStack(spacing: 0) {
             // Tab bar
             HStack(spacing: 0) {
-                tabButton("LIVE", .live)
+                tabButton("CALCULATOR", .live)
                     .disabled(vm.asmOverlayActive)
                     .opacity(vm.asmOverlayActive ? 0.35 : 1.0)
                 tabButton("CPU", .cpu)
@@ -25,14 +25,8 @@ struct DebugView: View {
             case .live: LiveDebugView()
             case .cpu:
                 VStack(spacing: 0) {
-                    Group {
-                        if vm.isFrozen {
-                            CPUInspectorView()
-                        } else {
-                            SimpleLiveCPUView()
-                        }
-                    }
-                    .frame(maxHeight: .infinity)
+                    CPUInspectorView()
+                        .frame(maxHeight: .infinity)
 
                     Divider().background(Color(white: 0.25))
 

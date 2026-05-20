@@ -46,7 +46,7 @@ struct LiveDebugView: View {
 
     private func liveHeader(baseFontSize: CGFloat) -> some View {
         HStack {
-            Text("LIVE DEBUG")
+            Text("CALCULATOR DEBUG")
                 .font(.caption.bold())
                 .foregroundStyle(.white.opacity(0.6))
             Spacer()

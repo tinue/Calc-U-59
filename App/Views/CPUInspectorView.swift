@@ -1,61 +1,49 @@
 import SwiftUI
 
-/// Detailed CPU inspector for frozen state.
-/// Shows 32 snapshots with full state inspection and proper scrolling navigation.
+/// Unified CPU inspector: shows instruction history and register state live (when enabled)
+/// or frozen (when paused). Header mirrors the CALCULATOR tab style.
 struct CPUInspectorView: View {
     @Environment(EmulatorViewModel.self) var vm
     @State private var selectedIndex: Int? = nil
     @FocusState private var isFocused: Bool
+
+    // Unified instruction list — live from cpuDebugSnapshot when running, cpuInspectorHistory when frozen.
+    private var displayHistory: [EmulatorViewModel.InspectorSnapshot] {
+        if vm.isFrozen {
+            return vm.cpuInspectorHistory
+        } else {
+            let instrs = vm.cpuDebugSnapshot.recentInstructions
+            return instrs.enumerated().map { idx, instr in
+                EmulatorViewModel.InspectorSnapshot(
+                    pc: instr.pc,
+                    opcode: instr.opcode,
+                    disasm: instr.disasm,
+                    frame: instr.frame,
+                    isHistory: true,
+                    isCurrent: idx == instrs.count - 1
+                )
+            }
+        }
+    }
 
     var body: some View {
         GeometryReader { geo in
             let baseFontSize = adaptiveFontSize(width: geo.size.width)
 
             VStack(spacing: 0) {
-                // Control bar
-                HStack(spacing: 12) {
-                    Button(action: vm.unfreeze) {
-                        Text("RESUME")
-                            .font(.caption.bold())
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(Color.orange)
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
-                    }
-                    .buttonStyle(.plain)
+                cpuHeader(baseFontSize: baseFontSize)
 
-                    Button(action: {
-                        vm.stepFrozen()
-                    }) {
-                        Text("STEP")
-                            .font(.caption.bold())
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(Color(white: 0.25))
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
-                    }
-                    .buttonStyle(.plain)
-
-                    Text("PAUSED")
-                        .font(.caption.bold())
-                        .foregroundStyle(.orange)
-
-                    Spacer()
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .background(Color(white: 0.07))
-
-                // Instructions list with scrollbar
+                // Instructions list
                 ScrollView {
                     ScrollViewReader { proxy in
+                        let history = displayHistory
                         VStack(alignment: .leading, spacing: 0) {
-                            ForEach(Array(vm.cpuInspectorHistory.enumerated()), id: \.offset) { idx, snapshot in
+                            ForEach(Array(history.enumerated()), id: \.offset) { idx, snapshot in
                                 let isSelected = (selectedIndex == idx)
-                                let opacity = snapshot.isHistory ? 1.0 : 0.4  // Dim speculative instructions
-                                let bgColor: Color = snapshot.isCurrent ? Color.green.opacity(0.35) : (isSelected ? Color(white: 0.20) : Color.clear)
+                                let opacity = snapshot.isHistory ? 1.0 : 0.4
+                                let bgColor: Color = snapshot.isCurrent
+                                    ? Color.green.opacity(0.35)
+                                    : (isSelected ? Color(white: 0.20) : Color.clear)
 
                                 HStack(spacing: 8) {
                                     Text(String(format: "%04X", snapshot.pc))
@@ -90,7 +78,7 @@ struct CPUInspectorView: View {
                             }
                         }
                         .onChange(of: vm.cpuInspectorUpdateID) { _, _ in
-                            // Auto-select current instruction whenever snapshot rebuilds (freeze or step)
+                            // Freeze or step: auto-select and scroll to current instruction.
                             if let currentIdx = vm.cpuInspectorHistory.firstIndex(where: { $0.isCurrent }) {
                                 selectedIndex = currentIdx
                                 withAnimation(.easeInOut(duration: 0.1)) {
@@ -98,12 +86,28 @@ struct CPUInspectorView: View {
                                 }
                             }
                         }
+                        .onChange(of: vm.cpuDebugSnapshot) { _, _ in
+                            guard !vm.isFrozen else { return }
+                            let last = displayHistory.count - 1
+                            guard last >= 0 else { return }
+                            selectedIndex = last
+                            proxy.scrollTo(last, anchor: .bottom)
+                        }
                         .onAppear {
-                            // Fallback: history already populated when view appears
-                            if let currentIdx = vm.cpuInspectorHistory.firstIndex(where: { $0.isCurrent }) {
-                                selectedIndex = currentIdx
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                    proxy.scrollTo(currentIdx, anchor: .center)
+                            if vm.isFrozen {
+                                if let currentIdx = vm.cpuInspectorHistory.firstIndex(where: { $0.isCurrent }) {
+                                    selectedIndex = currentIdx
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                        proxy.scrollTo(currentIdx, anchor: .center)
+                                    }
+                                }
+                            } else {
+                                let last = displayHistory.count - 1
+                                if last >= 0 {
+                                    selectedIndex = last
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                        proxy.scrollTo(last, anchor: .bottom)
+                                    }
                                 }
                             }
                         }
@@ -111,14 +115,14 @@ struct CPUInspectorView: View {
                 }
                 .frame(height: 200)
 
-                // State display sections
-                if let idx = selectedIndex, idx >= 0, idx < vm.cpuInspectorHistory.count {
-                    let snap = vm.cpuInspectorHistory[idx]
+                // State display for selected instruction
+                let history = displayHistory
+                if let idx = selectedIndex, idx >= 0, idx < history.count {
+                    let snap = history[idx]
                     let cpu = snap.frame
 
                     ScrollView {
                         VStack(alignment: .leading, spacing: 1) {
-                            // Registers
                             inspectorSection(title: "REGISTERS") {
                                 VStack(alignment: .leading, spacing: 2) {
                                     registerDisplay("A",    cpu.A,    baseFontSize: baseFontSize)
@@ -132,7 +136,6 @@ struct CPUInspectorView: View {
                                 .padding(.vertical, 4)
                             }
 
-                            // Control registers
                             inspectorSection(title: "CONTROL REGISTERS") {
                                 let cond = (cpu.flags & 0x0800) != 0 ? 1 : 0
                                 let idle = (cpu.flags & 0x0001) != 0 ? 1 : 0
@@ -166,7 +169,6 @@ struct CPUInspectorView: View {
                                 .padding(.vertical, 4)
                             }
 
-                            // Display state
                             inspectorSection(title: "DISPLAY STATE") {
                                 let displayOn = cpu.displayOn != 0
                                 VStack(alignment: .leading, spacing: 2) {
@@ -192,25 +194,22 @@ struct CPUInspectorView: View {
             }
             .focusable()
             .focused($isFocused)
-            .onAppear {
-                isFocused = true
-                selectedIndex = nil
-            }
+            .onAppear { isFocused = true }
             .onKeyPress(.upArrow) {
-                guard !vm.cpuInspectorHistory.isEmpty else { return .ignored }
+                let history = displayHistory
+                guard !history.isEmpty else { return .ignored }
                 if let idx = selectedIndex {
-                    if idx > 0 {
-                        selectedIndex = idx - 1
-                    }
+                    if idx > 0 { selectedIndex = idx - 1 }
                 } else {
-                    selectedIndex = vm.cpuInspectorHistory.count - 1
+                    selectedIndex = history.count - 1
                 }
                 return .handled
             }
             .onKeyPress(.downArrow) {
-                guard !vm.cpuInspectorHistory.isEmpty else { return .ignored }
+                let history = displayHistory
+                guard !history.isEmpty else { return .ignored }
                 if let idx = selectedIndex {
-                    if idx < vm.cpuInspectorHistory.count - 1 {
+                    if idx < history.count - 1 {
                         selectedIndex = idx + 1
                     } else {
                         selectedIndex = nil
@@ -222,7 +221,50 @@ struct CPUInspectorView: View {
         }
     }
 
-    // MARK: - Section Container (mirrors LIVE SectionBox)
+    // MARK: - Header
+
+    private func cpuHeader(baseFontSize: CGFloat) -> some View {
+        HStack {
+            Text("CPU DEBUG")
+                .font(.caption.bold())
+                .foregroundStyle(.white.opacity(0.6))
+            Spacer()
+            if vm.isFrozen {
+                Button("STEP") { vm.stepFrozen() }
+                    .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
+                    .foregroundStyle(Color.cyan)
+            }
+            if vm.pendingFreezeOnPCChange {
+                Button("ARMED") { vm.pendingFreezeOnPCChange = false }
+                    .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
+                    .foregroundStyle(Color.yellow)
+            } else {
+                Button("FREEZE ON START") { vm.freezeOnNextPCChange() }
+                    .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
+                    .foregroundStyle(Color(white: 0.5))
+            }
+            Button(vm.isFrozen ? "RESUME" : "FREEZE") {
+                vm.isFrozen ? vm.unfreeze() : vm.freeze()
+            }
+            .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
+            .foregroundStyle(vm.isFrozen ? Color.orange : Color(white: 0.6))
+            Circle()
+                .fill(vm.cpuDebugEnabled ? Color.green : Color.gray.opacity(0.4))
+                .frame(width: 8, height: 8)
+            Toggle("", isOn: .init(
+                get: { vm.cpuDebugEnabled },
+                set: { vm.cpuDebugEnabled = $0 }
+            ))
+            .labelsHidden()
+            .toggleStyle(.switch)
+            .scaleEffect(0.7)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(Color(white: 0.07))
+    }
+
+    // MARK: - Section Container
 
     private func inspectorSection<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(spacing: 0) {
@@ -266,15 +308,9 @@ struct CPUInspectorView: View {
         return String(repeating: "0", count: max(0, 16 - s.count)) + s
     }
 
-    // MARK: - Adaptive Font Sizing
-
     private func adaptiveFontSize(width: CGFloat) -> CGFloat {
-        if width < 350 {
-            return 9
-        } else if width < 500 {
-            return 11
-        } else {
-            return 13
-        }
+        if width < 350 { return 9 }
+        else if width < 500 { return 11 }
+        else { return 13 }
     }
 }

@@ -114,6 +114,7 @@ class EmulatorViewModel {
 
     // ── Live debug panel state (60 Hz real-time) ──────────────────────────────
     var liveDebugEnabled: Bool = false
+    var cpuDebugEnabled: Bool = false
     var liveDebugSnapshot: LiveDebugSnapshot = .empty
     var freezeReason: FreezeReason? = nil
     var isFrozen: Bool { freezeReason != nil }
@@ -476,10 +477,11 @@ class EmulatorViewModel {
             if s != liveDebugSnapshot { liveDebugSnapshot = s }
         }
 
-        // CPU debug snapshot — sampled at 60 Hz to keep instruction history current.
-        // Always update so SimpleLiveCPUView gets fresh data after freeze/resume.
-        let s = buildCPUDebugSnapshot(machine: machine)
-        if s != cpuDebugSnapshot { cpuDebugSnapshot = s }
+        // CPU debug snapshot — sampled at 60 Hz when panel is enabled or frozen.
+        if cpuDebugEnabled || isFrozen {
+            let s = buildCPUDebugSnapshot(machine: machine)
+            if s != cpuDebugSnapshot { cpuDebugSnapshot = s }
+        }
 
         if cIndicatorDebug {
             cDropDebugger.update(snap.calcIndicator)
