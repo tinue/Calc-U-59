@@ -306,8 +306,8 @@ struct CPUInspectorView: View {
     // MARK: - ROM Heatmap Section
 
     private func romHeatmapSection(width: CGFloat) -> some View {
-        let hitTick   = vm.romHitTick
-        let curTick   = vm.romCurrentTick
+        let hitCount  = vm.romHitCount
+        let maxCount  = vm.romMaxHitCount
         let currentPC = Int(vm.cpuDebugSnapshot.currentPC)
         let cols      = 80
         let rows      = 64
@@ -339,7 +339,7 @@ struct CPUInspectorView: View {
                                       width: max(1, cw - 0.5), height: max(1, ch - 0.5))
                     let color: Color = addr == currentPC
                         ? .green
-                        : heatColor(hitTick: hitTick[addr], curTick: curTick)
+                        : heatColor(count: hitCount[addr], maxCount: maxCount)
                     context.fill(Path(rect), with: .color(color))
                 }
             }
@@ -349,17 +349,18 @@ struct CPUInspectorView: View {
         .cornerRadius(3)
     }
 
-    private func heatColor(hitTick: UInt32, curTick: UInt32) -> Color {
-        guard hitTick > 0 else { return Color(white: 0.18) }
-        let age  = curTick >= hitTick ? curTick - hitTick : 0
-        let step = min(5, Int(age / 30))
-        switch 5 - step {
-        case 5:  return Color(hue: 0.14, saturation: 1.0, brightness: 1.00)
-        case 4:  return Color(hue: 0.12, saturation: 1.0, brightness: 0.90)
-        case 3:  return Color(hue: 0.10, saturation: 1.0, brightness: 0.75)
-        case 2:  return Color(hue: 0.08, saturation: 1.0, brightness: 0.55)
-        case 1:  return Color(hue: 0.06, saturation: 0.9, brightness: 0.35)
-        default: return Color(white: 0.18)
+    // Logarithmic normalization: the hottest address (maxCount) maps to step 5 (bright yellow);
+    // an address hit once maps to step 1 (dark amber); never-hit stays dark gray.
+    private func heatColor(count: UInt32, maxCount: UInt32) -> Color {
+        guard count > 0, maxCount > 0 else { return Color(white: 0.18) }
+        let ratio = log(Double(count) + 1) / log(Double(maxCount) + 1)  // 0.0 ... 1.0
+        let step  = max(1, Int(ratio * 5.0))                             // 1 ... 5
+        switch step {
+        case 5:  return Color(hue: 0.14, saturation: 1.0, brightness: 1.00)  // bright yellow
+        case 4:  return Color(hue: 0.12, saturation: 1.0, brightness: 0.90)  // light amber
+        case 3:  return Color(hue: 0.10, saturation: 1.0, brightness: 0.75)  // amber
+        case 2:  return Color(hue: 0.08, saturation: 1.0, brightness: 0.55)  // dark amber
+        default: return Color(hue: 0.06, saturation: 0.9, brightness: 0.35)  // very dark amber
         }
     }
 

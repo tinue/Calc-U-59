@@ -131,14 +131,13 @@ class EmulatorViewModel {
     private var cpuFrameWindow: [TICpuFrame] = []  // rolling window of recent instructions
 
     // ── ROM Heatmap (5 120 code addresses 0x0000–0x13FF) ─────────────────────
-    static let romCodeSize = 0x1400
-    var romHitTick:    [UInt32] = Array(repeating: 0, count: 0x1400)  // tick when addr last hit (0 = never)
-    var romCurrentTick: UInt32 = 0
+    var romHitCount:    [UInt32] = Array(repeating: 0, count: 0x1400)  // cumulative hit count per address
+    var romMaxHitCount:  UInt32 = 0                                    // current maximum (for normalization)
     private var romHeatmapLastSeqno: UInt32 = 0
 
     func clearRomHeatmap() {
-        romHitTick = Array(repeating: 0, count: 0x1400)
-        romCurrentTick = 0
+        romHitCount = Array(repeating: 0, count: 0x1400)
+        romMaxHitCount = 0
         romHeatmapLastSeqno = 0
     }
 
@@ -1719,21 +1718,21 @@ class EmulatorViewModel {
         // Store frames in the rolling window
         cpuFrameWindow = newFrames
 
-        // Accumulate ROM heatmap hits from newly-seen frames.
-        // Detect machine reset via seqno regression (seqno restarted from 0).
-        romCurrentTick &+= 1
-        if let firstSeq = newFrames.first?.seqno, firstSeq < romHeatmapLastSeqno {
-            romHitTick = Array(repeating: 0, count: 0x1400)
-            romHeatmapLastSeqno = 0
-        }
+        // Accumulate ROM heatmap: increment hit counts for addresses not yet seen this session.
+        // seqno comparison prevents double-counting the same frames across consecutive 60 Hz reads.
         let newHits = newFrames.filter { $0.seqno > romHeatmapLastSeqno }
         if !newHits.isEmpty {
-            var updated = romHitTick
+            var updated = romHitCount
+            var maxCount = romMaxHitCount
             for frame in newHits {
                 let pc = Int(frame.pc)
-                if pc < 0x1400 { updated[pc] = romCurrentTick }
+                if pc < 0x1400 {
+                    updated[pc] &+= 1
+                    if updated[pc] > maxCount { maxCount = updated[pc] }
+                }
             }
-            romHitTick = updated
+            romHitCount = updated
+            romMaxHitCount = maxCount
             romHeatmapLastSeqno = newHits.last!.seqno
         }
 
