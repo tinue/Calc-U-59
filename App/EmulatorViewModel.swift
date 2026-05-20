@@ -130,6 +130,18 @@ class EmulatorViewModel {
     var cpuDebugSnapshot: CPUDebugSnapshot = .empty
     private var cpuFrameWindow: [TICpuFrame] = []  // rolling window of recent instructions
 
+    // ── ROM Heatmap (5 120 code addresses 0x0000–0x13FF) ─────────────────────
+    static let romCodeSize = 0x1400
+    var romHitTick:    [UInt32] = Array(repeating: 0, count: 0x1400)  // tick when addr last hit (0 = never)
+    var romCurrentTick: UInt32 = 0
+    private var romHeatmapLastSeqno: UInt32 = 0
+
+    func clearRomHeatmap() {
+        romHitTick = Array(repeating: 0, count: 0x1400)
+        romCurrentTick = 0
+        romHeatmapLastSeqno = 0
+    }
+
     // ── Frozen CPU inspector state (static snapshot when paused) ───────────────
     struct InspectorSnapshot {
         var pc: UInt16
@@ -1706,6 +1718,24 @@ class EmulatorViewModel {
 
         // Store frames in the rolling window
         cpuFrameWindow = newFrames
+
+        // Accumulate ROM heatmap hits from newly-seen frames.
+        // Detect machine reset via seqno regression (seqno restarted from 0).
+        romCurrentTick &+= 1
+        if let firstSeq = newFrames.first?.seqno, firstSeq < romHeatmapLastSeqno {
+            romHitTick = Array(repeating: 0, count: 0x1400)
+            romHeatmapLastSeqno = 0
+        }
+        let newHits = newFrames.filter { $0.seqno > romHeatmapLastSeqno }
+        if !newHits.isEmpty {
+            var updated = romHitTick
+            for frame in newHits {
+                let pc = Int(frame.pc)
+                if pc < 0x1400 { updated[pc] = romCurrentTick }
+            }
+            romHitTick = updated
+            romHeatmapLastSeqno = newHits.last!.seqno
+        }
 
         // Build recent instructions from the accumulated window (show last 32)
         let instructionsToShow = min(32, cpuFrameWindow.count)

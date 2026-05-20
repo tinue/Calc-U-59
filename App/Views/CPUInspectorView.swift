@@ -184,6 +184,8 @@ struct CPUInspectorView: View {
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4)
                             }
+
+                            romHeatmapSection(width: geo.size.width)
                         }
                         .padding(4)
                     }
@@ -298,6 +300,66 @@ struct CPUInspectorView: View {
                 .foregroundStyle(.white.opacity(0.85))
 
             Spacer()
+        }
+    }
+
+    // MARK: - ROM Heatmap Section
+
+    private func romHeatmapSection(width: CGFloat) -> some View {
+        let hitTick   = vm.romHitTick
+        let curTick   = vm.romCurrentTick
+        let currentPC = Int(vm.cpuDebugSnapshot.currentPC)
+        let cols      = 80
+        let rows      = 64
+        let cellSize  = max(2.0, width / CGFloat(cols))
+
+        return VStack(spacing: 0) {
+            HStack {
+                Text("ROM HEATMAP")
+                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.45))
+                Spacer()
+                Button("CLR") { vm.clearRomHeatmap() }
+                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.45))
+                    .padding(.trailing, 4)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(Color(white: 0.07))
+
+            Canvas { context, size in
+                let cw = size.width / CGFloat(cols)
+                let ch = cw
+                for addr in 0..<0x1400 {
+                    let col = addr % cols
+                    let row = addr / cols
+                    let rect = CGRect(x: CGFloat(col) * cw, y: CGFloat(row) * ch,
+                                      width: max(1, cw - 0.5), height: max(1, ch - 0.5))
+                    let color: Color = addr == currentPC
+                        ? .green
+                        : heatColor(hitTick: hitTick[addr], curTick: curTick)
+                    context.fill(Path(rect), with: .color(color))
+                }
+            }
+            .frame(height: CGFloat(rows) * cellSize)
+            .background(Color(white: 0.13))
+        }
+        .cornerRadius(3)
+    }
+
+    private func heatColor(hitTick: UInt32, curTick: UInt32) -> Color {
+        guard hitTick > 0 else { return Color(white: 0.18) }
+        let age  = curTick >= hitTick ? curTick - hitTick : 0
+        let step = min(5, Int(age / 30))
+        switch 5 - step {
+        case 5:  return Color(hue: 0.14, saturation: 1.0, brightness: 1.00)
+        case 4:  return Color(hue: 0.12, saturation: 1.0, brightness: 0.90)
+        case 3:  return Color(hue: 0.10, saturation: 1.0, brightness: 0.75)
+        case 2:  return Color(hue: 0.08, saturation: 1.0, brightness: 0.55)
+        case 1:  return Color(hue: 0.06, saturation: 0.9, brightness: 0.35)
+        default: return Color(white: 0.18)
         }
     }
 
