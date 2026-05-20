@@ -131,14 +131,19 @@ class EmulatorViewModel {
     private var cpuFrameWindow: [TICpuFrame] = []  // rolling window of recent instructions
 
     // ── ROM Heatmap (5 120 code addresses 0x0000–0x13FF) ─────────────────────
-    var romHitCount:    [UInt32] = Array(repeating: 0, count: 0x1400)  // cumulative hit count per address
-    var romMaxHitCount:  UInt32 = 0                                    // current maximum (for normalization)
+    // Observable published at ~10 Hz to avoid flooding SwiftUI render pipeline.
+    var romHitCount: [UInt32] = Array(repeating: 0, count: 0x1400)
+    private var romHitCountBuffer: [UInt32] = Array(repeating: 0, count: 0x1400)
     private var romHeatmapLastSeqno: UInt32 = 0
+    private var romHeatmapDirty = false
+    private var heatmapTickCounter: Int = 0
 
     func clearRomHeatmap() {
-        romHitCount = Array(repeating: 0, count: 0x1400)
-        romMaxHitCount = 0
+        romHitCountBuffer = Array(repeating: 0, count: 0x1400)
+        romHitCount       = Array(repeating: 0, count: 0x1400)
         romHeatmapLastSeqno = 0
+        romHeatmapDirty = false
+        heatmapTickCounter = 0
     }
 
     // ── Frozen CPU inspector state (static snapshot when paused) ───────────────
@@ -1718,22 +1723,25 @@ class EmulatorViewModel {
         // Store frames in the rolling window
         cpuFrameWindow = newFrames
 
-        // Accumulate ROM heatmap: increment hit counts for addresses not yet seen this session.
-        // seqno comparison prevents double-counting the same frames across consecutive 60 Hz reads.
+        // Accumulate ROM heatmap hits into the local buffer (every tick, cheap).
+        // seqno prevents double-counting frames across non-destructive readCpuFrames calls.
         let newHits = newFrames.filter { $0.seqno > romHeatmapLastSeqno }
         if !newHits.isEmpty {
-            var updated = romHitCount
-            var maxCount = romMaxHitCount
             for frame in newHits {
                 let pc = Int(frame.pc)
-                if pc < 0x1400 {
-                    updated[pc] &+= 1
-                    if updated[pc] > maxCount { maxCount = updated[pc] }
-                }
+                if pc < 0x1400 { romHitCountBuffer[pc] &+= 1 }
             }
-            romHitCount = updated
-            romMaxHitCount = maxCount
             romHeatmapLastSeqno = newHits.last!.seqno
+            romHeatmapDirty = true
+        }
+        // Publish to @Observable at ~10 Hz (every 6 ticks) to keep display refresh unaffected.
+        heatmapTickCounter &+= 1
+        if heatmapTickCounter >= 6 {
+            heatmapTickCounter = 0
+            if romHeatmapDirty {
+                romHeatmapDirty = false
+                romHitCount = romHitCountBuffer
+            }
         }
 
         // Build recent instructions from the accumulated window (show last 32)

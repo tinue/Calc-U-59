@@ -1,4 +1,91 @@
 import SwiftUI
+import Combine
+
+// MARK: - Heatmap Renderer
+
+/// Off-screen 80×64 pixel buffer for the ROM heatmap.
+/// Cells are only repainted when their heat step increases — steps are monotonically non-decreasing.
+private final class HeatmapRenderer: ObservableObject {
+    static let cols = 80
+    static let rows = 64
+    static let cellCount = cols * rows  // 5 120
+
+    @Published private(set) var cgImage: CGImage? = nil
+    private var cellSteps: [UInt8] = Array(repeating: 0xFF, count: cellCount)  // 0xFF = uninitialized
+    private var pixelBuf: [UInt8]  = Array(repeating: 0,    count: cellCount * 4)
+
+    func update(hitCount: [UInt32]) {
+        var anyChanged = false
+        for addr in 0..<Self.cellCount {
+            let count   = addr < hitCount.count ? hitCount[addr] : 0
+            let newStep = heatStep(count)
+            guard newStep != cellSteps[addr] else { continue }
+            cellSteps[addr] = newStep
+            setPixel(addr: addr, step: newStep)
+            anyChanged = true
+        }
+        if anyChanged { cgImage = makeImage() }
+    }
+
+    func reset() {
+        cellSteps = Array(repeating: 0xFF, count: Self.cellCount)
+        for addr in 0..<Self.cellCount { setPixel(addr: addr, step: 0) }
+        cgImage = makeImage()
+    }
+
+    // Fixed absolute thresholds: first hit → step 1 (immediately visible, dark amber).
+    // Steps only increase — enables incremental repaint.
+    private func heatStep(_ count: UInt32) -> UInt8 {
+        switch count {
+        case 0:         return 0
+        case 1...2:     return 1
+        case 3...9:     return 2
+        case 10...49:   return 3
+        case 50...249:  return 4
+        default:        return 5
+        }
+    }
+
+    private func setPixel(addr: Int, step: UInt8) {
+        let (r, g, b) = rgb(for: step)
+        let base = addr * 4
+        pixelBuf[base]   = r
+        pixelBuf[base+1] = g
+        pixelBuf[base+2] = b
+        pixelBuf[base+3] = 255
+    }
+
+    // Pre-computed RGB for each step (HSB → RGB: hue 0.06–0.14, sat 0.9–1.0, bri 0.35–1.0).
+    private func rgb(for step: UInt8) -> (UInt8, UInt8, UInt8) {
+        switch step {
+        case 0:  return (46,  46,  46)   // dark gray  (cold)
+        case 1:  return (89,  38,   9)   // very dark amber
+        case 2:  return (140, 67,   0)   // dark amber
+        case 3:  return (191, 115,  0)   // amber
+        case 4:  return (230, 165,  0)   // light amber
+        default: return (255, 214,  0)   // bright yellow
+        }
+    }
+
+    private func makeImage() -> CGImage? {
+        pixelBuf.withUnsafeBytes { ptr -> CGImage? in
+            guard let base = ptr.baseAddress else { return nil }
+            guard let data = CFDataCreate(nil, base.assumingMemoryBound(to: UInt8.self), pixelBuf.count),
+                  let provider = CGDataProvider(data: data) else { return nil }
+            return CGImage(
+                width: Self.cols, height: Self.rows,
+                bitsPerComponent: 8, bitsPerPixel: 32,
+                bytesPerRow: Self.cols * 4,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue),
+                provider: provider,
+                decode: nil, shouldInterpolate: false, intent: .defaultIntent
+            )
+        }
+    }
+}
+
+// MARK: - CPU Inspector View
 
 /// Unified CPU inspector: shows instruction history and register state live (when enabled)
 /// or frozen (when paused). Header mirrors the CALCULATOR tab style.
@@ -6,6 +93,7 @@ struct CPUInspectorView: View {
     @Environment(EmulatorViewModel.self) var vm
     @State private var selectedIndex: Int? = nil
     @FocusState private var isFocused: Bool
+    @StateObject private var heatmapRenderer = HeatmapRenderer()
 
     // Unified instruction list — live from cpuDebugSnapshot when running, cpuInspectorHistory when frozen.
     private var displayHistory: [EmulatorViewModel.InspectorSnapshot] {
@@ -306,12 +394,11 @@ struct CPUInspectorView: View {
     // MARK: - ROM Heatmap Section
 
     private func romHeatmapSection(width: CGFloat) -> some View {
-        let hitCount  = vm.romHitCount
-        let maxCount  = vm.romMaxHitCount
+        // currentPC read at 60 Hz drives the green-dot overlay; CGImage update is at 10 Hz.
         let currentPC = Int(vm.cpuDebugSnapshot.currentPC)
-        let cols      = 80
-        let rows      = 64
-        let cellSize  = max(2.0, width / CGFloat(cols))
+        let cols      = CGFloat(HeatmapRenderer.cols)
+        let rows      = CGFloat(HeatmapRenderer.rows)
+        let cellSize  = max(2.0, width / cols)
 
         return VStack(spacing: 0) {
             HStack {
@@ -319,7 +406,7 @@ struct CPUInspectorView: View {
                     .font(.system(size: 9, weight: .bold, design: .monospaced))
                     .foregroundStyle(.white.opacity(0.45))
                 Spacer()
-                Button("CLR") { vm.clearRomHeatmap() }
+                Button("CLR") { vm.clearRomHeatmap(); heatmapRenderer.reset() }
                     .font(.system(size: 9, weight: .bold, design: .monospaced))
                     .foregroundStyle(.white.opacity(0.45))
                     .padding(.trailing, 4)
@@ -329,39 +416,41 @@ struct CPUInspectorView: View {
             .padding(.vertical, 3)
             .background(Color(white: 0.07))
 
-            Canvas { context, size in
-                let cw = size.width / CGFloat(cols)
-                let ch = cw
-                for addr in 0..<0x1400 {
-                    let col = addr % cols
-                    let row = addr / cols
-                    let rect = CGRect(x: CGFloat(col) * cw, y: CGFloat(row) * ch,
-                                      width: max(1, cw - 0.5), height: max(1, ch - 0.5))
-                    let color: Color = addr == currentPC
-                        ? .green
-                        : heatColor(count: hitCount[addr], maxCount: maxCount)
-                    context.fill(Path(rect), with: .color(color))
+            // Canvas blits the cached CGImage (cheap) + draws one green PC dot per frame.
+            // CGImage coordinate origin is bottom-left; SwiftUI Canvas is top-left → flip.
+            Canvas { ctx, size in
+                let cw = size.width  / cols
+                let ch = size.height / rows
+                ctx.withCGContext { cgCtx in
+                    // Flip to match SwiftUI top-left coordinates for CGImage draw.
+                    cgCtx.saveGState()
+                    cgCtx.translateBy(x: 0, y: size.height)
+                    cgCtx.scaleBy(x: 1, y: -1)
+                    cgCtx.interpolationQuality = .none
+                    if let img = heatmapRenderer.cgImage {
+                        cgCtx.draw(img, in: CGRect(origin: .zero, size: size))
+                    }
+                    cgCtx.restoreGState()
+                    // Green PC dot — drawn after restoreGState (back in SwiftUI coords).
+                    if currentPC < 0x1400 {
+                        let col = currentPC % Int(cols)
+                        let row = currentPC / Int(cols)
+                        cgCtx.setFillColor(CGColor(red: 0, green: 1, blue: 0, alpha: 1))
+                        cgCtx.fill(CGRect(x: CGFloat(col) * cw, y: CGFloat(row) * ch,
+                                          width: max(1, cw - 0.5), height: max(1, ch - 0.5)))
+                    }
                 }
             }
-            .frame(height: CGFloat(rows) * cellSize)
+            .frame(height: rows * cellSize)
             .background(Color(white: 0.13))
+            .onChange(of: vm.romHitCount) { _, hitCount in
+                heatmapRenderer.update(hitCount: hitCount)
+            }
+            .onAppear {
+                heatmapRenderer.update(hitCount: vm.romHitCount)
+            }
         }
         .cornerRadius(3)
-    }
-
-    // Logarithmic normalization: the hottest address (maxCount) maps to step 5 (bright yellow);
-    // an address hit once maps to step 1 (dark amber); never-hit stays dark gray.
-    private func heatColor(count: UInt32, maxCount: UInt32) -> Color {
-        guard count > 0, maxCount > 0 else { return Color(white: 0.18) }
-        let ratio = log(Double(count) + 1) / log(Double(maxCount) + 1)  // 0.0 ... 1.0
-        let step  = max(1, Int(ratio * 5.0))                             // 1 ... 5
-        switch step {
-        case 5:  return Color(hue: 0.14, saturation: 1.0, brightness: 1.00)  // bright yellow
-        case 4:  return Color(hue: 0.12, saturation: 1.0, brightness: 0.90)  // light amber
-        case 3:  return Color(hue: 0.10, saturation: 1.0, brightness: 0.75)  // amber
-        case 2:  return Color(hue: 0.08, saturation: 1.0, brightness: 0.55)  // dark amber
-        default: return Color(hue: 0.06, saturation: 0.9, brightness: 0.35)  // very dark amber
-        }
     }
 
     // MARK: - Helpers
