@@ -113,8 +113,8 @@ class EmulatorViewModel {
     var asmOverlayActive: Bool = false
 
     // ── Live debug panel state (60 Hz real-time) ──────────────────────────────
-    var liveDebugEnabled: Bool = false
-    var cpuDebugEnabled: Bool = false
+    var liveDebugEnabled: Bool = true
+    var cpuDebugEnabled: Bool = true
     var liveDebugSnapshot: LiveDebugSnapshot = .empty
     var freezeReason: FreezeReason? = nil
     var isFrozen: Bool { freezeReason != nil }

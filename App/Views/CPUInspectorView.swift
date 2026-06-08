@@ -314,40 +314,39 @@ struct CPUInspectorView: View {
     // MARK: - Header
 
     private func cpuHeader(baseFontSize: CGFloat) -> some View {
-        HStack {
+        let freezeEnabled = !vm.isFrozen && !vm.pendingFreezeOnPCChange
+        let freezeOnStartEnabled = !vm.isFrozen && !vm.pendingFreezeOnPCChange
+
+        return HStack(spacing: 8) {
             Text("CPU DEBUG")
                 .font(.caption.bold())
                 .foregroundStyle(.white.opacity(0.6))
             Spacer()
-            if vm.isFrozen {
-                Button("STEP") { vm.stepFrozen() }
-                    .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
-                    .foregroundStyle(Color.cyan)
-            }
-            if vm.pendingFreezeOnPCChange {
-                Button("ARMED") { vm.pendingFreezeOnPCChange = false }
-                    .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
-                    .foregroundStyle(Color.yellow)
-            } else {
-                Button("FREEZE ON START") { vm.freezeOnNextPCChange() }
-                    .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
-                    .foregroundStyle(Color(white: 0.5))
-            }
-            Button(vm.isFrozen ? "RESUME" : "FREEZE") {
-                vm.isFrozen ? vm.unfreeze() : vm.freeze()
-            }
-            .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
-            .foregroundStyle(vm.isFrozen ? Color.orange : Color(white: 0.6))
-            Circle()
-                .fill(vm.cpuDebugEnabled ? Color.green : Color.gray.opacity(0.4))
-                .frame(width: 8, height: 8)
-            Toggle("", isOn: .init(
-                get: { vm.cpuDebugEnabled },
-                set: { vm.cpuDebugEnabled = $0 }
-            ))
-            .labelsHidden()
-            .toggleStyle(.switch)
-            .scaleEffect(0.7)
+
+            Button("FREEZE") { vm.freeze() }
+                .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
+                .foregroundStyle(Color.white)
+                .disabled(!freezeEnabled)
+
+            Button("FREEZE ON START") { vm.freezeOnNextPCChange() }
+                .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
+                .foregroundStyle(Color.white)
+                .disabled(!freezeOnStartEnabled)
+
+            Button("ARMED") { vm.pendingFreezeOnPCChange.toggle() }
+                .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
+                .foregroundStyle(Color.yellow)
+                .disabled(!vm.pendingFreezeOnPCChange)
+
+            Button("RESUME") { vm.unfreeze() }
+                .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
+                .foregroundStyle(Color.orange)
+                .disabled(!vm.isFrozen)
+
+            Button("STEP") { vm.stepFrozen() }
+                .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
+                .foregroundStyle(Color.cyan)
+                .disabled(!vm.isFrozen)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
