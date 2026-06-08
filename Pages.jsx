@@ -233,23 +233,23 @@ PRINTER: on`;
         <div className="panel" style={{ padding: 20, lineHeight: 1.7 }}>
           <p style={{ marginTop: 0 }}>
             The debug pane has three tabs: <strong>LIVE</strong>, <strong>CPU</strong>, and <strong>LOG</strong>.
-            LIVE is the real-time calculator view, CPU is the instruction-level inspector, and LOG shows printable debug output plus trace controls.
+            LIVE shows the real-time calculator state, CPU is the instruction inspector, and LOG displays raw debug output plus the trace capture toggle.
           </p>
           <p>
-            Freeze the machine when you want to inspect a specific moment. While frozen, the CPU tab shows a scrollable history with step and resume controls.
+            Important: every instruction shown in the debugger displays the state <strong>after</strong> that instruction executed, not before. This affects how flags appear when you have tests followed by jumps.
           </p>
           <p style={{ marginBottom: 0 }}>
-            Use the trace button when you need a binary session file for deeper analysis. The emulator writes <strong>TI59_TRACE.bin</strong> or the model-specific equivalent to the configured trace folder.
+            The most powerful feature is the TRACE toggle in LOG—it records a binary session file that you can export and analyze with the <code>read_trace.py</code> tool to understand ROM sequences in detail.
           </p>
         </div>
         <div className="panel" style={{ padding: 20, lineHeight: 1.7 }}>
           <p style={{ marginTop: 0 }}>
-            Good ways to use the debugger:
+            Quick start:
           </p>
           <ol style={{ margin: 0, paddingLeft: 20 }}>
-            <li>Check the LIVE tab for current registers, flags, and display state.</li>
-            <li>Freeze before a difficult instruction and step forward one instruction at a time.</li>
-            <li>Turn on TRACE only when you need the binary capture, then turn it off again so the file stays small.</li>
+            <li>Check the LIVE tab for a quick snapshot of registers, flags, and display state.</li>
+            <li>Use TRACE in the LOG tab to capture a sequence (reset, keystroke processing, etc.).</li>
+            <li>Export the trace file and use <code style={{ background: "var(--bg-inset)", padding: "2px 6px", borderRadius: 4 }}>read_trace.py</code> to analyze it. The binary file compresses to a small text file thanks to loop deduplication.</li>
           </ol>
         </div>
       </div>
@@ -279,8 +279,10 @@ PRINTER: on`;
         {[
           { q: "Where do state files live?", a: "They are regular .ti59, .ti58, or .ti58c text files. On Mac, the preset picker opens them from disk; on iPhone and iPad, use the built-in file picker." },
           { q: "What should I check first if a file opens wrong?", a: "Check the partition, then the selected module, then the printer setting. Those three control the most visible parts of a loaded preset." },
-          { q: "Can I see what the emulator is doing internally?", a: "Yes. Use the debug pane: LIVE for real-time state, CPU for instruction history, and LOG for text output plus trace controls." },
-          { q: "How do I get a trace file?", a: "Open the debug pane, switch to LOG, and turn TRACE on. The app writes a binary session file to the configured trace location." },
+          { q: "Can I see what the emulator is doing internally?", a: "Yes. Use the debug pane: LIVE for real-time state, CPU for instruction history, and LOG for text output plus trace controls. For analyzing sequences, TRACE is more useful than the CPU tab." },
+          { q: "How do I get a trace file?", a: "Open the debug pane, switch to LOG, and turn TRACE on. The app writes a binary session file to the configured trace location. You can then export it and analyze it with read_trace.py." },
+          { q: "What does the instruction state in the debugger show—before or after?", a: "Every instruction displayed shows the calculator state after that instruction executed. When you see TEST followed by JUMP, the JUMP shows the auto-restored condition flag, which is why flags can look like they change unexpectedly." },
+          { q: "My trace file is 190 MB. Is that normal?", a: "Yes, for long sessions. But when you convert it to text with read_trace.py using the --clean and --skip-repeating flags, it compresses to a fraction of that size because the tool deduplicates repetitive loops." },
           { q: "Why does the display look different between models?", a: "Calc-U 59 can start in TI-59, TI-58, or TI-58C mode. The model affects the startup state, memory layout, and the available controls." },
           { q: "Is there a faster way to read long printer output?", a: "Yes. Switch the printer view to text mode, then copy or cut the strip on any build if you want a plain-text version quickly." },
         ].map((item, i) => (
@@ -454,28 +456,79 @@ function DebuggerPage({ onNav }) {
     <main className="wrap-narrow">
       <p className="eyebrow">Debug</p>
       <h1 className="page-title">Using the debugger</h1>
-      <p className="lede">The debug pane combines real-time calculator state, instruction history, and trace capture in one place.</p>
+      <p className="lede">The debug pane combines real-time calculator state, instruction history, and trace capture tools for analyzing the emulator's behavior.</p>
 
       <div className="panel" style={{ padding: 20, lineHeight: 1.7, marginTop: 24 }}>
-        <p style={{ marginTop: 0 }}>
+        <h3 className="sub" style={{ marginTop: 0, marginBottom: 12 }}>Overview</h3>
+        <p style={{ margin: 0 }}>
           The debug pane has three tabs: <strong>LIVE</strong>, <strong>CPU</strong>, and <strong>LOG</strong>.
-          LIVE is the real-time calculator view, CPU is the instruction-level inspector, and LOG shows printable debug output plus trace controls.
         </p>
-        <p>
-          Freeze the machine when you want to inspect a specific moment. While frozen, the CPU tab shows a scrollable history with step and resume controls.
+        <ul style={{ margin: "8px 0 0", paddingLeft: 20 }}>
+          <li><strong>LIVE</strong> — Real-time calculator state: registers, flags, display, and status.</li>
+          <li><strong>CPU</strong> — Instruction history. When frozen, shows scrollable past instructions with step and resume controls.</li>
+          <li><strong>LOG</strong> — Raw debug output, SCOM register inspection, and the trace toggle. Most useful for capturing session files for deeper analysis.</li>
+        </ul>
+      </div>
+
+      <div className="panel" style={{ padding: 20, lineHeight: 1.7, marginTop: 12 }}>
+        <h3 className="sub" style={{ marginTop: 0, marginBottom: 12 }}>Understanding instruction state</h3>
+        <p style={{ margin: 0 }}>
+          Every instruction displayed in the debugger shows the calculator state <strong>after</strong> that instruction executed, not before. This includes all registers, flags, and the display.
         </p>
-        <p style={{ marginBottom: 0 }}>
-          Use the trace toggle when you need a binary session file for deeper analysis.
+        <p style={{ marginTop: 8, marginBottom: 0 }}>
+          When you see a <strong>TEST</strong> followed by a <strong>JUMP</strong>: the TEST instruction shows the condition flag as set by the test, but the JUMP shows the auto-restored condition (usually 1) unless the next instruction is also a jump. This is why flags can look like they change in unexpected places.
         </p>
       </div>
 
       <div className="panel" style={{ padding: 20, lineHeight: 1.7, marginTop: 12 }}>
-        <p style={{ marginTop: 0 }}>Good ways to use the debugger:</p>
+        <h3 className="sub" style={{ marginTop: 0, marginBottom: 12 }}>LIVE and CPU: for quick inspection</h3>
+        <p style={{ marginTop: 0 }}>
+          Use the LIVE tab to check current registers, flags, and display state at a glance.
+        </p>
+        <p>
+          Freeze the machine when you want to inspect a specific moment. While frozen, the CPU tab shows a scrollable history so you can step backward and forward through past instructions. However, the CPU tab has limited usefulness for typical users, since it is designed for analyzing the emulator's internal behavior rather than helping you use the calculator itself.
+        </p>
+        <p style={{ marginBottom: 0 }}>
+          The ability to change registers or flags to see how the emulator reacts would require a full breakpoint-based debugger, which is not yet implemented.
+        </p>
+      </div>
+
+      <div className="panel" style={{ padding: 20, lineHeight: 1.7, marginTop: 12 }}>
+        <h3 className="sub" style={{ marginTop: 0, marginBottom: 12 }}>TRACE and LOG: for session capture and analysis</h3>
+        <p style={{ marginTop: 0 }}>
+          The <strong>LOG</strong> panel serves two main purposes:
+        </p>
+        <ul style={{ margin: "8px 0", paddingLeft: 20 }}>
+          <li><strong>Raw SCOM inspection</strong> — Shows the low-level scratch memory that the ROM uses. The CALCULATOR view displays decoded SCOM values (like HIR section), but LOG shows the raw hex.</li>
+          <li><strong>TRACE toggle</strong> — Records a binary session file while the calculator is running. This is far more useful than the CPU tab for understanding sequences like the reset routine or key-processing flow.</li>
+        </ul>
+
+        <p style={{ marginTop: 12, marginBottom: 12 }}>
+          <strong>To capture and analyze a sequence:</strong>
+        </p>
         <ol style={{ margin: 0, paddingLeft: 20 }}>
-          <li>Check the LIVE tab for current registers, flags, and display state.</li>
-          <li>Freeze before a difficult instruction and step forward one instruction at a time.</li>
-          <li>Turn on TRACE only when you need binary capture, then turn it off again to keep files small.</li>
+          <li>Switch to the LOG tab and toggle TRACE on.</li>
+          <li>Perform the action you want to analyze (e.g., press <strong>Reset</strong>, or execute a ROM subroutine).</li>
+          <li>Toggle TRACE off to stop recording.</li>
+          <li>Export the trace file (use the Files app on iOS to email it, or find it on Mac).</li>
+          <li>On a computer with Python, download the <code>read_trace.py</code> tool from the <a href="https://github.com/tinue/Calc-U-59/tree/main/tools" style={{ color: "var(--accent)", textDecoration: "none", borderBottom: "1px solid var(--accent)" }}>Calc-U-59 tools folder</a>.</li>
+          <li>Run: <code style={{ background: "var(--bg-inset)", padding: "2px 6px", borderRadius: 4 }}>python3 ./read_trace.py --clean --skip-repeating CALCU59_TRACE.bin &gt; CALCU59_TRACE.txt</code></li>
+          <li>Open the resulting text file to see the full execution trace as human-readable disassembly.</li>
         </ol>
+
+        <p style={{ marginTop: 12, marginBottom: 0 }}>
+          The binary trace file can be large (190 MB for a long session), but the text output is much smaller (57 kB) because the tool deduplicates repetitive loops—especially the keyboard scan loop that runs continuously. This makes it practical to analyze even long traces.
+        </p>
+      </div>
+
+      <div className="panel" style={{ padding: 20, lineHeight: 1.7, marginTop: 12 }}>
+        <h3 className="sub" style={{ marginTop: 0, marginBottom: 12 }}>When to use each tool</h3>
+        <ul style={{ margin: 0, paddingLeft: 20 }}>
+          <li><strong>LIVE tab</strong> — Quick snapshot of current state during normal operation.</li>
+          <li><strong>CPU tab</strong> — Stepping through a few instructions when frozen, or reviewing immediate past execution.</li>
+          <li><strong>TRACE</strong> — Capturing a ROM sequence for detailed analysis (reset routine, memory writes, keyboard processing, etc.).</li>
+          <li><strong>Debug logging (in LOG)</strong> — Low or High level logging is mainly used by the app developer for debugging specific issues. When enabled, you will see all memory writes and other hardware events. This has limited utility for regular app users.</li>
+        </ul>
       </div>
 
       <div style={{ marginTop: 16, display: "grid", gap: 12 }}>
@@ -541,10 +594,15 @@ function ReferencePage({ onNav }) {
         <h2 className="section">The debug pane</h2>
         <div className="panel" style={{ padding: 20, lineHeight: 1.7 }}>
           <p style={{ marginTop: 0 }}>
-            The debug pane has three tabs: LIVE, CPU, and LOG. LIVE shows the current calculator state in real time. CPU switches to a live or frozen instruction inspector depending on whether the machine is paused. LOG is for text output, register dumps, trace toggles, and ASM overlay controls.
+            The debug pane has three tabs: <strong>LIVE</strong>, <strong>CPU</strong>, and <strong>LOG</strong>.
           </p>
-          <p style={{ marginBottom: 0 }}>
-            If you only need one thing from this pane, it is the trace toggle: it records a session file that can be used for deeper debugging later.
+          <ul style={{ margin: "8px 0 0", paddingLeft: 20 }}>
+            <li><strong>LIVE</strong> — Shows the current calculator state in real time: registers, flags, display.</li>
+            <li><strong>CPU</strong> — Instruction inspector. When frozen, shows a scrollable history you can step through.</li>
+            <li><strong>LOG</strong> — Text output, raw SCOM register dumps, and the trace toggle. Use TRACE to capture a binary session file for detailed analysis with read_trace.py.</li>
+          </ul>
+          <p style={{ marginTop: 8, marginBottom: 0 }}>
+            <strong>Remember:</strong> every instruction shown displays the state <em>after</em> that instruction executed. This is why flags behave unexpectedly after tests and jumps.
           </p>
         </div>
 
