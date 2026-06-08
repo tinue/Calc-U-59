@@ -57,26 +57,31 @@ struct LiveDebugView: View {
             Button("FREEZE") { vm.freeze() }
                 .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
                 .foregroundStyle(Color.white)
+                .opacity(freezeEnabled ? 1 : 0.4)
                 .disabled(!freezeEnabled)
 
             Button("FREEZE ON START") { vm.freezeOnNextPCChange() }
                 .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
                 .foregroundStyle(Color.white)
+                .opacity(freezeOnStartEnabled ? 1 : 0.4)
                 .disabled(!freezeOnStartEnabled)
 
             Button("ARMED") { vm.pendingFreezeOnPCChange.toggle() }
                 .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
                 .foregroundStyle(Color.yellow)
+                .opacity(vm.pendingFreezeOnPCChange ? 1 : 0.4)
                 .disabled(!vm.pendingFreezeOnPCChange)
 
             Button("RESUME") { vm.unfreeze() }
                 .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
                 .foregroundStyle(Color.orange)
+                .opacity(vm.isFrozen ? 1 : 0.4)
                 .disabled(!vm.isFrozen)
 
             Button("STEP") { vm.stepKeycode() }
                 .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
                 .foregroundStyle(Color.cyan)
+                .opacity(vm.isFrozen ? 1 : 0.4)
                 .disabled(!vm.isFrozen)
         }
         .padding(.horizontal, 10)
@@ -199,6 +204,11 @@ struct LiveDebugView: View {
                                     Text("  ")
                                     Text(entry.mnemonic)
                                         .foregroundStyle(entry.isCurrent ? .white : Color(white: 0.65))
+                                    if entry.isCurrent {
+                                        Text("  ← frozen")
+                                            .font(.system(size: baseFontSize, design: .monospaced))
+                                            .foregroundStyle(Color.cyan)
+                                    }
                                     Spacer()
                                 }
                                 .font(.system(size: baseFontSize + 2, design: .monospaced))
@@ -206,28 +216,6 @@ struct LiveDebugView: View {
                                 .padding(.vertical, 1)
                                 .background(entry.isCurrent ? currentLineColor : Color.clear)
                                 .id(entry.stepNum)
-
-                                // Show next step underneath current (with PC and mnemonic)
-                                if entry.isCurrent && snap.nextStepNum >= 0 {
-                                    HStack(spacing: 0) {
-                                        Text(String(format: "%03d", snap.nextStepNum))
-                                            .foregroundStyle(Color(white: 0.45))
-                                        Text("  ")
-                                        Text(String(format: "%02d", snap.nextStepKeycode))
-                                            .foregroundStyle(Color(white: 0.35))
-                                        Text("  ")
-                                        Text(snap.nextStepMnemonic.isEmpty ? "?" : snap.nextStepMnemonic)
-                                            .foregroundStyle(Color(white: 0.45))
-                                        Text("  ← next")
-                                            .font(.system(size: baseFontSize, design: .monospaced))
-                                            .foregroundStyle(Color.cyan)
-                                        Spacer()
-                                    }
-                                    .font(.system(size: baseFontSize + 2, design: .monospaced))
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 1)
-                                    .background(Color(red: 0.08, green: 0.15, blue: 0.20))
-                                }
                             }
                         }
                     }

@@ -11,6 +11,7 @@
 - **Core** Fix error in original ROM code obtained from Datamath
 - **Cue Cards** Fix rendering of empty cue card labels
 - **Debuggers** Fix buttons jumping around, fix state machine for the buttons.
+- **Calculator Debugger** Fix Arrow location in PROGRAM STEPS view
 
 ## [1.1.1] - 2026-05-15
 
