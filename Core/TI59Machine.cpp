@@ -215,12 +215,10 @@ bool TI59Machine::runDebugOverlay(uint16_t startAddr, uint32_t maxSteps,
 }
 
 uint32_t TI59Machine::drainCpuFrames(CpuFrame* out, uint32_t max, uint32_t* outLost) {
-    std::lock_guard<std::mutex> lock(m_keyMutex);
     return m_cpu.drainCpuFrames(out, max, outLost);
 }
 
 uint32_t TI59Machine::readCpuFrames(CpuFrame* out, uint32_t max) const {
-    std::lock_guard<std::mutex> lock(m_keyMutex);
     return m_cpu.readCpuFrames(out, max);
 }
 

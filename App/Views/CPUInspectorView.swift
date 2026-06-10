@@ -326,26 +326,31 @@ struct CPUInspectorView: View {
             Button("FREEZE") { vm.freeze() }
                 .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
                 .foregroundStyle(Color.white)
+                .opacity(freezeEnabled ? 1 : 0.4)
                 .disabled(!freezeEnabled)
 
             Button("FREEZE ON START") { vm.freezeOnNextPCChange() }
                 .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
                 .foregroundStyle(Color.white)
+                .opacity(freezeOnStartEnabled ? 1 : 0.4)
                 .disabled(!freezeOnStartEnabled)
 
             Button("ARMED") { vm.pendingFreezeOnPCChange.toggle() }
                 .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
                 .foregroundStyle(Color.yellow)
+                .opacity(vm.pendingFreezeOnPCChange ? 1 : 0.4)
                 .disabled(!vm.pendingFreezeOnPCChange)
 
             Button("RESUME") { vm.unfreeze() }
                 .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
                 .foregroundStyle(Color.orange)
+                .opacity(vm.isFrozen ? 1 : 0.4)
                 .disabled(!vm.isFrozen)
 
             Button("STEP") { vm.stepFrozen() }
                 .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
                 .foregroundStyle(Color.cyan)
+                .opacity(vm.isFrozen ? 1 : 0.4)
                 .disabled(!vm.isFrozen)
         }
         .padding(.horizontal, 10)

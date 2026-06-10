@@ -359,7 +359,7 @@ private:
     uint32_t m_frameHead{0};     // write index (emulation thread only, always advancing)
     uint32_t m_diskCursor{0};    // drain read cursor (protected by m_traceMutex)
 
-    mutable std::mutex    m_traceMutex;
+    mutable std::recursive_mutex m_traceMutex;
     std::vector<uint16_t> m_breakpoints; // sorted ascending; protected by m_traceMutex
     bool m_breakpointHit{false};
 
