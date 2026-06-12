@@ -331,7 +331,19 @@ Flag N → nibble (11 + N % 5), bit (1 if N < 5 else 2)
 
 | Field | Source | Description |
 |-------|--------|-------------|
-| `prSourceFlag` | SCOM[0] nibble 3 | `0` = user RAM, `1` = library, `8` = main ROM |
+| `prSourceFlag` | SCOM[0] nibble 3 | `0` = user RAM, `1` = library, `2` = library return pending (see below), `8` = main ROM |
+
+**Value `2` — solid-state return (PC reload):** transitional state lasting one
+keycode dispatch. When a library program's context is saved (e.g. it invokes a
+main-ROM keycode routine such as P→R, or does an SBR), the firmware reads the
+4-digit CROM program counter via `IN LIB_PC` (ROM 0DAF) and pushes a return
+level whose source nibble is the literal `2` (ROM 0DA9). The RTN handler (ROM
+1175–1192) pops that level verbatim into SCOM[0]: source → nibble 3, saved CROM
+address → nibbles 4–7 (plain BCD, *not* a step number). On the next dispatch
+the firmware sees `2`, reloads the CROM PC from those nibbles via `OUT LIB_PC`,
+and rewrites the flag to `1`. While `2` is active the debug panel keeps showing
+the previously displayed program (held frozen cache) with the highlight on the
+just-executed RTN.
 | `pendingOpsCount` | SCOM[13][0] | Number of pending operations in hierarchy stack (exact bit position TBD) |
 
 ### SCOM display
@@ -378,6 +390,7 @@ address = n[5]×800 + n[4]×80 + n[3]×8 + n[2]
 |-------|---------|--------|
 | `0`   | RAM     | Green  |
 | `1`   | Library | Purple |
+| `2`   | Library (saved CROM return address) | Purple |
 | `8`   | ROM     | Yellow |
 
 ---

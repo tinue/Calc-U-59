@@ -146,7 +146,7 @@ struct LiveDebugView: View {
         let color: Color
         switch sourceFlag {
         case 0: color = isZero ? Color(red: 0.10, green: 0.30, blue: 0.10) : Color(red: 0.25, green: 0.60, blue: 0.25)    // Green for RAM
-        case 1: color = isZero ? Color(red: 0.30, green: 0.10, blue: 0.30) : Color(red: 0.60, green: 0.25, blue: 0.60)    // Purple for library
+        case 1, 2: color = isZero ? Color(red: 0.30, green: 0.10, blue: 0.30) : Color(red: 0.60, green: 0.25, blue: 0.60) // Purple for library (2 = saved CROM return address)
         case 8: color = isZero ? Color(red: 0.35, green: 0.28, blue: 0.10) : Color(red: 0.70, green: 0.60, blue: 0.25)    // Yellow for ROM
         default: color = isZero ? Color(white: 0.6) : Color(white: 0.8)                                                    // Gray for unknown
         }
@@ -188,9 +188,11 @@ struct LiveDebugView: View {
         let snap = vm.liveDebugSnapshot
 
         if vm.isFrozen, let program = vm.frozenCachedProgram {
-            // Frozen mode: show full scrollable program
+            // Frozen mode: show full scrollable program. Color by the cache's
+            // source: during the transitional Prg Source 2 step the listing
+            // still shows the previous source's program.
             let currentIdx = vm.frozenCachedCurrentIndex
-            let currentLineColor = programSourceHighlightColor(snap.prSourceFlag)
+            let currentLineColor = programSourceHighlightColor(vm.frozenDisplaySourceFlag)
 
             SectionBox(title: "PROGRAM STEPS") {
                 ScrollViewReader { proxy in
@@ -445,6 +447,7 @@ struct LiveDebugView: View {
         switch flag {
         case 0: return "Prg Source: User Program"
         case 1: return "Prg Source: Solid State Program"
+        case 2: return "Prg Source: Solid State Return (PC Reload)"
         case 4: return "Prg Source: User Program (Fast Mode)"
         case 8: return "Prg Source: ROM Program"
         default: return String(format: "Prg Source: Unknown (%X)", flag)

@@ -28,6 +28,12 @@ enum DebugLevel: Int, Comparable {
 enum ProgramSource: UInt8 {
     case userProgram = 0
     case solidState = 1
+    /// Transitional state after a RTN whose return level points back into the
+    /// solid-state module: SCOM[0] nibbles 4–7 hold the saved CROM return
+    /// address (plain BCD, not a step number) and the firmware reloads the
+    /// CROM PC from it on the next keycode dispatch before setting the flag
+    /// back to 1. Lasts exactly one single-step.
+    case solidStateReturn = 2
     case fastMode = 4
     case rom = 8
 }
@@ -1176,7 +1182,14 @@ class EmulatorViewModel {
 
                 // Check if Prg Source (or the module program within source 1)
                 // changed; if so, rebuild the appropriate cache
-                if prSourceFlag != self.cachedPrSourceFlag {
+                if prSourceFlag == ProgramSource.solidStateReturn.rawValue {
+                    // Transitional library-return step: SCOM[0] nibbles 4–7 now
+                    // hold the CROM return address, so decodedPC is meaningless.
+                    // Keep the previous program view (the routine containing the
+                    // just-executed RTN) and move the highlight onto that RTN,
+                    // which is one step past the old current step.
+                    self.advanceCachedProgramCurrent()
+                } else if prSourceFlag != self.cachedPrSourceFlag {
                     self.cachedPrSourceFlag = prSourceFlag
                     if self.isUserProgramSource(prSourceFlag) {
                         self.frozenRAMCache = self.buildFullProgram(machine: m, currentStep: currentStep, prSourceFlag: 0)
@@ -1277,6 +1290,30 @@ class EmulatorViewModel {
             frozenLibCache = cache
         }
     }
+
+    /// Move the isCurrent marker one entry forward in the active frozen cache.
+    /// Used for Prg Source 2 (solid-state return pending): the held view's
+    /// just-executed RTN is the entry after the previous current step.
+    private func advanceCachedProgramCurrent() {
+        func advance(_ cache: inout [LiveDebugSnapshot.StepEntry]?) {
+            guard var c = cache, let idx = c.firstIndex(where: { $0.isCurrent }), idx + 1 < c.count else { return }
+            c[idx].isCurrent = false
+            c[idx + 1].isCurrent = true
+            cache = c
+        }
+        if isUserProgramSource(cachedPrSourceFlag) {
+            advance(&frozenRAMCache)
+        } else if cachedPrSourceFlag == ProgramSource.rom.rawValue {
+            advance(&frozenROMCache)
+        } else if cachedPrSourceFlag == ProgramSource.solidState.rawValue {
+            advance(&frozenLibCache)
+        }
+    }
+
+    /// The source flag governing the frozen program listing. During the
+    /// transitional Prg Source 2 step this is the held cache's source, not
+    /// the live SCOM flag.
+    var frozenDisplaySourceFlag: UInt8 { cachedPrSourceFlag }
 
     /// Return the full cached program when frozen, or nil if not frozen.
     var frozenCachedProgram: [LiveDebugSnapshot.StepEntry]? {
