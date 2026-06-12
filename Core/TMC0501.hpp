@@ -208,6 +208,15 @@ public:
     uint16_t pc()       const { return addr; }
     uint16_t cpuFlags() const { return flags; }
 
+    /// Latched solid-state library execution address: the module byte address
+    /// (0–4999) of the keycode byte most recently dispatched by the main ROM's
+    /// program interpreter.  kLibExecPCNone until a module keycode executes.
+    /// Unlike m_libAddr, this is NOT disturbed by header reads or label
+    /// searches — see the IN LIB handler for the latch rule.
+    uint16_t libExecPC() const { return m_libExecPC; }
+
+    static constexpr uint16_t kLibExecPCNone = 0xFFFF;
+
     /// Capture a snapshot of all CPU registers at the current instant.
     CpuFrame snapshotCPU() const;
 
@@ -283,6 +292,16 @@ private:
     uint8_t  m_libAddrReadPos{}; // Position counter for reading address digits (0-3, cycles).
     bool     m_libAddrWasWriting{}; // Track direction: true=writing (OUT), false=reading (IN)
     uint8_t  m_libData[5000]{}; // Library module byte image (up to 5,000 bytes).
+
+    // ROM address of the single IN LIB instruction inside the main ROM's
+    // keycode-interpreter fetch loop.  The interpreter fetches every executed
+    // program byte (keycodes and operands) from this site; module header reads
+    // (0x137C) and label searches (0x1394) use different IN LIB sites.
+    // Verified identical on the TI-59/TI-58 and TI-58C ROMs by execution trace
+    // (see reference/CPU_SCOM_Interconnect.md; module layout per
+    // https://www.datamath.org/Chips/TMC0540.htm).
+    static constexpr uint16_t kLibExecFetchPC = 0x082F;
+    uint16_t m_libExecPC{kLibExecPCNone}; // User-visible solid-state program counter (see libExecPC()).
 
     // ── Machine variant ───────────────────────────────────────────────
     MachineVariant       m_variant{};           // TI-59, TI-58, or TI-58C (affects instruction decoding).

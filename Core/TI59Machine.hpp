@@ -49,6 +49,11 @@ public:
     /// Returns 0 for no module, 1–30 for ML01–ML30.
     int insertedModuleNumber() const;
 
+    /// Latched solid-state library execution address: module byte address
+    /// (0–4999) of the keycode most recently dispatched by the program
+    /// interpreter.  0xFFFF until a module keycode executes.
+    uint16_t libExecPC() const;
+
     // ── Magnetic card reader ─────────────────────────────────────────────────
     /// Insert a card immediately.  data/count non-zero = read card (feeds IN CRD);
     /// zero = blank write card (OUT CRD captured).

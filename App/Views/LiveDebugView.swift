@@ -453,9 +453,14 @@ struct LiveDebugView: View {
 
     /// Returns the highlight color for the current step in the program window based on program source.
     private func programSourceHighlightColor(_ flag: UInt8) -> Color {
-        flag == ProgramSource.rom.rawValue
-            ? Color(red: 0.35, green: 0.28, blue: 0.10)  // Yellow for ROM
-            : Color(red: 0.10, green: 0.30, blue: 0.10)  // Green for User Program (0, 4) and others
+        switch flag {
+        case ProgramSource.rom.rawValue:
+            return Color(red: 0.35, green: 0.28, blue: 0.10)  // Yellow for ROM
+        case ProgramSource.solidState.rawValue:
+            return Color(red: 0.10, green: 0.24, blue: 0.35)  // Blue for Solid State module
+        default:
+            return Color(red: 0.10, green: 0.30, blue: 0.10)  // Green for User Program (0, 4) and others
+        }
     }
 
 }

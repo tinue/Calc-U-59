@@ -82,7 +82,7 @@ Every change must leave **both** the iOS and macOS targets building and running 
 1. Build for iOS Simulator:
    ```bash
    xcodebuild -project Calc-U-59.xcodeproj -scheme "Calc-U-59" \
-     -destination "platform=iOS Simulator,name=iPhone 16" build
+     -destination "platform=iOS Simulator,name=iPhone 17e" build
    ```
 2. Build for macOS:
    ```bash

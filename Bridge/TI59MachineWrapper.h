@@ -99,6 +99,11 @@ typedef struct {
 /// Returns 0 when no module is present. Returns N where N = nibble4*10 + nibble3 for ML01–ML30.
 @property (readonly) NSInteger insertedModuleNumber;
 
+/// Latched solid-state library execution address: module byte address (0–4999)
+/// of the keycode most recently dispatched by the program interpreter.
+/// 0xFFFF until a module keycode executes (also after reset / module change).
+@property (readonly) uint16_t libExecPC;
+
 // ── Magnetic card reader ─────────────────────────────────────────────────────
 
 /// Insert a card immediately.  Non-empty data = read card (fed via IN CRD);

@@ -144,7 +144,16 @@ class EmulatorViewModel {
     // Frozen program caches (built on freeze entry, reused until unfreeze)
     private var frozenROMCache: [LiveDebugSnapshot.StepEntry]?
     private var frozenRAMCache: [LiveDebugSnapshot.StepEntry]?
+    private var frozenLibCache: [LiveDebugSnapshot.StepEntry]?
+    private var frozenLibProgram: Int = -1     // module program number the lib cache was built for
     private var cachedPrSourceFlag: UInt8 = 0  // tracks which cache is currently valid
+
+    // ── Solid-state module image (for the live PROGRAM STEPS view) ────────────
+    // Swift-side copy of the module bytes plus the per-program byte ranges
+    // parsed from the module header. Program n (1-based) = moduleProgramRanges[n-1].
+    private var moduleKeycodes: [UInt8] = []
+    private var moduleProgramRanges: [Range<Int>] = []
+    private var lastLibProgramMismatch: Int = .min  // throttles SCOM[9] cross-check logging
 
     // ── Live CPU view state (60 Hz real-time, runs while emulating) ────────────
     var cpuDebugSnapshot: CPUDebugSnapshot = .empty
@@ -310,8 +319,10 @@ class EmulatorViewModel {
             // Load solid-state library module
             if let libData = ROMLoader.loadModuleLibrary(moduleID: self.selectedModuleID) {
                 wrapper.loadLibrary(libData)
+                cacheModuleImage(libData)
             } else {
                 Self.logger.error("Solid-state module library was not loaded; continuing without library data")
+                cacheModuleImage(nil)
             }
             let (cards, metadata) = ROMLoader.loadModuleCardsAndMetadata(moduleID: self.selectedModuleID)
             moduleCueCards = cards
@@ -661,8 +672,10 @@ class EmulatorViewModel {
         }
         if let libData = ROMLoader.loadModuleLibrary(moduleID: id) {
             m.loadLibrary(libData)
+            cacheModuleImage(libData)
         } else {
             Self.logger.error("Failed to load module ROM: \(id, privacy: .public)")
+            cacheModuleImage(nil)
         }
         let (cards, meta) = ROMLoader.loadModuleCardsAndMetadata(moduleID: id)
         moduleCueCards = cards
@@ -1124,6 +1137,9 @@ class EmulatorViewModel {
                     self.frozenRAMCache = self.buildFullProgram(machine: m, currentStep: currentStep, prSourceFlag: 0)
                 } else if prSourceFlag == ProgramSource.rom.rawValue {
                     self.frozenROMCache = self.buildFullProgram(machine: m, currentStep: currentStep, prSourceFlag: 8)
+                } else if prSourceFlag == ProgramSource.solidState.rawValue {
+                    let libStep = self.libraryProgramStep(machine: m)?.step ?? -1
+                    self.frozenLibCache = self.buildFullProgram(machine: m, currentStep: libStep, prSourceFlag: 1)
                 }
                 if self.liveDebugEnabled {
                     self.liveDebugSnapshot = self.buildLiveSnapshot(machine: m)
@@ -1146,19 +1162,32 @@ class EmulatorViewModel {
                 guard let self else { return }
                 m.beginNextStep()
                 let cpu = m.snapshotCPU()
-                let currentStep = self.decodeProgramCounter(from: cpu)
                 let prSourceFlag = UInt8(cpu.SCOM.0.3)
+                let isLibSource = prSourceFlag == ProgramSource.solidState.rawValue
+                let libInfo = isLibSource ? self.libraryProgramStep(machine: m) : nil
+                let currentStep = isLibSource ? (libInfo?.step ?? -1)
+                                              : self.decodeProgramCounter(from: cpu)
 
-                // Check if Prg Source changed; if so, rebuild appropriate cache
+                // Check if Prg Source (or the module program within source 1)
+                // changed; if so, rebuild the appropriate cache
                 if prSourceFlag != self.cachedPrSourceFlag {
                     self.cachedPrSourceFlag = prSourceFlag
                     if self.isUserProgramSource(prSourceFlag) {
                         self.frozenRAMCache = self.buildFullProgram(machine: m, currentStep: currentStep, prSourceFlag: 0)
                         self.frozenROMCache = nil
+                        self.frozenLibCache = nil
                     } else if prSourceFlag == ProgramSource.rom.rawValue {
                         self.frozenROMCache = self.buildFullProgram(machine: m, currentStep: currentStep, prSourceFlag: 8)
                         self.frozenRAMCache = nil
+                        self.frozenLibCache = nil
+                    } else if isLibSource {
+                        self.frozenLibCache = self.buildFullProgram(machine: m, currentStep: currentStep, prSourceFlag: 1)
+                        self.frozenRAMCache = nil
+                        self.frozenROMCache = nil
                     }
+                } else if isLibSource, (libInfo?.program ?? -1) != self.frozenLibProgram {
+                    // Still in the module, but a Pgm call crossed into another program
+                    self.frozenLibCache = self.buildFullProgram(machine: m, currentStep: currentStep, prSourceFlag: 1)
                 } else {
                     // Prg Source unchanged: update isCurrent markers in existing cache
                     self.updateCachedProgramCurrent(to: currentStep, prSourceFlag: prSourceFlag)
@@ -1235,6 +1264,11 @@ class EmulatorViewModel {
                 cache[i].isCurrent = (cache[i].stepNum == currentStep)
             }
             frozenROMCache = cache
+        } else if prSourceFlag == ProgramSource.solidState.rawValue, var cache = frozenLibCache {
+            for i in 0..<cache.count {
+                cache[i].isCurrent = (cache[i].stepNum == currentStep)
+            }
+            frozenLibCache = cache
         }
     }
 
@@ -1244,6 +1278,8 @@ class EmulatorViewModel {
             return frozenRAMCache
         } else if cachedPrSourceFlag == ProgramSource.rom.rawValue {
             return frozenROMCache
+        } else if cachedPrSourceFlag == ProgramSource.solidState.rawValue {
+            return frozenLibCache
         }
         return nil
     }
@@ -1258,6 +1294,8 @@ class EmulatorViewModel {
         freezeReason = nil
         frozenROMCache = nil
         frozenRAMCache = nil
+        frozenLibCache = nil
+        frozenLibProgram = -1
         cachedPrSourceFlag = 0
         startEmulationLoop()
         startDisplayRefresh()
@@ -1273,6 +1311,56 @@ class EmulatorViewModel {
     /// Returns true if the flag represents a displayable program source in the debug window.
     private func isDisplayableSource(_ flag: UInt8) -> Bool {
         flag == ProgramSource.userProgram.rawValue || flag == ProgramSource.fastMode.rawValue || flag == ProgramSource.rom.rawValue
+    }
+
+    // MARK: - Solid-state module program table
+
+    /// Cache the module image and parse its header into per-program byte ranges.
+    /// Header layout (https://www.datamath.org/Chips/TMC0540.htm): byte 0 =
+    /// program count (BCD), byte 1 = copy-protect flag, then one 2-byte BCD
+    /// start address per program, followed by a pointer one past the last
+    /// keycode of the final program.
+    private func cacheModuleImage(_ data: Data?) {
+        moduleKeycodes = data.map { [UInt8]($0) } ?? []
+        moduleProgramRanges = []
+        guard moduleKeycodes.count > 2 else { return }
+
+        func bcd(_ b: UInt8) -> Int { Int(b >> 4) * 10 + Int(b & 0xF) }
+        func pointer(at offset: Int) -> Int? {
+            guard offset + 1 < moduleKeycodes.count else { return nil }
+            return bcd(moduleKeycodes[offset]) * 100 + bcd(moduleKeycodes[offset + 1])
+        }
+
+        let programCount = bcd(moduleKeycodes[0])
+        guard programCount > 0 else { return }
+
+        // Program n's start pointer lives at bytes 2n/2n+1; the entry after
+        // program N's pointer marks the end of the last program.
+        var boundaries: [Int] = []
+        for n in 1...(programCount + 1) {
+            guard let p = pointer(at: 2 * n) else { return }
+            boundaries.append(p)
+        }
+        var ranges: [Range<Int>] = []
+        for i in 0..<programCount {
+            guard boundaries[i] < boundaries[i + 1], boundaries[i + 1] <= moduleKeycodes.count else {
+                Self.logger.error("Module header has non-monotonic program table; solid-state step view disabled")
+                return
+            }
+            ranges.append(boundaries[i]..<boundaries[i + 1])
+        }
+        moduleProgramRanges = ranges
+    }
+
+    /// Resolve the latched library execution address to the containing module
+    /// program. Returns the 1-based program number, the program-relative step
+    /// (000 = first keycode of the program), and the program's byte range —
+    /// or nil when no module keycode has executed yet.
+    private func libraryProgramStep(machine m: TI59MachineWrapper) -> (program: Int, step: Int, range: Range<Int>)? {
+        let pc = Int(m.libExecPC)
+        guard pc != 0xFFFF else { return nil }
+        guard let idx = moduleProgramRanges.firstIndex(where: { $0.contains(pc) }) else { return nil }
+        return (idx + 1, pc - moduleProgramRanges[idx].lowerBound, moduleProgramRanges[idx])
     }
 
     // MARK: - Calculator-level snapshot
@@ -1387,8 +1475,40 @@ class EmulatorViewModel {
                 ))
             }
 
+        case 1:
+            // Solid State module — the current program only, numbered relative
+            // to its start (step 000 = first keycode of the program)
+            guard let lib = libraryProgramStep(machine: m) else { return [] }
+            frozenLibProgram = lib.program
+            let steps = Array(moduleKeycodes[lib.range])
+
+            // Build set of argument step indices
+            var argSteps = Set<Int>()
+            for i in 0..<steps.count {
+                let stepsAfter = TI59KeyNames.stepsAfter(for: steps[i])
+                if stepsAfter > 0 {
+                    for j in 1...stepsAfter {
+                        if i + j < steps.count {
+                            argSteps.insert(i + j)
+                        }
+                    }
+                }
+            }
+
+            for i in 0..<steps.count {
+                let kc = steps[i]
+                let isArgument = argSteps.contains(i)
+                let mnemonic = isArgument ? String(format: "%02d", kc) : TI59KeyNames.mnemonic(for: kc)
+
+                result.append(.init(
+                    stepNum: i,
+                    keycode: kc,
+                    mnemonic: mnemonic,
+                    isCurrent: i == currentStep
+                ))
+            }
+
         default:
-            // Library or other: TBD
             break
         }
 
@@ -1549,10 +1669,28 @@ class EmulatorViewModel {
         // Program steps window — source depends on PRG SOURCE flag
         let decodedPC = decodeProgramCounter(from: cpu)
 
-        // Only display for sources we can fetch: 0 (User), 4 (Fast Mode), 8 (ROM)
+        // Only display for SCOM-PC-based sources: 0 (User), 4 (Fast Mode), 8 (ROM)
         let canDisplay = isDisplayableSource(snap.prSourceFlag)
 
-        if canDisplay {
+        // Solid State (1): the step comes from the library exec latch, not the
+        // SCOM[0] program counter (which does not move during module execution).
+        let libInfo = snap.prSourceFlag == ProgramSource.solidState.rawValue
+            ? libraryProgramStep(machine: m) : nil
+
+        if let lib = libInfo {
+            // The latch points at the byte being dispatched, so it is already
+            // the "last executed" step when frozen — no −1 adjustment needed.
+            snap.currentStep = lib.step
+            snap.nextStepNum = isFrozen ? lib.step + 1 : -1
+
+            // Cross-check the range-derived program number against the Pgm
+            // register in SCOM[9] (same nibbles the cue card uses).
+            let scomProgram = Int(cpu.SCOM.9.4) * 10 + Int(cpu.SCOM.9.3)
+            if scomProgram != lib.program && scomProgram != lastLibProgramMismatch {
+                lastLibProgramMismatch = scomProgram
+                Self.logger.debug("Library exec PC resolves to Pgm \(lib.program) but SCOM[9] says Pgm \(scomProgram)")
+            }
+        } else if canDisplay {
             if isFrozen {
                 snap.currentStep = max(0, decodedPC - 1)
                 snap.nextStepNum = decodedPC
@@ -1562,7 +1700,7 @@ class EmulatorViewModel {
                 snap.nextStepNum = -1
             }
         } else {
-            // Unknown source (e.g., 1 = Solid State): can't display
+            // Unknown source: can't display
             snap.currentStep = -1
             snap.nextStepNum = -1
         }
@@ -1642,8 +1780,43 @@ class EmulatorViewModel {
                     isCurrent: addr == romCenter))
             }
 
+        case 1:
+            // Solid State module — window from the module image, numbered
+            // relative to the current program's start (step 000 = first keycode)
+            guard let lib = libInfo else { break }
+            let progLen = lib.range.count
+            let center = snap.currentStep >= 0 ? snap.currentStep : 0
+            let lo = max(0, center - 5)
+            let hi = min(progLen - 1, center + 5)
+            if lo <= hi {
+                // Build set of argument step indices (relative to program start)
+                var argSteps = Set<Int>()
+                for i in lo...hi {
+                    let stepsAfter = TI59KeyNames.stepsAfter(for: moduleKeycodes[lib.range.lowerBound + i])
+                    if stepsAfter > 0 {
+                        for j in 1...stepsAfter {
+                            if i + j <= hi {
+                                argSteps.insert(i + j)
+                            }
+                        }
+                    }
+                }
+
+                for i in lo...hi {
+                    let kc = moduleKeycodes[lib.range.lowerBound + i]
+                    let isArgument = argSteps.contains(i)
+                    let mnemonic = isArgument ? String(format: "%02d", kc) : TI59KeyNames.mnemonic(for: kc)
+
+                    snap.programWindow.append(.init(
+                        stepNum: i,
+                        keycode: kc,
+                        mnemonic: mnemonic,
+                        isCurrent: i == snap.currentStep
+                    ))
+                }
+            }
+
         default:
-            // PRG SOURCE = 1 (library) or other: TBD
             break
         }
 
@@ -1672,6 +1845,20 @@ class EmulatorViewModel {
                         // Check if this step is an argument for a previous instruction
                         if snap.nextStepNum == 0 { return false }
                         let prevKeycode = m.romKeycode(at: snap.nextStepNum - 1)
+                        let stepsAfter = TI59KeyNames.stepsAfter(for: prevKeycode)
+                        return stepsAfter > 0 && snap.nextStepNum - 1 + stepsAfter >= snap.nextStepNum
+                    }()
+                    snap.nextStepMnemonic = isArgument ? String(format: "%02d", nextKeycode) : TI59KeyNames.mnemonic(for: nextKeycode)
+                }
+            case 1:
+                // Solid State module
+                if let lib = libInfo, snap.nextStepNum < lib.range.count {
+                    let nextKeycode = moduleKeycodes[lib.range.lowerBound + snap.nextStepNum]
+                    snap.nextStepKeycode = nextKeycode
+                    let isArgument = {
+                        // Check if this step is an argument for a previous instruction
+                        if snap.nextStepNum == 0 { return false }
+                        let prevKeycode = moduleKeycodes[lib.range.lowerBound + snap.nextStepNum - 1]
                         let stepsAfter = TI59KeyNames.stepsAfter(for: prevKeycode)
                         return stepsAfter > 0 && snap.nextStepNum - 1 + stepsAfter >= snap.nextStepNum
                     }()
@@ -1887,6 +2074,8 @@ class EmulatorViewModel {
         freezeReason = nil
         frozenROMCache = nil
         frozenRAMCache = nil
+        frozenLibCache = nil
+        frozenLibProgram = -1
         cachedPrSourceFlag = 0
 
         var steps: UInt32 = 0
@@ -2201,6 +2390,8 @@ class EmulatorViewModel {
         freezeReason = nil
         frozenROMCache = nil
         frozenRAMCache = nil
+        frozenLibCache = nil
+        frozenLibProgram = -1
         cachedPrSourceFlag = 0
         // Synchronous dispatch ensures the emulation loop has fully exited
         // before we touch RAM or SCOM.  Without this, a step() in-flight on

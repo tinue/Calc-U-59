@@ -126,6 +126,11 @@ int TI59Machine::insertedModuleNumber() const {
     return tens * 10 + units;
 }
 
+uint16_t TI59Machine::libExecPC() const {
+    std::lock_guard<std::mutex> lock(m_keyMutex);
+    return m_cpu.libExecPC();
+}
+
 // ── Magnetic card reader ───────────────────────────────────────────────────────
 
 int TI59Machine::cardSwitchCol() const {

@@ -146,6 +146,7 @@ void TMC0501::reset() {
     memset(key,  0, sizeof(key));
     KR = SR = fA = fB = EXT = PREG = m_libAddr = m_libAddrReadPos = 0;
     m_libAddrWasWriting = false;
+    m_libExecPC = kLibExecPCNone;
     R5 = digit = RAM_ADDR = RAM_OP = REG_ADDR = 0;
     addr  = 0;
     flags = FLG_COND;  // COND starts true; display active
@@ -176,6 +177,7 @@ void TMC0501::reset() {
 void TMC0501::loadLibrary(const uint8_t* data, size_t count) {
     count = std::min(count, size_t{5000});
     memcpy(m_libData, data, count);
+    m_libExecPC = kLibExecPCNone;  // stale address would point into the old module
 }
 
 void TMC0501::loadConstants(const uint8_t* data, size_t count) {
@@ -829,6 +831,13 @@ int TMC0501::step() {
         case 0xE:  // Library module operations
             switch (opcode & 0x00F0u) {
             case 0x00: // IN LIB — fetch one byte from library; advance pointer
+                // Latch the pre-increment address when (and only when) the fetch
+                // comes from the interpreter's execution fetch site: that byte is
+                // the program step now being dispatched, i.e. the user-visible
+                // solid-state program counter.  Fetches from the header-read and
+                // label-search sites leave the latch untouched, so the displayed
+                // step holds steady during label lookups.
+                if (addr == kLibExecFetchPC) m_libExecPC = m_libAddr;
                 EXT = static_cast<uint16_t>(m_libData[m_libAddr++]) << 4;
                 flags |= FLG_EXT_VALID;
                 m_libAddr %= 5000;
