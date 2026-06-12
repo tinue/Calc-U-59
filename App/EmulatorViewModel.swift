@@ -1326,17 +1326,21 @@ class EmulatorViewModel {
     /// start address per program, followed by a pointer one past the last
     /// keycode of the final program.
     private func cacheModuleImage(_ data: Data?) {
-        moduleKeycodes = data.map { [UInt8]($0) } ?? []
-        moduleProgramRanges = []
-        guard moduleKeycodes.count > 2 else { return }
-
+        let raw = data.map { [UInt8]($0) } ?? []
         func bcd(_ b: UInt8) -> Int { Int(b >> 4) * 10 + Int(b & 0xF) }
+
+        // Module bytes are BCD: keycode 76 is stored as 0x76. Decode once so
+        // every consumer (mnemonics, stepsAfter, listing) sees plain keycodes.
+        moduleKeycodes = raw.map { UInt8(bcd($0)) }
+        moduleProgramRanges = []
+        guard raw.count > 2 else { return }
+
         func pointer(at offset: Int) -> Int? {
-            guard offset + 1 < moduleKeycodes.count else { return nil }
-            return bcd(moduleKeycodes[offset]) * 100 + bcd(moduleKeycodes[offset + 1])
+            guard offset + 1 < raw.count else { return nil }
+            return bcd(raw[offset]) * 100 + bcd(raw[offset + 1])
         }
 
-        let programCount = bcd(moduleKeycodes[0])
+        let programCount = bcd(raw[0])
         guard programCount > 0 else { return }
 
         // Program n's start pointer lives at bytes 2n/2n+1; the entry after
