@@ -156,9 +156,11 @@ struct CueCardView: View, Equatable {
                 continue
             }
 
-            // Found a non-empty label, find how many columns it spans
+            // Found a non-empty label, find how many columns it spans.
+            // Only extend into columns explicitly blanked with \blank (invisibleMarker);
+            // trailing empty columns do not span — they leave the label in its own cell.
             var spanEnd = i
-            while spanEnd + 1 < 5 && (card.labels[base + spanEnd + 1].isEmpty) {
+            while spanEnd + 1 < 5 && (card.labels[base + spanEnd + 1] == invisibleMarker) {
                 spanEnd += 1
             }
 

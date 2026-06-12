@@ -1,61 +1,137 @@
 import SwiftUI
+import Combine
 
-/// Detailed CPU inspector for frozen state.
-/// Shows 32 snapshots with full state inspection and proper scrolling navigation.
+// MARK: - Heatmap Renderer
+
+/// Off-screen 80×64 pixel buffer for the ROM heatmap.
+/// Cells are only repainted when their heat step increases — steps are monotonically non-decreasing.
+private final class HeatmapRenderer: ObservableObject {
+    static let cols = 80
+    static let rows = 64
+    static let cellCount = cols * rows  // 5 120
+
+    @Published private(set) var cgImage: CGImage? = nil
+    private var cellSteps: [UInt8] = Array(repeating: 0xFF, count: cellCount)  // 0xFF = uninitialized
+    private var pixelBuf: [UInt8]  = Array(repeating: 0,    count: cellCount * 4)
+
+    func update(hitCount: [UInt32]) {
+        var anyChanged = false
+        for addr in 0..<Self.cellCount {
+            let count   = addr < hitCount.count ? hitCount[addr] : 0
+            let newStep = heatStep(count)
+            guard newStep != cellSteps[addr] else { continue }
+            cellSteps[addr] = newStep
+            setPixel(addr: addr, step: newStep)
+            anyChanged = true
+        }
+        if anyChanged { cgImage = makeImage() }
+    }
+
+    func reset() {
+        cellSteps = Array(repeating: 0xFF, count: Self.cellCount)
+        for addr in 0..<Self.cellCount { setPixel(addr: addr, step: 0) }
+        cgImage = makeImage()
+    }
+
+    // Fixed absolute thresholds: first hit → step 1 (immediately visible, dark amber).
+    // Steps only increase — enables incremental repaint.
+    private func heatStep(_ count: UInt32) -> UInt8 {
+        switch count {
+        case 0:         return 0
+        case 1...2:     return 1
+        case 3...9:     return 2
+        case 10...49:   return 3
+        case 50...249:  return 4
+        default:        return 5
+        }
+    }
+
+    private func setPixel(addr: Int, step: UInt8) {
+        let (r, g, b) = rgb(for: step)
+        let base = addr * 4
+        pixelBuf[base]   = r
+        pixelBuf[base+1] = g
+        pixelBuf[base+2] = b
+        pixelBuf[base+3] = 255
+    }
+
+    // Pre-computed RGB for each step (HSB → RGB: hue 0.06–0.14, sat 0.9–1.0, bri 0.35–1.0).
+    private func rgb(for step: UInt8) -> (UInt8, UInt8, UInt8) {
+        switch step {
+        case 0:  return (46,  46,  46)   // dark gray  (cold)
+        case 1:  return (89,  38,   9)   // very dark amber
+        case 2:  return (140, 67,   0)   // dark amber
+        case 3:  return (191, 115,  0)   // amber
+        case 4:  return (230, 165,  0)   // light amber
+        default: return (255, 214,  0)   // bright yellow
+        }
+    }
+
+    private func makeImage() -> CGImage? {
+        pixelBuf.withUnsafeBytes { ptr -> CGImage? in
+            guard let base = ptr.baseAddress else { return nil }
+            guard let data = CFDataCreate(nil, base.assumingMemoryBound(to: UInt8.self), pixelBuf.count),
+                  let provider = CGDataProvider(data: data) else { return nil }
+            return CGImage(
+                width: Self.cols, height: Self.rows,
+                bitsPerComponent: 8, bitsPerPixel: 32,
+                bytesPerRow: Self.cols * 4,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue),
+                provider: provider,
+                decode: nil, shouldInterpolate: false, intent: .defaultIntent
+            )
+        }
+    }
+}
+
+// MARK: - CPU Inspector View
+
+/// Unified CPU inspector: shows instruction history and register state live (when enabled)
+/// or frozen (when paused). Header mirrors the CALCULATOR tab style.
 struct CPUInspectorView: View {
     @Environment(EmulatorViewModel.self) var vm
     @State private var selectedIndex: Int? = nil
     @FocusState private var isFocused: Bool
+    @StateObject private var heatmapRenderer = HeatmapRenderer()
+
+    // Unified instruction list — live from cpuDebugSnapshot when running, cpuInspectorHistory when frozen.
+    private var displayHistory: [EmulatorViewModel.InspectorSnapshot] {
+        if vm.isFrozen {
+            return vm.cpuInspectorHistory
+        } else {
+            let instrs = vm.cpuDebugSnapshot.recentInstructions
+            return instrs.enumerated().map { idx, instr in
+                EmulatorViewModel.InspectorSnapshot(
+                    pc: instr.pc,
+                    opcode: instr.opcode,
+                    disasm: instr.disasm,
+                    frame: instr.frame,
+                    isHistory: true,
+                    isCurrent: idx == instrs.count - 1
+                )
+            }
+        }
+    }
 
     var body: some View {
         GeometryReader { geo in
             let baseFontSize = adaptiveFontSize(width: geo.size.width)
 
             VStack(spacing: 0) {
-                // Control bar
-                HStack(spacing: 12) {
-                    Button(action: vm.unfreeze) {
-                        Text("RESUME")
-                            .font(.caption.bold())
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(Color.orange)
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
-                    }
-                    .buttonStyle(.plain)
+                cpuHeader(baseFontSize: baseFontSize)
 
-                    Button(action: {
-                        vm.stepFrozen()
-                    }) {
-                        Text("STEP")
-                            .font(.caption.bold())
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(Color(white: 0.25))
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
-                    }
-                    .buttonStyle(.plain)
-
-                    Text("PAUSED")
-                        .font(.caption.bold())
-                        .foregroundStyle(.orange)
-
-                    Spacer()
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .background(Color(white: 0.07))
-
-                // Instructions list with scrollbar
+                // Instructions list
                 ScrollView {
                     ScrollViewReader { proxy in
+                        let history = displayHistory
                         VStack(alignment: .leading, spacing: 0) {
-                            ForEach(Array(vm.cpuInspectorHistory.enumerated()), id: \.offset) { idx, snapshot in
+                            ForEach(Array(history.enumerated()), id: \.offset) { idx, snapshot in
                                 let isSelected = (selectedIndex == idx)
-                                let opacity = snapshot.isHistory ? 1.0 : 0.4  // Dim speculative instructions
-                                let bgColor: Color = snapshot.isCurrent ? Color.green.opacity(0.35) : (isSelected ? Color(white: 0.20) : Color.clear)
+                                let opacity = snapshot.isHistory ? 1.0 : 0.4
+                                let bgColor: Color = snapshot.isCurrent
+                                    ? Color.green.opacity(0.35)
+                                    : (isSelected ? Color(white: 0.20) : Color.clear)
 
                                 HStack(spacing: 8) {
                                     Text(String(format: "%04X", snapshot.pc))
@@ -90,7 +166,7 @@ struct CPUInspectorView: View {
                             }
                         }
                         .onChange(of: vm.cpuInspectorUpdateID) { _, _ in
-                            // Auto-select current instruction whenever snapshot rebuilds (freeze or step)
+                            // Freeze or step: auto-select and scroll to current instruction.
                             if let currentIdx = vm.cpuInspectorHistory.firstIndex(where: { $0.isCurrent }) {
                                 selectedIndex = currentIdx
                                 withAnimation(.easeInOut(duration: 0.1)) {
@@ -98,12 +174,28 @@ struct CPUInspectorView: View {
                                 }
                             }
                         }
+                        .onChange(of: vm.cpuDebugSnapshot) { _, _ in
+                            guard !vm.isFrozen else { return }
+                            let last = displayHistory.count - 1
+                            guard last >= 0 else { return }
+                            selectedIndex = last
+                            proxy.scrollTo(last, anchor: .bottom)
+                        }
                         .onAppear {
-                            // Fallback: history already populated when view appears
-                            if let currentIdx = vm.cpuInspectorHistory.firstIndex(where: { $0.isCurrent }) {
-                                selectedIndex = currentIdx
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                    proxy.scrollTo(currentIdx, anchor: .center)
+                            if vm.isFrozen {
+                                if let currentIdx = vm.cpuInspectorHistory.firstIndex(where: { $0.isCurrent }) {
+                                    selectedIndex = currentIdx
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                        proxy.scrollTo(currentIdx, anchor: .center)
+                                    }
+                                }
+                            } else {
+                                let last = displayHistory.count - 1
+                                if last >= 0 {
+                                    selectedIndex = last
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                        proxy.scrollTo(last, anchor: .bottom)
+                                    }
                                 }
                             }
                         }
@@ -111,14 +203,14 @@ struct CPUInspectorView: View {
                 }
                 .frame(height: 200)
 
-                // State display sections
-                if let idx = selectedIndex, idx >= 0, idx < vm.cpuInspectorHistory.count {
-                    let snap = vm.cpuInspectorHistory[idx]
+                // State display for selected instruction
+                let history = displayHistory
+                if let idx = selectedIndex, idx >= 0, idx < history.count {
+                    let snap = history[idx]
                     let cpu = snap.frame
 
                     ScrollView {
                         VStack(alignment: .leading, spacing: 1) {
-                            // Registers
                             inspectorSection(title: "REGISTERS") {
                                 VStack(alignment: .leading, spacing: 2) {
                                     registerDisplay("A",    cpu.A,    baseFontSize: baseFontSize)
@@ -132,7 +224,6 @@ struct CPUInspectorView: View {
                                 .padding(.vertical, 4)
                             }
 
-                            // Control registers
                             inspectorSection(title: "CONTROL REGISTERS") {
                                 let cond = (cpu.flags & 0x0800) != 0 ? 1 : 0
                                 let idle = (cpu.flags & 0x0001) != 0 ? 1 : 0
@@ -166,7 +257,6 @@ struct CPUInspectorView: View {
                                 .padding(.vertical, 4)
                             }
 
-                            // Display state
                             inspectorSection(title: "DISPLAY STATE") {
                                 let displayOn = cpu.displayOn != 0
                                 VStack(alignment: .leading, spacing: 2) {
@@ -182,6 +272,8 @@ struct CPUInspectorView: View {
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4)
                             }
+
+                            romHeatmapSection(width: geo.size.width)
                         }
                         .padding(4)
                     }
@@ -192,25 +284,22 @@ struct CPUInspectorView: View {
             }
             .focusable()
             .focused($isFocused)
-            .onAppear {
-                isFocused = true
-                selectedIndex = nil
-            }
+            .onAppear { isFocused = true }
             .onKeyPress(.upArrow) {
-                guard !vm.cpuInspectorHistory.isEmpty else { return .ignored }
+                let history = displayHistory
+                guard !history.isEmpty else { return .ignored }
                 if let idx = selectedIndex {
-                    if idx > 0 {
-                        selectedIndex = idx - 1
-                    }
+                    if idx > 0 { selectedIndex = idx - 1 }
                 } else {
-                    selectedIndex = vm.cpuInspectorHistory.count - 1
+                    selectedIndex = history.count - 1
                 }
                 return .handled
             }
             .onKeyPress(.downArrow) {
-                guard !vm.cpuInspectorHistory.isEmpty else { return .ignored }
+                let history = displayHistory
+                guard !history.isEmpty else { return .ignored }
                 if let idx = selectedIndex {
-                    if idx < vm.cpuInspectorHistory.count - 1 {
+                    if idx < history.count - 1 {
                         selectedIndex = idx + 1
                     } else {
                         selectedIndex = nil
@@ -222,7 +311,54 @@ struct CPUInspectorView: View {
         }
     }
 
-    // MARK: - Section Container (mirrors LIVE SectionBox)
+    // MARK: - Header
+
+    private func cpuHeader(baseFontSize: CGFloat) -> some View {
+        let freezeEnabled = !vm.isFrozen && !vm.pendingFreezeOnPCChange
+        let freezeOnStartEnabled = !vm.isFrozen && !vm.pendingFreezeOnPCChange
+
+        return HStack(spacing: 8) {
+            Text("CPU DEBUG")
+                .font(.caption.bold())
+                .foregroundStyle(.white.opacity(0.6))
+            Spacer()
+
+            Button("FREEZE") { vm.freeze() }
+                .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
+                .foregroundStyle(Color.white)
+                .opacity(freezeEnabled ? 1 : 0.4)
+                .disabled(!freezeEnabled)
+
+            Button("FREEZE ON START") { vm.freezeOnNextPCChange() }
+                .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
+                .foregroundStyle(Color.white)
+                .opacity(freezeOnStartEnabled ? 1 : 0.4)
+                .disabled(!freezeOnStartEnabled)
+
+            Button("ARMED") { vm.pendingFreezeOnPCChange.toggle() }
+                .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
+                .foregroundStyle(Color.yellow)
+                .opacity(vm.pendingFreezeOnPCChange ? 1 : 0.4)
+                .disabled(!vm.pendingFreezeOnPCChange)
+
+            Button("RESUME") { vm.unfreeze() }
+                .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
+                .foregroundStyle(Color.orange)
+                .opacity(vm.isFrozen ? 1 : 0.4)
+                .disabled(!vm.isFrozen)
+
+            Button("STEP") { vm.stepFrozen() }
+                .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
+                .foregroundStyle(Color.cyan)
+                .opacity(vm.isFrozen ? 1 : 0.4)
+                .disabled(!vm.isFrozen)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(Color(white: 0.07))
+    }
+
+    // MARK: - Section Container
 
     private func inspectorSection<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(spacing: 0) {
@@ -259,6 +395,68 @@ struct CPUInspectorView: View {
         }
     }
 
+    // MARK: - ROM Heatmap Section
+
+    private func romHeatmapSection(width: CGFloat) -> some View {
+        // currentPC read at 60 Hz drives the green-dot overlay; CGImage update is at 10 Hz.
+        let currentPC = Int(vm.cpuDebugSnapshot.currentPC)
+        let cols      = CGFloat(HeatmapRenderer.cols)
+        let rows      = CGFloat(HeatmapRenderer.rows)
+        let cellSize  = max(2.0, width / cols)
+
+        return VStack(spacing: 0) {
+            HStack {
+                Text("ROM HEATMAP")
+                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.45))
+                Spacer()
+                Button("CLR") { vm.clearRomHeatmap(); heatmapRenderer.reset() }
+                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.45))
+                    .padding(.trailing, 4)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(Color(white: 0.07))
+
+            // Canvas blits the cached CGImage (cheap) + draws one green PC dot per frame.
+            // CGImage coordinate origin is bottom-left; SwiftUI Canvas is top-left → flip.
+            Canvas { ctx, size in
+                let cw = size.width  / cols
+                let ch = size.height / rows
+                ctx.withCGContext { cgCtx in
+                    // Flip to match SwiftUI top-left coordinates for CGImage draw.
+                    cgCtx.saveGState()
+                    cgCtx.translateBy(x: 0, y: size.height)
+                    cgCtx.scaleBy(x: 1, y: -1)
+                    cgCtx.interpolationQuality = .none
+                    if let img = heatmapRenderer.cgImage {
+                        cgCtx.draw(img, in: CGRect(origin: .zero, size: size))
+                    }
+                    cgCtx.restoreGState()
+                    // Green PC dot — drawn after restoreGState (back in SwiftUI coords).
+                    if currentPC < 0x1400 {
+                        let col = currentPC % Int(cols)
+                        let row = currentPC / Int(cols)
+                        cgCtx.setFillColor(CGColor(red: 0, green: 1, blue: 0, alpha: 1))
+                        cgCtx.fill(CGRect(x: CGFloat(col) * cw, y: CGFloat(row) * ch,
+                                          width: max(1, cw - 0.5), height: max(1, ch - 0.5)))
+                    }
+                }
+            }
+            .frame(height: rows * cellSize)
+            .background(Color(white: 0.13))
+            .onChange(of: vm.romHitCount) { _, hitCount in
+                heatmapRenderer.update(hitCount: hitCount)
+            }
+            .onAppear {
+                heatmapRenderer.update(hitCount: vm.romHitCount)
+            }
+        }
+        .cornerRadius(3)
+    }
+
     // MARK: - Helpers
 
     private func bin16(_ v: UInt16) -> String {
@@ -266,15 +464,9 @@ struct CPUInspectorView: View {
         return String(repeating: "0", count: max(0, 16 - s.count)) + s
     }
 
-    // MARK: - Adaptive Font Sizing
-
     private func adaptiveFontSize(width: CGFloat) -> CGFloat {
-        if width < 350 {
-            return 9
-        } else if width < 500 {
-            return 11
-        } else {
-            return 13
-        }
+        if width < 350 { return 9 }
+        else if width < 500 { return 11 }
+        else { return 13 }
     }
 }

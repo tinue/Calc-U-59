@@ -1,6 +1,21 @@
+# Frequency-Transformation.ti59
+#
+# From: https://www.hpmuseum.org/forum/thread-25021.html
+# Originally from: Design Tables for discrete time normalized low-pass filters, Artech House - microwave library, ©1986, pgs.23-26
+# Complete PDF with listing and explanations: https://www.hpmuseum.org/forum/attachment.php?aid=17085
+
+# Prepare the magnet card inlay
+CUECARD:
+Template: MagnetCard
+Title: Frequency Transformation
+Banks: 1,2
+A: fₚ
+B: fₐ
+C: fₛ
+
 PARTITION: 559.49
 
-# This progrma uses the Master Library module
+# This program needs the Master Library module
 SOLID-STATE-MODULE: ML
 
 # Print output requires the printer to be active

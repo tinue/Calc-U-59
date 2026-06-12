@@ -45,40 +45,44 @@ struct LiveDebugView: View {
     // MARK: - Header
 
     private func liveHeader(baseFontSize: CGFloat) -> some View {
-        HStack {
-            Text("LIVE DEBUG")
+        let freezeEnabled = !vm.isFrozen && !vm.pendingFreezeOnPCChange
+        let freezeOnStartEnabled = !vm.isFrozen && !vm.pendingFreezeOnPCChange
+
+        return HStack(spacing: 8) {
+            Text("CALCULATOR DEBUG")
                 .font(.caption.bold())
                 .foregroundStyle(.white.opacity(0.6))
             Spacer()
-            if vm.isFrozen {
-                Button("STEP") { vm.stepKeycode() }
-                    .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
-                    .foregroundStyle(Color.cyan)
-            }
-            if vm.pendingFreezeOnPCChange {
-                Button("ARMED") { vm.pendingFreezeOnPCChange = false }
-                    .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
-                    .foregroundStyle(Color.yellow)
-            } else {
-                Button("FREEZE ON START") { vm.freezeOnNextPCChange() }
-                    .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
-                    .foregroundStyle(Color(white: 0.5))
-            }
-            Button(vm.isFrozen ? "RESUME" : "FREEZE") {
-                vm.isFrozen ? vm.unfreeze() : vm.freeze()
-            }
-            .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
-            .foregroundStyle(vm.isFrozen ? Color.orange : Color(white: 0.6))
-            Circle()
-                .fill(vm.liveDebugEnabled ? Color.green : Color.gray.opacity(0.4))
-                .frame(width: 8, height: 8)
-            Toggle("", isOn: .init(
-                get: { vm.liveDebugEnabled },
-                set: { vm.liveDebugEnabled = $0 }
-            ))
-            .labelsHidden()
-            .toggleStyle(.switch)
-            .scaleEffect(0.7)
+
+            Button("FREEZE") { vm.freeze() }
+                .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
+                .foregroundStyle(Color.white)
+                .opacity(freezeEnabled ? 1 : 0.4)
+                .disabled(!freezeEnabled)
+
+            Button("FREEZE ON START") { vm.freezeOnNextPCChange() }
+                .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
+                .foregroundStyle(Color.white)
+                .opacity(freezeOnStartEnabled ? 1 : 0.4)
+                .disabled(!freezeOnStartEnabled)
+
+            Button("ARMED") { vm.pendingFreezeOnPCChange.toggle() }
+                .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
+                .foregroundStyle(Color.yellow)
+                .opacity(vm.pendingFreezeOnPCChange ? 1 : 0.4)
+                .disabled(!vm.pendingFreezeOnPCChange)
+
+            Button("RESUME") { vm.unfreeze() }
+                .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
+                .foregroundStyle(Color.orange)
+                .opacity(vm.isFrozen ? 1 : 0.4)
+                .disabled(!vm.isFrozen)
+
+            Button("STEP") { vm.stepKeycode() }
+                .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
+                .foregroundStyle(Color.cyan)
+                .opacity(vm.isFrozen ? 1 : 0.4)
+                .disabled(!vm.isFrozen)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
@@ -141,7 +145,7 @@ struct LiveDebugView: View {
         case 0: color = isZero ? Color(red: 0.10, green: 0.30, blue: 0.10) : Color(red: 0.25, green: 0.60, blue: 0.25)    // Green for RAM
         case 1: color = isZero ? Color(red: 0.30, green: 0.10, blue: 0.30) : Color(red: 0.60, green: 0.25, blue: 0.60)    // Purple for library
         case 8: color = isZero ? Color(red: 0.35, green: 0.28, blue: 0.10) : Color(red: 0.70, green: 0.60, blue: 0.25)    // Yellow for ROM
-        default: color = isZero ? Color(white: 0.5) : Color(white: 0.8)                                                    // Gray for unknown
+        default: color = isZero ? Color(white: 0.6) : Color(white: 0.8)                                                    // Gray for unknown
         }
         return Text("\(label):\(String(format: "%03d", address))")
             .foregroundStyle(color)
@@ -200,6 +204,11 @@ struct LiveDebugView: View {
                                     Text("  ")
                                     Text(entry.mnemonic)
                                         .foregroundStyle(entry.isCurrent ? .white : Color(white: 0.65))
+                                    if entry.isCurrent {
+                                        Text("  ← frozen")
+                                            .font(.system(size: baseFontSize, design: .monospaced))
+                                            .foregroundStyle(Color.cyan)
+                                    }
                                     Spacer()
                                 }
                                 .font(.system(size: baseFontSize + 2, design: .monospaced))
@@ -207,28 +216,6 @@ struct LiveDebugView: View {
                                 .padding(.vertical, 1)
                                 .background(entry.isCurrent ? currentLineColor : Color.clear)
                                 .id(entry.stepNum)
-
-                                // Show next step underneath current (with PC and mnemonic)
-                                if entry.isCurrent && snap.nextStepNum >= 0 {
-                                    HStack(spacing: 0) {
-                                        Text(String(format: "%03d", snap.nextStepNum))
-                                            .foregroundStyle(Color(white: 0.45))
-                                        Text("  ")
-                                        Text(String(format: "%02d", snap.nextStepKeycode))
-                                            .foregroundStyle(Color(white: 0.35))
-                                        Text("  ")
-                                        Text(snap.nextStepMnemonic.isEmpty ? "?" : snap.nextStepMnemonic)
-                                            .foregroundStyle(Color(white: 0.45))
-                                        Text("  ← next")
-                                            .font(.system(size: baseFontSize, design: .monospaced))
-                                            .foregroundStyle(Color.cyan)
-                                        Spacer()
-                                    }
-                                    .font(.system(size: baseFontSize + 2, design: .monospaced))
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 1)
-                                    .background(Color(red: 0.08, green: 0.15, blue: 0.20))
-                                }
                             }
                         }
                     }
@@ -354,7 +341,7 @@ struct LiveDebugView: View {
     private func tRegisterSection(baseFontSize: CGFloat) -> some View {
         let snap = vm.liveDebugSnapshot
         let isZero = snap.tRegister == 0
-        let color = isZero ? Color(white: 0.5) : Color(white: 0.85)
+        let color = isZero ? Color(white: 0.6) : Color(white: 0.85)
         return SectionBox(title: "") {
             Text(String(format: "T: %.10g", snap.tRegister))
                 .font(.system(size: baseFontSize + 2, design: .monospaced))
@@ -366,7 +353,7 @@ struct LiveDebugView: View {
 
     private func hirRow(_ label: String, _ value: Double, baseFontSize: CGFloat) -> some View {
         let isZero = value == 0
-        let color = isZero ? Color(white: 0.5) : Color(white: 0.85)
+        let color = isZero ? Color(white: 0.6) : Color(white: 0.85)
         return Text("HIR \(label): \(String(format: "%.5g", value))")
             .font(.system(size: baseFontSize + 2, design: .monospaced))
             .foregroundStyle(color)
@@ -398,7 +385,7 @@ struct LiveDebugView: View {
 
     private func flagIndicator(num: Int, state: Bool?, baseFontSize: CGFloat) -> some View {
         let stateStr = state == nil ? "?" : (state! ? "1" : "0")
-        let color = state == nil ? Color(white: 0.4) : (state! ? Color(white: 0.85) : Color(white: 0.5))
+        let color = state == nil ? Color(white: 0.4) : (state! ? Color(white: 0.85) : Color(white: 0.6))
         return Text(String(format: "F%d:%@", num, stateStr))
             .foregroundStyle(color)
     }

@@ -113,7 +113,8 @@ class EmulatorViewModel {
     var asmOverlayActive: Bool = false
 
     // ── Live debug panel state (60 Hz real-time) ──────────────────────────────
-    var liveDebugEnabled: Bool = false
+    var liveDebugEnabled: Bool = true
+    var cpuDebugEnabled: Bool = true
     var liveDebugSnapshot: LiveDebugSnapshot = .empty
     var freezeReason: FreezeReason? = nil
     var isFrozen: Bool { freezeReason != nil }
@@ -128,6 +129,22 @@ class EmulatorViewModel {
     // ── Live CPU view state (60 Hz real-time, runs while emulating) ────────────
     var cpuDebugSnapshot: CPUDebugSnapshot = .empty
     private var cpuFrameWindow: [TICpuFrame] = []  // rolling window of recent instructions
+
+    // ── ROM Heatmap (5 120 code addresses 0x0000–0x13FF) ─────────────────────
+    // Observable published at ~10 Hz to avoid flooding SwiftUI render pipeline.
+    var romHitCount: [UInt32] = Array(repeating: 0, count: 0x1400)
+    private var romHitCountBuffer: [UInt32] = Array(repeating: 0, count: 0x1400)
+    private var romHeatmapLastSeqno: UInt32 = 0
+    private var romHeatmapDirty = false
+    private var heatmapTickCounter: Int = 0
+
+    func clearRomHeatmap() {
+        romHitCountBuffer = Array(repeating: 0, count: 0x1400)
+        romHitCount       = Array(repeating: 0, count: 0x1400)
+        romHeatmapLastSeqno = 0
+        romHeatmapDirty = false
+        heatmapTickCounter = 0
+    }
 
     // ── Frozen CPU inspector state (static snapshot when paused) ───────────────
     struct InspectorSnapshot {
@@ -476,10 +493,11 @@ class EmulatorViewModel {
             if s != liveDebugSnapshot { liveDebugSnapshot = s }
         }
 
-        // CPU debug snapshot — sampled at 60 Hz to keep instruction history current.
-        // Always update so SimpleLiveCPUView gets fresh data after freeze/resume.
-        let s = buildCPUDebugSnapshot(machine: machine)
-        if s != cpuDebugSnapshot { cpuDebugSnapshot = s }
+        // CPU debug snapshot — sampled at 60 Hz when panel is enabled or frozen.
+        if cpuDebugEnabled || isFrozen {
+            let s = buildCPUDebugSnapshot(machine: machine)
+            if s != cpuDebugSnapshot { cpuDebugSnapshot = s }
+        }
 
         if cIndicatorDebug {
             cDropDebugger.update(snap.calcIndicator)
@@ -1704,6 +1722,27 @@ class EmulatorViewModel {
 
         // Store frames in the rolling window
         cpuFrameWindow = newFrames
+
+        // Accumulate ROM heatmap hits into the local buffer (every tick, cheap).
+        // seqno prevents double-counting frames across non-destructive readCpuFrames calls.
+        let newHits = newFrames.filter { $0.seqno > romHeatmapLastSeqno }
+        if !newHits.isEmpty {
+            for frame in newHits {
+                let pc = Int(frame.pc)
+                if pc < 0x1400 { romHitCountBuffer[pc] &+= 1 }
+            }
+            romHeatmapLastSeqno = newHits.last!.seqno
+            romHeatmapDirty = true
+        }
+        // Publish to @Observable at ~10 Hz (every 6 ticks) to keep display refresh unaffected.
+        heatmapTickCounter &+= 1
+        if heatmapTickCounter >= 6 {
+            heatmapTickCounter = 0
+            if romHeatmapDirty {
+                romHeatmapDirty = false
+                romHitCount = romHitCountBuffer
+            }
+        }
 
         // Build recent instructions from the accumulated window (show last 32)
         let instructionsToShow = min(32, cpuFrameWindow.count)

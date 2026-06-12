@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.2.0] - 2026-06-10
+- **CPU Debugger** Live view shows the same information as "frozen"; New "ROM heatmap" is a visual indicator which parts of the ROM got executed so far.
+- **Debuggers** Debuggers are always active (on/off sliders removed).
+- **Samples** Additional samples.
+
+### Fixes
+- **Debugger** Clearer labels "Calculator", "CPU" and "Log" to indicate what the panels actually do.
+- **Canvas** Cosmetic improvements on canvas, e.g. on key "9".
+- **Core** Fix error in original ROM code obtained from Datamath
+- **Cue Cards** Fix rendering of empty cue card labels
+- **Debuggers** Fix buttons jumping around, fix state machine for the buttons.
+- **Calculator Debugger** Fix Arrow location in PROGRAM STEPS view
+
 ## [1.1.1] - 2026-05-15
 
 ### Fixes

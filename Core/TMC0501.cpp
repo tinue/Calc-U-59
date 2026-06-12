@@ -1195,21 +1195,21 @@ uint32_t TMC0501::traceFlags() const {
 }
 
 void TMC0501::addBreakpoint(uint16_t pc) {
-    std::lock_guard<std::mutex> lk(m_traceMutex);
+    std::lock_guard<std::recursive_mutex> lk(m_traceMutex);
     auto it = std::lower_bound(m_breakpoints.begin(), m_breakpoints.end(), pc);
     if (it == m_breakpoints.end() || *it != pc)
         m_breakpoints.insert(it, pc);
 }
 
 void TMC0501::removeBreakpoint(uint16_t pc) {
-    std::lock_guard<std::mutex> lk(m_traceMutex);
+    std::lock_guard<std::recursive_mutex> lk(m_traceMutex);
     auto it = std::lower_bound(m_breakpoints.begin(), m_breakpoints.end(), pc);
     if (it != m_breakpoints.end() && *it == pc)
         m_breakpoints.erase(it);
 }
 
 void TMC0501::clearBreakpoints() {
-    std::lock_guard<std::mutex> lk(m_traceMutex);
+    std::lock_guard<std::recursive_mutex> lk(m_traceMutex);
     m_breakpoints.clear();
 }
 
@@ -1245,6 +1245,7 @@ void TMC0501::beginNextStep() {
     // frame uses the same post-exec semantics for UI and trace-file consumers,
     // including COND after auto-restore handling.
     if (tf != TRACE_NONE && m_frameHead > 0) {
+        std::lock_guard<std::recursive_mutex> lk(m_traceMutex);
         CpuFrame& prev = m_frameRing[(m_frameHead - 1) & kFrameRingMask];
 
         if (tf & (TRACE_REGS_LIGHT | TRACE_REGS_FULL)) {
@@ -1386,9 +1387,10 @@ void TMC0501::postOperation() {
 // frame to full post-execution state so all emitted entries share one semantic.
 
 void TMC0501::tracePreStep(uint32_t tf, uint16_t opcode) {
-    // Breakpoint check (unchanged)
+    std::lock_guard<std::recursive_mutex> lk(m_traceMutex);
+
+    // Breakpoint check
     if (tf & TRACE_BREAKPOINTS) {
-        std::lock_guard<std::mutex> lk(m_traceMutex);
         if (!m_breakpoints.empty()) {
             auto it = std::lower_bound(m_breakpoints.begin(), m_breakpoints.end(), addr);
             if (it != m_breakpoints.end() && *it == addr)
@@ -1441,6 +1443,7 @@ void TMC0501::tracePreStep(uint32_t tf, uint16_t opcode) {
 // boundary, where the previous frame is rewritten to post-execution state.
 
 void TMC0501::tracePostStep(uint32_t tf, int weight) {
+    std::lock_guard<std::recursive_mutex> lk(m_traceMutex);
     CpuFrame& frame = m_frameRing[m_frameHead & kFrameRingMask];
 
     // Identity fields only known after execution
@@ -1453,7 +1456,7 @@ void TMC0501::tracePostStep(uint32_t tf, int weight) {
 }
 
 uint32_t TMC0501::drainCpuFrames(CpuFrame* out, uint32_t max, uint32_t* outLost) {
-    std::lock_guard<std::mutex> lk(m_traceMutex);
+    std::lock_guard<std::recursive_mutex> lk(m_traceMutex);
     if (max == 0) { if (outLost) *outLost = 0; return 0; }
 
     uint32_t head = m_frameHead;  // single read; emulation thread may advance concurrently
@@ -1484,7 +1487,7 @@ uint32_t TMC0501::drainCpuFrames(CpuFrame* out, uint32_t max, uint32_t* outLost)
 }
 
 uint32_t TMC0501::readCpuFrames(CpuFrame* out, uint32_t max) const {
-    std::lock_guard<std::mutex> lk(m_traceMutex);
+    std::lock_guard<std::recursive_mutex> lk(m_traceMutex);
     uint32_t head = m_frameHead;
     if (max == 0 || head == 0) return 0;
 
