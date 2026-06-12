@@ -154,6 +154,7 @@ class EmulatorViewModel {
     // parsed from the module header. Program n (1-based) = moduleProgramRanges[n-1].
     private var moduleKeycodes: [UInt8] = []
     private var moduleProgramRanges: [Range<Int>] = []
+    private var romKeycodesCache: [UInt8] = []  // 384 main-ROM keycodes, constant per machine
     private var lastLibProgramMismatch: Int = .min  // throttles SCOM[9] cross-check logging
 
     // ── Live CPU view state (60 Hz real-time, runs while emulating) ────────────
@@ -1326,6 +1327,9 @@ class EmulatorViewModel {
     /// start address per program, followed by a pointer one past the last
     /// keycode of the final program.
     private func cacheModuleImage(_ data: Data?) {
+        // Model/module switches rebuild the machine, so drop the ROM keycode
+        // cache here; romKeycodes(machine:) refills it lazily from the new wrapper.
+        romKeycodesCache = []
         let raw = data.map { [UInt8]($0) } ?? []
         func bcd(_ b: UInt8) -> Int { Int(b >> 4) * 10 + Int(b & 0xF) }
 
@@ -1359,6 +1363,15 @@ class EmulatorViewModel {
             ranges.append(boundaries[i]..<boundaries[i + 1])
         }
         moduleProgramRanges = ranges
+    }
+
+    /// The 384 main-ROM keycodes (PRG SOURCE = 8), fetched once per machine —
+    /// they live in the constant ROM, so per-frame bridge calls are avoided.
+    private func romKeycodes(machine m: TI59MachineWrapper) -> [UInt8] {
+        if romKeycodesCache.count != 384 {
+            romKeycodesCache = (0..<384).map { m.romKeycode(at: $0) }
+        }
+        return romKeycodesCache
     }
 
     /// Resolve the latched library execution address to the containing module
@@ -1426,18 +1439,7 @@ class EmulatorViewModel {
             let steps = Array(m.allProgramSteps() as Data)
             guard !steps.isEmpty else { return [] }
 
-            // Build set of argument step indices
-            var argSteps = Set<Int>()
-            for i in 0..<steps.count {
-                let stepsAfter = TI59KeyNames.stepsAfter(for: steps[i])
-                if stepsAfter > 0 {
-                    for j in 1...stepsAfter {
-                        if i + j < steps.count {
-                            argSteps.insert(i + j)
-                        }
-                    }
-                }
-            }
+            let argSteps = TI59KeyNames.argumentSteps(in: steps)
 
             for i in 0..<steps.count {
                 let kc = steps[i]
@@ -1454,23 +1456,8 @@ class EmulatorViewModel {
 
         case 8:
             // Main ROM (384 steps)
-            var keycodes: [UInt8] = []
-            for addr in 0..<384 {
-                keycodes.append(m.romKeycode(at: addr))
-            }
-
-            // Detect argument step indices
-            var argSteps = Set<Int>()
-            for i in 0..<keycodes.count {
-                let stepsAfter = TI59KeyNames.stepsAfter(for: keycodes[i])
-                if stepsAfter > 0 {
-                    for j in 1...stepsAfter {
-                        if i + j < keycodes.count {
-                            argSteps.insert(i + j)
-                        }
-                    }
-                }
-            }
+            let keycodes = romKeycodes(machine: m)
+            let argSteps = TI59KeyNames.argumentSteps(in: keycodes)
 
             for (idx, keycode) in keycodes.enumerated() {
                 let isArgument = argSteps.contains(idx)
@@ -1491,18 +1478,7 @@ class EmulatorViewModel {
             frozenLibProgram = lib.program
             let steps = Array(moduleKeycodes[lib.range])
 
-            // Build set of argument step indices
-            var argSteps = Set<Int>()
-            for i in 0..<steps.count {
-                let stepsAfter = TI59KeyNames.stepsAfter(for: steps[i])
-                if stepsAfter > 0 {
-                    for j in 1...stepsAfter {
-                        if i + j < steps.count {
-                            argSteps.insert(i + j)
-                        }
-                    }
-                }
-            }
+            let argSteps = TI59KeyNames.argumentSteps(in: steps)
 
             for i in 0..<steps.count {
                 let kc = steps[i]
@@ -1726,18 +1702,9 @@ class EmulatorViewModel {
                 let lo = max(0, center - 5)
                 let hi = min(steps.count - 1, center + 5)
                 if lo <= hi {
-                    // Build set of argument step indices (not keycodes)
-                    var argSteps = Set<Int>()
-                    for i in lo...hi {
-                        let stepsAfter = TI59KeyNames.stepsAfter(for: steps[i])
-                        if stepsAfter > 0 {
-                            for j in 1...stepsAfter {
-                                if i + j <= hi {
-                                    argSteps.insert(i + j)
-                                }
-                            }
-                        }
-                    }
+                    // Classify over the full program so windows starting
+                    // mid-instruction don't misread operands as opcodes.
+                    let argSteps = TI59KeyNames.argumentSteps(in: steps)
 
                     for i in lo...hi {
                         let kc = steps[i]
@@ -1759,30 +1726,16 @@ class EmulatorViewModel {
             let romCenter = snap.currentStep
             let lo = max(0, romCenter - 5)
             let hi = min(383, romCenter + 5)
-
-            // Build array of keycodes for this range
-            var keycodes: [UInt8] = []
             guard lo <= hi else { break }
+
+            // Classify over the full ROM image so windows starting
+            // mid-instruction don't misread operands as opcodes.
+            let keycodes = romKeycodes(machine: m)
+            let argSteps = TI59KeyNames.argumentSteps(in: keycodes)
+
             for addr in lo...hi {
-                keycodes.append(m.romKeycode(at: addr))
-            }
-
-            // Detect argument step indices
-            var argSteps = Set<Int>()
-            for i in 0..<keycodes.count {
-                let stepsAfter = TI59KeyNames.stepsAfter(for: keycodes[i])
-                if stepsAfter > 0 {
-                    for j in 1...stepsAfter {
-                        if i + j < keycodes.count {
-                            argSteps.insert(i + j)
-                        }
-                    }
-                }
-            }
-
-            for (idx, keycode) in keycodes.enumerated() {
-                let addr = lo + idx
-                let isArgument = argSteps.contains(idx)
+                let keycode = keycodes[addr]
+                let isArgument = argSteps.contains(addr)
                 let mnemonic = isArgument ? String(format: "%02d", keycode) : TI59KeyNames.mnemonic(for: keycode)
                 snap.programWindow.append(.init(
                     stepNum: addr, keycode: keycode, mnemonic: mnemonic,
@@ -1798,18 +1751,9 @@ class EmulatorViewModel {
             let lo = max(0, center - 5)
             let hi = min(progLen - 1, center + 5)
             if lo <= hi {
-                // Build set of argument step indices (relative to program start)
-                var argSteps = Set<Int>()
-                for i in lo...hi {
-                    let stepsAfter = TI59KeyNames.stepsAfter(for: moduleKeycodes[lib.range.lowerBound + i])
-                    if stepsAfter > 0 {
-                        for j in 1...stepsAfter {
-                            if i + j <= hi {
-                                argSteps.insert(i + j)
-                            }
-                        }
-                    }
-                }
+                // Classify over the whole program (relative to program start)
+                // so windows starting mid-instruction don't misread operands.
+                let argSteps = TI59KeyNames.argumentSteps(in: Array(moduleKeycodes[lib.range]))
 
                 for i in lo...hi {
                     let kc = moduleKeycodes[lib.range.lowerBound + i]
@@ -1837,26 +1781,16 @@ class EmulatorViewModel {
                 if snap.nextStepNum < ramSteps.count {
                     let nextKeycode = ramSteps[snap.nextStepNum]
                     snap.nextStepKeycode = nextKeycode
-                    let isArgument = {
-                        // Check if this step is an argument for a previous instruction
-                        if snap.nextStepNum == 0 { return false }
-                        let stepsAfter = TI59KeyNames.stepsAfter(for: ramSteps[snap.nextStepNum - 1])
-                        return stepsAfter > 0 && snap.nextStepNum - 1 + stepsAfter >= snap.nextStepNum
-                    }()
+                    let isArgument = TI59KeyNames.argumentSteps(in: ramSteps).contains(snap.nextStepNum)
                     snap.nextStepMnemonic = isArgument ? String(format: "%02d", nextKeycode) : TI59KeyNames.mnemonic(for: nextKeycode)
                 }
             case 8:
                 // Main ROM
                 if snap.nextStepNum < 384 {
-                    let nextKeycode = m.romKeycode(at: snap.nextStepNum)
+                    let keycodes = romKeycodes(machine: m)
+                    let nextKeycode = keycodes[snap.nextStepNum]
                     snap.nextStepKeycode = nextKeycode
-                    let isArgument = {
-                        // Check if this step is an argument for a previous instruction
-                        if snap.nextStepNum == 0 { return false }
-                        let prevKeycode = m.romKeycode(at: snap.nextStepNum - 1)
-                        let stepsAfter = TI59KeyNames.stepsAfter(for: prevKeycode)
-                        return stepsAfter > 0 && snap.nextStepNum - 1 + stepsAfter >= snap.nextStepNum
-                    }()
+                    let isArgument = TI59KeyNames.argumentSteps(in: keycodes).contains(snap.nextStepNum)
                     snap.nextStepMnemonic = isArgument ? String(format: "%02d", nextKeycode) : TI59KeyNames.mnemonic(for: nextKeycode)
                 }
             case 1:
@@ -1864,13 +1798,8 @@ class EmulatorViewModel {
                 if let lib = libInfo, snap.nextStepNum < lib.range.count {
                     let nextKeycode = moduleKeycodes[lib.range.lowerBound + snap.nextStepNum]
                     snap.nextStepKeycode = nextKeycode
-                    let isArgument = {
-                        // Check if this step is an argument for a previous instruction
-                        if snap.nextStepNum == 0 { return false }
-                        let prevKeycode = moduleKeycodes[lib.range.lowerBound + snap.nextStepNum - 1]
-                        let stepsAfter = TI59KeyNames.stepsAfter(for: prevKeycode)
-                        return stepsAfter > 0 && snap.nextStepNum - 1 + stepsAfter >= snap.nextStepNum
-                    }()
+                    let isArgument = TI59KeyNames.argumentSteps(in: Array(moduleKeycodes[lib.range]))
+                        .contains(snap.nextStepNum)
                     snap.nextStepMnemonic = isArgument ? String(format: "%02d", nextKeycode) : TI59KeyNames.mnemonic(for: nextKeycode)
                 }
             default:
