@@ -63,7 +63,7 @@ This works for correctly-written ROM code but **cannot handle programs that inte
 - **C++**: Hard-coded arrays in `Core/TMC0501.cpp` must be regenerated after TSV changes:
   ```bash
   python3 tools/disasm.py --emit-cpp > /tmp/generated.cpp
-  # Copy generated arrays (~line 1389) and paste into TMC0501.cpp
+  # Paste over the "── Generated tables ──" section in TMC0501.cpp (~line 1575)
   ```
 
 ## Headless Runner Plan
