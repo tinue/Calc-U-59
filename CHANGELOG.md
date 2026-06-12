@@ -1,5 +1,7 @@
 # Changelog
 
+## [1.3.0] - Work in progress
+
 ## [1.2.0] - 2026-06-10
 - **CPU Debugger** Live view shows the same information as "frozen"; New "ROM heatmap" is a visual indicator which parts of the ROM got executed so far.
 - **Debuggers** Debuggers are always active (on/off sliders removed).
