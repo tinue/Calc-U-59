@@ -342,6 +342,9 @@ class EmulatorViewModel {
 
             self.machine = wrapper
             updateDebugTraceFlags()   // new wrapper starts with TRACE_NONE; re-apply consumer state
+            // New machine restarts frame seqnos at 0; without a reset the
+            // `seqno > romHeatmapLastSeqno` filter would reject all new frames.
+            resetHeatmapBaseline()
             hasCardFile = CardStorage.hasCard
             startEmulationLoop()
             startDisplayRefresh()
@@ -686,6 +689,7 @@ class EmulatorViewModel {
         printerTrace = false
         machine?.setPrinterTrace(false)
         machine?.reset()
+        resetHeatmapBaseline()
 
         // TI-58C: restore persisted memory after reset
         if model.hasConstantMemory {
@@ -721,6 +725,7 @@ class EmulatorViewModel {
         printerTrace = false
         machine?.setPrinterTrace(false)
         machine?.reset()
+        resetHeatmapBaseline()
         // Write zeroed state for TI-58C immediately
         persistConstantMemory()
         debugAppend(["Clean Reset — all registers cleared"])
@@ -2246,6 +2251,9 @@ class EmulatorViewModel {
                 m.writeDataRegister(regNum, nibbles: Data(nibbles))
             }
         }
+
+        // Fresh machine state → fresh heatmap (also skips the power-on walk above).
+        resetHeatmapBaseline()
 
         startEmulationLoop()
 
