@@ -127,13 +127,14 @@ public:
 
     /// Pre-execution phase: COND restore, patch previous ring entry, capture snapshot.
     /// Call after stepUntilNextKeycode() or after step() in debugger mode.
-    void beginNextStep() { m_cpu.beginNextStep(); }
+    void beginNextStep();
 
-    /// Raw RAM access — reads/writes a complete 16-nibble register.
-    /// reg must be in [0, RAM::TOTAL_REGS).
-    const uint8_t* readRAMReg(int reg) const { return m_ram.readReg(reg); }
-    void           writeRAMReg(int reg, const uint8_t* nibbles16) { m_ram.writeReg(reg, nibbles16); }
-    int            ramRegCount() const { return m_ram.size(); }
+    /// Raw RAM access — copies/writes a complete 16-nibble register under the lock.
+    /// reg must be in [0, ramRegCount()).
+    void copyRAMReg(int reg, uint8_t* out16) const;
+    void writeRAMReg(int reg, const uint8_t* nibbles16);
+    /// Constant after construction; safe to call without locking.
+    int  ramRegCount() const { return m_ram.size(); }
 
     /// Content currently held in the printer character buffer (not yet printed).
     std::string printerBufferContent() const;
@@ -145,6 +146,17 @@ private:
     ROM            m_rom;
     RAM            m_ram;
     TMC0501        m_cpu;
+    // ── Lock policy ───────────────────────────────────────────────────────
+    // m_keyMutex serialises the emulation thread (step/stepN/…) against every
+    // UI-thread access to CPU, SCOM, RAM, card and printer-buffer state —
+    // including the read-only accessors (snapshotCPU, readDataReg, copyRAMReg,
+    // partitionProgramRegs, card getters, printerBufferContent, pc).
+    // Exceptions, each with their own synchronisation:
+    //   getDisplay()                → m_displayMutex inside TMC0501
+    //   drainPrinterLines/CodeLines → m_prnMutex inside TMC0501
+    //   drain/readCpuFrames         → m_traceMutex inside TMC0501
+    //   setTraceFlags/traceFlags    → std::atomic
+    //   readROMKeycode/disassemble  → immutable after load / pure
     mutable std::mutex m_keyMutex;
     bool           m_printerConnected = true;
 

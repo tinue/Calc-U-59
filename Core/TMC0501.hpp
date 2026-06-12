@@ -101,7 +101,6 @@ public:
     /// Execute one instruction at the current program counter.
     ///
     /// Returns the cycle weight of this instruction for emulation pacing:
-    ///   0 — PREG computed-jump redirect (no ROM fetch, no real work)
     ///   1 — normal instruction (active / computing mode)
     ///   4 — normal instruction while FLG_IDLE is set (idle/display mode runs
     ///       at 1/4 clock speed, matching the hardware's power-saving divider)
@@ -359,7 +358,9 @@ private:
     uint32_t m_frameHead{0};     // write index (emulation thread only, always advancing)
     uint32_t m_diskCursor{0};    // drain read cursor (protected by m_traceMutex)
 
-    mutable std::recursive_mutex m_traceMutex;
+    // Non-recursive: no acquisition site re-enters.  beginNextStep() releases its
+    // lock scope before calling tracePreStep(), which takes the lock fresh.
+    mutable std::mutex m_traceMutex;
     std::vector<uint16_t> m_breakpoints; // sorted ascending; protected by m_traceMutex
     bool m_breakpointHit{false};
 
