@@ -74,18 +74,18 @@ class EmulatorViewModel {
                     return
                 }
 
-                guard let m = machine else { return }
+                guard machine != nil else { return }
 
                 // b) Tell C-code to start tracing
-                m.traceFlags = [.pc, .regsFull]
+                updateDebugTraceFlags()
 
                 // c) Start draining via tick() calls (happens automatically at 60 Hz)
             } else {
                 // TRACE DISABLED
                 guard let m = machine else { return }
 
-                // a) Tell C-code to stop writing events IMMEDIATELY
-                m.traceFlags = .flagsNone
+                // a) Stop generating events (unless another consumer still needs them)
+                updateDebugTraceFlags()
 
                 // b) Drain remaining buffer on main thread immediately
                 drainTraceEvents(machine: m)
@@ -113,12 +113,32 @@ class EmulatorViewModel {
     var asmOverlayActive: Bool = false
 
     // ── Live debug panel state (60 Hz real-time) ──────────────────────────────
-    var liveDebugEnabled: Bool = true
-    var cpuDebugEnabled: Bool = true
+    // Both flags track panel visibility (set by LiveDebugView / CPUInspectorView
+    // onAppear/onDisappear).  While false, tick() skips the snapshot builds and
+    // the core runs with tracing fully disabled — its zero-overhead fast path.
+    var liveDebugEnabled: Bool = false
+    var cpuDebugEnabled: Bool = false {
+        didSet {
+            guard cpuDebugEnabled != oldValue else { return }
+            if cpuDebugEnabled {
+                // The heatmap shows activity since the panel became visible:
+                // tracing is off while hidden, so reset and skip any ring backlog.
+                resetHeatmapBaseline()
+            }
+            updateDebugTraceFlags()
+        }
+    }
     var liveDebugSnapshot: LiveDebugSnapshot = .empty
-    var freezeReason: FreezeReason? = nil
+    var freezeReason: FreezeReason? = nil {
+        didSet { updateDebugTraceFlags() }
+    }
     var isFrozen: Bool { freezeReason != nil }
-    var pendingFreezeOnPCChange: Bool = false  // Freeze as soon as PC changes (first instruction)
+    var pendingFreezeOnPCChange: Bool = false {  // Freeze as soon as PC changes (first instruction)
+        didSet {
+            guard pendingFreezeOnPCChange != oldValue else { return }
+            updateDebugTraceFlags()
+        }
+    }
     private var lastObservedPC: UInt16 = 0     // Track PC to detect changes
 
     // Frozen program caches (built on freeze entry, reused until unfreeze)
@@ -144,6 +164,34 @@ class EmulatorViewModel {
         romHeatmapLastSeqno = 0
         romHeatmapDirty = false
         heatmapTickCounter = 0
+    }
+
+    /// Clear the heatmap and skip whatever is still in the trace ring, so counting
+    /// starts at "now" rather than replaying up to 1024 stale frames from the last
+    /// time tracing was active.
+    private func resetHeatmapBaseline() {
+        clearRomHeatmap()
+        if let m = machine, let newest = m.readCpuFrames(max: 1).last {
+            var f = TICpuFrame()
+            newest.getValue(&f)
+            romHeatmapLastSeqno = f.seqno
+        }
+    }
+
+    /// Single owner of the machine's trace flags.  Recomputed whenever a consumer
+    /// changes state: CPU debug panel visibility, freeze mode (incl. armed
+    /// freeze-on-start), the binary trace toggle, or the breakpoint set.
+    /// With no consumer active the core runs with TRACE_NONE — its fast path.
+    private func updateDebugTraceFlags() {
+        guard let m = machine else { return }
+        var flags: TITraceFlags = []
+        if cpuDebugEnabled || isFrozen || cIndicatorDebug || pendingFreezeOnPCChange {
+            flags.insert([.pc, .regsFull])
+        }
+        if !breakpoints.isEmpty {
+            flags.insert(.breakpoints)
+        }
+        if m.traceFlags != flags { m.traceFlags = flags }
     }
 
     // ── Frozen CPU inspector state (static snapshot when paused) ───────────────
@@ -293,6 +341,7 @@ class EmulatorViewModel {
             }
 
             self.machine = wrapper
+            updateDebugTraceFlags()   // new wrapper starts with TRACE_NONE; re-apply consumer state
             hasCardFile = CardStorage.hasCard
             startEmulationLoop()
             startDisplayRefresh()
@@ -341,10 +390,12 @@ class EmulatorViewModel {
 
                     // Check if PC has changed from when we armed the freeze
                     if UInt16(currentPC) != self.lastObservedPC {
-                        // PC has changed — freeze now
+                        // PC has changed — freeze now.  Set freezeReason before
+                        // clearing the armed flag so updateDebugTraceFlags()
+                        // (fired by both didSets) keeps tracing enabled throughout.
                         self.isRunning = false
-                        self.pendingFreezeOnPCChange = false
                         self.freezeReason = .manual
+                        self.pendingFreezeOnPCChange = false
                         DispatchQueue.main.async { [weak self] in
                             guard let self else { return }
                             if self.liveDebugEnabled {
@@ -966,22 +1017,13 @@ class EmulatorViewModel {
     func addBreakpoint(_ pc: UInt16) {
         breakpoints.insert(pc)
         machine?.addBreakpoint(pc)
-        // Ensure TRACE_BREAKPOINTS is armed.
-        if let m = machine {
-            var f = m.traceFlags
-            f.insert(.breakpoints)
-            m.traceFlags = f
-        }
+        updateDebugTraceFlags()   // arms TRACE_BREAKPOINTS
     }
 
     func removeBreakpoint(_ pc: UInt16) {
         breakpoints.remove(pc)
         machine?.removeBreakpoint(pc)
-        if breakpoints.isEmpty, let m = machine {
-            var f = m.traceFlags
-            f.remove(.breakpoints)
-            m.traceFlags = f
-        }
+        updateDebugTraceFlags()
     }
 
     func resumeFromBreakpoint() {
@@ -1367,20 +1409,22 @@ class EmulatorViewModel {
         // Hidden registers (displayableRegs to totalRegs-1) shown as H##
         // Guard against quirky partitions: only access what physically exists
         guard programRegs <= totalRegs else { return snap }
-        for ramIdx in programRegs..<totalRegs {
-            guard ramIdx >= 0 && ramIdx < totalRegs else { continue }
+        // One bridge call to locate the non-zero registers, then fetch only those —
+        // instead of up to 120 individual rawRegister calls per 60 Hz frame.
+        let nonZeroRamIndices = m.nonZeroDataRegisterIndices()
+            .map { totalRegs - 1 - $0 }   // bridge indices count down from the top of RAM
+            .sorted()
+        for ramIdx in nonZeroRamIndices where ramIdx >= programRegs && ramIdx < totalRegs {
             let raw = m.rawRegister(ramIdx) as Data
-            if raw.contains(where: { $0 != 0 }) {
-                let value = TI59MachineWrapper.decodeBCD(raw)
-                if ramIdx < displayableRegs {
-                    // Visible register
-                    let regNum = displayableRegs - 1 - ramIdx
-                    snap.nonZeroRegs.append(.init(num: regNum, value: value, isHidden: false))
-                } else {
-                    // Hidden register
-                    let hiddenNum = ramIdx - displayableRegs
-                    snap.nonZeroRegs.append(.init(num: hiddenNum, value: value, isHidden: true))
-                }
+            let value = TI59MachineWrapper.decodeBCD(raw)
+            if ramIdx < displayableRegs {
+                // Visible register
+                let regNum = displayableRegs - 1 - ramIdx
+                snap.nonZeroRegs.append(.init(num: regNum, value: value, isHidden: false))
+            } else {
+                // Hidden register
+                let hiddenNum = ramIdx - displayableRegs
+                snap.nonZeroRegs.append(.init(num: hiddenNum, value: value, isHidden: true))
             }
         }
 
@@ -1706,11 +1750,8 @@ class EmulatorViewModel {
         snap.isPaused = isPausedOnBreakpoint
         snap.pausedPC = breakpointPC
 
-        // Ensure trace flags are set so the CPU generates events
-        let requiredFlags: TITraceFlags = [.pc, .regsFull]
-        if !m.traceFlags.contains(requiredFlags) {
-            m.traceFlags = m.traceFlags.union(requiredFlags)
-        }
+        // Trace flags are managed by updateDebugTraceFlags(); they are guaranteed
+        // on whenever this builder runs (cpuDebugEnabled or isFrozen).
 
         // Read (without draining) all recent frames from the ring buffer
         let framesNS = m.readCpuFrames(max: 1024)

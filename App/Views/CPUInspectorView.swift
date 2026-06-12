@@ -284,7 +284,13 @@ struct CPUInspectorView: View {
             }
             .focusable()
             .focused($isFocused)
-            .onAppear { isFocused = true }
+            .onAppear {
+                isFocused = true
+                // Gate CPU tracing + snapshot building on panel visibility.
+                // Entering also resets the ROM heatmap (counts start at "visible").
+                vm.cpuDebugEnabled = true
+            }
+            .onDisappear { vm.cpuDebugEnabled = false }
             .onKeyPress(.upArrow) {
                 let history = displayHistory
                 guard !history.isEmpty else { return .ignored }

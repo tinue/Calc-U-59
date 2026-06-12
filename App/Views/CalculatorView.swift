@@ -138,7 +138,9 @@ struct CalculatorView: View {
         #if os(macOS)
         .task {
             while true {
-                try? await Task.sleep(for: .milliseconds(50))
+                // Exit on cancellation: `try?` would swallow CancellationError and
+                // turn this loop into a busy-spin once the sleep stops sleeping.
+                do { try await Task.sleep(for: .milliseconds(50)) } catch { return }
                 let pressed = NSEvent.modifierFlags.contains(.command)
                 if isCommandPressed != pressed { isCommandPressed = pressed }
             }

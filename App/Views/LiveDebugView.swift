@@ -28,6 +28,9 @@ struct LiveDebugView: View {
             }
             .background(Color(white: 0.10))
         }
+        // Gate the 60 Hz live-snapshot build on actual panel visibility.
+        .onAppear    { vm.liveDebugEnabled = true }
+        .onDisappear { vm.liveDebugEnabled = false }
     }
 
     // MARK: - Adaptive Font Sizing
