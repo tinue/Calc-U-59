@@ -306,6 +306,85 @@ bytes** each.  Cards are read or written in separate one-bank passes.
 
 ---
 
+## Solid-State Library Module (TMC0540 CROM)
+
+The library module is a TMC0540 CROM: 5,000 × 8-bit key-code memory with its
+**own internal address counter**, accessed serially (half-duplex on the EXT
+line) by the CPU.  The emulator models it as `m_libData[5000]` plus the
+address counter `m_libAddr` inside `TMC0501`.
+
+### Module commands (control class `0xA`, sub-decoded `0xE`)
+
+| Mnemonic | Hardware command | Effect in emulator |
+|---|---|---|
+| `LIB.IN` (IN LIB) | FETCH | `EXT = m_libData[m_libAddr++] << 4`; wraps at 5000 |
+| `LIB.HI` (IN LIB_HIGH) | FETCH HIGH | High nibble of current byte; **no** address advance |
+| `LIB.PC` (OUT LIB_PC) | LOAD PC | Digit-serial address load: `m_libAddr = m_libAddr/10 + KR[7:4]×1000`; four calls load a 4-digit BCD address, LSD first |
+| `LIB.PC.IN` (IN LIB_PC) | UNLOAD PC | Reads one BCD digit of `m_libAddr` per call (`m_libAddrReadPos` cycles 0–3); does not modify the address |
+
+`m_libAddrWasWriting` tracks the read/write direction so the digit position
+counter resets when the ROM switches between LOAD PC and UNLOAD PC sequences.
+Every exec/search FETCH is preceded by a FETCH HIGH of the same byte.
+
+### Module image layout
+
+```
+0000          number of programs N (BCD)
+0001          copy-protection flag (00 = copyable, 01 = protected)
+0002+2(n−1)   2-byte BCD start address of program n
+…             2-byte BCD pointer to last keycode of program N + 1
+PRG1 … PRGS−1 key codes (one 2-digit BCD key code per byte)
+PRGS … 4999   filler key code 92 (INV SBR)
+```
+
+### How the emulator knows the current instruction
+
+The CROM program counter lives **in the module chip**, not in SCOM[0] (SCOM[0]
+nibbles 4–7 hold the step counter for RAM programs only).  The main ROM's
+library interpreter, however, also reads the module from several different
+code sites — and only one of them represents execution:
+
+| Main-ROM address | Purpose |
+|---|---|
+| `0x1377` / `0x137C` | Header reads (program table) |
+| `0x1390` / `0x1394` | Label search (byte-by-byte scan from program start) |
+| `0x082B` / `0x082F` | **Execution interpreter fetch** |
+| `0x1370`, `0x1389`, `0x12B4` | LOAD PC loops (header / search start / exec start) |
+
+These addresses are identical on TI-59, TI-58, and TI-58C, so one constant
+covers all variants.  The IN LIB handler latches the **pre-increment** value of
+`m_libAddr` into `m_libExecPC` only when the fetch comes from the execution
+site (`addr == kLibExecFetchPC = 0x082F`).  Header reads and label searches —
+which a taken label-branch performs in full on every iteration — never move
+the latch, so the user-visible step holds steady during lookups.  FA/FB flag
+bits cannot discriminate exec from search fetches (verified by trace), which
+is why the fetch-site check is used.
+
+The latch starts at the sentinel `kLibExecPCNone` (0xFFFF) and is reset on CPU
+reset and on module change.  It is exposed via `TI59Machine::libExecPC()`
+(mutex-protected) and the bridge; the Swift layer resolves it to a
+program-relative step (step 000 = first keycode of the program) by parsing the
+module header table and finding the range containing the latched address.
+
+`stepUntilNextKeycode()` treats an advance of this latch as a step boundary,
+since solid-state programs never move the SCOM[0] step counter.
+
+### PRG SOURCE flag (SCOM[0] nibble 3)
+
+| Value | Meaning |
+|---|---|
+| 0 | Keyboard / RAM program |
+| 1 | Library program executing — CROM counter is live |
+| 2 | Transitional "suspended library" return: the RTN handler popped a saved level `[2][4-digit CROM addr]` into SCOM[0]; the next dispatch reloads the CROM PC via OUT LIB_PC ×4 and sets source back to 1 |
+| 8 | Keycode-ROM sub-program (e.g. P→R) called from a library program; SCOM PC is used, `m_libExecPC` holds |
+
+Source 2 exists because a library caller cannot be pushed as source 1: source 1
+means "the CROM counter is live", and the counter is clobbered by intervening
+header/search traffic — so the saved CROM address must be restored from the
+return level before fetching resumes.
+
+---
+
 ## Printer (PC-100C)
 
 The printer has a 20-character right-to-left buffer.  The ROM writes characters
