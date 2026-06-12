@@ -140,6 +140,7 @@ class EmulatorViewModel {
         }
     }
     private var lastObservedPC: UInt16 = 0     // Track PC to detect changes
+    private var lastObservedLibPC: UInt16 = 0xFFFF  // Track library exec PC (solid-state programs don't move the SCOM PC)
 
     // Frozen program caches (built on freeze entry, reused until unfreeze)
     private var frozenROMCache: [LiveDebugSnapshot.StepEntry]?
@@ -402,8 +403,10 @@ class EmulatorViewModel {
                     let cpu = m.snapshotCPU()
                     let currentPC = self.decodeProgramCounter(from: cpu)
 
-                    // Check if PC has changed from when we armed the freeze
-                    if UInt16(currentPC) != self.lastObservedPC {
+                    // Check if either PC has changed from when we armed the
+                    // freeze. Solid-state programs never move the SCOM PC, so
+                    // the library exec latch is watched as a second trigger.
+                    if UInt16(currentPC) != self.lastObservedPC || m.libExecPC != self.lastObservedLibPC {
                         // PC has changed — freeze now.  Set freezeReason before
                         // clearing the armed flag so updateDebugTraceFlags()
                         // (fired by both didSets) keeps tracing enabled throughout.
@@ -1104,11 +1107,13 @@ class EmulatorViewModel {
 
     func freezeOnNextPCChange() {
         // Prepare to freeze as soon as the program counter changes (first instruction executes)
-        // Track the decoded PC (from SCOM), not the raw CPU PC
+        // Track the decoded PC (from SCOM), not the raw CPU PC — plus the
+        // library exec latch, which is the PC for solid-state programs
         pendingFreezeOnPCChange = true
         guard let m = machine else { return }
         let cpu = m.snapshotCPU()
         lastObservedPC = UInt16(decodeProgramCounter(from: cpu))
+        lastObservedLibPC = m.libExecPC
     }
 
     func freeze(reason: FreezeReason = .manual, waitForKeycode: Bool = true) {
