@@ -268,6 +268,9 @@ uint32_t TI59Machine::stepUntilNextKeycode(uint32_t maxCycles) {
     uint8_t n5 = m_cpu.scomNibble(0, 5);
     uint8_t n6 = m_cpu.scomNibble(0, 6);
     uint8_t n7 = m_cpu.scomNibble(0, 7);
+    // Solid-state programs never move the SCOM[0] step counter; their
+    // per-step boundary is the library exec latch advancing instead.
+    uint16_t libPC = m_cpu.libExecPC();
     uint32_t done = 0;
     while (done < maxCycles) {
         int w = m_cpu.step();          // returns 1 (active) or 4 (IDLE)
@@ -275,6 +278,7 @@ uint32_t TI59Machine::stepUntilNextKeycode(uint32_t maxCycles) {
         if (m_cpu.consumeBreakpointHit()) { break; }
         if (m_cpu.scomNibble(0, 4) != n4 || m_cpu.scomNibble(0, 5) != n5 ||
             m_cpu.scomNibble(0, 6) != n6 || m_cpu.scomNibble(0, 7) != n7) { break; }
+        if (m_cpu.libExecPC() != libPC) { break; }
     }
     return done;
 }
