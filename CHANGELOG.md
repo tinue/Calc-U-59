@@ -1,6 +1,7 @@
 # Changelog
 
 ## [1.3.0] - Work in progress
+- **Calculator Debugger** Allow trace / single step of solid state module keycode programs
 
 ## [1.2.0] - 2026-06-10
 - **CPU Debugger** Live view shows the same information as "frozen"; New "ROM heatmap" is a visual indicator which parts of the ROM got executed so far.

@@ -1270,44 +1270,35 @@ class EmulatorViewModel {
         cpuInspectorUpdateID &+= 1
     }
 
+    /// The frozen cache backing a given Prg Source flag, or nil for sources
+    /// without a cached listing. Centralises the three-way cache dispatch.
+    private func frozenCacheKeyPath(for flag: UInt8) -> ReferenceWritableKeyPath<EmulatorViewModel, [LiveDebugSnapshot.StepEntry]?>? {
+        if isUserProgramSource(flag) { return \.frozenRAMCache }
+        if flag == ProgramSource.rom.rawValue { return \.frozenROMCache }
+        if flag == ProgramSource.solidState.rawValue { return \.frozenLibCache }
+        return nil
+    }
+
     /// Update isCurrent markers in the cached program for the given current step.
     /// Clears old current marker and sets new one.
     private func updateCachedProgramCurrent(to currentStep: Int, prSourceFlag: UInt8) {
-        if isUserProgramSource(prSourceFlag), var cache = frozenRAMCache {
-            for i in 0..<cache.count {
-                cache[i].isCurrent = (cache[i].stepNum == currentStep)
-            }
-            frozenRAMCache = cache
-        } else if prSourceFlag == ProgramSource.rom.rawValue, var cache = frozenROMCache {
-            for i in 0..<cache.count {
-                cache[i].isCurrent = (cache[i].stepNum == currentStep)
-            }
-            frozenROMCache = cache
-        } else if prSourceFlag == ProgramSource.solidState.rawValue, var cache = frozenLibCache {
-            for i in 0..<cache.count {
-                cache[i].isCurrent = (cache[i].stepNum == currentStep)
-            }
-            frozenLibCache = cache
+        guard let kp = frozenCacheKeyPath(for: prSourceFlag), var cache = self[keyPath: kp] else { return }
+        for i in 0..<cache.count {
+            cache[i].isCurrent = (cache[i].stepNum == currentStep)
         }
+        self[keyPath: kp] = cache
     }
 
     /// Move the isCurrent marker one entry forward in the active frozen cache.
     /// Used for Prg Source 2 (solid-state return pending): the held view's
     /// just-executed RTN is the entry after the previous current step.
     private func advanceCachedProgramCurrent() {
-        func advance(_ cache: inout [LiveDebugSnapshot.StepEntry]?) {
-            guard var c = cache, let idx = c.firstIndex(where: { $0.isCurrent }), idx + 1 < c.count else { return }
-            c[idx].isCurrent = false
-            c[idx + 1].isCurrent = true
-            cache = c
-        }
-        if isUserProgramSource(cachedPrSourceFlag) {
-            advance(&frozenRAMCache)
-        } else if cachedPrSourceFlag == ProgramSource.rom.rawValue {
-            advance(&frozenROMCache)
-        } else if cachedPrSourceFlag == ProgramSource.solidState.rawValue {
-            advance(&frozenLibCache)
-        }
+        guard let kp = frozenCacheKeyPath(for: cachedPrSourceFlag),
+              var cache = self[keyPath: kp],
+              let idx = cache.firstIndex(where: { $0.isCurrent }), idx + 1 < cache.count else { return }
+        cache[idx].isCurrent = false
+        cache[idx + 1].isCurrent = true
+        self[keyPath: kp] = cache
     }
 
     /// The source flag governing the frozen program listing. During the
@@ -1317,14 +1308,7 @@ class EmulatorViewModel {
 
     /// Return the full cached program when frozen, or nil if not frozen.
     var frozenCachedProgram: [LiveDebugSnapshot.StepEntry]? {
-        if isUserProgramSource(cachedPrSourceFlag) {
-            return frozenRAMCache
-        } else if cachedPrSourceFlag == ProgramSource.rom.rawValue {
-            return frozenROMCache
-        } else if cachedPrSourceFlag == ProgramSource.solidState.rawValue {
-            return frozenLibCache
-        }
-        return nil
+        frozenCacheKeyPath(for: cachedPrSourceFlag).flatMap { self[keyPath: $0] }
     }
 
     /// Return the index of the current step in the cached program when frozen, or -1 if not frozen.
@@ -1333,13 +1317,18 @@ class EmulatorViewModel {
         return program.firstIndex(where: { $0.isCurrent }) ?? -1
     }
 
-    func unfreeze() {
+    /// Drop the freeze reason, all frozen program caches, and the cache bookkeeping.
+    private func clearFrozenState() {
         freezeReason = nil
         frozenROMCache = nil
         frozenRAMCache = nil
         frozenLibCache = nil
         frozenLibProgram = -1
         cachedPrSourceFlag = 0
+    }
+
+    func unfreeze() {
+        clearFrozenState()
         startEmulationLoop()
         startDisplayRefresh()
     }
@@ -1468,73 +1457,31 @@ class EmulatorViewModel {
     /// Build full program for a given source (RAM or ROM), used for freeze caching.
     /// Returns all steps as StepEntry with mnemonics, marking currentStep as current.
     private func buildFullProgram(machine m: TI59MachineWrapper, currentStep: Int, prSourceFlag: UInt8) -> [LiveDebugSnapshot.StepEntry] {
-        var result: [LiveDebugSnapshot.StepEntry] = []
-
+        let steps: [UInt8]
         switch prSourceFlag {
         case 0:
             // User RAM — all program steps
-            let steps = Array(m.allProgramSteps() as Data)
-            guard !steps.isEmpty else { return [] }
-
-            let argSteps = TI59KeyNames.argumentSteps(in: steps)
-
-            for i in 0..<steps.count {
-                let kc = steps[i]
-                let isArgument = argSteps.contains(i)
-                let mnemonic = isArgument ? String(format: "%02d", kc) : TI59KeyNames.mnemonic(for: kc)
-
-                result.append(.init(
-                    stepNum: i,
-                    keycode: kc,
-                    mnemonic: mnemonic,
-                    isCurrent: i == currentStep
-                ))
-            }
-
+            steps = Array(m.allProgramSteps() as Data)
         case 8:
             // Main ROM (384 steps)
-            let keycodes = romKeycodes(machine: m)
-            let argSteps = TI59KeyNames.argumentSteps(in: keycodes)
-
-            for (idx, keycode) in keycodes.enumerated() {
-                let isArgument = argSteps.contains(idx)
-                let mnemonic = isArgument ? String(format: "%02d", keycode) : TI59KeyNames.mnemonic(for: keycode)
-
-                result.append(.init(
-                    stepNum: idx,
-                    keycode: keycode,
-                    mnemonic: mnemonic,
-                    isCurrent: idx == currentStep
-                ))
-            }
-
+            steps = romKeycodes(machine: m)
         case 1:
             // Solid State module — the current program only, numbered relative
             // to its start (step 000 = first keycode of the program)
             guard let lib = libraryProgramStep(machine: m) else { return [] }
             frozenLibProgram = lib.program
-            let steps = Array(moduleKeycodes[lib.range])
-
-            let argSteps = TI59KeyNames.argumentSteps(in: steps)
-
-            for i in 0..<steps.count {
-                let kc = steps[i]
-                let isArgument = argSteps.contains(i)
-                let mnemonic = isArgument ? String(format: "%02d", kc) : TI59KeyNames.mnemonic(for: kc)
-
-                result.append(.init(
-                    stepNum: i,
-                    keycode: kc,
-                    mnemonic: mnemonic,
-                    isCurrent: i == currentStep
-                ))
-            }
-
+            steps = Array(moduleKeycodes[lib.range])
         default:
-            break
+            return []
         }
 
-        return result
+        let argSteps = TI59KeyNames.argumentSteps(in: steps)
+        return steps.enumerated().map { i, kc in
+            .init(stepNum: i,
+                  keycode: kc,
+                  mnemonic: argSteps.contains(i) ? String(format: "%02d", kc) : TI59KeyNames.mnemonic(for: kc),
+                  isCurrent: i == currentStep)
+        }
     }
 
     /// Build a real-time debug snapshot for the live debug view.
@@ -1727,76 +1674,30 @@ class EmulatorViewModel {
             snap.nextStepNum = -1
         }
 
-        // Pre-fetch RAM program steps once (used by both window and nextStep population)
-        let ramSteps = isUserProgramSource(snap.prSourceFlag) ? Array(m.allProgramSteps() as Data) : []
-
+        // Keycodes for the active source, fetched once per frame and shared by the
+        // window and next-step sections. User RAM (0/4) = full program, ROM (8) =
+        // 384 constants, Solid State (1) = current module program (step numbers
+        // relative to its start). Operand classification runs over the full
+        // listing so windows starting mid-instruction don't misread operands
+        // as opcodes.
+        let sourceKeycodes: [UInt8]
         switch snap.prSourceFlag {
-        case 0, 4:
-            // User RAM (0) or Fast Mode (4) — existing behavior
-            let steps = ramSteps
-            if !steps.isEmpty {
-                let center = snap.currentStep >= 0 ? snap.currentStep : 0
-                let lo = max(0, center - 5)
-                let hi = min(steps.count - 1, center + 5)
-                if lo <= hi {
-                    // Classify over the full program so windows starting
-                    // mid-instruction don't misread operands as opcodes.
-                    let argSteps = TI59KeyNames.argumentSteps(in: steps)
+        case 0, 4: sourceKeycodes = Array(m.allProgramSteps() as Data)
+        case 8:    sourceKeycodes = romKeycodes(machine: m)
+        case 1:    sourceKeycodes = libInfo.map { Array(moduleKeycodes[$0.range]) } ?? []
+        default:   sourceKeycodes = []
+        }
+        let argSteps = TI59KeyNames.argumentSteps(in: sourceKeycodes)
 
-                    for i in lo...hi {
-                        let kc = steps[i]
-                        let isArgument = argSteps.contains(i)
-                        let mnemonic = isArgument ? String(format: "%02d", kc) : TI59KeyNames.mnemonic(for: kc)
-
-                        snap.programWindow.append(.init(
-                            stepNum: i,
-                            keycode: kc,
-                            mnemonic: mnemonic,
-                            isCurrent: i == snap.currentStep
-                        ))
-                    }
-                }
-            }
-
-        case 8:
-            // Main ROM (384 keycode programs from constants)
-            let romCenter = snap.currentStep
-            let lo = max(0, romCenter - 5)
-            let hi = min(383, romCenter + 5)
-            guard lo <= hi else { break }
-
-            // Classify over the full ROM image so windows starting
-            // mid-instruction don't misread operands as opcodes.
-            let keycodes = romKeycodes(machine: m)
-            let argSteps = TI59KeyNames.argumentSteps(in: keycodes)
-
-            for addr in lo...hi {
-                let keycode = keycodes[addr]
-                let isArgument = argSteps.contains(addr)
-                let mnemonic = isArgument ? String(format: "%02d", keycode) : TI59KeyNames.mnemonic(for: keycode)
-                snap.programWindow.append(.init(
-                    stepNum: addr, keycode: keycode, mnemonic: mnemonic,
-                    isCurrent: addr == romCenter))
-            }
-
-        case 1:
-            // Solid State module — window from the module image, numbered
-            // relative to the current program's start (step 000 = first keycode)
-            guard let lib = libInfo else { break }
-            let progLen = lib.range.count
+        // Program window: ±5 steps around the current step
+        if !sourceKeycodes.isEmpty {
             let center = snap.currentStep >= 0 ? snap.currentStep : 0
             let lo = max(0, center - 5)
-            let hi = min(progLen - 1, center + 5)
+            let hi = min(sourceKeycodes.count - 1, center + 5)
             if lo <= hi {
-                // Classify over the whole program (relative to program start)
-                // so windows starting mid-instruction don't misread operands.
-                let argSteps = TI59KeyNames.argumentSteps(in: Array(moduleKeycodes[lib.range]))
-
                 for i in lo...hi {
-                    let kc = moduleKeycodes[lib.range.lowerBound + i]
-                    let isArgument = argSteps.contains(i)
-                    let mnemonic = isArgument ? String(format: "%02d", kc) : TI59KeyNames.mnemonic(for: kc)
-
+                    let kc = sourceKeycodes[i]
+                    let mnemonic = argSteps.contains(i) ? String(format: "%02d", kc) : TI59KeyNames.mnemonic(for: kc)
                     snap.programWindow.append(.init(
                         stepNum: i,
                         keycode: kc,
@@ -1805,43 +1706,14 @@ class EmulatorViewModel {
                     ))
                 }
             }
-
-        default:
-            break
         }
 
         // When frozen: populate nextStep fields from the next instruction to execute
-        if isFrozen && snap.nextStepNum >= 0 {
-            switch snap.prSourceFlag {
-            case 0, 4:
-                // User RAM (0) or Fast Mode (4) (steps already fetched above)
-                if snap.nextStepNum < ramSteps.count {
-                    let nextKeycode = ramSteps[snap.nextStepNum]
-                    snap.nextStepKeycode = nextKeycode
-                    let isArgument = TI59KeyNames.argumentSteps(in: ramSteps).contains(snap.nextStepNum)
-                    snap.nextStepMnemonic = isArgument ? String(format: "%02d", nextKeycode) : TI59KeyNames.mnemonic(for: nextKeycode)
-                }
-            case 8:
-                // Main ROM
-                if snap.nextStepNum < 384 {
-                    let keycodes = romKeycodes(machine: m)
-                    let nextKeycode = keycodes[snap.nextStepNum]
-                    snap.nextStepKeycode = nextKeycode
-                    let isArgument = TI59KeyNames.argumentSteps(in: keycodes).contains(snap.nextStepNum)
-                    snap.nextStepMnemonic = isArgument ? String(format: "%02d", nextKeycode) : TI59KeyNames.mnemonic(for: nextKeycode)
-                }
-            case 1:
-                // Solid State module
-                if let lib = libInfo, snap.nextStepNum < lib.range.count {
-                    let nextKeycode = moduleKeycodes[lib.range.lowerBound + snap.nextStepNum]
-                    snap.nextStepKeycode = nextKeycode
-                    let isArgument = TI59KeyNames.argumentSteps(in: Array(moduleKeycodes[lib.range]))
-                        .contains(snap.nextStepNum)
-                    snap.nextStepMnemonic = isArgument ? String(format: "%02d", nextKeycode) : TI59KeyNames.mnemonic(for: nextKeycode)
-                }
-            default:
-                break
-            }
+        if isFrozen && snap.nextStepNum >= 0 && snap.nextStepNum < sourceKeycodes.count {
+            let nextKeycode = sourceKeycodes[snap.nextStepNum]
+            snap.nextStepKeycode = nextKeycode
+            let isArgument = argSteps.contains(snap.nextStepNum)
+            snap.nextStepMnemonic = isArgument ? String(format: "%02d", nextKeycode) : TI59KeyNames.mnemonic(for: nextKeycode)
         }
 
         // Return address stack (SCOM[14:15]) — 6 levels of subroutine return addresses
@@ -2046,12 +1918,7 @@ class EmulatorViewModel {
         isPausedOnBreakpoint = false
         breakpointPC = nil
         pendingFreezeOnPCChange = false
-        freezeReason = nil
-        frozenROMCache = nil
-        frozenRAMCache = nil
-        frozenLibCache = nil
-        frozenLibProgram = -1
-        cachedPrSourceFlag = 0
+        clearFrozenState()
 
         var steps: UInt32 = 0
         var sawHold: ObjCBool = false
@@ -2362,12 +2229,7 @@ class EmulatorViewModel {
 
         isRunning = false
         // Clear freeze state without restarting the loop
-        freezeReason = nil
-        frozenROMCache = nil
-        frozenRAMCache = nil
-        frozenLibCache = nil
-        frozenLibProgram = -1
-        cachedPrSourceFlag = 0
+        clearFrozenState()
         // Synchronous dispatch ensures the emulation loop has fully exited
         // before we touch RAM or SCOM.  Without this, a step() in-flight on
         // emulQueue could write stale values after our state-file writes.
