@@ -1340,8 +1340,11 @@ class EmulatorViewModel {
         flag == ProgramSource.userProgram.rawValue || flag == ProgramSource.fastMode.rawValue
     }
 
-    /// Returns true if the flag represents a displayable program source in the debug window.
-    private func isDisplayableSource(_ flag: UInt8) -> Bool {
+    /// Returns true if the flag represents a program source whose step is
+    /// driven by the SCOM[0] PC and can be shown via the SCOM-PC fallback path.
+    /// Solid State (1) also shows steps, but through the CROM exec latch via a
+    /// separate early branch — it is not covered here.
+    private func isScomDisplayableSource(_ flag: UInt8) -> Bool {
         flag == ProgramSource.userProgram.rawValue || flag == ProgramSource.fastMode.rawValue || flag == ProgramSource.rom.rawValue
     }
 
@@ -1638,8 +1641,9 @@ class EmulatorViewModel {
         // Program steps window — source depends on PRG SOURCE flag
         let decodedPC = decodeProgramCounter(from: cpu)
 
-        // Only display for SCOM-PC-based sources: 0 (User), 4 (Fast Mode), 8 (ROM)
-        let canDisplay = isDisplayableSource(snap.prSourceFlag)
+        // SCOM-PC-based sources: 0 (User), 4 (Fast Mode), 8 (ROM). Solid State
+        // (1) uses the CROM latch — handled by the libInfo branch below.
+        let canDisplayFromScomPC = isScomDisplayableSource(snap.prSourceFlag)
 
         // Solid State (1): the step comes from the library exec latch, not the
         // SCOM[0] program counter (which does not move during module execution).
@@ -1659,7 +1663,7 @@ class EmulatorViewModel {
                 lastLibProgramMismatch = scomProgram
                 Self.logger.debug("Library exec PC resolves to Pgm \(lib.program) but SCOM[9] says Pgm \(scomProgram)")
             }
-        } else if canDisplay {
+        } else if canDisplayFromScomPC {
             if isFrozen {
                 snap.currentStep = max(0, decodedPC - 1)
                 snap.nextStepNum = decodedPC

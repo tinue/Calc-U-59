@@ -296,11 +296,15 @@ private:
     // ROM address of the single IN LIB instruction inside the main ROM's
     // keycode-interpreter fetch loop.  The interpreter fetches every executed
     // program byte (keycodes and operands) from this site; module header reads
-    // (0x137C) and label searches (0x1394) use different IN LIB sites.
-    // Verified identical on the TI-59/TI-58 and TI-58C ROMs by execution trace
-    // (see reference/CPU_SCOM_Interconnect.md; module layout per
-    // https://www.datamath.org/Chips/TMC0540.htm).
-    static constexpr uint16_t kLibExecFetchPC = 0x082F;
+    // and label searches use different IN LIB sites that we deliberately
+    // ignore.  Verified by execution trace per ROM variant (see
+    // reference/CPU_SCOM_Interconnect.md; module layout per
+    // https://www.datamath.org/Chips/TMC0540.htm).  TI-58 shares the TI-59
+    // ROM; TI-58C uses a different ROM set (CD2400/CD2401/TMC0573) where
+    // the interpreter loop lives at a different address.
+    uint16_t libExecFetchPC() const {
+        return m_variant == MachineVariant::TI58C ? 0x0823 : 0x082F;
+    }
     uint16_t m_libExecPC{kLibExecPCNone}; // User-visible solid-state program counter (see libExecPC()).
 
     // ── Machine variant ───────────────────────────────────────────────

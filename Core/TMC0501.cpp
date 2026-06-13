@@ -837,7 +837,7 @@ int TMC0501::step() {
                 // solid-state program counter.  Fetches from the header-read and
                 // label-search sites leave the latch untouched, so the displayed
                 // step holds steady during label lookups.
-                if (addr == kLibExecFetchPC) m_libExecPC = m_libAddr;
+                if (addr == libExecFetchPC()) m_libExecPC = m_libAddr;
                 EXT = static_cast<uint16_t>(m_libData[m_libAddr++]) << 4;
                 flags |= FLG_EXT_VALID;
                 m_libAddr %= 5000;
