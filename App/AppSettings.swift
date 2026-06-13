@@ -46,6 +46,7 @@ enum SettingsKey {
     static let traceMaxFileSizeMB     = "traceMaxFileSizeMB"       // Int: maximum trace file size in MB (default 10)
     static let keyboardFeedback       = "keyboardFeedback"         // Int: KeyboardFeedbackType.rawValue
     static let ledFontStyle           = "ledFontStyle"             // Int: LEDFontStyle.rawValue
+    static let portraitDebugPage      = "portraitDebugPage"        // Bool: show Debug as third portrait page (default false)
 }
 
 // MARK: - Trace file location

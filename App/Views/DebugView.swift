@@ -5,6 +5,7 @@ struct DebugView: View {
     @Environment(EmulatorViewModel.self) var vm
     @State private var tab: DebugTab = .live
     @Binding var activeFilePickerMode: CalculatorView.FilePickerMode?
+    var portraitTopInset: CGFloat = 0
     enum DebugTab { case live, cpu, log }
 
     var body: some View {
@@ -18,6 +19,7 @@ struct DebugView: View {
                 tabButton("LOG", .log)
                 Spacer()
             }
+            .padding(.top, portraitTopInset)
             .background(Color(white: 0.07))
 
             // Tab content

@@ -25,7 +25,9 @@ struct CalculatorView: View {
     #if os(macOS)
     @State private var isCommandPressed = false
     #else
-    @State private var showingPrinter = false
+    enum PortraitPage { case calc, printer, debug }
+    @State private var portraitPage: PortraitPage = .calc
+    @AppStorage(SettingsKey.portraitDebugPage) private var debugPageEnabled: Bool = false
     @State private var showingSettings = false
     @State private var resetLongPressTriggered = false
     #endif
@@ -182,24 +184,12 @@ struct CalculatorView: View {
                     }
                 }
             } else {
-                ZStack {
-                    if showingPrinter {
-                        PrinterView()
-                            .overlay(alignment: .topLeading) {
-                                pageArrow(systemImage: "chevron.left") {
-                                    showingPrinter = false
-                                }
-                            }
-                    } else {
-                        calculatorBody(showLabels: showLabels)
-                            .overlay(alignment: .topTrailing) {
-                                pageArrow(systemImage: "chevron.right") {
-                                    showingPrinter = true
-                                }
-                            }
+                portraitPages(showLabels: showLabels)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .onAppear { portraitPage = .calc }
+                    .onChange(of: debugPageEnabled) { _, enabled in
+                        if !enabled && portraitPage == .debug { portraitPage = .printer }
                     }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         #endif
@@ -339,6 +329,42 @@ struct CalculatorView: View {
     }
 
     #if !os(macOS)
+    @ViewBuilder
+    private func portraitPages(showLabels: Bool) -> some View {
+        ZStack {
+            switch portraitPage {
+            case .calc:
+                calculatorBody(showLabels: showLabels)
+                    .overlay(alignment: .topLeading) {
+                        if debugPageEnabled {
+                            pageArrow(systemImage: "chevron.left") { portraitPage = .debug }
+                        }
+                    }
+                    .overlay(alignment: .topTrailing) {
+                        pageArrow(systemImage: "chevron.right") { portraitPage = .printer }
+                    }
+            case .printer:
+                PrinterView(portraitTopInset: 20)
+                    .overlay(alignment: .topLeading) {
+                        pageArrow(systemImage: "chevron.left") { portraitPage = .calc }
+                    }
+                    .overlay(alignment: .topTrailing) {
+                        if debugPageEnabled {
+                            pageArrow(systemImage: "chevron.right") { portraitPage = .debug }
+                        }
+                    }
+            case .debug:
+                DebugView(activeFilePickerMode: $activeFilePickerMode, portraitTopInset: 36)
+                    .overlay(alignment: .topLeading) {
+                        pageArrow(systemImage: "chevron.left") { portraitPage = .printer }
+                    }
+                    .overlay(alignment: .topTrailing) {
+                        pageArrow(systemImage: "chevron.right") { portraitPage = .calc }
+                    }
+            }
+        }
+    }
+
     private func pageArrow(systemImage: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemImage)

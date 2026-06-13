@@ -122,7 +122,15 @@ class EmulatorViewModel {
     // Both flags track panel visibility (set by LiveDebugView / CPUInspectorView
     // onAppear/onDisappear).  While false, tick() skips the snapshot builds and
     // the core runs with tracing fully disabled — its zero-overhead fast path.
-    var liveDebugEnabled: Bool = false
+    var liveDebugEnabled: Bool = false {
+        didSet {
+            // When the panel becomes visible while already frozen, the freeze() path
+            // skipped building the snapshot (liveDebugEnabled was false at that time).
+            // Rebuild now so the correct frozen step is shown immediately on appear.
+            guard liveDebugEnabled, !oldValue, isFrozen, let m = machine else { return }
+            liveDebugSnapshot = buildLiveSnapshot(machine: m)
+        }
+    }
     var cpuDebugEnabled: Bool = false {
         didSet {
             guard cpuDebugEnabled != oldValue else { return }

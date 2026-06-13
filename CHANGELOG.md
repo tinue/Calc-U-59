@@ -2,6 +2,7 @@
 
 ## [1.3.0] - Work in progress
 - **Calculator Debugger** Allow trace / single step of solid state module keycode programs
+- **Portrait View** Enable the debugger also in portrait view (disabled by default, use settings to enable). Specifically handy for iPhone users who did not have a debugger so far.
 
 ## [1.2.0] - 2026-06-10
 - **CPU Debugger** Live view shows the same information as "frozen"; New "ROM heatmap" is a visual indicator which parts of the ROM got executed so far.

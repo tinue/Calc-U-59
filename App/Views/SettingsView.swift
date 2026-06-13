@@ -17,6 +17,9 @@ struct SettingsView: View {
     @AppStorage(SettingsKey.traceMaxFileSizeMB) private var traceMaxFileSizeMB: Int = 10
     @AppStorage(SettingsKey.keyboardFeedback) private var keyboardFeedbackRaw: Int = KeyboardFeedbackType.off.rawValue
     @AppStorage(SettingsKey.ledFontStyle) private var ledFontStyleRaw: Int = LEDFontStyle.modernized.rawValue
+    #if os(iOS)
+    @AppStorage(SettingsKey.portraitDebugPage) private var portraitDebugPage: Bool = false
+    #endif
 
     @State private var allModules: [ModuleMetadata] = []
     @State private var pendingModuleID: String = ""
@@ -80,13 +83,14 @@ struct SettingsView: View {
                     }
                 }
 
-                // Keyboard feedback only on iOS
+                // Keyboard feedback and portrait layout only on iOS
                 #if os(iOS)
                 Picker("Keyboard Feedback", selection: $keyboardFeedbackRaw) {
                     ForEach(KeyboardFeedbackType.allCases) { feedback in
                         Text(feedback.displayName).tag(feedback.rawValue)
                     }
                 }
+                Toggle("Debug Page in Portrait", isOn: $portraitDebugPage)
                 #endif
 
                 HStack {

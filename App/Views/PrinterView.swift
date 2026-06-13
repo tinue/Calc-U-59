@@ -10,6 +10,7 @@ struct PrinterView: View {
     @Environment(EmulatorViewModel.self) var viewModel
     @State private var dotMode = true
     @State private var showCopiedToast = false
+    var portraitTopInset: CGFloat = 0
 
     var body: some View {
         ZStack {
@@ -83,7 +84,7 @@ struct PrinterView: View {
             }
             .buttonStyle(.plain)
         }
-        .padding(.vertical, 8)
+        .padding(.top, 8 + portraitTopInset).padding(.bottom, 8)
         .background(Color(white: 0.08))
     }
 

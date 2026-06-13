@@ -49,10 +49,9 @@ struct LiveDebugView: View {
 
     private func liveHeader(baseFontSize: CGFloat) -> some View {
         let freezeEnabled = !vm.isFrozen && !vm.pendingFreezeOnPCChange
-        let freezeOnStartEnabled = !vm.isFrozen && !vm.pendingFreezeOnPCChange
-
+        let narrow = baseFontSize < 13
         return HStack(spacing: 8) {
-            Text("CALCULATOR DEBUG")
+            Text(narrow ? "DEBUG" : "CALCULATOR DEBUG")
                 .font(.caption.bold())
                 .foregroundStyle(.white.opacity(0.6))
             Spacer()
@@ -63,11 +62,11 @@ struct LiveDebugView: View {
                 .opacity(freezeEnabled ? 1 : 0.4)
                 .disabled(!freezeEnabled)
 
-            Button("FREEZE ON START") { vm.freezeOnNextPCChange() }
+            Button(narrow ? "F.START" : "FREEZE ON START") { vm.freezeOnNextPCChange() }
                 .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
                 .foregroundStyle(Color.white)
-                .opacity(freezeOnStartEnabled ? 1 : 0.4)
-                .disabled(!freezeOnStartEnabled)
+                .opacity(freezeEnabled ? 1 : 0.4)
+                .disabled(!freezeEnabled)
 
             Button("ARMED") { vm.pendingFreezeOnPCChange.toggle() }
                 .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
