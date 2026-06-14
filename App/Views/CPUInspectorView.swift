@@ -466,8 +466,10 @@ struct CPUInspectorView: View {
     // MARK: - Helpers
 
     private func bin16(_ v: UInt16) -> String {
-        let s = String(v, radix: 2)
-        return String(repeating: "0", count: max(0, 16 - s.count)) + s
+        let bits = (0..<16).map { i in (v >> (15 - i)) & 1 }
+        return stride(from: 0, to: 16, by: 4)
+            .map { g in bits[g..<g+4].map { String($0) }.joined() }
+            .joined(separator: " ")
     }
 
     private func adaptiveFontSize(width: CGFloat) -> CGFloat {
