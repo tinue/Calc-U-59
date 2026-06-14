@@ -60,17 +60,7 @@ The two are completely independent. A single calculator step (one keycode) typic
 
 ### Calculator PC Encoding (SCOM[0] nibbles 4–7)
 
-This is the **user program step address** (0–959), not the CPU's ROM address. The ROM firmware reads and writes nibbles 4–7 of SCOM row 0 to track and encode return addresses at the calculator-program level before subroutine calls. It must be kept in sync on every instruction in `TMC0501::step()` before ROM code executes.
-
-```
-calculator_pc = n7×800 + n6×80 + n5×8 + n4
-
-Encode:
-  n4 = calculator_pc % 8
-  n5 = (calculator_pc / 8)  % 10
-  n6 = (calculator_pc / 80) % 10
-  n7 = (calculator_pc / 800) % 2
-```
+The user program step address (0–959) is encoded in nibbles 4–7 of SCOM[0] and must be kept in sync on every instruction in `TMC0501::step()` before ROM code executes. Full encoding formula: `reference/CoreArchitecture.md` § "Calculator PC Encoding".
 
 ---
 
@@ -88,7 +78,7 @@ SCOM[0] nibble 3 holds the **PRG SOURCE** flag — where the currently executing
 
 **CROM program counter** (`m_libAddr`): held in the module chip itself. `IN LIB` fetches a byte and auto-increments; `OUT LIB_PC` (called 4×, one BCD digit each) writes it; `IN LIB_PC` reads it back (used for SBR return addresses). SCOM[0]'s calculator PC is only used for RAM programs.
 
-**User-visible solid-state PC** (`m_libExecPC`, sentinel `0xFFFF` = none): latched in the `IN LIB` handler only when the fetch comes from the firmware's execution-interpreter fetch site `kLibExecFetchPC = 0x082F` (same constant on all three variants). Header reads (ROM 1377/137C) and label searches (1390/1394) never move it. Exposed via `TI59Machine::libExecPC()` (locked); deliberately **not** part of `CpuFrame`, to avoid a trace-format change. Reset to the sentinel on machine reset and module change.
+**User-visible solid-state PC** (`m_libExecPC`, sentinel `0xFFFF` = none): latched in the `IN LIB` handler only when the fetch comes from the firmware's execution-interpreter fetch site — `0x082F` on TI-59/TI-58 (they share the same ROM), `0x0823` on TI-58C (different ROM set: CD2400/CD2401/TMC0573). Implemented as the variant-aware member `libExecFetchPC()` in `TMC0501.hpp`. Header reads (ROM 1377/137C) and label searches (1390/1394) never move it. Exposed via `TI59Machine::libExecPC()` (locked); deliberately **not** part of `CpuFrame`, to avoid a trace-format change. Reset to the sentinel on machine reset and module change.
 
 **Module image header layout**: addr 0000 = program count N, 0001 = copy-protect flag, then one 2-byte BCD start address per program, then a pointer to last-keycode+1; unused space is filled with keycode 92 (INV SBR). Label search scans byte-by-byte from the program start and never leaves the current program (labels duplicate across programs).
 
@@ -124,21 +114,15 @@ python3 tools/disasm.py --emit-cpp > /tmp/generated.cpp
 
 ## Trace Infrastructure (`TraceTypes.hpp`)
 
-- `CpuFrame` — 397-byte snapshot: ROM address (CPU PC), opcode, registers A–E, SCOM matrix, flags.
-- `DebugEvent` — wraps a `CpuFrame` with event metadata.
-- Trace feature flags: `PC_ONLY`, `LIGHT_REGS`, `FULL_SNAPSHOT`.
+`CpuFrame` (397 bytes) holds ROM address, opcode, registers A–E, SCOM matrix, and flags. Frames in the ring use **post-execution semantics** — `beginNextStep()` patches the previous frame's registers after each instruction. Full field list and flag constants: `reference/DebugAPI.md` § "CpuFrame fields".
 
-Python tools for post-processing traces:
-- `tools/read_trace.py` — parses `TI59_TRACE.bin` → human-readable text or JSON.
-- `tools/compare_trace.py` — finds first divergence between two traces.
+Python tools: `tools/read_trace.py` (parse binary → text), `tools/compare_trace.py` (find first divergence).
 
 ---
 
 ## IDLE/SCOM Synchronization
 
-The SCOM chip (TMC0571) has its own digit counter that must synchronize with the CPU's on the RUN→IDLE transition. The CPU must execute `WAIT D1` before `SET IDLE`; otherwise display positions and keyboard rows become misaligned.
-
-The emulator simplification: assumes the ROM always uses the correct `WAIT D1 + SET IDLE` pattern, seeds afterglow at `digit==0` boundaries, and captures a phase-independent snapshot there. This works for correct ROM code but cannot handle programs that deliberately misalign counters (see `examples/assembly/Decoder.asm`).
+The emulator assumes the ROM always uses the correct `WAIT D1 + SET IDLE` pattern and does not model the SCOM's independent digit counter. This works for all real ROM code but cannot handle programs that deliberately misalign counters (e.g. `examples/assembly/Decoder.asm`). Full hardware background: `reference/CoreArchitecture.md` § "IDLE/SCOM Synchronization".
 
 ---
 

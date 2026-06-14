@@ -348,13 +348,15 @@ code sites — and only one of them represents execution:
 |---|---|
 | `0x1377` / `0x137C` | Header reads (program table) |
 | `0x1390` / `0x1394` | Label search (byte-by-byte scan from program start) |
-| `0x082B` / `0x082F` | **Execution interpreter fetch** |
+| `0x082B` / `0x082F` | **Execution interpreter fetch** (TI-59 / TI-58) |
+| `0x081F` / `0x0823` | **Execution interpreter fetch** (TI-58C — different ROM set CD2400/CD2401/TMC0573) |
 | `0x1370`, `0x1389`, `0x12B4` | LOAD PC loops (header / search start / exec start) |
 
-These addresses are identical on TI-59, TI-58, and TI-58C, so one constant
-covers all variants.  The IN LIB handler latches the **pre-increment** value of
-`m_libAddr` into `m_libExecPC` only when the fetch comes from the execution
-site (`addr == kLibExecFetchPC = 0x082F`).  Header reads and label searches —
+The execution-fetch address differs by variant.  `libExecFetchPC()` in `TMC0501.hpp`
+returns `0x082F` for TI-59/TI-58 (they share the same ROM) and `0x0823` for
+TI-58C.  The IN LIB handler latches the **pre-increment** value of
+`m_libAddr` into `m_libExecPC` only when the fetch comes from this
+variant-specific execution site.  Header reads and label searches —
 which a taken label-branch performs in full on every iteration — never move
 the latch, so the user-visible step holds steady during lookups.  FA/FB flag
 bits cannot discriminate exec from search fetches (verified by trace), which

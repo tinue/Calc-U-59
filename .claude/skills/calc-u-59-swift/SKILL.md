@@ -23,17 +23,19 @@ EmulatorViewModel          (App/EmulatorViewModel.swift, 103 KB)
   │
   └─ App/Views/            (SwiftUI, thin bindings only)
        CalculatorView      main container
-       KeyboardView        10×10 key grid, haptic feedback on iOS
+       KeyboardView        calculator image + gesture hit-test + LED overlay
        LEDDisplayView      12-digit BCD LED with afterglow animation
        PrinterView         PC-100C tape simulation
        CueCardView         reference card overlay
-       DebugView           master debug panel container
-       CPUDebugView        register/flag/heatmap inspector
-       LiveDebugView       real-time instruction-by-instruction scroller
-       CPUInspectorView    detailed register + SCOM matrix browser
-       SettingsView        debug level, trace capture, playback speed
+       DebugView           3-tab container: CALCULATOR / CPU / LOG
+         LiveDebugView     CALCULATOR tab — real-time program-step scroller
+         CPUInspectorView  CPU tab — instruction ring, register/SCOM browser, ROM heatmap
+         StaticDebugContent LOG tab — raw SCOM dump, trace capture toggle
+       SettingsView        debug level, trace enabled, playback speed, module selection
        CardPickerView      magnetic card library picker
 ```
+
+> **Note:** `CPUDebugView.swift` exists in the repository but is not embedded in the app (only referenced in its own SwiftUI preview). Do not wire it up or confuse it with `CPUInspectorView`.
 
 All UI state flows through `EmulatorViewModel`. Views are thin bindings — no business logic in views.
 

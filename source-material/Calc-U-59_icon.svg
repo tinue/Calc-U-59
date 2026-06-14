@@ -1,0 +1,116 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+
+  <!-- Layer: backdrop -->
+  <g id="backdrop">
+    <rect width="1024" height="1024" fill="#ffffff"/>
+    <path fill="#2d271f" d="
+      M 870.03 0.00
+      Q 873.25 0.32 876.49 0.57
+      C 954.63 6.69 1017.19 68.55 1023.40 147.26
+      Q 1023.66 150.48 1024.00 153.68
+      L 1024.00 870.15
+      Q 1023.65 873.94 1023.33 877.74
+      C 1016.82 955.10 955.20 1016.65 877.98 1023.31
+      Q 874.11 1023.64 870.24 1024.00
+      L 153.84 1024.00
+      Q 150.56 1023.67 147.25 1023.41
+      C 104.45 1020.07 65.28 999.76 37.70 967.07
+      Q 5.35 928.73 0.72 877.74
+      Q 0.38 874.02 0.00 870.32
+      L 0.00 153.86
+      Q 2.82 97.96 37.55 57.03
+      Q 82.38 4.19 153.74 0.00
+      Z"/>
+  </g>
+
+  <!-- Layer: calculator body -->
+  <g id="calculator-body">
+    <rect x="222" y="80" width="580" height="860" rx="52"
+          fill="none" stroke="#edd47a" stroke-width="11"/>
+  </g>
+
+  <!-- Layer: display and buttons -->
+  <g id="display-and-buttons">
+    <rect x="252" y="122" width="520" height="185" rx="16"
+          fill="#0f0c09" stroke="#edd47a" stroke-width="6"/>
+    <rect x="282" y="378" width="140" height="86" rx="12" fill="none" stroke="#edd47a" stroke-width="8"/>
+    <rect x="442" y="378" width="140" height="86" rx="12" fill="none" stroke="#edd47a" stroke-width="8"/>
+    <rect x="602" y="378" width="140" height="86" rx="12" fill="none" stroke="#edd47a" stroke-width="8"/>
+    <rect x="282" y="480" width="140" height="86" rx="12" fill="none" stroke="#edd47a" stroke-width="8"/>
+    <rect x="442" y="480" width="140" height="86" rx="12" fill="none" stroke="#edd47a" stroke-width="8"/>
+    <rect x="602" y="480" width="140" height="86" rx="12" fill="none" stroke="#edd47a" stroke-width="8"/>
+    <rect x="282" y="582" width="140" height="86" rx="12" fill="none" stroke="#edd47a" stroke-width="8"/>
+    <rect x="442" y="582" width="140" height="86" rx="12" fill="none" stroke="#edd47a" stroke-width="8"/>
+    <rect x="602" y="582" width="140" height="86" rx="12" fill="none" stroke="#edd47a" stroke-width="8"/>
+    <rect x="282" y="684" width="140" height="86" rx="12" fill="none" stroke="#edd47a" stroke-width="8"/>
+    <rect x="442" y="684" width="140" height="86" rx="12" fill="none" stroke="#edd47a" stroke-width="8"/>
+    <rect x="602" y="684" width="140" height="86" rx="12" fill="none" stroke="#edd47a" stroke-width="8"/>
+    <rect x="282" y="786" width="140" height="86" rx="12" fill="none" stroke="#edd47a" stroke-width="8"/>
+    <rect x="442" y="786" width="140" height="86" rx="12" fill="none" stroke="#edd47a" stroke-width="8"/>
+    <rect x="602" y="786" width="140" height="86" rx="12" fill="none" stroke="#edd47a" stroke-width="8"/>
+  </g>
+
+  <!-- Layer: digit 1 (dim) -->
+  <g id="digit-1" fill="#4b211b">
+    <rect x="279.12" y="169.03" width="45.78" height="8.96" rx="4.38"/> <!-- a -->
+    <rect x="270.04" y="178.11" width="8.94"  height="31.78" rx="4.34"/> <!-- f -->
+    <rect x="325.04" y="178.11" width="8.94"  height="31.78" rx="4.34"/> <!-- b -->
+    <rect x="279.12" y="210.02" width="45.78" height="8.96" rx="4.38"/> <!-- g -->
+    <rect x="270.03" y="219.11" width="8.96"  height="31.78" rx="4.34"/> <!-- e -->
+    <rect x="325.04" y="219.12" width="8.94"  height="31.76" rx="4.34"/> <!-- c -->
+    <rect x="279.11" y="251.03" width="45.80" height="8.96" rx="4.38"/> <!-- d -->
+  </g>
+
+  <!-- Layer: digit 2 (dim) -->
+  <g id="digit-2" fill="#4b211b">
+    <rect x="354.11" y="169.03" width="45.80" height="8.96" rx="4.38"/> <!-- a -->
+    <rect x="345.05" y="178.12" width="8.92"  height="31.76" rx="4.33"/> <!-- f -->
+    <rect x="400.05" y="178.11" width="8.94"  height="31.78" rx="4.33"/> <!-- b -->
+    <rect x="354.14" y="210.03" width="45.76" height="8.96" rx="4.38"/> <!-- g -->
+    <rect x="345.05" y="219.13" width="8.92"  height="31.76" rx="4.33"/> <!-- e -->
+    <rect x="400.06" y="219.12" width="8.92"  height="31.76" rx="4.33"/> <!-- c -->
+    <rect x="354.10" y="251.03" width="45.80" height="8.96" rx="4.38"/> <!-- d -->
+  </g>
+
+  <!-- Layer: digit 3 (dim) -->
+  <g id="digit-3" fill="#4b211b">
+    <rect x="429.12" y="169.03" width="45.78" height="8.96" rx="4.38"/> <!-- a -->
+    <rect x="420.05" y="178.11" width="8.92"  height="31.78" rx="4.33"/> <!-- f -->
+    <rect x="475.04" y="178.11" width="8.94"  height="31.78" rx="4.34"/> <!-- b -->
+    <rect x="429.13" y="210.03" width="45.76" height="8.96" rx="4.38"/> <!-- g -->
+    <rect x="420.05" y="219.12" width="8.92"  height="31.78" rx="4.33"/> <!-- e -->
+    <rect x="475.04" y="219.12" width="8.94"  height="31.78" rx="4.34"/> <!-- c -->
+    <rect x="429.11" y="251.03" width="45.78" height="8.96" rx="4.38"/> <!-- d -->
+  </g>
+
+  <!-- Layer: digit 4 (dim) -->
+  <g id="digit-4" fill="#4b211b">
+    <rect x="504.12" y="169.03" width="45.78" height="8.96" rx="4.38"/> <!-- a -->
+    <rect x="495.04" y="178.11" width="8.94"  height="31.78" rx="4.34"/> <!-- f -->
+    <rect x="550.04" y="178.11" width="8.94"  height="31.78" rx="4.33"/> <!-- b -->
+    <rect x="504.13" y="210.03" width="45.78" height="8.96" rx="4.38"/> <!-- g -->
+    <rect x="495.04" y="219.12" width="8.94"  height="31.78" rx="4.34"/> <!-- e -->
+    <rect x="550.05" y="219.10" width="8.92"  height="31.80" rx="4.33"/> <!-- c -->
+    <rect x="504.11" y="251.03" width="45.80" height="8.96" rx="4.38"/> <!-- d -->
+  </g>
+
+  <!-- Layer: digit 5 "5" (bright), segments a f g c d -->
+  <g id="digit-5" fill="#ff6050">
+    <rect x="627.10" y="169.03" width="45.80" height="8.94" rx="4.37"/> <!-- a -->
+    <rect x="618.05" y="178.10" width="8.92"  height="31.80" rx="4.33"/> <!-- f -->
+    <rect x="627.10" y="210.03" width="45.80" height="8.94" rx="4.37"/> <!-- g -->
+    <rect x="673.04" y="219.10" width="8.92"  height="31.78" rx="4.33"/> <!-- c -->
+    <rect x="627.11" y="251.03" width="45.78" height="8.94" rx="4.37"/> <!-- d -->
+  </g>
+
+  <!-- Layer: digit 6 "9" (bright), segments a b f g c d -->
+  <g id="digit-6" fill="#ff6050">
+    <rect x="699.10" y="169.03" width="45.80" height="8.94" rx="4.37"/> <!-- a -->
+    <rect x="745.04" y="178.11" width="8.92"  height="31.78" rx="4.33"/> <!-- b -->
+    <rect x="690.06" y="178.10" width="8.90"  height="31.80" rx="4.32"/> <!-- f -->
+    <rect x="699.10" y="210.03" width="45.80" height="8.94" rx="4.37"/> <!-- g -->
+    <rect x="745.03" y="219.12" width="8.94"  height="31.76" rx="4.33"/> <!-- c -->
+    <rect x="699.11" y="251.03" width="45.78" height="8.94" rx="4.37"/> <!-- d -->
+  </g>
+
+</svg>
