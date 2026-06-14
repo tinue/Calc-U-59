@@ -106,6 +106,14 @@ class EmulatorViewModel {
     private var traceWriter: TraceWriter!  // initialized in init, updated when model changes
     var isTraceAvailable: Bool { traceWriter?.isAvailable ?? true }  // false if trace location (e.g., iCloud) unavailable
 
+    private func configureTraceWriter() {
+        traceWriter.onSizeLimitReached = { [weak self] in
+            // Called on the main thread from inside drainTraceEvents().
+            // Defer to avoid reentrance in the drain loop.
+            DispatchQueue.main.async { self?.cIndicatorDebug = false }
+        }
+    }
+
     // ── Debug panel state ────────────────────────────────────────────────────
     var debugLevel: DebugLevel = .off
     var debugEnabled: Bool { debugLevel != .off }   // convenience for existing callers
@@ -282,6 +290,7 @@ class EmulatorViewModel {
     init() {
         // Initialize traceWriter with default model
         traceWriter = TraceWriter(model: model)
+        configureTraceWriter()
         // Check trace availability at startup (for iOS/iPadOS iCloud detection, etc.)
         traceWriter.checkAvailability()
         Task { await self.start(model: AppSettings.resolvedStartupModel()) }
@@ -316,7 +325,8 @@ class EmulatorViewModel {
         userCueCardContent = nil
         activeProgramNumber = 0
         cueCardContent = nil  // clear cuecard when switching models
-        traceWriter = TraceWriter(model: model)  // reinitialize with new model for correct trace filename
+        traceWriter = TraceWriter(model: model)
+        configureTraceWriter()  // reinitialize with new model for correct trace filename
         UserDefaults.standard.set(model.rawValue, forKey: SettingsKey.lastUsedModel)
         await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .utility).async {

@@ -14,7 +14,7 @@ struct SettingsView: View {
     @AppStorage(SettingsKey.startupModel)    private var startupModelRaw: Int = -1
     @AppStorage(SettingsKey.traceLocation)   private var traceLocationRaw: Int = TraceLocation.iCloud.rawValue
     @AppStorage(SettingsKey.traceCustomPath) private var traceCustomPath: String = ""
-    @AppStorage(SettingsKey.traceMaxFileSizeMB) private var traceMaxFileSizeMB: Int = 10
+    @AppStorage(SettingsKey.traceMaxFileSizeMB) private var traceMaxFileSizeMB: Int = 50
     @AppStorage(SettingsKey.keyboardFeedback) private var keyboardFeedbackRaw: Int = KeyboardFeedbackType.off.rawValue
     @AppStorage(SettingsKey.ledFontStyle) private var ledFontStyleRaw: Int = LEDFontStyle.modernized.rawValue
     #if os(iOS)
@@ -142,9 +142,9 @@ struct SettingsView: View {
                     Text("Maximum File Size")
                     Spacer()
                     HStack(spacing: 4) {
-                        TextField("Size", value: $traceMaxFileSizeMB, format: .number)
+                        TextField("", value: $traceMaxFileSizeMB, format: .number)
                             .textFieldStyle(.roundedBorder)
-                            .frame(width: 60)
+                            .frame(width: 90)
                         Text("MB")
                             .foregroundStyle(.secondary)
                     }
