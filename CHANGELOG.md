@@ -3,6 +3,12 @@
 ## [1.3.0] - Work in progress
 - **Calculator Debugger** Allow trace / single step of solid state module keycode programs
 - **Portrait View** Enable the debugger also in portrait view (disabled by default, use settings to enable). Specifically handy for iPhone users who did not have a debugger so far.
+- **ROM Heatmap** Hover over (or touch and hold) a block to see its hex address in the header.
+- **CPU Debugger** Binary flag registers are now grouped into nibbles for readability.
+
+### Fixes
+- **CPU Debugger** Registers A–E and Sout are displayed MSN-first
+- **Trace** File size limit is now enforced by disabling TRACE when the limit is reached.
 
 ## [1.2.0] - 2026-06-10
 - **CPU Debugger** Live view shows the same information as "frozen"; New "ROM heatmap" is a visual indicator which parts of the ROM got executed so far.
