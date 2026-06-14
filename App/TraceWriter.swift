@@ -54,6 +54,7 @@ final class TraceWriter {
     private var sessionEventCount: UInt32    = 0
     private var sessionSuppressedTotal: UInt32 = 0
     private var sessionMaxBytes: UInt64       = 0  // size limit cached at open()
+    private var sessionBytesWritten: UInt64   = 0  // running total, avoids offsetInFile syscall
 
     init(model: MachineModel) {
         self.model = model
@@ -94,7 +95,7 @@ final class TraceWriter {
 
         // Cache the size limit for the upcoming session.
         let maxMB = UserDefaults.standard.integer(forKey: SettingsKey.traceMaxFileSizeMB)
-        sessionMaxBytes = UInt64(max(maxMB, 1)) * 1_000_000
+        sessionMaxBytes = UInt64(max(maxMB, Self.defaultMaxFileSizeMB)) * 1_000_000
 
         return openFile(at: url)
     }
@@ -141,6 +142,7 @@ final class TraceWriter {
         currentTraceURL = url
         sessionEventCount = 0
         sessionSuppressedTotal = 0
+        sessionBytesWritten = UInt64(fh.offsetInFile)  // account for any pre-existing file header
 
         // Write SESSION_START record with timestamp and model
         var payload = Data(capacity: 9)
@@ -181,7 +183,7 @@ final class TraceWriter {
 
     /// Write a unified CPU frame (combines TraceEvent and CPU state).
     func write(frame: TICpuFrame) {
-        guard isOpen, let fh = fileHandle else { return }
+        guard isOpen else { return }
 
         // Write every frame immediately with no deduplication.
         // This preserves the exact execution trace for debugging.
@@ -190,7 +192,7 @@ final class TraceWriter {
         sessionEventCount += 1
 
         // Auto-stop when the file reaches the size limit to prevent iCloud quota overflow.
-        if fh.offsetInFile >= sessionMaxBytes {
+        if sessionBytesWritten >= sessionMaxBytes {
             let fileName = currentTraceURL?.lastPathComponent ?? "trace file"
             print("WARNING: \(fileName) reached the \(sessionMaxBytes / 1_000_000) MB size limit — trace stopped. Re-enable TRACE to start a new session (existing trace file will be lost).")
             close()
@@ -242,6 +244,7 @@ final class TraceWriter {
         header.appendLE(UInt16(payload.count))
         fh.write(header)
         fh.write(payload)
+        sessionBytesWritten += UInt64(3 + payload.count)
     }
 
     // ── Serialisation ─────────────────────────────────────────────────────────

@@ -62,9 +62,7 @@ class EmulatorViewModel {
     var printerTrace: Bool = false
     var printerConnected: Bool = true
 
-    // ── C indicator drop debugger ─────────────────────────────────────────────
-    // When enabled, prints one line per drop event — not 60 lines/s.
-    // Watches snap.calcIndicator (raw C++ duty cycle, before Swift smoothing).
+    // ── C indicator trace writer ──────────────────────────────────────────────
     // Also writes TI59_TRACE.bin (binary format — see DebugAPI.md).
     var cIndicatorDebug: Bool = false {
         didSet {
@@ -101,7 +99,6 @@ class EmulatorViewModel {
             }
         }
     }
-    private var cDropDebugger = CDropDebugger()
     private var cZeroFrames: Int = 0   // consecutive frames where fA was zero the entire frame
     private var traceWriter: TraceWriter!  // initialized in init, updated when model changes
     var isTraceAvailable: Bool { traceWriter?.isAvailable ?? true }  // false if trace location (e.g., iCloud) unavailable
@@ -593,7 +590,6 @@ class EmulatorViewModel {
         }
 
         if cIndicatorDebug {
-            cDropDebugger.update(snap.calcIndicator)
             // Drain trace events directly on main thread (tick() is already on main).
             // The emulation loop runs on the serial emulQueue, so async dispatches would
             // never execute until the loop exits — we drain here at 60 Hz instead.
@@ -2364,9 +2360,9 @@ class EmulatorViewModel {
         guard !framesNS.isEmpty else { return }
 
         for frameVal in framesNS {
+            guard traceWriter.isOpen else { break }
             var frame = TICpuFrame()
             frameVal.getValue(&frame)
-
             traceWriter.write(frame: frame)
         }
     }
@@ -2478,55 +2474,4 @@ struct CPUDebugSnapshot: Equatable {
     static let empty = CPUDebugSnapshot()
 }
 
-// ── C indicator drop debugger ─────────────────────────────────────────────────
-//
-// Watches the raw duty-cycle float (snap.calcIndicator) at 60 Hz and emits one
-// console line per drop event.  A "drop" starts when duty falls to less than
-// 40 % of the previous frame's value (and previous was meaningfully non-zero).
-// It ends when duty recovers to at least 60 % of the pre-drop value.
-// Each log line shows: time since last drop, pre-drop level, minimum during
-// drop, frame count, elapsed ms, and recovery level — enough to see whether
-// drops are isolated 1-frame aliasing or sustained 2–3-frame sequences, and
-// whether they repeat at a regular (blink-rate) period.
 
-private struct CDropDebugger {
-    private var prev:        Float = 0
-    private var inDrop:      Bool  = false
-    private var dropFrom:    Float = 0
-    private var dropMin:     Float = 0
-    private var dropFrames:  Int   = 0
-    private var dropStart:   Double = 0          // CACurrentMediaTime()
-    private var lastDropEnd: Double = 0
-
-    mutating func update(_ duty: Float) {
-        let now = CACurrentMediaTime()
-
-        if !inDrop {
-            // Start a drop when duty falls below 40 % of the previous value
-            // and the previous value was above the noise floor.
-            if prev > 0.04 && duty < prev * 0.40 {
-                inDrop     = true
-                dropFrom   = prev
-                dropMin    = duty
-                dropFrames = 1
-                dropStart  = now
-            }
-        } else {
-            if duty >= dropFrom * 0.60 {
-                // Recovered — emit one summary line.
-                let elapsed   = (now - dropStart) * 1000
-                let sinceStr  = lastDropEnd > 0
-                    ? String(format: "+%.0f ms since last", (dropStart - lastDropEnd) * 1000)
-                    : "first drop"
-                print(String(format: "[C-DBG] DROP  from %.3f  min %.3f  %lld frame(s)  %.0f ms  → %.3f   (%@)",
-                             dropFrom, dropMin, Int64(dropFrames), elapsed, duty, sinceStr as NSString))
-                lastDropEnd = now
-                inDrop      = false
-            } else {
-                dropMin    = min(dropMin, duty)
-                dropFrames += 1
-            }
-        }
-        prev = duty
-    }
-}
