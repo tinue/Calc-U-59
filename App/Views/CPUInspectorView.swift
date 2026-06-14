@@ -386,7 +386,7 @@ struct CPUInspectorView: View {
     private func registerDisplay(_ label: String, _ nibbles: (UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8), baseFontSize: CGFloat) -> some View {
         let array = [nibbles.0, nibbles.1, nibbles.2, nibbles.3, nibbles.4, nibbles.5, nibbles.6, nibbles.7,
                      nibbles.8, nibbles.9, nibbles.10, nibbles.11, nibbles.12, nibbles.13, nibbles.14, nibbles.15]
-        let nibbleString = array.map { String(format: "%X", $0) }.joined()
+        let nibbleString = array.reversed().map { String(format: "%X", $0) }.joined()
         return HStack(spacing: 4) {
             Text(label)
                 .font(.system(size: baseFontSize + 2, weight: .bold, design: .monospaced))
