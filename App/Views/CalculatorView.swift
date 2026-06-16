@@ -20,7 +20,6 @@ struct CalculatorView: View {
             get: {
                 let active = activeFilePickerMode != nil
                 if active {
-                    print("[FileImporter] binding.get → true (mode=\(String(describing: activeFilePickerMode)))")
                     // Warn about competing modals that can silently block fileImporter on iOS
                     if viewModel.cardPickerMode != nil {
                         print("[WARN FileImporter] cardPickerMode=\(String(describing: viewModel.cardPickerMode)) is set — competing sheet may block file picker")
@@ -136,18 +135,14 @@ struct CalculatorView: View {
                     print("[WARN FileImporter] allowedContentTypes evaluated with mode=nil — picker may show no file types")
                     return []
                 }
-                let types: [UTType]
                 switch mode {
-                case .asm:       types = Self.asmTypes
-                case .stateFile: types = Self.stateFileTypes
+                case .asm:       return Self.asmTypes
+                case .stateFile: return Self.stateFileTypes
                 }
-                print("[FileImporter] allowedContentTypes evaluated: mode=\(mode), types=\(types.map(\.identifier))")
-                return types
             }(),
             allowsMultipleSelection: false
         ) { result in
             let mode = activeFilePickerMode
-            print("[FileImporter] result handler fired: capturedMode=\(String(describing: mode)), result=\(result)")
 
             guard case .success(let urls) = result else {
                 if case .failure(let error) = result {
@@ -165,15 +160,11 @@ struct CalculatorView: View {
                 return
             }
 
-            print("[FileImporter] selected URL: \(url.path)")
-
             switch mode {
             case .asm:
-                print("[FileImporter] dispatching to loadASMOverlayFile")
                 viewModel.loadASMOverlayFile(url)
                 activeFilePickerMode = nil
             case .stateFile:
-                print("[FileImporter] dispatching to loadStateFile")
                 viewModel.loadStateFile(url)
                 activeFilePickerMode = nil
             case .none:

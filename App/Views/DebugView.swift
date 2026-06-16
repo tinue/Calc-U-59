@@ -219,6 +219,12 @@ private struct ASMDebugContent: View {
 
             HStack(spacing: 8) {
                 Button("Select File") {
+                    if activeFilePickerMode != nil {
+                        // Should be nil here: a dismissed picker resets the mode via the
+                        // isPresented binding setter. A non-nil value means that reset
+                        // failed and the picker will not re-present (no false→true edge).
+                        print("[WARN FileImporter] mode was already \(String(describing: activeFilePickerMode)) when 'Select File' was tapped — picker may not reopen")
+                    }
                     activeFilePickerMode = .asm
                 }
                 .buttonStyle(.plain)

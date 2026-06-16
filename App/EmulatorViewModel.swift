@@ -1884,8 +1884,17 @@ class EmulatorViewModel {
 
     func loadASMOverlayFile(_ url: URL) {
         let scoped = url.startAccessingSecurityScopedResource()
-        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        if !scoped {
+            print("[WARN FileImporter] loadASMOverlayFile: security-scoped resource access denied — file may not be readable")
+        }
+        defer {
+            if scoped {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+
         guard let text = try? String(contentsOf: url, encoding: .utf8) else {
+            print("[WARN FileImporter] loadASMOverlayFile: failed to read file contents as UTF-8 from \(url.path)")
             asmStatusMessage = "Could not read ASM file."
             errorMessage = "Could not read ASM file."
             return
@@ -1893,22 +1902,29 @@ class EmulatorViewModel {
 
         do {
             let words = try parseASMWords(from: text)
+
             guard let m = machine else {
+                print("[WARN FileImporter] loadASMOverlayFile: machine is nil — cannot load overlay")
                 asmStatusMessage = "Machine not initialized yet."
                 return
             }
+
             let data = words.withUnsafeBufferPointer { Data(buffer: $0) }
-            guard m.loadDebugOverlayWords(data) else {
+            let loaded = m.loadDebugOverlayWords(data)
+            guard loaded else {
+                print("[WARN FileImporter] loadASMOverlayFile: overlay range exceeded (0x1800-0x1FFF) for \(words.count) word(s)")
                 asmStatusMessage = "ASM program exceeds overlay range 0x1800-0x1FFF."
                 errorMessage = asmStatusMessage
                 return
             }
+
             asmOverlayWords = words
             asmFileName = url.lastPathComponent
             asmWordCount = words.count
             asmStatusMessage = String(format: "Loaded %d word(s) at 0x1800.", words.count)
         } catch {
             let msg = error.localizedDescription
+            print("[WARN FileImporter] loadASMOverlayFile: parseASMWords threw: \(msg)")
             asmStatusMessage = msg
             errorMessage = msg
         }
