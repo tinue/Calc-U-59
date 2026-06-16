@@ -131,10 +131,9 @@ struct CalculatorView: View {
         .fileImporter(
             isPresented: filePickerBinding,
             allowedContentTypes: {
-                guard let mode = activeFilePickerMode else {
-                    print("[WARN FileImporter] allowedContentTypes evaluated with mode=nil — picker may show no file types")
-                    return []
-                }
+                // Evaluated on every body recompute, normally with mode=nil
+                // (picker closed). The types only matter while presented.
+                guard let mode = activeFilePickerMode else { return [] }
                 switch mode {
                 case .asm:       return Self.asmTypes
                 case .stateFile: return Self.stateFileTypes
