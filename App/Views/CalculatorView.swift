@@ -17,8 +17,31 @@ struct CalculatorView: View {
 
     private var filePickerBinding: Binding<Bool> {
         Binding(
-            get: { activeFilePickerMode != nil },
-            set: { _ in }  // No-op setter; we reset state in result handler
+            get: {
+                let active = activeFilePickerMode != nil
+                if active {
+                    print("[FileImporter] binding.get → true (mode=\(String(describing: activeFilePickerMode)))")
+                    // Warn about competing modals that can silently block fileImporter on iOS
+                    if viewModel.cardPickerMode != nil {
+                        print("[WARN FileImporter] cardPickerMode=\(String(describing: viewModel.cardPickerMode)) is set — competing sheet may block file picker")
+                    }
+                    if viewModel.errorMessage != nil {
+                        print("[WARN FileImporter] errorMessage alert is active — competing presentation may block file picker")
+                    }
+                    #if !os(macOS)
+                    if showingSettings {
+                        print("[WARN FileImporter] settings sheet is presented — competing sheet may block file picker")
+                    }
+                    #endif
+                }
+                return active
+            },
+            set: { newValue in
+                // Dismissal (cancel/"x") does not reliably fire the result
+                // handler on iOS; SwiftUI writing false here is the only
+                // dependable signal, so reset the mode to re-arm the picker.
+                if !newValue { activeFilePickerMode = nil }
+            }
         )
     }
 
@@ -109,31 +132,52 @@ struct CalculatorView: View {
         .fileImporter(
             isPresented: filePickerBinding,
             allowedContentTypes: {
-                guard let mode = activeFilePickerMode else { return [] }
-                switch mode {
-                case .asm:
-                    return Self.asmTypes
-                case .stateFile:
-                    return Self.stateFileTypes
+                guard let mode = activeFilePickerMode else {
+                    print("[WARN FileImporter] allowedContentTypes evaluated with mode=nil — picker may show no file types")
+                    return []
                 }
+                let types: [UTType]
+                switch mode {
+                case .asm:       types = Self.asmTypes
+                case .stateFile: types = Self.stateFileTypes
+                }
+                print("[FileImporter] allowedContentTypes evaluated: mode=\(mode), types=\(types.map(\.identifier))")
+                return types
             }(),
             allowsMultipleSelection: false
         ) { result in
             let mode = activeFilePickerMode
+            print("[FileImporter] result handler fired: capturedMode=\(String(describing: mode)), result=\(result)")
 
-            guard case .success(let urls) = result, let url = urls.first else {
+            guard case .success(let urls) = result else {
+                if case .failure(let error) = result {
+                    print("[WARN FileImporter] picker returned failure: \(error)")
+                } else {
+                    print("[WARN FileImporter] picker dismissed with no selection (cancelled)")
+                }
                 activeFilePickerMode = nil
                 return
             }
 
+            guard let url = urls.first else {
+                print("[WARN FileImporter] success result contained zero URLs")
+                activeFilePickerMode = nil
+                return
+            }
+
+            print("[FileImporter] selected URL: \(url.path)")
+
             switch mode {
             case .asm:
+                print("[FileImporter] dispatching to loadASMOverlayFile")
                 viewModel.loadASMOverlayFile(url)
                 activeFilePickerMode = nil
             case .stateFile:
+                print("[FileImporter] dispatching to loadStateFile")
                 viewModel.loadStateFile(url)
                 activeFilePickerMode = nil
             case .none:
+                print("[WARN FileImporter] result handler fired but capturedMode is nil — state was reset too early")
                 activeFilePickerMode = nil
             }
         }
