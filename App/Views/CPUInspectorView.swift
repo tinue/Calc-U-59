@@ -330,7 +330,7 @@ struct CPUInspectorView: View {
                 .foregroundStyle(.white.opacity(0.6))
             Spacer()
 
-            Button("FREEZE") { vm.freeze() }
+            Button("FREEZE") { vm.freeze(from: .cpu) }
                 .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
                 .foregroundStyle(Color.white)
                 .opacity(freezeEnabled ? 1 : 0.4)
@@ -348,17 +348,19 @@ struct CPUInspectorView: View {
                 .opacity(vm.pendingCPUScanLoopFreeze ? 1 : 0.4)
                 .disabled(!vm.pendingCPUScanLoopFreeze)
 
+            let cpuOwned = vm.isFrozen && vm.freezeOwner == .cpu
+
             Button("RESUME") { vm.unfreeze() }
                 .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
                 .foregroundStyle(Color.orange)
-                .opacity(vm.isFrozen ? 1 : 0.4)
-                .disabled(!vm.isFrozen)
+                .opacity(cpuOwned ? 1 : 0.4)
+                .disabled(!cpuOwned)
 
             Button("STEP") { vm.stepFrozen() }
                 .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
                 .foregroundStyle(Color.cyan)
-                .opacity(vm.isFrozen ? 1 : 0.4)
-                .disabled(!vm.isFrozen)
+                .opacity(cpuOwned ? 1 : 0.4)
+                .disabled(!cpuOwned)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)

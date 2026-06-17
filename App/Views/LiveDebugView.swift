@@ -56,7 +56,9 @@ struct LiveDebugView: View {
                 .foregroundStyle(.white.opacity(0.6))
             Spacer()
 
-            Button("FREEZE") { vm.freeze() }
+            let calcOwned = vm.isFrozen && vm.freezeOwner == .calculator
+
+            Button("FREEZE") { vm.freeze(from: .calculator) }
                 .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
                 .foregroundStyle(Color.white)
                 .opacity(freezeEnabled ? 1 : 0.4)
@@ -77,14 +79,14 @@ struct LiveDebugView: View {
             Button("RESUME") { vm.unfreeze() }
                 .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
                 .foregroundStyle(Color.orange)
-                .opacity(vm.isFrozen ? 1 : 0.4)
-                .disabled(!vm.isFrozen)
+                .opacity(calcOwned ? 1 : 0.4)
+                .disabled(!calcOwned)
 
             Button("STEP") { vm.stepKeycode() }
                 .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
                 .foregroundStyle(Color.cyan)
-                .opacity(vm.isFrozen ? 1 : 0.4)
-                .disabled(!vm.isFrozen)
+                .opacity(calcOwned ? 1 : 0.4)
+                .disabled(!calcOwned)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)

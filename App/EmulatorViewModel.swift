@@ -9,6 +9,12 @@ enum FreezeReason {
     case variable(Int, Double) // future: freeze when register matches value
 }
 
+/// Which debug panel owns the current freeze.
+/// RESUME and STEP are only enabled in the owning panel; the other panel's buttons are
+/// disabled while frozen to prevent cross-panel confusion (e.g. CALCULATOR STEP while
+/// frozen in CPU would silently resume until the next keycode boundary).
+enum FreezePanel { case cpu, calculator }
+
 enum DebugLevel: Int, Comparable {
     case off   = 0
     case info  = 1
@@ -152,6 +158,7 @@ class EmulatorViewModel {
         didSet { updateDebugTraceFlags() }
     }
     var isFrozen: Bool { freezeReason != nil }
+    var freezeOwner: FreezePanel? = nil  // set on freeze entry, cleared on unfreeze
     var pendingFreezeOnPCChange: Bool = false {  // Freeze as soon as PC changes (first instruction)
         didSet {
             guard pendingFreezeOnPCChange != oldValue else { return }
@@ -434,6 +441,7 @@ class EmulatorViewModel {
                         if range.contains(pc) {
                             self._cpuFreezeSeenLoop = true
                         } else if self._cpuFreezeSeenLoop || (pc == 0x0000 && self._cpuFreezeArmPC != 0x0000) {
+                            self.freezeOwner = .cpu
                             self.isRunning = false
                             self.freezeReason = .manual
                             self.pendingCPUScanLoopFreeze = false
@@ -466,6 +474,7 @@ class EmulatorViewModel {
                         // PC has changed — freeze now.  Set freezeReason before
                         // clearing the armed flag so updateDebugTraceFlags()
                         // (fired by both didSets) keeps tracing enabled throughout.
+                        self.freezeOwner = .calculator
                         self.isRunning = false
                         self.freezeReason = .manual
                         self.pendingFreezeOnPCChange = false
@@ -1198,6 +1207,12 @@ class EmulatorViewModel {
         }
     }
 
+    /// Freeze with an explicit panel owner (called by the FREEZE button in each panel).
+    func freeze(from panel: FreezePanel) {
+        freezeOwner = panel
+        freeze()
+    }
+
     func freeze(reason: FreezeReason = .manual, waitForKeycode: Bool = true) {
         isRunning = false
         freezeReason = reason
@@ -1397,6 +1412,7 @@ class EmulatorViewModel {
     /// Drop the freeze reason, all frozen program caches, and the cache bookkeeping.
     private func clearFrozenState() {
         freezeReason = nil
+        freezeOwner = nil
         frozenROMCache = nil
         frozenRAMCache = nil
         frozenLibCache = nil
