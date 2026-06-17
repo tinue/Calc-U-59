@@ -750,6 +750,10 @@ function FaqPage({ onNav }) {
       answer: "In the CPU tab, F.START arms a scan-loop exit trigger: it freezes the moment the calculator leaves the keyboard idle loop — either because you pressed a key (the ROM exits the loop to handle the keystroke) or because the calculator was reset. This lets you catch the very first ROM opcode of a key-press handler without having to time a manual FREEZE. Only one F.START can be armed at a time; arming one tab silently disarms the other.",
     },
     {
+      question: "How can I step through the reset routine?",
+      answer: "Switch to the CPU tab and press F.START (Freeze on Start). Then go to the calculator and press Reset — the CPU will freeze at the first ROM instruction of the reset routine. Use STEP to walk through it one opcode at a time.",
+    },
+    {
       question: "I used F.START in the CPU tab, the freeze triggered on a keypress — but after RESUME the key seems lost. Why?",
       answer: "This is expected. The ROM's key-debouncing logic registers a keypress only for a very short window. When F.START fires, the CPU freezes at the first instruction after the scan loop exits — but that window has already passed by the time you press RESUME or STEP. The key handler never sees the keypress and the calculator returns to idle. Use a TRACE capture instead: it records the full keystroke sequence without stopping the emulator, so the debounce window is never interrupted.",
     },
