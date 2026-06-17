@@ -322,7 +322,7 @@ struct CPUInspectorView: View {
 
     private func cpuHeader(baseFontSize: CGFloat) -> some View {
         let freezeEnabled = !vm.isFrozen && !vm.pendingCPUScanLoopFreeze
-        let freezeOnStartEnabled = !vm.isFrozen && !vm.pendingCPUScanLoopFreeze
+        let freezeOnStartEnabled = freezeEnabled
         let narrow = baseFontSize < 13
 
         return HStack(spacing: 8) {

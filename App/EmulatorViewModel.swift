@@ -495,7 +495,6 @@ class EmulatorViewModel {
                     }
                 }
 
-
                 // Skip timing throttle when in full-speed mode (user pressing display)
                 if !self.isFullSpeedMode {
                     let end = DispatchTime.now()
@@ -1181,7 +1180,7 @@ class EmulatorViewModel {
         // Track the decoded PC (from SCOM), not the raw CPU PC — plus the
         // library exec latch, which is the PC for solid-state programs
         // Mutex: disarm CPU scan-loop freeze if active
-        if pendingCPUScanLoopFreeze { pendingCPUScanLoopFreeze = false; _cpuFreezeSeenLoop = false }
+        disarmCPUScanLoopFreeze()
         pendingFreezeOnPCChange = true
         guard let m = machine else { return }
         let cpu = m.snapshotCPU()
@@ -1195,7 +1194,7 @@ class EmulatorViewModel {
     /// or (b) PC jumps to 0x0000 while outside the loop (reset during program execution).
     func freezeOnScanLoopExit() {
         // Mutex: disarm CALCULATOR any-PC-change freeze if active
-        if pendingFreezeOnPCChange { pendingFreezeOnPCChange = false }
+        pendingFreezeOnPCChange = false
         _cpuFreezeSeenLoop = false
         _cpuFreezeArmPC = machine?.currentPC ?? 0xFFFF
         pendingCPUScanLoopFreeze = true
