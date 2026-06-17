@@ -38,6 +38,3 @@ Unsorted collection of ideas, bugs, observations etc.
     - TI-58C keyboard scan loop is always frozen
     - TI-58 error blink (CLS - 1/x): Frozen when dark (probably TI-59 as well, but not visible due to higher clock)
     - Need to validate this: It seems to not be frozen, but only look very static.
-- **Debugger Portrait Mode** - The Debugger in portrait view is not yet optimized. It assumes in many cases that the calculator is visible.
-- **Freeze on Start** - Freeze on start was designed for CALCULATOR, and does not work as expected in CPU. In CPU, it should trigger a freeze as soon as the COU program counter is outside of the keyboard scan loop section, e.g. when a key is pressed, or when the Reset button is used.
-- **ARMED** - It must be clear which panel (CPU or CALCULATOR) was armed using FREEZE ON START. Only one must be allowed to be armed. Arming again must un-arm an armed panel.

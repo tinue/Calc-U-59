@@ -1,13 +1,14 @@
 # Changelog
 
 ## [1.3.0] - Work in progress
-- **Calculator Debugger** Allow trace / single step of solid state module keycode programs
-- **Portrait View** Enable the debugger also in portrait view (disabled by default, use settings to enable). Specifically handy for iPhone users who did not have a debugger so far.
+- **Calculator Debugger** Enables tracing and single-stepping of solid-state module keycode programs.
+- **Portrait View** Enables the debugger in portrait view as well (disabled by default, enable in Settings). Particularly useful for iPhone users who previously had no debugger access.
 - **ROM Heatmap** Hover over (or touch and hold) a block to see its hex address in the header.
 - **CPU Debugger** Binary flag registers are now grouped into nibbles for readability.
 
 ### Fixes
-- **CPU Debugger** Registers A–E and Sout are displayed MSN-first
+- **CPU Debugger** Registers A–E and Sout are displayed MSN-first.
+- **CPU Debugger** FREEZE ON START now triggers on a keypress or on reset of the calculator. This allows single-stepping the reset routine.
 - **Trace** File size limit is now enforced by disabling TRACE when the limit is reached.
 
 ## [1.2.0] - 2026-06-10
