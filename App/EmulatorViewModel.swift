@@ -15,6 +15,10 @@ enum FreezeReason {
 /// frozen in CPU would silently resume until the next keycode boundary).
 enum FreezePanel { case cpu, calculator }
 
+/// Selected tab in the debug pane. Stored on EmulatorViewModel so the
+/// selection survives navigation on iPhone (where DebugView is recreated).
+enum DebugTab { case live, cpu, log }
+
 enum DebugLevel: Int, Comparable {
     case off   = 0
     case info  = 1
@@ -118,6 +122,7 @@ class EmulatorViewModel {
     }
 
     // ── Debug panel state ────────────────────────────────────────────────────
+    var debugTab: DebugTab = .live   // persists tab selection across iPhone navigation
     var debugLevel: DebugLevel = .off
     var debugEnabled: Bool { debugLevel != .off }   // convenience for existing callers
     var debugLines: [String] = []
