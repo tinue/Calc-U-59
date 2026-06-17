@@ -15,6 +15,15 @@ This skill covers the help website (`docs/`), reference architecture docs (`refe
 **Hosting:** GitHub Pages at `www.calcu59.ch`  
 **Stack:** Static HTML + client-side React 18 loaded from CDN with Babel browser transpiler. No build step, no npm, no Jekyll.
 
+**Git setup — worktree:** `docs/` is a separate git worktree tracking the `gh-pages` branch, not the main repo branch. It is listed in `.gitignore` so it is invisible to the main repo's `git status`. Always commit docs changes from inside `docs/`:
+
+```bash
+git -C /path/to/Calc-U-59/docs add <files>
+git -C /path/to/Calc-U-59/docs commit -m "..."
+```
+
+Do **not** use the root repo's git commands for docs files — they will show nothing staged and the changes will appear lost.
+
 Key files:
 
 | File | Role |
