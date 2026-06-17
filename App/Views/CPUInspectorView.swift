@@ -323,6 +323,7 @@ struct CPUInspectorView: View {
     private func cpuHeader(baseFontSize: CGFloat) -> some View {
         let freezeEnabled = !vm.isFrozen && !vm.pendingCPUScanLoopFreeze
         let freezeOnStartEnabled = !vm.isFrozen && !vm.pendingCPUScanLoopFreeze
+        let narrow = baseFontSize < 13
 
         return HStack(spacing: 8) {
             Text("CPU DEBUG")
@@ -336,7 +337,7 @@ struct CPUInspectorView: View {
                 .opacity(freezeEnabled ? 1 : 0.4)
                 .disabled(!freezeEnabled)
 
-            Button("FREEZE ON START") { vm.freezeOnScanLoopExit() }
+            Button(narrow ? "F.START" : "FREEZE ON START") { vm.freezeOnScanLoopExit() }
                 .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
                 .foregroundStyle(Color.white)
                 .opacity(freezeOnStartEnabled ? 1 : 0.4)
