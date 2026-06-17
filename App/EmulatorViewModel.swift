@@ -425,6 +425,29 @@ class EmulatorViewModel {
                         return
                     }
                     cyclesDone += Int32(result & 0x7FFF_FFFF)
+
+                    // Per-step scan loop exit check (must be inside the step loop for
+                    // exact PC precision — a post-batch check lands hundreds of
+                    // instructions late after reset clears the loop in one burst).
+                    if self.pendingCPUScanLoopFreeze, let range = self.cpuScanLoopRange {
+                        let pc = m.currentPC
+                        if range.contains(pc) {
+                            self._cpuFreezeSeenLoop = true
+                        } else if self._cpuFreezeSeenLoop || (pc == 0x0000 && self._cpuFreezeArmPC != 0x0000) {
+                            self.isRunning = false
+                            self.freezeReason = .manual
+                            self.pendingCPUScanLoopFreeze = false
+                            self._cpuFreezeSeenLoop = false
+                            DispatchQueue.main.async { [weak self] in
+                                guard let self else { return }
+                                if self.liveDebugEnabled {
+                                    self.liveDebugSnapshot = self.buildLiveSnapshot(machine: m)
+                                }
+                                self.captureInspectorSnapshot(machine: m)
+                            }
+                            return
+                        }
+                    }
                 }
                 // Subtract rather than reset to zero: carry the overshoot into
                 // the next batch so long-term average speed stays exact.
@@ -457,29 +480,6 @@ class EmulatorViewModel {
                     }
                 }
 
-                // CPU-tab "Freeze on Start": trigger when the keyboard scan loop exits.
-                // Fires on: key press (loop exits normally) or reset (PC jumps to 0000).
-                if self.pendingCPUScanLoopFreeze {
-                    let pc = m.currentPC
-                    if let range = self.cpuScanLoopRange {
-                        if range.contains(pc) {
-                            self._cpuFreezeSeenLoop = true
-                        } else if self._cpuFreezeSeenLoop || (pc == 0x0000 && self._cpuFreezeArmPC != 0x0000) {
-                            self.isRunning = false
-                            self.freezeReason = .manual
-                            self.pendingCPUScanLoopFreeze = false
-                            self._cpuFreezeSeenLoop = false
-                            DispatchQueue.main.async { [weak self] in
-                                guard let self else { return }
-                                if self.liveDebugEnabled {
-                                    self.liveDebugSnapshot = self.buildLiveSnapshot(machine: m)
-                                }
-                                self.captureInspectorSnapshot(machine: m)
-                            }
-                            return
-                        }
-                    }
-                }
 
                 // Skip timing throttle when in full-speed mode (user pressing display)
                 if !self.isFullSpeedMode {
