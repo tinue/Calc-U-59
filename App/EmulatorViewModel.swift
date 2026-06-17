@@ -145,9 +145,10 @@ class EmulatorViewModel {
     var cpuDebugEnabled: Bool = false {
         didSet {
             guard cpuDebugEnabled != oldValue else { return }
-            if cpuDebugEnabled {
+            if cpuDebugEnabled && !isFrozen {
                 // The heatmap shows activity since the panel became visible:
                 // tracing is off while hidden, so reset and skip any ring backlog.
+                // When frozen the heatmap is static — don't wipe it on re-entry.
                 resetHeatmapBaseline()
             }
             updateDebugTraceFlags()
