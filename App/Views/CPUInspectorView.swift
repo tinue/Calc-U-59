@@ -405,8 +405,9 @@ struct CPUInspectorView: View {
     // MARK: - ROM Heatmap Section
 
     private func romHeatmapSection(width: CGFloat) -> some View {
-        // currentPC read at 60 Hz drives the green-dot overlay; CGImage update is at 10 Hz.
-        let currentPC = Int(vm.cpuDebugSnapshot.currentPC)
+        // Use the same isCurrent entry that highlights the instruction list row —
+        // cpuDebugSnapshot.currentPC is the *next* (pre-fetch) PC, which is one ahead.
+        let currentPC = displayHistory.first(where: { $0.isCurrent }).map { Int($0.pc) } ?? -1
         let cols      = CGFloat(HeatmapRenderer.cols)
         let rows      = CGFloat(HeatmapRenderer.rows)
         let cellSize  = max(2.0, width / cols)
