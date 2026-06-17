@@ -161,6 +161,17 @@ class EmulatorViewModel {
     private var lastObservedPC: UInt16 = 0     // Track PC to detect changes
     private var lastObservedLibPC: UInt16 = 0xFFFF  // Track library exec PC (solid-state programs don't move the SCOM PC)
 
+    // CPU-tab "Freeze on Start": fires when the keyboard scan loop exits (key press or reset).
+    // Distinct from pendingFreezeOnPCChange (CALCULATOR tab: fires on any PC change).
+    var pendingCPUScanLoopFreeze: Bool = false {
+        didSet {
+            guard pendingCPUScanLoopFreeze != oldValue else { return }
+            updateDebugTraceFlags()
+        }
+    }
+    private var _cpuFreezeSeenLoop = false   // have we entered the scan loop since arming?
+    private var _cpuFreezeArmPC: UInt16 = 0xFFFF  // PC at arm time (guards against immediate 0000 re-trigger)
+
     // Frozen program caches (built on freeze entry, reused until unfreeze)
     private var frozenROMCache: [LiveDebugSnapshot.StepEntry]?
     private var frozenRAMCache: [LiveDebugSnapshot.StepEntry]?
@@ -215,7 +226,7 @@ class EmulatorViewModel {
     private func updateDebugTraceFlags() {
         guard let m = machine else { return }
         var flags: TITraceFlags = []
-        if cpuDebugEnabled || isFrozen || cIndicatorDebug || pendingFreezeOnPCChange {
+        if cpuDebugEnabled || isFrozen || cIndicatorDebug || pendingFreezeOnPCChange || pendingCPUScanLoopFreeze {
             flags.insert([.pc, .regsFull])
         }
         if !breakpoints.isEmpty {
@@ -443,6 +454,30 @@ class EmulatorViewModel {
                             self.captureInspectorSnapshot(machine: m)
                         }
                         return
+                    }
+                }
+
+                // CPU-tab "Freeze on Start": trigger when the keyboard scan loop exits.
+                // Fires on: key press (loop exits normally) or reset (PC jumps to 0000).
+                if self.pendingCPUScanLoopFreeze {
+                    let pc = m.currentPC
+                    if let range = self.cpuScanLoopRange {
+                        if range.contains(pc) {
+                            self._cpuFreezeSeenLoop = true
+                        } else if self._cpuFreezeSeenLoop || (pc == 0x0000 && self._cpuFreezeArmPC != 0x0000) {
+                            self.isRunning = false
+                            self.freezeReason = .manual
+                            self.pendingCPUScanLoopFreeze = false
+                            self._cpuFreezeSeenLoop = false
+                            DispatchQueue.main.async { [weak self] in
+                                guard let self else { return }
+                                if self.liveDebugEnabled {
+                                    self.liveDebugSnapshot = self.buildLiveSnapshot(machine: m)
+                                }
+                                self.captureInspectorSnapshot(machine: m)
+                            }
+                            return
+                        }
                     }
                 }
 
@@ -1130,6 +1165,8 @@ class EmulatorViewModel {
         // Prepare to freeze as soon as the program counter changes (first instruction executes)
         // Track the decoded PC (from SCOM), not the raw CPU PC — plus the
         // library exec latch, which is the PC for solid-state programs
+        // Mutex: disarm CPU scan-loop freeze if active
+        if pendingCPUScanLoopFreeze { pendingCPUScanLoopFreeze = false; _cpuFreezeSeenLoop = false }
         pendingFreezeOnPCChange = true
         guard let m = machine else { return }
         let cpu = m.snapshotCPU()
@@ -1137,11 +1174,37 @@ class EmulatorViewModel {
         lastObservedLibPC = m.libExecPC
     }
 
+    /// Arm the CPU-tab "Freeze on Start": fires when the keyboard scan loop exits.
+    /// Scan loop ranges: TI-59/58 = 0x063C–0x0658, TI-58C = 0x063D–0x0A2E.
+    /// Trigger conditions: (a) PC was inside loop and exits (key press or reset while idle),
+    /// or (b) PC jumps to 0x0000 while outside the loop (reset during program execution).
+    func freezeOnScanLoopExit() {
+        // Mutex: disarm CALCULATOR any-PC-change freeze if active
+        if pendingFreezeOnPCChange { pendingFreezeOnPCChange = false }
+        _cpuFreezeSeenLoop = false
+        _cpuFreezeArmPC = machine?.currentPC ?? 0xFFFF
+        pendingCPUScanLoopFreeze = true
+    }
+
+    func disarmCPUScanLoopFreeze() {
+        _cpuFreezeSeenLoop = false
+        pendingCPUScanLoopFreeze = false
+    }
+
+    private var cpuScanLoopRange: ClosedRange<UInt16>? {
+        switch model {
+        case .ti59, .ti58: return 0x063C...0x0658
+        case .ti58c:       return 0x063D...0x0A2E
+        }
+    }
+
     func freeze(reason: FreezeReason = .manual, waitForKeycode: Bool = true) {
         isRunning = false
         freezeReason = reason
         asmOverlayActive = false
-        pendingFreezeOnPCChange = false  // Cancel any pending freeze
+        pendingFreezeOnPCChange = false   // Cancel any pending CALCULATOR freeze
+        pendingCPUScanLoopFreeze = false  // Cancel any pending CPU scan-loop freeze
+        _cpuFreezeSeenLoop = false
         guard let m = machine else { return }
         // Advance to the next keycode boundary on the emulation queue (runs after the
         // running loop exits, since emulQueue is serial). Then capture state.
@@ -1952,6 +2015,8 @@ class EmulatorViewModel {
         isPausedOnBreakpoint = false
         breakpointPC = nil
         pendingFreezeOnPCChange = false
+        pendingCPUScanLoopFreeze = false
+        _cpuFreezeSeenLoop = false
         clearFrozenState()
 
         var steps: UInt32 = 0

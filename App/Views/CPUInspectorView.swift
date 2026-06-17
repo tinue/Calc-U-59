@@ -321,8 +321,8 @@ struct CPUInspectorView: View {
     // MARK: - Header
 
     private func cpuHeader(baseFontSize: CGFloat) -> some View {
-        let freezeEnabled = !vm.isFrozen && !vm.pendingFreezeOnPCChange
-        let freezeOnStartEnabled = !vm.isFrozen && !vm.pendingFreezeOnPCChange
+        let freezeEnabled = !vm.isFrozen && !vm.pendingCPUScanLoopFreeze
+        let freezeOnStartEnabled = !vm.isFrozen && !vm.pendingCPUScanLoopFreeze
 
         return HStack(spacing: 8) {
             Text("CPU DEBUG")
@@ -336,17 +336,17 @@ struct CPUInspectorView: View {
                 .opacity(freezeEnabled ? 1 : 0.4)
                 .disabled(!freezeEnabled)
 
-            Button("FREEZE ON START") { vm.freezeOnNextPCChange() }
+            Button("FREEZE ON START") { vm.freezeOnScanLoopExit() }
                 .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
                 .foregroundStyle(Color.white)
                 .opacity(freezeOnStartEnabled ? 1 : 0.4)
                 .disabled(!freezeOnStartEnabled)
 
-            Button("ARMED") { vm.pendingFreezeOnPCChange.toggle() }
+            Button("ARMED") { vm.disarmCPUScanLoopFreeze() }
                 .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
                 .foregroundStyle(Color.yellow)
-                .opacity(vm.pendingFreezeOnPCChange ? 1 : 0.4)
-                .disabled(!vm.pendingFreezeOnPCChange)
+                .opacity(vm.pendingCPUScanLoopFreeze ? 1 : 0.4)
+                .disabled(!vm.pendingCPUScanLoopFreeze)
 
             Button("RESUME") { vm.unfreeze() }
                 .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
