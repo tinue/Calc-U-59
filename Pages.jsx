@@ -520,9 +520,8 @@ function DebuggerPage({ onNav }) {
           On iPhone, the debugger panel is full-screen and covers the calculator. This is different from iPad and Mac, where both views are visible at the same time.
         </p>
         <ul style={{ margin: "8px 0 0", paddingLeft: 20 }}>
-          <li>The debugger always opens on the <strong>CALCULATOR</strong> tab.</li>
           <li>Switching to the <strong>CPU</strong> tab resets the heat map, because the CPU trace was not running while CALCULATOR was visible. Exception: if the CPU is already frozen when you switch, the heat map is preserved.</li>
-          <li>Navigating away from the debugger and returning lands you back on CALCULATOR, not on the tab you left.</li>
+          <li>The selected tab (CALCULATOR, CPU, LOG) is remembered when you navigate away from the debugger and return.</li>
           <li><strong>F.START in CALCULATOR</strong> works best in landscape or on iPad/Mac, where you can press a key on the calculator while the tab is watching. On iPhone you would need to go back to the calculator, press the key, then return to the debugger.</li>
           <li><strong>F.START in CPU</strong> arms in the background and fires as soon as you press any key (or reset the calculator), regardless of which tab or screen is visible — the freeze is waiting for a ROM-level scan-loop exit, not a screen interaction.</li>
         </ul>
@@ -744,11 +743,15 @@ function FaqPage({ onNav }) {
     },
     {
       question: "Why does switching to the CPU tab reset the heat map?",
-      answer: "The CPU and CALCULATOR tabs only run while they are visible. When you switch to CPU, it starts fresh because it was not tracking execution while CALCULATOR was showing. Switch to CPU first, then trigger the action you want to trace.",
+      answer: "The CPU tab only traces while it is visible. When you switch to it, the heat map resets because any activity since you last left would be missing anyway. Exception: if the CPU is already frozen when you switch, the heat map is left intact — there is nothing new to miss.",
     },
     {
       question: "What does F.START do in the CPU tab?",
       answer: "In the CPU tab, F.START arms a scan-loop exit trigger: it freezes the moment the calculator leaves the keyboard idle loop — either because you pressed a key (the ROM exits the loop to handle the keystroke) or because the calculator was reset. This lets you catch the very first ROM opcode of a key-press handler without having to time a manual FREEZE. Only one F.START can be armed at a time; arming one tab silently disarms the other.",
+    },
+    {
+      question: "I used F.START in the CPU tab, the freeze triggered on a keypress — but after RESUME the key seems lost. Why?",
+      answer: "This is expected. The ROM's key-debouncing logic registers a keypress only for a very short window. When F.START fires, the CPU freezes at the first instruction after the scan loop exits — but that window has already passed by the time you press RESUME. The key handler never sees the keypress and the calculator returns to idle. To work around it: use STEP to advance through the key-handling code manually, or use a TRACE capture instead to record the full keystroke sequence without stopping the emulator.",
     },
     {
       question: "Is there a faster way to read long printer output?",
