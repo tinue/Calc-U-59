@@ -98,7 +98,7 @@ function HomePage({ onNav }) {
             What a .ti59 file contains and how the parser treats each section.
           </TopicCard>
           <TopicCard num="04" eyebrow="Debug" title="Using the debugger" onClick={() => onNav("debugger") }>
-            LIVE, CPU, LOG, freeze/step, and the binary trace file.
+            CALCULATOR, CPU, LOG, freeze/step, and the binary trace file.
           </TopicCard>
           <TopicCard num="05" eyebrow="Hardware" title="Printer and card reader" onClick={() => onNav("ref")}>
             What the PC-100C panel does and how card files are managed.
@@ -149,7 +149,7 @@ function GettingStartedPage({ initialTopic = "install-mobile", onNav }) {
     "install-mobile": "Use the App Store build, then configure the model and load presets from inside the app.",
     "install-mac": "Download the release from GitHub, then drag the app to Applications.",
     "state-files": "What .ti59/.ti58/.ti58c files contain and how the parser treats each section.",
-    debugger: "LIVE, CPU, LOG, freeze/step, and binary trace output.",
+    debugger: "CALCULATOR, CPU, LOG, freeze/step, and binary trace output.",
     printer: "The PC-100C panel, paper strip, copy/cut, and card file behaviour.",
     faq: "Concise answers to the questions that usually come up first.",
     readme: "Complete project overview, build instructions, and technical documentation.",
@@ -232,11 +232,8 @@ PRINTER: on`;
       <div style={{ display: "grid", gap: 16, marginTop: 20 }}>
         <div className="panel" style={{ padding: 20, lineHeight: 1.7 }}>
           <p style={{ marginTop: 0 }}>
-            The debug pane has three tabs: <strong>LIVE</strong>, <strong>CPU</strong>, and <strong>LOG</strong>.
-            LIVE shows the real-time calculator state, CPU is the instruction inspector, and LOG displays raw debug output plus the trace capture toggle.
-          </p>
-          <p>
-            Important: every instruction shown in the debugger displays the state <strong>after</strong> that instruction executed, not before. This affects how flags appear when you have tests followed by jumps.
+            The debug pane has three tabs: <strong>CALCULATOR</strong>, <strong>CPU</strong>, and <strong>LOG</strong>.
+            CALCULATOR shows the program listing and live register state, CPU is the instruction trace inspector, and LOG displays raw debug output plus the trace capture toggle.
           </p>
           <p style={{ marginBottom: 0 }}>
             The most powerful feature is the TRACE toggle in LOG—it records a binary session file that you can export and analyze with the <code>read_trace.py</code> tool to understand ROM sequences in detail.
@@ -247,9 +244,9 @@ PRINTER: on`;
             Quick start:
           </p>
           <ol style={{ margin: 0, paddingLeft: 20 }}>
-            <li>Check the LIVE tab for a quick snapshot of registers, flags, and display state.</li>
-            <li>Use TRACE in the LOG tab to capture a sequence (reset, keystroke processing, etc.).</li>
-            <li>Export the trace file and use <code style={{ background: "var(--bg-inset)", padding: "2px 6px", borderRadius: 4 }}>read_trace.py</code> to analyze it. The binary file compresses to a small text file thanks to loop deduplication.</li>
+            <li>Use the CALCULATOR tab to inspect registers and step through your program.</li>
+            <li>Switch to CPU if you want to trace the actual ROM instructions that ran (including jumps and subroutine calls).</li>
+            <li>Use TRACE in the LOG tab to capture a longer sequence (reset, keystroke processing, etc.) for offline analysis.</li>
           </ol>
         </div>
       </div>
@@ -279,9 +276,9 @@ PRINTER: on`;
         {[
           { q: "Where do state files live?", a: "They are regular .ti59, .ti58, or .ti58c text files. On Mac, the preset picker opens them from disk; on iPhone and iPad, use the built-in file picker." },
           { q: "What should I check first if a file opens wrong?", a: "Check the partition, then the selected module, then the printer setting. Those three control the most visible parts of a loaded preset." },
-          { q: "Can I see what the emulator is doing internally?", a: "Yes. Use the debug pane: LIVE for real-time state, CPU for instruction history, and LOG for text output plus trace controls. For analyzing sequences, TRACE is more useful than the CPU tab." },
+          { q: "Can I see what the emulator is doing internally?", a: "Yes. Use the debug pane: CALCULATOR for program state and live registers, CPU for the ROM instruction trace, and LOG for text output plus trace controls. For analyzing sequences, TRACE is more useful than the CPU tab." },
           { q: "How do I get a trace file?", a: "Open the debug pane, switch to LOG, and turn TRACE on. The app writes a binary session file to the configured trace location. You can then export it and analyze it with read_trace.py." },
-          { q: "What does the instruction state in the debugger show—before or after?", a: "Every instruction displayed shows the calculator state after that instruction executed. When you see TEST followed by JUMP, the JUMP shows the auto-restored condition flag, which is why flags can look like they change unexpectedly." },
+          { q: "What does the CALCULATOR tab show versus the CPU tab?", a: "CALCULATOR shows the instruction that will execute next, with registers in their current state before it runs. CPU shows instructions that already ran, with registers in the state after each one. STEP also works differently: in CALCULATOR it runs until the program counter changes; in CPU it advances exactly one ROM opcode." },
           { q: "My trace file is 190 MB. Is that normal?", a: "Yes, for long sessions. But when you convert it to text with read_trace.py using the --clean and --skip-repeating flags, it compresses to a fraction of that size because the tool deduplicates repetitive loops." },
           { q: "Why does the display look different between models?", a: "Calc-U 59 can start in TI-59, TI-58, or TI-58C mode. The model affects the startup state, memory layout, and the available controls." },
           { q: "Is there a faster way to read long printer output?", a: "Yes. Switch the printer view to text mode, then copy or cut the strip on any build if you want a plain-text version quickly." },
@@ -456,41 +453,76 @@ function DebuggerPage({ onNav }) {
     <main className="wrap-narrow">
       <p className="eyebrow">Debug</p>
       <h1 className="page-title">Using the debugger</h1>
-      <p className="lede">The debug pane combines real-time calculator state, instruction history, and trace capture tools for analyzing the emulator's behavior.</p>
+      <p className="lede">The debug pane combines a program-level view, a CPU-level instruction trace, and a trace capture tool for analyzing the emulator's behavior in detail.</p>
 
       <div className="panel" style={{ padding: 20, lineHeight: 1.7, marginTop: 24 }}>
         <h3 className="sub" style={{ marginTop: 0, marginBottom: 12 }}>Overview</h3>
         <p style={{ margin: 0 }}>
-          The debug pane has three tabs: <strong>LIVE</strong>, <strong>CPU</strong>, and <strong>LOG</strong>.
+          The debug pane has three tabs: <strong>CALCULATOR</strong>, <strong>CPU</strong>, and <strong>LOG</strong>.
         </p>
         <ul style={{ margin: "8px 0 0", paddingLeft: 20 }}>
-          <li><strong>LIVE</strong> — Real-time calculator state: registers, flags, display, and status.</li>
-          <li><strong>CPU</strong> — Instruction history. When frozen, shows scrollable past instructions with step and resume controls.</li>
-          <li><strong>LOG</strong> — Raw debug output, SCOM register inspection, and the trace toggle. Most useful for capturing session files for deeper analysis.</li>
+          <li><strong>CALCULATOR</strong> — Program listing (copied from RAM), registers, flags, and HIR values at the current moment. Shows the instruction that will execute <em>next</em>. Useful for stepping through your own programs.</li>
+          <li><strong>CPU</strong> — Execution trace: the actual sequence of ROM instructions that ran. Shows the instruction that just <em>finished</em> and the register state <em>after</em> it executed. You can scroll back through the history.</li>
+          <li><strong>LOG</strong> — Raw debug output, SCOM register inspection, and the TRACE toggle. Most useful for capturing session files for deep analysis.</li>
         </ul>
       </div>
 
       <div className="panel" style={{ padding: 20, lineHeight: 1.7, marginTop: 12 }}>
-        <h3 className="sub" style={{ marginTop: 0, marginBottom: 12 }}>Understanding instruction state</h3>
-        <p style={{ margin: 0 }}>
-          Every instruction displayed in the debugger shows the calculator state <strong>after</strong> that instruction executed, not before. This includes all registers, flags, and the display.
+        <h3 className="sub" style={{ marginTop: 0, marginBottom: 12 }}>CALCULATOR tab</h3>
+        <p style={{ marginTop: 0 }}>
+          The CALCULATOR tab shows a window into program memory (copied from RAM) centred on the current step. The highlighted instruction is the one that will execute <strong>next</strong>. After a jump (GTO, SBR, etc.) the listing jumps to the new location — it does not show where you came from, because it is not a trace.
         </p>
-        <p style={{ marginTop: 8, marginBottom: 0 }}>
-          When you see a <strong>TEST</strong> followed by a <strong>JUMP</strong>: the TEST instruction shows the condition flag as set by the test, but the JUMP shows the auto-restored condition (usually 1) unless the next instruction is also a jump. This is why flags can look like they change in unexpected places.
+        <p>
+          Registers and flags reflect the calculator state <strong>right now</strong>, before the highlighted instruction runs.
+        </p>
+        <p style={{ marginBottom: 0 }}>
+          <strong>STEP in CALCULATOR mode</strong> — pressing Step runs the CPU until the program counter changes (i.e. until the next user-visible step advances), then freezes again. This is the right tool for tracing through a keystroke-driven program one step at a time.
         </p>
       </div>
 
       <div className="panel" style={{ padding: 20, lineHeight: 1.7, marginTop: 12 }}>
-        <h3 className="sub" style={{ marginTop: 0, marginBottom: 12 }}>LIVE and CPU: for quick inspection</h3>
+        <h3 className="sub" style={{ marginTop: 0, marginBottom: 12 }}>CPU tab</h3>
         <p style={{ marginTop: 0 }}>
-          Use the LIVE tab to check current registers, flags, and display state at a glance.
+          The CPU tab shows the actual ROM instructions that executed, in order. Each entry represents an instruction that <strong>already ran</strong>; registers and flags are in the state <em>after</em> that instruction completed.
         </p>
         <p>
-          Freeze the machine when you want to inspect a specific moment. While frozen, the CPU tab shows a scrollable history so you can step backward and forward through past instructions. However, the CPU tab has limited usefulness for typical users, since it is designed for analyzing the emulator's internal behavior rather than helping you use the calculator itself.
+          Because it is a true execution trace, you can see jumps, subroutine calls, and PREG transitions — the address changes visibly in the listing. You can also scroll back through past entries to review earlier execution.
         </p>
         <p style={{ marginBottom: 0 }}>
-          The ability to change registers or flags to see how the emulator reacts would require a full breakpoint-based debugger, which is not yet implemented.
+          <strong>STEP in CPU mode</strong> — pressing Step executes exactly one ROM instruction, then freezes. This is the right tool when you want to follow the ROM's internal logic one opcode at a time.
         </p>
+        <p style={{ marginTop: 8, marginBottom: 0 }}>
+          <strong>Note on TEST/JUMP flags:</strong> because state is captured <em>after</em> each instruction, a TEST shows the flag it set, but the following JUMP shows the auto-restored condition (usually 1). This is expected behaviour — it is not a bug.
+        </p>
+      </div>
+
+      <div className="panel" style={{ padding: 20, lineHeight: 1.7, marginTop: 12 }}>
+        <h3 className="sub" style={{ marginTop: 0, marginBottom: 12 }}>Freeze controls</h3>
+        <p style={{ marginTop: 0 }}>
+          The toolbar above the debug pane offers <strong>FREEZE</strong>, <strong>F.START</strong> (Freeze on Start), <strong>ARMED</strong>, <strong>RESUME</strong>, and <strong>STEP</strong>.
+        </p>
+        <ul style={{ margin: "8px 0", paddingLeft: 20 }}>
+          <li><strong>FREEZE</strong> — stops the CPU immediately.</li>
+          <li><strong>F.START</strong> — arms the debugger so it freezes the first time the calculator-level program counter changes. This is triggered by pressing R/S, launching a program via a label, or any similar action. Useful for catching the very start of a program run.</li>
+          <li><strong>RESUME</strong> — resumes execution from the frozen state.</li>
+          <li><strong>STEP</strong> — advances one step (semantics differ per tab, see above).</li>
+        </ul>
+        <p style={{ marginTop: 8, marginBottom: 0, color: "var(--fg-2)" }}>
+          <strong>Current limitation:</strong> F.START is designed for the CALCULATOR tab and watches the calculator-level program counter. In the CPU tab it is shown but does not behave usefully — it does not yet detect when the calculator leaves the keyboard scan loop (e.g. when a key is pressed). Use FREEZE manually in the CPU tab instead.
+        </p>
+      </div>
+
+      <div className="panel" style={{ padding: 20, lineHeight: 1.7, marginTop: 12 }}>
+        <h3 className="sub" style={{ marginTop: 0, marginBottom: 12 }}>iPhone behaviour</h3>
+        <p style={{ marginTop: 0 }}>
+          On iPhone, the debugger panel is full-screen and covers the calculator. This is different from iPad and Mac, where both views are visible at the same time.
+        </p>
+        <ul style={{ margin: "8px 0 0", paddingLeft: 20 }}>
+          <li>The debugger always opens on the <strong>CALCULATOR</strong> tab.</li>
+          <li>Switching to the <strong>CPU</strong> tab resets that view (including the heat map), because the CPU trace was not running while CALCULATOR was visible.</li>
+          <li>Navigating away from the debugger and returning lands you back on CALCULATOR, not on the tab you left.</li>
+          <li>The F.START freeze-on-start flow works best in landscape or on iPad/Mac, where you can press a key on the calculator while the CALCULATOR tab is watching. On iPhone you would need to go back to the calculator, press a key, then return to the debugger.</li>
+        </ul>
       </div>
 
       <div className="panel" style={{ padding: 20, lineHeight: 1.7, marginTop: 12 }}>
@@ -500,7 +532,7 @@ function DebuggerPage({ onNav }) {
         </p>
         <ul style={{ margin: "8px 0", paddingLeft: 20 }}>
           <li><strong>Raw SCOM inspection</strong> — Shows the low-level scratch memory that the ROM uses. The CALCULATOR view displays decoded SCOM values (like HIR section), but LOG shows the raw hex.</li>
-          <li><strong>TRACE toggle</strong> — Records a binary session file while the calculator is running. This is far more useful than the CPU tab for understanding sequences like the reset routine or key-processing flow.</li>
+          <li><strong>TRACE toggle</strong> — Records a binary session file while the calculator is running. This is the most thorough way to understand sequences like the reset routine or key-processing flow.</li>
         </ul>
 
         <p style={{ marginTop: 12, marginBottom: 12 }}>
@@ -517,34 +549,42 @@ function DebuggerPage({ onNav }) {
         </ol>
 
         <p style={{ marginTop: 12, marginBottom: 0 }}>
-          The binary trace file can be large (190 MB for a long session), but the text output is much smaller (57 kB) because the tool deduplicates repetitive loops—especially the keyboard scan loop that runs continuously. This makes it practical to analyze even long traces.
+          The binary trace file can be large (190 MB for a long session), but the text output is much smaller (57 kB) because the tool deduplicates repetitive loops — especially the keyboard scan loop that runs continuously. This makes it practical to analyze even long traces.
         </p>
       </div>
 
       <div className="panel" style={{ padding: 20, lineHeight: 1.7, marginTop: 12 }}>
         <h3 className="sub" style={{ marginTop: 0, marginBottom: 12 }}>When to use each tool</h3>
         <ul style={{ margin: 0, paddingLeft: 20 }}>
-          <li><strong>LIVE tab</strong> — Quick snapshot of current state during normal operation.</li>
-          <li><strong>CPU tab</strong> — Stepping through a few instructions when frozen, or reviewing immediate past execution.</li>
-          <li><strong>TRACE</strong> — Capturing a ROM sequence for detailed analysis (reset routine, memory writes, keyboard processing, etc.).</li>
-          <li><strong>Debug logging (in LOG)</strong> — Low or High level logging is mainly used by the app developer for debugging specific issues. When enabled, you will see all memory writes and other hardware events. This has limited utility for regular app users.</li>
+          <li><strong>CALCULATOR tab</strong> — Stepping through your own program one step at a time, checking registers and flags at each step.</li>
+          <li><strong>CPU tab</strong> — Tracing the ROM's internal instruction flow, reviewing jumps and subroutine calls, scrolling back through execution history.</li>
+          <li><strong>TRACE (in LOG)</strong> — Capturing a complete ROM sequence for offline analysis (reset routine, memory writes, keyboard processing, etc.).</li>
+          <li><strong>Debug logging (in LOG)</strong> — Low or High level logging is mainly used by the developer for debugging specific issues. When enabled, you will see all memory writes and other hardware events. This has limited utility for regular app users.</li>
         </ul>
       </div>
 
       <div style={{ marginTop: 16, display: "grid", gap: 12 }}>
         <div className="panel" style={{ padding: 16 }}>
-          <h3 className="sub" style={{ margin: "0 0 10px" }}>LIVE tab</h3>
+          <h3 className="sub" style={{ margin: "0 0 10px" }}>CALCULATOR tab — iPhone</h3>
+          <img
+            src="assets/iphone-debug.png"
+            alt="iPhone screenshot showing the CALCULATOR debug tab with program listing and registers"
+            style={{ width: "auto", maxWidth: "60%", height: "auto", display: "block", borderRadius: 8, margin: "0 auto" }}
+          />
+        </div>
+        <div className="panel" style={{ padding: 16 }}>
+          <h3 className="sub" style={{ margin: "0 0 10px" }}>CALCULATOR tab — iPad</h3>
           <img
             src="assets/ipad-13-2752x2064.png"
-            alt="iPad screenshot showing the LIVE debug tab"
+            alt="iPad screenshot showing the CALCULATOR debug tab"
             style={{ width: "100%", height: "auto", display: "block", borderRadius: 8 }}
           />
         </div>
         <div className="panel" style={{ padding: 16 }}>
-          <h3 className="sub" style={{ margin: "0 0 10px" }}>CPU tab</h3>
+          <h3 className="sub" style={{ margin: "0 0 10px" }}>CPU tab — iPad</h3>
           <img
             src="assets/ipad-2752x2064-asm.png"
-            alt="iPad screenshot showing the CPU debug tab"
+            alt="iPad screenshot showing the CPU debug tab with execution trace"
             style={{ width: "100%", height: "auto", display: "block", borderRadius: 8 }}
           />
         </div>
@@ -594,15 +634,15 @@ function ReferencePage({ onNav }) {
         <h2 className="section">The debug pane</h2>
         <div className="panel" style={{ padding: 20, lineHeight: 1.7 }}>
           <p style={{ marginTop: 0 }}>
-            The debug pane has three tabs: <strong>LIVE</strong>, <strong>CPU</strong>, and <strong>LOG</strong>.
+            The debug pane has three tabs: <strong>CALCULATOR</strong>, <strong>CPU</strong>, and <strong>LOG</strong>.
           </p>
           <ul style={{ margin: "8px 0 0", paddingLeft: 20 }}>
-            <li><strong>LIVE</strong> — Shows the current calculator state in real time: registers, flags, display.</li>
-            <li><strong>CPU</strong> — Instruction inspector. When frozen, shows a scrollable history you can step through.</li>
-            <li><strong>LOG</strong> — Text output, raw SCOM register dumps, and the trace toggle. Use TRACE to capture a binary session file for detailed analysis with read_trace.py.</li>
+            <li><strong>CALCULATOR</strong> — Program listing (from RAM) centred on the next instruction to execute, with live registers and flags.</li>
+            <li><strong>CPU</strong> — Execution trace of ROM instructions that already ran. State shown is <em>after</em> each instruction. Scrollable history, one-opcode step.</li>
+            <li><strong>LOG</strong> — Text output, raw SCOM register dumps, and the TRACE toggle. Use TRACE to capture a binary session file for detailed analysis with read_trace.py.</li>
           </ul>
           <p style={{ marginTop: 8, marginBottom: 0 }}>
-            <strong>Remember:</strong> every instruction shown displays the state <em>after</em> that instruction executed. This is why flags behave unexpectedly after tests and jumps.
+            The CALCULATOR and CPU tabs have different step semantics: CALCULATOR advances until the program counter changes; CPU advances exactly one ROM opcode.
           </p>
         </div>
 
@@ -689,7 +729,7 @@ function FaqPage({ onNav }) {
     },
     {
       question: "Can I see what the emulator is doing internally?",
-      answer: "Yes. Use the debug pane: LIVE for real-time state, CPU for instruction history, and LOG for text output plus trace controls.",
+      answer: "Yes. Use the debug pane: CALCULATOR for program state and registers, CPU for the ROM instruction trace, and LOG for text output plus trace controls.",
     },
     {
       question: "How do I get a trace file?",
@@ -698,6 +738,14 @@ function FaqPage({ onNav }) {
     {
       question: "What can I do with a trace file?",
       answer: "You first need to download the trace file to your computer. If you use the Mac emulator, this is already a given. When you generate the trace file with an iPad, then use 'Settings' to choose a good location. One option is to save the file directly to iCloud, and let the iPad sync it for you. Retrieve the file from iCloud on your PC. Download the 'read_trace.py' script from GitHub to convert the binary file to a readable format. The script is available in the 'tools' directory of the GitHub repository.",
+    },
+    {
+      question: "Why does switching to the CPU tab reset the heat map?",
+      answer: "The CPU and CALCULATOR tabs only run while they are visible. When you switch to CPU, it starts fresh because it was not tracking execution while CALCULATOR was showing. Switch to CPU first, then trigger the action you want to trace.",
+    },
+    {
+      question: "Why doesn't F.START (Freeze on Start) work in the CPU tab?",
+      answer: "F.START watches the calculator-level program counter and is designed for the CALCULATOR tab. In the CPU tab it appears but does not yet detect the right trigger (e.g. when a key is pressed and the calculator leaves the keyboard scan loop). Use FREEZE manually in the CPU tab instead.",
     },
     {
       question: "Is there a faster way to read long printer output?",
