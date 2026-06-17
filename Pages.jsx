@@ -751,7 +751,7 @@ function FaqPage({ onNav }) {
     },
     {
       question: "I used F.START in the CPU tab, the freeze triggered on a keypress — but after RESUME the key seems lost. Why?",
-      answer: "This is expected. The ROM's key-debouncing logic registers a keypress only for a very short window. When F.START fires, the CPU freezes at the first instruction after the scan loop exits — but that window has already passed by the time you press RESUME. The key handler never sees the keypress and the calculator returns to idle. To work around it: use STEP to advance through the key-handling code manually, or use a TRACE capture instead to record the full keystroke sequence without stopping the emulator.",
+      answer: "This is expected. The ROM's key-debouncing logic registers a keypress only for a very short window. When F.START fires, the CPU freezes at the first instruction after the scan loop exits — but that window has already passed by the time you press RESUME or STEP. The key handler never sees the keypress and the calculator returns to idle. Use a TRACE capture instead: it records the full keystroke sequence without stopping the emulator, so the debounce window is never interrupted.",
     },
     {
       question: "Is there a faster way to read long printer output?",
