@@ -278,7 +278,7 @@ PRINTER: on`;
           { q: "What should I check first if a file opens wrong?", a: "Check the partition, then the selected module, then the printer setting. Those three control the most visible parts of a loaded preset." },
           { q: "Can I see what the emulator is doing internally?", a: "Yes. Use the debug pane: CALCULATOR for program state and live registers, CPU for the ROM instruction trace, and LOG for text output plus trace controls. For analyzing sequences, TRACE is more useful than the CPU tab." },
           { q: "How do I get a trace file?", a: "Open the debug pane, switch to LOG, and turn TRACE on. The app writes a binary session file to the configured trace location. You can then export it and analyze it with read_trace.py." },
-          { q: "What does the CALCULATOR tab show versus the CPU tab?", a: "CALCULATOR shows the instruction that will execute next, with registers in their current state before it runs. CPU shows instructions that already ran, with registers in the state after each one. STEP also works differently: in CALCULATOR it runs until the program counter changes; in CPU it advances exactly one ROM opcode." },
+          { q: "What does the CALCULATOR tab show versus the CPU tab?", a: "CALCULATOR shows the instruction that will execute next, with registers in their current state before it runs. CPU shows instructions that already ran, with registers in the state after each one. STEP and RESUME also work differently per tab and are only enabled in the tab that caused the current freeze — using them in the wrong tab is prevented." },
           { q: "My trace file is 190 MB. Is that normal?", a: "Yes, for long sessions. But when you convert it to text with read_trace.py using the --clean and --skip-repeating flags, it compresses to a fraction of that size because the tool deduplicates repetitive loops." },
           { q: "Why does the display look different between models?", a: "Calc-U 59 can start in TI-59, TI-58, or TI-58C mode. The model affects the startup state, memory layout, and the available controls." },
           { q: "Is there a faster way to read long printer output?", a: "Yes. Switch the printer view to text mode, then copy or cut the strip on any build if you want a plain-text version quickly." },
@@ -503,12 +503,14 @@ function DebuggerPage({ onNav }) {
         </p>
         <ul style={{ margin: "8px 0", paddingLeft: 20 }}>
           <li><strong>FREEZE</strong> — stops the CPU immediately.</li>
-          <li><strong>F.START</strong> — arms the debugger so it freezes the first time the calculator-level program counter changes. This is triggered by pressing R/S, launching a program via a label, or any similar action. Useful for catching the very start of a program run.</li>
+          <li><strong>F.START (CALCULATOR tab)</strong> — arms the debugger so it freezes the first time the calculator-level program counter changes. This is triggered by pressing R/S, launching a program via a label, or any similar action. Useful for catching the very start of a program run.</li>
+          <li><strong>F.START (CPU tab)</strong> — arms the debugger so it freezes the moment the calculator leaves the keyboard scan loop. This happens when you press any key (which causes the ROM to exit the idle loop and start processing the keystroke) or when the calculator is reset. Useful for catching the very first ROM instruction of a key-press handler.</li>
+          <li><strong>ARMED</strong> — shown in yellow when F.START is active; click it to cancel.</li>
           <li><strong>RESUME</strong> — resumes execution from the frozen state.</li>
           <li><strong>STEP</strong> — advances one step (semantics differ per tab, see above).</li>
         </ul>
         <p style={{ marginTop: 8, marginBottom: 0, color: "var(--fg-2)" }}>
-          <strong>Current limitation:</strong> F.START is designed for the CALCULATOR tab and watches the calculator-level program counter. In the CPU tab it is shown but does not behave usefully — it does not yet detect when the calculator leaves the keyboard scan loop (e.g. when a key is pressed). Use FREEZE manually in the CPU tab instead.
+          Only one F.START arm can be active at a time. Pressing F.START in one tab while the other is already ARMED silently transfers the arm. Once frozen, RESUME and STEP are only available in the tab that caused the freeze — the other tab's buttons are disabled to prevent accidental cross-tab interactions.
         </p>
       </div>
 
@@ -519,9 +521,10 @@ function DebuggerPage({ onNav }) {
         </p>
         <ul style={{ margin: "8px 0 0", paddingLeft: 20 }}>
           <li>The debugger always opens on the <strong>CALCULATOR</strong> tab.</li>
-          <li>Switching to the <strong>CPU</strong> tab resets that view (including the heat map), because the CPU trace was not running while CALCULATOR was visible.</li>
+          <li>Switching to the <strong>CPU</strong> tab resets the heat map, because the CPU trace was not running while CALCULATOR was visible. Exception: if the CPU is already frozen when you switch, the heat map is preserved.</li>
           <li>Navigating away from the debugger and returning lands you back on CALCULATOR, not on the tab you left.</li>
-          <li>The F.START freeze-on-start flow works best in landscape or on iPad/Mac, where you can press a key on the calculator while the CALCULATOR tab is watching. On iPhone you would need to go back to the calculator, press a key, then return to the debugger.</li>
+          <li><strong>F.START in CALCULATOR</strong> works best in landscape or on iPad/Mac, where you can press a key on the calculator while the tab is watching. On iPhone you would need to go back to the calculator, press the key, then return to the debugger.</li>
+          <li><strong>F.START in CPU</strong> arms in the background and fires as soon as you press any key (or reset the calculator), regardless of which tab or screen is visible — the freeze is waiting for a ROM-level scan-loop exit, not a screen interaction.</li>
         </ul>
       </div>
 
@@ -744,8 +747,8 @@ function FaqPage({ onNav }) {
       answer: "The CPU and CALCULATOR tabs only run while they are visible. When you switch to CPU, it starts fresh because it was not tracking execution while CALCULATOR was showing. Switch to CPU first, then trigger the action you want to trace.",
     },
     {
-      question: "Why doesn't F.START (Freeze on Start) work in the CPU tab?",
-      answer: "F.START watches the calculator-level program counter and is designed for the CALCULATOR tab. In the CPU tab it appears but does not yet detect the right trigger (e.g. when a key is pressed and the calculator leaves the keyboard scan loop). Use FREEZE manually in the CPU tab instead.",
+      question: "What does F.START do in the CPU tab?",
+      answer: "In the CPU tab, F.START arms a scan-loop exit trigger: it freezes the moment the calculator leaves the keyboard idle loop — either because you pressed a key (the ROM exits the loop to handle the keystroke) or because the calculator was reset. This lets you catch the very first ROM opcode of a key-press handler without having to time a manual FREEZE. Only one F.START can be armed at a time; arming one tab silently disarms the other.",
     },
     {
       question: "Is there a faster way to read long printer output?",
