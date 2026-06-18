@@ -36,6 +36,7 @@ void TI59Machine::reset() {
     m_cpu.reset();
     m_cpu.pressKey(4, cardSwitchCol());  // restore card-absent state after key[] wipe
     m_cpu.setPrinterConnected(m_printerConnected);
+    m_cpu.setPrinterTrace(m_printerTrace);  // TRACE is a physical latch: survives reset
 }
 
 uint32_t TI59Machine::step() {
@@ -189,13 +190,17 @@ void TI59Machine::pressPrinterAdv(bool pressed) {
 
 void TI59Machine::setPrinterTrace(bool enabled) {
     std::lock_guard<std::mutex> lock(m_keyMutex);
+    m_printerTrace = enabled;
     m_cpu.setPrinterTrace(enabled);
 }
 
 void TI59Machine::setPrinterConnected(bool connected) {
     std::lock_guard<std::mutex> lock(m_keyMutex);
     m_printerConnected = connected;
+    // Attaching or detaching the printer physically releases the TRACE latch.
+    m_printerTrace = false;
     m_cpu.setPrinterConnected(connected);
+    m_cpu.setPrinterTrace(false);
 }
 
 // ── Trace / debug API ──────────────────────────────────────────────────────────

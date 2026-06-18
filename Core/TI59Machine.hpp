@@ -164,6 +164,11 @@ private:
     //   readROMKeycode/disassemble  → immutable after load / pure
     mutable std::mutex m_keyMutex;
     bool           m_printerConnected = true;
+    // The printer's TRACE button is a physical hardware latch: it stays pressed
+    // until physically released, so it must survive a calculator reset (which
+    // wipes key[]).  We track its state here and re-apply it in reset().  It is
+    // released only when the printer is attached or detached (setPrinterConnected).
+    bool           m_printerTrace     = false;
 
     int cardSwitchCol() const; // Digit-counter column for the card-switch key.
 };

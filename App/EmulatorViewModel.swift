@@ -343,6 +343,9 @@ class EmulatorViewModel {
         stop()
         await drainEmulQueue()   // ensure old loop has exited before starting the new one
         self.model = model
+        // A fresh machine is created below; the printer's TRACE latch is released
+        // on a model change (the new core instance starts with it off).
+        printerTrace = false
         userCueCardContent = nil
         activeProgramNumber = 0
         cueCardContent = nil  // clear cuecard when switching models
@@ -730,6 +733,8 @@ class EmulatorViewModel {
     }
     func setPrinterConnected(_ connected: Bool) {
         printerConnected = connected
+        // Attaching or detaching the printer physically releases the TRACE latch.
+        printerTrace = false
         machine?.setPrinterConnected(connected)
     }
     func cutPaper() { printerLines = []; printerCodeLines = []; printerClearID &+= 1 }
@@ -772,8 +777,9 @@ class EmulatorViewModel {
         userCueCardContent = nil
         activeProgramNumber = 0
         cueCardContent = resolvedCueCard()
-        printerTrace = false
-        machine?.setPrinterTrace(false)
+        // The printer's TRACE button is a physical hardware latch — a calculator
+        // reset does not release it.  The core preserves it across reset(); it is
+        // released only on printer attach/detach or model change.
         machine?.reset()
         resetHeatmapBaseline()
 
@@ -808,8 +814,7 @@ class EmulatorViewModel {
         userCueCardContent = nil
         activeProgramNumber = 0
         cueCardContent = resolvedCueCard()
-        printerTrace = false
-        machine?.setPrinterTrace(false)
+        // TRACE is a physical latch — preserved across reset by the core (see resetMachine).
         machine?.reset()
         resetHeatmapBaseline()
         // Write zeroed state for TI-58C immediately
