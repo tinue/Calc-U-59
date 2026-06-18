@@ -1,13 +1,26 @@
 #!/usr/bin/env python3
-"""TI-59 ROM Disassembler — Phase 1
+"""TI-59/58C ROM Disassembler
 
-Reads roms/rom-59.hex, decodes every 13-bit opcode, and writes refs/rom.asm.
+Reads the chip .txt files from roms/calculator/, decodes every 13-bit opcode,
+and writes both rom/TI59.asm (TI-58/59) and rom/TI58C.asm (TI-58C).
 
-Decode logic follows the TMC0501 instruction set encoding (US Patents 3,900,722 and 4,153,937).
-See planning/DISASM-PLAN.md for the full reverse-engineering roadmap.
+Each calculator ROM is spread across three chips:
+  TI-58/59 : TMC0582 + TMC0583 (executable code) + TMC0571B (SCOM constants)
+  TI-58C   : CD2400  + CD2401  (executable code) + TMC0573  (SCOM constants)
+
+The -CONST-K.txt files (BCD constants / keycode programs embedded in the ROM
+chips) are intentionally not loaded — only the executable opcode sections are
+disassembled.
+
+Decode logic follows the TMC0501 instruction set encoding (US Patents 3,900,722
+and 4,153,937).
 
 Mnemonic names are defined in tools/mnemonics.tsv (single source of truth).
 Run with --emit-cpp to print C++ lookup arrays for TMC0501.cpp.
+
+Usage:
+    python3 tools/disasm.py              # generate both rom/TI59.asm and rom/TI58C.asm
+    python3 tools/disasm.py --emit-cpp   # print C++ lookup arrays for TMC0501.cpp
 """
 
 import sys
@@ -392,10 +405,12 @@ _SECTIONS: dict[int, str] = _ROM_META["59"]["sections"]
 
 # ── Main ─────────────────────────────────────────────────────────────────────
 
-def _sibling_roms() -> Path:
-    """Return the roms/ directory, preferring a local symlink."""
-    local = ROOT / "roms"
-    return local if local.exists() else ROOT.parent / "public" / "Calc-U-59" / "roms"
+def _calc_roms_dir() -> Path:
+    """Return the roms/calculator/ directory."""
+    local = ROOT / "roms" / "calculator"
+    if local.exists():
+        return local
+    return ROOT.parent / "public" / "Calc-U-59" / "roms" / "calculator"
 
 
 def disasm_rom(words: list[tuple[int, int]], out_path: Path, meta: dict) -> None:
@@ -438,29 +453,23 @@ def main() -> None:
     import argparse
     parser = argparse.ArgumentParser(description="TI-59/58C ROM disassembler")
     parser.add_argument("--emit-cpp", action="store_true", help="Print C++ lookup arrays and exit")
-    parser.add_argument("--input",  "-i", type=Path,
-                        help="Legacy flat .hex ROM file (overrides per-chip .txt loading)")
-    parser.add_argument("--output", "-o", type=Path, help="Output .asm file")
-    parser.add_argument("--model",  "-m", choices=["59", "58C"], default="59",
-                        help="ROM model (default: 59)")
+    parser.add_argument("--model", "-m", choices=["59", "58C"],
+                        help="Generate only one model (default: generate both)")
     args = parser.parse_args()
 
     if args.emit_cpp:
         emit_cpp()
         return
 
-    roms = _sibling_roms()
-    meta = _ROM_META[args.model]
-    out_path = args.output or ROOT / "rom" / f"TI{args.model}.asm"
-
-    if args.input:
-        print(f"Loading {args.input} (legacy .hex) …")
-        words = load_rom(args.input)
-    else:
+    roms = _calc_roms_dir()
+    models = [args.model] if args.model else ["59", "58C"]
+    for model in models:
+        meta = _ROM_META[model]
+        out_path = ROOT / "rom" / f"TI{model}.asm"
+        print(f"\n── {model} ─────────────────────────────────────────")
         print(f"Loading chips: {', '.join(meta['chips'])} …")
         words = load_chips(meta["chips"], roms)
-
-    disasm_rom(words, out_path, meta)
+        disasm_rom(words, out_path, meta)
 
 
 if __name__ == "__main__":
