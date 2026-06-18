@@ -118,8 +118,15 @@ walked with `INC KR` instructions.
 ## Memory Map
 
 ### ROM
-- **TI-59**: 6144 × 13-bit words (addresses 0x0000–0x17FF)
-- **TI-58/58C**: 5120 × 13-bit words (addresses 0x0000–0x13FF)
+All variants load 6144 × 13-bit words (addresses 0x0000–0x17FF):
+- **TI-59** and **TI-58**: the same image — `TMC0582` + `TMC0583` + `TMC0571B`.
+  The plain TI-58 runs the identical firmware (card code included); it differs
+  only in RAM size, which the ROM autodetects (see User RAM below).
+- **TI-58C**: a different image — `CD2400` + `CD2401` + `TMC0573` (adds constant
+  memory and the `MEMWR`/`MEMRD` opcodes).
+
+(`ROM::TI58_WORDS = 5120` is a legacy alternate size still accepted by the load
+assert, but every shipped variant is 6144 words.)
 
 ROM words are 13 bits wide.  The upper 3 bits of the 16-bit storage word are
 masked to zero on every `read()`.
@@ -140,6 +147,26 @@ via `OP 17` (stored in SCOM[9][0] as `n/10`).  The factory default is
 - **TI-58/58C** sets a RAM limit of 60 registers (480 steps, 0 data registers
   at the other end — data registers live in the upper 60).
 - **TI-59** uses all 120 registers.
+
+**Memory-size autodetection.** The TI-59 and the plain TI-58 load the *same*
+ROM image — the identical three chips `TMC0582` / `TMC0583` / `TMC0571B`,
+including the `0x1400–0x17FF` constant block and the card-reader firmware (the
+TI-58 carries the card code even though it has no card reader).  Only the
+TI-58**C** uses a different ROM set (`CD2400` / `CD2401` / `TMC0573`).  Since the
+hardware exposes no model identifier, the reset routine infers RAM size by
+*probing*: it writes a test value to a high register (register 90 in the trace),
+reads it back, and clears it.  Register 90 is in the `>=60` range that exists
+only on the 120-register TI-59; on a 60-register TI-58 the write is out of range
+(`RAM_ADDR < ram.size()` fails) and the read-back comes back as `0`.  The probe
+result selects the partition layout.
+
+This is directly observable by diffing the TI-58 and TI-59 reset traces, which
+are byte-identical except at the probe: at `B=LOAD MAEX` (`0x0381`) the TI-59
+reads back its written value while the TI-58 reads `0`, which flips the
+`IO=-B` compare (`0x0390`) and the branch at `0x0393` — the TI-58 takes the
+jump (skipping the accumulate, → 60-register partition) while the TI-59 falls
+through (→ 120-register partition).  See the annotated reset listing
+`rom/TI59-commented.asm` at `0x0377`.
 
 ### SCOM (TMC0571)
 
@@ -169,6 +196,15 @@ bit 12 = 0  →  Non-branch (sub-decoded by hi nibble, bits 11:8)
   branch to be taken.  The XOR trick: `(flags ^ opcode) & FLG_COND == 0` → taken.
 - **offset**: 10-bit magnitude (bits 10:1), added to or subtracted from PC.
 - **dir** (bit 0): 0 = forward, 1 = backward.
+
+**COND is active-low.**  Its resting (inactive) state is `1`; a satisfied test
+*activates* it by driving it to `0`.  `TST`/`KEY`/ALU-overflow do
+`flags &= ~FLG_COND`, i.e. they set COND to `0` **when the condition is true**.
+Consequently `JC` (cond bit = 1) is taken when COND is at rest (`1`), and `JNC`
+(cond bit = 0) is taken when COND has been activated (`0`).  The everyday idiom
+`TST fB[x]; JNC handler` therefore reads as "**if `fB[x]` is set, branch to
+handler**".  In the disassembly, "clear COND" / "reset COND" means *restore it
+to its resting `1`*, not drive it to `0`.
 
 After a branch instruction (taken or not), `FLG_JUMP` is set.  The first
 subsequent non-branch instruction clears it and restores `FLG_COND = 1`,
