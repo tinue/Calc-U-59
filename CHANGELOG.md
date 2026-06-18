@@ -5,8 +5,10 @@
 - **Portrait View** Enables the debugger in portrait view as well (disabled by default, enable in Settings). Particularly useful for iPhone users who previously had no debugger access.
 - **ROM Heatmap** Hover over (or touch and hold) a block to see its hex address in the header.
 - **CPU Debugger** Binary flag registers are now grouped into nibbles for readability.
+- **Debugger** Hold the STEP button to step continuously at 4 steps per second.
 
 ### Fixes
+- **Debugger** Moved the RESUME button to the left of FREEZE to avoid accidental presses while stepping.
 - **CPU Debugger** Registers A–E and Sout are displayed MSN-first.
 - **CPU Debugger** FREEZE ON START now triggers on a keypress or on reset of the calculator. This allows single-stepping the reset routine.
 - **Trace** File size limit is now enforced by disabling TRACE when the limit is reached.

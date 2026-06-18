@@ -58,6 +58,14 @@ struct LiveDebugView: View {
 
             let calcOwned = vm.isFrozen && vm.freezeOwner == .calculator
 
+            // RESUME sits at the far left, away from STEP, to avoid accidental
+            // taps while stepping.
+            Button("RESUME") { vm.unfreeze() }
+                .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
+                .foregroundStyle(Color.orange)
+                .opacity(calcOwned ? 1 : 0.4)
+                .disabled(!calcOwned)
+
             Button("FREEZE") { vm.freeze(from: .calculator) }
                 .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
                 .foregroundStyle(Color.white)
@@ -76,17 +84,9 @@ struct LiveDebugView: View {
                 .opacity(vm.pendingFreezeOnPCChange ? 1 : 0.4)
                 .disabled(!vm.pendingFreezeOnPCChange)
 
-            Button("RESUME") { vm.unfreeze() }
-                .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
-                .foregroundStyle(Color.orange)
-                .opacity(calcOwned ? 1 : 0.4)
-                .disabled(!calcOwned)
-
-            Button("STEP") { vm.stepKeycode() }
-                .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
-                .foregroundStyle(Color.cyan)
-                .opacity(calcOwned ? 1 : 0.4)
-                .disabled(!calcOwned)
+            // Tap to single-step; hold to auto-step at 2 steps/second.
+            HoldRepeatButton(title: "STEP", color: .cyan, baseFontSize: baseFontSize,
+                             enabled: calcOwned) { vm.stepKeycode() }
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)

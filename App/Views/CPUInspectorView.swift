@@ -331,6 +331,16 @@ struct CPUInspectorView: View {
                 .foregroundStyle(.white.opacity(0.6))
             Spacer()
 
+            let cpuOwned = vm.isFrozen && vm.freezeOwner == .cpu
+
+            // RESUME sits at the far left, away from STEP, to avoid accidental
+            // taps while stepping.
+            Button("RESUME") { vm.unfreeze() }
+                .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
+                .foregroundStyle(Color.orange)
+                .opacity(cpuOwned ? 1 : 0.4)
+                .disabled(!cpuOwned)
+
             Button("FREEZE") { vm.freeze(from: .cpu) }
                 .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
                 .foregroundStyle(Color.white)
@@ -349,19 +359,9 @@ struct CPUInspectorView: View {
                 .opacity(vm.pendingCPUScanLoopFreeze ? 1 : 0.4)
                 .disabled(!vm.pendingCPUScanLoopFreeze)
 
-            let cpuOwned = vm.isFrozen && vm.freezeOwner == .cpu
-
-            Button("RESUME") { vm.unfreeze() }
-                .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
-                .foregroundStyle(Color.orange)
-                .opacity(cpuOwned ? 1 : 0.4)
-                .disabled(!cpuOwned)
-
-            Button("STEP") { vm.stepFrozen() }
-                .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
-                .foregroundStyle(Color.cyan)
-                .opacity(cpuOwned ? 1 : 0.4)
-                .disabled(!cpuOwned)
+            // Tap to single-step; hold to auto-step at 2 steps/second.
+            HoldRepeatButton(title: "STEP", color: .cyan, baseFontSize: baseFontSize,
+                             enabled: cpuOwned) { vm.stepFrozen() }
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
