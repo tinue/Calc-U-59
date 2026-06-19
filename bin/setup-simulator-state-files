@@ -1,57 +1,53 @@
 #!/usr/bin/env bash
-# Copy all example files (state files, assembly) into the booted simulator's
-# local file provider storage, where they appear under "On My iPad → Calc-U-59"
+# Copy all example files (state files, assembly) into every simulator's local
+# file provider storage, where they appear under "On My iPad/iPhone → Calc-U-59"
 # in the file picker.  Markdown files and .DS_Store are excluded; everything
 # else under examples/ is copied flat.
 #
-# Files go to the system's local file provider group
-# (group.com.apple.FileProvider.LocalStorage / File Provider Storage/).
-# That group's UUID varies per simulator, so the script finds it from metadata.
+# Targets all installed simulators — no simulator needs to be running.
+# Files go to group.com.apple.FileProvider.LocalStorage / File Provider Storage/
+# in each device that has that group initialised.  The group UUID varies per
+# simulator, so it is found by reading each AppGroup's metadata plist.
 #
-# Run once after installing the app on the simulator, and again whenever
-# examples/ files change.  Also suitable as a scheme pre-action:
+# Also suitable as a scheme pre-action (no build settings expansion needed):
 #   Shell: /bin/bash
 #   Script: $SRCROOT/bin/setup-simulator-state-files
-#   Provide build settings from: Calc-U-59 (the app target)
 
 set -euo pipefail
 
-BUNDLE_ID="ch.erzberger.calcu59"
 LOCAL_STORAGE_GROUP="group.com.apple.FileProvider.LocalStorage"
 SRCROOT="${SRCROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
+SIM_ROOT="$HOME/Library/Developer/CoreSimulator/Devices"
 
-# Derive the device data directory from the app's data container.
-CONTAINER=$(xcrun simctl get_app_container booted "$BUNDLE_ID" data 2>/dev/null || true)
-if [ -z "$CONTAINER" ]; then
-    echo "warning: app container not found for $BUNDLE_ID on booted simulator." >&2
-    echo "  Launch the app once, then re-run this script." >&2
-    exit 0
-fi
-DEVICE_DATA="${CONTAINER%%/Containers/Data/*}"
-
-# Find the local file provider group by reading each AppGroup's metadata plist.
-DEST=""
-for META in "$DEVICE_DATA/Containers/Shared/AppGroup/"*"/.com.apple.mobile_container_manager.metadata.plist"; do
-    if plutil -p "$META" 2>/dev/null | grep -q "\"$LOCAL_STORAGE_GROUP\""; then
-        DEST="$(dirname "$META")/File Provider Storage"
-        break
-    fi
-done
-
-if [ -z "$DEST" ]; then
-    echo "warning: '$LOCAL_STORAGE_GROUP' not found on booted simulator." >&2
-    echo "  Open the Files app or file picker once, then re-run this script." >&2
-    exit 0
-fi
-
-mkdir -p "$DEST"
-
-COUNT=0
-while IFS= read -r -d '' SRC; do
-    FILE=$(basename "$SRC")
-    cp "$SRC" "$DEST/$FILE"
-    echo "Copied $FILE"
-    (( COUNT++ )) || true
+# Collect all files to copy once (bash 3.2 compatible — no mapfile).
+SRCS=()
+while IFS= read -r -d '' f; do
+    SRCS+=("$f")
 done < <(find "$SRCROOT/examples" -type f ! -name "*.md" ! -name ".DS_Store" -print0 | sort -z)
 
-echo "$COUNT file(s) copied to $DEST"
+if [ ${#SRCS[@]} -eq 0 ]; then
+    echo "No files found under $SRCROOT/examples — nothing to copy." >&2
+    exit 0
+fi
+
+DEST_COUNT=0
+
+while IFS= read -r -d '' META; do
+    if plutil -p "$META" 2>/dev/null | grep -q "\"$LOCAL_STORAGE_GROUP\""; then
+        DEST="$(dirname "$META")/File Provider Storage"
+        mkdir -p "$DEST"
+        for SRC in "${SRCS[@]}"; do
+            cp "$SRC" "$DEST/$(basename "$SRC")"
+        done
+        echo "Copied ${#SRCS[@]} file(s) → $DEST"
+        (( DEST_COUNT++ )) || true
+    fi
+done < <(find "$SIM_ROOT" -maxdepth 7 -name ".com.apple.mobile_container_manager.metadata.plist" -print0 2>/dev/null)
+
+if [ "$DEST_COUNT" -eq 0 ]; then
+    echo "No '$LOCAL_STORAGE_GROUP' AppGroup found in any simulator." >&2
+    echo "  Open the Files app or file picker in a simulator once, then re-run." >&2
+    exit 0
+fi
+
+echo "Done — $DEST_COUNT simulator(s) updated."
