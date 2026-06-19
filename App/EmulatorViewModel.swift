@@ -64,6 +64,7 @@ class EmulatorViewModel {
     // ── Display interaction state ────────────────────────────────────────────────
     var isDisplayPressed: Bool = false
     var isFullSpeedMode: Bool = false  // true when user is pressing display; emulation runs unrestricted
+    var isKeystrokesPlaying: Bool = false
 
     // ── Printer state ────────────────────────────────────────────────────────
     var printerLines: [String] = []
@@ -2481,6 +2482,9 @@ class EmulatorViewModel {
     /// the emulator at full speed for a fixed interval between keystrokes (e.g. while a
     /// program computes).  Full speed is restored to its previous state after each such wait.
     private func playKeystrokes(_ events: [KeystrokeEvent]) async {
+        isKeystrokesPlaying = true
+        defer { isKeystrokesPlaying = false }
+
         for event in events {
             switch event {
             case .key(let matrixCode):

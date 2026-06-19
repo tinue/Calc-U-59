@@ -26,9 +26,9 @@ KEYSTROKES:
 92      # 0
 82      # 1    → Pgm 01 selected
 71      # SBR
-95      # =    → enter Leisure Library program 01
+95      # =    → run Leisure Library diagnostic program
 
-WaitFullSpeed: 1s   # run emulator at full speed until program reaches input prompt
+WaitFullSpeed: 1s   # run emulator at full speed; Diagnostic would run for a while otherwise
 
 99      # TRACE on  (virtual button press — toggles printer trace latch)
 21      # 2nd

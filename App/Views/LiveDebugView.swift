@@ -65,6 +65,7 @@ struct LiveDebugView: View {
                 .foregroundStyle(Color.orange)
                 .opacity(calcOwned ? 1 : 0.4)
                 .disabled(!calcOwned)
+                .accessibilityIdentifier("btn-resume")
 
             Button("FREEZE") { vm.freeze(from: .calculator) }
                 .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
@@ -77,12 +78,14 @@ struct LiveDebugView: View {
                 .foregroundStyle(Color.white)
                 .opacity(freezeEnabled ? 1 : 0.4)
                 .disabled(!freezeEnabled)
+                .accessibilityIdentifier("btn-freeze-on-start")
 
             Button("ARMED") { vm.pendingFreezeOnPCChange.toggle() }
                 .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
                 .foregroundStyle(Color.yellow)
                 .opacity(vm.pendingFreezeOnPCChange ? 1 : 0.4)
                 .disabled(!vm.pendingFreezeOnPCChange)
+                .accessibilityIdentifier("btn-freeze-armed")
 
             // Tap to single-step; hold to auto-step at 2 steps/second.
             HoldRepeatButton(title: "STEP", color: .cyan, baseFontSize: baseFontSize,

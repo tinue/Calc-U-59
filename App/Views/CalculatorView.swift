@@ -83,6 +83,15 @@ struct CalculatorView: View {
 
     var body: some View {
         layout
+        .overlay(alignment: .topLeading) {
+            // Zero-size accessibility element that exposes keystroke-playback state to XCUITest.
+            Color.clear
+                .frame(width: 1, height: 1)
+                .allowsHitTesting(false)
+                .accessibilityElement(children: .ignore)
+                .accessibilityIdentifier("keystroke-playback-status")
+                .accessibilityValue(viewModel.isKeystrokesPlaying ? "playing" : "idle")
+        }
         .dynamicTypeSize(.small ... .large)
         .sheet(item: .init(
             get: { viewModel.cardPickerMode.map { PickerItem(mode: $0) } },
