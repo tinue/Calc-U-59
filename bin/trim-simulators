@@ -14,7 +14,6 @@ A None value for the device list keeps ALL devices for that runtime.
 
 import json
 import re
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -108,7 +107,9 @@ def main() -> None:
     subprocess.run(["xcrun", "simctl", "delete", "unavailable"], check=True)
 
     for p in orphan_dirs:
-        shutil.rmtree(p)
+        # Use rm -rf instead of shutil.rmtree: iCloud-backed paths inside the
+        # directory stall Python's scandir via the FUSE layer.
+        subprocess.run(["rm", "-rf", str(p)], check=True)
         print(f"Removed orphaned directory: {p.name}")
 
     print("Done.")
