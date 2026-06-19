@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
-# Copy all example files (state files, assembly) into every simulator's local
-# file provider storage, where they appear under "On My iPad/iPhone → Calc-U-59"
-# in the file picker.  Markdown files and .DS_Store are excluded; everything
-# else under examples/ is copied flat.
+# Copy selected example files into every simulator's local file provider storage,
+# where they appear under "On My iPad/iPhone → Calc-U-59" in the file picker.
+# Files are copied flat; the destination is cleaned first for a reproducible state.
 #
 # Targets all installed simulators — no simulator needs to be running.
 # Files go to group.com.apple.FileProvider.LocalStorage / File Provider Storage/
@@ -19,23 +18,40 @@ LOCAL_STORAGE_GROUP="group.com.apple.FileProvider.LocalStorage"
 SRCROOT="${SRCROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 SIM_ROOT="$HOME/Library/Developer/CoreSimulator/Devices"
 
-# Collect all files to copy once (bash 3.2 compatible — no mapfile).
+# Files to install — paths relative to examples/, globs are expanded at runtime.
+FILE_PATTERNS=(
+    "debug/screenshot_leisure_run.ti59"
+    "debug/screenshot_leisure_start.ti59"
+    "assembly/stopwatch.asm"
+    "characters-fastmode.ti59"
+    "characters.ti59"
+    "diag.*"
+)
+
+# Expand patterns to absolute paths (bash 3.2 compatible — no mapfile).
 SRCS=()
-while IFS= read -r -d '' f; do
-    SRCS+=("$f")
-done < <(find "$SRCROOT/examples" -type f ! -name "*.md" ! -name ".DS_Store" -print0 | sort -z)
+for pattern in "${FILE_PATTERNS[@]}"; do
+    for f in "$SRCROOT/examples/"$pattern; do
+        [ -f "$f" ] && SRCS+=("$f")
+    done
+done
 
 if [ ${#SRCS[@]} -eq 0 ]; then
-    echo "No files found under $SRCROOT/examples — nothing to copy." >&2
+    echo "No matching files found under $SRCROOT/examples — nothing to copy." >&2
     exit 0
 fi
 
 DEST_COUNT=0
 
 while IFS= read -r -d '' META; do
+    # Skip orphaned device directories (no device.plist — simctl doesn't know them).
+    uuid="${META#$SIM_ROOT/}"; uuid="${uuid%%/*}"
+    [ -f "$SIM_ROOT/$uuid/device.plist" ] || continue
+
     if plutil -p "$META" 2>/dev/null | grep -q "\"$LOCAL_STORAGE_GROUP\""; then
         DEST="$(dirname "$META")/File Provider Storage"
         mkdir -p "$DEST"
+        find "$DEST" -maxdepth 1 -type f -delete
         for SRC in "${SRCS[@]}"; do
             cp "$SRC" "$DEST/$(basename "$SRC")"
         done
