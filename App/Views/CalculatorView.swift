@@ -239,6 +239,7 @@ struct CalculatorView: View {
             }
             .foregroundStyle(isCommandPressed ? .red : .orange)
             .labelStyle(showLabel: showLabels)
+            .accessibilityIdentifier("btn-reset")
             #else
             Button("Reset", systemImage: "arrow.counterclockwise") {
                 if !resetLongPressTriggered {
@@ -248,6 +249,7 @@ struct CalculatorView: View {
             }
             .foregroundStyle(.orange)
             .labelStyle(showLabel: showLabels)
+            .accessibilityIdentifier("btn-reset")
             .highPriorityGesture(
                 LongPressGesture(minimumDuration: 1.0).onEnded { _ in
                     triggerMemoryClearFeedback()
@@ -306,12 +308,14 @@ struct CalculatorView: View {
             }
             .labelStyle(showLabel: showLabels)
             .controlSize(.large)
+            .accessibilityIdentifier("btn-preset")
             Divider().frame(height: 20)
             Button("Settings", systemImage: "gear") {
                 showingSettings = true
             }
             .labelStyle(.iconOnly)
             .controlSize(.large)
+            .accessibilityIdentifier("btn-settings")
             #endif
         }
         .padding(.horizontal, 12)
