@@ -2273,24 +2273,23 @@ class EmulatorViewModel {
             errorMessage = "Cannot read file."
             return
         }
-        let maxStepAddr = model.hasLargeMemory ? 959 : 479
-        var parsed = parseStateFile(text, maxStepAddr: maxStepAddr, allowHiddenRegisters: model.hasConstantMemory)
+
+        // Pre-scan for MODEL: so parsing uses the correct memory/register limits for the
+        // target model rather than the currently-running model.
+        let targetModel: MachineModel = text.components(separatedBy: .newlines).lazy.compactMap { raw -> MachineModel? in
+            let line = (raw.components(separatedBy: "#").first ?? "").trimmingCharacters(in: .whitespaces)
+            guard line.uppercased().hasPrefix("MODEL:") else { return nil }
+            let val = String(line.dropFirst("MODEL:".count)).trimmingCharacters(in: .whitespaces).uppercased()
+            return MachineModel.allCases.first(where: { $0.displayName == val })
+        }.first ?? model
+
+        let maxStepAddr = targetModel.hasLargeMemory ? 959 : 479
+        let parsed = parseStateFile(text, maxStepAddr: maxStepAddr, allowHiddenRegisters: targetModel.hasConstantMemory)
         if !parsed.errors.isEmpty { errorMessage = parsed.errors.joined(separator: "\n") }
 
-        if !model.hasLargeMemory {
-            let maxStep = 479  // TI-58 and TI-58C: both use up to 480 steps
-            if parsed.partitionWasExplicit && parsed.partitionMaxStep > maxStep {
-                errorMessage = "State file partition (\(parsed.partitionMaxStep)) exceeds \(model.displayName) maximum (\(maxStep)) — load aborted."
-                return
-            }
-            // Apply default partition when the file has none.
-            if !parsed.partitionWasExplicit {
-                parsed.partitionMaxStep = 239
-            }
-        }
-
         // If the file targets a different model, switch first (async) then apply state.
-        if let targetModel = parsed.model, targetModel != model {
+        // Partition validation runs inside applyParsedState after self.model is resolved.
+        if targetModel != model {
             Task { @MainActor in
                 await self.start(model: targetModel)
                 self.applyParsedState(parsed)
@@ -2301,6 +2300,19 @@ class EmulatorViewModel {
     }
 
     private func applyParsedState(_ parsed: LoadStateResult) {
+        // Validate and adjust partition using self.model, which is now guaranteed to reflect
+        // the target model (model switch via start(model:) completes before this is called).
+        var parsed = parsed
+        if !model.hasLargeMemory {
+            if parsed.partitionWasExplicit && parsed.partitionMaxStep > 479 {
+                errorMessage = "State file partition (\(parsed.partitionMaxStep)) exceeds \(model.displayName) maximum (479) — load aborted."
+                return
+            }
+            if !parsed.partitionWasExplicit {
+                parsed.partitionMaxStep = 239
+            }
+        }
+
         isRunning = false
         // Clear freeze state without restarting the loop
         clearFrozenState()
@@ -2396,17 +2408,12 @@ class EmulatorViewModel {
         for event in events {
             switch event {
             case .key(let matrixCode):
-                if matrixCode == 99 {
-                    // 99 is outside the valid key grid (rows 1–9, cols 1–5 → max 95)
-                    // and is repurposed as a TRACE button press: toggles the printer trace latch.
-                    printerTrace.toggle()
-                    machine?.setPrinterTrace(printerTrace)
-                } else {
-                    machine?.pressMatrixKey(matrixCode)
-                    try? await Task.sleep(nanoseconds: 450_000_000)  // hold 450 ms
-                    machine?.releaseMatrixKey(matrixCode)
-                    try? await Task.sleep(nanoseconds: 50_000_000)   // 50 ms gap → 500 ms total
-                }
+                machine?.pressMatrixKey(matrixCode)
+                try? await Task.sleep(nanoseconds: 450_000_000)  // hold 450 ms
+                machine?.releaseMatrixKey(matrixCode)
+                try? await Task.sleep(nanoseconds: 50_000_000)   // 50 ms gap → 500 ms total
+            case .toggleTrace:
+                togglePrinterTrace()
             case .wait(let t):
                 try? await Task.sleep(nanoseconds: UInt64(t * 1_000_000_000))
             case .waitFullSpeed(let t):

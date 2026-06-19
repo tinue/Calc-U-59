@@ -73,7 +73,8 @@ import Foundation
 
 /// A single event in the KEYSTROKES section.
 enum KeystrokeEvent {
-    case key(UInt8)                  // matrix code to press (row*10 + col, row 1–9, col 1–5); 99 = TRACE toggle
+    case key(UInt8)                  // matrix code to press (row*10 + col, row 1–9, col 1–5)
+    case toggleTrace                 // virtual: toggle the printer TRACE latch (file token: 99)
     case wait(TimeInterval)          // explicit pause; emulator runs at normal speed
     case waitFullSpeed(TimeInterval) // enable full speed, wait, then restore normal speed
 }
@@ -134,11 +135,11 @@ func parseStateFile(_ text: String, maxStepAddr: Int = 479, allowHiddenRegisters
         }
         if upper.hasPrefix("MODEL:") {
             let val = String(line.dropFirst("MODEL:".count)).trimmingCharacters(in: .whitespaces).uppercased()
-            switch val {
-            case "TI-59":  result.model = .ti59
-            case "TI-58":  result.model = .ti58
-            case "TI-58C": result.model = .ti58c
-            default: result.errors.append("Unknown MODEL: '\(val)' — expected TI-59, TI-58, or TI-58C")
+            if let m = MachineModel.allCases.first(where: { $0.displayName == val }) {
+                result.model = m
+            } else {
+                let valid = MachineModel.allCases.map(\.displayName).joined(separator: ", ")
+                result.errors.append("Unknown MODEL: '\(val)' — expected \(valid)")
             }
             continue
         }
@@ -208,9 +209,7 @@ func parseStateFile(_ text: String, maxStepAddr: Int = 479, allowHiddenRegisters
             } else if let t = parseWaitLine(line) {
                 result.keystrokes.append(.wait(t))
             } else {
-                for code in parseKeystrokeLine(line) {
-                    result.keystrokes.append(.key(code))
-                }
+                result.keystrokes.append(contentsOf: parseKeystrokeLine(line))
             }
         case .cuecard:
             if var card = result.cueCardContent {
@@ -277,19 +276,22 @@ private func parseRegLine(_ line: String,
     registers.append((regNum: regNum, nibbles: encodeTI59BCD(value)))
 }
 
-/// Parse one KEYSTROKES line: return all 1–2 digit numeric tokens that are
-/// valid matrix codes (11–95) or the virtual TRACE toggle (99).
-/// No step-address prefix logic — every valid token is a code.
+/// Parse one KEYSTROKES line into `KeystrokeEvent`s.
+/// Token `99` maps to `.toggleTrace`; tokens 11–95 map to `.key`.
+/// No step-address prefix logic — every valid token is an event.
 /// Mnemonic labels and other non-numeric tokens are silently ignored.
-private func parseKeystrokeLine(_ line: String) -> [UInt8] {
+private func parseKeystrokeLine(_ line: String) -> [KeystrokeEvent] {
     let tokens = line.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
-    var keycodes: [UInt8] = []
+    var events: [KeystrokeEvent] = []
     for token in tokens {
-        if token.count <= 2, let n = Int(token), (n >= 11 && n <= 95) || n == 99 {
-            keycodes.append(UInt8(n))
+        guard token.count <= 2, let n = Int(token) else { continue }
+        if n == 99 {
+            events.append(.toggleTrace)
+        } else if n >= 11, n <= 95 {
+            events.append(.key(UInt8(n)))
         }
     }
-    return keycodes
+    return events
 }
 
 /// Parse a "Wait: <value><unit>" line.  Returns the interval in seconds, or nil.
@@ -307,11 +309,12 @@ private func parseWaitFullSpeedLine(_ line: String) -> TimeInterval? {
 private func parseWaitInterval(_ line: String, prefix: String) -> TimeInterval? {
     guard line.uppercased().hasPrefix(prefix) else { return nil }
     let rest = String(line.dropFirst(prefix.count)).trimmingCharacters(in: .whitespaces)
-    if rest.uppercased().hasSuffix("MS"),
+    let restUpper = rest.uppercased()
+    if restUpper.hasSuffix("MS"),
        let v = Double(rest.dropLast(2).trimmingCharacters(in: .whitespaces)) {
         return v / 1000.0
     }
-    if rest.uppercased().hasSuffix("S"),
+    if restUpper.hasSuffix("S"),
        let v = Double(rest.dropLast(1).trimmingCharacters(in: .whitespaces)) {
         return v
     }
