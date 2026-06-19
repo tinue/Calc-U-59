@@ -33,9 +33,6 @@
             reference = "container:Calc-U-59UITests/UIRegressionTests.xctestplan"
             default = "YES">
          </TestPlanReference>
-         <TestPlanReference
-            reference = "container:Calc-U-59UITests/AppStoreScreenshots.xctestplan">
-         </TestPlanReference>
       </TestPlans>
       <Testables>
          <TestableReference

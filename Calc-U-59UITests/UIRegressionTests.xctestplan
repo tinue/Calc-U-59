@@ -13,9 +13,6 @@
   },
   "testTargets" : [
     {
-      "skippedTests" : [
-        "AppStoreScreenshots"
-      ],
       "target" : {
         "containerPath" : "container:Calc-U-59.xcodeproj",
         "identifier" : "8C7473C12FE5638A009DC59A",
