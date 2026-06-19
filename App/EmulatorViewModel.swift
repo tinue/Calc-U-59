@@ -2274,21 +2274,29 @@ class EmulatorViewModel {
             return
         }
 
-        // Pre-scan for MODEL: so parsing uses the correct memory/register limits for the
-        // target model rather than the currently-running model.
-        let targetModel: MachineModel = text.components(separatedBy: .newlines).lazy.compactMap { raw -> MachineModel? in
+        // Pre-scan for SKIP-RESET and MODEL: to use correct parsing parameters.
+        // SKIP-RESET suppresses the model switch, so MODEL: is ignored for parsing too.
+        var isSkipReset = false
+        var targetModel = model
+        for raw in text.components(separatedBy: .newlines) {
             let line = (raw.components(separatedBy: "#").first ?? "").trimmingCharacters(in: .whitespaces)
-            guard line.uppercased().hasPrefix("MODEL:") else { return nil }
-            let val = String(line.dropFirst("MODEL:".count)).trimmingCharacters(in: .whitespaces).uppercased()
-            return MachineModel.allCases.first(where: { $0.displayName == val })
-        }.first ?? model
+            let upper = line.uppercased()
+            if upper.hasPrefix("SKIP-RESET:") {
+                let val = String(line.dropFirst("SKIP-RESET:".count)).trimmingCharacters(in: .whitespaces).lowercased()
+                isSkipReset = (val == "on" || val == "true" || val == "1")
+            } else if !isSkipReset, upper.hasPrefix("MODEL:") {
+                let val = String(line.dropFirst("MODEL:".count)).trimmingCharacters(in: .whitespaces).uppercased()
+                targetModel = MachineModel.allCases.first(where: { $0.displayName == val }) ?? model
+            }
+        }
 
         let maxStepAddr = targetModel.hasLargeMemory ? 959 : 479
         let parsed = parseStateFile(text, maxStepAddr: maxStepAddr, allowHiddenRegisters: targetModel.hasConstantMemory)
         if !parsed.errors.isEmpty { errorMessage = parsed.errors.joined(separator: "\n") }
 
-        // If the file targets a different model, switch first (async) then apply state.
-        // Partition validation runs inside applyParsedState after self.model is resolved.
+        // If the file targets a different model (and SKIP-RESET is not set), switch first
+        // (async) then apply state. Partition validation runs inside applyParsedState after
+        // self.model is resolved.
         if targetModel != model {
             Task { @MainActor in
                 await self.start(model: targetModel)
@@ -2300,6 +2308,11 @@ class EmulatorViewModel {
     }
 
     private func applyParsedState(_ parsed: LoadStateResult) {
+        if parsed.skipReset {
+            applySkipResetState(parsed)
+            return
+        }
+
         // Validate and adjust partition using self.model, which is now guaranteed to reflect
         // the target model (model switch via start(model:) completes before this is called).
         var parsed = parsed
@@ -2390,6 +2403,69 @@ class EmulatorViewModel {
         // Set cue card if present in file
         self.userCueCardContent = parsed.cueCardContent
         self.cueCardContent = resolvedCueCard()
+
+        if !parsed.keystrokes.isEmpty {
+            Task { await playKeystrokes(parsed.keystrokes) }
+        }
+    }
+
+    /// Apply a SKIP-RESET state file: no machine reset, no model/printer/module changes.
+    /// Only PARTITION (if explicit), PROGRAM (if present), REGISTERS, CUECARD, and KEYSTROKES
+    /// are applied. Sections that require a reset are logged as warnings and ignored.
+    private func applySkipResetState(_ parsed: LoadStateResult) {
+        if parsed.model != nil {
+            print("[WARN] SKIP-RESET: MODEL: ignored — model switch requires a reset")
+        }
+        if parsed.solidStateModuleID != nil {
+            print("[WARN] SKIP-RESET: SOLID-STATE-MODULE: ignored — module load requires a reset")
+        }
+        if parsed.printerConnected != nil {
+            print("[WARN] SKIP-RESET: PRINTER: ignored — printer connection change requires a reset")
+        }
+
+        // Pause the emulation loop long enough to write program/registers safely.
+        isRunning = false
+        clearFrozenState()
+        emulQueue.sync {}
+
+        guard let m = machine else { return }
+
+        // Apply PARTITION only if the file specified it explicitly; otherwise leave as-is.
+        if parsed.partitionWasExplicit {
+            let programRegs = (parsed.partitionMaxStep + 1) / 8
+            m.partitionProgramRegs = programRegs
+        }
+
+        // Apply PROGRAM if present (zero-padded full write, same as full-reset path).
+        if !parsed.programSteps.isEmpty {
+            let totalSteps = parsed.partitionMaxStep + 1
+            var programArray = [UInt8](repeating: 0, count: totalSteps)
+            for (addr, keycode) in parsed.programSteps where addr < totalSteps {
+                programArray[addr] = keycode
+            }
+            m.writeProgramSteps(Data(programArray))
+        }
+
+        // Apply REGISTERS if present.
+        for (regNum, nibbles) in parsed.registers {
+            if regNum >= 60 {
+                m.setRawRegister(regNum, nibbles: Data(nibbles))
+            } else {
+                m.writeDataRegister(regNum, nibbles: Data(nibbles))
+            }
+        }
+
+        startEmulationLoop()
+
+        if model.hasConstantMemory {
+            persistConstantMemory()
+        }
+
+        // Apply CUECARD if present.
+        if parsed.cueCardContent != nil {
+            self.userCueCardContent = parsed.cueCardContent
+            self.cueCardContent = resolvedCueCard()
+        }
 
         if !parsed.keystrokes.isEmpty {
             Task { await playKeystrokes(parsed.keystrokes) }

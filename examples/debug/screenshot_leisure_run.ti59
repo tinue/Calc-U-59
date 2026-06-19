@@ -17,7 +17,7 @@
 # FREEZE ON START fires on the first PC change → calculator freezes.
 # XCUITest then waits for isFrozen and takes the screenshot.
 
-KEYS-ONLY: true
+SKIP-RESET: true
 
 KEYSTROKES:
 71      # SBR

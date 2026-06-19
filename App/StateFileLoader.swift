@@ -92,6 +92,8 @@ struct LoadStateResult {
     var printerConnected: Bool? = nil
     /// MODEL: TI-59 / TI-58 / TI-58C — switches the machine variant before applying state.
     var model: MachineModel? = nil
+    /// SKIP-RESET: on — skip machine reset; apply only PROGRAM/REGISTERS/PARTITION/CUECARD/KEYSTROKES.
+    var skipReset: Bool = false
     var errors: [String] = []
 }
 
@@ -131,6 +133,11 @@ func parseStateFile(_ text: String, maxStepAddr: Int = 479, allowHiddenRegisters
         if upper.hasPrefix("PRINTER:") {
             let val = String(line.dropFirst("PRINTER:".count)).trimmingCharacters(in: .whitespaces).lowercased()
             result.printerConnected = (val == "on" || val == "true" || val == "1")
+            continue
+        }
+        if upper.hasPrefix("SKIP-RESET:") {
+            let val = String(line.dropFirst("SKIP-RESET:".count)).trimmingCharacters(in: .whitespaces).lowercased()
+            result.skipReset = (val == "on" || val == "true" || val == "1")
             continue
         }
         if upper.hasPrefix("MODEL:") {

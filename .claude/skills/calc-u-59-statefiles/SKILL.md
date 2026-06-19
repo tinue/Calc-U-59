@@ -20,6 +20,7 @@ State files are plain UTF-8 text (`.ti59`, `.ti58`, `.ti58c`). The authoritative
 | `KEYSTROKES:` | Physical key presses to inject after load. Uses **matrix codes**, not keycodes (see below). |
 | `SOLID-STATE-MODULE: ID` | Load a module. IDs: ML ST RE SY NG AV **LE** SA BD MU EE SE AG RP |
 | `PRINTER: on` | Connect the printer. Values: `on` / `off` / `true` / `false` / `1` / `0` |
+| `SKIP-RESET: on` | Skip machine reset; apply only non-destructive sections (see below). |
 | `CUECARD:` | Custom cue-card content (template + fields). |
 
 Lines starting with `#` are comments. Inline `#` comments are also stripped.
@@ -211,6 +212,32 @@ Matrix code `99` is outside the valid key grid (rows 1–9, cols 1–5 give max 
 | Code | Action |
 |------|--------|
 | `99` | Toggle printer TRACE latch (each press flips on→off or off→on) |
+
+---
+
+## SKIP-RESET
+
+`SKIP-RESET: on` skips the machine reset that normally occurs when a state file is loaded. Use it for files that only inject keystrokes into a running machine (e.g. the second step of a multi-file screenshot sequence).
+
+**Applied sections** (work without a reset):
+
+| Section | Behaviour |
+|---------|-----------|
+| `PARTITION:` | Updated in SCOM only if explicitly specified; otherwise left as-is |
+| `PROGRAM:` | Full zero-padded write (replaces existing program) |
+| `REGISTERS:` | Listed registers are written individually |
+| `CUECARD:` | Cue card is replaced if present |
+| `KEYSTROKES:` | Played normally |
+
+**Silently dropped sections** (require a reset — a `[WARN]` is printed to the console):
+
+| Section | Why dropped |
+|---------|------------|
+| `MODEL:` | Model switch requires full machine reset |
+| `SOLID-STATE-MODULE:` | Module load requires full machine reset |
+| `PRINTER:` | Printer connection change requires full machine reset |
+
+---
 
 ## KEYSTROKES Does Not Support
 
