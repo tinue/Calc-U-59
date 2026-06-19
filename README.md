@@ -63,13 +63,16 @@ Note that the accent is **golden yellow**, not orange. The earlier draft had it 
 
 ### Typography
 
-Three families. Utilitarian, no decorative faces.
+Period-correct **Swiss grotesque**, modeled on TI's late-1970s manuals (set in Helvetica). Four faces:
 
-1. **DSEG7 Classic** (`--font-display`) — 7-segment LED face for the red readout. CDN-loaded. **Substitution flag:** closest free font to the TI-59 bubble-LED segments; flag if you have the original silkscreen font.
-2. **Barlow Condensed** (`--font-key`) — heavy condensed sans for headings, key labels, the "MASTER LIBRARY DIAGNOSTIC" module strip, and uppercase eyebrows. **Substitution flag:** the original device used a custom condensed Helvetica-adjacent face; Barlow is the closest Google Fonts analog.
-3. **IBM Plex Sans / Mono** (`--font-body`, `--font-mono`) — body and code.
+1. **DSEG7 Classic** (`--font-display`) — 7-segment LED face for the red readout. **Substitution flag:** closest free font to the bubble-LED segments.
+2. **Archivo** (`--font-key` headings + `--font-body` body) — neutral Helvetica analog. Carries page titles, section headings, nav, buttons, eyebrows, and all running text. Letterspaced bold uppercase headings mirror the manual's "INTRODUCTION" treatment; its **italic** powers the *Solid State Software* signature phrase.
+3. **Barlow Condensed** (`--font-keycap`) — condensed sans, used **only** for the device keycaps and the "MASTER LIBRARY DIAGNOSTIC" strip. Condensed type belongs on the device, not the page.
+4. **IBM Plex Mono** (`--font-mono`) — code / keystroke / file-format listings.
 
-Italic forms appear naturally in the keypad's top-row labels (`x=t`, `x≥t`, `x⇄t`, `Σ+`, `x̄`, `π`) — these are math symbols typeset in italic IBM Plex, not Barlow. The Calculator component handles this automatically.
+All four are **SIL OFL 1.1** — see `CREDITS.md`. To self-host (recommended for the `.ch` domain), see `fonts/README.md`.
+
+> The big shift from the first draft: headings moved from condensed (Barlow) to regular-width grotesque (Archivo). TI's manual headers are regular-width Helvetica Bold, *not* condensed — so Archivo is more period-correct. Condensed is now reserved strictly for the keycaps.
 
 ### Backgrounds and surfaces
 
@@ -138,7 +141,6 @@ If a future page truly needs a glyph the system doesn't cover (e.g. a download-a
 **Photographic assets** in `assets/`:
 - `app-icon.png` — 1024×1024 app icon
 - `app-screenshot.png` — full iPhone screenshot of the live app
-- `TI59.png` — photograph of a real TI-59 (kept as historical reference; the system does *not* visually copy this — it copies the app)
 
 ---
 
@@ -158,7 +160,6 @@ CNAME                           · "www.calcu59.ch" — GitHub Pages custom doma
 assets/
   app-icon.png                  · 1024² app icon (also serves as favicon)
   app-screenshot.png            · iPhone screenshot — canonical visual reference
-  TI59.png                      · 1977 calculator photo — historical reference
 
 ── Design-system source (stays on main; not deployed) ─────────
 README.md                       · this file

@@ -12,8 +12,9 @@ The system is built around the **Calc-U 59 emulator app** for Mac, iPhone, and i
 
 Key files:
 - `colors_and_type.css` — all color and typography tokens. Load this first; wrap your content in `<div class="calcu">`.
-- `assets/TI59.png` — the canonical device photograph; use for hero and brand contexts.
-- `ui_kits/help-site/` — the help website itself (5-page click-thru, interactive calculator). Copy components from here rather than reinventing.
+- `assets/app-screenshot.png` — canonical app screenshot; `assets/app-icon.png` — brand mark.
+- `index.html` + `Pages.jsx` / `Calculator.jsx` / `components.jsx` — the help website (loads at the project root for GitHub Pages). Copy components from here rather than reinventing.
+- `CREDITS.md` — every asset + its license. `fonts/` — self-hosting setup.
 - `preview/` — small specimen cards demonstrating colors, type, spacing, components, brand.
 
 If creating visual artifacts (slides, mocks, throwaway prototypes, etc), copy assets out and create static HTML files for the user to view. If working on production code, you can copy assets and read the rules here to become an expert in designing with this brand.

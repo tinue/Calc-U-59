@@ -107,7 +107,7 @@ function Calculator({ scale = 1 }) {
       width: `${360 * scale}px`,
       background: "#000",
       padding: `${10*scale}px ${12*scale}px ${8*scale}px`,
-      fontFamily: "var(--font-key)",
+      fontFamily: "var(--font-keycap)",
       userSelect: "none",
     }}>
       {/* Display block (mahogany strip + LED + module header panel) */}
@@ -179,7 +179,7 @@ function Display({ scale, text, shift }) {
           display: "flex", justifyContent: "space-between",
           marginTop: 6 * scale,
           color: "#5a3018",
-          fontFamily: "var(--font-key)",
+          fontFamily: "var(--font-keycap)",
           fontSize: 9 * scale,
           letterSpacing: ".12em",
           textTransform: "uppercase",
@@ -194,7 +194,7 @@ function Display({ scale, text, shift }) {
         display: "flex", justifyContent: "space-between", alignItems: "center",
         padding: `${8*scale}px 2px ${2*scale}px`,
         color: "#c89858",
-        fontFamily: "var(--font-key)",
+        fontFamily: "var(--font-keycap)",
         fontWeight: 700,
         fontSize: 11 * scale,
         letterSpacing: ".05em",
@@ -206,7 +206,7 @@ function Display({ scale, text, shift }) {
       {/* Diagnostic instruction lines (per screenshot) */}
       <div style={{
         color: "#a87830",
-        fontFamily: "var(--font-key)",
+        fontFamily: "var(--font-keycap)",
         fontWeight: 500,
         fontSize: 10 * scale,
         letterSpacing: ".04em",
@@ -244,7 +244,7 @@ function Token({ scale, children }) {
       borderRadius: 2,
       letterSpacing: ".05em",
       color: "#c89858",
-      fontFamily: "var(--font-key)",
+      fontFamily: "var(--font-keycap)",
       fontWeight: 700,
     }}>{children}</span>
   );
@@ -296,7 +296,7 @@ function CalcKey({ kc, scale, onPress }) {
   return (
     <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap: 2*scale }}>
       <span style={{
-        fontFamily: kc.top && /[a-z]/.test(kc.top) ? "var(--font-body)" : "var(--font-key)",
+        fontFamily: kc.top && /[a-z]/.test(kc.top) ? "var(--font-body)" : "var(--font-keycap)",
         fontStyle: kc.top && /[a-z]/.test(kc.top) ? "italic" : "normal",
         fontWeight: 500,
         fontSize: 11 * scale,
@@ -319,7 +319,7 @@ function CalcKey({ kc, scale, onPress }) {
           color: styleByTone.color,
           border: 0,
           borderRadius: styleByTone.radius,
-          fontFamily: "var(--font-key)",
+          fontFamily: "var(--font-keycap)",
           fontWeight: 700,
           fontSize: kc.label.length > 3 ? 14 * scale : 16 * scale,
           letterSpacing: ".04em",

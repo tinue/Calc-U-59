@@ -131,7 +131,7 @@ h3.sub {
 .k {
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 32px; height: 26px; padding: 0 8px;
-  font-family: var(--font-key); font-weight: 700;
+  font-family: var(--font-keycap); font-weight: 700;
   font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase;
   border-radius: 5px;
   box-shadow: 0 1px 0 #000, 0 1px 2px rgba(0,0,0,.5);
@@ -179,3 +179,4 @@ h3.sub {
 .site-footer a { color: var(--fg-2); text-decoration: none; }
 .site-footer a:hover { color: var(--fg); }
 .site-footer .credits { margin-left: auto; font-family: var(--font-mono); font-size: 11px; opacity: .7; }
+.site-footer .disclaimer { flex-basis: 100%; font-size: 11px; line-height: 1.5; color: var(--fg-3); opacity: .85; margin-top: 4px; max-width: 80ch; }

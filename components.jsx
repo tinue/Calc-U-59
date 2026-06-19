@@ -56,6 +56,12 @@ function SiteFooter() {
         <a href="https://github.com/tinue/Calc-U-59/blob/main/CHANGELOG.md">Release notes</a>
         <a href="https://github.com/tinue/Calc-U-59/blob/main/PRIVACY.md">Privacy</a>
         <span className="credits">© 2026 · TI-59 emulator for Mac, iPhone, iPad</span>
+        <p className="disclaimer">
+          Calc-U 59 is an independent project and is not affiliated with, authorized,
+          or endorsed by Texas Instruments. “TI-59”, “TI-58”, “TI-58C”, “Texas
+          Instruments”, “Solid State Software”, and “Master Library” are trademarks of
+          their respective owners, used here for descriptive purposes only.
+        </p>
       </div>
     </footer>
   );
