@@ -1,7 +1,7 @@
 {
   "configurations" : [
     {
-      "id" : "64E65424-6822-4E2B-BA4A-EEE5DB9052D8",
+      "id" : "5CE875FD-4EF8-4928-8376-A85E6816E25F",
       "name" : "Configuration 1",
       "options" : {
 
@@ -13,7 +13,7 @@
   },
   "testTargets" : [
     {
-      "skippedTests" : [
+      "selectedTests" : [
         "AppStoreScreenshots"
       ],
       "target" : {

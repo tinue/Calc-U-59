@@ -40,8 +40,8 @@ extension XCTestCase {
 
 extension XCTestCase {
 
-    /// Open the file picker, navigate to the app's Documents folder in "On My iPhone",
-    /// and tap the named file.  Fails the test if navigation or selection times out.
+    /// Open the file picker, navigate to the "On My iPhone/iPad" root, and tap the
+    /// named file.  Fails the test if navigation or selection times out.
     ///
     /// Files must be pre-loaded into the simulator before running — `Process` (NSTask)
     /// is macOS-only and cannot be called from an iOS test process.  Run
@@ -57,17 +57,11 @@ extension XCTestCase {
         let browse = app.buttons["Browse"]
         if browse.waitForExistence(timeout: 3) { browse.tap() }
 
-        // Navigate into "On My iPhone" if not already there.
-        let onMyDevice = app.staticTexts["On My iPhone"]
+        // Navigate into "On My iPhone/iPad" if not already there.
+        let onMyDevice = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'On My'")).firstMatch
         if onMyDevice.waitForExistence(timeout: 5) { onMyDevice.tap() }
 
-        // Tap the app's folder.
-        let appFolder = app.staticTexts["Calc-U-59"]
-        XCTAssertTrue(appFolder.waitForExistence(timeout: 5),
-                      "'Calc-U-59' folder not found — run bin/setup-simulator-state-files first")
-        appFolder.tap()
-
-        // Tap the file.
+        // Tap the file — files are installed flat at the root by setup-simulator-state-files.
         let fileCell = app.staticTexts[name]
         XCTAssertTrue(fileCell.waitForExistence(timeout: 5),
                       "'\(name)' not found — run bin/setup-simulator-state-files first")

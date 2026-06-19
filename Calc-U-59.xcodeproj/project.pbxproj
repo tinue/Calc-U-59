@@ -12,7 +12,6 @@
 		6B5CBFF0A3356702CCCA0EA5 /* roms/calculator/TMC0582-CONST-K.txt in Resources */ = {isa = PBXBuildFile; fileRef = 0A6522F10504197826D208A1 /* roms/calculator/TMC0582-CONST-K.txt */; };
 		6C370FAB142303C959108954 /* roms/calculator/TMC0573.txt in Resources */ = {isa = PBXBuildFile; fileRef = E2B162B7479B9E09AE31CB82 /* roms/calculator/TMC0573.txt */; };
 		7BAEB40743290D11F6AC8AB9 /* roms/calculator/TMC0583.txt in Resources */ = {isa = PBXBuildFile; fileRef = 922A6D0E64ED7C6A5E52CCD5 /* roms/calculator/TMC0583.txt */; };
-		8C7473D02FE56488009DC59A /* UIRegressionTests.xctestplan in Resources */ = {isa = PBXBuildFile; fileRef = 8C7473CF2FE56488009DC59A /* UIRegressionTests.xctestplan */; };
 		ABC5638C64E47FADBF40BFEA /* roms/calculator/TMC0571B.txt in Resources */ = {isa = PBXBuildFile; fileRef = 4E36B672AB3C06A1BC192AA5 /* roms/calculator/TMC0571B.txt */; };
 		B87F745B7F9EC349D0ECBF2F /* roms/calculator/CD2400.txt in Resources */ = {isa = PBXBuildFile; fileRef = 5193840AC3BCB5AC128C8565 /* roms/calculator/CD2400.txt */; };
 		D2A2B3C4E5F6A7B8C9D0E1F1 /* roms/solid-state/cuecards.txt in Resources */ = {isa = PBXBuildFile; fileRef = D1A2B3C4E5F6A7B8C9D0E1F1 /* roms/solid-state/cuecards.txt */; };
@@ -54,7 +53,6 @@
 		82EB9107C1DE1D77AB49F0D3 /* roms/calculator/TMC0583-CONST-K.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "roms/calculator/TMC0583-CONST-K.txt"; sourceTree = "<group>"; };
 		8C7285592F69626400D5F025 /* Calc-U-59.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Calc-U-59.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		8C7473C22FE5638A009DC59A /* Calc-U-59UITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Calc-U-59UITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
-		8C7473CF2FE56488009DC59A /* UIRegressionTests.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; name = UIRegressionTests.xctestplan; path = "Calc-U-59UITests/UIRegressionTests.xctestplan"; sourceTree = "<group>"; };
 		8CC614992F6C2E370041355E /* Calc-U-59.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Calc-U-59.entitlements"; sourceTree = "<group>"; };
 		8CF668232F7ED56C006116D2 /* Calc-U-59-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "Calc-U-59-Info.plist"; sourceTree = "<group>"; };
 		922A6D0E64ED7C6A5E52CCD5 /* roms/calculator/TMC0583.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = roms/calculator/TMC0583.txt; sourceTree = "<group>"; };
@@ -129,7 +127,6 @@
 		8C7285502F69626400D5F025 = {
 			isa = PBXGroup;
 			children = (
-				8C7473CF2FE56488009DC59A /* UIRegressionTests.xctestplan */,
 				8CF668232F7ED56C006116D2 /* Calc-U-59-Info.plist */,
 				8CC614992F6C2E370041355E /* Calc-U-59.entitlements */,
 				8C72855B2F69626400D5F025 /* App */,
@@ -281,7 +278,6 @@
 				D33A7AEB1F005859A35CAB9E /* roms/calculator/CD2401-CONST-K.txt in Resources */,
 				D2A2B3C4E5F6A7B8C9D0E1F1 /* roms/solid-state/cuecards.txt in Resources */,
 				D2A2B3C4E5F6A7B8C9D0E1F2 /* roms/solid-state/TMC0541.txt in Resources */,
-				8C7473D02FE56488009DC59A /* UIRegressionTests.xctestplan in Resources */,
 				D2A2B3C4E5F6A7B8C9D0E1F3 /* roms/solid-state/TMC0542.txt in Resources */,
 				D2A2B3C4E5F6A7B8C9D0E1F4 /* roms/solid-state/TMC0543.txt in Resources */,
 				D2A2B3C4E5F6A7B8C9D0E1F5 /* roms/solid-state/TMC0544.txt in Resources */,
