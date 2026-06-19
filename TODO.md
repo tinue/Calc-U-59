@@ -29,6 +29,7 @@ Unsorted collection of ideas, bugs, observations etc.
 - **CMake build** — standalone build targeting the C++ core, enabling headless use and non-macOS platforms.
 - **Headless / REST API** — full GUI decoupling to enable scripted research workflows and alternative frontends.
 - **Printer hardware support** - Enable features like printer interrupt, i.e. pseudo graphics mode
+- **Frozen** - Visually indicate when the calculator is frozen in one of the debuggers (mostly useful on iPhone, where only one panel is visible at a time)
 
 ## Far out (if ever)
 - **Additional calculator models** Such as TI-57

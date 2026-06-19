@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.3.0] - Work in progress
+## [1.3.0] - 2026-06-19
 - **Calculator Debugger** Enables tracing and single-stepping of solid-state module keycode programs.
 - **Portrait View** Enables the debugger in portrait view as well (disabled by default, enable in Settings). Particularly useful for iPhone users who previously had no debugger access.
 - **ROM Heatmap** Hover over (or touch and hold) a block to see its hex address in the header.

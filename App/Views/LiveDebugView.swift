@@ -188,12 +188,13 @@ struct LiveDebugView: View {
     private func programStepsSection(baseFontSize: CGFloat) -> some View {
         let snap = vm.liveDebugSnapshot
 
-        if vm.isFrozen, let program = vm.frozenCachedProgram {
-            // Frozen mode: show full scrollable program. Color by the cache's
-            // source: during the transitional Prg Source 2 step the listing
-            // still shows the previous source's program.
-            let currentIdx = vm.frozenCachedCurrentIndex
-            let currentLineColor = programSourceHighlightColor(vm.frozenDisplaySourceFlag)
+        if vm.isFrozen, !vm.programListing.isEmpty {
+            // Frozen mode: show full scrollable program.
+            // programListing is always-live; programListingSourceFlag tracks the display source
+            // (during solidStateReturn it holds the previous source's flag, not the raw CROM address).
+            let program = vm.programListing
+            let currentIdx = vm.programListingCurrentIndex
+            let currentLineColor = programSourceHighlightColor(vm.programListingSourceFlag)
 
             SectionBox(title: "PROGRAM STEPS") {
                 ScrollViewReader { proxy in

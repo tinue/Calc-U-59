@@ -185,12 +185,10 @@ class EmulatorViewModel {
     private var _cpuFreezeSeenLoop = false   // have we entered the scan loop since arming?
     private var _cpuFreezeArmPC: UInt16 = 0xFFFF  // PC at arm time (guards against immediate 0000 re-trigger)
 
-    // Frozen program caches (built on freeze entry, reused until unfreeze)
-    private var frozenROMCache: [LiveDebugSnapshot.StepEntry]?
-    private var frozenRAMCache: [LiveDebugSnapshot.StepEntry]?
-    private var frozenLibCache: [LiveDebugSnapshot.StepEntry]?
-    private var frozenLibProgram: Int = -1     // module program number the lib cache was built for
-    private var cachedPrSourceFlag: UInt8 = 0  // tracks which cache is currently valid
+    // Full program listing — always kept current (not just when frozen).
+    // Updated at 60 Hz by buildLiveSnapshot when running, and after each STEP/freeze-entry when frozen.
+    var programListing: [LiveDebugSnapshot.StepEntry] = []
+    var programListingSourceFlag: UInt8 = 0   // Prg Source flag the listing was built for
 
     // ── Solid-state module image (for the live PROGRAM STEPS view) ────────────
     // Swift-side copy of the module bytes plus the per-program byte ranges
@@ -489,9 +487,8 @@ class EmulatorViewModel {
                         self.pendingFreezeOnPCChange = false
                         DispatchQueue.main.async { [weak self] in
                             guard let self else { return }
-                            if self.liveDebugEnabled {
-                                self.liveDebugSnapshot = self.buildLiveSnapshot(machine: m)
-                            }
+                            m.beginNextStep()
+                            self.liveDebugSnapshot = self.buildLiveSnapshot(machine: m)
                             self.captureInspectorSnapshot(machine: m)
                         }
                         return
@@ -1242,22 +1239,8 @@ class EmulatorViewModel {
                 guard let self else { return }
                 // Pre-execution phase: prepare ring buffer and snapshot for display
                 m.beginNextStep()
-                // Build program caches on freeze entry
-                let cpu = m.snapshotCPU()
-                let currentStep = self.decodeProgramCounter(from: cpu)
-                let prSourceFlag = UInt8(cpu.SCOM.0.3)
-                self.cachedPrSourceFlag = prSourceFlag
-                if self.isUserProgramSource(prSourceFlag) {
-                    self.frozenRAMCache = self.buildFullProgram(machine: m, currentStep: currentStep, prSourceFlag: 0)
-                } else if prSourceFlag == ProgramSource.rom.rawValue {
-                    self.frozenROMCache = self.buildFullProgram(machine: m, currentStep: currentStep, prSourceFlag: 8)
-                } else if prSourceFlag == ProgramSource.solidState.rawValue {
-                    let libStep = self.libraryProgramStep(machine: m)?.step ?? -1
-                    self.frozenLibCache = self.buildFullProgram(machine: m, currentStep: libStep, prSourceFlag: 1)
-                }
-                if self.liveDebugEnabled {
-                    self.liveDebugSnapshot = self.buildLiveSnapshot(machine: m)
-                }
+                // buildLiveSnapshot refreshes programListing as a side effect (always, not just when liveDebugEnabled)
+                self.liveDebugSnapshot = self.buildLiveSnapshot(machine: m)
                 self.captureInspectorSnapshot(machine: m)
             }
         }
@@ -1282,36 +1265,32 @@ class EmulatorViewModel {
                 let currentStep = isLibSource ? (libInfo?.step ?? -1)
                                               : self.decodeProgramCounter(from: cpu)
 
-                // Check if Prg Source (or the module program within source 1)
-                // changed; if so, rebuild the appropriate cache
+                // Update always-live program listing.
+                // Prg Source 2 (solidStateReturn): SCOM[0] holds a raw CROM return address —
+                // keep the previous listing and advance the highlight onto the just-executed RTN.
+                // All other sources: rebuild from current machine state.
                 if prSourceFlag == ProgramSource.solidStateReturn.rawValue {
-                    // Transitional library-return step: SCOM[0] nibbles 4–7 now
-                    // hold the CROM return address, so decodedPC is meaningless.
-                    // Keep the previous program view (the routine containing the
-                    // just-executed RTN) and move the highlight onto that RTN,
-                    // which is one step past the old current step.
-                    self.advanceCachedProgramCurrent()
-                } else if prSourceFlag != self.cachedPrSourceFlag {
-                    self.cachedPrSourceFlag = prSourceFlag
-                    if self.isUserProgramSource(prSourceFlag) {
-                        self.frozenRAMCache = self.buildFullProgram(machine: m, currentStep: currentStep, prSourceFlag: 0)
-                        self.frozenROMCache = nil
-                        self.frozenLibCache = nil
-                    } else if prSourceFlag == ProgramSource.rom.rawValue {
-                        self.frozenROMCache = self.buildFullProgram(machine: m, currentStep: currentStep, prSourceFlag: 8)
-                        self.frozenRAMCache = nil
-                        self.frozenLibCache = nil
-                    } else if isLibSource {
-                        self.frozenLibCache = self.buildFullProgram(machine: m, currentStep: currentStep, prSourceFlag: 1)
-                        self.frozenRAMCache = nil
-                        self.frozenROMCache = nil
-                    }
-                } else if isLibSource, (libInfo?.program ?? -1) != self.frozenLibProgram {
-                    // Still in the module, but a Pgm call crossed into another program
-                    self.frozenLibCache = self.buildFullProgram(machine: m, currentStep: currentStep, prSourceFlag: 1)
+                    self.advanceProgramListingCurrent()
                 } else {
-                    // Prg Source unchanged: update isCurrent markers in existing cache
-                    self.updateCachedProgramCurrent(to: currentStep, prSourceFlag: prSourceFlag)
+                    let sourceKeycodes: [UInt8]
+                    let effectiveStep: Int
+                    if self.isUserProgramSource(prSourceFlag) {
+                        sourceKeycodes = Array(m.allProgramSteps() as Data)
+                        effectiveStep = max(0, currentStep - 1)
+                    } else if prSourceFlag == ProgramSource.rom.rawValue {
+                        sourceKeycodes = self.romKeycodes(machine: m)
+                        effectiveStep = max(0, currentStep - 1)
+                    } else if isLibSource {
+                        sourceKeycodes = libInfo.map { Array(self.moduleKeycodes[$0.range]) } ?? []
+                        effectiveStep = currentStep
+                    } else {
+                        sourceKeycodes = []
+                        effectiveStep = -1
+                    }
+                    let argSteps = TI59KeyNames.argumentSteps(in: sourceKeycodes)
+                    self.refreshProgramListing(machine: m, prSourceFlag: prSourceFlag,
+                                              currentStep: effectiveStep,
+                                              sourceKeycodes: sourceKeycodes, argSteps: argSteps)
                 }
 
                 if self.liveDebugEnabled {
@@ -1372,62 +1351,41 @@ class EmulatorViewModel {
         cpuInspectorUpdateID &+= 1
     }
 
-    /// The frozen cache backing a given Prg Source flag, or nil for sources
-    /// without a cached listing. Centralises the three-way cache dispatch.
-    private func frozenCacheKeyPath(for flag: UInt8) -> ReferenceWritableKeyPath<EmulatorViewModel, [LiveDebugSnapshot.StepEntry]?>? {
-        if isUserProgramSource(flag) { return \.frozenRAMCache }
-        if flag == ProgramSource.rom.rawValue { return \.frozenROMCache }
-        if flag == ProgramSource.solidState.rawValue { return \.frozenLibCache }
-        return nil
+    /// Index of the current step in programListing, or -1 if none is marked current.
+    var programListingCurrentIndex: Int {
+        programListing.firstIndex(where: { $0.isCurrent }) ?? -1
     }
 
-    /// Update isCurrent markers in the cached program for the given current step.
-    /// Clears old current marker and sets new one.
-    private func updateCachedProgramCurrent(to currentStep: Int, prSourceFlag: UInt8) {
-        guard let kp = frozenCacheKeyPath(for: prSourceFlag), var cache = self[keyPath: kp] else { return }
-        for i in 0..<cache.count {
-            cache[i].isCurrent = (cache[i].stepNum == currentStep)
+    /// Rebuild programListing from the current machine state.
+    /// For Prg Source 2 (solidStateReturn) call advanceProgramListingCurrent() instead —
+    /// that source's SCOM PC is a raw return address, not a step number.
+    private func refreshProgramListing(machine m: TI59MachineWrapper, prSourceFlag: UInt8, currentStep: Int,
+                                       sourceKeycodes: [UInt8], argSteps: Set<Int>) {
+        guard !sourceKeycodes.isEmpty else { programListing = []; return }
+        programListingSourceFlag = prSourceFlag
+        programListing = sourceKeycodes.enumerated().map { i, kc in
+            .init(stepNum: i, keycode: kc,
+                  mnemonic: argSteps.contains(i) ? String(format: "%02d", kc) : TI59KeyNames.mnemonic(for: kc),
+                  isCurrent: i == currentStep)
         }
-        self[keyPath: kp] = cache
     }
 
-    /// Move the isCurrent marker one entry forward in the active frozen cache.
-    /// Used for Prg Source 2 (solid-state return pending): the held view's
-    /// just-executed RTN is the entry after the previous current step.
-    private func advanceCachedProgramCurrent() {
-        guard let kp = frozenCacheKeyPath(for: cachedPrSourceFlag),
-              var cache = self[keyPath: kp],
-              let idx = cache.firstIndex(where: { $0.isCurrent }), idx + 1 < cache.count else { return }
-        cache[idx].isCurrent = false
-        cache[idx + 1].isCurrent = true
-        self[keyPath: kp] = cache
+    /// Move the isCurrent marker one step forward in programListing.
+    /// Used for Prg Source 2 (solidStateReturn): keep the previous listing visible,
+    /// advance the highlight onto the just-executed RTN.
+    private func advanceProgramListingCurrent() {
+        guard let idx = programListing.firstIndex(where: { $0.isCurrent }),
+              idx + 1 < programListing.count else { return }
+        programListing[idx].isCurrent = false
+        programListing[idx + 1].isCurrent = true
     }
 
-    /// The source flag governing the frozen program listing. During the
-    /// transitional Prg Source 2 step this is the held cache's source, not
-    /// the live SCOM flag.
-    var frozenDisplaySourceFlag: UInt8 { cachedPrSourceFlag }
-
-    /// Return the full cached program when frozen, or nil if not frozen.
-    var frozenCachedProgram: [LiveDebugSnapshot.StepEntry]? {
-        frozenCacheKeyPath(for: cachedPrSourceFlag).flatMap { self[keyPath: $0] }
-    }
-
-    /// Return the index of the current step in the cached program when frozen, or -1 if not frozen.
-    var frozenCachedCurrentIndex: Int {
-        guard let program = frozenCachedProgram else { return -1 }
-        return program.firstIndex(where: { $0.isCurrent }) ?? -1
-    }
-
-    /// Drop the freeze reason, all frozen program caches, and the cache bookkeeping.
+    /// Drop the freeze reason and ownership.  programListing is intentionally
+    /// NOT cleared — it stays current and will be refreshed by the 60 Hz loop
+    /// once the emulator resumes.
     private func clearFrozenState() {
         freezeReason = nil
         freezeOwner = nil
-        frozenROMCache = nil
-        frozenRAMCache = nil
-        frozenLibCache = nil
-        frozenLibProgram = -1
-        cachedPrSourceFlag = 0
     }
 
     func unfreeze() {
@@ -1560,35 +1518,6 @@ class EmulatorViewModel {
                             printerBuffer: m.printerBufferContent, cpu: cpu)
     }
 
-    /// Build full program for a given source (RAM or ROM), used for freeze caching.
-    /// Returns all steps as StepEntry with mnemonics, marking currentStep as current.
-    private func buildFullProgram(machine m: TI59MachineWrapper, currentStep: Int, prSourceFlag: UInt8) -> [LiveDebugSnapshot.StepEntry] {
-        let steps: [UInt8]
-        switch prSourceFlag {
-        case 0:
-            // User RAM — all program steps
-            steps = Array(m.allProgramSteps() as Data)
-        case 8:
-            // Main ROM (384 steps)
-            steps = romKeycodes(machine: m)
-        case 1:
-            // Solid State module — the current program only, numbered relative
-            // to its start (step 000 = first keycode of the program)
-            guard let lib = libraryProgramStep(machine: m) else { return [] }
-            frozenLibProgram = lib.program
-            steps = Array(moduleKeycodes[lib.range])
-        default:
-            return []
-        }
-
-        let argSteps = TI59KeyNames.argumentSteps(in: steps)
-        return steps.enumerated().map { i, kc in
-            .init(stepNum: i,
-                  keycode: kc,
-                  mnemonic: argSteps.contains(i) ? String(format: "%02d", kc) : TI59KeyNames.mnemonic(for: kc),
-                  isCurrent: i == currentStep)
-        }
-    }
 
     /// Build a real-time debug snapshot for the live debug view.
     /// Called from tick() at 60 Hz only when liveDebugEnabled.
@@ -1813,6 +1742,14 @@ class EmulatorViewModel {
                     ))
                 }
             }
+        }
+
+        // Always-live full program listing — skip solidStateReturn (raw CROM address in PC);
+        // that case is handled by advanceProgramListingCurrent() in stepKeycode.
+        if snap.prSourceFlag != ProgramSource.solidStateReturn.rawValue {
+            refreshProgramListing(machine: m, prSourceFlag: snap.prSourceFlag,
+                                  currentStep: snap.currentStep,
+                                  sourceKeycodes: sourceKeycodes, argSteps: argSteps)
         }
 
         // When frozen: populate nextStep fields from the next instruction to execute
