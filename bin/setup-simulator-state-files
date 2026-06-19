@@ -1,26 +1,20 @@
 #!/usr/bin/env bash
-# Copy screenshot state files into the booted simulator's app Documents folder.
+# Copy all state files from examples/ into the booted simulator's app Documents folder.
 #
-# Run once after installing the app on the simulator, before executing the
-# AppStoreScreenshots test class.  Also suitable as a scheme pre-action:
+# Run once after installing the app on the simulator, and again whenever examples/
+# files change.  Also suitable as a scheme pre-action:
 #   Shell: /bin/bash
-#   Script: $SRCROOT/scripts/setup-screenshot-fixtures.sh
+#   Script: $SRCROOT/bin/setup-simulator-state-files
 #   Provide build settings from: Calc-U-59 (the app target)
 #
 # The script exits 0 even when the container does not exist yet (first-ever run).
 # In that case, launch the app once manually (or let AppStoreScreenshots.setUp do it),
-# then re-run this script before executing the test.
+# then re-run this script before executing the screenshot tests.
 
 set -euo pipefail
 
 BUNDLE_ID="ch.erzberger.calcu59"
 SRCROOT="${SRCROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
-FILES_DIR="$SRCROOT/examples/debug"
-
-FILES=(
-    "screenshot_leisure_start.ti59"
-    "screenshot_leisure_run.ti59"
-)
 
 CONTAINER=$(xcrun simctl get_app_container booted "$BUNDLE_ID" data 2>/dev/null || true)
 if [ -z "$CONTAINER" ]; then
@@ -32,12 +26,12 @@ fi
 DOCS="$CONTAINER/Documents"
 mkdir -p "$DOCS"
 
-for FILE in "${FILES[@]}"; do
-    SRC="$FILES_DIR/$FILE"
-    if [ ! -f "$SRC" ]; then
-        echo "error: source file not found: $SRC" >&2
-        exit 1
-    fi
+COUNT=0
+while IFS= read -r -d '' SRC; do
+    FILE=$(basename "$SRC")
     cp "$SRC" "$DOCS/$FILE"
-    echo "Copied $FILE → $DOCS/"
-done
+    echo "Copied $FILE"
+    (( COUNT++ )) || true
+done < <(find "$SRCROOT/examples" -name "*.ti59" -o -name "*.ti58" -o -name "*.ti58c" -print0 | sort -z)
+
+echo "$COUNT file(s) copied to $DOCS"

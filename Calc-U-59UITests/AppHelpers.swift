@@ -45,7 +45,7 @@ extension XCTestCase {
     ///
     /// Files must be pre-loaded into the simulator before running — `Process` (NSTask)
     /// is macOS-only and cannot be called from an iOS test process.  Run
-    /// `scripts/setup-screenshot-fixtures.sh` once after installing the app, or add it
+    /// `bin/setup-simulator-state-files` once after installing the app, or add it
     /// as a scheme pre-action (provide the SRCROOT expansion).
     func selectStateFile(named name: String, in app: XCUIApplication) {
         let preset = app.buttons["btn-preset"]
@@ -64,13 +64,13 @@ extension XCTestCase {
         // Tap the app's folder.
         let appFolder = app.staticTexts["Calc-U-59"]
         XCTAssertTrue(appFolder.waitForExistence(timeout: 5),
-                      "'Calc-U-59' folder not found — run scripts/setup-screenshot-fixtures.sh first")
+                      "'Calc-U-59' folder not found — run bin/setup-simulator-state-files first")
         appFolder.tap()
 
         // Tap the file.
         let fileCell = app.staticTexts[name]
         XCTAssertTrue(fileCell.waitForExistence(timeout: 5),
-                      "'\(name)' not found — run scripts/setup-screenshot-fixtures.sh first")
+                      "'\(name)' not found — run bin/setup-simulator-state-files first")
         fileCell.tap()
     }
 

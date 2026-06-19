@@ -14,7 +14,7 @@ import XCTest
 /// Prerequisites:
 ///   - UIFileSharingEnabled = YES in Info.plist (makes Documents visible in file picker)
 ///   - State files must be in the simulator's app Documents folder before running.
-///     Run `scripts/setup-screenshot-fixtures.sh` once after install, or wire it
+///     Run `bin/setup-simulator-state-files` once after install, or wire it
 ///     as a scheme pre-action (provide expansion: SRCROOT).  The test fails with
 ///     a clear "file not found" message if the files are absent.
 ///
