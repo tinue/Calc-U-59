@@ -360,7 +360,7 @@ struct LiveDebugView: View {
     private func hirRow(_ label: String, _ value: Double, baseFontSize: CGFloat) -> some View {
         let isZero = value == 0
         let color = isZero ? Color(white: 0.6) : Color(white: 0.85)
-        return Text("HIR \(label): \(String(format: "%.5g", value))")
+        return Text("\(label): \(String(format: "%.5g", value))")
             .font(.system(size: baseFontSize + 2, design: .monospaced))
             .foregroundStyle(color)
             .frame(maxWidth: .infinity, alignment: .leading)

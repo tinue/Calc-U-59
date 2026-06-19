@@ -6,7 +6,24 @@ struct CalculatorView: View {
     @Environment(EmulatorViewModel.self) var viewModel
 
     enum FilePickerMode { case asm, stateFile }
-    @State private var activeFilePickerMode: FilePickerMode?
+    // Two-variable design: filePickerMode is the source of truth for routing;
+    // filePickerPresented is the Bool that drives isPresented. SwiftUI may
+    // reset filePickerPresented to false on tap-outside dismiss (iPad popover)
+    // without calling the result handler, leaving filePickerMode non-nil.
+    // filePickerModeBinding always sets filePickerPresented = true on any write,
+    // so re-tapping "Select File" reopens the picker even if mode is unchanged.
+    @State private var filePickerMode: FilePickerMode?
+    @State private var filePickerPresented = false
+
+    private var filePickerModeBinding: Binding<FilePickerMode?> {
+        Binding(
+            get: { filePickerMode },
+            set: { newMode in
+                filePickerMode = newMode
+                if newMode != nil { filePickerPresented = true }
+            }
+        )
+    }
 
     private static let asmTypes = [UTType(filenameExtension: "asm") ?? .plainText]
     private static let stateFileTypes = [
@@ -15,34 +32,6 @@ struct CalculatorView: View {
         UTType(filenameExtension: "ti58c") ?? .data
     ]
 
-    private var filePickerBinding: Binding<Bool> {
-        Binding(
-            get: {
-                let active = activeFilePickerMode != nil
-                if active {
-                    // Warn about competing modals that can silently block fileImporter on iOS
-                    if viewModel.cardPickerMode != nil {
-                        print("[WARN FileImporter] cardPickerMode=\(String(describing: viewModel.cardPickerMode)) is set — competing sheet may block file picker")
-                    }
-                    if viewModel.errorMessage != nil {
-                        print("[WARN FileImporter] errorMessage alert is active — competing presentation may block file picker")
-                    }
-                    #if !os(macOS)
-                    if showingSettings {
-                        print("[WARN FileImporter] settings sheet is presented — competing sheet may block file picker")
-                    }
-                    #endif
-                }
-                return active
-            },
-            set: { newValue in
-                // Dismissal (cancel/"x") does not reliably fire the result
-                // handler on iOS; SwiftUI writing false here is the only
-                // dependable signal, so reset the mode to re-arm the picker.
-                if !newValue { activeFilePickerMode = nil }
-            }
-        )
-    }
 
     #if os(macOS)
     @State private var isCommandPressed = false
@@ -129,46 +118,31 @@ struct CalculatorView: View {
             Text(viewModel.errorMessage ?? "")
         }
         .fileImporter(
-            isPresented: filePickerBinding,
+            isPresented: $filePickerPresented,
             allowedContentTypes: {
-                // Evaluated on every body recompute, normally with mode=nil
-                // (picker closed). The types only matter while presented.
-                guard let mode = activeFilePickerMode else { return [] }
-                switch mode {
+                switch filePickerMode {
                 case .asm:       return Self.asmTypes
                 case .stateFile: return Self.stateFileTypes
+                case .none:      return []
                 }
             }(),
             allowsMultipleSelection: false
         ) { result in
-            let mode = activeFilePickerMode
+            // Capture mode before any reset — on iPad, set(false) may have
+            // already fired (for tap-outside cancel) but filePickerMode is
+            // intentionally NOT reset there, so it's always valid here.
+            let mode = filePickerMode
+            filePickerMode = nil
+            filePickerPresented = false
 
-            guard case .success(let urls) = result else {
-                if case .failure(let error) = result {
-                    print("[WARN FileImporter] picker returned failure: \(error)")
-                } else {
-                    print("[WARN FileImporter] picker dismissed with no selection (cancelled)")
-                }
-                activeFilePickerMode = nil
-                return
-            }
-
-            guard let url = urls.first else {
-                print("[WARN FileImporter] success result contained zero URLs")
-                activeFilePickerMode = nil
+            guard case .success(let urls) = result, let url = urls.first else {
                 return
             }
 
             switch mode {
-            case .asm:
-                viewModel.loadASMOverlayFile(url)
-                activeFilePickerMode = nil
-            case .stateFile:
-                viewModel.loadStateFile(url)
-                activeFilePickerMode = nil
-            case .none:
-                print("[WARN FileImporter] result handler fired but capturedMode is nil — state was reset too early")
-                activeFilePickerMode = nil
+            case .asm:       viewModel.loadASMOverlayFile(url)
+            case .stateFile: viewModel.loadStateFile(url)
+            case .none:      break
             }
         }
         #if os(macOS)
@@ -196,7 +170,7 @@ struct CalculatorView: View {
             PrinterView()
                 .frame(minWidth: 220, maxWidth: 320)
             Divider()
-            DebugView(activeFilePickerMode: $activeFilePickerMode)
+            DebugView(activeFilePickerMode: filePickerModeBinding)
                 .frame(minWidth: 220)
         }
         #else
@@ -213,7 +187,7 @@ struct CalculatorView: View {
                         .frame(minWidth: 290, maxWidth: 360)
                     if UIDevice.current.userInterfaceIdiom == .pad {
                         Divider()
-                        DebugView(activeFilePickerMode: $activeFilePickerMode)
+                        DebugView(activeFilePickerMode: filePickerModeBinding)
                             .frame(minWidth: 220)
                     }
                 }
@@ -328,7 +302,7 @@ struct CalculatorView: View {
             #else
             Divider().frame(height: 20)
             Button("Preset", systemImage: "doc.badge.arrow.up") {
-                activeFilePickerMode = .stateFile
+                filePickerModeBinding.wrappedValue = .stateFile
             }
             .labelStyle(showLabel: showLabels)
             .controlSize(.large)
@@ -388,7 +362,7 @@ struct CalculatorView: View {
                         }
                     }
             case .debug:
-                DebugView(activeFilePickerMode: $activeFilePickerMode, portraitTopInset: 36)
+                DebugView(activeFilePickerMode: filePickerModeBinding, portraitTopInset: 36)
                     .overlay(alignment: .topLeading) {
                         pageArrow(systemImage: "chevron.left") { portraitPage = .printer }
                     }
