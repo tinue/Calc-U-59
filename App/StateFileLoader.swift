@@ -73,8 +73,9 @@ import Foundation
 
 /// A single event in the KEYSTROKES section.
 enum KeystrokeEvent {
-    case key(UInt8)          // matrix code to press (row*10 + col, row 1–9, col 1–5)
-    case wait(TimeInterval)  // explicit pause before the next keystroke line
+    case key(UInt8)                  // matrix code to press (row*10 + col, row 1–9, col 1–5); 99 = TRACE toggle
+    case wait(TimeInterval)          // explicit pause; emulator runs at normal speed
+    case waitFullSpeed(TimeInterval) // enable full speed, wait, then restore normal speed
 }
 
 struct LoadStateResult {
@@ -88,6 +89,8 @@ struct LoadStateResult {
     var cueCardContent: CueCardContent? = nil
     var solidStateModuleID: String? = nil
     var printerConnected: Bool? = nil
+    /// MODEL: TI-59 / TI-58 / TI-58C — switches the machine variant before applying state.
+    var model: MachineModel? = nil
     var errors: [String] = []
 }
 
@@ -127,6 +130,16 @@ func parseStateFile(_ text: String, maxStepAddr: Int = 479, allowHiddenRegisters
         if upper.hasPrefix("PRINTER:") {
             let val = String(line.dropFirst("PRINTER:".count)).trimmingCharacters(in: .whitespaces).lowercased()
             result.printerConnected = (val == "on" || val == "true" || val == "1")
+            continue
+        }
+        if upper.hasPrefix("MODEL:") {
+            let val = String(line.dropFirst("MODEL:".count)).trimmingCharacters(in: .whitespaces).uppercased()
+            switch val {
+            case "TI-59":  result.model = .ti59
+            case "TI-58":  result.model = .ti58
+            case "TI-58C": result.model = .ti58c
+            default: result.errors.append("Unknown MODEL: '\(val)' — expected TI-59, TI-58, or TI-58C")
+            }
             continue
         }
 
@@ -190,7 +203,9 @@ func parseStateFile(_ text: String, maxStepAddr: Int = 479, allowHiddenRegisters
         case .registers:
             parseRegLine(line, allowHiddenRegisters: allowHiddenRegisters, into: &result.registers, errors: &result.errors)
         case .keystrokes:
-            if let t = parseWaitLine(line) {
+            if let t = parseWaitFullSpeedLine(line) {
+                result.keystrokes.append(.waitFullSpeed(t))
+            } else if let t = parseWaitLine(line) {
                 result.keystrokes.append(.wait(t))
             } else {
                 for code in parseKeystrokeLine(line) {
@@ -262,14 +277,15 @@ private func parseRegLine(_ line: String,
     registers.append((regNum: regNum, nibbles: encodeTI59BCD(value)))
 }
 
-/// Parse one KEYSTROKES line: return all 1–2 digit numeric tokens in 11–95.
-/// No step-address prefix logic — every valid token is a matrix code.
-/// Valid matrix codes: 11–95 (col 1–5). Mnemonic labels and other non-numeric tokens are silently ignored.
+/// Parse one KEYSTROKES line: return all 1–2 digit numeric tokens that are
+/// valid matrix codes (11–95) or the virtual TRACE toggle (99).
+/// No step-address prefix logic — every valid token is a code.
+/// Mnemonic labels and other non-numeric tokens are silently ignored.
 private func parseKeystrokeLine(_ line: String) -> [UInt8] {
     let tokens = line.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
     var keycodes: [UInt8] = []
     for token in tokens {
-        if token.count <= 2, let n = Int(token), n >= 11, n <= 95 {
+        if token.count <= 2, let n = Int(token), (n >= 11 && n <= 95) || n == 99 {
             keycodes.append(UInt8(n))
         }
     }
@@ -279,9 +295,18 @@ private func parseKeystrokeLine(_ line: String) -> [UInt8] {
 /// Parse a "Wait: <value><unit>" line.  Returns the interval in seconds, or nil.
 /// Supported units: "s" (seconds), "ms" (milliseconds).  Case-insensitive.
 private func parseWaitLine(_ line: String) -> TimeInterval? {
-    let upper = line.uppercased()
-    guard upper.hasPrefix("WAIT:") else { return nil }
-    let rest = String(line.dropFirst("WAIT:".count)).trimmingCharacters(in: .whitespaces)
+    parseWaitInterval(line, prefix: "WAIT:")
+}
+
+/// Parse a "WaitFullSpeed: <value><unit>" line.  Returns the interval in seconds, or nil.
+/// When played back, the emulator runs at full speed for this interval and then reverts.
+private func parseWaitFullSpeedLine(_ line: String) -> TimeInterval? {
+    parseWaitInterval(line, prefix: "WAITFULLSPEED:")
+}
+
+private func parseWaitInterval(_ line: String, prefix: String) -> TimeInterval? {
+    guard line.uppercased().hasPrefix(prefix) else { return nil }
+    let rest = String(line.dropFirst(prefix.count)).trimmingCharacters(in: .whitespaces)
     if rest.uppercased().hasSuffix("MS"),
        let v = Double(rest.dropLast(2).trimmingCharacters(in: .whitespaces)) {
         return v / 1000.0

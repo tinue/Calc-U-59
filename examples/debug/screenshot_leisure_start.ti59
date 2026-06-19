@@ -1,0 +1,39 @@
+# screenshot_leisure_start.ti59
+#
+# App Store screenshot automation — step 1 of 2.
+#
+# XCUITest sequence before loading this file:
+#   1. Tap btn-printer-trace  (TRACE on)
+#   2. Load this file via Preset button
+#
+# This file sets up the Leisure Library and plays the key sequence:
+#   2nd Pgm 01 SBR =    → select and enter Leisure Library program 01
+#   [wait for program]
+#   π × 4 =             → compute π×4 with TRACE active → printer output
+#
+# XCUITest sequence after KEYSTROKES complete:
+#   3. Tap btn-printer-trace  (TRACE off)
+#   4. Tap "FREEZE ON START" in the debug panel
+#   5. Load screenshot_leisure_run.ti59 via Preset button
+
+MODEL: TI-59
+SOLID-STATE-MODULE: LE
+PRINTER: on
+
+KEYSTROKES:
+21      # 2nd
+31      # Pgm  (LRN key — selects program page)
+92      # 0
+82      # 1    → Pgm 01 selected
+71      # SBR
+95      # =    → enter Leisure Library program 01
+
+WaitFullSpeed: 1s   # run emulator at full speed until program reaches input prompt
+
+99      # TRACE on  (virtual button press — toggles printer trace latch)
+21      # 2nd
+84      # π
+65      # ×
+72      # 4
+95      # =    → π × 4 = 12.566... (printed to tape while TRACE is on)
+99      # TRACE off

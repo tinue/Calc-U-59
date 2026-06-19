@@ -2289,6 +2289,18 @@ class EmulatorViewModel {
             }
         }
 
+        // If the file targets a different model, switch first (async) then apply state.
+        if let targetModel = parsed.model, targetModel != model {
+            Task { @MainActor in
+                await self.start(model: targetModel)
+                self.applyParsedState(parsed)
+            }
+            return
+        }
+        applyParsedState(parsed)
+    }
+
+    private func applyParsedState(_ parsed: LoadStateResult) {
         isRunning = false
         // Clear freeze state without restarting the loop
         clearFrozenState()
@@ -2347,6 +2359,9 @@ class EmulatorViewModel {
 
         startEmulationLoop()
 
+        // Clear the printer tape so each loaded state starts with a blank strip
+        cutPaper()
+
         // Persist the loaded state once after all writes complete
         persistConstantMemory()
 
@@ -2355,7 +2370,7 @@ class EmulatorViewModel {
             applyModule(id: moduleID)
         }
 
-        // Apply printer state if specified in file
+        // Apply printer connection state if specified in file
         if let connected = parsed.printerConnected {
             setPrinterConnected(connected)
         }
@@ -2372,18 +2387,33 @@ class EmulatorViewModel {
     // MARK: - Keystroke playback
 
     /// Play back a KEYSTROKES sequence asynchronously after a preset loads.
-    /// Each .key event presses and releases one key with a 0.5 s total gap.
-    /// Each .wait event inserts an explicit pause between keystroke lines.
+    ///
+    /// Keys are sent at normal speed (450 ms hold + 50 ms gap) so the emulation loop
+    /// reliably processes each press and release.  Use `.waitFullSpeed(t)` events to run
+    /// the emulator at full speed for a fixed interval between keystrokes (e.g. while a
+    /// program computes).  Full speed is restored to its previous state after each such wait.
     private func playKeystrokes(_ events: [KeystrokeEvent]) async {
         for event in events {
             switch event {
             case .key(let matrixCode):
-                machine?.pressMatrixKey(matrixCode)
-                try? await Task.sleep(nanoseconds: 450_000_000)  // hold 450 ms
-                machine?.releaseMatrixKey(matrixCode)
-                try? await Task.sleep(nanoseconds: 50_000_000)   // 50 ms → 500 ms total
+                if matrixCode == 99 {
+                    // 99 is outside the valid key grid (rows 1–9, cols 1–5 → max 95)
+                    // and is repurposed as a TRACE button press: toggles the printer trace latch.
+                    printerTrace.toggle()
+                    machine?.setPrinterTrace(printerTrace)
+                } else {
+                    machine?.pressMatrixKey(matrixCode)
+                    try? await Task.sleep(nanoseconds: 450_000_000)  // hold 450 ms
+                    machine?.releaseMatrixKey(matrixCode)
+                    try? await Task.sleep(nanoseconds: 50_000_000)   // 50 ms gap → 500 ms total
+                }
             case .wait(let t):
                 try? await Task.sleep(nanoseconds: UInt64(t * 1_000_000_000))
+            case .waitFullSpeed(let t):
+                let previous = isFullSpeedMode
+                isFullSpeedMode = true
+                try? await Task.sleep(nanoseconds: UInt64(t * 1_000_000_000))
+                isFullSpeedMode = previous
             }
         }
     }

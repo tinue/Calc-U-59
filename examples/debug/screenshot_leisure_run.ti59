@@ -1,0 +1,24 @@
+# screenshot_leisure_run.ti59
+#
+# App Store screenshot automation — step 2 of 2.
+#
+# *** Requires KEYS-ONLY support in StateFileLoader / EmulatorViewModel ***
+# The KEYS-ONLY directive instructs the loader to skip the machine reset,
+# partition, program and register restore — only KEYSTROKES are played.
+# Without this, loading the file resets the calculator and loses the state
+# set up by screenshot_leisure_start.ti59.
+#
+# XCUITest sequence before loading this file:
+#   1. (TRACE already off)
+#   2. Tap "FREEZE ON START" in the debug panel
+#   3. Load this file via Preset button
+#
+# KEYSTROKES send SBR = which re-enters the Leisure Library program.
+# FREEZE ON START fires on the first PC change → calculator freezes.
+# XCUITest then waits for isFrozen and takes the screenshot.
+
+KEYS-ONLY: true
+
+KEYSTROKES:
+71      # SBR
+95      # =    → re-enter program; FREEZE ON START fires immediately
