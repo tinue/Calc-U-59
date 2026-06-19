@@ -106,11 +106,24 @@ def main() -> None:
     print("Purging unavailable runtimes...")
     subprocess.run(["xcrun", "simctl", "delete", "unavailable"], check=True)
 
-    for p in orphan_dirs:
-        # Use rm -rf instead of shutil.rmtree: iCloud-backed paths inside the
-        # directory stall Python's scandir via the FUSE layer.
-        subprocess.run(["rm", "-rf", str(p)], check=True)
-        print(f"Removed orphaned directory: {p.name}")
+    if orphan_dirs:
+        # Pause the iCloud sync daemon while deleting: simulator directories
+        # can contain dataless Mobile Documents stubs that bird holds open.
+        subprocess.run(["killall", "bird"], check=False)
+        subprocess.run(["sleep", "1"], check=False)
+        failed: list[Path] = []
+        for p in orphan_dirs:
+            result = subprocess.run(["rm", "-rf", str(p)], capture_output=True)
+            if result.returncode == 0:
+                print(f"Removed orphaned directory: {p.name}")
+            else:
+                failed.append(p)
+        if failed:
+            print("\nThe following director(ies) could not be removed automatically")
+            print("(iCloud dataless stubs block rm -rf even as the current user).")
+            print("Remove them manually with sudo:\n")
+            for p in failed:
+                print(f"  sudo rm -rf '{p}'")
 
     print("Done.")
 
