@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """
-Delete simulator devices not listed in KEEP, plus all unavailable runtimes.
+Delete simulator devices not listed in KEEP, plus all unavailable runtimes,
+plus any UUID directories left behind in CoreSimulator/Devices that simctl
+no longer tracks (orphans).
 
 Usage:
     bin/trim-simulators            # dry run — shows what would be deleted
@@ -11,8 +13,11 @@ A None value for the device list keeps ALL devices for that runtime.
 """
 
 import json
+import re
+import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 # ── Edit these after an OS upgrade ──────────────────────────────────────────
 KEEP: dict[str, list[str] | None] = {
@@ -26,6 +31,9 @@ KEEP: dict[str, list[str] | None] = {
     ],
 }
 # ────────────────────────────────────────────────────────────────────────────
+
+DEVICES_DIR = Path.home() / "Library/Developer/CoreSimulator/Devices"
+UUID_RE = re.compile(r"^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$", re.I)
 
 
 def runtime_display(runtime_id: str) -> str:
@@ -50,29 +58,46 @@ def main() -> None:
     devices_by_runtime: dict = json.loads(result.stdout)["devices"]
 
     to_delete: list[tuple[str, str, str]] = []   # (runtime_display, name, udid)
+    keep_udids: set[str] = set()
 
     for runtime_id, devices in devices_by_runtime.items():
         display = runtime_display(runtime_id)
-        keep_devices = KEEP.get(display)   # None = not in KEEP at all
+        keep_devices = KEEP.get(display)
         for d in devices:
-            if keep_devices is None or d["name"] not in keep_devices:
+            if keep_devices is not None and d["name"] in keep_devices:
+                keep_udids.add(d["udid"])
+            else:
                 to_delete.append((display, d["name"], d["udid"]))
 
-    if not to_delete:
-        print("No devices to delete (plus unavailable runtimes will still be purged).")
-    else:
-        label = "DRY RUN — " if dry_run else ""
-        print(f"{label}{len(to_delete)} device(s) to delete:\n")
+    # Directories in CoreSimulator/Devices not tracked by simctl at all.
+    known_udids = {d["udid"] for devices in devices_by_runtime.values() for d in devices}
+    orphan_dirs: list[Path] = [
+        p for p in DEVICES_DIR.iterdir()
+        if UUID_RE.match(p.name) and p.name not in known_udids
+    ]
+
+    label = "DRY RUN — " if dry_run else ""
+
+    if to_delete:
+        print(f"{label}{len(to_delete)} simctl device(s) to delete:\n")
         current = None
         for runtime, name, udid in sorted(to_delete):
             if runtime != current:
                 print(f"  {runtime}")
                 current = runtime
             print(f"    {name}  ({udid})")
+    else:
+        print("No simctl devices to delete.")
+
+    if orphan_dirs:
+        print(f"\n{label}{len(orphan_dirs)} orphaned director{'y' if len(orphan_dirs) == 1 else 'ies'} to remove:")
+        for p in sorted(orphan_dirs):
+            print(f"  {p.name}")
 
     if dry_run:
-        if to_delete:
-            print(f"\nRun with --delete to remove these {len(to_delete)} device(s) and all unavailable runtimes.")
+        total = len(to_delete) + len(orphan_dirs)
+        if total:
+            print(f"\nRun with --delete to remove {total} item(s) and purge unavailable runtimes.")
         return
 
     if to_delete:
@@ -81,6 +106,11 @@ def main() -> None:
 
     print("Purging unavailable runtimes...")
     subprocess.run(["xcrun", "simctl", "delete", "unavailable"], check=True)
+
+    for p in orphan_dirs:
+        shutil.rmtree(p)
+        print(f"Removed orphaned directory: {p.name}")
+
     print("Done.")
 
 
