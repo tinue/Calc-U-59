@@ -11,9 +11,12 @@ import XCTest
 ///   2. `screenshot_leisure_run.ti59`   — SKIP-RESET; injects SBR= into the running
 ///      machine; FREEZE ON START fires on the first PC change.
 ///
-/// Prerequisites (handled in class setUp):
+/// Prerequisites:
 ///   - UIFileSharingEnabled = YES in Info.plist (makes Documents visible in file picker)
-///   - State files copied to the simulator's app Documents folder via simctl
+///   - State files must be in the simulator's app Documents folder before running.
+///     Run `scripts/setup-screenshot-fixtures.sh` once after install, or wire it
+///     as a scheme pre-action (provide expansion: SRCROOT).  The test fails with
+///     a clear "file not found" message if the files are absent.
 ///
 /// Target: iPad landscape (the debug panel is only always-visible in that layout).
 #if !os(macOS)
@@ -29,14 +32,11 @@ final class AppStoreScreenshots: XCTestCase {
     override class func setUp() {
         super.setUp()
         // Launch once to create the app data container, then terminate.
-        // Without a prior launch, simctl cannot resolve the container path.
+        // setup-screenshot-fixtures.sh (or the scheme pre-action) must run after
+        // this initial launch so the container path exists before files are copied.
         let bootstrap = XCUIApplication()
         bootstrap.launch()
         bootstrap.terminate()
-
-        // Copy state files from examples/debug/ into the simulator's Documents folder.
-        // We call this via a temporary instance — copyStateFiles is on XCTestCase.
-        AppStoreScreenshots().copyStateFiles(named: stateFiles)
     }
 
     override class func tearDown() {

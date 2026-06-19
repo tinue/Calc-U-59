@@ -38,46 +38,15 @@ extension XCTestCase {
 
 // MARK: - State file helpers
 
-/// App bundle identifier — must match PRODUCT_BUNDLE_IDENTIFIER in the project.
-private let appBundleID = "ch.erzberger.calcu59"
-
 extension XCTestCase {
-
-    /// Copy named state files from `examples/debug/` in the repo into the simulator's
-    /// app Documents folder so they appear under "On My iPhone → Calc-U-59" in the
-    /// file picker.
-    ///
-    /// The app must have been launched and terminated at least once before calling this
-    /// so that the data container exists.  Call from `override class func setUp()`.
-    ///
-    /// - Parameter names: file names, e.g. `["screenshot_leisure_start.ti59"]`
-    func copyStateFiles(named names: [String]) {
-        guard let containerPath = simctlAppContainer() else {
-            XCTFail("Could not resolve app container — is the app installed on the booted simulator?")
-            return
-        }
-        let docsURL = URL(fileURLWithPath: containerPath).appendingPathComponent("Documents")
-        try? FileManager.default.createDirectory(at: docsURL, withIntermediateDirectories: true)
-
-        // Derive repo root from this source file's location: <repo>/Calc-U-59UITests/AppHelpers.swift
-        let repoRoot = URL(fileURLWithPath: #file)
-            .deletingLastPathComponent()   // Calc-U-59UITests/
-            .deletingLastPathComponent()   // <repo root>
-
-        for name in names {
-            let src = repoRoot.appendingPathComponent("examples/debug/\(name)")
-            let dst = docsURL.appendingPathComponent(name)
-            try? FileManager.default.removeItem(at: dst)
-            do {
-                try FileManager.default.copyItem(at: src, to: dst)
-            } catch {
-                XCTFail("Failed to copy \(name): \(error)")
-            }
-        }
-    }
 
     /// Open the file picker, navigate to the app's Documents folder in "On My iPhone",
     /// and tap the named file.  Fails the test if navigation or selection times out.
+    ///
+    /// Files must be pre-loaded into the simulator before running — `Process` (NSTask)
+    /// is macOS-only and cannot be called from an iOS test process.  Run
+    /// `scripts/setup-screenshot-fixtures.sh` once after installing the app, or add it
+    /// as a scheme pre-action (provide the SRCROOT expansion).
     func selectStateFile(named name: String, in app: XCUIApplication) {
         let preset = app.buttons["btn-preset"]
         XCTAssertTrue(preset.waitForExistence(timeout: 5), "Preset button not found")
@@ -94,12 +63,14 @@ extension XCTestCase {
 
         // Tap the app's folder.
         let appFolder = app.staticTexts["Calc-U-59"]
-        XCTAssertTrue(appFolder.waitForExistence(timeout: 5), "'Calc-U-59' folder not found in On My iPhone")
+        XCTAssertTrue(appFolder.waitForExistence(timeout: 5),
+                      "'Calc-U-59' folder not found — run scripts/setup-screenshot-fixtures.sh first")
         appFolder.tap()
 
         // Tap the file.
         let fileCell = app.staticTexts[name]
-        XCTAssertTrue(fileCell.waitForExistence(timeout: 5), "'\(name)' not found in Calc-U-59 folder")
+        XCTAssertTrue(fileCell.waitForExistence(timeout: 5),
+                      "'\(name)' not found — run scripts/setup-screenshot-fixtures.sh first")
         fileCell.tap()
     }
 
@@ -114,22 +85,5 @@ extension XCTestCase {
             Thread.sleep(forTimeInterval: 0.5)
         }
         XCTFail("Keystroke playback did not complete within \(Int(timeout)) s")
-    }
-
-    // MARK: - Private
-
-    private func simctlAppContainer() -> String? {
-        let process = Process()
-        process.launchPath = "/usr/bin/xcrun"
-        process.arguments = ["simctl", "get_app_container", "booted", appBundleID, "data"]
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = Pipe()  // suppress stderr
-        process.launch()
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else { return nil }
-        let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return output?.isEmpty == false ? output : nil
     }
 }
