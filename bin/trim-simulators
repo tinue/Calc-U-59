@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Delete simulator devices for runtimes not listed in KEEP_RUNTIMES, plus any
-unavailable runtimes (whose runtime package has been removed).
+Delete simulator devices not listed in KEEP, plus all unavailable runtimes.
 
 Usage:
     bin/trim-simulators            # dry run — shows what would be deleted
     bin/trim-simulators --delete   # actually delete
 
-Edit KEEP_RUNTIMES after an OS upgrade to reflect the versions you want to keep.
+Edit KEEP after an OS upgrade to reflect the versions and devices you want.
+A None value for the device list keeps ALL devices for that runtime.
 """
 
 import json
@@ -15,10 +15,16 @@ import subprocess
 import sys
 
 # ── Edit these after an OS upgrade ──────────────────────────────────────────
-KEEP_RUNTIMES = [
-    "iOS 18.6",
-    "iOS 26.5",
-]
+KEEP: dict[str, list[str] | None] = {
+    "iOS 26.5": [
+        "iPad Pro 13-inch (M5)",
+        "iPhone 17 Pro Max",
+        "iPad mini (A17 Pro)",
+    ],
+    "iOS 18.6": [
+        "iPhone 16e",
+    ],
+}
 # ────────────────────────────────────────────────────────────────────────────
 
 
@@ -28,10 +34,10 @@ def runtime_display(runtime_id: str) -> str:
     parts = name.split("-")
     for i, part in enumerate(parts):
         if part.isdigit():
-            platform = "-".join(parts[:i])   # e.g. "iOS" or "watchOS"
-            version  = ".".join(parts[i:])   # e.g. "18.6"
+            platform = "-".join(parts[:i])
+            version  = ".".join(parts[i:])
             return f"{platform} {version}"
-    return name  # fallback: return as-is
+    return name
 
 
 def main() -> None:
@@ -47,8 +53,9 @@ def main() -> None:
 
     for runtime_id, devices in devices_by_runtime.items():
         display = runtime_display(runtime_id)
-        if display not in KEEP_RUNTIMES:
-            for d in devices:
+        keep_devices = KEEP.get(display)   # None = not in KEEP at all
+        for d in devices:
+            if keep_devices is None or d["name"] not in keep_devices:
                 to_delete.append((display, d["name"], d["udid"]))
 
     if not to_delete:
