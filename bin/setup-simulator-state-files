@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Copy all state files from examples/ into the booted simulator's app Documents folder.
+# Copy all example files (state files, assembly) into the booted simulator's app Documents folder.
+# Markdown files and .DS_Store are excluded; everything else under examples/ is copied flat.
 #
 # Run once after installing the app on the simulator, and again whenever examples/
 # files change.  Also suitable as a scheme pre-action:
@@ -32,6 +33,6 @@ while IFS= read -r -d '' SRC; do
     cp "$SRC" "$DOCS/$FILE"
     echo "Copied $FILE"
     (( COUNT++ )) || true
-done < <(find "$SRCROOT/examples" -name "*.ti59" -o -name "*.ti58" -o -name "*.ti58c" -print0 | sort -z)
+done < <(find "$SRCROOT/examples" -type f ! -name "*.md" ! -name ".DS_Store" -print0 | sort -z)
 
 echo "$COUNT file(s) copied to $DOCS"
