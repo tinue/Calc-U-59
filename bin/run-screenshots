@@ -44,6 +44,9 @@ mkdir -p "$SCREENSHOT_DIR"
 run_test 5E58DB4D-147D-4385-A5CF-9974C5321A3B LoadDiagPreset   # iPhone 16e diagnostics with card inlay. Model is TI-59.
 run_test 5E58DB4D-147D-4385-A5CF-9974C5321A3B Settings         # iPhone 16e settings panel. Model is last used, not specified.
 
+# -- Assembly --
+run_test 8D4C25D7-8C1E-41F2-9B20-67D7EABB2E57 Assembly         # iPad mini (A17 Pro) ASM overlay with stopwatch running.
+
 # -- PlainCalculator --
 run_test 9AFA9F97-6BF1-40CE-85D1-1167DF33C9C7 PlainCalculator   # iPhone 17 Pro Max cover picture, plain calculator with filled display, model is last used, not specified.
 

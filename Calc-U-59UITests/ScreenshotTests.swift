@@ -74,6 +74,56 @@ final class ScreenshotTests: XCTestCase {
         attachScreenshot(app, name: "diag.ti59 — diagnostic complete")
     }
 
+    /// Assembly overlay screenshot — iPad mini (A17 Pro) landscape.
+    ///
+    /// Sequence:
+    ///   1. Switch to CPU tab (shows ASM overlay at the bottom)
+    ///   2. Select test_stopwatch.asm via the file picker
+    ///   3. Tap Run
+    ///   4. Tap R/S to start the stopwatch
+    ///   5. Wait 3.5 seconds
+    ///   6. Tap R/S to stop the stopwatch
+    ///   7. Capture screenshot showing elapsed time
+    func testScreenshotAssembly() throws {
+        let app = launchApp(orientation: .landscapeLeft)
+
+        // Step 1: switch to CPU tab
+        let cpuTab = app.buttons["btn-tab-cpu"]
+        XCTAssertTrue(cpuTab.waitForExistence(timeout: 5), "CPU tab not found")
+        cpuTab.tap()
+
+        // Step 2: open file picker and navigate to test_stopwatch.asm
+        let selectFile = app.buttons["btn-asm-select"]
+        XCTAssertTrue(selectFile.waitForExistence(timeout: 3), "btn-asm-select not found")
+        selectFile.tap()
+
+        navigateToOnMyIPhone(app, targetFile: "test_stopwatch.asm")
+        let asmCell = app.cells.containing(.staticText, identifier: "test_stopwatch.asm").firstMatch
+        XCTAssertTrue(asmCell.waitForExistence(timeout: 5), "test_stopwatch.asm not found")
+        asmCell.tap()
+
+        // Step 3: run the ASM overlay
+        let runButton = app.buttons["btn-asm-run"]
+        XCTAssertTrue(runButton.waitForExistence(timeout: 3), "btn-asm-run not found")
+        runButton.tap()
+
+        // Step 4: press R/S to start the stopwatch
+        let rs = app.buttons["btn-key-rs"]
+        XCTAssertTrue(rs.waitForExistence(timeout: 3), "btn-key-rs not found")
+        rs.tap()
+
+        // Step 5: let the stopwatch run for 3.5 seconds
+        Thread.sleep(forTimeInterval: 3.5)
+
+        // Step 6: press R/S to stop the stopwatch
+        rs.tap()
+
+        // Screenshot
+        let dest = URL(fileURLWithPath: "\(screenshotDir)/Assembly-\(UIDevice.current.name).png")
+        try XCUIScreen.main.screenshot().pngRepresentation.write(to: dest)
+        attachScreenshot(app, name: "Assembly — stopwatch stopped at ~3.5s")
+    }
+
     /// Settings screenshot — iPhone 16e portrait.
     func testScreenshotSettings() throws {
         let app = launchApp(orientation: .portrait)
