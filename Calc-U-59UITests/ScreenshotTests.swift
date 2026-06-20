@@ -73,7 +73,7 @@ final class ScreenshotTests: XCTestCase {
     ///   4. Capture screenshot after keystrokes complete
     ///
     /// Both files must be present on the device — run bin/setup-simulator-state-files first.
-    func testScreenshotLeisureLibrary() throws {
+    func testScreenshotCalcDebuggeriPad() throws {
         guard UIDevice.current.userInterfaceIdiom == .pad else { return }
         let app = launchApp(orientation: .landscapeLeft)
 
@@ -116,9 +116,9 @@ final class ScreenshotTests: XCTestCase {
                        "screenshot_leisure_run.ti59 keystrokes did not complete")
 
         // Screenshot — freeze has fired; calculator is stopped on first instruction
-        let dest = URL(fileURLWithPath: "/Users/me/Desktop/Leisure-\(UIDevice.current.name).png")
+        let dest = URL(fileURLWithPath: "/Users/me/Desktop/CalcDebuggeriPad-\(UIDevice.current.name).png")
         try XCUIScreen.main.screenshot().pngRepresentation.write(to: dest)
-        attachScreenshot(app, name: "Leisure Library — frozen on run")
+        attachScreenshot(app, name: "Calc Debugger iPad — frozen on run")
     }
 
     // MARK: - Helpers
