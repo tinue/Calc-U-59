@@ -37,9 +37,9 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertTrue(presetButton.waitForExistence(timeout: 5), "Preset button not found")
         presetButton.tap()
 
-        navigateToOnMyIPhone(app, targetFile: "diag.ti59")
+        navigateToOnMyIPhone(app, targetFile: "screenshot_diag.ti59")
 
-        let diagCell = app.cells.containing(.staticText, identifier: "diag.ti59").firstMatch
+        let diagCell = app.cells.containing(.staticText, identifier: "screenshot_diag.ti59").firstMatch
         XCTAssertTrue(diagCell.waitForExistence(timeout: 5), "diag.ti59 cell not found in file picker")
 
         let statusEl = app.otherElements["keystroke-playback-status"]
@@ -124,6 +124,8 @@ final class ScreenshotTests: XCTestCase {
     // MARK: - Helpers
 
     private func navigateToOnMyIPhone(_ app: XCUIApplication, targetFile: String) {
+        if app.cells.containing(.staticText, identifier: targetFile).firstMatch.waitForExistence(timeout: 2) { return }
+
         for label in ["Durchsuchen", "Browse"] {
             let tab = app.tabBars.buttons[label]
             if tab.waitForExistence(timeout: 2) {

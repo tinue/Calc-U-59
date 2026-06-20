@@ -136,12 +136,14 @@ Several picker labels appear in two places simultaneously:
 
 Never use bare `app.buttons[label]` or `app.staticTexts[label]` for these — both will find multiple matches and crash.
 
-### 3. Always navigate unconditionally
+### 3. Fast-path is safe because test filenames are unique
 
-Do not use a fast-path that checks whether the target file is already visible — if the same file exists in both the root and inside `1-Testfiles`, the fast-path would match the wrong copy and skip the folder navigation entirely. Always navigate through Browse → On My iPhone/iPad → 1-Testfiles. When the picker is already inside `1-Testfiles` (e.g. second load in the same test), the intermediate steps time out silently and nothing extra is tapped.
+All files in `1-Testfiles/` are prefixed with `screenshot_` (e.g. `screenshot_diag.ti59`). This prefix is never used for files in the root, so a fast-path check is unambiguous: if the file is already visible, we are already inside `1-Testfiles`.
 
 ```swift
 private func navigateToOnMyIPhone(_ app: XCUIApplication, targetFile: String) {
+    if app.cells.containing(.staticText, identifier: targetFile).firstMatch.waitForExistence(timeout: 2) { return }
+
     for label in ["Durchsuchen", "Browse"] {
         let tab = app.tabBars.buttons[label]
         if tab.waitForExistence(timeout: 2) {
