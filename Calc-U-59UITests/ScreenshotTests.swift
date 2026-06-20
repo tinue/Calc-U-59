@@ -57,9 +57,10 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [playbackDone], timeout: 10), .completed,
                        "Keystroke playback did not complete")
 
-        let png = XCUIScreen.main.screenshot().pngRepresentation
-        let dest = URL(fileURLWithPath: "/Users/me/Desktop/diag-preset-load.png")
-        try png.write(to: dest)
+        let screenshotName = "Diagnostic"
+        let deviceName = UIDevice.current.name
+        let dest = URL(fileURLWithPath: "/Users/me/Desktop/\(screenshotName)-\(deviceName).png")
+        try XCUIScreen.main.screenshot().pngRepresentation.write(to: dest)
         attachScreenshot(app, name: "diag.ti59 — diagnostic complete")
     }
 

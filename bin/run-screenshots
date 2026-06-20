@@ -1,28 +1,24 @@
 #!/usr/bin/env bash
-# Run the Screenshots test plan on each simulator and save the PNGs to the Desktop.
+# Run the Screenshots test plan on each simulator.
 #
-# Each test writes /Users/me/Desktop/diag-preset-load.png; this script renames
-# that file to <DeviceName>.png after each run so outputs don't overwrite each other.
+# Each test writes "Diagnostic-<DeviceName>.png" to the Desktop directly.
+# Simulators are booted automatically by xcodebuild if they are Shutdown.
 #
 # Usage:
 #   bin/run-screenshots
-#
-# Simulators are booted automatically by xcodebuild if they are Shutdown.
 
 set -euo pipefail
 
 SRCROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SCHEME="Calc-U-59"
 TESTPLAN="Screenshots"
-DESKTOP="$HOME/Desktop"
-TEMP_PNG="$DESKTOP/diag-preset-load.png"
 
 # Device name → UDID
 declare -A DEVICES=(
-    ["iPhone-16e"]="5E58DB4D-147D-4385-A5CF-9974C5321A3B"
-    ["iPhone-17-Pro-Max"]="9AFA9F97-6BF1-40CE-85D1-1167DF33C9C7"
-    ["iPad-Pro-13-M5"]="AA658877-2877-465C-ABB0-ABE7CF4344DE"
-    ["iPad-mini-A17-Pro"]="8D4C25D7-8C1E-41F2-9B20-67D7EABB2E57"
+    ["iPhone 16e"]="5E58DB4D-147D-4385-A5CF-9974C5321A3B"
+    ["iPhone 17 Pro Max"]="9AFA9F97-6BF1-40CE-85D1-1167DF33C9C7"
+    ["iPad Pro 13-inch (M5)"]="AA658877-2877-465C-ABB0-ABE7CF4344DE"
+    ["iPad mini (A17 Pro)"]="8D4C25D7-8C1E-41F2-9B20-67D7EABB2E57"
 )
 
 PASS=0
@@ -30,29 +26,18 @@ FAIL=0
 
 for name in "${!DEVICES[@]}"; do
     udid="${DEVICES[$name]}"
-    dest="$DESKTOP/screenshot-$name.png"
-
     echo "▶ $name ($udid)"
-
-    rm -f "$TEMP_PNG"
 
     if xcodebuild test \
         -project "$SRCROOT/Calc-U-59.xcodeproj" \
         -scheme "$SCHEME" \
         -testPlan "$TESTPLAN" \
         -destination "platform=iOS Simulator,id=$udid" \
-        2>&1 | grep -E "^(Test (Case|Suite)|error:|✓|✗|FAIL|PASS)"; then
-
-        if [ -f "$TEMP_PNG" ]; then
-            mv "$TEMP_PNG" "$dest"
-            echo "  ✓ saved → $dest"
-            (( PASS++ )) || true
-        else
-            echo "  ✗ test passed but no PNG produced"
-            (( FAIL++ )) || true
-        fi
+        2>&1 | grep -E "(Test (Case|Suite)|error:|✓|✗|FAIL|PASS)"; then
+        echo "  ✓ $name"
+        (( PASS++ )) || true
     else
-        echo "  ✗ test failed"
+        echo "  ✗ $name"
         (( FAIL++ )) || true
     fi
 
