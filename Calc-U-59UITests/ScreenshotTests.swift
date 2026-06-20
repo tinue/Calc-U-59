@@ -138,6 +138,9 @@ final class ScreenshotTests: XCTestCase {
             let item = app.staticTexts[label]
             if item.waitForExistence(timeout: 2) { item.tap(); break }
         }
+
+        let folder = app.cells.containing(.staticText, identifier: "1-Screenshot").firstMatch
+        if folder.waitForExistence(timeout: 2) { folder.tap() }
     }
 }
 #endif

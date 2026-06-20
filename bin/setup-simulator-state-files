@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 # Copy selected example files into every simulator's local file provider storage,
 # where they appear under "On My iPad/iPhone → Calc-U-59" in the file picker.
-# Files are copied flat; the destination is cleaned first for a reproducible state.
+# The destination is cleaned first (files and directories) for a reproducible state.
+#
+# Layout:
+#   File Provider Storage/
+#     1-Screenshot/   ← screenshot automation state files (sorted first by name)
+#     *.ti59 etc.     ← regular example files
 #
 # Targets all installed simulators — no simulator needs to be running.
 # Files go to group.com.apple.FileProvider.LocalStorage / File Provider Storage/
@@ -18,25 +23,35 @@ LOCAL_STORAGE_GROUP="group.com.apple.FileProvider.LocalStorage"
 SRCROOT="${SRCROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 SIM_ROOT="$HOME/Library/Developer/CoreSimulator/Devices"
 
-# Files to install — paths relative to examples/, globs are expanded at runtime.
-FILE_PATTERNS=(
+# Screenshot state files — copied into 1-Screenshot/ subfolder.
+SCREENSHOT_PATTERNS=(
+    "diag.*"
     "debug/screenshot_leisure_run.ti59"
     "debug/screenshot_leisure_start.ti59"
+)
+
+# Regular example files — copied flat into the root.
+REGULAR_PATTERNS=(
     "assembly/stopwatch.asm"
     "characters-fastmode.ti59"
     "characters.ti59"
-    "diag.*"
 )
 
-# Expand patterns to absolute paths (bash 3.2 compatible — no mapfile).
-SRCS=()
-for pattern in "${FILE_PATTERNS[@]}"; do
-    for f in "$SRCROOT/examples/"$pattern; do
-        [ -f "$f" ] && SRCS+=("$f")
+expand_patterns() {
+    local -n _out=$1; shift
+    for pattern in "$@"; do
+        for f in "$SRCROOT/examples/"$pattern; do
+            [ -f "$f" ] && _out+=("$f")
+        done
     done
-done
+}
 
-if [ ${#SRCS[@]} -eq 0 ]; then
+SCREENSHOT_SRCS=()
+REGULAR_SRCS=()
+expand_patterns SCREENSHOT_SRCS "${SCREENSHOT_PATTERNS[@]}"
+expand_patterns REGULAR_SRCS "${REGULAR_PATTERNS[@]}"
+
+if [ ${#SCREENSHOT_SRCS[@]} -eq 0 ] && [ ${#REGULAR_SRCS[@]} -eq 0 ]; then
     echo "No matching files found under $SRCROOT/examples — nothing to copy." >&2
     exit 0
 fi
@@ -51,11 +66,25 @@ while IFS= read -r -d '' META; do
     if plutil -p "$META" 2>/dev/null | grep -q "\"$LOCAL_STORAGE_GROUP\""; then
         DEST="$(dirname "$META")/File Provider Storage"
         mkdir -p "$DEST"
-        find "$DEST" -maxdepth 1 -type f -delete
-        for SRC in "${SRCS[@]}"; do
+
+        # Clean destination — remove all files and subdirectories.
+        find "$DEST" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+
+        # Screenshot files → 1-Screenshot/
+        if [ ${#SCREENSHOT_SRCS[@]} -gt 0 ]; then
+            mkdir -p "$DEST/1-Screenshot"
+            for SRC in "${SCREENSHOT_SRCS[@]}"; do
+                cp "$SRC" "$DEST/1-Screenshot/$(basename "$SRC")"
+            done
+        fi
+
+        # Regular files → root
+        for SRC in "${REGULAR_SRCS[@]}"; do
             cp "$SRC" "$DEST/$(basename "$SRC")"
         done
-        echo "Copied ${#SRCS[@]} file(s) → $DEST"
+
+        TOTAL=$(( ${#SCREENSHOT_SRCS[@]} + ${#REGULAR_SRCS[@]} ))
+        echo "Copied $TOTAL file(s) (${#SCREENSHOT_SRCS[@]} in 1-Screenshot/, ${#REGULAR_SRCS[@]} in root) → $DEST"
         (( DEST_COUNT++ )) || true
     fi
 done < <(find "$SIM_ROOT" -maxdepth 7 -name ".com.apple.mobile_container_manager.metadata.plist" -print0 2>/dev/null)
