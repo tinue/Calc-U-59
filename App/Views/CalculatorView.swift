@@ -358,35 +358,35 @@ struct CalculatorView: View {
                 calculatorBody(showLabels: showLabels)
                     .overlay(alignment: .topLeading) {
                         if debugPageEnabled {
-                            pageArrow(systemImage: "chevron.left") { portraitPage = .debug }
+                            pageArrow(systemImage: "chevron.left", id: "btn-page-left") { portraitPage = .debug }
                         }
                     }
                     .overlay(alignment: .topTrailing) {
-                        pageArrow(systemImage: "chevron.right") { portraitPage = .printer }
+                        pageArrow(systemImage: "chevron.right", id: "btn-page-right") { portraitPage = .printer }
                     }
             case .printer:
                 PrinterView(portraitTopInset: 20)
                     .overlay(alignment: .topLeading) {
-                        pageArrow(systemImage: "chevron.left") { portraitPage = .calc }
+                        pageArrow(systemImage: "chevron.left", id: "btn-page-left") { portraitPage = .calc }
                     }
                     .overlay(alignment: .topTrailing) {
                         if debugPageEnabled {
-                            pageArrow(systemImage: "chevron.right") { portraitPage = .debug }
+                            pageArrow(systemImage: "chevron.right", id: "btn-page-right") { portraitPage = .debug }
                         }
                     }
             case .debug:
                 DebugView(activeFilePickerMode: filePickerModeBinding, portraitTopInset: 36)
                     .overlay(alignment: .topLeading) {
-                        pageArrow(systemImage: "chevron.left") { portraitPage = .printer }
+                        pageArrow(systemImage: "chevron.left", id: "btn-page-left") { portraitPage = .printer }
                     }
                     .overlay(alignment: .topTrailing) {
-                        pageArrow(systemImage: "chevron.right") { portraitPage = .calc }
+                        pageArrow(systemImage: "chevron.right", id: "btn-page-right") { portraitPage = .calc }
                     }
             }
         }
     }
 
-    private func pageArrow(systemImage: String, action: @escaping () -> Void) -> some View {
+    private func pageArrow(systemImage: String, id: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemImage)
                 .font(.system(size: 14, weight: .semibold))
@@ -394,6 +394,7 @@ struct CalculatorView: View {
                 .padding(8)
                 .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
         }
+        .accessibilityIdentifier(id)
         .padding(.top, 2)
         .padding(.horizontal, 8)
         .padding(.bottom, 8)

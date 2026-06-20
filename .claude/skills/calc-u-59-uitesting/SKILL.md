@@ -117,6 +117,8 @@ Screenshot tests that load `.ti59` files require those files to be present on th
 | `keystroke-playback-status` | OtherElement | `.accessibilityValue` = `"playing"` or `"idle"` |
 | `btn-freeze-on-start` | Button | "FREEZE ON START" in CALCULATOR debug panel (`LiveDebugView`); label shows "F.START" in narrow layout |
 | `btn-freeze-armed` | Button | "ARMED" — shown in place of `btn-freeze-on-start` while freeze is pending; tap to disarm |
+| `btn-page-left` | Button | Chevron-left page arrow (iPhone portrait only); destination depends on current page |
+| `btn-page-right` | Button | Chevron-right page arrow (iPhone portrait only); destination depends on current page |
 
 ---
 
