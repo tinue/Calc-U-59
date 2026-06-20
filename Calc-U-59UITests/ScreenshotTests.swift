@@ -64,6 +64,63 @@ final class ScreenshotTests: XCTestCase {
         attachScreenshot(app, name: "diag.ti59 — diagnostic complete")
     }
 
+    /// Leisure Library screenshot — iPad landscape only.
+    ///
+    /// Sequence:
+    ///   1. Load screenshot_leisure_start.ti59 (sets up module, runs program, prints trace)
+    ///   2. Arm FREEZE ON START (btn-freeze-on-start)
+    ///   3. Load screenshot_leisure_run.ti59 (SKIP-RESET; SBR= re-enters program; freeze fires)
+    ///   4. Capture screenshot after keystrokes complete
+    ///
+    /// Both files must be present on the device — run bin/setup-simulator-state-files first.
+    func testScreenshotLeisureLibrary() throws {
+        guard UIDevice.current.userInterfaceIdiom == .pad else { return }
+        let app = launchApp(orientation: .landscapeLeft)
+
+        let presetButton = app.buttons["btn-preset"]
+        XCTAssertTrue(presetButton.waitForExistence(timeout: 5), "Preset button not found")
+
+        let statusEl = app.otherElements["keystroke-playback-status"]
+        let playing = NSPredicate(format: "value == 'playing'")
+        let idle    = NSPredicate(format: "value == 'idle'")
+
+        // Step 1: load screenshot_leisure_start.ti59
+        presetButton.tap()
+        navigateToOnMyIPhone(app, targetFile: "screenshot_leisure_start.ti59")
+        let startCell = app.cells.containing(.staticText, identifier: "screenshot_leisure_start.ti59").firstMatch
+        XCTAssertTrue(startCell.waitForExistence(timeout: 5), "screenshot_leisure_start.ti59 not found")
+        let step1Playing = XCTNSPredicateExpectation(predicate: playing, object: statusEl)
+        startCell.tap()
+        XCTAssertEqual(XCTWaiter.wait(for: [step1Playing], timeout: 8), .completed,
+                       "screenshot_leisure_start.ti59 did not load")
+        let step1Idle = XCTNSPredicateExpectation(predicate: idle, object: statusEl)
+        XCTAssertEqual(XCTWaiter.wait(for: [step1Idle], timeout: 30), .completed,
+                       "screenshot_leisure_start.ti59 keystrokes did not complete")
+
+        // Step 2: arm FREEZE ON START
+        let freezeButton = app.buttons["btn-freeze-on-start"]
+        XCTAssertTrue(freezeButton.waitForExistence(timeout: 3), "FREEZE ON START button not found")
+        freezeButton.tap()
+
+        // Step 3: load screenshot_leisure_run.ti59 (SKIP-RESET; SBR= triggers freeze)
+        presetButton.tap()
+        navigateToOnMyIPhone(app, targetFile: "screenshot_leisure_run.ti59")
+        let runCell = app.cells.containing(.staticText, identifier: "screenshot_leisure_run.ti59").firstMatch
+        XCTAssertTrue(runCell.waitForExistence(timeout: 5), "screenshot_leisure_run.ti59 not found")
+        let step2Playing = XCTNSPredicateExpectation(predicate: playing, object: statusEl)
+        runCell.tap()
+        XCTAssertEqual(XCTWaiter.wait(for: [step2Playing], timeout: 8), .completed,
+                       "screenshot_leisure_run.ti59 did not load")
+        let step2Idle = XCTNSPredicateExpectation(predicate: idle, object: statusEl)
+        XCTAssertEqual(XCTWaiter.wait(for: [step2Idle], timeout: 10), .completed,
+                       "screenshot_leisure_run.ti59 keystrokes did not complete")
+
+        // Screenshot — freeze has fired; calculator is stopped on first instruction
+        let dest = URL(fileURLWithPath: "/Users/me/Desktop/Leisure-\(UIDevice.current.name).png")
+        try XCUIScreen.main.screenshot().pngRepresentation.write(to: dest)
+        attachScreenshot(app, name: "Leisure Library — frozen on run")
+    }
+
     // MARK: - Helpers
 
     private func navigateToOnMyIPhone(_ app: XCUIApplication, targetFile: String) {

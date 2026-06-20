@@ -90,6 +90,12 @@ override class func tearDown() {
 
 ---
 
+## State File Prerequisites
+
+Screenshot tests that load `.ti59` files require those files to be present on the simulator's local storage. Run `bin/setup-simulator-state-files` once per simulator before running tests — it installs all files from `examples/` (including `examples/debug/`) into every simulator's "On My iPhone/iPad" storage. Simulators must have opened the Files app or the file picker at least once for the AppGroup storage to be initialised.
+
+---
+
 ## Accessibility Identifiers in the App
 
 | Identifier | Type | Value / Notes |
@@ -98,6 +104,8 @@ override class func tearDown() {
 | `btn-reset` | Button | Reset toolbar button |
 | `btn-settings` | Button | Settings toolbar button |
 | `keystroke-playback-status` | OtherElement | `.accessibilityValue` = `"playing"` or `"idle"` |
+| `btn-freeze-on-start` | Button | "FREEZE ON START" in CALCULATOR debug panel (`LiveDebugView`); label shows "F.START" in narrow layout |
+| `btn-freeze-armed` | Button | "ARMED" — shown in place of `btn-freeze-on-start` while freeze is pending; tap to disarm |
 
 ---
 
@@ -144,7 +152,7 @@ private func navigateToOnMyIPhone(_ app: XCUIApplication, targetFile: String) {
         }
     }
 
-    for label in ["Auf meinem iPhone", "On My iPhone"] {
+    for label in ["Auf meinem iPhone", "Auf meinem iPad", "On My iPhone", "On My iPad"] {
         let item = app.staticTexts[label]
         if item.waitForExistence(timeout: 2) { item.tap(); break }
     }
