@@ -1,19 +1,20 @@
 import XCTest
 
-/// Regression tests for loading a state file via the Preset button.
+/// Screenshot automation — produces PNG files on the Desktop for visual review.
 ///
-/// This test drives the iOS system document picker, which is inherently brittle:
-/// navigation element labels ("Durchsuchen", "Auf meinem iPhone") are
-/// locale-dependent and Apple can restructure the picker between iOS releases.
-/// The filename itself ("diag.ti59") and the keystroke-playback-status assertion
-/// are stable. If this test breaks after an Xcode/iOS upgrade, first inspect
-/// the picker's element tree with Xcode's Accessibility Inspector or a
-/// print(app.debugDescription) dump.
+/// Methods in this class intentionally omit the "test" prefix so they are
+/// invisible to normal test discovery and never run as part of UIRegressionTests.
+/// Run them via the Screenshots test plan (Product → Test Plan → Screenshots)
+/// or with:
+///   xcodebuild test -scheme "Calc-U-59" \
+///     -testPlan Screenshots \
+///     -destination "platform=iOS Simulator,name=iPad Pro 13-inch (M5)"
 ///
-/// Prerequisite: diag.ti59 must be present on "On My iPhone" in the simulator.
-/// The setup-simulator-state-files script installs it.
+/// For iPad screenshots rotate the simulator to landscape before running.
+/// XCUIScreen.main.screenshot() captures physical screen pixels and respects
+/// the current orientation — no post-processing needed.
 #if !os(macOS)
-final class PresetLoadTests: XCTestCase {
+final class ScreenshotTests: XCTestCase {
 
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -24,15 +25,12 @@ final class PresetLoadTests: XCTestCase {
         super.tearDown()
     }
 
-    // MARK: - Tests
+    // MARK: - Screenshots
 
-    /// Loading diag.ti59 via the file picker must trigger keystroke playback.
+    /// Load diag.ti59, run the diagnostic to completion, save a Desktop PNG.
     ///
-    /// diag.ti59 contains "KEYSTROKES: 15 + WaitFullSpeed: 3s" which auto-starts
-    /// the diagnostic. The keystroke-playback-status element transitions to
-    /// "playing" — that is the proof of a successful load.
-    @MainActor
-    func testLoadDiagPreset() throws {
+    /// Prerequisite: diag.ti59 must be present on "On My iPhone" in the simulator.
+    func screenshotLoadDiagPreset() throws {
         let orientation: UIDeviceOrientation = UIDevice.current.userInterfaceIdiom == .pad
             ? .landscapeLeft : .portrait
         let app = launchApp(orientation: orientation)
@@ -45,7 +43,6 @@ final class PresetLoadTests: XCTestCase {
 
         let diagCell = app.cells.containing(.staticText, identifier: "diag.ti59").firstMatch
         XCTAssertTrue(diagCell.waitForExistence(timeout: 5), "diag.ti59 cell not found in file picker")
-        attachScreenshot(app, name: "File picker — diag.ti59 visible")
 
         let statusEl = app.otherElements["keystroke-playback-status"]
         let playing = NSPredicate(format: "value == 'playing'")
@@ -56,7 +53,16 @@ final class PresetLoadTests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [playbackStarted], timeout: 8), .completed,
                        "Keystroke playback never started — diag.ti59 may not have loaded")
 
-        attachScreenshot(app, name: "After loading diag.ti59 — playback running")
+        // Wait for the diagnostic to finish before capturing.
+        let idle = NSPredicate(format: "value == 'idle'")
+        let playbackDone = XCTNSPredicateExpectation(predicate: idle, object: statusEl)
+        XCTAssertEqual(XCTWaiter.wait(for: [playbackDone], timeout: 10), .completed,
+                       "Keystroke playback did not complete")
+
+        let png = XCUIScreen.main.screenshot().pngRepresentation
+        let dest = URL(fileURLWithPath: "/Users/me/Desktop/diag-preset-load.png")
+        try png.write(to: dest)
+        attachScreenshot(app, name: "diag.ti59 — diagnostic complete")
     }
 
     // MARK: - Helpers
