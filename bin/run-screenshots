@@ -15,6 +15,7 @@ set -euo pipefail
 SRCROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SCREENSHOT_DIR="$SRCROOT/appstore/screenshots"
 echo "$SCREENSHOT_DIR" > /tmp/calc-u-59-screenshot-dir
+trap 'rm -f /tmp/calc-u-59-screenshot-dir' EXIT
 
 run_test() {
     local udid="$1"
