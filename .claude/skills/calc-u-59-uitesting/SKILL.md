@@ -157,7 +157,7 @@ private func navigateToOnMyIPhone(_ app: XCUIApplication, targetFile: String) {
         if item.waitForExistence(timeout: 2) { item.tap(); break }
     }
 
-    let folder = app.cells.containing(.staticText, identifier: "1-Screenshot").firstMatch
+    let folder = app.cells.containing(.staticText, identifier: "1-Testfiles").firstMatch
     if folder.waitForExistence(timeout: 2) { folder.tap() }
 }
 ```

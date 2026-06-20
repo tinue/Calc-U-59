@@ -5,8 +5,8 @@
 #
 # Layout:
 #   File Provider Storage/
-#     1-Screenshot/   ← screenshot automation state files (sorted first by name)
-#     *.ti59 etc.     ← regular example files
+#     1-Testfiles/   ← all files from examples/screentest/ (sorted first by name)
+#     *.ti59 etc.    ← regular example files listed individually below
 #
 # Targets all installed simulators — no simulator needs to be running.
 # Files go to group.com.apple.FileProvider.LocalStorage / File Provider Storage/
@@ -23,13 +23,6 @@ LOCAL_STORAGE_GROUP="group.com.apple.FileProvider.LocalStorage"
 SRCROOT="${SRCROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 SIM_ROOT="$HOME/Library/Developer/CoreSimulator/Devices"
 
-# Screenshot state files — copied into 1-Screenshot/ subfolder.
-SCREENSHOT_PATTERNS=(
-    "diag.*"
-    "debug/screenshot_leisure_run.ti59"
-    "debug/screenshot_leisure_start.ti59"
-)
-
 # Regular example files — copied flat into the root.
 REGULAR_PATTERNS=(
     "assembly/stopwatch.asm"
@@ -37,24 +30,14 @@ REGULAR_PATTERNS=(
     "characters.ti59"
 )
 
-expand_patterns() {
-    local -n _out=$1; shift
-    for pattern in "$@"; do
-        for f in "$SRCROOT/examples/"$pattern; do
-            [ -f "$f" ] && _out+=("$f")
-        done
-    done
-}
-
-SCREENSHOT_SRCS=()
 REGULAR_SRCS=()
-expand_patterns SCREENSHOT_SRCS "${SCREENSHOT_PATTERNS[@]}"
-expand_patterns REGULAR_SRCS "${REGULAR_PATTERNS[@]}"
+for pattern in "${REGULAR_PATTERNS[@]}"; do
+    for f in "$SRCROOT/examples/"$pattern; do
+        [ -f "$f" ] && REGULAR_SRCS+=("$f")
+    done
+done
 
-if [ ${#SCREENSHOT_SRCS[@]} -eq 0 ] && [ ${#REGULAR_SRCS[@]} -eq 0 ]; then
-    echo "No matching files found under $SRCROOT/examples — nothing to copy." >&2
-    exit 0
-fi
+SCREENTEST_DIR="$SRCROOT/examples/screentest"
 
 DEST_COUNT=0
 
@@ -70,21 +53,20 @@ while IFS= read -r -d '' META; do
         # Clean destination — remove all files and subdirectories.
         find "$DEST" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
 
-        # Screenshot files → 1-Screenshot/
-        if [ ${#SCREENSHOT_SRCS[@]} -gt 0 ]; then
-            mkdir -p "$DEST/1-Screenshot"
-            for SRC in "${SCREENSHOT_SRCS[@]}"; do
-                cp "$SRC" "$DEST/1-Screenshot/$(basename "$SRC")"
-            done
-        fi
+        # Test files → 1-Testfiles/
+        mkdir -p "$DEST/1-Testfiles"
+        for f in "$SCREENTEST_DIR"/*; do
+            [ -f "$f" ] && cp "$f" "$DEST/1-Testfiles/$(basename "$f")"
+        done
+        SCREENTEST_COUNT=$(find "$SCREENTEST_DIR" -maxdepth 1 -type f | wc -l | tr -d ' ')
 
         # Regular files → root
         for SRC in "${REGULAR_SRCS[@]}"; do
             cp "$SRC" "$DEST/$(basename "$SRC")"
         done
 
-        TOTAL=$(( ${#SCREENSHOT_SRCS[@]} + ${#REGULAR_SRCS[@]} ))
-        echo "Copied $TOTAL file(s) (${#SCREENSHOT_SRCS[@]} in 1-Screenshot/, ${#REGULAR_SRCS[@]} in root) → $DEST"
+        TOTAL=$(( SCREENTEST_COUNT + ${#REGULAR_SRCS[@]} ))
+        echo "Copied $TOTAL file(s) ($SCREENTEST_COUNT in 1-Testfiles/, ${#REGULAR_SRCS[@]} in root) → $DEST"
         (( DEST_COUNT++ )) || true
     fi
 done < <(find "$SIM_ROOT" -maxdepth 7 -name ".com.apple.mobile_container_manager.metadata.plist" -print0 2>/dev/null)
