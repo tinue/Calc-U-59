@@ -26,7 +26,9 @@ final class ScreenshotTests: XCTestCase {
     // MARK: - Helpers
 
     private var screenshotDir: String {
-        ProcessInfo.processInfo.environment["SCREENSHOT_DIR"] ?? "/Users/me/Desktop"
+        if let dir = ProcessInfo.processInfo.environment["SCREENSHOT_DIR"] { return dir }
+        let home = ProcessInfo.processInfo.environment["HOME"] ?? "/tmp"
+        return "\(home)/Desktop"
     }
 
     // MARK: - Screenshots

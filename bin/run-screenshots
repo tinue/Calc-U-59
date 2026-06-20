@@ -13,7 +13,7 @@
 set -euo pipefail
 
 SRCROOT="$(cd "$(dirname "$0")/.." && pwd)"
-SCREENSHOT_DIR="/Users/me/Development/public/Calc-U-59/appstore/screenshots"
+SCREENSHOT_DIR="$SRCROOT/appstore/screenshots"
 
 run_test() {
     local udid="$1"
