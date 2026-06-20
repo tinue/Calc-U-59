@@ -8,28 +8,95 @@ enum TI59KeyNames {
         table[Int(keycode)] ?? String(format: "?%02d", keycode)
     }
 
-    /// Number of additional steps required after this opcode (for GTO 23, LBL 00, etc.)
-    /// Returns 0 if the opcode doesn't consume additional steps.
+    /// Number of additional steps required after this opcode (fixed-argument
+    /// opcodes only: STO 12, FIX 2, OP 06, …). Branch instructions (GTO, EQ,
+    /// SBR, GE, IFF, DSZ) have variable-length destinations and are handled
+    /// by `argumentSteps(in:)`.
     static func stepsAfter(for keycode: UInt8) -> Int {
         stepsAfterTable[Int(keycode)] ?? 0
     }
 
+    /// Indices of steps that are numeric arguments of a preceding opcode
+    /// (rendered as "NN" instead of a mnemonic). Walks the program
+    /// sequentially so operand bytes are never misread as opcodes.
+    ///
+    /// Branch destinations follow the TI-59 keycode grammar: a first operand
+    /// byte of 00–09 is a 2-step absolute address (SBR 01 23), 40 is IND
+    /// followed by a register number (SBR IND 25), anything else is a 1-step
+    /// label rendered as its key mnemonic (SBR CE). Label and IND steps are
+    /// not marked, so they keep their mnemonic rendering.
+    static func argumentSteps(in steps: [UInt8]) -> Set<Int> {
+        var args = Set<Int>()
+        var i = 0
+        var previousWasInv = false
+        while i < steps.count {
+            let kc = steps[i]
+            i += 1
+            switch kc {
+            case 61, 67, 71, 77:                        // GTO, EQ, SBR, GE
+                if kc == 71 && previousWasInv { break } // INV SBR = RTN, no operand
+                i = consumeDestination(steps, from: i, into: &args)
+            case 87, 97:                                // IFF, DSZ: flag/register, then destination
+                i = consumeNumber(steps, from: i, into: &args)
+                i = consumeDestination(steps, from: i, into: &args)
+            default:
+                let n = stepsAfter(for: kc)
+                for j in 0..<n where i + j < steps.count { args.insert(i + j) }
+                i += n
+            }
+            previousWasInv = (kc == 22 || kc == 27)
+        }
+        return args
+    }
+
+    /// Consume a flag/register-number operand: a single digit, or IND + register.
+    private static func consumeNumber(_ steps: [UInt8], from start: Int,
+                                      into args: inout Set<Int>) -> Int {
+        guard start < steps.count else { return start }
+        if steps[start] == 40 {                  // IND → register number follows
+            if start + 1 < steps.count { args.insert(start + 1) }
+            return start + 2
+        }
+        args.insert(start)
+        return start + 1
+    }
+
+    /// Consume a branch destination: 2-step address, IND + register, or 1-step label.
+    private static func consumeDestination(_ steps: [UInt8], from start: Int,
+                                           into args: inout Set<Int>) -> Int {
+        guard start < steps.count else { return start }
+        switch steps[start] {
+        case 0...9:                              // leading zero → 2-step absolute address
+            args.insert(start)
+            if start + 1 < steps.count { args.insert(start + 1) }
+            return start + 2
+        case 40:                                 // IND → register number follows
+            if start + 1 < steps.count { args.insert(start + 1) }
+            return start + 2
+        default:                                 // label → shown as mnemonic
+            return start + 1
+        }
+    }
+
     private static let stepsAfterTable: [Int: Int] = [
-        36: 1,   // Yˣ
+        36: 1,   // PGM
         42: 1,   // STO
         43: 1,   // RCL
         44: 1,   // SUM
         48: 1,   // EXC
         49: 1,   // PRD
         58: 1,   // FIX
-        61: 2,   // GTO
-        67: 2,   // EQ
-        71: 2,   // SBR
-        77: 2,   // GE
+        62: 1,   // PG* (Pgm Ind)
+        63: 1,   // EX* (Exc Ind)
+        64: 1,   // PD* (Prd Ind)
+        69: 1,   // OP
+        72: 1,   // ST* (STO Ind)
+        73: 1,   // RC* (RCL Ind)
+        74: 1,   // SM* (SUM Ind)
         82: 1,   // HIR
+        83: 1,   // GO* (GTO Ind)
+        84: 1,   // OP* (Op Ind)
         86: 1,   // STF
-        87: 1,   // IFF
-        97: 1,   // DSZ
     ]
 
     private static let table: [Int: String] = [

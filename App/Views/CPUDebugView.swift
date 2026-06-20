@@ -286,7 +286,7 @@ struct CPUDebugView: View {
                 .frame(width: 40, alignment: .leading)
 
             HStack(spacing: 2) {
-                ForEach(Array(array.enumerated()), id: \.offset) { offset, n in
+                ForEach(Array(array.reversed().enumerated()), id: \.offset) { offset, n in
                     Text(String(format: "%X", n))
                         .font(.system(size: 10, design: .monospaced))
                         .foregroundStyle(.white.opacity(0.85))

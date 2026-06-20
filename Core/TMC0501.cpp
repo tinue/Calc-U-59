@@ -146,6 +146,7 @@ void TMC0501::reset() {
     memset(key,  0, sizeof(key));
     KR = SR = fA = fB = EXT = PREG = m_libAddr = m_libAddrReadPos = 0;
     m_libAddrWasWriting = false;
+    m_libExecPC = kLibExecPCNone;
     R5 = digit = RAM_ADDR = RAM_OP = REG_ADDR = 0;
     addr  = 0;
     flags = FLG_COND;  // COND starts true; display active
@@ -176,6 +177,7 @@ void TMC0501::reset() {
 void TMC0501::loadLibrary(const uint8_t* data, size_t count) {
     count = std::min(count, size_t{5000});
     memcpy(m_libData, data, count);
+    m_libExecPC = kLibExecPCNone;  // stale address would point into the old module
 }
 
 void TMC0501::loadConstants(const uint8_t* data, size_t count) {
@@ -829,6 +831,13 @@ int TMC0501::step() {
         case 0xE:  // Library module operations
             switch (opcode & 0x00F0u) {
             case 0x00: // IN LIB — fetch one byte from library; advance pointer
+                // Latch the pre-increment address when (and only when) the fetch
+                // comes from the interpreter's execution fetch site: that byte is
+                // the program step now being dispatched, i.e. the user-visible
+                // solid-state program counter.  Fetches from the header-read and
+                // label-search sites leave the latch untouched, so the displayed
+                // step holds steady during label lookups.
+                if (addr == libExecFetchPC()) m_libExecPC = m_libAddr;
                 EXT = static_cast<uint16_t>(m_libData[m_libAddr++]) << 4;
                 flags |= FLG_EXT_VALID;
                 m_libAddr %= 5000;
@@ -1195,21 +1204,21 @@ uint32_t TMC0501::traceFlags() const {
 }
 
 void TMC0501::addBreakpoint(uint16_t pc) {
-    std::lock_guard<std::recursive_mutex> lk(m_traceMutex);
+    std::lock_guard<std::mutex> lk(m_traceMutex);
     auto it = std::lower_bound(m_breakpoints.begin(), m_breakpoints.end(), pc);
     if (it == m_breakpoints.end() || *it != pc)
         m_breakpoints.insert(it, pc);
 }
 
 void TMC0501::removeBreakpoint(uint16_t pc) {
-    std::lock_guard<std::recursive_mutex> lk(m_traceMutex);
+    std::lock_guard<std::mutex> lk(m_traceMutex);
     auto it = std::lower_bound(m_breakpoints.begin(), m_breakpoints.end(), pc);
     if (it != m_breakpoints.end() && *it == pc)
         m_breakpoints.erase(it);
 }
 
 void TMC0501::clearBreakpoints() {
-    std::lock_guard<std::recursive_mutex> lk(m_traceMutex);
+    std::lock_guard<std::mutex> lk(m_traceMutex);
     m_breakpoints.clear();
 }
 
@@ -1245,7 +1254,7 @@ void TMC0501::beginNextStep() {
     // frame uses the same post-exec semantics for UI and trace-file consumers,
     // including COND after auto-restore handling.
     if (tf != TRACE_NONE && m_frameHead > 0) {
-        std::lock_guard<std::recursive_mutex> lk(m_traceMutex);
+        std::lock_guard<std::mutex> lk(m_traceMutex);
         CpuFrame& prev = m_frameRing[(m_frameHead - 1) & kFrameRingMask];
 
         if (tf & (TRACE_REGS_LIGHT | TRACE_REGS_FULL)) {
@@ -1387,7 +1396,7 @@ void TMC0501::postOperation() {
 // frame to full post-execution state so all emitted entries share one semantic.
 
 void TMC0501::tracePreStep(uint32_t tf, uint16_t opcode) {
-    std::lock_guard<std::recursive_mutex> lk(m_traceMutex);
+    std::lock_guard<std::mutex> lk(m_traceMutex);
 
     // Breakpoint check
     if (tf & TRACE_BREAKPOINTS) {
@@ -1443,7 +1452,7 @@ void TMC0501::tracePreStep(uint32_t tf, uint16_t opcode) {
 // boundary, where the previous frame is rewritten to post-execution state.
 
 void TMC0501::tracePostStep(uint32_t tf, int weight) {
-    std::lock_guard<std::recursive_mutex> lk(m_traceMutex);
+    std::lock_guard<std::mutex> lk(m_traceMutex);
     CpuFrame& frame = m_frameRing[m_frameHead & kFrameRingMask];
 
     // Identity fields only known after execution
@@ -1456,10 +1465,10 @@ void TMC0501::tracePostStep(uint32_t tf, int weight) {
 }
 
 uint32_t TMC0501::drainCpuFrames(CpuFrame* out, uint32_t max, uint32_t* outLost) {
-    std::lock_guard<std::recursive_mutex> lk(m_traceMutex);
+    std::lock_guard<std::mutex> lk(m_traceMutex);
     if (max == 0) { if (outLost) *outLost = 0; return 0; }
 
-    uint32_t head = m_frameHead;  // single read; emulation thread may advance concurrently
+    uint32_t head = m_frameHead;  // stable: both writer (tracePostStep) and this drain hold m_traceMutex
 
     // Detect ring overflow: if head has advanced beyond diskCursor + ring size,
     // frames were overwritten.
@@ -1487,7 +1496,7 @@ uint32_t TMC0501::drainCpuFrames(CpuFrame* out, uint32_t max, uint32_t* outLost)
 }
 
 uint32_t TMC0501::readCpuFrames(CpuFrame* out, uint32_t max) const {
-    std::lock_guard<std::recursive_mutex> lk(m_traceMutex);
+    std::lock_guard<std::mutex> lk(m_traceMutex);
     uint32_t head = m_frameHead;
     if (max == 0 || head == 0) return 0;
 

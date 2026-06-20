@@ -16,7 +16,7 @@ import Foundation
 final class TraceWriter {
 
     // ── Constants ──────────────────────────────────────────────────────────────
-    private static let defaultMaxFileSizeMB = 10
+    private static let defaultMaxFileSizeMB = 50
 
     // ── Record type constants ─────────────────────────────────────────────────
     private enum RecType: UInt8 {
@@ -46,9 +46,15 @@ final class TraceWriter {
     private var currentTraceURL: URL?  // Track the URL for security-scoped resource cleanup
     private let model: MachineModel     // Calculator model (determines trace filename)
 
+    /// Called on the main thread when the size limit is reached mid-session.
+    /// The receiver should disable tracing (e.g. set cIndicatorDebug = false).
+    var onSizeLimitReached: (() -> Void)?
+
     // Session statistics
     private var sessionEventCount: UInt32    = 0
     private var sessionSuppressedTotal: UInt32 = 0
+    private var sessionMaxBytes: UInt64       = 0  // size limit cached at open()
+    private var sessionBytesWritten: UInt64   = 0  // running total, avoids offsetInFile syscall
 
     init(model: MachineModel) {
         self.model = model
@@ -86,25 +92,10 @@ final class TraceWriter {
         guard isAvailable else { return false }
 
         let url = self.traceFileURL()
-        let fm = FileManager.default
 
-        // Check if existing file is very large; if so, move it to timestamped backup
-        // before creating fresh file (preserves old data)
-        if let attrs = try? fm.attributesOfItem(atPath: url.path),
-           let fileSize = attrs[FileAttributeKey.size] as? NSNumber {
-            let maxMB = UserDefaults.standard.integer(forKey: SettingsKey.traceMaxFileSizeMB)
-            let maxBytes = UInt64(max(maxMB, Self.defaultMaxFileSizeMB)) * 1_000_000
-            if UInt64(fileSize.int64Value) >= maxBytes {
-                // File exceeded; move to timestamped backup before creating fresh one
-                let backupURL = timestampedTraceURL(baseURL: url)
-                do {
-                    try fm.moveItem(at: url, to: backupURL)
-                } catch {
-                    // If backup fails, just proceed with deletion
-                    _ = try? fm.removeItem(at: url)
-                }
-            }
-        }
+        // Cache the size limit for the upcoming session.
+        let maxMB = UserDefaults.standard.integer(forKey: SettingsKey.traceMaxFileSizeMB)
+        sessionMaxBytes = UInt64(max(maxMB, Self.defaultMaxFileSizeMB)) * 1_000_000
 
         return openFile(at: url)
     }
@@ -151,6 +142,7 @@ final class TraceWriter {
         currentTraceURL = url
         sessionEventCount = 0
         sessionSuppressedTotal = 0
+        sessionBytesWritten = UInt64(fh.offsetInFile)  // account for any pre-existing file header
 
         // Write SESSION_START record with timestamp and model
         var payload = Data(capacity: 9)
@@ -198,6 +190,14 @@ final class TraceWriter {
         let payload = makeFramePayload(frame: frame)
         writeRecord(.traceEvent, payload: payload)
         sessionEventCount += 1
+
+        // Auto-stop when the file reaches the size limit to prevent iCloud quota overflow.
+        if sessionBytesWritten >= sessionMaxBytes {
+            let fileName = currentTraceURL?.lastPathComponent ?? "trace file"
+            print("WARNING: \(fileName) reached the \(sessionMaxBytes / 1_000_000) MB size limit — trace stopped. Re-enable TRACE to start a new session (existing trace file will be lost).")
+            close()
+            onSizeLimitReached?()
+        }
     }
 
     /// Write a gap record indicating lost frames during ring overflow.
@@ -244,6 +244,7 @@ final class TraceWriter {
         header.appendLE(UInt16(payload.count))
         fh.write(header)
         fh.write(payload)
+        sessionBytesWritten += UInt64(3 + payload.count)
     }
 
     // ── Serialisation ─────────────────────────────────────────────────────────
@@ -333,32 +334,8 @@ final class TraceWriter {
         return "\(modelPrefix)_TRACE.bin"
     }
 
-    /// Generate the model-specific base name for timestamped files.
-    /// Examples: CALCU59_TRACE, CALCU58_TRACE, CALCU58C_TRACE
-    private func traceBaseName() -> String {
-        let modelPrefix: String
-        switch model {
-        case .ti59:  modelPrefix = "CALCU59"
-        case .ti58:  modelPrefix = "CALCU58"
-        case .ti58c: modelPrefix = "CALCU58C"
-        }
-        return "\(modelPrefix)_TRACE"
-    }
-
     func traceFileURL() -> URL {
         AppSettings.traceDirectory().appendingPathComponent(traceBaseFileName())
-    }
-
-    /// Create a timestamped trace file URL for when the main file exceeds max size.
-    /// Example: CALCU59_TRACE_20260416_140523.bin (or CALCU58_TRACE_... / CALCU58C_TRACE_...)
-    private func timestampedTraceURL(baseURL: URL) -> URL {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyyMMdd_HHmmss"
-        let timestamp = formatter.string(from: Date())
-
-        let baseName = traceBaseName()
-        let fileName = "\(baseName)_\(timestamp).bin"
-        return baseURL.deletingLastPathComponent().appendingPathComponent(fileName)
     }
 }
 

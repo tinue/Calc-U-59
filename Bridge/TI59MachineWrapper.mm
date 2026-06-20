@@ -113,6 +113,10 @@ static const int kbits[] = {0, 1, 2, 3, 5, 6};  // index 0 unused; index col
     return _machine->insertedModuleNumber();
 }
 
+- (uint16_t)libExecPC {
+    return _machine->libExecPC();
+}
+
 - (void)insertCard:(NSData*)data {
     if (data.length > 0)
         _machine->insertCard((const uint8_t*)data.bytes, data.length);
@@ -332,7 +336,8 @@ static TICpuFrame marshalCpuFrame(const CpuFrame& f) {
     int totalRegs   = _machine->ramRegCount();
     int dataRegCount = MAX(0, totalRegs - programRegs);
     for (int regNum = 0; regNum < dataRegCount; regNum++) {
-        const uint8_t* n = _machine->readRAMReg(totalRegs - 1 - regNum);
+        uint8_t n[16];
+        _machine->copyRAMReg(totalRegs - 1 - regNum, n);
         for (int i = 0; i < 16; i++) {
             if (n[i] != 0) {
                 [result addIndex:regNum];
@@ -344,26 +349,7 @@ static TICpuFrame marshalCpuFrame(const CpuFrame& f) {
 }
 
 - (TICpuFrame)snapshotCPU {
-    CpuFrame frame = _machine->snapshotCPU();
-    TICpuFrame out;
-    out.seqno = frame.seqno;
-    out.pc = frame.pc;
-    out.opcode = frame.opcode;
-    out.digit = frame.digit;
-    out.postDigit = frame.postDigit;
-    out.cycleWeight = frame.cycleWeight;
-    out.KR = frame.KR; out.SR = frame.SR; out.fA = frame.fA; out.fB = frame.fB;
-    out.cpuFlags = frame.cpuFlags;
-    out.R5 = frame.R5;
-    memcpy(out.A, frame.A, 16); memcpy(out.B, frame.B, 16); memcpy(out.C, frame.C, 16);
-    memcpy(out.D, frame.D, 16); memcpy(out.E, frame.E, 16);
-    memcpy(out.SCOM, frame.SCOM, 16 * 16);
-    memcpy(out.Sout, frame.Sout, 16);
-    out.EXT = frame.EXT; out.PREG = frame.PREG; out.flags = frame.flags;
-    out.m_libAddr = frame.m_libAddr;
-    out.REG_ADDR = frame.REG_ADDR; out.RAM_ADDR = frame.RAM_ADDR; out.RAM_OP = frame.RAM_OP;
-    out.m_libAddrReadPos = frame.m_libAddrReadPos;
-    return out;
+    return marshalCpuFrame(_machine->snapshotCPU());
 }
 
 - (void)beginNextStep {
@@ -382,7 +368,8 @@ static TICpuFrame marshalCpuFrame(const CpuFrame& f) {
 }
 
 - (NSData*)rawRegister:(NSInteger)reg {
-    const uint8_t* n = _machine->readRAMReg((int)reg);
+    uint8_t n[16];
+    _machine->copyRAMReg((int)reg, n);
     return [NSData dataWithBytes:n length:16];
 }
 

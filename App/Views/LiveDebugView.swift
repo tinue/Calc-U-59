@@ -28,6 +28,9 @@ struct LiveDebugView: View {
             }
             .background(Color(white: 0.10))
         }
+        // Gate the 60 Hz live-snapshot build on actual panel visibility.
+        .onAppear    { vm.liveDebugEnabled = true }
+        .onDisappear { vm.liveDebugEnabled = false }
     }
 
     // MARK: - Adaptive Font Sizing
@@ -46,25 +49,34 @@ struct LiveDebugView: View {
 
     private func liveHeader(baseFontSize: CGFloat) -> some View {
         let freezeEnabled = !vm.isFrozen && !vm.pendingFreezeOnPCChange
-        let freezeOnStartEnabled = !vm.isFrozen && !vm.pendingFreezeOnPCChange
-
+        let narrow = baseFontSize < 13
         return HStack(spacing: 8) {
-            Text("CALCULATOR DEBUG")
+            Text(narrow ? "DEBUG" : "CALCULATOR DEBUG")
                 .font(.caption.bold())
                 .foregroundStyle(.white.opacity(0.6))
             Spacer()
 
-            Button("FREEZE") { vm.freeze() }
+            let calcOwned = vm.isFrozen && vm.freezeOwner == .calculator
+
+            // RESUME sits at the far left, away from STEP, to avoid accidental
+            // taps while stepping.
+            Button("RESUME") { vm.unfreeze() }
+                .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
+                .foregroundStyle(Color.orange)
+                .opacity(calcOwned ? 1 : 0.4)
+                .disabled(!calcOwned)
+
+            Button("FREEZE") { vm.freeze(from: .calculator) }
                 .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
                 .foregroundStyle(Color.white)
                 .opacity(freezeEnabled ? 1 : 0.4)
                 .disabled(!freezeEnabled)
 
-            Button("FREEZE ON START") { vm.freezeOnNextPCChange() }
+            Button(narrow ? "F.START" : "FREEZE ON START") { vm.freezeOnNextPCChange() }
                 .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
                 .foregroundStyle(Color.white)
-                .opacity(freezeOnStartEnabled ? 1 : 0.4)
-                .disabled(!freezeOnStartEnabled)
+                .opacity(freezeEnabled ? 1 : 0.4)
+                .disabled(!freezeEnabled)
 
             Button("ARMED") { vm.pendingFreezeOnPCChange.toggle() }
                 .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
@@ -72,17 +84,9 @@ struct LiveDebugView: View {
                 .opacity(vm.pendingFreezeOnPCChange ? 1 : 0.4)
                 .disabled(!vm.pendingFreezeOnPCChange)
 
-            Button("RESUME") { vm.unfreeze() }
-                .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
-                .foregroundStyle(Color.orange)
-                .opacity(vm.isFrozen ? 1 : 0.4)
-                .disabled(!vm.isFrozen)
-
-            Button("STEP") { vm.stepKeycode() }
-                .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
-                .foregroundStyle(Color.cyan)
-                .opacity(vm.isFrozen ? 1 : 0.4)
-                .disabled(!vm.isFrozen)
+            // Tap to single-step; hold to auto-step at 2 steps/second.
+            HoldRepeatButton(title: "STEP", color: .cyan, baseFontSize: baseFontSize,
+                             enabled: calcOwned) { vm.stepKeycode() }
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
@@ -143,7 +147,7 @@ struct LiveDebugView: View {
         let color: Color
         switch sourceFlag {
         case 0: color = isZero ? Color(red: 0.10, green: 0.30, blue: 0.10) : Color(red: 0.25, green: 0.60, blue: 0.25)    // Green for RAM
-        case 1: color = isZero ? Color(red: 0.30, green: 0.10, blue: 0.30) : Color(red: 0.60, green: 0.25, blue: 0.60)    // Purple for library
+        case 1, 2: color = isZero ? Color(red: 0.30, green: 0.10, blue: 0.30) : Color(red: 0.60, green: 0.25, blue: 0.60) // Purple for library (2 = saved CROM return address)
         case 8: color = isZero ? Color(red: 0.35, green: 0.28, blue: 0.10) : Color(red: 0.70, green: 0.60, blue: 0.25)    // Yellow for ROM
         default: color = isZero ? Color(white: 0.6) : Color(white: 0.8)                                                    // Gray for unknown
         }
@@ -184,10 +188,13 @@ struct LiveDebugView: View {
     private func programStepsSection(baseFontSize: CGFloat) -> some View {
         let snap = vm.liveDebugSnapshot
 
-        if vm.isFrozen, let program = vm.frozenCachedProgram {
-            // Frozen mode: show full scrollable program
-            let currentIdx = vm.frozenCachedCurrentIndex
-            let currentLineColor = programSourceHighlightColor(snap.prSourceFlag)
+        if vm.isFrozen, !vm.programListing.isEmpty {
+            // Frozen mode: show full scrollable program.
+            // programListing is always-live; programListingSourceFlag tracks the display source
+            // (during solidStateReturn it holds the previous source's flag, not the raw CROM address).
+            let program = vm.programListing
+            let currentIdx = vm.programListingCurrentIndex
+            let currentLineColor = programSourceHighlightColor(vm.programListingSourceFlag)
 
             SectionBox(title: "PROGRAM STEPS") {
                 ScrollViewReader { proxy in
@@ -354,7 +361,7 @@ struct LiveDebugView: View {
     private func hirRow(_ label: String, _ value: Double, baseFontSize: CGFloat) -> some View {
         let isZero = value == 0
         let color = isZero ? Color(white: 0.6) : Color(white: 0.85)
-        return Text("HIR \(label): \(String(format: "%.5g", value))")
+        return Text("\(label): \(String(format: "%.5g", value))")
             .font(.system(size: baseFontSize + 2, design: .monospaced))
             .foregroundStyle(color)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -442,6 +449,7 @@ struct LiveDebugView: View {
         switch flag {
         case 0: return "Prg Source: User Program"
         case 1: return "Prg Source: Solid State Program"
+        case 2: return "Prg Source: Solid State Return (PC Reload)"
         case 4: return "Prg Source: User Program (Fast Mode)"
         case 8: return "Prg Source: ROM Program"
         default: return String(format: "Prg Source: Unknown (%X)", flag)
@@ -450,9 +458,14 @@ struct LiveDebugView: View {
 
     /// Returns the highlight color for the current step in the program window based on program source.
     private func programSourceHighlightColor(_ flag: UInt8) -> Color {
-        flag == ProgramSource.rom.rawValue
-            ? Color(red: 0.35, green: 0.28, blue: 0.10)  // Yellow for ROM
-            : Color(red: 0.10, green: 0.30, blue: 0.10)  // Green for User Program (0, 4) and others
+        switch flag {
+        case ProgramSource.rom.rawValue:
+            return Color(red: 0.35, green: 0.28, blue: 0.10)  // Yellow for ROM
+        case ProgramSource.solidState.rawValue:
+            return Color(red: 0.10, green: 0.24, blue: 0.35)  // Blue for Solid State module
+        default:
+            return Color(red: 0.10, green: 0.30, blue: 0.10)  // Green for User Program (0, 4) and others
+        }
     }
 
 }

@@ -10,6 +10,17 @@ This skill covers all work inside `Core/` and the associated Python dev tools.
 
 ---
 
+## Domain Primer (TI-59 background)
+
+The TI-59, TI-58, and TI-58C are Texas Instruments handheld programmable calculators (1977–79). This project emulates them at the hardware level: **the original ROM firmware runs unmodified** on an emulated TMC0501 CPU, so calculator behaviour emerges from the firmware — debugging usually means tracing ROM execution, not reading emulator logic.
+
+- **Keystroke programming**: users program the calculator by recording key presses. Each program step stores one two-digit **keycode**; the TI-59 holds up to 960 steps / 100 data registers, with RAM partitioned between the two.
+- **Hardware chips**: TMC0501 (CPU), TMC0571 (SCOM — scratchpad RAM + display/keyboard scan), TMC0540 (CROM — plug-in "Solid State Software" library module).
+- **Solid State Software modules**: plug-in ROM cartridges holding up to 5000 pre-recorded program steps (as keycodes). The user runs library program *n* with `2nd Pgm nn`. The Master Library module ships with the calculator and is loaded by default in the emulator.
+- The display is a 12-digit LED; the firmware multiplexes it digit-by-digit during IDLE.
+
+---
+
 ## Component Hierarchy
 
 ```
@@ -20,7 +31,7 @@ TI59Machine          (Core/TI59Machine.hpp/.cpp)   ← public façade
       └─ TraceTypes  (Core/TraceTypes.hpp)
 ```
 
-`TI59Machine` is the **only** public interface. Swift and CLI code call it exclusively — never touch `TMC0501` directly. All calls go through `m_keyMutex` so the emulation thread and UI thread cannot race.
+`TI59Machine` is the **only** public interface. Swift and CLI code call it exclusively — never touch `TMC0501` directly. All calls — including read accessors — go through `m_keyMutex` so the emulation thread and UI thread cannot race. Any new public accessor must take the lock too.
 
 ---
 
@@ -49,17 +60,27 @@ The two are completely independent. A single calculator step (one keycode) typic
 
 ### Calculator PC Encoding (SCOM[0] nibbles 4–7)
 
-This is the **user program step address** (0–959), not the CPU's ROM address. The ROM firmware reads and writes nibbles 4–7 of SCOM row 0 to track and encode return addresses at the calculator-program level before subroutine calls. It must be kept in sync on every instruction in `TMC0501::step()` before ROM code executes.
+The user program step address (0–959) is encoded in nibbles 4–7 of SCOM[0] and must be kept in sync on every instruction in `TMC0501::step()` before ROM code executes. Full encoding formula: `reference/CoreArchitecture.md` § "Calculator PC Encoding".
 
-```
-calculator_pc = n7×800 + n6×80 + n5×8 + n4
+---
 
-Encode:
-  n4 = calculator_pc % 8
-  n5 = (calculator_pc / 8)  % 10
-  n6 = (calculator_pc / 80) % 10
-  n7 = (calculator_pc / 800) % 2
-```
+## Program Source Flag and Solid-State (CROM) Execution
+
+SCOM[0] nibble 3 holds the **PRG SOURCE** flag — where the currently executing user program lives:
+
+| Value | Meaning |
+|-------|---------|
+| 0 | User program in RAM (or keyboard execution) |
+| 1 | Solid-state module (CROM); the program counter lives **in the CROM chip**, not in SCOM |
+| 2 | Transitional "solid-state return": after a RTN back into a module, SCOM[0] nibbles 4–7 hold the saved CROM address (raw BCD, **not** a step number); the firmware reloads the CROM PC from it on the next keycode dispatch and sets the flag back to 1. Lasts exactly one dispatch cycle. |
+| 4 | Fast mode |
+| 8 | ROM-resident keycode sub-program (e.g. P→R is implemented as a firmware keycode sequence using the SCOM PC) |
+
+**CROM program counter** (`m_libAddr`): held in the module chip itself. `IN LIB` fetches a byte and auto-increments; `OUT LIB_PC` (called 4×, one BCD digit each) writes it; `IN LIB_PC` reads it back (used for SBR return addresses). SCOM[0]'s calculator PC is only used for RAM programs.
+
+**User-visible solid-state PC** (`m_libExecPC`, sentinel `0xFFFF` = none): latched in the `IN LIB` handler only when the fetch comes from the firmware's execution-interpreter fetch site — `0x082F` on TI-59/TI-58 (they share the same ROM), `0x0823` on TI-58C (different ROM set: CD2400/CD2401/TMC0573). Implemented as the variant-aware member `libExecFetchPC()` in `TMC0501.hpp`. Header reads (ROM 1377/137C) and label searches (1390/1394) never move it. Exposed via `TI59Machine::libExecPC()` (locked); deliberately **not** part of `CpuFrame`, to avoid a trace-format change. Reset to the sentinel on machine reset and module change.
+
+**Module image header layout**: addr 0000 = program count N, 0001 = copy-protect flag, then one 2-byte BCD start address per program, then a pointer to last-keycode+1; unused space is filled with keycode 92 (INV SBR). Label search scans byte-by-byte from the program start and never leaves the current program (labels duplicate across programs).
 
 ---
 
@@ -86,28 +107,22 @@ Defined in `Core/MachineVariant.hpp`: `TI59 | TI58 | TI58C`.
 
 ```bash
 python3 tools/disasm.py --emit-cpp > /tmp/generated.cpp
-# Copy the generated arrays (~line 1389) and paste into TMC0501.cpp
+# Paste over the section marked "── Generated tables ──" in TMC0501.cpp (~line 1575)
 ```
 
 ---
 
 ## Trace Infrastructure (`TraceTypes.hpp`)
 
-- `CpuFrame` — 397-byte snapshot: ROM address (CPU PC), opcode, registers A–E, SCOM matrix, flags.
-- `DebugEvent` — wraps a `CpuFrame` with event metadata.
-- Trace feature flags: `PC_ONLY`, `LIGHT_REGS`, `FULL_SNAPSHOT`.
+`CpuFrame` (397 bytes) holds ROM address, opcode, registers A–E, SCOM matrix, and flags. Frames in the ring use **post-execution semantics** — `beginNextStep()` patches the previous frame's registers after each instruction. Full field list and flag constants: `reference/DebugAPI.md` § "CpuFrame fields".
 
-Python tools for post-processing traces:
-- `tools/read_trace.py` — parses `TI59_TRACE.bin` → human-readable text or JSON.
-- `tools/compare_trace.py` — finds first divergence between two traces.
+Python tools: `tools/read_trace.py` (parse binary → text), `tools/compare_trace.py` (find first divergence).
 
 ---
 
 ## IDLE/SCOM Synchronization
 
-The SCOM chip (TMC0571) has its own digit counter that must synchronize with the CPU's on the RUN→IDLE transition. The CPU must execute `WAIT D1` before `SET IDLE`; otherwise display positions and keyboard rows become misaligned.
-
-The emulator simplification: assumes the ROM always uses the correct `WAIT D1 + SET IDLE` pattern, seeds afterglow at `digit==0` boundaries, and captures a phase-independent snapshot there. This works for correct ROM code but cannot handle programs that deliberately misalign counters (see `examples/assembly/Decoder.asm`).
+The emulator assumes the ROM always uses the correct `WAIT D1 + SET IDLE` pattern and does not model the SCOM's independent digit counter. This works for all real ROM code but cannot handle programs that deliberately misalign counters (e.g. `examples/assembly/Decoder.asm`). Full hardware background: `reference/CoreArchitecture.md` § "IDLE/SCOM Synchronization".
 
 ---
 

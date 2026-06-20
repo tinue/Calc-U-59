@@ -3,9 +3,8 @@ import UniformTypeIdentifiers
 
 struct DebugView: View {
     @Environment(EmulatorViewModel.self) var vm
-    @State private var tab: DebugTab = .live
     @Binding var activeFilePickerMode: CalculatorView.FilePickerMode?
-    enum DebugTab { case live, cpu, log }
+    var portraitTopInset: CGFloat = 0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -18,10 +17,11 @@ struct DebugView: View {
                 tabButton("LOG", .log)
                 Spacer()
             }
+            .padding(.top, portraitTopInset)
             .background(Color(white: 0.07))
 
             // Tab content
-            switch tab {
+            switch vm.debugTab {
             case .live: LiveDebugView()
             case .cpu:
                 VStack(spacing: 0) {
@@ -38,17 +38,17 @@ struct DebugView: View {
         }
         .background(Color(white: 0.10))
         .onChange(of: vm.asmOverlayActive) { _, active in
-            if active { tab = .cpu }
+            if active { vm.debugTab = .cpu }
         }
     }
 
     private func tabButton(_ label: String, _ tab_: DebugTab) -> some View {
-        Button(label) { tab = tab_ }
+        Button(label) { vm.debugTab = tab_ }
             .font(.system(size: 10, weight: .bold))
-            .foregroundStyle(tab == tab_ ? .white : .white.opacity(0.4))
+            .foregroundStyle(vm.debugTab == tab_ ? .white : .white.opacity(0.4))
             .padding(.horizontal, 12)
             .padding(.vertical, 5)
-            .background(tab == tab_ ? Color(white: 0.20) : Color.clear)
+            .background(vm.debugTab == tab_ ? Color(white: 0.20) : Color.clear)
     }
 }
 

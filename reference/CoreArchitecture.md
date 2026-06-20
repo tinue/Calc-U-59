@@ -118,8 +118,15 @@ walked with `INC KR` instructions.
 ## Memory Map
 
 ### ROM
-- **TI-59**: 6144 × 13-bit words (addresses 0x0000–0x17FF)
-- **TI-58/58C**: 5120 × 13-bit words (addresses 0x0000–0x13FF)
+All variants load 6144 × 13-bit words (addresses 0x0000–0x17FF):
+- **TI-59** and **TI-58**: the same image — `TMC0582` + `TMC0583` + `TMC0571B`.
+  The plain TI-58 runs the identical firmware (card code included); it differs
+  only in RAM size, which the ROM autodetects (see User RAM below).
+- **TI-58C**: a different image — `CD2400` + `CD2401` + `TMC0573` (adds constant
+  memory and the `MEMWR`/`MEMRD` opcodes).
+
+(`ROM::TI58_WORDS = 5120` is a legacy alternate size still accepted by the load
+assert, but every shipped variant is 6144 words.)
 
 ROM words are 13 bits wide.  The upper 3 bits of the 16-bit storage word are
 masked to zero on every `read()`.
@@ -140,6 +147,26 @@ via `OP 17` (stored in SCOM[9][0] as `n/10`).  The factory default is
 - **TI-58/58C** sets a RAM limit of 60 registers (480 steps, 0 data registers
   at the other end — data registers live in the upper 60).
 - **TI-59** uses all 120 registers.
+
+**Memory-size autodetection.** The TI-59 and the plain TI-58 load the *same*
+ROM image — the identical three chips `TMC0582` / `TMC0583` / `TMC0571B`,
+including the `0x1400–0x17FF` constant block and the card-reader firmware (the
+TI-58 carries the card code even though it has no card reader).  Only the
+TI-58**C** uses a different ROM set (`CD2400` / `CD2401` / `TMC0573`).  Since the
+hardware exposes no model identifier, the reset routine infers RAM size by
+*probing*: it writes a test value to a high register (register 90 in the trace),
+reads it back, and clears it.  Register 90 is in the `>=60` range that exists
+only on the 120-register TI-59; on a 60-register TI-58 the write is out of range
+(`RAM_ADDR < ram.size()` fails) and the read-back comes back as `0`.  The probe
+result selects the partition layout.
+
+This is directly observable by diffing the TI-58 and TI-59 reset traces, which
+are byte-identical except at the probe: at `B=LOAD MAEX` (`0x0381`) the TI-59
+reads back its written value while the TI-58 reads `0`, which flips the
+`IO=-B` compare (`0x0390`) and the branch at `0x0393` — the TI-58 takes the
+jump (skipping the accumulate, → 60-register partition) while the TI-59 falls
+through (→ 120-register partition).  See the annotated reset listing
+`rom/TI59-commented.asm` at `0x0377`.
 
 ### SCOM (TMC0571)
 
@@ -169,6 +196,15 @@ bit 12 = 0  →  Non-branch (sub-decoded by hi nibble, bits 11:8)
   branch to be taken.  The XOR trick: `(flags ^ opcode) & FLG_COND == 0` → taken.
 - **offset**: 10-bit magnitude (bits 10:1), added to or subtracted from PC.
 - **dir** (bit 0): 0 = forward, 1 = backward.
+
+**COND is active-low.**  Its resting (inactive) state is `1`; a satisfied test
+*activates* it by driving it to `0`.  `TST`/`KEY`/ALU-overflow do
+`flags &= ~FLG_COND`, i.e. they set COND to `0` **when the condition is true**.
+Consequently `JC` (cond bit = 1) is taken when COND is at rest (`1`), and `JNC`
+(cond bit = 0) is taken when COND has been activated (`0`).  The everyday idiom
+`TST fB[x]; JNC handler` therefore reads as "**if `fB[x]` is set, branch to
+handler**".  In the disassembly, "clear COND" / "reset COND" means *restore it
+to its resting `1`*, not drive it to `0`.
 
 After a branch instruction (taken or not), `FLG_JUMP` is set.  The first
 subsequent non-branch instruction clears it and restores `FLG_COND = 1`,
@@ -303,6 +339,87 @@ bytes** each.  Cards are read or written in separate one-bank passes.
 
 **Write sequence:** same flow, but ROM issues `CRD_WRITE` + `OUT CRD` instead.
 `cardEject()` returns only the single bank that was written.
+
+---
+
+## Solid-State Library Module (TMC0540 CROM)
+
+The library module is a TMC0540 CROM: 5,000 × 8-bit key-code memory with its
+**own internal address counter**, accessed serially (half-duplex on the EXT
+line) by the CPU.  The emulator models it as `m_libData[5000]` plus the
+address counter `m_libAddr` inside `TMC0501`.
+
+### Module commands (control class `0xA`, sub-decoded `0xE`)
+
+| Mnemonic | Hardware command | Effect in emulator |
+|---|---|---|
+| `LIB.IN` (IN LIB) | FETCH | `EXT = m_libData[m_libAddr++] << 4`; wraps at 5000 |
+| `LIB.HI` (IN LIB_HIGH) | FETCH HIGH | High nibble of current byte; **no** address advance |
+| `LIB.PC` (OUT LIB_PC) | LOAD PC | Digit-serial address load: `m_libAddr = m_libAddr/10 + KR[7:4]×1000`; four calls load a 4-digit BCD address, LSD first |
+| `LIB.PC.IN` (IN LIB_PC) | UNLOAD PC | Reads one BCD digit of `m_libAddr` per call (`m_libAddrReadPos` cycles 0–3); does not modify the address |
+
+`m_libAddrWasWriting` tracks the read/write direction so the digit position
+counter resets when the ROM switches between LOAD PC and UNLOAD PC sequences.
+Every exec/search FETCH is preceded by a FETCH HIGH of the same byte.
+
+### Module image layout
+
+```
+0000          number of programs N (BCD)
+0001          copy-protection flag (00 = copyable, 01 = protected)
+0002+2(n−1)   2-byte BCD start address of program n
+…             2-byte BCD pointer to last keycode of program N + 1
+PRG1 … PRGS−1 key codes (one 2-digit BCD key code per byte)
+PRGS … 4999   filler key code 92 (INV SBR)
+```
+
+### How the emulator knows the current instruction
+
+The CROM program counter lives **in the module chip**, not in SCOM[0] (SCOM[0]
+nibbles 4–7 hold the step counter for RAM programs only).  The main ROM's
+library interpreter, however, also reads the module from several different
+code sites — and only one of them represents execution:
+
+| Main-ROM address | Purpose |
+|---|---|
+| `0x1377` / `0x137C` | Header reads (program table) |
+| `0x1390` / `0x1394` | Label search (byte-by-byte scan from program start) |
+| `0x082B` / `0x082F` | **Execution interpreter fetch** (TI-59 / TI-58) |
+| `0x081F` / `0x0823` | **Execution interpreter fetch** (TI-58C — different ROM set CD2400/CD2401/TMC0573) |
+| `0x1370`, `0x1389`, `0x12B4` | LOAD PC loops (header / search start / exec start) |
+
+The execution-fetch address differs by variant.  `libExecFetchPC()` in `TMC0501.hpp`
+returns `0x082F` for TI-59/TI-58 (they share the same ROM) and `0x0823` for
+TI-58C.  The IN LIB handler latches the **pre-increment** value of
+`m_libAddr` into `m_libExecPC` only when the fetch comes from this
+variant-specific execution site.  Header reads and label searches —
+which a taken label-branch performs in full on every iteration — never move
+the latch, so the user-visible step holds steady during lookups.  FA/FB flag
+bits cannot discriminate exec from search fetches (verified by trace), which
+is why the fetch-site check is used.
+
+The latch starts at the sentinel `kLibExecPCNone` (0xFFFF) and is reset on CPU
+reset and on module change.  It is exposed via `TI59Machine::libExecPC()`
+(mutex-protected) and the bridge; the Swift layer resolves it to a
+program-relative step (step 000 = first keycode of the program) by parsing the
+module header table and finding the range containing the latched address.
+
+`stepUntilNextKeycode()` treats an advance of this latch as a step boundary,
+since solid-state programs never move the SCOM[0] step counter.
+
+### PRG SOURCE flag (SCOM[0] nibble 3)
+
+| Value | Meaning |
+|---|---|
+| 0 | Keyboard / RAM program |
+| 1 | Library program executing — CROM counter is live |
+| 2 | Transitional "suspended library" return: the RTN handler popped a saved level `[2][4-digit CROM addr]` into SCOM[0]; the next dispatch reloads the CROM PC via OUT LIB_PC ×4 and sets source back to 1 |
+| 8 | Keycode-ROM sub-program (e.g. P→R) called from a library program; SCOM PC is used, `m_libExecPC` holds |
+
+Source 2 exists because a library caller cannot be pushed as source 1: source 1
+means "the CROM counter is live", and the counter is clobbered by intervening
+header/search traffic — so the saved CROM address must be restored from the
+return level before fetching resumes.
 
 ---
 

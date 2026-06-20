@@ -14,9 +14,12 @@ struct SettingsView: View {
     @AppStorage(SettingsKey.startupModel)    private var startupModelRaw: Int = -1
     @AppStorage(SettingsKey.traceLocation)   private var traceLocationRaw: Int = TraceLocation.iCloud.rawValue
     @AppStorage(SettingsKey.traceCustomPath) private var traceCustomPath: String = ""
-    @AppStorage(SettingsKey.traceMaxFileSizeMB) private var traceMaxFileSizeMB: Int = 10
+    @AppStorage(SettingsKey.traceMaxFileSizeMB) private var traceMaxFileSizeMB: Int = 50
     @AppStorage(SettingsKey.keyboardFeedback) private var keyboardFeedbackRaw: Int = KeyboardFeedbackType.off.rawValue
     @AppStorage(SettingsKey.ledFontStyle) private var ledFontStyleRaw: Int = LEDFontStyle.modernized.rawValue
+    #if os(iOS)
+    @AppStorage(SettingsKey.portraitDebugPage) private var portraitDebugPage: Bool = false
+    #endif
 
     @State private var allModules: [ModuleMetadata] = []
     @State private var pendingModuleID: String = ""
@@ -80,13 +83,14 @@ struct SettingsView: View {
                     }
                 }
 
-                // Keyboard feedback only on iOS
+                // Keyboard feedback and portrait layout only on iOS
                 #if os(iOS)
                 Picker("Keyboard Feedback", selection: $keyboardFeedbackRaw) {
                     ForEach(KeyboardFeedbackType.allCases) { feedback in
                         Text(feedback.displayName).tag(feedback.rawValue)
                     }
                 }
+                Toggle("Debug Page in Portrait", isOn: $portraitDebugPage)
                 #endif
 
                 HStack {
@@ -138,9 +142,9 @@ struct SettingsView: View {
                     Text("Maximum File Size")
                     Spacer()
                     HStack(spacing: 4) {
-                        TextField("Size", value: $traceMaxFileSizeMB, format: .number)
+                        TextField("", value: $traceMaxFileSizeMB, format: .number)
                             .textFieldStyle(.roundedBorder)
-                            .frame(width: 60)
+                            .frame(width: 90)
                         Text("MB")
                             .foregroundStyle(.secondary)
                     }

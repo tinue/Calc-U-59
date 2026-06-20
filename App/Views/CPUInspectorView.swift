@@ -94,6 +94,7 @@ struct CPUInspectorView: View {
     @State private var selectedIndex: Int? = nil
     @FocusState private var isFocused: Bool
     @StateObject private var heatmapRenderer = HeatmapRenderer()
+    @State private var heatmapHoveredAddress: Int? = nil
 
     // Unified instruction list — live from cpuDebugSnapshot when running, cpuInspectorHistory when frozen.
     private var displayHistory: [EmulatorViewModel.InspectorSnapshot] {
@@ -284,7 +285,13 @@ struct CPUInspectorView: View {
             }
             .focusable()
             .focused($isFocused)
-            .onAppear { isFocused = true }
+            .onAppear {
+                isFocused = true
+                // Gate CPU tracing + snapshot building on panel visibility.
+                // Entering also resets the ROM heatmap (counts start at "visible").
+                vm.cpuDebugEnabled = true
+            }
+            .onDisappear { vm.cpuDebugEnabled = false }
             .onKeyPress(.upArrow) {
                 let history = displayHistory
                 guard !history.isEmpty else { return .ignored }
@@ -314,8 +321,9 @@ struct CPUInspectorView: View {
     // MARK: - Header
 
     private func cpuHeader(baseFontSize: CGFloat) -> some View {
-        let freezeEnabled = !vm.isFrozen && !vm.pendingFreezeOnPCChange
-        let freezeOnStartEnabled = !vm.isFrozen && !vm.pendingFreezeOnPCChange
+        let freezeEnabled = !vm.isFrozen && !vm.pendingCPUScanLoopFreeze
+        let freezeOnStartEnabled = freezeEnabled
+        let narrow = baseFontSize < 13
 
         return HStack(spacing: 8) {
             Text("CPU DEBUG")
@@ -323,35 +331,37 @@ struct CPUInspectorView: View {
                 .foregroundStyle(.white.opacity(0.6))
             Spacer()
 
-            Button("FREEZE") { vm.freeze() }
+            let cpuOwned = vm.isFrozen && vm.freezeOwner == .cpu
+
+            // RESUME sits at the far left, away from STEP, to avoid accidental
+            // taps while stepping.
+            Button("RESUME") { vm.unfreeze() }
+                .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
+                .foregroundStyle(Color.orange)
+                .opacity(cpuOwned ? 1 : 0.4)
+                .disabled(!cpuOwned)
+
+            Button("FREEZE") { vm.freeze(from: .cpu) }
                 .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
                 .foregroundStyle(Color.white)
                 .opacity(freezeEnabled ? 1 : 0.4)
                 .disabled(!freezeEnabled)
 
-            Button("FREEZE ON START") { vm.freezeOnNextPCChange() }
+            Button(narrow ? "F.START" : "FREEZE ON START") { vm.freezeOnScanLoopExit() }
                 .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
                 .foregroundStyle(Color.white)
                 .opacity(freezeOnStartEnabled ? 1 : 0.4)
                 .disabled(!freezeOnStartEnabled)
 
-            Button("ARMED") { vm.pendingFreezeOnPCChange.toggle() }
+            Button("ARMED") { vm.disarmCPUScanLoopFreeze() }
                 .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
                 .foregroundStyle(Color.yellow)
-                .opacity(vm.pendingFreezeOnPCChange ? 1 : 0.4)
-                .disabled(!vm.pendingFreezeOnPCChange)
+                .opacity(vm.pendingCPUScanLoopFreeze ? 1 : 0.4)
+                .disabled(!vm.pendingCPUScanLoopFreeze)
 
-            Button("RESUME") { vm.unfreeze() }
-                .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
-                .foregroundStyle(Color.orange)
-                .opacity(vm.isFrozen ? 1 : 0.4)
-                .disabled(!vm.isFrozen)
-
-            Button("STEP") { vm.stepFrozen() }
-                .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
-                .foregroundStyle(Color.cyan)
-                .opacity(vm.isFrozen ? 1 : 0.4)
-                .disabled(!vm.isFrozen)
+            // Tap to single-step; hold to auto-step at 2 steps/second.
+            HoldRepeatButton(title: "STEP", color: .cyan, baseFontSize: baseFontSize,
+                             enabled: cpuOwned) { vm.stepFrozen() }
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
@@ -380,7 +390,7 @@ struct CPUInspectorView: View {
     private func registerDisplay(_ label: String, _ nibbles: (UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8), baseFontSize: CGFloat) -> some View {
         let array = [nibbles.0, nibbles.1, nibbles.2, nibbles.3, nibbles.4, nibbles.5, nibbles.6, nibbles.7,
                      nibbles.8, nibbles.9, nibbles.10, nibbles.11, nibbles.12, nibbles.13, nibbles.14, nibbles.15]
-        let nibbleString = array.map { String(format: "%X", $0) }.joined()
+        let nibbleString = array.reversed().map { String(format: "%X", $0) }.joined()
         return HStack(spacing: 4) {
             Text(label)
                 .font(.system(size: baseFontSize + 2, weight: .bold, design: .monospaced))
@@ -398,11 +408,21 @@ struct CPUInspectorView: View {
     // MARK: - ROM Heatmap Section
 
     private func romHeatmapSection(width: CGFloat) -> some View {
-        // currentPC read at 60 Hz drives the green-dot overlay; CGImage update is at 10 Hz.
-        let currentPC = Int(vm.cpuDebugSnapshot.currentPC)
+        // Use the same isCurrent entry that highlights the instruction list row —
+        // cpuDebugSnapshot.currentPC is the *next* (pre-fetch) PC, which is one ahead.
+        let currentPC = displayHistory.first(where: { $0.isCurrent }).map { Int($0.pc) } ?? -1
         let cols      = CGFloat(HeatmapRenderer.cols)
         let rows      = CGFloat(HeatmapRenderer.rows)
         let cellSize  = max(2.0, width / cols)
+        let cw        = width / cols  // on-screen cell width (may differ from cellSize when width < 160)
+
+        // Convert a canvas-local point to a ROM address (nil if out of bounds).
+        func addressAt(_ pt: CGPoint) -> Int? {
+            let col = Int(pt.x / cw)
+            let row = Int(pt.y / cellSize)
+            guard col >= 0, col < Int(cols), row >= 0, row < Int(rows) else { return nil }
+            return row * Int(cols) + col
+        }
 
         return VStack(spacing: 0) {
             HStack {
@@ -410,6 +430,12 @@ struct CPUInspectorView: View {
                     .font(.system(size: 9, weight: .bold, design: .monospaced))
                     .foregroundStyle(.white.opacity(0.45))
                 Spacer()
+                if let addr = heatmapHoveredAddress {
+                    Text(String(format: "0x%04X", addr))
+                        .font(.system(size: 9, weight: .bold, design: .monospaced))
+                        .foregroundStyle(Color(red: 1.0, green: 0.84, blue: 0.0).opacity(0.85))
+                        .padding(.trailing, 6)
+                }
                 Button("CLR") { vm.clearRomHeatmap(); heatmapRenderer.reset() }
                     .font(.system(size: 9, weight: .bold, design: .monospaced))
                     .foregroundStyle(.white.opacity(0.45))
@@ -447,6 +473,19 @@ struct CPUInspectorView: View {
             }
             .frame(height: rows * cellSize)
             .background(Color(white: 0.13))
+            // macOS pointer hover and iPadOS pointer device.
+            .onContinuousHover { phase in
+                switch phase {
+                case .active(let location): heatmapHoveredAddress = addressAt(location)
+                case .ended:               heatmapHoveredAddress = nil
+                }
+            }
+            // iOS/iPadOS finger touch: show address while held, clear on lift.
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in heatmapHoveredAddress = addressAt(value.location) }
+                    .onEnded   { _     in heatmapHoveredAddress = nil }
+            )
             .onChange(of: vm.romHitCount) { _, hitCount in
                 heatmapRenderer.update(hitCount: hitCount)
             }
@@ -460,8 +499,10 @@ struct CPUInspectorView: View {
     // MARK: - Helpers
 
     private func bin16(_ v: UInt16) -> String {
-        let s = String(v, radix: 2)
-        return String(repeating: "0", count: max(0, 16 - s.count)) + s
+        let bits = (0..<16).map { i in (v >> (15 - i)) & 1 }
+        return stride(from: 0, to: 16, by: 4)
+            .map { g in bits[g..<g+4].map { String($0) }.joined() }
+            .joined(separator: " ")
     }
 
     private func adaptiveFontSize(width: CGFloat) -> CGFloat {

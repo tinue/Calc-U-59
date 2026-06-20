@@ -9,6 +9,16 @@ enum FreezeReason {
     case variable(Int, Double) // future: freeze when register matches value
 }
 
+/// Which debug panel owns the current freeze.
+/// RESUME and STEP are only enabled in the owning panel; the other panel's buttons are
+/// disabled while frozen to prevent cross-panel confusion (e.g. CALCULATOR STEP while
+/// frozen in CPU would silently resume until the next keycode boundary).
+enum FreezePanel { case cpu, calculator }
+
+/// Selected tab in the debug pane. Stored on EmulatorViewModel so the
+/// selection survives navigation on iPhone (where DebugView is recreated).
+enum DebugTab { case live, cpu, log }
+
 enum DebugLevel: Int, Comparable {
     case off   = 0
     case info  = 1
@@ -28,6 +38,12 @@ enum DebugLevel: Int, Comparable {
 enum ProgramSource: UInt8 {
     case userProgram = 0
     case solidState = 1
+    /// Transitional state after a RTN whose return level points back into the
+    /// solid-state module: SCOM[0] nibbles 4–7 hold the saved CROM return
+    /// address (plain BCD, not a step number) and the firmware reloads the
+    /// CROM PC from it on the next keycode dispatch before setting the flag
+    /// back to 1. Lasts exactly one single-step.
+    case solidStateReturn = 2
     case fastMode = 4
     case rom = 8
 }
@@ -56,9 +72,7 @@ class EmulatorViewModel {
     var printerTrace: Bool = false
     var printerConnected: Bool = true
 
-    // ── C indicator drop debugger ─────────────────────────────────────────────
-    // When enabled, prints one line per drop event — not 60 lines/s.
-    // Watches snap.calcIndicator (raw C++ duty cycle, before Swift smoothing).
+    // ── C indicator trace writer ──────────────────────────────────────────────
     // Also writes TI59_TRACE.bin (binary format — see DebugAPI.md).
     var cIndicatorDebug: Bool = false {
         didSet {
@@ -74,18 +88,18 @@ class EmulatorViewModel {
                     return
                 }
 
-                guard let m = machine else { return }
+                guard machine != nil else { return }
 
                 // b) Tell C-code to start tracing
-                m.traceFlags = [.pc, .regsFull]
+                updateDebugTraceFlags()
 
                 // c) Start draining via tick() calls (happens automatically at 60 Hz)
             } else {
                 // TRACE DISABLED
                 guard let m = machine else { return }
 
-                // a) Tell C-code to stop writing events IMMEDIATELY
-                m.traceFlags = .flagsNone
+                // a) Stop generating events (unless another consumer still needs them)
+                updateDebugTraceFlags()
 
                 // b) Drain remaining buffer on main thread immediately
                 drainTraceEvents(machine: m)
@@ -95,12 +109,20 @@ class EmulatorViewModel {
             }
         }
     }
-    private var cDropDebugger = CDropDebugger()
     private var cZeroFrames: Int = 0   // consecutive frames where fA was zero the entire frame
     private var traceWriter: TraceWriter!  // initialized in init, updated when model changes
     var isTraceAvailable: Bool { traceWriter?.isAvailable ?? true }  // false if trace location (e.g., iCloud) unavailable
 
+    private func configureTraceWriter() {
+        traceWriter.onSizeLimitReached = { [weak self] in
+            // Called on the main thread from inside drainTraceEvents().
+            // Defer to avoid reentrance in the drain loop.
+            DispatchQueue.main.async { self?.cIndicatorDebug = false }
+        }
+    }
+
     // ── Debug panel state ────────────────────────────────────────────────────
+    var debugTab: DebugTab = .live   // persists tab selection across iPhone navigation
     var debugLevel: DebugLevel = .off
     var debugEnabled: Bool { debugLevel != .off }   // convenience for existing callers
     var debugLines: [String] = []
@@ -113,18 +135,68 @@ class EmulatorViewModel {
     var asmOverlayActive: Bool = false
 
     // ── Live debug panel state (60 Hz real-time) ──────────────────────────────
-    var liveDebugEnabled: Bool = true
-    var cpuDebugEnabled: Bool = true
+    // Both flags track panel visibility (set by LiveDebugView / CPUInspectorView
+    // onAppear/onDisappear).  While false, tick() skips the snapshot builds and
+    // the core runs with tracing fully disabled — its zero-overhead fast path.
+    var liveDebugEnabled: Bool = false {
+        didSet {
+            // When the panel becomes visible while already frozen, the freeze() path
+            // skipped building the snapshot (liveDebugEnabled was false at that time).
+            // Rebuild now so the correct frozen step is shown immediately on appear.
+            guard liveDebugEnabled, !oldValue, isFrozen, let m = machine else { return }
+            liveDebugSnapshot = buildLiveSnapshot(machine: m)
+        }
+    }
+    var cpuDebugEnabled: Bool = false {
+        didSet {
+            guard cpuDebugEnabled != oldValue else { return }
+            if cpuDebugEnabled && !isFrozen {
+                // The heatmap shows activity since the panel became visible:
+                // tracing is off while hidden, so reset and skip any ring backlog.
+                // When frozen the heatmap is static — don't wipe it on re-entry.
+                resetHeatmapBaseline()
+            }
+            updateDebugTraceFlags()
+        }
+    }
     var liveDebugSnapshot: LiveDebugSnapshot = .empty
-    var freezeReason: FreezeReason? = nil
+    var freezeReason: FreezeReason? = nil {
+        didSet { updateDebugTraceFlags() }
+    }
     var isFrozen: Bool { freezeReason != nil }
-    var pendingFreezeOnPCChange: Bool = false  // Freeze as soon as PC changes (first instruction)
+    var freezeOwner: FreezePanel? = nil  // set on freeze entry, cleared on unfreeze
+    var pendingFreezeOnPCChange: Bool = false {  // Freeze as soon as PC changes (first instruction)
+        didSet {
+            guard pendingFreezeOnPCChange != oldValue else { return }
+            updateDebugTraceFlags()
+        }
+    }
     private var lastObservedPC: UInt16 = 0     // Track PC to detect changes
+    private var lastObservedLibPC: UInt16 = 0xFFFF  // Track library exec PC (solid-state programs don't move the SCOM PC)
 
-    // Frozen program caches (built on freeze entry, reused until unfreeze)
-    private var frozenROMCache: [LiveDebugSnapshot.StepEntry]?
-    private var frozenRAMCache: [LiveDebugSnapshot.StepEntry]?
-    private var cachedPrSourceFlag: UInt8 = 0  // tracks which cache is currently valid
+    // CPU-tab "Freeze on Start": fires when the keyboard scan loop exits (key press or reset).
+    // Distinct from pendingFreezeOnPCChange (CALCULATOR tab: fires on any PC change).
+    var pendingCPUScanLoopFreeze: Bool = false {
+        didSet {
+            guard pendingCPUScanLoopFreeze != oldValue else { return }
+            updateDebugTraceFlags()
+        }
+    }
+    private var _cpuFreezeSeenLoop = false   // have we entered the scan loop since arming?
+    private var _cpuFreezeArmPC: UInt16 = 0xFFFF  // PC at arm time (guards against immediate 0000 re-trigger)
+
+    // Full program listing — always kept current (not just when frozen).
+    // Updated at 60 Hz by buildLiveSnapshot when running, and after each STEP/freeze-entry when frozen.
+    var programListing: [LiveDebugSnapshot.StepEntry] = []
+    var programListingSourceFlag: UInt8 = 0   // Prg Source flag the listing was built for
+
+    // ── Solid-state module image (for the live PROGRAM STEPS view) ────────────
+    // Swift-side copy of the module bytes plus the per-program byte ranges
+    // parsed from the module header. Program n (1-based) = moduleProgramRanges[n-1].
+    private var moduleKeycodes: [UInt8] = []
+    private var moduleProgramRanges: [Range<Int>] = []
+    private var romKeycodesCache: [UInt8] = []  // 384 main-ROM keycodes, constant per machine
+    private var lastLibProgramMismatch: Int = .min  // throttles SCOM[9] cross-check logging
 
     // ── Live CPU view state (60 Hz real-time, runs while emulating) ────────────
     var cpuDebugSnapshot: CPUDebugSnapshot = .empty
@@ -144,6 +216,34 @@ class EmulatorViewModel {
         romHeatmapLastSeqno = 0
         romHeatmapDirty = false
         heatmapTickCounter = 0
+    }
+
+    /// Clear the heatmap and skip whatever is still in the trace ring, so counting
+    /// starts at "now" rather than replaying up to 1024 stale frames from the last
+    /// time tracing was active.
+    private func resetHeatmapBaseline() {
+        clearRomHeatmap()
+        if let m = machine, let newest = m.readCpuFrames(max: 1).last {
+            var f = TICpuFrame()
+            newest.getValue(&f)
+            romHeatmapLastSeqno = f.seqno
+        }
+    }
+
+    /// Single owner of the machine's trace flags.  Recomputed whenever a consumer
+    /// changes state: CPU debug panel visibility, freeze mode (incl. armed
+    /// freeze-on-start), the binary trace toggle, or the breakpoint set.
+    /// With no consumer active the core runs with TRACE_NONE — its fast path.
+    private func updateDebugTraceFlags() {
+        guard let m = machine else { return }
+        var flags: TITraceFlags = []
+        if cpuDebugEnabled || isFrozen || cIndicatorDebug || pendingFreezeOnPCChange || pendingCPUScanLoopFreeze {
+            flags.insert([.pc, .regsFull])
+        }
+        if !breakpoints.isEmpty {
+            flags.insert(.breakpoints)
+        }
+        if m.traceFlags != flags { m.traceFlags = flags }
     }
 
     // ── Frozen CPU inspector state (static snapshot when paused) ───────────────
@@ -209,6 +309,7 @@ class EmulatorViewModel {
     init() {
         // Initialize traceWriter with default model
         traceWriter = TraceWriter(model: model)
+        configureTraceWriter()
         // Check trace availability at startup (for iOS/iPadOS iCloud detection, etc.)
         traceWriter.checkAvailability()
         Task { await self.start(model: AppSettings.resolvedStartupModel()) }
@@ -240,10 +341,14 @@ class EmulatorViewModel {
         stop()
         await drainEmulQueue()   // ensure old loop has exited before starting the new one
         self.model = model
+        // A fresh machine is created below; the printer's TRACE latch is released
+        // on a model change (the new core instance starts with it off).
+        printerTrace = false
         userCueCardContent = nil
         activeProgramNumber = 0
         cueCardContent = nil  // clear cuecard when switching models
-        traceWriter = TraceWriter(model: model)  // reinitialize with new model for correct trace filename
+        traceWriter = TraceWriter(model: model)
+        configureTraceWriter()  // reinitialize with new model for correct trace filename
         UserDefaults.standard.set(model.rawValue, forKey: SettingsKey.lastUsedModel)
         await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .utility).async {
@@ -262,8 +367,10 @@ class EmulatorViewModel {
             // Load solid-state library module
             if let libData = ROMLoader.loadModuleLibrary(moduleID: self.selectedModuleID) {
                 wrapper.loadLibrary(libData)
+                cacheModuleImage(libData)
             } else {
                 Self.logger.error("Solid-state module library was not loaded; continuing without library data")
+                cacheModuleImage(nil)
             }
             let (cards, metadata) = ROMLoader.loadModuleCardsAndMetadata(moduleID: self.selectedModuleID)
             moduleCueCards = cards
@@ -293,6 +400,10 @@ class EmulatorViewModel {
             }
 
             self.machine = wrapper
+            updateDebugTraceFlags()   // new wrapper starts with TRACE_NONE; re-apply consumer state
+            // New machine restarts frame seqnos at 0; without a reset the
+            // `seqno > romHeatmapLastSeqno` filter would reject all new frames.
+            resetHeatmapBaseline()
             hasCardFile = CardStorage.hasCard
             startEmulationLoop()
             startDisplayRefresh()
@@ -328,6 +439,30 @@ class EmulatorViewModel {
                         return
                     }
                     cyclesDone += Int32(result & 0x7FFF_FFFF)
+
+                    // Per-step scan loop exit check (must be inside the step loop for
+                    // exact PC precision — a post-batch check lands hundreds of
+                    // instructions late after reset clears the loop in one burst).
+                    if self.pendingCPUScanLoopFreeze, let range = self.cpuScanLoopRange {
+                        let pc = m.currentPC
+                        if range.contains(pc) {
+                            self._cpuFreezeSeenLoop = true
+                        } else if self._cpuFreezeSeenLoop || (pc == 0x0000 && self._cpuFreezeArmPC != 0x0000) {
+                            self.freezeOwner = .cpu
+                            self.isRunning = false
+                            self.freezeReason = .manual
+                            self.pendingCPUScanLoopFreeze = false
+                            self._cpuFreezeSeenLoop = false
+                            DispatchQueue.main.async { [weak self] in
+                                guard let self else { return }
+                                if self.liveDebugEnabled {
+                                    self.liveDebugSnapshot = self.buildLiveSnapshot(machine: m)
+                                }
+                                self.captureInspectorSnapshot(machine: m)
+                            }
+                            return
+                        }
+                    }
                 }
                 // Subtract rather than reset to zero: carry the overshoot into
                 // the next batch so long-term average speed stays exact.
@@ -339,17 +474,21 @@ class EmulatorViewModel {
                     let cpu = m.snapshotCPU()
                     let currentPC = self.decodeProgramCounter(from: cpu)
 
-                    // Check if PC has changed from when we armed the freeze
-                    if UInt16(currentPC) != self.lastObservedPC {
-                        // PC has changed — freeze now
+                    // Check if either PC has changed from when we armed the
+                    // freeze. Solid-state programs never move the SCOM PC, so
+                    // the library exec latch is watched as a second trigger.
+                    if UInt16(currentPC) != self.lastObservedPC || m.libExecPC != self.lastObservedLibPC {
+                        // PC has changed — freeze now.  Set freezeReason before
+                        // clearing the armed flag so updateDebugTraceFlags()
+                        // (fired by both didSets) keeps tracing enabled throughout.
+                        self.freezeOwner = .calculator
                         self.isRunning = false
-                        self.pendingFreezeOnPCChange = false
                         self.freezeReason = .manual
+                        self.pendingFreezeOnPCChange = false
                         DispatchQueue.main.async { [weak self] in
                             guard let self else { return }
-                            if self.liveDebugEnabled {
-                                self.liveDebugSnapshot = self.buildLiveSnapshot(machine: m)
-                            }
+                            m.beginNextStep()
+                            self.liveDebugSnapshot = self.buildLiveSnapshot(machine: m)
                             self.captureInspectorSnapshot(machine: m)
                         }
                         return
@@ -500,7 +639,6 @@ class EmulatorViewModel {
         }
 
         if cIndicatorDebug {
-            cDropDebugger.update(snap.calcIndicator)
             // Drain trace events directly on main thread (tick() is already on main).
             // The emulation loop runs on the serial emulQueue, so async dispatches would
             // never execute until the loop exits — we drain here at 60 Hz instead.
@@ -592,6 +730,8 @@ class EmulatorViewModel {
     }
     func setPrinterConnected(_ connected: Bool) {
         printerConnected = connected
+        // Attaching or detaching the printer physically releases the TRACE latch.
+        printerTrace = false
         machine?.setPrinterConnected(connected)
     }
     func cutPaper() { printerLines = []; printerCodeLines = []; printerClearID &+= 1 }
@@ -607,8 +747,10 @@ class EmulatorViewModel {
         }
         if let libData = ROMLoader.loadModuleLibrary(moduleID: id) {
             m.loadLibrary(libData)
+            cacheModuleImage(libData)
         } else {
             Self.logger.error("Failed to load module ROM: \(id, privacy: .public)")
+            cacheModuleImage(nil)
         }
         let (cards, meta) = ROMLoader.loadModuleCardsAndMetadata(moduleID: id)
         moduleCueCards = cards
@@ -632,9 +774,11 @@ class EmulatorViewModel {
         userCueCardContent = nil
         activeProgramNumber = 0
         cueCardContent = resolvedCueCard()
-        printerTrace = false
-        machine?.setPrinterTrace(false)
+        // The printer's TRACE button is a physical hardware latch — a calculator
+        // reset does not release it.  The core preserves it across reset(); it is
+        // released only on printer attach/detach or model change.
         machine?.reset()
+        resetHeatmapBaseline()
 
         // TI-58C: restore persisted memory after reset
         if model.hasConstantMemory {
@@ -667,9 +811,9 @@ class EmulatorViewModel {
         userCueCardContent = nil
         activeProgramNumber = 0
         cueCardContent = resolvedCueCard()
-        printerTrace = false
-        machine?.setPrinterTrace(false)
+        // TRACE is a physical latch — preserved across reset by the core (see resetMachine).
         machine?.reset()
+        resetHeatmapBaseline()
         // Write zeroed state for TI-58C immediately
         persistConstantMemory()
         debugAppend(["Clean Reset — all registers cleared"])
@@ -966,22 +1110,13 @@ class EmulatorViewModel {
     func addBreakpoint(_ pc: UInt16) {
         breakpoints.insert(pc)
         machine?.addBreakpoint(pc)
-        // Ensure TRACE_BREAKPOINTS is armed.
-        if let m = machine {
-            var f = m.traceFlags
-            f.insert(.breakpoints)
-            m.traceFlags = f
-        }
+        updateDebugTraceFlags()   // arms TRACE_BREAKPOINTS
     }
 
     func removeBreakpoint(_ pc: UInt16) {
         breakpoints.remove(pc)
         machine?.removeBreakpoint(pc)
-        if breakpoints.isEmpty, let m = machine {
-            var f = m.traceFlags
-            f.remove(.breakpoints)
-            m.traceFlags = f
-        }
+        updateDebugTraceFlags()
     }
 
     func resumeFromBreakpoint() {
@@ -1044,18 +1179,54 @@ class EmulatorViewModel {
 
     func freezeOnNextPCChange() {
         // Prepare to freeze as soon as the program counter changes (first instruction executes)
-        // Track the decoded PC (from SCOM), not the raw CPU PC
+        // Track the decoded PC (from SCOM), not the raw CPU PC — plus the
+        // library exec latch, which is the PC for solid-state programs
+        // Mutex: disarm CPU scan-loop freeze if active
+        disarmCPUScanLoopFreeze()
         pendingFreezeOnPCChange = true
         guard let m = machine else { return }
         let cpu = m.snapshotCPU()
         lastObservedPC = UInt16(decodeProgramCounter(from: cpu))
+        lastObservedLibPC = m.libExecPC
+    }
+
+    /// Arm the CPU-tab "Freeze on Start": fires when the keyboard scan loop exits.
+    /// Scan loop ranges: TI-59/58 = 0x063C–0x0658, TI-58C = 0x063D–0x0A2E.
+    /// Trigger conditions: (a) PC was inside loop and exits (key press or reset while idle),
+    /// or (b) PC jumps to 0x0000 while outside the loop (reset during program execution).
+    func freezeOnScanLoopExit() {
+        // Mutex: disarm CALCULATOR any-PC-change freeze if active
+        pendingFreezeOnPCChange = false
+        _cpuFreezeSeenLoop = false
+        _cpuFreezeArmPC = machine?.currentPC ?? 0xFFFF
+        pendingCPUScanLoopFreeze = true
+    }
+
+    func disarmCPUScanLoopFreeze() {
+        _cpuFreezeSeenLoop = false
+        pendingCPUScanLoopFreeze = false
+    }
+
+    private var cpuScanLoopRange: ClosedRange<UInt16>? {
+        switch model {
+        case .ti59, .ti58: return 0x063C...0x0658
+        case .ti58c:       return 0x063D...0x0A2E
+        }
+    }
+
+    /// Freeze with an explicit panel owner (called by the FREEZE button in each panel).
+    func freeze(from panel: FreezePanel) {
+        freezeOwner = panel
+        freeze()
     }
 
     func freeze(reason: FreezeReason = .manual, waitForKeycode: Bool = true) {
         isRunning = false
         freezeReason = reason
         asmOverlayActive = false
-        pendingFreezeOnPCChange = false  // Cancel any pending freeze
+        pendingFreezeOnPCChange = false   // Cancel any pending CALCULATOR freeze
+        pendingCPUScanLoopFreeze = false  // Cancel any pending CPU scan-loop freeze
+        _cpuFreezeSeenLoop = false
         guard let m = machine else { return }
         // Advance to the next keycode boundary on the emulation queue (runs after the
         // running loop exits, since emulQueue is serial). Then capture state.
@@ -1068,19 +1239,8 @@ class EmulatorViewModel {
                 guard let self else { return }
                 // Pre-execution phase: prepare ring buffer and snapshot for display
                 m.beginNextStep()
-                // Build program caches on freeze entry
-                let cpu = m.snapshotCPU()
-                let currentStep = self.decodeProgramCounter(from: cpu)
-                let prSourceFlag = UInt8(cpu.SCOM.0.3)
-                self.cachedPrSourceFlag = prSourceFlag
-                if self.isUserProgramSource(prSourceFlag) {
-                    self.frozenRAMCache = self.buildFullProgram(machine: m, currentStep: currentStep, prSourceFlag: 0)
-                } else if prSourceFlag == ProgramSource.rom.rawValue {
-                    self.frozenROMCache = self.buildFullProgram(machine: m, currentStep: currentStep, prSourceFlag: 8)
-                }
-                if self.liveDebugEnabled {
-                    self.liveDebugSnapshot = self.buildLiveSnapshot(machine: m)
-                }
+                // buildLiveSnapshot refreshes programListing as a side effect (always, not just when liveDebugEnabled)
+                self.liveDebugSnapshot = self.buildLiveSnapshot(machine: m)
                 self.captureInspectorSnapshot(machine: m)
             }
         }
@@ -1099,22 +1259,38 @@ class EmulatorViewModel {
                 guard let self else { return }
                 m.beginNextStep()
                 let cpu = m.snapshotCPU()
-                let currentStep = self.decodeProgramCounter(from: cpu)
                 let prSourceFlag = UInt8(cpu.SCOM.0.3)
+                let isLibSource = prSourceFlag == ProgramSource.solidState.rawValue
+                let libInfo = isLibSource ? self.libraryProgramStep(machine: m) : nil
+                let currentStep = isLibSource ? (libInfo?.step ?? -1)
+                                              : self.decodeProgramCounter(from: cpu)
 
-                // Check if Prg Source changed; if so, rebuild appropriate cache
-                if prSourceFlag != self.cachedPrSourceFlag {
-                    self.cachedPrSourceFlag = prSourceFlag
-                    if self.isUserProgramSource(prSourceFlag) {
-                        self.frozenRAMCache = self.buildFullProgram(machine: m, currentStep: currentStep, prSourceFlag: 0)
-                        self.frozenROMCache = nil
-                    } else if prSourceFlag == ProgramSource.rom.rawValue {
-                        self.frozenROMCache = self.buildFullProgram(machine: m, currentStep: currentStep, prSourceFlag: 8)
-                        self.frozenRAMCache = nil
-                    }
+                // Update always-live program listing.
+                // Prg Source 2 (solidStateReturn): SCOM[0] holds a raw CROM return address —
+                // keep the previous listing and advance the highlight onto the just-executed RTN.
+                // All other sources: rebuild from current machine state.
+                if prSourceFlag == ProgramSource.solidStateReturn.rawValue {
+                    self.advanceProgramListingCurrent()
                 } else {
-                    // Prg Source unchanged: update isCurrent markers in existing cache
-                    self.updateCachedProgramCurrent(to: currentStep, prSourceFlag: prSourceFlag)
+                    let sourceKeycodes: [UInt8]
+                    let effectiveStep: Int
+                    if self.isUserProgramSource(prSourceFlag) {
+                        sourceKeycodes = Array(m.allProgramSteps() as Data)
+                        effectiveStep = max(0, currentStep - 1)
+                    } else if prSourceFlag == ProgramSource.rom.rawValue {
+                        sourceKeycodes = self.romKeycodes(machine: m)
+                        effectiveStep = max(0, currentStep - 1)
+                    } else if isLibSource {
+                        sourceKeycodes = libInfo.map { Array(self.moduleKeycodes[$0.range]) } ?? []
+                        effectiveStep = currentStep
+                    } else {
+                        sourceKeycodes = []
+                        effectiveStep = -1
+                    }
+                    let argSteps = TI59KeyNames.argumentSteps(in: sourceKeycodes)
+                    self.refreshProgramListing(machine: m, prSourceFlag: prSourceFlag,
+                                              currentStep: effectiveStep,
+                                              sourceKeycodes: sourceKeycodes, argSteps: argSteps)
                 }
 
                 if self.liveDebugEnabled {
@@ -1175,43 +1351,45 @@ class EmulatorViewModel {
         cpuInspectorUpdateID &+= 1
     }
 
-    /// Update isCurrent markers in the cached program for the given current step.
-    /// Clears old current marker and sets new one.
-    private func updateCachedProgramCurrent(to currentStep: Int, prSourceFlag: UInt8) {
-        if isUserProgramSource(prSourceFlag), var cache = frozenRAMCache {
-            for i in 0..<cache.count {
-                cache[i].isCurrent = (cache[i].stepNum == currentStep)
-            }
-            frozenRAMCache = cache
-        } else if prSourceFlag == ProgramSource.rom.rawValue, var cache = frozenROMCache {
-            for i in 0..<cache.count {
-                cache[i].isCurrent = (cache[i].stepNum == currentStep)
-            }
-            frozenROMCache = cache
+    /// Index of the current step in programListing, or -1 if none is marked current.
+    var programListingCurrentIndex: Int {
+        programListing.firstIndex(where: { $0.isCurrent }) ?? -1
+    }
+
+    /// Rebuild programListing from the current machine state.
+    /// For Prg Source 2 (solidStateReturn) call advanceProgramListingCurrent() instead —
+    /// that source's SCOM PC is a raw return address, not a step number.
+    private func refreshProgramListing(machine m: TI59MachineWrapper, prSourceFlag: UInt8, currentStep: Int,
+                                       sourceKeycodes: [UInt8], argSteps: Set<Int>) {
+        guard !sourceKeycodes.isEmpty else { programListing = []; return }
+        programListingSourceFlag = prSourceFlag
+        programListing = sourceKeycodes.enumerated().map { i, kc in
+            .init(stepNum: i, keycode: kc,
+                  mnemonic: argSteps.contains(i) ? String(format: "%02d", kc) : TI59KeyNames.mnemonic(for: kc),
+                  isCurrent: i == currentStep)
         }
     }
 
-    /// Return the full cached program when frozen, or nil if not frozen.
-    var frozenCachedProgram: [LiveDebugSnapshot.StepEntry]? {
-        if isUserProgramSource(cachedPrSourceFlag) {
-            return frozenRAMCache
-        } else if cachedPrSourceFlag == ProgramSource.rom.rawValue {
-            return frozenROMCache
-        }
-        return nil
+    /// Move the isCurrent marker one step forward in programListing.
+    /// Used for Prg Source 2 (solidStateReturn): keep the previous listing visible,
+    /// advance the highlight onto the just-executed RTN.
+    private func advanceProgramListingCurrent() {
+        guard let idx = programListing.firstIndex(where: { $0.isCurrent }),
+              idx + 1 < programListing.count else { return }
+        programListing[idx].isCurrent = false
+        programListing[idx + 1].isCurrent = true
     }
 
-    /// Return the index of the current step in the cached program when frozen, or -1 if not frozen.
-    var frozenCachedCurrentIndex: Int {
-        guard let program = frozenCachedProgram else { return -1 }
-        return program.firstIndex(where: { $0.isCurrent }) ?? -1
+    /// Drop the freeze reason and ownership.  programListing is intentionally
+    /// NOT cleared — it stays current and will be refreshed by the 60 Hz loop
+    /// once the emulator resumes.
+    private func clearFrozenState() {
+        freezeReason = nil
+        freezeOwner = nil
     }
 
     func unfreeze() {
-        freezeReason = nil
-        frozenROMCache = nil
-        frozenRAMCache = nil
-        cachedPrSourceFlag = 0
+        clearFrozenState()
         startEmulationLoop()
         startDisplayRefresh()
     }
@@ -1223,9 +1401,78 @@ class EmulatorViewModel {
         flag == ProgramSource.userProgram.rawValue || flag == ProgramSource.fastMode.rawValue
     }
 
-    /// Returns true if the flag represents a displayable program source in the debug window.
-    private func isDisplayableSource(_ flag: UInt8) -> Bool {
+    /// Returns true if the flag represents a program source whose step is
+    /// driven by the SCOM[0] PC and can be shown via the SCOM-PC fallback path.
+    /// Solid State (1) also shows steps, but through the CROM exec latch via a
+    /// separate early branch — it is not covered here.
+    private func isScomDisplayableSource(_ flag: UInt8) -> Bool {
         flag == ProgramSource.userProgram.rawValue || flag == ProgramSource.fastMode.rawValue || flag == ProgramSource.rom.rawValue
+    }
+
+    // MARK: - Solid-state module program table
+
+    /// Cache the module image and parse its header into per-program byte ranges.
+    /// Header layout (https://www.datamath.org/Chips/TMC0540.htm): byte 0 =
+    /// program count (BCD), byte 1 = copy-protect flag, then one 2-byte BCD
+    /// start address per program, followed by a pointer one past the last
+    /// keycode of the final program.
+    private func cacheModuleImage(_ data: Data?) {
+        // Model/module switches rebuild the machine, so drop the ROM keycode
+        // cache here; romKeycodes(machine:) refills it lazily from the new wrapper.
+        romKeycodesCache = []
+        let raw = data.map { [UInt8]($0) } ?? []
+        func bcd(_ b: UInt8) -> Int { Int(b >> 4) * 10 + Int(b & 0xF) }
+
+        // Module bytes are BCD: keycode 76 is stored as 0x76. Decode once so
+        // every consumer (mnemonics, stepsAfter, listing) sees plain keycodes.
+        moduleKeycodes = raw.map { UInt8(bcd($0)) }
+        moduleProgramRanges = []
+        guard raw.count > 2 else { return }
+
+        func pointer(at offset: Int) -> Int? {
+            guard offset + 1 < raw.count else { return nil }
+            return bcd(raw[offset]) * 100 + bcd(raw[offset + 1])
+        }
+
+        let programCount = bcd(raw[0])
+        guard programCount > 0 else { return }
+
+        // Program n's start pointer lives at bytes 2n/2n+1; the entry after
+        // program N's pointer marks the end of the last program.
+        var boundaries: [Int] = []
+        for n in 1...(programCount + 1) {
+            guard let p = pointer(at: 2 * n) else { return }
+            boundaries.append(p)
+        }
+        var ranges: [Range<Int>] = []
+        for i in 0..<programCount {
+            guard boundaries[i] < boundaries[i + 1], boundaries[i + 1] <= moduleKeycodes.count else {
+                Self.logger.error("Module header has non-monotonic program table; solid-state step view disabled")
+                return
+            }
+            ranges.append(boundaries[i]..<boundaries[i + 1])
+        }
+        moduleProgramRanges = ranges
+    }
+
+    /// The 384 main-ROM keycodes (PRG SOURCE = 8), fetched once per machine —
+    /// they live in the constant ROM, so per-frame bridge calls are avoided.
+    private func romKeycodes(machine m: TI59MachineWrapper) -> [UInt8] {
+        if romKeycodesCache.count != 384 {
+            romKeycodesCache = (0..<384).map { m.romKeycode(at: $0) }
+        }
+        return romKeycodesCache
+    }
+
+    /// Resolve the latched library execution address to the containing module
+    /// program. Returns the 1-based program number, the program-relative step
+    /// (000 = first keycode of the program), and the program's byte range —
+    /// or nil when no module keycode has executed yet.
+    private func libraryProgramStep(machine m: TI59MachineWrapper) -> (program: Int, step: Int, range: Range<Int>)? {
+        let pc = Int(m.libExecPC)
+        guard pc != 0xFFFF else { return nil }
+        guard let idx = moduleProgramRanges.firstIndex(where: { $0.contains(pc) }) else { return nil }
+        return (idx + 1, pc - moduleProgramRanges[idx].lowerBound, moduleProgramRanges[idx])
     }
 
     // MARK: - Calculator-level snapshot
@@ -1271,82 +1518,6 @@ class EmulatorViewModel {
                             printerBuffer: m.printerBufferContent, cpu: cpu)
     }
 
-    /// Build full program for a given source (RAM or ROM), used for freeze caching.
-    /// Returns all steps as StepEntry with mnemonics, marking currentStep as current.
-    private func buildFullProgram(machine m: TI59MachineWrapper, currentStep: Int, prSourceFlag: UInt8) -> [LiveDebugSnapshot.StepEntry] {
-        var result: [LiveDebugSnapshot.StepEntry] = []
-
-        switch prSourceFlag {
-        case 0:
-            // User RAM — all program steps
-            let steps = Array(m.allProgramSteps() as Data)
-            guard !steps.isEmpty else { return [] }
-
-            // Build set of argument step indices
-            var argSteps = Set<Int>()
-            for i in 0..<steps.count {
-                let stepsAfter = TI59KeyNames.stepsAfter(for: steps[i])
-                if stepsAfter > 0 {
-                    for j in 1...stepsAfter {
-                        if i + j < steps.count {
-                            argSteps.insert(i + j)
-                        }
-                    }
-                }
-            }
-
-            for i in 0..<steps.count {
-                let kc = steps[i]
-                let isArgument = argSteps.contains(i)
-                let mnemonic = isArgument ? String(format: "%02d", kc) : TI59KeyNames.mnemonic(for: kc)
-
-                result.append(.init(
-                    stepNum: i,
-                    keycode: kc,
-                    mnemonic: mnemonic,
-                    isCurrent: i == currentStep
-                ))
-            }
-
-        case 8:
-            // Main ROM (384 steps)
-            var keycodes: [UInt8] = []
-            for addr in 0..<384 {
-                keycodes.append(m.romKeycode(at: addr))
-            }
-
-            // Detect argument step indices
-            var argSteps = Set<Int>()
-            for i in 0..<keycodes.count {
-                let stepsAfter = TI59KeyNames.stepsAfter(for: keycodes[i])
-                if stepsAfter > 0 {
-                    for j in 1...stepsAfter {
-                        if i + j < keycodes.count {
-                            argSteps.insert(i + j)
-                        }
-                    }
-                }
-            }
-
-            for (idx, keycode) in keycodes.enumerated() {
-                let isArgument = argSteps.contains(idx)
-                let mnemonic = isArgument ? String(format: "%02d", keycode) : TI59KeyNames.mnemonic(for: keycode)
-
-                result.append(.init(
-                    stepNum: idx,
-                    keycode: keycode,
-                    mnemonic: mnemonic,
-                    isCurrent: idx == currentStep
-                ))
-            }
-
-        default:
-            // Library or other: TBD
-            break
-        }
-
-        return result
-    }
 
     /// Build a real-time debug snapshot for the live debug view.
     /// Called from tick() at 60 Hz only when liveDebugEnabled.
@@ -1367,20 +1538,22 @@ class EmulatorViewModel {
         // Hidden registers (displayableRegs to totalRegs-1) shown as H##
         // Guard against quirky partitions: only access what physically exists
         guard programRegs <= totalRegs else { return snap }
-        for ramIdx in programRegs..<totalRegs {
-            guard ramIdx >= 0 && ramIdx < totalRegs else { continue }
+        // One bridge call to locate the non-zero registers, then fetch only those —
+        // instead of up to 120 individual rawRegister calls per 60 Hz frame.
+        let nonZeroRamIndices = m.nonZeroDataRegisterIndices()
+            .map { totalRegs - 1 - $0 }   // bridge indices count down from the top of RAM
+            .sorted()
+        for ramIdx in nonZeroRamIndices where ramIdx >= programRegs && ramIdx < totalRegs {
             let raw = m.rawRegister(ramIdx) as Data
-            if raw.contains(where: { $0 != 0 }) {
-                let value = TI59MachineWrapper.decodeBCD(raw)
-                if ramIdx < displayableRegs {
-                    // Visible register
-                    let regNum = displayableRegs - 1 - ramIdx
-                    snap.nonZeroRegs.append(.init(num: regNum, value: value, isHidden: false))
-                } else {
-                    // Hidden register
-                    let hiddenNum = ramIdx - displayableRegs
-                    snap.nonZeroRegs.append(.init(num: hiddenNum, value: value, isHidden: true))
-                }
+            let value = TI59MachineWrapper.decodeBCD(raw)
+            if ramIdx < displayableRegs {
+                // Visible register
+                let regNum = displayableRegs - 1 - ramIdx
+                snap.nonZeroRegs.append(.init(num: regNum, value: value, isHidden: false))
+            } else {
+                // Hidden register
+                let hiddenNum = ramIdx - displayableRegs
+                snap.nonZeroRegs.append(.init(num: hiddenNum, value: value, isHidden: true))
             }
         }
 
@@ -1500,10 +1673,29 @@ class EmulatorViewModel {
         // Program steps window — source depends on PRG SOURCE flag
         let decodedPC = decodeProgramCounter(from: cpu)
 
-        // Only display for sources we can fetch: 0 (User), 4 (Fast Mode), 8 (ROM)
-        let canDisplay = isDisplayableSource(snap.prSourceFlag)
+        // SCOM-PC-based sources: 0 (User), 4 (Fast Mode), 8 (ROM). Solid State
+        // (1) uses the CROM latch — handled by the libInfo branch below.
+        let canDisplayFromScomPC = isScomDisplayableSource(snap.prSourceFlag)
 
-        if canDisplay {
+        // Solid State (1): the step comes from the library exec latch, not the
+        // SCOM[0] program counter (which does not move during module execution).
+        let libInfo = snap.prSourceFlag == ProgramSource.solidState.rawValue
+            ? libraryProgramStep(machine: m) : nil
+
+        if let lib = libInfo {
+            // The latch points at the byte being dispatched, so it is already
+            // the "last executed" step when frozen — no −1 adjustment needed.
+            snap.currentStep = lib.step
+            snap.nextStepNum = isFrozen ? lib.step + 1 : -1
+
+            // Cross-check the range-derived program number against the Pgm
+            // register in SCOM[9] (same nibbles the cue card uses).
+            let scomProgram = Int(cpu.SCOM.9.4) * 10 + Int(cpu.SCOM.9.3)
+            if scomProgram != lib.program && scomProgram != lastLibProgramMismatch {
+                lastLibProgramMismatch = scomProgram
+                Self.logger.debug("Library exec PC resolves to Pgm \(lib.program) but SCOM[9] says Pgm \(scomProgram)")
+            }
+        } else if canDisplayFromScomPC {
             if isFrozen {
                 snap.currentStep = max(0, decodedPC - 1)
                 snap.nextStepNum = decodedPC
@@ -1513,124 +1705,59 @@ class EmulatorViewModel {
                 snap.nextStepNum = -1
             }
         } else {
-            // Unknown source (e.g., 1 = Solid State): can't display
+            // Unknown source: can't display
             snap.currentStep = -1
             snap.nextStepNum = -1
         }
 
-        // Pre-fetch RAM program steps once (used by both window and nextStep population)
-        let ramSteps = isUserProgramSource(snap.prSourceFlag) ? Array(m.allProgramSteps() as Data) : []
-
+        // Keycodes for the active source, fetched once per frame and shared by the
+        // window and next-step sections. User RAM (0/4) = full program, ROM (8) =
+        // 384 constants, Solid State (1) = current module program (step numbers
+        // relative to its start). Operand classification runs over the full
+        // listing so windows starting mid-instruction don't misread operands
+        // as opcodes.
+        let sourceKeycodes: [UInt8]
         switch snap.prSourceFlag {
-        case 0, 4:
-            // User RAM (0) or Fast Mode (4) — existing behavior
-            let steps = ramSteps
-            if !steps.isEmpty {
-                let center = snap.currentStep >= 0 ? snap.currentStep : 0
-                let lo = max(0, center - 5)
-                let hi = min(steps.count - 1, center + 5)
-                if lo <= hi {
-                    // Build set of argument step indices (not keycodes)
-                    var argSteps = Set<Int>()
-                    for i in lo...hi {
-                        let stepsAfter = TI59KeyNames.stepsAfter(for: steps[i])
-                        if stepsAfter > 0 {
-                            for j in 1...stepsAfter {
-                                if i + j <= hi {
-                                    argSteps.insert(i + j)
-                                }
-                            }
-                        }
-                    }
+        case 0, 4: sourceKeycodes = Array(m.allProgramSteps() as Data)
+        case 8:    sourceKeycodes = romKeycodes(machine: m)
+        case 1:    sourceKeycodes = libInfo.map { Array(moduleKeycodes[$0.range]) } ?? []
+        default:   sourceKeycodes = []
+        }
+        let argSteps = TI59KeyNames.argumentSteps(in: sourceKeycodes)
 
-                    for i in lo...hi {
-                        let kc = steps[i]
-                        let isArgument = argSteps.contains(i)
-                        let mnemonic = isArgument ? String(format: "%02d", kc) : TI59KeyNames.mnemonic(for: kc)
-
-                        snap.programWindow.append(.init(
-                            stepNum: i,
-                            keycode: kc,
-                            mnemonic: mnemonic,
-                            isCurrent: i == snap.currentStep
-                        ))
-                    }
+        // Program window: ±5 steps around the current step
+        if !sourceKeycodes.isEmpty {
+            let center = snap.currentStep >= 0 ? snap.currentStep : 0
+            let lo = max(0, center - 5)
+            let hi = min(sourceKeycodes.count - 1, center + 5)
+            if lo <= hi {
+                for i in lo...hi {
+                    let kc = sourceKeycodes[i]
+                    let mnemonic = argSteps.contains(i) ? String(format: "%02d", kc) : TI59KeyNames.mnemonic(for: kc)
+                    snap.programWindow.append(.init(
+                        stepNum: i,
+                        keycode: kc,
+                        mnemonic: mnemonic,
+                        isCurrent: i == snap.currentStep
+                    ))
                 }
             }
+        }
 
-        case 8:
-            // Main ROM (384 keycode programs from constants)
-            let romCenter = snap.currentStep
-            let lo = max(0, romCenter - 5)
-            let hi = min(383, romCenter + 5)
-
-            // Build array of keycodes for this range
-            var keycodes: [UInt8] = []
-            guard lo <= hi else { break }
-            for addr in lo...hi {
-                keycodes.append(m.romKeycode(at: addr))
-            }
-
-            // Detect argument step indices
-            var argSteps = Set<Int>()
-            for i in 0..<keycodes.count {
-                let stepsAfter = TI59KeyNames.stepsAfter(for: keycodes[i])
-                if stepsAfter > 0 {
-                    for j in 1...stepsAfter {
-                        if i + j < keycodes.count {
-                            argSteps.insert(i + j)
-                        }
-                    }
-                }
-            }
-
-            for (idx, keycode) in keycodes.enumerated() {
-                let addr = lo + idx
-                let isArgument = argSteps.contains(idx)
-                let mnemonic = isArgument ? String(format: "%02d", keycode) : TI59KeyNames.mnemonic(for: keycode)
-                snap.programWindow.append(.init(
-                    stepNum: addr, keycode: keycode, mnemonic: mnemonic,
-                    isCurrent: addr == romCenter))
-            }
-
-        default:
-            // PRG SOURCE = 1 (library) or other: TBD
-            break
+        // Always-live full program listing — skip solidStateReturn (raw CROM address in PC);
+        // that case is handled by advanceProgramListingCurrent() in stepKeycode.
+        if snap.prSourceFlag != ProgramSource.solidStateReturn.rawValue {
+            refreshProgramListing(machine: m, prSourceFlag: snap.prSourceFlag,
+                                  currentStep: snap.currentStep,
+                                  sourceKeycodes: sourceKeycodes, argSteps: argSteps)
         }
 
         // When frozen: populate nextStep fields from the next instruction to execute
-        if isFrozen && snap.nextStepNum >= 0 {
-            switch snap.prSourceFlag {
-            case 0, 4:
-                // User RAM (0) or Fast Mode (4) (steps already fetched above)
-                if snap.nextStepNum < ramSteps.count {
-                    let nextKeycode = ramSteps[snap.nextStepNum]
-                    snap.nextStepKeycode = nextKeycode
-                    let isArgument = {
-                        // Check if this step is an argument for a previous instruction
-                        if snap.nextStepNum == 0 { return false }
-                        let stepsAfter = TI59KeyNames.stepsAfter(for: ramSteps[snap.nextStepNum - 1])
-                        return stepsAfter > 0 && snap.nextStepNum - 1 + stepsAfter >= snap.nextStepNum
-                    }()
-                    snap.nextStepMnemonic = isArgument ? String(format: "%02d", nextKeycode) : TI59KeyNames.mnemonic(for: nextKeycode)
-                }
-            case 8:
-                // Main ROM
-                if snap.nextStepNum < 384 {
-                    let nextKeycode = m.romKeycode(at: snap.nextStepNum)
-                    snap.nextStepKeycode = nextKeycode
-                    let isArgument = {
-                        // Check if this step is an argument for a previous instruction
-                        if snap.nextStepNum == 0 { return false }
-                        let prevKeycode = m.romKeycode(at: snap.nextStepNum - 1)
-                        let stepsAfter = TI59KeyNames.stepsAfter(for: prevKeycode)
-                        return stepsAfter > 0 && snap.nextStepNum - 1 + stepsAfter >= snap.nextStepNum
-                    }()
-                    snap.nextStepMnemonic = isArgument ? String(format: "%02d", nextKeycode) : TI59KeyNames.mnemonic(for: nextKeycode)
-                }
-            default:
-                break
-            }
+        if isFrozen && snap.nextStepNum >= 0 && snap.nextStepNum < sourceKeycodes.count {
+            let nextKeycode = sourceKeycodes[snap.nextStepNum]
+            snap.nextStepKeycode = nextKeycode
+            let isArgument = argSteps.contains(snap.nextStepNum)
+            snap.nextStepMnemonic = isArgument ? String(format: "%02d", nextKeycode) : TI59KeyNames.mnemonic(for: nextKeycode)
         }
 
         // Return address stack (SCOM[14:15]) — 6 levels of subroutine return addresses
@@ -1706,11 +1833,8 @@ class EmulatorViewModel {
         snap.isPaused = isPausedOnBreakpoint
         snap.pausedPC = breakpointPC
 
-        // Ensure trace flags are set so the CPU generates events
-        let requiredFlags: TITraceFlags = [.pc, .regsFull]
-        if !m.traceFlags.contains(requiredFlags) {
-            m.traceFlags = m.traceFlags.union(requiredFlags)
-        }
+        // Trace flags are managed by updateDebugTraceFlags(); they are guaranteed
+        // on whenever this builder runs (cpuDebugEnabled or isFrozen).
 
         // Read (without draining) all recent frames from the ring buffer
         let framesNS = m.readCpuFrames(max: 1024)
@@ -1786,8 +1910,17 @@ class EmulatorViewModel {
 
     func loadASMOverlayFile(_ url: URL) {
         let scoped = url.startAccessingSecurityScopedResource()
-        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        if !scoped {
+            print("[WARN FileImporter] loadASMOverlayFile: security-scoped resource access denied — file may not be readable")
+        }
+        defer {
+            if scoped {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+
         guard let text = try? String(contentsOf: url, encoding: .utf8) else {
+            print("[WARN FileImporter] loadASMOverlayFile: failed to read file contents as UTF-8 from \(url.path)")
             asmStatusMessage = "Could not read ASM file."
             errorMessage = "Could not read ASM file."
             return
@@ -1795,22 +1928,29 @@ class EmulatorViewModel {
 
         do {
             let words = try parseASMWords(from: text)
+
             guard let m = machine else {
+                print("[WARN FileImporter] loadASMOverlayFile: machine is nil — cannot load overlay")
                 asmStatusMessage = "Machine not initialized yet."
                 return
             }
+
             let data = words.withUnsafeBufferPointer { Data(buffer: $0) }
-            guard m.loadDebugOverlayWords(data) else {
+            let loaded = m.loadDebugOverlayWords(data)
+            guard loaded else {
+                print("[WARN FileImporter] loadASMOverlayFile: overlay range exceeded (0x1800-0x1FFF) for \(words.count) word(s)")
                 asmStatusMessage = "ASM program exceeds overlay range 0x1800-0x1FFF."
                 errorMessage = asmStatusMessage
                 return
             }
+
             asmOverlayWords = words
             asmFileName = url.lastPathComponent
             asmWordCount = words.count
             asmStatusMessage = String(format: "Loaded %d word(s) at 0x1800.", words.count)
         } catch {
             let msg = error.localizedDescription
+            print("[WARN FileImporter] loadASMOverlayFile: parseASMWords threw: \(msg)")
             asmStatusMessage = msg
             errorMessage = msg
         }
@@ -1838,10 +1978,9 @@ class EmulatorViewModel {
         isPausedOnBreakpoint = false
         breakpointPC = nil
         pendingFreezeOnPCChange = false
-        freezeReason = nil
-        frozenROMCache = nil
-        frozenRAMCache = nil
-        cachedPrSourceFlag = 0
+        pendingCPUScanLoopFreeze = false
+        _cpuFreezeSeenLoop = false
+        clearFrozenState()
 
         var steps: UInt32 = 0
         var sawHold: ObjCBool = false
@@ -2152,10 +2291,7 @@ class EmulatorViewModel {
 
         isRunning = false
         // Clear freeze state without restarting the loop
-        freezeReason = nil
-        frozenROMCache = nil
-        frozenRAMCache = nil
-        cachedPrSourceFlag = 0
+        clearFrozenState()
         // Synchronous dispatch ensures the emulation loop has fully exited
         // before we touch RAM or SCOM.  Without this, a step() in-flight on
         // emulQueue could write stale values after our state-file writes.
@@ -2205,6 +2341,9 @@ class EmulatorViewModel {
                 m.writeDataRegister(regNum, nibbles: Data(nibbles))
             }
         }
+
+        // Fresh machine state → fresh heatmap (also skips the power-on walk above).
+        resetHeatmapBaseline()
 
         startEmulationLoop()
 
@@ -2265,9 +2404,9 @@ class EmulatorViewModel {
         guard !framesNS.isEmpty else { return }
 
         for frameVal in framesNS {
+            guard traceWriter.isOpen else { break }
             var frame = TICpuFrame()
             frameVal.getValue(&frame)
-
             traceWriter.write(frame: frame)
         }
     }
@@ -2379,55 +2518,4 @@ struct CPUDebugSnapshot: Equatable {
     static let empty = CPUDebugSnapshot()
 }
 
-// ── C indicator drop debugger ─────────────────────────────────────────────────
-//
-// Watches the raw duty-cycle float (snap.calcIndicator) at 60 Hz and emits one
-// console line per drop event.  A "drop" starts when duty falls to less than
-// 40 % of the previous frame's value (and previous was meaningfully non-zero).
-// It ends when duty recovers to at least 60 % of the pre-drop value.
-// Each log line shows: time since last drop, pre-drop level, minimum during
-// drop, frame count, elapsed ms, and recovery level — enough to see whether
-// drops are isolated 1-frame aliasing or sustained 2–3-frame sequences, and
-// whether they repeat at a regular (blink-rate) period.
 
-private struct CDropDebugger {
-    private var prev:        Float = 0
-    private var inDrop:      Bool  = false
-    private var dropFrom:    Float = 0
-    private var dropMin:     Float = 0
-    private var dropFrames:  Int   = 0
-    private var dropStart:   Double = 0          // CACurrentMediaTime()
-    private var lastDropEnd: Double = 0
-
-    mutating func update(_ duty: Float) {
-        let now = CACurrentMediaTime()
-
-        if !inDrop {
-            // Start a drop when duty falls below 40 % of the previous value
-            // and the previous value was above the noise floor.
-            if prev > 0.04 && duty < prev * 0.40 {
-                inDrop     = true
-                dropFrom   = prev
-                dropMin    = duty
-                dropFrames = 1
-                dropStart  = now
-            }
-        } else {
-            if duty >= dropFrom * 0.60 {
-                // Recovered — emit one summary line.
-                let elapsed   = (now - dropStart) * 1000
-                let sinceStr  = lastDropEnd > 0
-                    ? String(format: "+%.0f ms since last", (dropStart - lastDropEnd) * 1000)
-                    : "first drop"
-                print(String(format: "[C-DBG] DROP  from %.3f  min %.3f  %lld frame(s)  %.0f ms  → %.3f   (%@)",
-                             dropFrom, dropMin, Int64(dropFrames), elapsed, duty, sinceStr as NSString))
-                lastDropEnd = now
-                inDrop      = false
-            } else {
-                dropMin    = min(dropMin, duty)
-                dropFrames += 1
-            }
-        }
-        prev = duty
-    }
-}

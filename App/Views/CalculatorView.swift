@@ -6,7 +6,24 @@ struct CalculatorView: View {
     @Environment(EmulatorViewModel.self) var viewModel
 
     enum FilePickerMode { case asm, stateFile }
-    @State private var activeFilePickerMode: FilePickerMode?
+    // Two-variable design: filePickerMode is the source of truth for routing;
+    // filePickerPresented is the Bool that drives isPresented. SwiftUI may
+    // reset filePickerPresented to false on tap-outside dismiss (iPad popover)
+    // without calling the result handler, leaving filePickerMode non-nil.
+    // filePickerModeBinding always sets filePickerPresented = true on any write,
+    // so re-tapping "Select File" reopens the picker even if mode is unchanged.
+    @State private var filePickerMode: FilePickerMode?
+    @State private var filePickerPresented = false
+
+    private var filePickerModeBinding: Binding<FilePickerMode?> {
+        Binding(
+            get: { filePickerMode },
+            set: { newMode in
+                filePickerMode = newMode
+                if newMode != nil { filePickerPresented = true }
+            }
+        )
+    }
 
     private static let asmTypes = [UTType(filenameExtension: "asm") ?? .plainText]
     private static let stateFileTypes = [
@@ -15,17 +32,13 @@ struct CalculatorView: View {
         UTType(filenameExtension: "ti58c") ?? .data
     ]
 
-    private var filePickerBinding: Binding<Bool> {
-        Binding(
-            get: { activeFilePickerMode != nil },
-            set: { _ in }  // No-op setter; we reset state in result handler
-        )
-    }
 
     #if os(macOS)
     @State private var isCommandPressed = false
     #else
-    @State private var showingPrinter = false
+    enum PortraitPage { case calc, printer, debug }
+    @State private var portraitPage: PortraitPage = .calc
+    @AppStorage(SettingsKey.portraitDebugPage) private var debugPageEnabled: Bool = false
     @State private var showingSettings = false
     @State private var resetLongPressTriggered = false
     #endif
@@ -105,40 +118,39 @@ struct CalculatorView: View {
             Text(viewModel.errorMessage ?? "")
         }
         .fileImporter(
-            isPresented: filePickerBinding,
+            isPresented: $filePickerPresented,
             allowedContentTypes: {
-                guard let mode = activeFilePickerMode else { return [] }
-                switch mode {
-                case .asm:
-                    return Self.asmTypes
-                case .stateFile:
-                    return Self.stateFileTypes
+                switch filePickerMode {
+                case .asm:       return Self.asmTypes
+                case .stateFile: return Self.stateFileTypes
+                case .none:      return []
                 }
             }(),
             allowsMultipleSelection: false
         ) { result in
-            let mode = activeFilePickerMode
+            // Capture mode before any reset — on iPad, set(false) may have
+            // already fired (for tap-outside cancel) but filePickerMode is
+            // intentionally NOT reset there, so it's always valid here.
+            let mode = filePickerMode
+            filePickerMode = nil
+            filePickerPresented = false
 
             guard case .success(let urls) = result, let url = urls.first else {
-                activeFilePickerMode = nil
                 return
             }
 
             switch mode {
-            case .asm:
-                viewModel.loadASMOverlayFile(url)
-                activeFilePickerMode = nil
-            case .stateFile:
-                viewModel.loadStateFile(url)
-                activeFilePickerMode = nil
-            case .none:
-                activeFilePickerMode = nil
+            case .asm:       viewModel.loadASMOverlayFile(url)
+            case .stateFile: viewModel.loadStateFile(url)
+            case .none:      break
             }
         }
         #if os(macOS)
         .task {
             while true {
-                try? await Task.sleep(for: .milliseconds(50))
+                // Exit on cancellation: `try?` would swallow CancellationError and
+                // turn this loop into a busy-spin once the sleep stops sleeping.
+                do { try await Task.sleep(for: .milliseconds(50)) } catch { return }
                 let pressed = NSEvent.modifierFlags.contains(.command)
                 if isCommandPressed != pressed { isCommandPressed = pressed }
             }
@@ -158,7 +170,7 @@ struct CalculatorView: View {
             PrinterView()
                 .frame(minWidth: 220, maxWidth: 320)
             Divider()
-            DebugView(activeFilePickerMode: $activeFilePickerMode)
+            DebugView(activeFilePickerMode: filePickerModeBinding)
                 .frame(minWidth: 220)
         }
         #else
@@ -175,29 +187,17 @@ struct CalculatorView: View {
                         .frame(minWidth: 290, maxWidth: 360)
                     if UIDevice.current.userInterfaceIdiom == .pad {
                         Divider()
-                        DebugView(activeFilePickerMode: $activeFilePickerMode)
+                        DebugView(activeFilePickerMode: filePickerModeBinding)
                             .frame(minWidth: 220)
                     }
                 }
             } else {
-                ZStack {
-                    if showingPrinter {
-                        PrinterView()
-                            .overlay(alignment: .topLeading) {
-                                pageArrow(systemImage: "chevron.left") {
-                                    showingPrinter = false
-                                }
-                            }
-                    } else {
-                        calculatorBody(showLabels: showLabels)
-                            .overlay(alignment: .topTrailing) {
-                                pageArrow(systemImage: "chevron.right") {
-                                    showingPrinter = true
-                                }
-                            }
+                portraitPages(showLabels: showLabels)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .onAppear { portraitPage = .calc }
+                    .onChange(of: debugPageEnabled) { _, enabled in
+                        if !enabled && portraitPage == .debug { portraitPage = .printer }
                     }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         #endif
@@ -302,7 +302,7 @@ struct CalculatorView: View {
             #else
             Divider().frame(height: 20)
             Button("Preset", systemImage: "doc.badge.arrow.up") {
-                activeFilePickerMode = .stateFile
+                filePickerModeBinding.wrappedValue = .stateFile
             }
             .labelStyle(showLabel: showLabels)
             .controlSize(.large)
@@ -337,6 +337,42 @@ struct CalculatorView: View {
     }
 
     #if !os(macOS)
+    @ViewBuilder
+    private func portraitPages(showLabels: Bool) -> some View {
+        ZStack {
+            switch portraitPage {
+            case .calc:
+                calculatorBody(showLabels: showLabels)
+                    .overlay(alignment: .topLeading) {
+                        if debugPageEnabled {
+                            pageArrow(systemImage: "chevron.left") { portraitPage = .debug }
+                        }
+                    }
+                    .overlay(alignment: .topTrailing) {
+                        pageArrow(systemImage: "chevron.right") { portraitPage = .printer }
+                    }
+            case .printer:
+                PrinterView(portraitTopInset: 20)
+                    .overlay(alignment: .topLeading) {
+                        pageArrow(systemImage: "chevron.left") { portraitPage = .calc }
+                    }
+                    .overlay(alignment: .topTrailing) {
+                        if debugPageEnabled {
+                            pageArrow(systemImage: "chevron.right") { portraitPage = .debug }
+                        }
+                    }
+            case .debug:
+                DebugView(activeFilePickerMode: filePickerModeBinding, portraitTopInset: 36)
+                    .overlay(alignment: .topLeading) {
+                        pageArrow(systemImage: "chevron.left") { portraitPage = .printer }
+                    }
+                    .overlay(alignment: .topTrailing) {
+                        pageArrow(systemImage: "chevron.right") { portraitPage = .calc }
+                    }
+            }
+        }
+    }
+
     private func pageArrow(systemImage: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemImage)
