@@ -5,7 +5,7 @@ import XCTest
 /// This test drives the iOS system document picker, which is inherently brittle:
 /// navigation element labels ("Durchsuchen", "Auf meinem iPhone") are
 /// locale-dependent and Apple can restructure the picker between iOS releases.
-/// The filename itself ("screenshot_diag.ti59") and the keystroke-playback-status assertion
+/// The filename itself ("test_diag.ti59") and the keystroke-playback-status assertion
 /// are stable. If this test breaks after an Xcode/iOS upgrade, first inspect
 /// the picker's element tree with Xcode's Accessibility Inspector or a
 /// print(app.debugDescription) dump.
@@ -41,9 +41,9 @@ final class PresetLoadTests: XCTestCase {
         XCTAssertTrue(presetButton.waitForExistence(timeout: 5), "Preset button not found")
         presetButton.tap()
 
-        navigateToOnMyIPhone(app, targetFile: "screenshot_diag.ti59")
+        navigateToOnMyIPhone(app, targetFile: "test_diag.ti59")
 
-        let diagCell = app.cells.containing(.staticText, identifier: "screenshot_diag.ti59").firstMatch
+        let diagCell = app.cells.containing(.staticText, identifier: "test_diag.ti59").firstMatch
         XCTAssertTrue(diagCell.waitForExistence(timeout: 5), "diag.ti59 cell not found in file picker")
         attachScreenshot(app, name: "File picker — diag.ti59 visible")
 

@@ -37,9 +37,9 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertTrue(presetButton.waitForExistence(timeout: 5), "Preset button not found")
         presetButton.tap()
 
-        navigateToOnMyIPhone(app, targetFile: "screenshot_diag.ti59")
+        navigateToOnMyIPhone(app, targetFile: "test_diag.ti59")
 
-        let diagCell = app.cells.containing(.staticText, identifier: "screenshot_diag.ti59").firstMatch
+        let diagCell = app.cells.containing(.staticText, identifier: "test_diag.ti59").firstMatch
         XCTAssertTrue(diagCell.waitForExistence(timeout: 5), "diag.ti59 cell not found in file picker")
 
         let statusEl = app.otherElements["keystroke-playback-status"]
@@ -86,8 +86,8 @@ final class ScreenshotTests: XCTestCase {
 
         // Step 1: load screenshot_leisure_start.ti59
         presetButton.tap()
-        navigateToOnMyIPhone(app, targetFile: "screenshot_leisure_start.ti59")
-        let startCell = app.cells.containing(.staticText, identifier: "screenshot_leisure_start.ti59").firstMatch
+        navigateToOnMyIPhone(app, targetFile: "test_cdebug_1.ti59")
+        let startCell = app.cells.containing(.staticText, identifier: "test_cdebug_1.ti59").firstMatch
         XCTAssertTrue(startCell.waitForExistence(timeout: 5), "screenshot_leisure_start.ti59 not found")
         let step1Playing = XCTNSPredicateExpectation(predicate: playing, object: statusEl)
         startCell.tap()
@@ -104,8 +104,8 @@ final class ScreenshotTests: XCTestCase {
 
         // Step 3: load screenshot_leisure_run.ti59 (SKIP-RESET; SBR= triggers freeze)
         presetButton.tap()
-        navigateToOnMyIPhone(app, targetFile: "screenshot_leisure_run.ti59")
-        let runCell = app.cells.containing(.staticText, identifier: "screenshot_leisure_run.ti59").firstMatch
+        navigateToOnMyIPhone(app, targetFile: "test_cdebug_2.ti59")
+        let runCell = app.cells.containing(.staticText, identifier: "test_cdebug_2.ti59").firstMatch
         XCTAssertTrue(runCell.waitForExistence(timeout: 5), "screenshot_leisure_run.ti59 not found")
         let step2Playing = XCTNSPredicateExpectation(predicate: playing, object: statusEl)
         runCell.tap()
