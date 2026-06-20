@@ -28,6 +28,8 @@ REGULAR_PATTERNS=(
     "assembly/stopwatch.asm"
     "characters-fastmode.ti59"
     "characters.ti59"
+    "diag.ti58"
+    "diag.ti59"
 )
 
 REGULAR_SRCS=()
