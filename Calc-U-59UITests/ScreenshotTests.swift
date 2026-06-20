@@ -26,7 +26,10 @@ final class ScreenshotTests: XCTestCase {
     // MARK: - Helpers
 
     private var screenshotDir: String {
-        if let dir = ProcessInfo.processInfo.environment["SCREENSHOT_DIR"] { return dir }
+        if let dir = try? String(contentsOfFile: "/tmp/calc-u-59-screenshot-dir", encoding: .utf8)
+                .trimmingCharacters(in: .whitespacesAndNewlines), !dir.isEmpty {
+            return dir
+        }
         // HOME points to the simulator sandbox; SIMULATOR_HOST_HOME is the real Mac home.
         let home = ProcessInfo.processInfo.environment["SIMULATOR_HOST_HOME"] ?? "/tmp"
         return "\(home)/Desktop"

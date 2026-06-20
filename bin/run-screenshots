@@ -13,7 +13,8 @@
 set -euo pipefail
 
 SRCROOT="$(cd "$(dirname "$0")/.." && pwd)"
-export SCREENSHOT_DIR="$SRCROOT/appstore/screenshots"
+SCREENSHOT_DIR="$SRCROOT/appstore/screenshots"
+echo "$SCREENSHOT_DIR" > /tmp/calc-u-59-screenshot-dir
 
 run_test() {
     local udid="$1"
