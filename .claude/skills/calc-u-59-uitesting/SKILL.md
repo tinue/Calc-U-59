@@ -39,6 +39,24 @@ xcodebuild test \
 
 ---
 
+## Screenshots and Rotation
+
+### Use `XCUIScreen.main.screenshot()`, not `app.screenshot()`
+
+`app.screenshot()` always captures in the device's **natural portrait coordinate space**, regardless of how the simulator is oriented. On a rotated iPad, this produces a portrait-framed PNG with landscape content rotated 90° — not what you want.
+
+`XCUIScreen.main.screenshot()` captures the **physical screen pixels** and produces a correctly-oriented PNG — no post-processing or rotation needed. This works whether the orientation was set programmatically via `XCUIDevice.shared.orientation` or by manually rotating the simulator window:
+
+```swift
+let png = XCUIScreen.main.screenshot().pngRepresentation
+let dest = URL(fileURLWithPath: "/Users/me/Desktop/my-screenshot.png")
+try png.write(to: dest)
+```
+
+**Note:** Device bezels only appear in screenshots taken via the simulator's camera button. `XCUIScreen.main.screenshot()` captures app pixels only — bezels are never included.
+
+---
+
 ## Device Detection
 
 `UIDevice.current.userInterfaceIdiom` is available in the test process and reliably distinguishes iPhone from iPad at runtime:

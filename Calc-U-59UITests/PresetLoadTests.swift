@@ -12,16 +12,16 @@ import XCTest
 ///
 /// Prerequisite: diag.ti59 must be present on "On My iPhone" in the simulator.
 /// The setup-simulator-state-files script installs it.
+///
+/// Orientation: the test inherits whatever orientation the simulator is in when
+/// the test is started. For an iPad screenshot rotate the simulator to landscape
+/// manually before running. Programmatic orientation changes via XCUIDevice
+/// cause app.screenshot() to capture misaligned frames.
 #if !os(macOS)
 final class PresetLoadTests: XCTestCase {
 
     override func setUpWithError() throws {
         continueAfterFailure = false
-    }
-
-    override class func tearDown() {
-        XCUIDevice.shared.orientation = .portrait
-        super.tearDown()
     }
 
     // MARK: - Tests
@@ -31,6 +31,11 @@ final class PresetLoadTests: XCTestCase {
     /// diag.ti59 contains "KEYSTROKES: 15 + WaitFullSpeed: 3s" which auto-starts
     /// the diagnostic and runs it to completion. The keystroke-playback-status
     /// element stays "playing" for ~3 s — that is the proof of a successful load.
+    override class func tearDown() {
+        XCUIDevice.shared.orientation = .portrait
+        super.tearDown()
+    }
+
     @MainActor
     func testLoadDiagPreset() throws {
         // iPad uses landscape (side-by-side layout); iPhone uses portrait.
@@ -70,7 +75,19 @@ final class PresetLoadTests: XCTestCase {
         XCTAssertEqual(result, .completed,
                        "Keystroke playback never started — diag.ti59 may not have loaded")
 
+        // XCUIScreen.main captures physical screen pixels (respects rotation).
+        // app.screenshot() always uses the device's natural portrait coordinate
+        // space, producing a portrait-framed PNG even when rotated to landscape.
+        let png = XCUIScreen.main.screenshot().pngRepresentation
+        let dest = URL(fileURLWithPath: "/Users/me/Desktop/diag-preset-load.png")
+        try png.write(to: dest)
         attachScreenshot(app, name: "After loading diag.ti59 — playback running")
+
+        // Hold the test open until the diagnostic finishes.
+        let idle = NSPredicate(format: "value == 'idle'")
+        let playbackDone = XCTNSPredicateExpectation(predicate: idle, object: statusEl)
+        XCTAssertEqual(XCTWaiter.wait(for: [playbackDone], timeout: 10), .completed,
+                       "Keystroke playback did not complete")
     }
 
     // MARK: - Helpers
