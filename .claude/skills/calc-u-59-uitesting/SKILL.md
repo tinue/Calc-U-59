@@ -55,6 +55,17 @@ try png.write(to: dest)
 
 **Note:** Device bezels only appear in screenshots taken via the simulator's camera button. `XCUIScreen.main.screenshot()` captures app pixels only — bezels are never included.
 
+### Writing screenshots to the Mac filesystem
+
+In the XCUITest process, `HOME` and `NSHomeDirectory()` point to the **simulator sandbox**, not the Mac. Use `SIMULATOR_HOST_HOME` to get the real Mac home directory:
+
+```swift
+let home = ProcessInfo.processInfo.environment["SIMULATOR_HOST_HOME"] ?? "/tmp"
+let dest = URL(fileURLWithPath: "\(home)/Desktop/shot.png")
+```
+
+When running via `xcodebuild`, pass the directory explicitly with `-testenv SCREENSHOT_DIR=<path>` and read it in the test via `ProcessInfo.processInfo.environment["SCREENSHOT_DIR"]`.
+
 ---
 
 ## Device Detection
