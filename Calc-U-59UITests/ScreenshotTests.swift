@@ -77,7 +77,7 @@ final class ScreenshotTests: XCTestCase {
             }
         }
 
-        for label in ["Auf meinem iPhone", "On My iPhone"] {
+        for label in ["Auf meinem iPhone", "Auf meinem iPad", "On My iPhone", "On My iPad"] {
             let item = app.staticTexts[label]
             if item.waitForExistence(timeout: 2) { item.tap(); break }
         }
