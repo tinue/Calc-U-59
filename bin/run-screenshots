@@ -1,8 +1,7 @@
-#!/usr/bin/env bash
-# Run the Screenshots test plan on each simulator.
-#
-# Each test writes "Diagnostic-<DeviceName>.png" to the Desktop directly.
-# Simulators are booted automatically by xcodebuild if they are Shutdown.
+#!/usr/bin/env zsh
+# Run the Screenshots test plan on selected simulators.
+# Each test writes "Diagnostic-<DeviceName>.png" to the Desktop.
+# Add or remove devices by duplicating / deleting the run_test lines.
 #
 # Usage:
 #   bin/run-screenshots
@@ -10,39 +9,21 @@
 set -euo pipefail
 
 SRCROOT="$(cd "$(dirname "$0")/.." && pwd)"
-SCHEME="Calc-U-59"
-TESTPLAN="Screenshots"
 
-# Device name → UDID
-# Assigned individually: compound-assignment syntax (declare -A arr=([key]=val))
-# evaluates subscripts arithmetically, which breaks keys like "iPhone 16e".
-declare -A DEVICES
-DEVICES["iPhone 16e"]="5E58DB4D-147D-4385-A5CF-9974C5321A3B"
-DEVICES["iPhone 17 Pro Max"]="9AFA9F97-6BF1-40CE-85D1-1167DF33C9C7"
-DEVICES["iPad Pro 13-inch (M5)"]="AA658877-2877-465C-ABB0-ABE7CF4344DE"
-DEVICES["iPad mini (A17 Pro)"]="8D4C25D7-8C1E-41F2-9B20-67D7EABB2E57"
-
-PASS=0
-FAIL=0
-
-for name in "${!DEVICES[@]}"; do
-    udid="${DEVICES[$name]}"
-    echo "▶ $name ($udid)"
-
-    if xcodebuild test \
+run_test() {
+    local udid="$1"
+    echo "▶ $udid"
+    xcodebuild test \
         -project "$SRCROOT/Calc-U-59.xcodeproj" \
-        -scheme "$SCHEME" \
-        -testPlan "$TESTPLAN" \
-        -destination "platform=iOS Simulator,id=$udid" \
-        2>&1 | grep -E "(Test (Case|Suite)|error:|✓|✗|FAIL|PASS)"; then
-        echo "  ✓ $name"
-        (( PASS++ )) || true
-    else
-        echo "  ✗ $name"
-        (( FAIL++ )) || true
-    fi
+        -scheme "Calc-U-59" \
+        -testPlan "Screenshots" \
+        -destination "platform=iOS Simulator,id=$udid"
+}
 
-    echo
-done
+# -- iOS 18.6 --
+run_test 5E58DB4D-147D-4385-A5CF-9974C5321A3B   # iPhone 16e
 
-echo "Done: $PASS succeeded, $FAIL failed."
+# -- iOS 26.5 --
+run_test 9AFA9F97-6BF1-40CE-85D1-1167DF33C9C7   # iPhone 17 Pro Max
+run_test AA658877-2877-465C-ABB0-ABE7CF4344DE   # iPad Pro 13-inch (M5)
+run_test 8D4C25D7-8C1E-41F2-9B20-67D7EABB2E57   # iPad mini (A17 Pro)
