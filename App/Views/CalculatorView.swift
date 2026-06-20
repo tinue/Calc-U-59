@@ -97,11 +97,11 @@ struct CalculatorView: View {
             // Tucked in the top-left corner behind UI chrome; too small for a human finger
             // (minimum tap target is ~44 pt) but large enough for XCUITest to compute a
             // valid hit point (1×1 produced {-1,-1} and the event never reached the app).
-            Button { viewModel.pressKey(row: 8, col: 0) } label: { EmptyView() }
-                .frame(width: 10, height: 10)
-                .contentShape(Rectangle())
-                .accessibilityIdentifier("btn-key-rs")
-                .accessibilityLabel("R/S")
+            Button { viewModel.pressKey(row: 8, col: 0) } label: {
+                Color.clear.frame(width: 10, height: 10)
+            }
+            .accessibilityIdentifier("btn-key-rs")
+            .accessibilityLabel("R/S")
         }
         .dynamicTypeSize(.small ... .large)
         .sheet(item: .init(
