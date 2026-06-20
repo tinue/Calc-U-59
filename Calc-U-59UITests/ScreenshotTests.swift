@@ -74,6 +74,19 @@ final class ScreenshotTests: XCTestCase {
         attachScreenshot(app, name: "diag.ti59 — diagnostic complete")
     }
 
+    /// Settings screenshot — iPhone 16e portrait.
+    func testScreenshotSettings() throws {
+        let app = launchApp(orientation: .portrait)
+
+        let settingsButton = app.buttons["btn-settings"]
+        XCTAssertTrue(settingsButton.waitForExistence(timeout: 5), "btn-settings not found")
+        settingsButton.tap()
+
+        let dest = URL(fileURLWithPath: "\(screenshotDir)/Settings-\(UIDevice.current.name).png")
+        try XCUIScreen.main.screenshot().pngRepresentation.write(to: dest)
+        attachScreenshot(app, name: "Settings")
+    }
+
     /// Plain calculator screenshot — TI-58C with -1.2345678e-90 on the display.
     func testScreenshotPlainCalculator() throws {
         let isPad = UIDevice.current.userInterfaceIdiom == .pad
