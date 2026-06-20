@@ -62,8 +62,6 @@ final class PresetLoadTests: XCTestCase {
     // MARK: - Helpers
 
     private func navigateToOnMyIPhone(_ app: XCUIApplication, targetFile: String) {
-        if app.cells.containing(.staticText, identifier: targetFile).firstMatch.waitForExistence(timeout: 2) { return }
-
         for label in ["Durchsuchen", "Browse"] {
             let tab = app.tabBars.buttons[label]
             if tab.waitForExistence(timeout: 2) {

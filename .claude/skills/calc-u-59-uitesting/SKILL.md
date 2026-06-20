@@ -135,15 +135,12 @@ The Browse tab button (labeled "Durchsuchen" in German, "Browse" in English) app
 app.tabBars.buttons["Durchsuchen"]   // targets tab bar only
 ```
 
-### 3. Fast-path: picker usually opens at last-used location
+### 3. Always navigate unconditionally
 
-The picker remembers its last location. In practice it often opens directly at "On My iPhone", so navigation is a no-op. Always check for the target cell first before navigating:
+Do not use a fast-path that checks whether the target file is already visible — if the same file exists in both the root and inside `1-Testfiles`, the fast-path would match the wrong copy and skip the folder navigation entirely. Always navigate through Browse → On My iPhone/iPad → 1-Testfiles. When the picker is already inside `1-Testfiles` (e.g. second load in the same test), the intermediate steps time out silently and nothing extra is tapped.
 
 ```swift
 private func navigateToOnMyIPhone(_ app: XCUIApplication, targetFile: String) {
-    if app.cells.containing(.staticText, identifier: targetFile).firstMatch
-           .waitForExistence(timeout: 2) { return }
-
     for label in ["Durchsuchen", "Browse"] {
         let tab = app.tabBars.buttons[label]
         if tab.waitForExistence(timeout: 2) {
