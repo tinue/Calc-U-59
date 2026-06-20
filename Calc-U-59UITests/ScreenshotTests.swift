@@ -147,10 +147,10 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertTrue(left.waitForExistence(timeout: 3), "btn-page-left not found")
         left.tap()
 
-        // Step 7: single-step 5 times
+        // Step 7: hold STEP for 2 seconds (auto-repeats at 4 steps/second)
         let stepButton = app.buttons["btn-cpu-step"]
         XCTAssertTrue(stepButton.waitForExistence(timeout: 3), "btn-cpu-step not found")
-        for _ in 1...5 { stepButton.tap() }
+        stepButton.press(forDuration: 2)
 
         // Screenshot
         let dest = URL(fileURLWithPath: "\(screenshotDir)/CPUInspector-\(UIDevice.current.name).png")
