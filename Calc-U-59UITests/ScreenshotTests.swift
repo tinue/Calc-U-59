@@ -103,6 +103,61 @@ final class ScreenshotTests: XCTestCase {
         attachScreenshot(app, name: "Plain Calculator — TI-58C display")
     }
 
+    /// CPU Inspector screenshot — iPhone 17 Pro Max portrait only.
+    ///
+    /// Sequence:
+    ///   1. Navigate left to debugger
+    ///   2. Switch to CPU tab
+    ///   3. Arm FREEZE ON START (CPU pane)
+    ///   4. Navigate right to calculator
+    ///   5. Tap Reset — freeze fires on first PC change
+    ///   6. Navigate left to debugger
+    ///   7. Single-step 5 times
+    ///   8. Capture screenshot
+    func testScreenshotCPUInspector() throws {
+        let app = launchApp(orientation: .portrait)
+
+        let left  = app.buttons["btn-page-left"]
+        let right = app.buttons["btn-page-right"]
+
+        // Step 1: navigate to debugger
+        XCTAssertTrue(left.waitForExistence(timeout: 5), "btn-page-left not found")
+        left.tap()
+
+        // Step 2: switch to CPU tab
+        let cpuTab = app.buttons["btn-tab-cpu"]
+        XCTAssertTrue(cpuTab.waitForExistence(timeout: 3), "CPU tab not found")
+        cpuTab.tap()
+
+        // Step 3: arm FREEZE ON START in CPU pane
+        let freezeButton = app.buttons["btn-cpu-freeze-on-start"]
+        XCTAssertTrue(freezeButton.waitForExistence(timeout: 3), "btn-cpu-freeze-on-start not found")
+        freezeButton.tap()
+
+        // Step 4: navigate back to calculator
+        XCTAssertTrue(right.waitForExistence(timeout: 3), "btn-page-right not found")
+        right.tap()
+
+        // Step 5: tap Reset — FREEZE ON START fires on first PC change
+        let resetButton = app.buttons["btn-reset"]
+        XCTAssertTrue(resetButton.waitForExistence(timeout: 3), "btn-reset not found")
+        resetButton.tap()
+
+        // Step 6: navigate back to debugger
+        XCTAssertTrue(left.waitForExistence(timeout: 3), "btn-page-left not found")
+        left.tap()
+
+        // Step 7: single-step 5 times
+        let stepButton = app.buttons["btn-cpu-step"]
+        XCTAssertTrue(stepButton.waitForExistence(timeout: 3), "btn-cpu-step not found")
+        for _ in 1...5 { stepButton.tap() }
+
+        // Screenshot
+        let dest = URL(fileURLWithPath: "\(screenshotDir)/CPUInspector-\(UIDevice.current.name).png")
+        try XCUIScreen.main.screenshot().pngRepresentation.write(to: dest)
+        attachScreenshot(app, name: "CPU Inspector — 5 steps after reset")
+    }
+
     /// Calc Debugger screenshot — iPad landscape or iPhone portrait.
     ///
     /// iPad (landscape): debug panel is visible alongside the calculator; no panel navigation needed.

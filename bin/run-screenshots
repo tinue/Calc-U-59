@@ -46,6 +46,9 @@ run_test 5E58DB4D-147D-4385-A5CF-9974C5321A3B LoadDiagPreset   # iPhone 16e
 # -- PlainCalculator — iPhone 17 Pro Max only --
 run_test 9AFA9F97-6BF1-40CE-85D1-1167DF33C9C7 PlainCalculator   # iPhone 17 Pro Max
 
+# -- CPUInspector — iPhone 17 Pro Max only --
+run_test 9AFA9F97-6BF1-40CE-85D1-1167DF33C9C7 CPUInspector   # iPhone 17 Pro Max
+
 # -- CalcDebugger — iPhone 17 Pro Max + iPad Pro 13-inch (M5) --
 run_test 9AFA9F97-6BF1-40CE-85D1-1167DF33C9C7 CalcDebugger   # iPhone 17 Pro Max
 run_test AA658877-2877-465C-ABB0-ABE7CF4344DE CalcDebugger   # iPad Pro 13-inch (M5)

@@ -119,6 +119,11 @@ Screenshot tests that load `.ti59` files require those files to be present on th
 | `btn-freeze-armed` | Button | "ARMED" — shown in place of `btn-freeze-on-start` while freeze is pending; tap to disarm |
 | `btn-page-left` | Button | Chevron-left page arrow (iPhone portrait only); destination depends on current page |
 | `btn-page-right` | Button | Chevron-right page arrow (iPhone portrait only); destination depends on current page |
+| `btn-tab-calculator` | Button | CALCULATOR tab in debug panel (`DebugView`) |
+| `btn-tab-cpu` | Button | CPU tab in debug panel (`DebugView`) |
+| `btn-tab-log` | Button | LOG tab in debug panel (`DebugView`) |
+| `btn-cpu-freeze-on-start` | Button | "FREEZE ON START" in CPU tab (`CPUInspectorView`) |
+| `btn-cpu-step` | Button | "STEP" in CPU tab (`CPUInspectorView`); tap to single-step, hold to auto-step |
 
 ---
 

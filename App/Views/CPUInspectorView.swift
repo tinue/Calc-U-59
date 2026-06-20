@@ -352,6 +352,7 @@ struct CPUInspectorView: View {
                 .foregroundStyle(Color.white)
                 .opacity(freezeOnStartEnabled ? 1 : 0.4)
                 .disabled(!freezeOnStartEnabled)
+                .accessibilityIdentifier("btn-cpu-freeze-on-start")
 
             Button("ARMED") { vm.disarmCPUScanLoopFreeze() }
                 .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
@@ -362,6 +363,7 @@ struct CPUInspectorView: View {
             // Tap to single-step; hold to auto-step at 2 steps/second.
             HoldRepeatButton(title: "STEP", color: .cyan, baseFontSize: baseFontSize,
                              enabled: cpuOwned) { vm.stepFrozen() }
+                .accessibilityIdentifier("btn-cpu-step")
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)

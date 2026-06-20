@@ -49,6 +49,7 @@ struct DebugView: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 5)
             .background(vm.debugTab == tab_ ? Color(white: 0.20) : Color.clear)
+            .accessibilityIdentifier("btn-tab-\(label.lowercased())")
     }
 }
 
