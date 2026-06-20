@@ -124,13 +124,13 @@ final class ScreenshotTests: XCTestCase {
         // Step 4: press R/S to start the stopwatch
         let rs = app.buttons["btn-key-rs"]
         XCTAssertTrue(rs.waitForExistence(timeout: 3), "btn-key-rs not found")
-        rs.tap()
+        rs.press(forDuration: 0.05)
 
         // Step 5: let the stopwatch run for 3.5 seconds
         Thread.sleep(forTimeInterval: 3.5)
 
         // Step 6: press R/S to stop the stopwatch
-        rs.tap()
+        rs.press(forDuration: 0.05)
 
         // Screenshot
         let dest = URL(fileURLWithPath: "\(screenshotDir)/Assembly-\(UIDevice.current.name).png")

@@ -93,10 +93,12 @@ struct CalculatorView: View {
                 .accessibilityValue(viewModel.isKeystrokesPlaying ? "playing" : "idle")
         }
         .overlay(alignment: .topLeading) {
-            // 1×1 automation-only button for XCUITest — presses R/S (row 9, col 1).
-            // Never reachable by a human finger at this size and position.
+            // 10×10 pt automation-only button for XCUITest — presses R/S (row 9, col 1).
+            // Tucked in the top-left corner behind UI chrome; too small for a human finger
+            // (minimum tap target is ~44 pt) but large enough for XCUITest to compute a
+            // valid hit point (1×1 produced {-1,-1} and the event never reached the app).
             Button { viewModel.pressKey(row: 8, col: 0) } label: { EmptyView() }
-                .frame(width: 1, height: 1)
+                .frame(width: 10, height: 10)
                 .accessibilityIdentifier("btn-key-rs")
                 .accessibilityLabel("R/S")
         }
