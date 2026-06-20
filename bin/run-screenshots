@@ -14,12 +14,13 @@ SCHEME="Calc-U-59"
 TESTPLAN="Screenshots"
 
 # Device name → UDID
-declare -A DEVICES=(
-    ["iPhone 16e"]="5E58DB4D-147D-4385-A5CF-9974C5321A3B"
-    ["iPhone 17 Pro Max"]="9AFA9F97-6BF1-40CE-85D1-1167DF33C9C7"
-    ["iPad Pro 13-inch (M5)"]="AA658877-2877-465C-ABB0-ABE7CF4344DE"
-    ["iPad mini (A17 Pro)"]="8D4C25D7-8C1E-41F2-9B20-67D7EABB2E57"
-)
+# Assigned individually: compound-assignment syntax (declare -A arr=([key]=val))
+# evaluates subscripts arithmetically, which breaks keys like "iPhone 16e".
+declare -A DEVICES
+DEVICES["iPhone 16e"]="5E58DB4D-147D-4385-A5CF-9974C5321A3B"
+DEVICES["iPhone 17 Pro Max"]="9AFA9F97-6BF1-40CE-85D1-1167DF33C9C7"
+DEVICES["iPad Pro 13-inch (M5)"]="AA658877-2877-465C-ABB0-ABE7CF4344DE"
+DEVICES["iPad mini (A17 Pro)"]="8D4C25D7-8C1E-41F2-9B20-67D7EABB2E57"
 
 PASS=0
 FAIL=0
