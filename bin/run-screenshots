@@ -18,13 +18,15 @@ SRCROOT="$(cd "$(dirname "$0")/.." && pwd)"
 run_test() {
     local udid="$1"
     local only="${2:-}"
+    local -a extra=()
+    [[ -n "$only" ]] && extra=(-only-testing "Calc-U-59UITests/ScreenshotTests/testScreenshot$only")
     echo "▶ $udid${only:+ ($only)}"
     xcodebuild test \
         -project "$SRCROOT/Calc-U-59.xcodeproj" \
         -scheme "Calc-U-59" \
         -testPlan "Screenshots" \
         -destination "platform=iOS Simulator,id=$udid" \
-        ${only:+-only-testing "Calc-U-59UITests/ScreenshotTests/testScreenshot$only"}
+        "${extra[@]}"
 }
 
 echo "Available Devices:"
