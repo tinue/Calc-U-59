@@ -1,10 +1,15 @@
 #!/usr/bin/env zsh
 # Run the Screenshots test plan on selected simulators.
-# Each test writes "Diagnostic-<DeviceName>.png" to the Desktop.
+# Each test writes its PNG to the Desktop.
 # Add or remove devices by duplicating / deleting the run_test lines.
 #
 # Usage:
 #   bin/run-screenshots
+#
+# run_test <udid> [only-testing]
+#   udid         — simulator UDID
+#   only-testing — optional; e.g. "Calc-U-59UITests/ScreenshotTests/testScreenshotCalcDebuggeriPad"
+#                  omit to run all tests in the Screenshots plan
 
 set -euo pipefail
 
@@ -12,12 +17,14 @@ SRCROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 run_test() {
     local udid="$1"
-    echo "▶ $udid"
+    local only="${2:-}"
+    echo "▶ $udid${only:+ ($only)}"
     xcodebuild test \
         -project "$SRCROOT/Calc-U-59.xcodeproj" \
         -scheme "Calc-U-59" \
         -testPlan "Screenshots" \
-        -destination "platform=iOS Simulator,id=$udid"
+        -destination "platform=iOS Simulator,id=$udid" \
+        ${only:+-only-testing "$only"}
 }
 
 # -- iOS 18.6 --
@@ -28,10 +35,5 @@ run_test 9AFA9F97-6BF1-40CE-85D1-1167DF33C9C7   # iPhone 17 Pro Max
 run_test AA658877-2877-465C-ABB0-ABE7CF4344DE   # iPad Pro 13-inch (M5)
 run_test 8D4C25D7-8C1E-41F2-9B20-67D7EABB2E57   # iPad mini (A17 Pro)
 
-# -- CalcDebuggeriPad screenshots — iPad Pro 13-inch (M5) only --
-xcodebuild test \
-    -project "$SRCROOT/Calc-U-59.xcodeproj" \
-    -scheme "Calc-U-59" \
-    -testPlan "Screenshots" \
-    -destination "platform=iOS Simulator,id=AA658877-2877-465C-ABB0-ABE7CF4344DE" \
-    -only-testing "Calc-U-59UITests/ScreenshotTests/testScreenshotCalcDebuggeriPad"
+# -- CalcDebuggeriPad — iPad Pro 13-inch (M5) only --
+run_test AA658877-2877-465C-ABB0-ABE7CF4344DE "Calc-U-59UITests/ScreenshotTests/testScreenshotCalcDebuggeriPad"
