@@ -1,6 +1,6 @@
 #!/usr/bin/env zsh
 # Run the Screenshots test plan on selected simulators.
-# Each test writes its PNG to the Desktop.
+# Each test writes its PNG to SCREENSHOT_DIR.
 # Add or remove devices by duplicating / deleting the run_test lines.
 #
 # Usage:
@@ -8,18 +8,19 @@
 #
 # run_test <udid> [only-testing]
 #   udid         — simulator UDID
-#   only-testing — optional; e.g. "Calc-U-59UITests/ScreenshotTests/testScreenshotCalcDebuggeriPad"
-#                  omit to run all tests in the Screenshots plan
+#   only-testing — optional test name suffix (after "testScreenshot")
 
 set -euo pipefail
 
 SRCROOT="$(cd "$(dirname "$0")/.." && pwd)"
+SCREENSHOT_DIR="/Users/me/Development/public/Calc-U-59/appstore/screenshots"
 
 run_test() {
     local udid="$1"
     local only="${2:-}"
     local -a extra=()
-    [[ -n "$only" ]] && extra=(-only-testing "Calc-U-59UITests/ScreenshotTests/testScreenshot$only")
+    [[ -n "$only" ]] && extra+=(-only-testing "Calc-U-59UITests/ScreenshotTests/testScreenshot$only")
+    extra+=(-testenv "SCREENSHOT_DIR=$SCREENSHOT_DIR")
     echo "▶ $udid${only:+ ($only)}"
     xcodebuild test \
         -project "$SRCROOT/Calc-U-59.xcodeproj" \
@@ -35,6 +36,8 @@ xcrun simctl list devices available | awk '
     /\(/ { if (section) { print section; section="" } print }
 '
 echo ""
+
+mkdir -p "$SCREENSHOT_DIR"
 
 # -- iOS 18.6 --
 run_test 5E58DB4D-147D-4385-A5CF-9974C5321A3B LoadDiagPreset   # iPhone 16e

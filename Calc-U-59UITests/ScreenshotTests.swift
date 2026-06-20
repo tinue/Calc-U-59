@@ -23,6 +23,12 @@ final class ScreenshotTests: XCTestCase {
         super.tearDown()
     }
 
+    // MARK: - Helpers
+
+    private var screenshotDir: String {
+        ProcessInfo.processInfo.environment["SCREENSHOT_DIR"] ?? "/Users/me/Desktop"
+    }
+
     // MARK: - Screenshots
 
     /// Load diag.ti59, run the diagnostic to completion, save a Desktop PNG.
@@ -57,9 +63,7 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [playbackDone], timeout: 10), .completed,
                        "Keystroke playback did not complete")
 
-        let screenshotName = "Diagnostic"
-        let deviceName = UIDevice.current.name
-        let dest = URL(fileURLWithPath: "/Users/me/Desktop/\(screenshotName)-\(deviceName).png")
+        let dest = URL(fileURLWithPath: "\(screenshotDir)/Diagnostic-\(UIDevice.current.name).png")
         try XCUIScreen.main.screenshot().pngRepresentation.write(to: dest)
         attachScreenshot(app, name: "diag.ti59 — diagnostic complete")
     }
@@ -116,7 +120,7 @@ final class ScreenshotTests: XCTestCase {
                        "screenshot_leisure_run.ti59 keystrokes did not complete")
 
         // Screenshot — freeze has fired; calculator is stopped on first instruction
-        let dest = URL(fileURLWithPath: "/Users/me/Desktop/CalcDebuggeriPad-\(UIDevice.current.name).png")
+        let dest = URL(fileURLWithPath: "\(screenshotDir)/CalcDebuggeriPad-\(UIDevice.current.name).png")
         try XCUIScreen.main.screenshot().pngRepresentation.write(to: dest)
         attachScreenshot(app, name: "Calc Debugger iPad — frozen on run")
     }
