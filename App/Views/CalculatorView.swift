@@ -99,6 +99,7 @@ struct CalculatorView: View {
             // valid hit point (1×1 produced {-1,-1} and the event never reached the app).
             Button { viewModel.pressKey(row: 8, col: 0) } label: { EmptyView() }
                 .frame(width: 10, height: 10)
+                .contentShape(Rectangle())
                 .accessibilityIdentifier("btn-key-rs")
                 .accessibilityLabel("R/S")
         }
