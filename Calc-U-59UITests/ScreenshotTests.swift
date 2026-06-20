@@ -74,6 +74,35 @@ final class ScreenshotTests: XCTestCase {
         attachScreenshot(app, name: "diag.ti59 — diagnostic complete")
     }
 
+    /// Plain calculator screenshot — TI-58C with -1.2345678e-90 on the display.
+    func testScreenshotPlainCalculator() throws {
+        let isPad = UIDevice.current.userInterfaceIdiom == .pad
+        let app = launchApp(orientation: isPad ? .landscapeLeft : .portrait)
+
+        let presetButton = app.buttons["btn-preset"]
+        XCTAssertTrue(presetButton.waitForExistence(timeout: 5), "Preset button not found")
+        presetButton.tap()
+
+        navigateToOnMyIPhone(app, targetFile: "test_58c_display.ti58c")
+        let cell = app.cells.containing(.staticText, identifier: "test_58c_display.ti58c").firstMatch
+        XCTAssertTrue(cell.waitForExistence(timeout: 5), "test_58c_display.ti58c not found")
+
+        let statusEl = app.otherElements["keystroke-playback-status"]
+        let idle = NSPredicate(format: "value == 'idle'")
+        let playbackStarted = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value == 'playing'"), object: statusEl)
+        cell.tap()
+        XCTAssertEqual(XCTWaiter.wait(for: [playbackStarted], timeout: 8), .completed,
+                       "test_58c_display.ti58c did not load")
+        let playbackDone = XCTNSPredicateExpectation(predicate: idle, object: statusEl)
+        XCTAssertEqual(XCTWaiter.wait(for: [playbackDone], timeout: 15), .completed,
+                       "test_58c_display.ti58c keystrokes did not complete")
+
+        let dest = URL(fileURLWithPath: "\(screenshotDir)/PlainCalculator-\(UIDevice.current.name).png")
+        try XCUIScreen.main.screenshot().pngRepresentation.write(to: dest)
+        attachScreenshot(app, name: "Plain Calculator — TI-58C display")
+    }
+
     /// Calc Debugger screenshot — iPad landscape or iPhone portrait.
     ///
     /// iPad (landscape): debug panel is visible alongside the calculator; no panel navigation needed.
