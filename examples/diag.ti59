@@ -344,3 +344,7 @@ PROGRAM:
 477  77  GE
 478  77  GE
 479  77  GE
+
+KEYSTROKES:
+15              # E — start diagnostic
+WaitFullSpeed: 3s   # let the diagnostic run to completion; also keeps isKeystrokesPlaying=true long enough for XCUITest to detect it
