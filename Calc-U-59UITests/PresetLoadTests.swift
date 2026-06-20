@@ -33,7 +33,10 @@ final class PresetLoadTests: XCTestCase {
     /// element stays "playing" for ~3 s — that is the proof of a successful load.
     @MainActor
     func testLoadDiagPreset() throws {
-        let app = launchApp(orientation: .portrait)
+        // iPad uses landscape (side-by-side layout); iPhone uses portrait.
+        let orientation: UIDeviceOrientation = UIDevice.current.userInterfaceIdiom == .pad
+            ? .landscapeLeft : .portrait
+        let app = launchApp(orientation: orientation)
 
         let presetButton = app.buttons["btn-preset"]
         XCTAssertTrue(presetButton.waitForExistence(timeout: 5), "Preset button not found")

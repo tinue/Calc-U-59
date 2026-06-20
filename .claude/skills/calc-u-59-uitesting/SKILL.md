@@ -39,6 +39,20 @@ xcodebuild test \
 
 ---
 
+## Device Detection
+
+`UIDevice.current.userInterfaceIdiom` is available in the test process and reliably distinguishes iPhone from iPad at runtime:
+
+```swift
+let orientation: UIDeviceOrientation = UIDevice.current.userInterfaceIdiom == .pad
+    ? .landscapeLeft : .portrait
+let app = launchApp(orientation: orientation)
+```
+
+Use this whenever the app layout differs between form factors — for example, the iPad uses a landscape side-by-side layout while iPhone uses portrait.
+
+---
+
 ## Orientation
 
 Always set orientation **before** `app.launch()` to avoid simulator state leaking between runs. The shared helper does this:
