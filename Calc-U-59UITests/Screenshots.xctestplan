@@ -14,7 +14,7 @@
   "testTargets" : [
     {
       "selectedTests" : [
-        "ScreenshotTests/screenshotLoadDiagPreset"
+        "ScreenshotTests"
       ],
       "target" : {
         "containerPath" : "container:Calc-U-59.xcodeproj",

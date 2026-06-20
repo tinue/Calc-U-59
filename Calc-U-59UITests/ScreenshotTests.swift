@@ -2,10 +2,8 @@ import XCTest
 
 /// Screenshot automation — produces PNG files on the Desktop for visual review.
 ///
-/// Methods in this class intentionally omit the "test" prefix so they are
-/// invisible to normal test discovery and never run as part of UIRegressionTests.
-/// Run them via the Screenshots test plan (Product → Test Plan → Screenshots)
-/// or with:
+/// This class is excluded from UIRegressionTests via skippedTests.
+/// Run via the Screenshots test plan (Product → Test Plan → Screenshots) or:
 ///   xcodebuild test -scheme "Calc-U-59" \
 ///     -testPlan Screenshots \
 ///     -destination "platform=iOS Simulator,name=iPad Pro 13-inch (M5)"
@@ -30,7 +28,7 @@ final class ScreenshotTests: XCTestCase {
     /// Load diag.ti59, run the diagnostic to completion, save a Desktop PNG.
     ///
     /// Prerequisite: diag.ti59 must be present on "On My iPhone" in the simulator.
-    func screenshotLoadDiagPreset() throws {
+    func testScreenshotLoadDiagPreset() throws {
         let orientation: UIDeviceOrientation = UIDevice.current.userInterfaceIdiom == .pad
             ? .landscapeLeft : .portrait
         let app = launchApp(orientation: orientation)
