@@ -90,7 +90,7 @@ final class ScreenshotTests: XCTestCase {
     ///   7. Capture screenshot
     ///
     /// Both files must be present on the device — run bin/setup-simulator-state-files first.
-    func testScreenshotCalcDebuggeriPad() throws {
+    func testScreenshotCalcDebugger() throws {
         let isPad = UIDevice.current.userInterfaceIdiom == .pad
         let app = launchApp(orientation: isPad ? .landscapeLeft : .portrait)
 

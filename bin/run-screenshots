@@ -48,8 +48,6 @@ run_test 9AFA9F97-6BF1-40CE-85D1-1167DF33C9C7 LoadDiagPreset   # iPhone 17 Pro M
 run_test AA658877-2877-465C-ABB0-ABE7CF4344DE LoadDiagPreset   # iPad Pro 13-inch (M5)
 run_test 8D4C25D7-8C1E-41F2-9B20-67D7EABB2E57 LoadDiagPreset   # iPad mini (A17 Pro)
 
-# -- CalcDebugger — all devices (iPad landscape, iPhone portrait) --
-run_test 5E58DB4D-147D-4385-A5CF-9974C5321A3B CalcDebuggeriPad   # iPhone 16e
-run_test 9AFA9F97-6BF1-40CE-85D1-1167DF33C9C7 CalcDebuggeriPad   # iPhone 17 Pro Max
-run_test AA658877-2877-465C-ABB0-ABE7CF4344DE CalcDebuggeriPad   # iPad Pro 13-inch (M5)
-run_test 8D4C25D7-8C1E-41F2-9B20-67D7EABB2E57 CalcDebuggeriPad   # iPad mini (A17 Pro)
+# -- CalcDebugger — iPhone 17 Pro Max + iPad Pro 13-inch (M5) --
+run_test 9AFA9F97-6BF1-40CE-85D1-1167DF33C9C7 CalcDebugger   # iPhone 17 Pro Max
+run_test AA658877-2877-465C-ABB0-ABE7CF4344DE CalcDebugger   # iPad Pro 13-inch (M5)
