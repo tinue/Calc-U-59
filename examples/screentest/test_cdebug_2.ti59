@@ -22,3 +22,4 @@ SKIP-RESET: true
 KEYSTROKES:
 71      # SBR
 95      # =    → re-enter program; FREEZE ON START fires immediately
+WaitFullSpeed: 2s   # keep isKeystrokesPlaying=true long enough for XCUITest to detect it

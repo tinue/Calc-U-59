@@ -41,15 +41,15 @@ echo ""
 mkdir -p "$SCREENSHOT_DIR"
 
 # -- iOS 18.6 --
-run_test 5E58DB4D-147D-4385-A5CF-9974C5321A3B LoadDiagPreset   # iPhone 16e
-run_test 5E58DB4D-147D-4385-A5CF-9974C5321A3B Settings         # iPhone 16e
+run_test 5E58DB4D-147D-4385-A5CF-9974C5321A3B LoadDiagPreset   # iPhone 16e diagnostics with card inlay. Model is TI-59.
+run_test 5E58DB4D-147D-4385-A5CF-9974C5321A3B Settings         # iPhone 16e settings panel. Model is last used, not specified.
 
-# -- PlainCalculator — iPhone 17 Pro Max only --
-run_test 9AFA9F97-6BF1-40CE-85D1-1167DF33C9C7 PlainCalculator   # iPhone 17 Pro Max
+# -- PlainCalculator --
+run_test 9AFA9F97-6BF1-40CE-85D1-1167DF33C9C7 PlainCalculator   # iPhone 17 Pro Max cover picture, plain calculator with filled display, model is last used, not specified.
 
-# -- CPUInspector — iPhone 17 Pro Max only --
-run_test 9AFA9F97-6BF1-40CE-85D1-1167DF33C9C7 CPUInspector   # iPhone 17 Pro Max
+# -- CPUInspector --
+run_test 9AFA9F97-6BF1-40CE-85D1-1167DF33C9C7 CPUInspector   # iPhone 17 Pro Max CPU debugger frozen in the Reset routine. Model is last used, not specified.
 
-# -- CalcDebugger — iPhone 17 Pro Max + iPad Pro 13-inch (M5) --
-run_test 9AFA9F97-6BF1-40CE-85D1-1167DF33C9C7 CalcDebugger   # iPhone 17 Pro Max
-run_test AA658877-2877-465C-ABB0-ABE7CF4344DE CalcDebugger   # iPad Pro 13-inch (M5)
+# -- CalcDebugger --
+run_test 9AFA9F97-6BF1-40CE-85D1-1167DF33C9C7 CalcDebugger   # iPhone 17 Pro Max calculator debugger frozen at SBR = location.
+run_test AA658877-2877-465C-ABB0-ABE7CF4344DE CalcDebugger   # iPad Pro 13-inch (M5) calculator debugger frozen at SBR = location, and some lines on the printer.
