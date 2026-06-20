@@ -27,7 +27,8 @@ final class ScreenshotTests: XCTestCase {
 
     private var screenshotDir: String {
         if let dir = ProcessInfo.processInfo.environment["SCREENSHOT_DIR"] { return dir }
-        let home = ProcessInfo.processInfo.environment["HOME"] ?? "/tmp"
+        // HOME points to the simulator sandbox; SIMULATOR_HOST_HOME is the real Mac home.
+        let home = ProcessInfo.processInfo.environment["SIMULATOR_HOST_HOME"] ?? "/tmp"
         return "\(home)/Desktop"
     }
 
