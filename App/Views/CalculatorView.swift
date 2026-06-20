@@ -92,6 +92,14 @@ struct CalculatorView: View {
                 .accessibilityIdentifier("keystroke-playback-status")
                 .accessibilityValue(viewModel.isKeystrokesPlaying ? "playing" : "idle")
         }
+        .overlay(alignment: .topLeading) {
+            // 1×1 automation-only button for XCUITest — presses R/S (row 9, col 1).
+            // Never reachable by a human finger at this size and position.
+            Button { viewModel.pressKey(row: 8, col: 0) } label: { EmptyView() }
+                .frame(width: 1, height: 1)
+                .accessibilityIdentifier("btn-key-rs")
+                .accessibilityLabel("R/S")
+        }
         .dynamicTypeSize(.small ... .large)
         .sheet(item: .init(
             get: { viewModel.cardPickerMode.map { PickerItem(mode: $0) } },

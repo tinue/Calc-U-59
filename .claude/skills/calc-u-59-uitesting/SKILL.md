@@ -124,6 +124,7 @@ Screenshot tests that load `.ti59` files require those files to be present on th
 | `btn-tab-log` | Button | LOG tab in debug panel (`DebugView`) |
 | `btn-cpu-freeze-on-start` | Button | "FREEZE ON START" in CPU tab (`CPUInspectorView`) |
 | `btn-cpu-step` | Button | "STEP" in CPU tab (`CPUInspectorView`); tap to single-step, hold to auto-step |
+| `btn-key-rs` | Button | 1×1 automation-only button; calls `viewModel.pressKey(row: 8, col: 0)` (R/S); invisible to users, reachable by XCUITest |
 
 ---
 
