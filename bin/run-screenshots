@@ -13,14 +13,13 @@
 set -euo pipefail
 
 SRCROOT="$(cd "$(dirname "$0")/.." && pwd)"
-SCREENSHOT_DIR="$SRCROOT/appstore/screenshots"
+export SCREENSHOT_DIR="$SRCROOT/appstore/screenshots"
 
 run_test() {
     local udid="$1"
     local only="${2:-}"
     local -a extra=()
     [[ -n "$only" ]] && extra+=(-only-testing "Calc-U-59UITests/ScreenshotTests/testScreenshot$only")
-    extra+=(-testenv "SCREENSHOT_DIR=$SCREENSHOT_DIR")
     echo "▶ $udid${only:+ ($only)}"
     xcodebuild test \
         -project "$SRCROOT/Calc-U-59.xcodeproj" \
