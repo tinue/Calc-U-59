@@ -107,6 +107,20 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertTrue(runButton.waitForExistence(timeout: 3), "btn-asm-run not found")
         runButton.tap()
 
+        // If a "ROM Load Error" alert appears, dismiss it then Freeze/Resume to
+        // clear the bad state before continuing.
+        if app.alerts.buttons["OK"].waitForExistence(timeout: 2) {
+            app.alerts.buttons["OK"].tap()
+            app.buttons["btn-tab-calculator"].tap()
+            let freeze = app.buttons["btn-freeze"]
+            XCTAssertTrue(freeze.waitForExistence(timeout: 3), "btn-freeze not found")
+            freeze.tap()
+            let resume = app.buttons["btn-resume"]
+            XCTAssertTrue(resume.waitForExistence(timeout: 3), "btn-resume not found")
+            resume.tap()
+            app.buttons["btn-tab-cpu"].tap()
+        }
+
         // Step 4: press R/S to start the stopwatch
         let rs = app.buttons["btn-key-rs"]
         XCTAssertTrue(rs.waitForExistence(timeout: 3), "btn-key-rs not found")

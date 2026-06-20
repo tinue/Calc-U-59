@@ -127,6 +127,7 @@ Screenshot tests that load `.ti59` files require those files to be present on th
 | `btn-key-rs` | Button | 1×1 automation-only button; calls `viewModel.pressKey(row: 8, col: 0)` (R/S); invisible to users, reachable by XCUITest |
 | `btn-asm-select` | Button | "Select File" in ASM overlay (`ASMDebugContent` in `DebugView`); opens `.asm` file picker |
 | `btn-asm-run` | Button | "Run" in ASM overlay; disabled until a file is loaded (`vm.canRunASM`) |
+| `btn-freeze` | Button | "FREEZE" in CALCULATOR debug tab (`LiveDebugView`) |
 
 ---
 

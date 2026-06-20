@@ -72,6 +72,7 @@ struct LiveDebugView: View {
                 .foregroundStyle(Color.white)
                 .opacity(freezeEnabled ? 1 : 0.4)
                 .disabled(!freezeEnabled)
+                .accessibilityIdentifier("btn-freeze")
 
             Button(narrow ? "F.START" : "FREEZE ON START") { vm.freezeOnNextPCChange() }
                 .font(.system(size: baseFontSize, weight: .bold, design: .monospaced))
