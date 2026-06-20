@@ -27,3 +27,11 @@ run_test 5E58DB4D-147D-4385-A5CF-9974C5321A3B   # iPhone 16e
 run_test 9AFA9F97-6BF1-40CE-85D1-1167DF33C9C7   # iPhone 17 Pro Max
 run_test AA658877-2877-465C-ABB0-ABE7CF4344DE   # iPad Pro 13-inch (M5)
 run_test 8D4C25D7-8C1E-41F2-9B20-67D7EABB2E57   # iPad mini (A17 Pro)
+
+# -- CalcDebuggeriPad screenshots — iPad Pro 13-inch (M5) only --
+xcodebuild test \
+    -project "$SRCROOT/Calc-U-59.xcodeproj" \
+    -scheme "Calc-U-59" \
+    -testPlan "Screenshots" \
+    -destination "platform=iOS Simulator,id=AA658877-2877-465C-ABB0-ABE7CF4344DE" \
+    -only-testing "Calc-U-59UITests/ScreenshotTests/testScreenshotCalcDebuggeriPad"
