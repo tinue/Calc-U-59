@@ -127,13 +127,14 @@ XCTAssertTrue(cell.waitForExistence(timeout: 5))
 cell.tap()
 ```
 
-### 2. Use `tabBars.buttons` for the Browse tab, not `buttons`
+### 2. Use `tabBars.buttons` / `cells` to avoid ambiguous matches
 
-The Browse tab button (labeled "Durchsuchen" in German, "Browse" in English) appears twice in the accessibility hierarchy once Browse is active: once in the tab bar and once as a back-button in the navigation bar. `app.buttons["Durchsuchen"]` is ambiguous and crashes. Use:
+Several picker labels appear in two places simultaneously:
 
-```swift
-app.tabBars.buttons["Durchsuchen"]   // targets tab bar only
-```
+- **Browse tab** ("Durchsuchen" / "Browse"): in the tab bar and as a back-button in the navigation bar. Use `app.tabBars.buttons[label]` to target the tab bar only.
+- **"On My iPhone/iPad"**: in the sidebar cell list and as the navigation bar title once selected. Use `app.cells.containing(.staticText, identifier: label).firstMatch` — the nav bar title is not inside a cell.
+
+Never use bare `app.buttons[label]` or `app.staticTexts[label]` for these — both will find multiple matches and crash.
 
 ### 3. Always navigate unconditionally
 
@@ -150,7 +151,7 @@ private func navigateToOnMyIPhone(_ app: XCUIApplication, targetFile: String) {
     }
 
     for label in ["Auf meinem iPhone", "Auf meinem iPad", "On My iPhone", "On My iPad"] {
-        let item = app.staticTexts[label]
+        let item = app.cells.containing(.staticText, identifier: label).firstMatch
         if item.waitForExistence(timeout: 2) { item.tap(); break }
     }
 

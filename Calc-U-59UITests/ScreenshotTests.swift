@@ -133,7 +133,7 @@ final class ScreenshotTests: XCTestCase {
         }
 
         for label in ["Auf meinem iPhone", "Auf meinem iPad", "On My iPhone", "On My iPad"] {
-            let item = app.staticTexts[label]
+            let item = app.cells.containing(.staticText, identifier: label).firstMatch
             if item.waitForExistence(timeout: 2) { item.tap(); break }
         }
 
