@@ -152,12 +152,11 @@ def disasm(addr: int, opcode: int, model: str = "59") -> str:
         selected = [lines[i] for i in range(7) if kmask & (1 << i)]
 
         if single:
-            digit = opcode & 0x7
             if kmask == 0x7F:  # All lines selected
-                return f"KEY ALL D{digit}"
+                return "KEY ALL"
             else:
                 line_str = ','.join(selected)
-                return f"KEY [{line_str}] D{digit}"
+                return f"KEY [{line_str}]"
         else:
             line_str = ','.join(selected)
             return f"KEY [{line_str}] ALL"

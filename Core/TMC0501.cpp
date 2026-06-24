@@ -1675,11 +1675,10 @@ std::string TMC0501::disassemble(uint16_t pc, uint16_t opcode) {
         }
 
         if (single) {
-            uint8_t digit = opcode & 7u;
             if (kmask == 0x7Fu) {  // All lines
-                snprintf(buf, sizeof(buf), "KEY ALL D%u", digit);
+                snprintf(buf, sizeof(buf), "KEY ALL");
             } else {
-                snprintf(buf, sizeof(buf), "KEY [%s] D%u", selected.c_str(), digit);
+                snprintf(buf, sizeof(buf), "KEY [%s]", selected.c_str());
             }
         } else {
             snprintf(buf, sizeof(buf), "KEY [%s] ALL", selected.c_str());
