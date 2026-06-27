@@ -1194,7 +1194,8 @@ class EmulatorViewModel {
     /// Arm the CPU-tab "Freeze on Start": fires when the keyboard scan loop exits.
     /// Scan loop ranges: TI-59/58 = 0x063C–0x0658, TI-58C = 0x063D–0x0A2E.
     /// Trigger conditions: (a) PC was inside loop and exits (key press or reset while idle),
-    /// or (b) PC jumps to 0x0000 while outside the loop (reset during program execution).
+    /// or (b) PC jumps to 0x0000 while outside the loop (reset during program execution),
+    /// or (c) an ASM overlay run succeeds (runASMOverlay checks this flag on success).
     func freezeOnScanLoopExit() {
         // Mutex: disarm CALCULATOR any-PC-change freeze if active
         pendingFreezeOnPCChange = false
@@ -2013,7 +2014,24 @@ class EmulatorViewModel {
                 ? "ASM entered at 0x1800 (HOLD detected after \(steps) step(s))."
                 : "ASM entered at 0x1800 (\(steps) step(s))."
             asmOverlayActive = true
-            startEmulationLoop()
+            if pendingCPUScanLoopFreeze {
+                // FREEZE ON START was armed — freeze in-place at the 0x1800 entry point.
+                // The machine is already between keycodes (runDebugOverlay + beginNextStep done).
+                freezeOwner = .cpu
+                freezeReason = .manual
+                pendingCPUScanLoopFreeze = false
+                _cpuFreezeSeenLoop = false
+                emulQueue.async { [weak self] in
+                    guard let self else { return }
+                    DispatchQueue.main.async { [weak self] in
+                        guard let self else { return }
+                        self.liveDebugSnapshot = self.buildLiveSnapshot(machine: m)
+                        self.captureInspectorSnapshot(machine: m)
+                    }
+                }
+            } else {
+                startEmulationLoop()
+            }
             startDisplayRefresh()
         } else {
             asmStatusMessage = "ASM run timed out before HOLD (\(steps) step(s))."
