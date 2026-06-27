@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.4.0] - 2026-06-27
+## [1.4.0] - Work in progress
 
 ### Fixes
 - **ASM Overlay** Running an overlay no longer spuriously times out.
