@@ -1980,6 +1980,7 @@ class EmulatorViewModel {
         isPausedOnBreakpoint = false
         breakpointPC = nil
         pendingFreezeOnPCChange = false
+        let freezeOnASMStart = pendingCPUScanLoopFreeze  // capture before clearing
         pendingCPUScanLoopFreeze = false
         _cpuFreezeSeenLoop = false
         clearFrozenState()
@@ -2014,13 +2015,11 @@ class EmulatorViewModel {
                 ? "ASM entered at 0x1800 (HOLD detected after \(steps) step(s))."
                 : "ASM entered at 0x1800 (\(steps) step(s))."
             asmOverlayActive = true
-            if pendingCPUScanLoopFreeze {
+            if freezeOnASMStart {
                 // FREEZE ON START was armed — freeze in-place at the 0x1800 entry point.
                 // The machine is already between keycodes (runDebugOverlay + beginNextStep done).
                 freezeOwner = .cpu
                 freezeReason = .manual
-                pendingCPUScanLoopFreeze = false
-                _cpuFreezeSeenLoop = false
                 emulQueue.async { [weak self] in
                     guard let self else { return }
                     DispatchQueue.main.async { [weak self] in
