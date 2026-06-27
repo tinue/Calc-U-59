@@ -1990,6 +1990,11 @@ class EmulatorViewModel {
 
         // Wait until any in-flight step batch finishes, then run the injection.
         emulQueue.sync {
+            // Park the CPU at a keycode boundary so the digit counter is mid-cycle
+            // when the overlay entry point is hit. Without this, the digit counter
+            // may already satisfy the first WAIT/KEY condition, preventing HOLD from
+            // ever being asserted and causing a spurious timeout.
+            _ = m.stepUntilNextKeycode()
             let data = self.asmOverlayWords.withUnsafeBufferPointer { Data(buffer: $0) }
             if !m.loadDebugOverlayWords(data) {
                 loaded = false
