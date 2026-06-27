@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0] - 2026-06-27
+
+### Fixes
+- **ASM Overlay** Running an overlay no longer spuriously times out.
+- **ASM Overlay** FREEZE ON START in the CPU tab now also triggers when Run is pressed in the ASM Overlay.
+- **CPU Debugger** KEY instruction disassembly no longer shows a spurious digit suffix.
+
 ## [1.3.0] - 2026-06-19
 - **Calculator Debugger** Enables tracing and single-stepping of solid-state module keycode programs.
 - **Portrait View** Enables the debugger in portrait view as well (disabled by default, enable in Settings). Particularly useful for iPhone users who previously had no debugger access.
