@@ -483,7 +483,11 @@ bool TMC0501::runDebugInjectedProgram(uint16_t startAddr, uint32_t maxSteps,
             }
         }
     }
-    return false;
+    // Loop exhausted without HOLD. Return true if entry was achieved (overlay
+    // is running — programs with no WAIT/KEY never assert HOLD and that is fine).
+    // Return false only if the CPU never reached the target (stuck in the
+    // keyboard scan loop — genuine failure to enter the overlay).
+    return entryComplete;
 }
 
 // ── Main instruction dispatch ─────────────────────────────────────────────────
