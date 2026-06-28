@@ -436,19 +436,17 @@ bool TMC0501::runDebugInjectedProgram(uint16_t startAddr, uint32_t maxSteps,
     if (outSawHold) *outSawHold = false;
 
     const uint16_t target = static_cast<uint16_t>(startAddr & 0x1FFFu);
-    // Force entry at startAddr once via PREG, then let the overlay run freely.
-    // Forcing PREG on every iteration would re-execute only the first instruction
-    // each time, preventing programs whose first instruction is not a WAIT/KEY
-    // (e.g. initialisation code like CLR IDL) from ever advancing to their
-    // synchronisation point.
-    EXT  = target;
-    PREG = target;
-    // Guarantee COND=1 on entry.  The ROM keyboard loop leaves COND in an
-    // arbitrary state; a branch in the overlay (e.g. BRA1) would not be taken
-    // if COND is 0, sending the CPU into dead address space.  On real hardware
-    // the debugger entry always provides a clean COND state.
+    // Emulate the external debugger holding EXT/PREG until HOLD is detected.
+    // HOLD has higher priority than PREG (see step() comment): while HOLD is
+    // active the CPU stays put; when HOLD clears the forced PREG redirect
+    // fires and jumps to target.  Asserting every step matches real hardware.
+    // Also guarantee COND=1 on entry — the ROM keyboard loop can leave COND=0
+    // and a branch in the overlay (e.g. BRA1 in DPT.asm) would not be taken,
+    // sending the CPU into dead address space.
     flags |= FLG_COND;
     for (uint32_t i = 0; i < maxSteps; i++) {
+        EXT  = target;
+        PREG = target;
         (void)step();
         if (outSteps) *outSteps = i + 1;
         if (flags & FLG_HOLD) {
@@ -910,14 +908,17 @@ int TMC0501::step() {
     postOperation();
 
     // ── PREG redirect (after instruction execution) ───────────────────
-    // If PREG is set (SET KR[1] was executed in the previous instruction),
-    // the next instruction has now completed. Redirect PC to the latched
-    // address and clear PREG.
-    if (PREG) {
-        addr = PREG;
-        PREG = 0;
-    } else if (!(flags & FLG_HOLD)) {
-        addr++;
+    // HOLD has higher priority than PREG (matches hardware: the external
+    // debugger holds EXT/PREG until HOLD is detected, and while HOLD is
+    // active the CPU stays put regardless of PREG).  Only when HOLD is
+    // clear does PREG redirect (or the normal addr++ happen).
+    if (!(flags & FLG_HOLD)) {
+        if (PREG) {
+            addr = PREG;
+            PREG = 0;
+        } else {
+            addr++;
+        }
     }
     // TI-58C runs at constant speed; TI-59/58 slow to 1/4 speed during IDLE
     int w = getStepWeight();
