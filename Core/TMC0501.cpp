@@ -431,9 +431,8 @@ void TMC0501::xch(uint8_t* a, uint8_t* b, const MaskInfo& m) {
 }
 
 bool TMC0501::runDebugInjectedProgram(uint16_t startAddr, uint32_t maxSteps,
-                                      uint32_t* outSteps, bool* outSawHold) {
+                                      uint32_t* outSteps) {
     if (outSteps) *outSteps = 0;
-    if (outSawHold) *outSawHold = false;
 
     const uint16_t target = static_cast<uint16_t>(startAddr & 0x1FFFu);
 

@@ -1994,24 +1994,20 @@ class EmulatorViewModel {
         clearFrozenState()
 
         var steps: UInt32 = 0
-        var sawHold: ObjCBool = false
         var ok = false
         var loaded = true
 
         // Wait until any in-flight step batch finishes, then run the injection.
         emulQueue.sync {
             // Park the CPU at a keycode boundary so the digit counter is mid-cycle
-            // when the overlay entry point is hit. Without this, the digit counter
-            // may already satisfy the first WAIT/KEY condition, preventing HOLD from
-            // ever being asserted and causing a spurious timeout.
+            // when the overlay entry point is hit.
             _ = m.stepUntilNextKeycode()
             let data = self.asmOverlayWords.withUnsafeBufferPointer { Data(buffer: $0) }
             if !m.loadDebugOverlayWords(data) {
                 loaded = false
-                ok = false
                 return
             }
-            ok = m.runDebugOverlay(at: 0x1800, maxSteps: 8192, steps: &steps, sawHold: &sawHold)
+            ok = m.runDebugOverlay(at: 0x1800, maxSteps: 8192, steps: &steps)
             m.beginNextStep()
         }
 
@@ -2019,29 +2015,24 @@ class EmulatorViewModel {
             asmStatusMessage = "ASM program exceeds overlay range 0x1800-0x1FFF."
             errorMessage = asmStatusMessage
         } else if ok {
-            asmStatusMessage = sawHold.boolValue
-                ? "ASM entered at 0x1800 (HOLD detected after \(steps) step(s))."
-                : "ASM entered at 0x1800 (\(steps) step(s))."
+            asmStatusMessage = "ASM entered at 0x1800 (\(steps) step(s))."
             asmOverlayActive = true
             if freezeOnASMStart {
                 // FREEZE ON START was armed — freeze in-place at the 0x1800 entry point.
-                // The machine is already between keycodes (runDebugOverlay + beginNextStep done).
+                // emulQueue.sync above already completed; no running loop to drain.
                 freezeOwner = .cpu
                 freezeReason = .manual
-                emulQueue.async { [weak self] in
+                DispatchQueue.main.async { [weak self] in
                     guard let self else { return }
-                    DispatchQueue.main.async { [weak self] in
-                        guard let self else { return }
-                        self.liveDebugSnapshot = self.buildLiveSnapshot(machine: m)
-                        self.captureInspectorSnapshot(machine: m)
-                    }
+                    self.liveDebugSnapshot = self.buildLiveSnapshot(machine: m)
+                    self.captureInspectorSnapshot(machine: m)
                 }
             } else {
                 startEmulationLoop()
             }
             startDisplayRefresh()
         } else {
-            asmStatusMessage = "ASM run timed out before HOLD (\(steps) step(s))."
+            asmStatusMessage = "ASM entry failed after \(steps) step(s)."
             errorMessage = asmStatusMessage
         }
     }

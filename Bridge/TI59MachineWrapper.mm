@@ -207,13 +207,10 @@ static const int kbits[] = {0, 1, 2, 3, 5, 6};  // index 0 unused; index col
 
 - (BOOL)runDebugOverlayAt:(uint16_t)startAddr
                  maxSteps:(uint32_t)maxSteps
-                    steps:(uint32_t*)outSteps
-                  sawHold:(BOOL*)outSawHold {
+                    steps:(uint32_t*)outSteps {
     uint32_t steps = 0;
-    bool sawHold = false;
-    bool ok = _machine->runDebugOverlay(startAddr, maxSteps, &steps, &sawHold);
+    bool ok = _machine->runDebugOverlay(startAddr, maxSteps, &steps);
     if (outSteps) *outSteps = steps;
-    if (outSawHold) *outSawHold = sawHold ? YES : NO;
     return ok ? YES : NO;
 }
 

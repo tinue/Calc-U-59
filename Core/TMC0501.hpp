@@ -192,10 +192,10 @@ public:
     /// Return the content currently held in the printer character buffer.
     std::string printerBufferContent() const;
 
-    /// Debug-only helper: repeatedly force PREG redirect to startAddr and step
-    /// until HOLD is observed or maxSteps is reached. Returns true on success.
+    /// Debug-only helper: repeatedly force PREG redirect to startAddr until
+    /// addr reaches startAddr. Returns true when entry succeeded.
     bool runDebugInjectedProgram(uint16_t startAddr, uint32_t maxSteps,
-                                 uint32_t* outSteps, bool* outSawHold);
+                                 uint32_t* outSteps);
 
     /// Return the last stable display snapshot.
     /// The snapshot is captured on every SET IDLE when the digit counter

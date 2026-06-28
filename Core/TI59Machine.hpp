@@ -92,9 +92,9 @@ public:
     /// Clear all debug ASM overlay words.
     void clearDebugOverlay();
 
-    /// Force execution entry at startAddr and step until HOLD is observed.
+    /// Force execution entry at startAddr. Returns true when entry succeeded.
     bool runDebugOverlay(uint16_t startAddr, uint32_t maxSteps,
-                         uint32_t* outSteps, bool* outSawHold);
+                         uint32_t* outSteps);
 
     uint32_t drainCpuFrames(CpuFrame* out, uint32_t max, uint32_t* outLost);
     uint32_t readCpuFrames(CpuFrame* out, uint32_t max) const;
