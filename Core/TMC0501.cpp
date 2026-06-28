@@ -436,10 +436,19 @@ bool TMC0501::runDebugInjectedProgram(uint16_t startAddr, uint32_t maxSteps,
     if (outSawHold) *outSawHold = false;
 
     const uint16_t target = static_cast<uint16_t>(startAddr & 0x1FFFu);
+    // Force entry at startAddr once via PREG, then let the overlay run freely.
+    // Forcing PREG on every iteration would re-execute only the first instruction
+    // each time, preventing programs whose first instruction is not a WAIT/KEY
+    // (e.g. initialisation code like CLR IDL) from ever advancing to their
+    // synchronisation point.
+    EXT  = target;
+    PREG = target;
+    // Guarantee COND=1 on entry.  The ROM keyboard loop leaves COND in an
+    // arbitrary state; a branch in the overlay (e.g. BRA1) would not be taken
+    // if COND is 0, sending the CPU into dead address space.  On real hardware
+    // the debugger entry always provides a clean COND state.
+    flags |= FLG_COND;
     for (uint32_t i = 0; i < maxSteps; i++) {
-        // Emulate the external debugger forcing EXT/PREG lines until HOLD.
-        EXT = target;
-        PREG = target;
         (void)step();
         if (outSteps) *outSteps = i + 1;
         if (flags & FLG_HOLD) {

@@ -1959,11 +1959,19 @@ class EmulatorViewModel {
     }
 
     func clearASMOverlay() {
+        let wasActive = asmOverlayActive
         machine?.clearDebugOverlay()
         asmOverlayWords = []
         asmOverlayActive = false
         asmWordCount = 0
         asmStatusMessage = "ASM overlay cleared."
+        // If the overlay was running, reset the machine so the CPU doesn't
+        // execute the now-empty overlay range (which returns opcode 0) and
+        // count all the way from 0x1800 to 0xFFFF before hitting real ROM.
+        if wasActive {
+            unfreeze()
+            machine?.reset()
+        }
     }
 
     func runASMOverlay() {
