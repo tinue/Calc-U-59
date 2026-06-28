@@ -436,17 +436,31 @@ bool TMC0501::runDebugInjectedProgram(uint16_t startAddr, uint32_t maxSteps,
     if (outSawHold) *outSawHold = false;
 
     const uint16_t target = static_cast<uint16_t>(startAddr & 0x1FFFu);
-    // Emulate the external debugger holding EXT/PREG until HOLD is detected.
-    // HOLD has higher priority than PREG (see step() comment): while HOLD is
-    // active the CPU stays put; when HOLD clears the forced PREG redirect
-    // fires and jumps to target.  Asserting every step matches real hardware.
-    // Also guarantee COND=1 on entry — the ROM keyboard loop can leave COND=0
-    // and a branch in the overlay (e.g. BRA1 in DPT.asm) would not be taken,
-    // sending the CPU into dead address space.
+
+    // On real hardware the external debugger holds EXT/PREG while the CPU
+    // sits in the keyboard-scan WAIT loop (HOLD active).  EXT is only latched
+    // into PREG by KEY instructions, so the redirect fires exactly once —
+    // when the keyboard WAIT's HOLD clears and the CPU takes the PREG jump to
+    // startAddr.  After that the overlay runs freely (CLR IDL, MOV, etc. do
+    // not read EXT, so PREG is never re-latched).
+    //
+    // The emulator approximates this by asserting PREG once and then running
+    // the overlay without re-asserting.  The first step is a transition that
+    // executes whatever the parked ROM instruction is and applies the PREG
+    // redirect; HOLD is not checked there.  Subsequent steps run the overlay
+    // until its own WAIT/KEY asserts HOLD.
+    //
+    // Also guarantee COND=1: the ROM keyboard loop can leave COND=0 and a
+    // conditional branch in the overlay (e.g. BRA1 in DPT.asm) would not be
+    // taken, sending the CPU into dead address space.
     flags |= FLG_COND;
-    for (uint32_t i = 0; i < maxSteps; i++) {
-        EXT  = target;
-        PREG = target;
+    EXT  = target;
+    PREG = target;
+    // Transition step — fires the PREG redirect; HOLD not checked here.
+    { (void)step(); if (outSteps) *outSteps = 1; }
+
+    // Overlay now running from startAddr — run freely until HOLD.
+    for (uint32_t i = 1; i < maxSteps; i++) {
         (void)step();
         if (outSteps) *outSteps = i + 1;
         if (flags & FLG_HOLD) {
