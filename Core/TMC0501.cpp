@@ -437,35 +437,50 @@ bool TMC0501::runDebugInjectedProgram(uint16_t startAddr, uint32_t maxSteps,
 
     const uint16_t target = static_cast<uint16_t>(startAddr & 0x1FFFu);
 
-    // On real hardware the external debugger holds EXT/PREG while the CPU
-    // sits in the keyboard-scan WAIT loop (HOLD active).  EXT is only latched
-    // into PREG by KEY instructions, so the redirect fires exactly once —
-    // when the keyboard WAIT's HOLD clears and the CPU takes the PREG jump to
-    // startAddr.  After that the overlay runs freely (CLR IDL, MOV, etc. do
-    // not read EXT, so PREG is never re-latched).
+    // Emulate the external debugger (Arduino) that continuously asserts
+    // EXT/PREG = target until it detects HOLD being released:
     //
-    // The emulator approximates this by asserting PREG once and then running
-    // the overlay without re-asserting.  The first step is a transition that
-    // executes whatever the parked ROM instruction is and applies the PREG
-    // redirect; HOLD is not checked there.  Subsequent steps run the overlay
-    // until its own WAIT/KEY asserts HOLD.
+    //  1. CPU sits in the keyboard-scan WAIT loop (HOLD active).
+    //     Arduino asserts EXT/PREG every cycle.  Because HOLD > PREG
+    //     (see step() comment), PREG is not consumed while HOLD is set —
+    //     re-assertion is harmless.
+    //  2. When HOLD clears (WAIT condition satisfied), PREG fires once →
+    //     addr = target, PREG = 0.
+    //  3. Arduino detects HOLD release → stops asserting EXT/PREG.
+    //  4. Overlay runs freely from target; code there (CLR IDL, MOV, etc.)
+    //     is never interrupted by a forced PREG redirect.
+    //
+    // The emulator mirrors this: assert EXT/PREG before every step until
+    // addr reaches target (the redirect fired), then run freely.  HOLD is
+    // not checked during the entry phase — only once the overlay is running.
     //
     // Also guarantee COND=1: the ROM keyboard loop can leave COND=0 and a
     // conditional branch in the overlay (e.g. BRA1 in DPT.asm) would not be
     // taken, sending the CPU into dead address space.
     flags |= FLG_COND;
-    EXT  = target;
-    PREG = target;
-    // Transition step — fires the PREG redirect; HOLD not checked here.
-    { (void)step(); if (outSteps) *outSteps = 1; }
+    bool entryComplete = false;
 
-    // Overlay now running from startAddr — run freely until HOLD.
-    for (uint32_t i = 1; i < maxSteps; i++) {
+    for (uint32_t i = 0; i < maxSteps; i++) {
+        if (!entryComplete) {
+            EXT  = target;
+            PREG = target;
+        }
         (void)step();
         if (outSteps) *outSteps = i + 1;
-        if (flags & FLG_HOLD) {
-            if (outSawHold) *outSawHold = true;
-            return true;
+        if (!entryComplete) {
+            // Redirect has fired when addr reaches target.
+            // (PREG is only consumed when HOLD is clear, so this is the
+            // first step where HOLD was not set and PREG was applied.)
+            if (addr == target) {
+                entryComplete = true;
+            }
+            // Do not check HOLD yet — we may still be in the keyboard loop.
+        } else {
+            // Overlay running freely — check for its own WAIT/KEY HOLD.
+            if (flags & FLG_HOLD) {
+                if (outSawHold) *outSawHold = true;
+                return true;
+            }
         }
     }
     return false;
