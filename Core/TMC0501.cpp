@@ -447,47 +447,29 @@ bool TMC0501::runDebugInjectedProgram(uint16_t startAddr, uint32_t maxSteps,
     //  2. When HOLD clears (WAIT condition satisfied), PREG fires once →
     //     addr = target, PREG = 0.
     //  3. Arduino detects HOLD release → stops asserting EXT/PREG.
-    //  4. Overlay runs freely from target; code there (CLR IDL, MOV, etc.)
-    //     is never interrupted by a forced PREG redirect.
+    //  4. Overlay runs from target.
     //
-    // The emulator mirrors this: assert EXT/PREG before every step until
-    // addr reaches target (the redirect fired), then run freely.  HOLD is
-    // not checked during the entry phase — only once the overlay is running.
+    // The emulator asserts EXT/PREG every step and returns as soon as addr
+    // reaches target — the emulation loop (or Freeze on Start) takes over
+    // immediately.  Running additional steps here would advance the overlay
+    // before the caller has a chance to observe or freeze it; programs with
+    // no WAIT/KEY (e.g. simple_count) would otherwise consume all maxSteps.
     //
     // Also guarantee COND=1: the ROM keyboard loop can leave COND=0 and a
     // conditional branch in the overlay (e.g. BRA1 in DPT.asm) would not be
     // taken, sending the CPU into dead address space.
     flags |= FLG_COND;
-    bool entryComplete = false;
 
     for (uint32_t i = 0; i < maxSteps; i++) {
-        if (!entryComplete) {
-            EXT  = target;
-            PREG = target;
-        }
+        EXT  = target;
+        PREG = target;
         (void)step();
         if (outSteps) *outSteps = i + 1;
-        if (!entryComplete) {
-            // Redirect has fired when addr reaches target.
-            // (PREG is only consumed when HOLD is clear, so this is the
-            // first step where HOLD was not set and PREG was applied.)
-            if (addr == target) {
-                entryComplete = true;
-            }
-            // Do not check HOLD yet — we may still be in the keyboard loop.
-        } else {
-            // Overlay running freely — check for its own WAIT/KEY HOLD.
-            if (flags & FLG_HOLD) {
-                if (outSawHold) *outSawHold = true;
-                return true;
-            }
+        if (addr == target) {
+            return true;   // PREG redirect fired; overlay at entry point.
         }
     }
-    // Loop exhausted without HOLD. Return true if entry was achieved (overlay
-    // is running — programs with no WAIT/KEY never assert HOLD and that is fine).
-    // Return false only if the CPU never reached the target (stuck in the
-    // keyboard scan loop — genuine failure to enter the overlay).
-    return entryComplete;
+    return false;   // Never reached target — stuck in keyboard scan loop.
 }
 
 // ── Main instruction dispatch ─────────────────────────────────────────────────
