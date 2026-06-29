@@ -2,7 +2,7 @@
 
 ## [1.5.0] - Work in progress
 
-- Work in progress
+- **Printer** Dot-matrix output is now rendered row by row. Lines interrupted mid-print (via the hacked `1F` printer-interrupt keycode) show only the dot-rows that were physically laid down, with no padding below — matching the hard stop of the real printer's stepper motor.
 
 ## [1.4.0] - 2026-06-29
 
