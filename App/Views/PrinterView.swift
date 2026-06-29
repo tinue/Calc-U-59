@@ -216,18 +216,17 @@ struct PrinterView: View {
         let codeLines = viewModel.printerCodeLines
         let strip = VStack(spacing: 0) {
             ForEach(lines.indices, id: \.self) { i in
-                let pdl = PrinterDotLine(
-                    codes: i < codeLines.count
-                        ? [UInt8](codeLines[i])
-                        : [UInt8](repeating: 0, count: 20),
-                    dotColor: .black
-                )
                 if lines[i].isEmpty {
                     Color.white.frame(width: lineW, height: lineH)
                 } else {
-                    pdl.background(Color.white)
-                        .frame(width: lineW, height: pdl.lineAspectRatio > 0
-                            ? lineW / pdl.lineAspectRatio : lineH)
+                    PrinterDotLine(
+                        codes: i < codeLines.count
+                            ? [UInt8](codeLines[i])
+                            : [UInt8](repeating: 0, count: 20),
+                        dotColor: .black
+                    )
+                    .background(Color.white)
+                    .frame(width: lineW)
                 }
             }
         }
@@ -310,7 +309,8 @@ struct PrinterDotLine: View {
     static let aspectRatio = widthUnits / heightUnits
 
     var dotColor: Color = Color(white: 0.12)
-    private static let dotRadiusFraction = 0.38  // dot radius as fraction of dotPitch
+    private static let dotRadiusFraction = 0.38   // dot radius as fraction of dotPitch
+    private static let interLineGap      = heightUnits - 7.0  // ≈ 3.18 dp — stepper advance gap
 
     // Byte 20, when present, carries the rowCount from the C++ PrinterCodeLine struct.
     // 7 = complete line; 1–6 = aborted mid-stroke (partial dot-rows visible on paper).
@@ -318,37 +318,45 @@ struct PrinterDotLine: View {
         codes.count > 20 ? max(1, min(7, Int(codes[20]))) : 7
     }
 
-    // For a partial line the canvas height covers only the printed rows — no inter-line gap.
-    // The stepper stopped hard; the paper did not advance to complete the normal line pitch.
-    var lineAspectRatio: Double {
-        rowCount < 7 ? Self.widthUnits / Double(rowCount) : Self.aspectRatio
+    // Dot-row model: each row is a separate Canvas with aspect ratio widthUnits:1
+    // (one dot-pitch tall, full line width). This gives SwiftUI a concrete height per
+    // row regardless of scroll context, avoiding the unreliable aspectRatio-on-Canvas
+    // behaviour in an unconstrained LazyVStack.
+    //
+    // Complete lines append an inter-line gap spacer (3.18 dp) after row 6, matching
+    // the stepper's paper advance. Partial lines have no spacer — the motor stopped hard.
+    var body: some View {
+        VStack(spacing: 0) {
+            ForEach(0..<rowCount, id: \.self) { rowIdx in
+                singleRow(rowIdx)
+            }
+            if rowCount == 7 {
+                Color.clear
+                    .aspectRatio(Self.widthUnits / Self.interLineGap, contentMode: .fit)
+            }
+        }
     }
 
-    var body: some View {
+    private func singleRow(_ rowIdx: Int) -> some View {
         Canvas { ctx, size in
-            let dotPitch  = size.width / Self.widthUnits
-            let dotR      = dotPitch * Self.dotRadiusFraction
-            let charStep  = (5.0 + Self.charGap) * dotPitch  // first-col to first-col of next char
+            let dotPitch = size.width / Self.widthUnits
+            let dotR     = dotPitch * Self.dotRadiusFraction
+            let charStep = (5.0 + Self.charGap) * dotPitch
+            let dotY     = size.height * 0.5  // vertically centred in the one-row canvas
 
             for charIdx in 0..<min(codes.count, 20) {
-                let fontRows = pc100cFont[Int(codes[charIdx])]
-                let charX    = Double(charIdx) * charStep
-
-                for rowIdx in 0..<rowCount {
-                    let bits = fontRows[rowIdx]
-                    let dotY = (Double(rowIdx) + 0.5) * dotPitch
-
-                    for colIdx in 0..<5 {
-                        guard bits & (0x10 >> colIdx) != 0 else { continue }
-                        let dotX = charX + (Double(colIdx) + 0.5) * dotPitch
-                        let rect = CGRect(x: dotX - dotR, y: dotY - dotR,
-                                          width: 2 * dotR, height: 2 * dotR)
-                        ctx.fill(Path(ellipseIn: rect), with: .color(dotColor))
-                    }
+                let bits = pc100cFont[Int(codes[charIdx])][rowIdx]
+                let charX = Double(charIdx) * charStep
+                for colIdx in 0..<5 {
+                    guard bits & (0x10 >> colIdx) != 0 else { continue }
+                    let dotX = charX + (Double(colIdx) + 0.5) * dotPitch
+                    let rect = CGRect(x: dotX - dotR, y: dotY - dotR,
+                                      width: 2 * dotR, height: 2 * dotR)
+                    ctx.fill(Path(ellipseIn: rect), with: .color(dotColor))
                 }
             }
         }
-        .aspectRatio(lineAspectRatio, contentMode: .fit)
+        .aspectRatio(Self.widthUnits, contentMode: .fit)  // width:height = widthUnits:1
     }
 }
 
