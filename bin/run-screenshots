@@ -9,10 +9,16 @@
 # recreating simulators for a new iOS patch release.
 #
 # Usage:
-#   bin/run-screenshots
+#   bin/run-screenshots [filter]
+#
+# filter: optional substring matched against the full test name, e.g.:
+#   "settings"   → iphone-05-settings
+#   "05-settings" → iphone-05-settings
+#   "02"          → iphone-02-cpu-inspector  ipad-02-calc-debugger
 
 set -euo pipefail
 
+FILTER="${1:-}"
 SRCROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SCREENSHOT_DIR="$SRCROOT/appstore/screenshots"
 CONFIG="$SRCROOT/bin/simulators.yaml"
@@ -87,6 +93,14 @@ run_test() {
         "${extra[@]}"
 }
 
+# Run a named test only if its name contains $FILTER (or no filter is set).
+run_named_test() {
+    local name="$1" udid="$2" fn="$3"
+    [[ -z "$FILTER" || "$name" == *"$FILTER"* ]] || return 0
+    echo "$name" > /tmp/calc-u-59-screenshot-name
+    run_test "$udid" "$fn"
+}
+
 # ── Resolve simulators ─────────────────────────────────────────────────────────
 
 echo "Resolving simulators…"
@@ -101,31 +115,17 @@ echo ""
 mkdir -p "$SCREENSHOT_DIR"
 
 # ── Run tests ──────────────────────────────────────────────────────────────────
-# The desired output filename is written to /tmp/calc-u-59-screenshot-name before
-# each xcodebuild call; the test reads it and names its PNG accordingly.
+# run_named_test writes the target filename to /tmp before each xcodebuild call;
+# the test reads it and names its PNG accordingly.
 # iPhone — order here determines the NN sequence numbers.
 
-echo "iphone-01-plain-calculator" > /tmp/calc-u-59-screenshot-name
-run_test "$IPHONE_UDID" PlainCalculator   # cover picture, plain calculator with filled display
-
-echo "iphone-02-cpu-inspector" > /tmp/calc-u-59-screenshot-name
-run_test "$IPHONE_UDID" CPUInspector      # CPU debugger frozen in the Reset routine
-
-echo "iphone-03-calc-debugger" > /tmp/calc-u-59-screenshot-name
-run_test "$IPHONE_UDID" CalcDebugger      # calculator debugger frozen at SBR = location
-
-echo "iphone-04-diagnostics" > /tmp/calc-u-59-screenshot-name
-run_test "$IPHONE_UDID" LoadDiagPreset    # diagnostics with card inlay (was iPhone 16e)
-
-echo "iphone-05-settings" > /tmp/calc-u-59-screenshot-name
-run_test "$IPHONE_UDID" Settings          # settings panel (was iPhone 16e)
-
-# iPad
-echo "ipad-01-assembly" > /tmp/calc-u-59-screenshot-name
-run_test "$IPAD_UDID" Assembly            # ASM overlay with stopwatch running
-
-echo "ipad-02-calc-debugger" > /tmp/calc-u-59-screenshot-name
-run_test "$IPAD_UDID" CalcDebugger        # calculator debugger with printer output
+run_named_test "iphone-01-plain-calculator" "$IPHONE_UDID" PlainCalculator
+run_named_test "iphone-02-cpu-inspector"    "$IPHONE_UDID" CPUInspector
+run_named_test "iphone-03-calc-debugger"    "$IPHONE_UDID" CalcDebugger
+run_named_test "iphone-04-diagnostics"      "$IPHONE_UDID" LoadDiagPreset
+run_named_test "iphone-05-settings"         "$IPHONE_UDID" Settings
+run_named_test "ipad-01-assembly"           "$IPAD_UDID"   Assembly
+run_named_test "ipad-02-calc-debugger"      "$IPAD_UDID"   CalcDebugger
 
 echo ""
 echo "Screenshots in $SCREENSHOT_DIR:"
