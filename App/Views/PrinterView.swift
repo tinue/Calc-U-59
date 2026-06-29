@@ -216,20 +216,19 @@ struct PrinterView: View {
         let codeLines = viewModel.printerCodeLines
         let strip = VStack(spacing: 0) {
             ForEach(lines.indices, id: \.self) { i in
-                Group {
-                    if lines[i].isEmpty {
-                        Color.white
-                    } else {
-                        PrinterDotLine(
-                            codes: i < codeLines.count
-                                ? [UInt8](codeLines[i])
-                                : [UInt8](repeating: 0, count: 20),
-                            dotColor: .black
-                        )
-                        .background(Color.white)
-                    }
+                let pdl = PrinterDotLine(
+                    codes: i < codeLines.count
+                        ? [UInt8](codeLines[i])
+                        : [UInt8](repeating: 0, count: 20),
+                    dotColor: .black
+                )
+                if lines[i].isEmpty {
+                    Color.white.frame(width: lineW, height: lineH)
+                } else {
+                    pdl.background(Color.white)
+                        .frame(width: lineW, height: pdl.lineAspectRatio > 0
+                            ? lineW / pdl.lineAspectRatio : lineH)
                 }
-                .frame(width: lineW, height: lineH)
             }
         }
         .background(Color.white)
@@ -319,6 +318,12 @@ struct PrinterDotLine: View {
         codes.count > 20 ? max(1, min(7, Int(codes[20]))) : 7
     }
 
+    // For a partial line the canvas height covers only the printed rows — no inter-line gap.
+    // The stepper stopped hard; the paper did not advance to complete the normal line pitch.
+    var lineAspectRatio: Double {
+        rowCount < 7 ? Self.widthUnits / Double(rowCount) : Self.aspectRatio
+    }
+
     var body: some View {
         Canvas { ctx, size in
             let dotPitch  = size.width / Self.widthUnits
@@ -343,7 +348,7 @@ struct PrinterDotLine: View {
                 }
             }
         }
-        .aspectRatio(Self.aspectRatio, contentMode: .fit)
+        .aspectRatio(lineAspectRatio, contentMode: .fit)
     }
 }
 

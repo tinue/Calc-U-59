@@ -788,11 +788,14 @@ int TMC0501::step() {
                 break;
             case 0xA0: { // PRT_PRINT — output buffer as a line
                 if (m_prnReady) {
-                    // Abort any in-progress print, flushing its code-line with a partial row count
+                    // PRT.GO while BUSY: the printer aborts the in-progress print and ignores the
+                    // new one. This is an unhandled hardware edge case (e.g. hacked "1F" keycode)
+                    // not foreseen by the ROM; there is no retry or recovery — the printer just stops.
                     if (m_prnBusyCycles > 0 && m_prnHasPending) {
                         uint32_t total   = getPrinterBusyCycles();
                         uint32_t elapsed = total - m_prnBusyCycles;
                         flushPendingCodeLine(static_cast<int>(elapsed * 7u / total));
+                        break;  // new print is silently ignored
                     }
                     // Buffer is right-to-left: read from position 19 down to 0.
                     // Text is committed immediately (always shows full content, even if aborted).
