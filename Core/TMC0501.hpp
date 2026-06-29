@@ -343,6 +343,7 @@ private:
     uint32_t m_prnBusyCycles{0};     // Countdown for FLG_BUSY assertion
     PrinterCodeLine  m_prnPending{};      // Code-line in progress (deferred until BUSY expires or aborted)
     bool             m_prnHasPending{false};
+    bool             m_prnInterrupted{false}; // True after an aborted print; next PRT.FEED completes the line pitch (no blank added)
     std::vector<std::string>      m_prnLines;      // Thread-safe text output queue
     std::vector<PrinterCodeLine>  m_prnCodeLines;  // Parallel raw-code queue (deferred commits)
     mutable std::mutex            m_prnMutex;
