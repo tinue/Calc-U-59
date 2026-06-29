@@ -343,7 +343,7 @@ if ! $DO_BUILD_ONLY && [ -n "$WHATSNEW" ]; then
         printf '%s\n' "$WHATSNEW" > "appstore/whatsnew.txt"
         (
             cd appstore
-            git add whatsnew.txt
+            git add -f whatsnew.txt
             if ! git diff --cached --quiet; then
                 git commit -m "whatsnew: v${VERSION}"
                 git push
