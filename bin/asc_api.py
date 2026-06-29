@@ -70,7 +70,7 @@ def patch(token: str, path: str, body: dict) -> dict:
         timeout=30,
     )
     _check(r)
-    return r.json()
+    return r.json() if r.content else {}
 
 
 def delete(token: str, path: str) -> None:
