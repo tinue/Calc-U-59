@@ -154,6 +154,9 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertTrue(settingsButton.waitForExistence(timeout: 5), "btn-settings not found")
         settingsButton.tap()
 
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5),
+                      "Settings sheet did not appear")
+
         let dest = URL(fileURLWithPath: "\(screenshotDir)/\(screenshotName ?? "Settings-\(UIDevice.current.name)").png")
         try XCUIScreen.main.screenshot().pngRepresentation.write(to: dest)
         attachScreenshot(app, name: "Settings")
