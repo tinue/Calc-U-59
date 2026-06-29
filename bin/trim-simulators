@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
 Delete simulator devices not listed in bin/simulators.yaml (on their resolved runtime),
-plus all unavailable runtimes, plus any UUID directories left behind in
-CoreSimulator/Devices that simctl no longer tracks (orphans).
+installed runtimes not needed by any device in the config, all unavailable runtimes,
+and any UUID directories left behind in CoreSimulator/Devices that simctl no longer
+tracks (orphans).
 
 Usage:
     bin/trim-simulators            # dry run — shows what would be deleted
@@ -10,6 +11,8 @@ Usage:
 
 Edit bin/simulators.yaml to adjust the device list.
 A device is kept only on the latest available patch of its configured iOS major version.
+Runtimes bundled inside Xcode.app cannot be deleted by simctl; those are skipped with
+a note pointing to Xcode → Settings → Platforms.
 """
 
 import json
@@ -81,18 +84,26 @@ def main() -> None:
     )
     runtimes = json.loads(runtimes_raw.stdout)["runtimes"]
 
-    # Build the set of (runtime_id, name) pairs to keep.
+    # Build the set of (runtime_id, name) pairs to keep, and the needed runtime IDs.
     keep_pairs: set[tuple[str, str]] = set()
+    needed_runtimes: set[str] = set()
     for d in config_devices:
         rt = latest_runtime_for_major(d["ios"], runtimes)
         if rt:
             keep_pairs.add((rt, d["name"]))
+            needed_runtimes.add(rt)
         else:
             print(
                 f"Warning: no iOS {d['ios']}.x runtime available — "
                 f"'{d['name']}' will not be protected from deletion.",
                 file=sys.stderr,
             )
+
+    # Available runtimes not required by any device in the config.
+    runtimes_to_delete = [
+        r for r in runtimes
+        if r.get("isAvailable", False) and r["identifier"] not in needed_runtimes
+    ]
 
     result = subprocess.run(
         ["xcrun", "simctl", "list", "devices", "--json"],
@@ -131,20 +142,44 @@ def main() -> None:
     else:
         print("No simctl devices to delete.")
 
+    if runtimes_to_delete:
+        print(f"\n{label}{len(runtimes_to_delete)} installed runtime(s) to delete:\n")
+        for r in runtimes_to_delete:
+            print(f"  {r['name']}")
+    else:
+        print("\nNo installed runtimes to delete.")
+
     if orphan_dirs:
         print(f"\n{label}{len(orphan_dirs)} orphaned director{'y' if len(orphan_dirs) == 1 else 'ies'} to remove:")
         for p in sorted(orphan_dirs):
             print(f"  {p.name}")
 
     if dry_run:
-        total = len(to_delete) + len(orphan_dirs)
+        total = len(to_delete) + len(runtimes_to_delete) + len(orphan_dirs)
         if total:
-            print(f"\nRun with --delete to remove {total} item(s) and purge unavailable runtimes.")
+            print(f"\nRun with --delete to remove {total} item(s).")
         return
 
     if to_delete:
         udids = [udid for _, _, udid in to_delete]
         subprocess.run(["xcrun", "simctl", "delete"] + udids, check=True)
+
+    bundled_runtimes: list[str] = []
+    for r in runtimes_to_delete:
+        res = subprocess.run(
+            ["xcrun", "simctl", "runtime", "delete", r["identifier"]],
+            capture_output=True, text=True,
+        )
+        if res.returncode == 0:
+            print(f"Deleted runtime: {r['name']}")
+        else:
+            bundled_runtimes.append(r["name"])
+
+    if bundled_runtimes:
+        print("\nThe following runtime(s) are bundled inside Xcode and cannot be deleted by simctl:")
+        for name in bundled_runtimes:
+            print(f"  {name}")
+        print("Remove them via Xcode → Settings → Platforms.")
 
     print("Purging unavailable runtimes...")
     subprocess.run(["xcrun", "simctl", "delete", "unavailable"], check=True)
