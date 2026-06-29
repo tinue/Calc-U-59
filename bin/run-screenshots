@@ -15,10 +15,38 @@ set -euo pipefail
 
 SRCROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SCREENSHOT_DIR="$SRCROOT/appstore/screenshots"
+CONFIG="$SRCROOT/bin/simulators.yaml"
 echo "$SCREENSHOT_DIR" > /tmp/calc-u-59-screenshot-dir
 trap 'rm -f /tmp/calc-u-59-screenshot-dir /tmp/calc-u-59-screenshot-name' EXIT
 
 # ── Simulator lookup ───────────────────────────────────────────────────────────
+# Returns the name of the simulator with the given screenshots role (iphone|ipad).
+
+_config_sim_name() {
+    local role="$1"
+    python3 -c "
+import re, sys
+devs, cur = [], None
+for line in open(sys.argv[1]):
+    line = line.rstrip()
+    if re.match(r'^- ', line):
+        if cur is not None: devs.append(cur)
+        cur = {}
+    # parse key: value from both '- key: val' and '  key: val' lines
+    m = re.match(r'^[-\s]\s*(\w+):\s*(.*)', line)
+    if m and cur is not None:
+        k, v = m.group(1), m.group(2).strip()
+        cur[k] = v or None
+if cur is not None: devs.append(cur)
+for d in devs:
+    if d.get('screenshots') == sys.argv[2]:
+        print(d['name'])
+        sys.exit(0)
+print('Error: no simulator with screenshots=%s in %s' % (sys.argv[2], sys.argv[1]), file=sys.stderr)
+sys.exit(1)
+" "$CONFIG" "$role"
+}
+
 # Returns the UDID of the latest available iOS simulator matching the given name.
 
 find_simulator() {
@@ -62,10 +90,12 @@ run_test() {
 # ── Resolve simulators ─────────────────────────────────────────────────────────
 
 echo "Resolving simulators…"
-IPHONE_UDID=$(find_simulator "iPhone 17 Pro Max")
-IPAD_UDID=$(find_simulator "iPad Pro 13-inch (M5)")
-echo "  iPhone 17 Pro Max:       $IPHONE_UDID"
-echo "  iPad Pro 13-inch (M5):   $IPAD_UDID"
+IPHONE_NAME=$(_config_sim_name iphone)
+IPAD_NAME=$(_config_sim_name ipad)
+IPHONE_UDID=$(find_simulator "$IPHONE_NAME")
+IPAD_UDID=$(find_simulator "$IPAD_NAME")
+echo "  $IPHONE_NAME: $IPHONE_UDID"
+echo "  $IPAD_NAME: $IPAD_UDID"
 echo ""
 
 mkdir -p "$SCREENSHOT_DIR"

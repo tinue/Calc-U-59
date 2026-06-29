@@ -16,16 +16,32 @@
 
 set -euo pipefail
 
-# ── Target devices ─────────────────────────────────────────────────────────────
-# Format: "Exact simulator display name|iOS major version"
-# The latest patch release for the major version is resolved automatically.
+# ── Target devices (read from bin/simulators.yaml) ────────────────────────────
+# Edit simulators.yaml to add, remove, or change devices.
+# Format parsed here: "Exact simulator display name|iOS major version"
 
-TARGETS=(
-    "iPhone 17 Pro Max|26"
-    "iPhone 16e|18"
-    "iPad Pro 13-inch (M5)|26"
-    "iPad mini (A17 Pro)|26"
-)
+CONFIG="$(dirname "$0")/simulators.yaml"
+
+TARGETS=()
+while IFS= read -r _entry; do
+    TARGETS+=("$_entry")
+done < <(python3 -c "
+import re, sys
+devs, cur = [], None
+for line in open(sys.argv[1]):
+    line = line.rstrip()
+    if re.match(r'^- ', line):
+        if cur is not None: devs.append(cur)
+        cur = {}
+    # parse key: value from both '- key: val' and '  key: val' lines
+    m = re.match(r'^[-\s]\s*(\w+):\s*(.*)', line)
+    if m and cur is not None:
+        k, v = m.group(1), m.group(2).strip()
+        cur[k] = int(v) if v.isdigit() else (v or None)
+if cur is not None: devs.append(cur)
+for d in devs:
+    print('%s|%s' % (d['name'], d['ios']))
+" "$CONFIG")
 
 # ── Paths and file sources ─────────────────────────────────────────────────────
 
