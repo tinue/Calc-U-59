@@ -382,6 +382,23 @@ fi
 # against the build that was already uploaded via a prior TestFlight run.
 # Verify that the processed build in App Store Connect matches the local project.
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ASC_PY="$SCRIPT_DIR/asc_api.py"
+
+asc_run() {
+    # Runs asc_api.py via uv with the shared credentials flags.
+    # In dry-run mode, prints what would run instead.
+    local cmd=("uv" "run" "--with" "PyJWT,cryptography,requests" "$ASC_PY" \
+               "--key-id" "$APP_STORE_API_KEY_ID" \
+               "--issuer-id" "$APP_STORE_API_ISSUER_ID" \
+               "--key-file" "$KEY_FILE" "$@")
+    if $DRY_RUN; then
+        echo "[dry-run] ${cmd[*]}"
+    else
+        "${cmd[@]}"
+    fi
+}
+
 APP_ID=""
 BUILD_ID=""
 
@@ -507,23 +524,6 @@ xcrun altool --upload-app \
 fi  # ! $DO_RELEASE
 
 # ── 9. App Store Connect automation (--release only) ─────────────────────────
-
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-ASC_PY="$SCRIPT_DIR/asc_api.py"
-
-asc_run() {
-    # Runs asc_api.py via uv with the shared credentials flags.
-    # In dry-run mode, prints what would run instead.
-    local cmd=("uv" "run" "--with" "PyJWT,cryptography,requests" "$ASC_PY" \
-               "--key-id" "$APP_STORE_API_KEY_ID" \
-               "--issuer-id" "$APP_STORE_API_ISSUER_ID" \
-               "--key-file" "$KEY_FILE" "$@")
-    if $DRY_RUN; then
-        echo "[dry-run] ${cmd[*]}"
-    else
-        "${cmd[@]}"
-    fi
-}
 
 ASC_VERSION_ID=""
 ASC_BUILD_RESULT=""
