@@ -49,6 +49,7 @@ struct DebugView: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 5)
             .background(vm.debugTab == tab_ ? Color(white: 0.20) : Color.clear)
+            .accessibilityIdentifier("btn-tab-\(label.lowercased())")
     }
 }
 
@@ -226,6 +227,7 @@ private struct ASMDebugContent: View {
                 .padding(.vertical, 4)
                 .background(Color(white: 0.25))
                 .clipShape(RoundedRectangle(cornerRadius: 6))
+                .accessibilityIdentifier("btn-asm-select")
 
                 Button("Run") {
                     vm.runASMOverlay()
@@ -238,6 +240,7 @@ private struct ASMDebugContent: View {
                 .background(Color(white: 0.25))
                 .clipShape(RoundedRectangle(cornerRadius: 6))
                 .disabled(!vm.canRunASM)
+                .accessibilityIdentifier("btn-asm-run")
 
                 Button("Clear") {
                     vm.clearASMOverlay()

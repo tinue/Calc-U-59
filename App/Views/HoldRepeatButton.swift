@@ -21,6 +21,7 @@ struct HoldRepeatButton: View {
             .foregroundStyle(color)
             .opacity(enabled ? (isPressing ? 0.5 : 1) : 0.4)
             .contentShape(Rectangle())
+            .accessibilityAddTraits(.isButton)
             // minimumDistance 0 makes onChanged fire on touch-down.
             .gesture(
                 DragGesture(minimumDistance: 0)

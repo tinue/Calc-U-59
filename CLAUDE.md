@@ -9,6 +9,8 @@ Invoke the right skill before starting work in each area:
 | `calc-u-59-core` | C++ emulation core (`Core/`, `tools/`, ROM disassembly, trace infrastructure) |
 | `calc-u-59-swift` | Swift/SwiftUI app (`App/`, `App/Views/`, `Bridge/`) |
 | `calc-u-59-docs` | Documentation and website (`docs/`, `reference/`, root markdown files) |
+| `calc-u-59-statefiles` | Writing `.ti59`/`.ti58`/`.ti58c` state files — format, matrix codes, KEYSTROKES sequences |
+| `calc-u-59-uitesting` | XCUITest UI tests (`Calc-U-59UITests/`) — file picker navigation, accessibility identifiers, orientation |
 
 ## Architecture Reference
 

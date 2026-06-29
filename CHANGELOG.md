@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.4.0] - 2026-06-29
+
+- **State Files** New `MODEL:` keyword switches the machine variant (TI-59/58/58C) when a state file is loaded.
+- **State Files** New `WaitFullSpeed: Xs` keyword runs the calculator at full speed for the given duration before continuing.
+- **State Files** New `SKIP-RESET:` directive applies only PROGRAM, REGISTERS, and KEYSTROKES to the running machine, skipping the reset.
+- **State Files** Printer tape is cleared whenever a state file is loaded.
+
+### Fixes
+- **ASM Overlay** Running an overlay no longer spuriously times out.
+- **ASM Overlay** FREEZE ON START in the CPU tab now also triggers when Run is pressed in the ASM Overlay.
+- **CPU Debugger** KEY instruction disassembly no longer shows a spurious digit suffix.
+
 ## [1.3.0] - 2026-06-19
 - **Calculator Debugger** Enables tracing and single-stepping of solid-state module keycode programs.
 - **Portrait View** Enables the debugger in portrait view as well (disabled by default, enable in Settings). Particularly useful for iPhone users who previously had no debugger access.

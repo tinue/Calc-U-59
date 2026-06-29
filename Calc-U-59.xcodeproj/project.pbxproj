@@ -34,6 +34,16 @@
 		FFF462699020D7E427019C23 /* roms/calculator/CD2400-CONST-K.txt in Resources */ = {isa = PBXBuildFile; fileRef = A03FEEC869500F2ED42C8381 /* roms/calculator/CD2400-CONST-K.txt */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		8C7473C82FE5638A009DC59A /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 8C7285512F69626400D5F025 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 8C7285582F69626400D5F025;
+			remoteInfo = "Calc-U-59";
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		067A301B08617C3C718CAD6B /* roms/calculator/TMC0582.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = roms/calculator/TMC0582.txt; sourceTree = "<group>"; };
 		0A6522F10504197826D208A1 /* roms/calculator/TMC0582-CONST-K.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "roms/calculator/TMC0582-CONST-K.txt"; sourceTree = "<group>"; };
@@ -42,6 +52,7 @@
 		5E899B70D779E3C3D40E77C0 /* roms/calculator/CD2401-CONST-K.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "roms/calculator/CD2401-CONST-K.txt"; sourceTree = "<group>"; };
 		82EB9107C1DE1D77AB49F0D3 /* roms/calculator/TMC0583-CONST-K.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "roms/calculator/TMC0583-CONST-K.txt"; sourceTree = "<group>"; };
 		8C7285592F69626400D5F025 /* Calc-U-59.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Calc-U-59.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		8C7473C22FE5638A009DC59A /* Calc-U-59UITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Calc-U-59UITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		8CC614992F6C2E370041355E /* Calc-U-59.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Calc-U-59.entitlements"; sourceTree = "<group>"; };
 		8CF668232F7ED56C006116D2 /* Calc-U-59-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "Calc-U-59-Info.plist"; sourceTree = "<group>"; };
 		922A6D0E64ED7C6A5E52CCD5 /* roms/calculator/TMC0583.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = roms/calculator/TMC0583.txt; sourceTree = "<group>"; };
@@ -81,10 +92,22 @@
 			path = Bridge;
 			sourceTree = "<group>";
 		};
+		8C7473C32FE5638A009DC59A /* Calc-U-59UITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "Calc-U-59UITests";
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		8C7285562F69626400D5F025 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8C7473BF2FE5638A009DC59A /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -134,6 +157,7 @@
 				D1A2B3C4E5F6A7B8C9D0E1FD /* roms/solid-state/TMC0553.txt */,
 				D1A2B3C4E5F6A7B8C9D0E1FE /* roms/solid-state/TMC0554.txt */,
 				D1A2B3C4E5F6A7B8C9D0E1FF /* roms/solid-state/TMC0555.txt */,
+				8C7473C32FE5638A009DC59A /* Calc-U-59UITests */,
 				8C72855A2F69626400D5F025 /* Products */,
 				8C097D572FAF34490063B5D0 /* Recovered References */,
 			);
@@ -143,6 +167,7 @@
 			isa = PBXGroup;
 			children = (
 				8C7285592F69626400D5F025 /* Calc-U-59.app */,
+				8C7473C22FE5638A009DC59A /* Calc-U-59UITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -174,6 +199,29 @@
 			productReference = 8C7285592F69626400D5F025 /* Calc-U-59.app */;
 			productType = "com.apple.product-type.application";
 		};
+		8C7473C12FE5638A009DC59A /* Calc-U-59UITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8C7473CC2FE5638A009DC59A /* Build configuration list for PBXNativeTarget "Calc-U-59UITests" */;
+			buildPhases = (
+				8C7473BE2FE5638A009DC59A /* Sources */,
+				8C7473BF2FE5638A009DC59A /* Frameworks */,
+				8C7473C02FE5638A009DC59A /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				8C7473C92FE5638A009DC59A /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				8C7473C32FE5638A009DC59A /* Calc-U-59UITests */,
+			);
+			name = "Calc-U-59UITests";
+			packageProductDependencies = (
+			);
+			productName = "Calc-U-59UITests";
+			productReference = 8C7473C22FE5638A009DC59A /* Calc-U-59UITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -181,11 +229,15 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 2630;
+				LastSwiftUpdateCheck = 2650;
 				LastUpgradeCheck = 2650;
 				TargetAttributes = {
 					8C7285582F69626400D5F025 = {
 						CreatedOnToolsVersion = 26.3;
+					};
+					8C7473C12FE5638A009DC59A = {
+						CreatedOnToolsVersion = 26.5;
+						TestTargetID = 8C7285582F69626400D5F025;
 					};
 				};
 			};
@@ -204,6 +256,7 @@
 			projectRoot = "";
 			targets = (
 				8C7285582F69626400D5F025 /* Calc-U-59 */,
+				8C7473C12FE5638A009DC59A /* Calc-U-59UITests */,
 			);
 		};
 /* End PBXProject section */
@@ -241,6 +294,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		8C7473C02FE5638A009DC59A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -251,7 +311,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		8C7473BE2FE5638A009DC59A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		8C7473C92FE5638A009DC59A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 8C7285582F69626400D5F025 /* Calc-U-59 */;
+			targetProxy = 8C7473C82FE5638A009DC59A /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		8C7285622F69626400D5F025 /* Debug */ = {
@@ -383,7 +458,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "Calc-U-59.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 0;
 				DEVELOPMENT_TEAM = 7Q3QN9AV9J;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -418,7 +493,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 1.3.0;
+				MARKETING_VERSION = 1.4.0;
 				PRODUCT_BUNDLE_IDENTIFIER = ch.erzberger.calcu59;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -444,7 +519,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "Calc-U-59.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 0;
 				DEVELOPMENT_TEAM = 7Q3QN9AV9J;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
@@ -479,7 +554,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 1.3.0;
+				MARKETING_VERSION = 1.4.0;
 				PRODUCT_BUNDLE_IDENTIFIER = ch.erzberger.calcu59;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
@@ -495,6 +570,58 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				XROS_DEPLOYMENT_TARGET = 26.2;
+			};
+			name = Release;
+		};
+		8C7473CA2FE5638A009DC59A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 7Q3QN9AV9J;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MACOSX_DEPLOYMENT_TARGET = 26.5;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "ch.erzberger.Calc-U-59UITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = "Calc-U-59";
+				XROS_DEPLOYMENT_TARGET = 26.5;
+			};
+			name = Debug;
+		};
+		8C7473CB2FE5638A009DC59A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 7Q3QN9AV9J;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MACOSX_DEPLOYMENT_TARGET = 26.5;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "ch.erzberger.Calc-U-59UITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = "Calc-U-59";
+				XROS_DEPLOYMENT_TARGET = 26.5;
 			};
 			name = Release;
 		};
@@ -515,6 +642,15 @@
 			buildConfigurations = (
 				8C7285652F69626400D5F025 /* Debug */,
 				8C7285662F69626400D5F025 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		8C7473CC2FE5638A009DC59A /* Build configuration list for PBXNativeTarget "Calc-U-59UITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8C7473CA2FE5638A009DC59A /* Debug */,
+				8C7473CB2FE5638A009DC59A /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

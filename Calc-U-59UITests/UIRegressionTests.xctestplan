@@ -1,0 +1,27 @@
+{
+  "configurations" : [
+    {
+      "id" : "64E65424-6822-4E2B-BA4A-EEE5DB9052D8",
+      "name" : "Configuration 1",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "testTimeoutsEnabled" : true
+  },
+  "testTargets" : [
+    {
+      "skippedTests" : [
+        "ScreenshotTests"
+      ],
+      "target" : {
+        "containerPath" : "container:Calc-U-59.xcodeproj",
+        "identifier" : "8C7473C12FE5638A009DC59A",
+        "name" : "Calc-U-59UITests"
+      }
+    }
+  ],
+  "version" : 1
+}

@@ -64,6 +64,7 @@ class EmulatorViewModel {
     // ── Display interaction state ────────────────────────────────────────────────
     var isDisplayPressed: Bool = false
     var isFullSpeedMode: Bool = false  // true when user is pressing display; emulation runs unrestricted
+    var isKeystrokesPlaying: Bool = false
 
     // ── Printer state ────────────────────────────────────────────────────────
     var printerLines: [String] = []
@@ -1193,7 +1194,8 @@ class EmulatorViewModel {
     /// Arm the CPU-tab "Freeze on Start": fires when the keyboard scan loop exits.
     /// Scan loop ranges: TI-59/58 = 0x063C–0x0658, TI-58C = 0x063D–0x0A2E.
     /// Trigger conditions: (a) PC was inside loop and exits (key press or reset while idle),
-    /// or (b) PC jumps to 0x0000 while outside the loop (reset during program execution).
+    /// or (b) PC jumps to 0x0000 while outside the loop (reset during program execution),
+    /// or (c) an ASM overlay run succeeds (runASMOverlay checks this flag on success).
     func freezeOnScanLoopExit() {
         // Mutex: disarm CALCULATOR any-PC-change freeze if active
         pendingFreezeOnPCChange = false
@@ -1957,11 +1959,19 @@ class EmulatorViewModel {
     }
 
     func clearASMOverlay() {
+        let wasActive = asmOverlayActive
         machine?.clearDebugOverlay()
         asmOverlayWords = []
         asmOverlayActive = false
         asmWordCount = 0
         asmStatusMessage = "ASM overlay cleared."
+        // If the overlay was running, reset the machine so the CPU doesn't
+        // execute the now-empty overlay range (which returns opcode 0) and
+        // count all the way from 0x1800 to 0xFFFF before hitting real ROM.
+        if wasActive {
+            unfreeze()
+            machine?.reset()
+        }
     }
 
     func runASMOverlay() {
@@ -1978,24 +1988,26 @@ class EmulatorViewModel {
         isPausedOnBreakpoint = false
         breakpointPC = nil
         pendingFreezeOnPCChange = false
+        let freezeOnASMStart = pendingCPUScanLoopFreeze  // capture before clearing
         pendingCPUScanLoopFreeze = false
         _cpuFreezeSeenLoop = false
         clearFrozenState()
 
         var steps: UInt32 = 0
-        var sawHold: ObjCBool = false
         var ok = false
         var loaded = true
 
         // Wait until any in-flight step batch finishes, then run the injection.
         emulQueue.sync {
+            // Park the CPU at a keycode boundary so the digit counter is mid-cycle
+            // when the overlay entry point is hit.
+            _ = m.stepUntilNextKeycode()
             let data = self.asmOverlayWords.withUnsafeBufferPointer { Data(buffer: $0) }
             if !m.loadDebugOverlayWords(data) {
                 loaded = false
-                ok = false
                 return
             }
-            ok = m.runDebugOverlay(at: 0x1800, maxSteps: 8192, steps: &steps, sawHold: &sawHold)
+            ok = m.runDebugOverlay(at: 0x1800, maxSteps: 8192, steps: &steps)
             m.beginNextStep()
         }
 
@@ -2003,14 +2015,24 @@ class EmulatorViewModel {
             asmStatusMessage = "ASM program exceeds overlay range 0x1800-0x1FFF."
             errorMessage = asmStatusMessage
         } else if ok {
-            asmStatusMessage = sawHold.boolValue
-                ? "ASM entered at 0x1800 (HOLD detected after \(steps) step(s))."
-                : "ASM entered at 0x1800 (\(steps) step(s))."
+            asmStatusMessage = "ASM entered at 0x1800 (\(steps) step(s))."
             asmOverlayActive = true
-            startEmulationLoop()
+            if freezeOnASMStart {
+                // FREEZE ON START was armed — freeze in-place at the 0x1800 entry point.
+                // emulQueue.sync above already completed; no running loop to drain.
+                freezeOwner = .cpu
+                freezeReason = .manual
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    self.liveDebugSnapshot = self.buildLiveSnapshot(machine: m)
+                    self.captureInspectorSnapshot(machine: m)
+                }
+            } else {
+                startEmulationLoop()
+            }
             startDisplayRefresh()
         } else {
-            asmStatusMessage = "ASM run timed out before HOLD (\(steps) step(s))."
+            asmStatusMessage = "ASM entry failed after \(steps) step(s)."
             errorMessage = asmStatusMessage
         }
     }
@@ -2273,17 +2295,54 @@ class EmulatorViewModel {
             errorMessage = "Cannot read file."
             return
         }
-        let maxStepAddr = model.hasLargeMemory ? 959 : 479
-        var parsed = parseStateFile(text, maxStepAddr: maxStepAddr, allowHiddenRegisters: model.hasConstantMemory)
+
+        // Pre-scan for SKIP-RESET and MODEL: to use correct parsing parameters.
+        // SKIP-RESET suppresses the model switch, so MODEL: is ignored for parsing too.
+        var isSkipReset = false
+        var targetModel = model
+        for raw in text.components(separatedBy: .newlines) {
+            let line = (raw.components(separatedBy: "#").first ?? "").trimmingCharacters(in: .whitespaces)
+            let upper = line.uppercased()
+            if upper.hasPrefix("SKIP-RESET:") {
+                let val = String(line.dropFirst("SKIP-RESET:".count)).trimmingCharacters(in: .whitespaces).lowercased()
+                isSkipReset = (val == "on" || val == "true" || val == "1")
+            } else if !isSkipReset, upper.hasPrefix("MODEL:") {
+                let val = String(line.dropFirst("MODEL:".count)).trimmingCharacters(in: .whitespaces).uppercased()
+                targetModel = MachineModel.allCases.first(where: { $0.displayName == val }) ?? model
+            }
+        }
+
+        let maxStepAddr = targetModel.hasLargeMemory ? 959 : 479
+        let parsed = parseStateFile(text, maxStepAddr: maxStepAddr, allowHiddenRegisters: targetModel.hasConstantMemory)
         if !parsed.errors.isEmpty { errorMessage = parsed.errors.joined(separator: "\n") }
 
+        // If the file targets a different model (and SKIP-RESET is not set), switch first
+        // (async) then apply state. Partition validation runs inside applyParsedState after
+        // self.model is resolved.
+        if targetModel != model {
+            Task { @MainActor in
+                await self.start(model: targetModel)
+                self.applyParsedState(parsed)
+            }
+            return
+        }
+        applyParsedState(parsed)
+    }
+
+    private func applyParsedState(_ parsed: LoadStateResult) {
+        if parsed.skipReset {
+            applySkipResetState(parsed)
+            return
+        }
+
+        // Validate and adjust partition using self.model, which is now guaranteed to reflect
+        // the target model (model switch via start(model:) completes before this is called).
+        var parsed = parsed
         if !model.hasLargeMemory {
-            let maxStep = 479  // TI-58 and TI-58C: both use up to 480 steps
-            if parsed.partitionWasExplicit && parsed.partitionMaxStep > maxStep {
-                errorMessage = "State file partition (\(parsed.partitionMaxStep)) exceeds \(model.displayName) maximum (\(maxStep)) — load aborted."
+            if parsed.partitionWasExplicit && parsed.partitionMaxStep > 479 {
+                errorMessage = "State file partition (\(parsed.partitionMaxStep)) exceeds \(model.displayName) maximum (479) — load aborted."
                 return
             }
-            // Apply default partition when the file has none.
             if !parsed.partitionWasExplicit {
                 parsed.partitionMaxStep = 239
             }
@@ -2347,6 +2406,9 @@ class EmulatorViewModel {
 
         startEmulationLoop()
 
+        // Clear the printer tape so each loaded state starts with a blank strip
+        cutPaper()
+
         // Persist the loaded state once after all writes complete
         persistConstantMemory()
 
@@ -2355,7 +2417,7 @@ class EmulatorViewModel {
             applyModule(id: moduleID)
         }
 
-        // Apply printer state if specified in file
+        // Apply printer connection state if specified in file
         if let connected = parsed.printerConnected {
             setPrinterConnected(connected)
         }
@@ -2369,21 +2431,97 @@ class EmulatorViewModel {
         }
     }
 
+    /// Apply a SKIP-RESET state file: no machine reset, no model/printer/module changes.
+    /// Only PARTITION (if explicit), PROGRAM (if present), REGISTERS, CUECARD, and KEYSTROKES
+    /// are applied. Sections that require a reset are logged as warnings and ignored.
+    private func applySkipResetState(_ parsed: LoadStateResult) {
+        if parsed.model != nil {
+            print("[WARN] SKIP-RESET: MODEL: ignored — model switch requires a reset")
+        }
+        if parsed.solidStateModuleID != nil {
+            print("[WARN] SKIP-RESET: SOLID-STATE-MODULE: ignored — module load requires a reset")
+        }
+        if parsed.printerConnected != nil {
+            print("[WARN] SKIP-RESET: PRINTER: ignored — printer connection change requires a reset")
+        }
+
+        // Pause the emulation loop long enough to write program/registers safely.
+        isRunning = false
+        clearFrozenState()
+        emulQueue.sync {}
+
+        guard let m = machine else { return }
+
+        // Apply PARTITION only if the file specified it explicitly; otherwise leave as-is.
+        if parsed.partitionWasExplicit {
+            let programRegs = (parsed.partitionMaxStep + 1) / 8
+            m.partitionProgramRegs = programRegs
+        }
+
+        // Apply PROGRAM if present (zero-padded full write, same as full-reset path).
+        if !parsed.programSteps.isEmpty {
+            let totalSteps = parsed.partitionMaxStep + 1
+            var programArray = [UInt8](repeating: 0, count: totalSteps)
+            for (addr, keycode) in parsed.programSteps where addr < totalSteps {
+                programArray[addr] = keycode
+            }
+            m.writeProgramSteps(Data(programArray))
+        }
+
+        // Apply REGISTERS if present.
+        for (regNum, nibbles) in parsed.registers {
+            if regNum >= 60 {
+                m.setRawRegister(regNum, nibbles: Data(nibbles))
+            } else {
+                m.writeDataRegister(regNum, nibbles: Data(nibbles))
+            }
+        }
+
+        startEmulationLoop()
+
+        if model.hasConstantMemory {
+            persistConstantMemory()
+        }
+
+        // Apply CUECARD if present.
+        if parsed.cueCardContent != nil {
+            self.userCueCardContent = parsed.cueCardContent
+            self.cueCardContent = resolvedCueCard()
+        }
+
+        if !parsed.keystrokes.isEmpty {
+            Task { await playKeystrokes(parsed.keystrokes) }
+        }
+    }
+
     // MARK: - Keystroke playback
 
     /// Play back a KEYSTROKES sequence asynchronously after a preset loads.
-    /// Each .key event presses and releases one key with a 0.5 s total gap.
-    /// Each .wait event inserts an explicit pause between keystroke lines.
+    ///
+    /// Keys are sent at normal speed (450 ms hold + 50 ms gap) so the emulation loop
+    /// reliably processes each press and release.  Use `.waitFullSpeed(t)` events to run
+    /// the emulator at full speed for a fixed interval between keystrokes (e.g. while a
+    /// program computes).  Full speed is restored to its previous state after each such wait.
     private func playKeystrokes(_ events: [KeystrokeEvent]) async {
+        isKeystrokesPlaying = true
+        defer { isKeystrokesPlaying = false }
+
         for event in events {
             switch event {
             case .key(let matrixCode):
                 machine?.pressMatrixKey(matrixCode)
                 try? await Task.sleep(nanoseconds: 450_000_000)  // hold 450 ms
                 machine?.releaseMatrixKey(matrixCode)
-                try? await Task.sleep(nanoseconds: 50_000_000)   // 50 ms → 500 ms total
+                try? await Task.sleep(nanoseconds: 50_000_000)   // 50 ms gap → 500 ms total
+            case .toggleTrace:
+                togglePrinterTrace()
             case .wait(let t):
                 try? await Task.sleep(nanoseconds: UInt64(t * 1_000_000_000))
+            case .waitFullSpeed(let t):
+                let previous = isFullSpeedMode
+                isFullSpeedMode = true
+                try? await Task.sleep(nanoseconds: UInt64(t * 1_000_000_000))
+                isFullSpeedMode = previous
             }
         }
     }

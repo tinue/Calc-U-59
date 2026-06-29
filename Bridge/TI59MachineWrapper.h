@@ -168,12 +168,10 @@ typedef struct {
 /// Clear all debug overlay words from 0x1800-0x1FFF.
 - (void)clearDebugOverlay;
 
-/// Force execution entry at startAddr and step until HOLD is observed or timeout.
-/// Returns YES if HOLD was observed; NO if maxSteps exhausted.
+/// Force execution entry at startAddr. Returns YES when entry succeeded.
 - (BOOL)runDebugOverlayAt:(uint16_t)startAddr
-                                 maxSteps:(uint32_t)maxSteps
-                                        steps:(uint32_t*)outSteps
-                                    sawHold:(BOOL*)outSawHold;
+                 maxSteps:(uint32_t)maxSteps
+                    steps:(uint32_t*)outSteps;
 
 /// Drain up to `max` CPU frames into an array. If ring overflow occurred,
 /// *outLost is set to the count of frames that were overwritten. Returns

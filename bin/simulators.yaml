@@ -1,0 +1,28 @@
+# Simulators managed by bin/setup-simulators and bin/trim-simulators.
+#
+# ios: iOS major version — the latest available patch is resolved automatically.
+# screenshots: iphone | ipad  — role in bin/run-screenshots; omit to skip screenshots.
+#
+# To add a device: append an entry.
+# To remove: delete the entry, then run bin/trim-simulators --delete.
+#
+# Useful commands:
+#   List available device types:
+#     xcrun simctl list devicetypes
+#
+#   List available runtimes (installed iOS versions):
+#     xcrun simctl list runtimes available
+
+- name: iPhone 17 Pro Max
+  ios: 26
+  screenshots: iphone
+
+- name: iPhone 16e
+  ios: 18
+
+- name: iPad Pro 13-inch (M5)
+  ios: 26
+  screenshots: ipad
+
+- name: iPad mini (A17 Pro)
+  ios: 26

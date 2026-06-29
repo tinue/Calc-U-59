@@ -1,0 +1,24 @@
+# test_58c_display.ti58c
+#
+# Produces -1.2345678 × 10^-90 on the display — visually interesting
+# because it fills the mantissa and shows a large negative exponent.
+#
+# Sequence: 1.2345678 +/- EE 90 +/-
+
+MODEL: TI-58C
+
+KEYSTROKES:
+82      # 1
+93      # .
+83      # 2
+84      # 3
+72      # 4
+73      # 5
+74      # 6
+62      # 7
+63      # 8
+94      # +/-
+52      # EE
+64      # 9
+92      # 0
+94      # +/-

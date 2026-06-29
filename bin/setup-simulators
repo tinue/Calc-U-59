@@ -1,0 +1,216 @@
+#!/usr/bin/env bash
+# Ensure target simulators exist and install state files into each one.
+#
+# For each entry in TARGETS the script:
+#   1. Finds the latest available runtime for the given iOS major version.
+#   2. Creates the simulator if it does not already exist on that runtime.
+#   3. Copies test/example files into the simulator's FileProvider storage.
+#
+# Layout inside each simulator's "On My iPhone/iPad → Calc-U-59" folder:
+#   1-Testfiles/   ← all files from examples/screentest/ (sorted first by name)
+#   *.ti59 etc.    ← regular example files listed individually below
+#
+# Also suitable as a scheme pre-action (no build settings expansion needed):
+#   Shell: /bin/bash
+#   Script: $SRCROOT/bin/setup-simulators
+
+set -euo pipefail
+
+# ── Target devices (read from bin/simulators.yaml) ────────────────────────────
+# Edit simulators.yaml to add, remove, or change devices.
+# Format parsed here: "Exact simulator display name|iOS major version"
+
+CONFIG="$(dirname "$0")/simulators.yaml"
+
+TARGETS=()
+while IFS= read -r _entry; do
+    TARGETS+=("$_entry")
+done < <(python3 -c "
+import re, sys
+devs, cur = [], None
+for line in open(sys.argv[1]):
+    line = line.rstrip()
+    if re.match(r'^- ', line):
+        if cur is not None: devs.append(cur)
+        cur = {}
+    # parse key: value from both '- key: val' and '  key: val' lines
+    m = re.match(r'^[-\s]\s*(\w+):\s*(.*)', line)
+    if m and cur is not None:
+        k, v = m.group(1), m.group(2).strip()
+        cur[k] = int(v) if v.isdigit() else (v or None)
+if cur is not None: devs.append(cur)
+for d in devs:
+    print('%s|%s' % (d['name'], d['ios']))
+" "$CONFIG")
+
+# ── Paths and file sources ─────────────────────────────────────────────────────
+
+LOCAL_STORAGE_GROUP="group.com.apple.FileProvider.LocalStorage"
+SRCROOT="${SRCROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
+SIM_ROOT="$HOME/Library/Developer/CoreSimulator/Devices"
+
+REGULAR_PATTERNS=(
+    "assembly/stopwatch.asm"
+    "characters-fastmode.ti59"
+    "characters.ti59"
+    "diag.ti58"
+    "diag.ti59"
+)
+
+REGULAR_SRCS=()
+for pattern in "${REGULAR_PATTERNS[@]}"; do
+    for f in "$SRCROOT/examples/"$pattern; do
+        [ -f "$f" ] && REGULAR_SRCS+=("$f")
+    done
+done
+
+SCREENTEST_DIR="$SRCROOT/examples/screentest"
+
+# ── Simulator helpers ──────────────────────────────────────────────────────────
+
+# Prints the runtime identifier for the latest available patch of a given major.
+find_runtime() {
+    local major="$1"
+    python3 -c "
+import json, subprocess, sys
+out = subprocess.check_output(['xcrun', 'simctl', 'list', 'runtimes', '--json'])
+data = json.loads(out)
+major = sys.argv[1]
+candidates = []
+for r in data['runtimes']:
+    if not r.get('isAvailable', False):
+        continue
+    # identifier ends like …iOS-18-6 or …iOS-26-5
+    suffix = r['identifier'].split('iOS-', 1)
+    if len(suffix) < 2:
+        continue
+    if suffix[1].split('-')[0] != major:
+        continue
+    candidates.append(r)
+candidates.sort(key=lambda r: [int(x) for x in r['version'].split('.')], reverse=True)
+if candidates:
+    print(candidates[0]['identifier'])
+else:
+    print(f'Error: no available iOS {major}.x runtime.', file=sys.stderr)
+    sys.exit(1)
+" "$major"
+}
+
+# Prints the device type identifier for an exact display name.
+find_device_type() {
+    local name="$1"
+    python3 -c "
+import json, subprocess, sys
+out = subprocess.check_output(['xcrun', 'simctl', 'list', 'devicetypes', '--json'])
+data = json.loads(out)
+for dt in data['devicetypes']:
+    if dt['name'] == sys.argv[1]:
+        print(dt['identifier'])
+        sys.exit(0)
+print(f'Error: device type not found: {sys.argv[1]}', file=sys.stderr)
+sys.exit(1)
+" "$name"
+}
+
+# Prints the UDID of an existing available simulator matching name + runtime,
+# or prints nothing if none exists.
+find_existing_simulator() {
+    local name="$1"
+    local runtime="$2"
+    python3 -c "
+import json, subprocess, sys
+out = subprocess.check_output(['xcrun', 'simctl', 'list', 'devices', '--json'])
+data = json.loads(out)
+for d in data['devices'].get(sys.argv[2], []):
+    if d['name'] == sys.argv[1] and d.get('isAvailable', False):
+        print(d['udid'])
+        sys.exit(0)
+" "$name" "$runtime"
+}
+
+# Ensures a simulator exists for the given name and iOS major version.
+# Prints the UDID to stdout; status messages go to stderr.
+ensure_simulator() {
+    local name="$1"
+    local major="$2"
+    local runtime udid
+
+    runtime=$(find_runtime "$major")
+
+    udid=$(find_existing_simulator "$name" "$runtime")
+    if [[ -n "$udid" ]]; then
+        echo "  exists   $name (iOS $major) — $udid" >&2
+    else
+        local device_type
+        device_type=$(find_device_type "$name")
+        udid=$(xcrun simctl create "$name" "$device_type" "$runtime")
+        echo "  created  $name (iOS $major) — $udid" >&2
+    fi
+    echo "$udid"
+}
+
+# ── Resolve / create all target simulators ─────────────────────────────────────
+
+echo "Resolving target simulators…"
+TARGET_UDIDS=()
+for entry in "${TARGETS[@]}"; do
+    name="${entry%%|*}"
+    major="${entry##*|}"
+    udid=$(ensure_simulator "$name" "$major")
+    TARGET_UDIDS+=("$udid")
+done
+echo ""
+
+# ── Install files into each target simulator ───────────────────────────────────
+
+SCREENTEST_COUNT=$(find "$SCREENTEST_DIR" -maxdepth 1 -type f | wc -l | tr -d ' ')
+TOTAL=$(( SCREENTEST_COUNT + ${#REGULAR_SRCS[@]} ))
+INSTALLED=0
+
+for udid in "${TARGET_UDIDS[@]}"; do
+    sim_dir="$SIM_ROOT/$udid"
+
+    # Skip orphaned directories (simctl no longer tracks them).
+    if [[ ! -f "$sim_dir/device.plist" ]]; then
+        echo "Warning: $udid — device.plist not found; skipping." >&2
+        continue
+    fi
+
+    # Locate the FileProvider storage for this simulator.
+    found=false
+    while IFS= read -r -d '' meta; do
+        if plutil -p "$meta" 2>/dev/null | grep -q "\"$LOCAL_STORAGE_GROUP\""; then
+            dest="$(dirname "$meta")/File Provider Storage"
+            mkdir -p "$dest"
+
+            # Clean destination for a reproducible state.
+            find "$dest" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+
+            # Test files → 1-Testfiles/
+            mkdir -p "$dest/1-Testfiles"
+            for f in "$SCREENTEST_DIR"/*; do
+                [ -f "$f" ] && cp "$f" "$dest/1-Testfiles/$(basename "$f")"
+            done
+
+            # Regular files → root
+            for src in "${REGULAR_SRCS[@]}"; do
+                cp "$src" "$dest/$(basename "$src")"
+            done
+
+            echo "  $udid — $TOTAL file(s) → $dest"
+            (( INSTALLED++ )) || true
+            found=true
+            break
+        fi
+    done < <(find "$sim_dir" -maxdepth 7 \
+                  -name ".com.apple.mobile_container_manager.metadata.plist" \
+                  -print0 2>/dev/null)
+
+    if ! $found; then
+        echo "  $udid — FileProvider storage not initialised yet."
+        echo "    Open the Files app or file picker in this simulator once, then re-run."
+    fi
+done
+
+echo ""
+echo "Done — $INSTALLED of ${#TARGET_UDIDS[@]} simulator(s) received files."

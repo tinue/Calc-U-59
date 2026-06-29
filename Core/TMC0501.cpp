@@ -431,23 +431,44 @@ void TMC0501::xch(uint8_t* a, uint8_t* b, const MaskInfo& m) {
 }
 
 bool TMC0501::runDebugInjectedProgram(uint16_t startAddr, uint32_t maxSteps,
-                                      uint32_t* outSteps, bool* outSawHold) {
+                                      uint32_t* outSteps) {
     if (outSteps) *outSteps = 0;
-    if (outSawHold) *outSawHold = false;
 
     const uint16_t target = static_cast<uint16_t>(startAddr & 0x1FFFu);
+
+    // Emulate the external debugger (Arduino) that continuously asserts
+    // EXT/PREG = target until it detects HOLD being released:
+    //
+    //  1. CPU sits in the keyboard-scan WAIT loop (HOLD active).
+    //     Arduino asserts EXT/PREG every cycle.  Because HOLD > PREG
+    //     (see step() comment), PREG is not consumed while HOLD is set —
+    //     re-assertion is harmless.
+    //  2. When HOLD clears (WAIT condition satisfied), PREG fires once →
+    //     addr = target, PREG = 0.
+    //  3. Arduino detects HOLD release → stops asserting EXT/PREG.
+    //  4. Overlay runs from target.
+    //
+    // The emulator asserts EXT/PREG every step and returns as soon as addr
+    // reaches target — the emulation loop (or Freeze on Start) takes over
+    // immediately.  Running additional steps here would advance the overlay
+    // before the caller has a chance to observe or freeze it; programs with
+    // no WAIT/KEY (e.g. simple_count) would otherwise consume all maxSteps.
+    //
+    // Also guarantee COND=1: the ROM keyboard loop can leave COND=0 and a
+    // conditional branch in the overlay (e.g. BRA1 in DPT.asm) would not be
+    // taken, sending the CPU into dead address space.
+    flags |= FLG_COND;
+
     for (uint32_t i = 0; i < maxSteps; i++) {
-        // Emulate the external debugger forcing EXT/PREG lines until HOLD.
-        EXT = target;
+        EXT  = target;
         PREG = target;
         (void)step();
         if (outSteps) *outSteps = i + 1;
-        if (flags & FLG_HOLD) {
-            if (outSawHold) *outSawHold = true;
-            return true;
+        if (addr == target) {
+            return true;   // PREG redirect fired; overlay at entry point.
         }
     }
-    return false;
+    return false;   // Never reached target — stuck in keyboard scan loop.
 }
 
 // ── Main instruction dispatch ─────────────────────────────────────────────────
@@ -901,14 +922,17 @@ int TMC0501::step() {
     postOperation();
 
     // ── PREG redirect (after instruction execution) ───────────────────
-    // If PREG is set (SET KR[1] was executed in the previous instruction),
-    // the next instruction has now completed. Redirect PC to the latched
-    // address and clear PREG.
-    if (PREG) {
-        addr = PREG;
-        PREG = 0;
-    } else if (!(flags & FLG_HOLD)) {
-        addr++;
+    // HOLD has higher priority than PREG (matches hardware: the external
+    // debugger holds EXT/PREG until HOLD is detected, and while HOLD is
+    // active the CPU stays put regardless of PREG).  Only when HOLD is
+    // clear does PREG redirect (or the normal addr++ happen).
+    if (!(flags & FLG_HOLD)) {
+        if (PREG) {
+            addr = PREG;
+            PREG = 0;
+        } else {
+            addr++;
+        }
     }
     // TI-58C runs at constant speed; TI-59/58 slow to 1/4 speed during IDLE
     int w = getStepWeight();
@@ -1675,11 +1699,10 @@ std::string TMC0501::disassemble(uint16_t pc, uint16_t opcode) {
         }
 
         if (single) {
-            uint8_t digit = opcode & 7u;
             if (kmask == 0x7Fu) {  // All lines
-                snprintf(buf, sizeof(buf), "KEY ALL D%u", digit);
+                snprintf(buf, sizeof(buf), "KEY ALL");
             } else {
-                snprintf(buf, sizeof(buf), "KEY [%s] D%u", selected.c_str(), digit);
+                snprintf(buf, sizeof(buf), "KEY [%s]", selected.c_str());
             }
         } else {
             snprintf(buf, sizeof(buf), "KEY [%s] ALL", selected.c_str());
