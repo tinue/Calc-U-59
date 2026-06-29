@@ -188,6 +188,11 @@ def cmd_find_build(token: str, args: argparse.Namespace) -> None:
     # empty output signals "not found"
 
 
+def cmd_get_build_number(token: str, args: argparse.Namespace) -> None:
+    data = get(token, f"/v1/builds/{args.build_id}")
+    print(data["data"]["attributes"]["version"])
+
+
 def cmd_associate_build(token: str, args: argparse.Namespace) -> None:
     patch(token, f"/v1/appStoreVersions/{args.version_id}/relationships/build", {
         "data": {"type": "builds", "id": args.build_id}
@@ -357,6 +362,9 @@ def main() -> None:
     p.add_argument("--app-id", required=True)
     p.add_argument("--version", required=True)
 
+    p = sub.add_parser("get-build-number")
+    p.add_argument("--build-id", required=True)
+
     p = sub.add_parser("associate-build")
     p.add_argument("--version-id", required=True)
     p.add_argument("--build-id", required=True)
@@ -375,6 +383,7 @@ def main() -> None:
         "get-localization": cmd_get_localization,
         "update-localization": cmd_update_localization,
         "find-build": cmd_find_build,
+        "get-build-number": cmd_get_build_number,
         "associate-build": cmd_associate_build,
         "upload-screenshots": cmd_upload_screenshots,
     }

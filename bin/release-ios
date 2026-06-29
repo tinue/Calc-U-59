@@ -376,7 +376,51 @@ if $DO_RELEASE; then
 
 fi
 
+# ── 4. Verify uploaded build (--release only) ─────────────────────────────────
+#
+# When releasing to the App Store we skip the build/upload pipeline and work
+# against the build that was already uploaded via a prior TestFlight run.
+# Verify that the processed build in App Store Connect matches the local project.
+
+APP_ID=""
+BUILD_ID=""
+
+if $DO_RELEASE; then
+    LOCAL_BUILD_NUMBER=$(grep -m 1 'CURRENT_PROJECT_VERSION' "$PROJECT/project.pbxproj" \
+        | sed -E 's/.*CURRENT_PROJECT_VERSION = ([^;]+);.*/\1/' \
+        | tr -d '[:space:]')
+
+    echo ""
+    echo "── Verifying uploaded build ──────────────────────────────────"
+    echo "Looking up app ID for $BUNDLE_ID…"
+    APP_ID=$(asc_run get-app-id --bundle-id "$BUNDLE_ID")
+
+    echo "Looking for processed build $VERSION in App Store Connect…"
+    BUILD_ID=$(asc_run find-build --app-id "$APP_ID" --version "$VERSION")
+    if [ -z "$BUILD_ID" ]; then
+        echo ""
+        echo "Error: no processed build found for $VERSION in App Store Connect."
+        echo "  Upload a TestFlight build first with: bin/release-ios"
+        exit 1
+    fi
+
+    ASC_BUILD_NUMBER=$(asc_run get-build-number --build-id "$BUILD_ID")
+    if [ "$ASC_BUILD_NUMBER" != "$LOCAL_BUILD_NUMBER" ]; then
+        echo ""
+        echo "Error: build number mismatch."
+        echo "  App Store Connect: $VERSION ($ASC_BUILD_NUMBER)"
+        echo "  Local project:     $VERSION ($LOCAL_BUILD_NUMBER)"
+        echo "  If you re-uploaded with a new build number, update CURRENT_PROJECT_VERSION"
+        echo "  in project.pbxproj to match, then re-run."
+        exit 1
+    fi
+    echo "  Build $VERSION ($ASC_BUILD_NUMBER) verified — matches local project."
+    echo "────────────────────────────────────────────────────────────"
+fi
+
 # ── 5. Archive ────────────────────────────────────────────────────────────────
+
+if ! $DO_RELEASE; then
 
 echo ""
 echo "Archiving $APP_NAME $VERSION for iOS…"
@@ -460,6 +504,8 @@ xcrun altool --upload-app \
     --apiIssuer "$APP_STORE_API_ISSUER_ID" \
     --output-format normal
 
+fi  # ! $DO_RELEASE
+
 # ── 9. App Store Connect automation (--release only) ─────────────────────────
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -486,9 +532,11 @@ if $DO_RELEASE; then
     echo ""
     echo "── App Store Connect ─────────────────────────────────────────"
 
-    # 9a. Get app ID from bundle ID
-    echo "Looking up app ID for $BUNDLE_ID…"
-    APP_ID=$(asc_run get-app-id --bundle-id "$BUNDLE_ID")
+    # 9a. Get app ID from bundle ID (already fetched in verification step)
+    if [ -z "$APP_ID" ]; then
+        echo "Looking up app ID for $BUNDLE_ID…"
+        APP_ID=$(asc_run get-app-id --bundle-id "$BUNDLE_ID")
+    fi
 
     # 9b. Find or create the App Store version record
     echo "Checking for existing App Store version $VERSION…"
@@ -516,9 +564,11 @@ if $DO_RELEASE; then
     [ -s "$METADATA_DIR/marketing_url.txt" ] && UPD_ARGS+=("--marketing-url" "$METADATA_DIR/marketing_url.txt")
     asc_run update-localization "${UPD_ARGS[@]}"
 
-    # 9e. Find the latest valid build for this version
-    echo "Looking for uploaded build $VERSION on App Store Connect…"
-    BUILD_ID=$(asc_run find-build --app-id "$APP_ID" --version "$VERSION")
+    # 9e. Find the latest valid build for this version (already fetched in verification step)
+    if [ -z "$BUILD_ID" ]; then
+        echo "Looking for uploaded build $VERSION on App Store Connect…"
+        BUILD_ID=$(asc_run find-build --app-id "$APP_ID" --version "$VERSION")
+    fi
     if [ -z "$BUILD_ID" ]; then
         echo ""
         echo "Warning: no processed build found for $VERSION yet."
