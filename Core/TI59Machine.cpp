@@ -174,7 +174,7 @@ std::vector<std::string> TI59Machine::drainPrinterLines() {
     return m_cpu.drainPrinterLines();
 }
 
-std::vector<std::array<uint8_t,20>> TI59Machine::drainPrinterCodeLines() {
+std::vector<PrinterCodeLine> TI59Machine::drainPrinterCodeLines() {
     return m_cpu.drainPrinterCodeLines();
 }
 

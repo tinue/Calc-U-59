@@ -13,6 +13,11 @@
 #  The display will begin flashing when [SBR] [4] [4] [4] is pressed. Press [A] and the print code table with full and inter-
 #  rupted characters will be printed.
 
+MODEL: TI-59
+SOLID-STATE-MODULE: ML
+PRINTER: on
+
+
 # For compactness, the program is only here as key codes. If you need the listing, load the program and LIST it on the printer.
 PROGRAM:
 92 76 11 61 00 17 69 05 23 53 00 00 00 00 00 00 98 22 58 25 22 57 01 69 01 02 00 00 00 03 00 00 69 02 04 00 00 00 05 00 00 00 06 69 03 07 00 00 00 08 00 00 69 04 69 05 69 00 69 05 01 52 06 22

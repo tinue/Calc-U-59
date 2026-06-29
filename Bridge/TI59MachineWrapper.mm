@@ -146,8 +146,13 @@ static const int kbits[] = {0, 1, 2, 3, 5, 6};  // index 0 unused; index col
 - (NSArray<NSData*>*)drainPrinterCodeLines {
     auto lines = _machine->drainPrinterCodeLines();
     NSMutableArray<NSData*>* result = [NSMutableArray arrayWithCapacity:lines.size()];
-    for (const auto& arr : lines)
-        [result addObject:[NSData dataWithBytes:arr.data() length:arr.size()]];
+    for (const auto& line : lines) {
+        // 21 bytes: codes[0..19] + rowCount[20]
+        uint8_t buf[21];
+        memcpy(buf, line.codes.data(), 20);
+        buf[20] = line.rowCount;
+        [result addObject:[NSData dataWithBytes:buf length:21]];
+    }
     return result;
 }
 

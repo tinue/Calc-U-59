@@ -313,6 +313,12 @@ struct PrinterDotLine: View {
     var dotColor: Color = Color(white: 0.12)
     private static let dotRadiusFraction = 0.38  // dot radius as fraction of dotPitch
 
+    // Byte 20, when present, carries the rowCount from the C++ PrinterCodeLine struct.
+    // 7 = complete line; 1–6 = aborted mid-stroke (partial dot-rows visible on paper).
+    private var rowCount: Int {
+        codes.count > 20 ? max(1, min(7, Int(codes[20]))) : 7
+    }
+
     var body: some View {
         Canvas { ctx, size in
             let dotPitch  = size.width / Self.widthUnits
@@ -323,7 +329,7 @@ struct PrinterDotLine: View {
                 let fontRows = pc100cFont[Int(codes[charIdx])]
                 let charX    = Double(charIdx) * charStep
 
-                for rowIdx in 0..<7 {
+                for rowIdx in 0..<rowCount {
                     let bits = fontRows[rowIdx]
                     let dotY = (Double(rowIdx) + 0.5) * dotPitch
 
