@@ -12,7 +12,7 @@
 #
 # Also suitable as a scheme pre-action (no build settings expansion needed):
 #   Shell: /bin/bash
-#   Script: $SRCROOT/bin/setup-simulator-state-files
+#   Script: $SRCROOT/bin/setup-simulators
 
 set -euo pipefail
 
