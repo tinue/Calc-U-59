@@ -35,6 +35,14 @@ final class ScreenshotTests: XCTestCase {
         return "\(home)/Desktop"
     }
 
+    /// Desired output filename stem, written by bin/run-screenshots before each xcodebuild call.
+    /// Falls back to nil when running tests directly from Xcode (no temp file present).
+    private var screenshotName: String? {
+        guard let s = try? String(contentsOfFile: "/tmp/calc-u-59-screenshot-name", encoding: .utf8)
+                .trimmingCharacters(in: .whitespacesAndNewlines), !s.isEmpty else { return nil }
+        return s
+    }
+
     // MARK: - Screenshots
 
     /// Load diag.ti59, run the diagnostic to completion, save a Desktop PNG.
@@ -69,7 +77,7 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [playbackDone], timeout: 10), .completed,
                        "Keystroke playback did not complete")
 
-        let dest = URL(fileURLWithPath: "\(screenshotDir)/Diagnostic-\(UIDevice.current.name).png")
+        let dest = URL(fileURLWithPath: "\(screenshotDir)/\(screenshotName ?? "Diagnostic-\(UIDevice.current.name)").png")
         try XCUIScreen.main.screenshot().pngRepresentation.write(to: dest)
         attachScreenshot(app, name: "diag.ti59 — diagnostic complete")
     }
@@ -133,7 +141,7 @@ final class ScreenshotTests: XCTestCase {
         rs.press(forDuration: 0.05)
 
         // Screenshot
-        let dest = URL(fileURLWithPath: "\(screenshotDir)/Assembly-\(UIDevice.current.name).png")
+        let dest = URL(fileURLWithPath: "\(screenshotDir)/\(screenshotName ?? "Assembly-\(UIDevice.current.name)").png")
         try XCUIScreen.main.screenshot().pngRepresentation.write(to: dest)
         attachScreenshot(app, name: "Assembly — stopwatch stopped at ~3.5s")
     }
@@ -146,7 +154,7 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertTrue(settingsButton.waitForExistence(timeout: 5), "btn-settings not found")
         settingsButton.tap()
 
-        let dest = URL(fileURLWithPath: "\(screenshotDir)/Settings-\(UIDevice.current.name).png")
+        let dest = URL(fileURLWithPath: "\(screenshotDir)/\(screenshotName ?? "Settings-\(UIDevice.current.name)").png")
         try XCUIScreen.main.screenshot().pngRepresentation.write(to: dest)
         attachScreenshot(app, name: "Settings")
     }
@@ -175,7 +183,7 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [playbackDone], timeout: 15), .completed,
                        "test_58c_display.ti58c keystrokes did not complete")
 
-        let dest = URL(fileURLWithPath: "\(screenshotDir)/PlainCalculator-\(UIDevice.current.name).png")
+        let dest = URL(fileURLWithPath: "\(screenshotDir)/\(screenshotName ?? "PlainCalculator-\(UIDevice.current.name)").png")
         try XCUIScreen.main.screenshot().pngRepresentation.write(to: dest)
         attachScreenshot(app, name: "Plain Calculator — TI-58C display")
     }
@@ -230,7 +238,7 @@ final class ScreenshotTests: XCTestCase {
         stepButton.press(forDuration: 2)
 
         // Screenshot
-        let dest = URL(fileURLWithPath: "\(screenshotDir)/CPUInspector-\(UIDevice.current.name).png")
+        let dest = URL(fileURLWithPath: "\(screenshotDir)/\(screenshotName ?? "CPUInspector-\(UIDevice.current.name)").png")
         try XCUIScreen.main.screenshot().pngRepresentation.write(to: dest)
         attachScreenshot(app, name: "CPU Inspector — 5 steps after reset")
     }
@@ -315,7 +323,7 @@ final class ScreenshotTests: XCTestCase {
         }
 
         // Screenshot — freeze has fired; calculator is stopped on first instruction
-        let dest = URL(fileURLWithPath: "\(screenshotDir)/CalcDebugger-\(UIDevice.current.name).png")
+        let dest = URL(fileURLWithPath: "\(screenshotDir)/\(screenshotName ?? "CalcDebugger-\(UIDevice.current.name)").png")
         try XCUIScreen.main.screenshot().pngRepresentation.write(to: dest)
         attachScreenshot(app, name: "Calc Debugger — frozen on run")
     }

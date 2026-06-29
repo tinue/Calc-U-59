@@ -217,6 +217,7 @@ echo "Building $APP_NAME $VERSION (tag: ${TAG})…"
 # ── 3. Pre-release pre-conditions ─────────────────────────────────────────────
 
 NOTES=""
+WHATSNEW=""
 
 if ! $DO_BUILD_ONLY; then
     CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
@@ -288,11 +289,73 @@ if ! $DO_BUILD_ONLY; then
         echo "  Add an entry before releasing."
         exit 1
     fi
+
+    # Convert markdown to App Store plain text
+    WHATSNEW=$(printf '%s\n' "$NOTES" | awk '
+      /^### / {
+        sub(/^### */, "")
+        print "\n" toupper($0)
+        next
+      }
+      /^- \*\*/ {
+        sub(/^- \*\*/, "")
+        n = index($0, "**")
+        if (n > 0) {
+          cat  = substr($0, 1, n-1)
+          rest = substr($0, n+2)
+          sub(/^ /, "", rest)
+          printf "• %s: %s\n", toupper(cat), rest
+          next
+        }
+      }
+      /^\*\*/ {
+        gsub(/\*\*/, "")
+        if (length($0) > 0) { print "• " $0 }
+        next
+      }
+      length($0) > 0 { gsub(/\*\*/, ""); print }
+    ' | sed 's/`\([^`]*\)`/"\1"/g')
 fi
 
 if $DRY_RUN; then
     echo "Pre-conditions passed.  [dry-run] Build, notarize, and GitHub upload skipped."
+    if [ -n "$WHATSNEW" ]; then
+        echo ""
+        echo "── Draft App Store release notes (whatsnew.txt) ────────────"
+        echo "$WHATSNEW"
+        echo "────────────────────────────────────────────────────────────"
+    fi
     exit 0
+fi
+
+# ── 3b. Review and persist App Store release notes ────────────────────────────────
+
+if ! $DO_BUILD_ONLY && [ -n "$WHATSNEW" ]; then
+    echo ""
+    echo "── App Store release notes (whatsnew.txt) ──────────────────"
+    echo "$WHATSNEW"
+    echo "────────────────────────────────────────────────────────────"
+    echo ""
+    read -r -p "Use these release notes for App Store? [y/N] " REPLY
+    [[ "$REPLY" =~ ^[Yy]$ ]] || exit 1
+
+    if [ -f "appstore/.git" ]; then
+        printf '%s\n' "$WHATSNEW" > "appstore/whatsnew.txt"
+        (
+            cd appstore
+            git add whatsnew.txt
+            if ! git diff --cached --quiet; then
+                git commit -m "whatsnew: v${VERSION}"
+                git push
+                echo "Release notes committed and pushed to appstore branch."
+            else
+                echo "  (whatsnew.txt unchanged — no commit needed)"
+            fi
+        )
+    else
+        echo "Warning: appstore/ worktree not found — skipping whatsnew.txt."
+        echo "  Set it up once with: git worktree add appstore appstore"
+    fi
 fi
 
 # ── 4. Build (archive) ────────────────────────────────────────────────────────

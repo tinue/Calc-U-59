@@ -1,21 +1,49 @@
 #!/usr/bin/env zsh
-# Run the Screenshots test plan on selected simulators.
-# Each test writes its PNG to SCREENSHOT_DIR.
-# Add or remove devices by duplicating / deleting the run_test lines.
+# Capture App Store screenshots on the two target simulators.
+#
+# Output follows the naming convention required by bin/release-ios --release:
+#   iphone-NN-<name>.png   (APP_IPHONE_67,         1320 × 2868 px)
+#   ipad-NN-<name>.png     (APP_IPAD_PRO_3GEN_129, 2752 × 2064 px)
+#
+# Simulator UDIDs are resolved dynamically — no hardcoding needed after
+# recreating simulators for a new iOS patch release.
 #
 # Usage:
 #   bin/run-screenshots
-#
-# run_test <udid> [only-testing]
-#   udid         — simulator UDID
-#   only-testing — optional test name suffix (after "testScreenshot")
 
 set -euo pipefail
 
 SRCROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SCREENSHOT_DIR="$SRCROOT/appstore/screenshots"
 echo "$SCREENSHOT_DIR" > /tmp/calc-u-59-screenshot-dir
-trap 'rm -f /tmp/calc-u-59-screenshot-dir' EXIT
+trap 'rm -f /tmp/calc-u-59-screenshot-dir /tmp/calc-u-59-screenshot-name' EXIT
+
+# ── Simulator lookup ───────────────────────────────────────────────────────────
+# Returns the UDID of the latest available iOS simulator matching the given name.
+
+find_simulator() {
+    local name="$1"
+    local udid
+    udid=$(python3 -c "
+import json, subprocess, sys
+out = subprocess.check_output(['xcrun', 'simctl', 'list', 'devices', 'available', '--json'])
+data = json.loads(out)
+for rt in sorted(data['devices'], reverse=True):
+    if 'iOS' not in rt: continue
+    for d in data['devices'][rt]:
+        if d['name'] == sys.argv[1]:
+            print(d['udid'])
+            sys.exit(0)
+" "$name" 2>/dev/null)
+    if [[ -z "$udid" ]]; then
+        print -u2 "Error: no available simulator named '$name'."
+        print -u2 "  Create it in Xcode → Window → Devices and Simulators."
+        return 1
+    fi
+    echo "$udid"
+}
+
+# ── Test runner ────────────────────────────────────────────────────────────────
 
 run_test() {
     local udid="$1"
@@ -31,28 +59,44 @@ run_test() {
         "${extra[@]}"
 }
 
-echo "Available Devices:"
-xcrun simctl list devices available | awk '
-    /^-- / { section=$0; next }
-    /\(/ { if (section) { print section; section="" } print }
-'
+# ── Resolve simulators ─────────────────────────────────────────────────────────
+
+echo "Resolving simulators…"
+IPHONE_UDID=$(find_simulator "iPhone 17 Pro Max")
+IPAD_UDID=$(find_simulator "iPad Pro 13-inch (M5)")
+echo "  iPhone 17 Pro Max:       $IPHONE_UDID"
+echo "  iPad Pro 13-inch (M5):   $IPAD_UDID"
 echo ""
 
 mkdir -p "$SCREENSHOT_DIR"
 
-# -- iOS 18.6 --
-run_test 5E58DB4D-147D-4385-A5CF-9974C5321A3B LoadDiagPreset   # iPhone 16e diagnostics with card inlay. Model is TI-59.
-run_test 5E58DB4D-147D-4385-A5CF-9974C5321A3B Settings         # iPhone 16e settings panel. Model is last used, not specified.
+# ── Run tests ──────────────────────────────────────────────────────────────────
+# The desired output filename is written to /tmp/calc-u-59-screenshot-name before
+# each xcodebuild call; the test reads it and names its PNG accordingly.
+# iPhone — order here determines the NN sequence numbers.
 
-# -- Assembly --
-run_test AA658877-2877-465C-ABB0-ABE7CF4344DE Assembly         # iPad Pro 13-inch (M5) ASM overlay with stopwatch running.
+echo "iphone-01-plain-calculator" > /tmp/calc-u-59-screenshot-name
+run_test "$IPHONE_UDID" PlainCalculator   # cover picture, plain calculator with filled display
 
-# -- PlainCalculator --
-run_test 9AFA9F97-6BF1-40CE-85D1-1167DF33C9C7 PlainCalculator   # iPhone 17 Pro Max cover picture, plain calculator with filled display, model is last used, not specified.
+echo "iphone-02-cpu-inspector" > /tmp/calc-u-59-screenshot-name
+run_test "$IPHONE_UDID" CPUInspector      # CPU debugger frozen in the Reset routine
 
-# -- CPUInspector --
-run_test 9AFA9F97-6BF1-40CE-85D1-1167DF33C9C7 CPUInspector   # iPhone 17 Pro Max CPU debugger frozen in the Reset routine. Model is last used, not specified.
+echo "iphone-03-calc-debugger" > /tmp/calc-u-59-screenshot-name
+run_test "$IPHONE_UDID" CalcDebugger      # calculator debugger frozen at SBR = location
 
-# -- CalcDebugger --
-run_test 9AFA9F97-6BF1-40CE-85D1-1167DF33C9C7 CalcDebugger   # iPhone 17 Pro Max calculator debugger frozen at SBR = location.
-run_test AA658877-2877-465C-ABB0-ABE7CF4344DE CalcDebugger   # iPad Pro 13-inch (M5) calculator debugger frozen at SBR = location, and some lines on the printer.
+echo "iphone-04-diagnostics" > /tmp/calc-u-59-screenshot-name
+run_test "$IPHONE_UDID" LoadDiagPreset    # diagnostics with card inlay (was iPhone 16e)
+
+echo "iphone-05-settings" > /tmp/calc-u-59-screenshot-name
+run_test "$IPHONE_UDID" Settings          # settings panel (was iPhone 16e)
+
+# iPad
+echo "ipad-01-assembly" > /tmp/calc-u-59-screenshot-name
+run_test "$IPAD_UDID" Assembly            # ASM overlay with stopwatch running
+
+echo "ipad-02-calc-debugger" > /tmp/calc-u-59-screenshot-name
+run_test "$IPAD_UDID" CalcDebugger        # calculator debugger with printer output
+
+echo ""
+echo "Screenshots in $SCREENSHOT_DIR:"
+ls -1 "$SCREENSHOT_DIR"/*.png(N) 2>/dev/null || echo "  (none)"
