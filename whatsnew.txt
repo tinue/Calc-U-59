@@ -1,0 +1,9 @@
+• STATE FILES: New "MODEL:" keyword switches the machine variant (TI-59/58/58C) when a state file is loaded.
+• STATE FILES: New "WaitFullSpeed: Xs" keyword runs the calculator at full speed for the given duration before continuing.
+• STATE FILES: New "SKIP-RESET:" directive applies only PROGRAM, REGISTERS, and KEYSTROKES to the running machine, skipping the reset.
+• STATE FILES: Printer tape is cleared whenever a state file is loaded.
+
+FIXES
+• ASM OVERLAY: Running an overlay no longer spuriously times out.
+• ASM OVERLAY: FREEZE ON START in the CPU tab now also triggers when Run is pressed in the ASM Overlay.
+• CPU DEBUGGER: KEY instruction disassembly no longer shows a spurious digit suffix.
