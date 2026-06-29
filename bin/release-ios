@@ -392,10 +392,10 @@ if $DO_RELEASE; then
 
     echo ""
     echo "── Verifying uploaded build ──────────────────────────────────"
-    echo "Looking up app ID for $BUNDLE_ID…"
+    echo "Looking up app ID for ${BUNDLE_ID}…"
     APP_ID=$(asc_run get-app-id --bundle-id "$BUNDLE_ID")
 
-    echo "Looking for processed build $VERSION in App Store Connect…"
+    echo "Looking for processed build ${VERSION} in App Store Connect…"
     BUILD_ID=$(asc_run find-build --app-id "$APP_ID" --version "$VERSION")
     if [ -z "$BUILD_ID" ]; then
         echo ""
@@ -534,15 +534,15 @@ if $DO_RELEASE; then
 
     # 9a. Get app ID from bundle ID (already fetched in verification step)
     if [ -z "$APP_ID" ]; then
-        echo "Looking up app ID for $BUNDLE_ID…"
+        echo "Looking up app ID for ${BUNDLE_ID}…"
         APP_ID=$(asc_run get-app-id --bundle-id "$BUNDLE_ID")
     fi
 
     # 9b. Find or create the App Store version record
-    echo "Checking for existing App Store version $VERSION…"
+    echo "Checking for existing App Store version ${VERSION}…"
     ASC_VERSION_ID=$(asc_run find-version --app-id "$APP_ID" --version "$VERSION")
     if [ -z "$ASC_VERSION_ID" ]; then
-        echo "Creating App Store version $VERSION…"
+        echo "Creating App Store version ${VERSION}…"
         ASC_VERSION_ID=$(asc_run create-version \
             --app-id "$APP_ID" --version "$VERSION" --release-type AFTER_APPROVAL)
         echo "  Created version ID: $ASC_VERSION_ID"
@@ -577,7 +577,7 @@ if $DO_RELEASE; then
         ASC_BUILD_RESULT="pending"
     else
         # 9f. Associate the build with the version
-        echo "Associating build $BUILD_ID with version $VERSION…"
+        echo "Associating build ${BUILD_ID} with version ${VERSION}…"
         asc_run associate-build --version-id "$ASC_VERSION_ID" --build-id "$BUILD_ID"
         ASC_BUILD_RESULT="done"
 
