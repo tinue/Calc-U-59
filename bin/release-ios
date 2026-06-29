@@ -7,7 +7,7 @@
 #   1. Build-only (no metadata review, no upload):
 #        bin/release-ios --build-only
 #
-#   2. TestFlight upload (review metadata, build, validate, upload):
+#   2. TestFlight upload (build, validate, upload):
 #        bin/release-ios
 #        Pre-conditions: not on main, branch in sync with remote,
 #        a macOS GitHub release (pre-release or full) exists for this version,
@@ -294,44 +294,33 @@ if $DRY_RUN; then
     exit 0
 fi
 
-# ── 3. Metadata review (not --build-only) ─────────────────────────────────────
+# ── 3. App Store release review (--release only) ──────────────────────────────
 #
-# Metadata files live in the appstore orphan branch, checked out as a worktree
-# at appstore/ (verified above). Edit them there and commit to the appstore branch
-# independently of any macOS release.
+# Validate metadata and release notes, list screenshots, then ask a single
+# confirmation before proceeding. Skipped for TestFlight-only runs.
 
-if ! $DO_BUILD_ONLY; then
+if $DO_RELEASE; then
 
     METADATA_REQUIRED=("description.txt" "support_url.txt" "privacy_url.txt")
-    METADATA_OPTIONAL=("keywords.txt" "subtitle.txt" "marketing_url.txt")
-
-    # Validate required files: non-empty and TODO-free
-    ALL_METADATA_FILES=("${METADATA_REQUIRED[@]}" "${METADATA_OPTIONAL[@]}")
     METADATA_ERRORS=0
 
     for f in "${METADATA_REQUIRED[@]}"; do
         path="$METADATA_DIR/$f"
         if [ ! -s "$path" ]; then
-            echo "Error: $path is empty. Fill it in before releasing."
+            echo "Error: $path is empty."
             METADATA_ERRORS=$(( METADATA_ERRORS + 1 ))
         elif grep -q "^TODO:" "$path"; then
-            echo "Error: $path still contains a TODO placeholder. Fill it in before releasing."
+            echo "Error: $path still contains a TODO placeholder."
             METADATA_ERRORS=$(( METADATA_ERRORS + 1 ))
         fi
     done
 
-    if [ "$METADATA_ERRORS" -gt 0 ]; then
-        exit 1
-    fi
-
-    # Validate URL fields (simple scheme check)
     for url_file in "support_url.txt" "privacy_url.txt" "marketing_url.txt"; do
         path="$METADATA_DIR/$url_file"
         if [ -s "$path" ] && ! grep -q "^TODO:" "$path"; then
             url=$(cat "$path" | tr -d '[:space:]')
             if [ -n "$url" ] && ! echo "$url" | grep -qE "^https?://"; then
-                echo "Error: $path does not look like a URL (must start with http:// or https://)."
-                echo "  Current value: $url"
+                echo "Error: $path does not look like a URL: $url"
                 METADATA_ERRORS=$(( METADATA_ERRORS + 1 ))
             fi
         fi
@@ -341,30 +330,11 @@ if ! $DO_BUILD_ONLY; then
         exit 1
     fi
 
-    echo ""
-    echo "── Metadata review ──────────────────────────────────────────"
-    echo "Metadata files in $METADATA_DIR/:"
-    for f in "${ALL_METADATA_FILES[@]}"; do
-        echo "  $f"
-    done
-    echo "────────────────────────────────────────────────────────────"
-    echo ""
-    read -r -p "Have you updated the metadata files? Continue? [y/N] " REPLY
-    [[ "$REPLY" =~ ^[Yy]$ ]] || exit 1
-fi
-
-# ── 3b. Screenshot check (not --build-only) ───────────────────────────────────
-
-if ! $DO_BUILD_ONLY; then
-
     if [ ! -d "$SCREENSHOTS_DIR" ]; then
         echo "Error: screenshots directory not found: $SCREENSHOTS_DIR"
-        echo "  Add screenshots before releasing."
         exit 1
     fi
 
-    # Collect image files (shallow — multi-locale subfolders not yet supported;
-    # extend the find pattern if your layout uses e.g. en-US/ subfolders)
     SCREENSHOT_FILES=()
     while IFS= read -r -d '' f; do
         SCREENSHOT_FILES+=("$f")
@@ -372,13 +342,10 @@ if ! $DO_BUILD_ONLY; then
 
     if [ ${#SCREENSHOT_FILES[@]} -eq 0 ]; then
         echo "Error: no screenshots found in $SCREENSHOTS_DIR"
-        echo "  Add at least one .png / .jpg file and re-run."
         exit 1
     fi
 
     NOW=$(date +%s)
-    STALE_COUNT=0
-
     echo ""
     echo "── Screenshots ──────────────────────────────────────────────"
     for f in "${SCREENSHOT_FILES[@]}"; do
@@ -387,46 +354,26 @@ if ! $DO_BUILD_ONLY; then
         MOD_DATE=$(stat -f "%Sm" -t "%Y-%m-%d" "$f")
         if [ "$AGE_DAYS" -gt "$SCREENSHOT_MAX_AGE_DAYS" ]; then
             echo "  [STALE  ${AGE_DAYS}d]  $MOD_DATE  $(basename "$f")"
-            STALE_COUNT=$(( STALE_COUNT + 1 ))
         else
             echo "  [ok     ${AGE_DAYS}d]  $MOD_DATE  $(basename "$f")"
         fi
     done
     echo "────────────────────────────────────────────────────────────"
 
-    if [ "$STALE_COUNT" -gt 0 ]; then
-        echo ""
-        echo "Warning: $STALE_COUNT screenshot(s) are older than ${SCREENSHOT_MAX_AGE_DAYS} days."
-        echo "  Consider updating them before submitting to the App Store."
-        read -r -p "Continue with existing screenshots? [y/N] " REPLY
-        [[ "$REPLY" =~ ^[Yy]$ ]] || exit 1
-    fi
-fi
-
-# ── 4. Release notes review (not --build-only) ────────────────────────────────
-#
-# whatsnew.txt is generated by bin/release (macOS pre-release) and committed
-# to the appstore branch.  This script only reads and confirms it.
-
-if ! $DO_BUILD_ONLY; then
     if [ ! -s "$WHATSNEW_FILE" ]; then
         echo "Error: $WHATSNEW_FILE not found or empty."
-        echo "  Run 'bin/release' first — it generates the plain-text release notes"
-        echo "  from CHANGELOG.md and commits them to the appstore branch."
+        echo "  Run 'bin/release' first to generate and commit it."
         exit 1
     fi
-
-    echo ""
-    echo "Opening release notes for review: $WHATSNEW_FILE"
-    open_for_review "$WHATSNEW_FILE"
 
     echo ""
     echo "── What's New (whatsnew.txt) ────────────────────────────────"
     cat "$WHATSNEW_FILE"
     echo "────────────────────────────────────────────────────────────"
     echo ""
-    read -r -p "Use these release notes? [y/N] " REPLY
+    read -r -p "App Metadata, Release notes and screenshots updated and committed? [y/N] " REPLY
     [[ "$REPLY" =~ ^[Yy]$ ]] || exit 1
+
 fi
 
 # ── 5. Archive ────────────────────────────────────────────────────────────────
