@@ -348,6 +348,7 @@ private:
     std::vector<PrinterCodeLine>  m_prnCodeLines;  // Parallel raw-code queue (deferred commits)
     mutable std::mutex            m_prnMutex;
     void flushPendingCodeLine(int rowCount);  // commit m_prnPending with the given rowCount
+    void flushPendingIfActive();              // flush with elapsed-proportional rowCount; no-op if !m_prnHasPending
 
     // ── Display state (shared between CPU thread and UI thread) ───────
     // Per-digit live buffers: updated during each digit's strobe phase when IDLE.

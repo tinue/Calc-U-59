@@ -172,11 +172,7 @@ void TMC0501::reset() {
     m_prnPtr = 0;
     m_prnReady = false;
     // Flush any in-progress dot-line so nothing on paper is lost on reset
-    if (m_prnHasPending) {
-        uint32_t total   = getPrinterBusyCycles();
-        uint32_t elapsed = total - m_prnBusyCycles;
-        flushPendingCodeLine(static_cast<int>(elapsed * 7u / total));
-    }
+    flushPendingIfActive();
     m_prnBusyCycles = 0;
     m_prnInterrupted = false;
 }
@@ -793,9 +789,7 @@ int TMC0501::step() {
                     // new one. This is an unhandled hardware edge case (e.g. hacked "1F" keycode)
                     // not foreseen by the ROM; there is no retry or recovery — the printer just stops.
                     if (m_prnBusyCycles > 0 && m_prnHasPending) {
-                        uint32_t total   = getPrinterBusyCycles();
-                        uint32_t elapsed = total - m_prnBusyCycles;
-                        flushPendingCodeLine(static_cast<int>(elapsed * 7u / total));
+                        flushPendingIfActive();
                         m_prnInterrupted = true;  // next PRT.FEED completes line pitch, no blank added
                         break;  // new print is silently ignored
                     }
@@ -829,11 +823,7 @@ int TMC0501::step() {
                 // so the print's code-line lands at the same index as its text line.
                 // Without this, PRT_FEED's blank code-line would steal the print's index,
                 // making the print appear to render at the ADV slot instead.
-                if (m_prnHasPending) {
-                    uint32_t total   = getPrinterBusyCycles();
-                    uint32_t elapsed = total - m_prnBusyCycles;
-                    flushPendingCodeLine(static_cast<int>(elapsed * 7u / total));
-                }
+                flushPendingIfActive();
                 if (m_prnInterrupted) {
                     // First PRT.FEED after an aborted print: the printer completes the remaining
                     // line pitch (paper moves from the interrupted row to end-of-line). No new
@@ -1233,6 +1223,13 @@ void TMC0501::flushPendingCodeLine(int rowCount) {
     std::lock_guard<std::mutex> lk(m_prnMutex);
     m_prnCodeLines.push_back(m_prnPending);
     m_prnHasPending = false;
+}
+
+void TMC0501::flushPendingIfActive() {
+    if (!m_prnHasPending) return;
+    uint32_t total   = getPrinterBusyCycles();
+    uint32_t elapsed = total - m_prnBusyCycles;
+    flushPendingCodeLine(static_cast<int>(elapsed * 7u / total));
 }
 
 void TMC0501::pressPrinterPrint(bool pressed) {
