@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.5.0] - Work in progress
+
+- Work in progress
+
 ## [1.4.0] - 2026-06-29
 
 - **State Files** New `MODEL:` keyword switches the machine variant (TI-59/58/58C) when a state file is loaded.
