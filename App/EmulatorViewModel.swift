@@ -126,10 +126,12 @@ class EmulatorViewModel {
     var debugTab: DebugTab = .live   // persists tab selection across iPhone navigation
     var debugLevel: DebugLevel = .off
     var debugEnabled: Bool { debugLevel != .off }   // convenience for existing callers
-    var debugLines: [String] = []
+    @ObservationIgnored var debugLines: [String] = []
     var debugClearID: Int = 0       // incremented on clear to reset Text identity and drop selection
-    var debugAppendCount: Int = 0   // incremented on every append; drives auto-scroll when buffer is full
+    @ObservationIgnored var debugAppendCount: Int = 0
     private let debugLinesCap = 2_000
+    var debugDisplayText: String = ""           // throttled copy pushed to the LOG view ~4 Hz
+    @ObservationIgnored private var debugDisplayTick: Int = 0
     var asmFileName: String = "No file selected"
     var asmWordCount: Int = 0
     var asmStatusMessage: String = "Load a hex opcode file and press Run."
@@ -572,6 +574,7 @@ class EmulatorViewModel {
                     debugAppend([text], level: msgLevel)
                 }
             }
+            maybeRefreshDebugDisplay()
         }
 
         // Debounce TI-58C persist: schedule write if pending and timer not already running
@@ -1909,8 +1912,10 @@ class EmulatorViewModel {
 
     func clearDebug() {
         debugLines = []
+        debugDisplayText = ""
         debugClearID &+= 1
         debugAppendCount = 0
+        debugDisplayTick = 0
     }
 
     func loadASMOverlayFile(_ url: URL) {
@@ -2108,6 +2113,12 @@ class EmulatorViewModel {
             throw ASMParseError.tooLarge(words.count)
         }
         return words
+    }
+
+    private func maybeRefreshDebugDisplay() {
+        debugDisplayTick &+= 1
+        guard debugDisplayTick % 15 == 0 else { return }   // ~4 Hz at 60 Hz tick rate
+        debugDisplayText = debugLines.joined(separator: "\n")
     }
 
     private func debugAppend(_ lines: [String], level: DebugLevel = .info) {

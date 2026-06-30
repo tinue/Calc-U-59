@@ -83,7 +83,7 @@ private struct StaticDebugContent: View {
     private var outputArea: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                Text(vm.debugLines.isEmpty ? " " : vm.debugLines.joined(separator: "\n"))
+                Text(vm.debugDisplayText.isEmpty ? " " : vm.debugDisplayText)
                     .font(.system(size: 11, design: .monospaced))
                     .foregroundStyle(Color(white: 0.85))
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -97,7 +97,7 @@ private struct StaticDebugContent: View {
                 RoundedRectangle(cornerRadius: 2)
                     .stroke(Color(white: 0.25), lineWidth: 0.5)
             )
-            .onChange(of: vm.debugAppendCount) {
+            .onChange(of: vm.debugDisplayText) {
                 withAnimation(.easeOut(duration: 0.15)) {
                     proxy.scrollTo("bottom", anchor: .bottom)
                 }
