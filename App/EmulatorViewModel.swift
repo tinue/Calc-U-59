@@ -563,16 +563,21 @@ class EmulatorViewModel {
         }
 
         // Drain C-core debug messages into the debug panel.
+        // All messages from one drain are batched into a single append + single trim
+        // to avoid O(n) removeFirst being called once per message on the main thread.
         if debugLevel != .off {
             let dbgMsgs = machine.drainDebugMessages()
             if !dbgMsgs.isEmpty {
                 for msg in dbgMsgs {
                     guard msg.count >= 2 else { continue }
-                    let levelChar = msg.first!
-                    let msgLevel: DebugLevel = (levelChar == "I") ? .info : .debug
-                    let text = String(msg.dropFirst(2))
-                    debugAppend([text], level: msgLevel)
+                    let msgLevel: DebugLevel = (msg.first! == "I") ? .info : .debug
+                    guard debugLevel >= msgLevel else { continue }
+                    debugLines.append(String(msg.dropFirst(2)))
                 }
+                if debugLines.count > debugLinesCap {
+                    debugLines.removeFirst(debugLines.count - debugLinesCap)
+                }
+                debugAppendCount &+= 1
             }
             maybeRefreshDebugDisplay()
         }
