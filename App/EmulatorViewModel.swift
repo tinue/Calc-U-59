@@ -126,12 +126,14 @@ class EmulatorViewModel {
     var debugTab: DebugTab = .live   // persists tab selection across iPhone navigation
     var debugLevel: DebugLevel = .off
     var debugEnabled: Bool { debugLevel != .off }   // convenience for existing callers
-    @ObservationIgnored var debugLines: [String] = []
-    var debugClearID: Int = 0       // incremented on clear to reset Text identity and drop selection
-    @ObservationIgnored var debugAppendCount: Int = 0
-    private let debugLinesCap = 2_000
-    var debugDisplayText: String = ""           // throttled copy pushed to the LOG view ~4 Hz
-    @ObservationIgnored private var debugDisplayTick: Int = 0
+    @ObservationIgnored private var ringBuf: [String] = Array(repeating: "", count: 2_000)
+    @ObservationIgnored private var ringHead: Int = 0   // monotonically increasing write position
+    private let ringBufCap = 2_000
+    private let displayLinesPerPage = 40   // approx visible lines in the log pane
+    private let displayPageCap = 10        // max pages copied to the display panel
+    @ObservationIgnored private var debugLastDisplayHead: Int = 0
+    var debugClearID: Int = 0              // incremented on clear to reset Text identity
+    var debugDisplayText: String = ""      // ring buffer tail, refreshed at 1 Hz
     var asmFileName: String = "No file selected"
     var asmWordCount: Int = 0
     var asmStatusMessage: String = "Load a hex opcode file and press Run."
@@ -310,6 +312,7 @@ class EmulatorViewModel {
     private var persistPending = false
     private var persistDebounceTimer: Timer?
     private var programCheckTimer: Timer?
+    private var debugDisplayTimer: Timer?
 
     init() {
         // Initialize traceWriter with default model
@@ -536,6 +539,15 @@ class EmulatorViewModel {
         }
         RunLoop.main.add(progTimer, forMode: .common)
         programCheckTimer = progTimer
+
+        // 1 Hz timer: copies ring buffer tail into the display panel.
+        // Rate and copy size adapt to logging speed (see refreshDebugDisplay()).
+        debugDisplayTimer?.invalidate()
+        let dbgTimer = Timer(timeInterval: 1.0, repeats: true) { [weak self] _ in
+            self?.refreshDebugDisplay()
+        }
+        RunLoop.main.add(dbgTimer, forMode: .common)
+        debugDisplayTimer = dbgTimer
     }
 
     private func checkProgramNumber() {
@@ -562,24 +574,16 @@ class EmulatorViewModel {
             printerLines.append(contentsOf: lines)
         }
 
-        // Drain C-core debug messages into the debug panel.
-        // All messages from one drain are batched into a single append + single trim
-        // to avoid O(n) removeFirst being called once per message on the main thread.
+        // Drain C-core debug messages into the ring buffer (O(1) per message, no trimming).
         if debugLevel != .off {
             let dbgMsgs = machine.drainDebugMessages()
-            if !dbgMsgs.isEmpty {
-                for msg in dbgMsgs {
-                    guard msg.count >= 2 else { continue }
-                    let msgLevel: DebugLevel = (msg.first! == "I") ? .info : .debug
-                    guard debugLevel >= msgLevel else { continue }
-                    debugLines.append(String(msg.dropFirst(2)))
-                }
-                if debugLines.count > debugLinesCap {
-                    debugLines.removeFirst(debugLines.count - debugLinesCap)
-                }
-                debugAppendCount &+= 1
+            for msg in dbgMsgs {
+                guard msg.count >= 2 else { continue }
+                let msgLevel: DebugLevel = (msg.first! == "I") ? .info : .debug
+                guard debugLevel >= msgLevel else { continue }
+                ringBuf[ringHead % ringBufCap] = String(msg.dropFirst(2))
+                ringHead += 1
             }
-            maybeRefreshDebugDisplay()
         }
 
         // Debounce TI-58C persist: schedule write if pending and timer not already running
@@ -682,6 +686,8 @@ class EmulatorViewModel {
         displayTimer = nil
         programCheckTimer?.invalidate()
         programCheckTimer = nil
+        debugDisplayTimer?.invalidate()
+        debugDisplayTimer = nil
     }
 
     func stop() {
@@ -796,7 +802,7 @@ class EmulatorViewModel {
             if let saved = loadConstantMemory() {
                 machine?.deserialiseRAM(saved)
             }
-            debugAppend(["Calculator Reset"])
+            ringWrite("Calculator Reset")
             return
         }
 
@@ -809,7 +815,7 @@ class EmulatorViewModel {
             machine?.setRawRegister(regNum, nibbles: Data(zeroNibbles))
         }
 
-        debugAppend(["Calculator Reset"])
+        ringWrite("Calculator Reset")
     }
 
     /// Clean reset (all models): zero all RAM, then reset.
@@ -827,7 +833,7 @@ class EmulatorViewModel {
         resetHeatmapBaseline()
         // Write zeroed state for TI-58C immediately
         persistConstantMemory()
-        debugAppend(["Clean Reset — all registers cleared"])
+        ringWrite("Clean Reset — all registers cleared")
     }
 
     // MARK: - Magnetic card reader
@@ -1916,11 +1922,10 @@ class EmulatorViewModel {
     }
 
     func clearDebug() {
-        debugLines = []
+        ringHead = 0
+        debugLastDisplayHead = 0
         debugDisplayText = ""
         debugClearID &+= 1
-        debugAppendCount = 0
-        debugDisplayTick = 0
     }
 
     func loadASMOverlayFile(_ url: URL) {
@@ -2120,19 +2125,49 @@ class EmulatorViewModel {
         return words
     }
 
-    private func maybeRefreshDebugDisplay() {
-        debugDisplayTick &+= 1
-        guard debugDisplayTick % 15 == 0 else { return }   // ~4 Hz at 60 Hz tick rate
-        debugDisplayText = debugLines.joined(separator: "\n")
+    private func ringWrite(_ line: String) {
+        ringBuf[ringHead % ringBufCap] = line
+        ringHead += 1
     }
 
-    private func debugAppend(_ lines: [String], level: DebugLevel = .info) {
-        guard debugLevel >= level else { return }
-        debugLines.append(contentsOf: lines)
-        if debugLines.count > debugLinesCap {
-            debugLines.removeFirst(debugLines.count - debugLinesCap)
+    /// Called by the 1 Hz timer and immediately after user-initiated dumps.
+    /// Copies the ring buffer tail into debugDisplayText on the main thread.
+    /// Amount copied adapts to logging rate:
+    ///   fast (> one page of new entries since last call) → show only the newest page
+    ///   slow (≤ one page)                               → show up to displayPageCap pages
+    private func refreshDebugDisplay() {
+        let head = ringHead
+        let newSinceLast = head - debugLastDisplayHead
+        debugLastDisplayHead = head
+
+        let totalAvailable = min(head, ringBufCap)
+        if totalAvailable == 0 {
+            debugDisplayText = ""
+            return
         }
-        debugAppendCount &+= 1
+
+        let linesToShow: Int
+        if newSinceLast > displayLinesPerPage {
+            linesToShow = min(displayLinesPerPage, totalAvailable)
+        } else {
+            linesToShow = min(displayLinesPerPage * displayPageCap, totalAvailable)
+        }
+
+        let startPos = head - linesToShow
+        let cap = ringBufCap
+        let snapshot = ringBuf   // shallow copy of 2 000 String structs on main thread
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            var lines = [String]()
+            lines.reserveCapacity(linesToShow)
+            for i in 0..<linesToShow {
+                lines.append(snapshot[(startPos + i) % cap])
+            }
+            let text = lines.joined(separator: "\n")
+            DispatchQueue.main.async { [weak self] in
+                self?.debugDisplayText = text
+            }
+        }
     }
 
     /// Dump non-zero data variables within the current partition.
@@ -2152,7 +2187,8 @@ class EmulatorViewModel {
         let visibleDataRegCount = displayableRegs - programRegs
 
         guard visibleDataRegCount > 0 else {
-            debugLines.append("── Vars: no data registers in current partition ──")
+            ringWrite("── Vars: no data registers in current partition ──")
+            refreshDebugDisplay()
             return
         }
         var lines: [String] = [String(format: "── Vars V00–V%02d ──", visibleDataRegCount - 1)]
@@ -2191,9 +2227,8 @@ class EmulatorViewModel {
             lines.append(String(format: "%@ = %.10g", entry.label, entry.value))
         }
 
-        debugLines.append(contentsOf: lines)
-        if debugLines.count > debugLinesCap { debugLines.removeFirst(debugLines.count - debugLinesCap) }
-        debugAppendCount &+= 1
+        for line in lines { ringWrite(line) }
+        refreshDebugDisplay()
     }
 
     /// Dump all 16 SCOM rows in compact hex nibble format.
@@ -2207,9 +2242,8 @@ class EmulatorViewModel {
                 lines.append(String(format: "S%02d %@", s, nibbles))
             }
         }
-        debugLines.append(contentsOf: lines)
-        if debugLines.count > debugLinesCap { debugLines.removeFirst(debugLines.count - debugLinesCap) }
-        debugAppendCount &+= 1
+        for line in lines { ringWrite(line) }
+        refreshDebugDisplay()
     }
 
     /// Dump program RAM registers as raw nibble pairs in storage order.
@@ -2229,9 +2263,8 @@ class EmulatorViewModel {
                 .joined(separator: " ")
             lines.append(String(format: "P%03d: %@", reg, pairs))
         }
-        debugLines.append(contentsOf: lines)
-        if debugLines.count > debugLinesCap { debugLines.removeFirst(debugLines.count - debugLinesCap) }
-        debugAppendCount &+= 1
+        for line in lines { ringWrite(line) }
+        refreshDebugDisplay()
     }
 
     /// Dump entire RAM memory with address information.
@@ -2252,9 +2285,8 @@ class EmulatorViewModel {
             let hex = bytes.map { String(format: "%02X", $0) }.joined(separator: " ")
             lines.append(String(format: "R%03d: %@", reg, hex as NSString))
         }
-        debugLines.append(contentsOf: lines)
-        if debugLines.count > debugLinesCap { debugLines.removeFirst(debugLines.count - debugLinesCap) }
-        debugAppendCount &+= 1
+        for line in lines { ringWrite(line) }
+        refreshDebugDisplay()
     }
 
     /// Debug helper: dump step counter encoding from SCOM[0] and surrounding rows.
@@ -2302,7 +2334,8 @@ class EmulatorViewModel {
         lines.append("PC=400 → SCOM[0] pos 4-6 = '425'")
         lines.append("Pattern: nibbles don't decode as BCD or simple hex")
 
-        debugAppend(lines)
+        for line in lines { ringWrite(line) }
+        refreshDebugDisplay()
     }
 
     /// Read a raw 16-nibble RAM register (reg 0–119).

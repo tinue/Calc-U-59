@@ -125,7 +125,7 @@ private struct StaticDebugContent: View {
                     Image(systemName: "trash")
                         .foregroundStyle(.white.opacity(0.6))
                 }
-                .disabled(vm.debugLines.isEmpty)
+                .disabled(vm.debugDisplayText.isEmpty)
             }
 
             // Row 2: Status toggles
@@ -269,13 +269,13 @@ private struct ASMDebugContent: View {
         .environment({
             let vm = EmulatorViewModel()
             vm.debugLevel = .info
-            vm.debugLines = [
-                "── RAM (part=60) ──",
-                "RAM[60] = 3.141592653589",
-                "RAM[65] = 7.77e+22",
-                "── SCOM ──",
-                "SCOM[9] = [6, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]",
-            ]
+            vm.debugDisplayText = """
+                ── RAM (part=60) ──
+                RAM[60] = 3.141592653589
+                RAM[65] = 7.77e+22
+                ── SCOM ──
+                SCOM[9] = [6, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+                """
             return vm
         }())
         .frame(width: 260, height: 400)
