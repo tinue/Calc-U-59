@@ -4,6 +4,9 @@
 
 - **Printer** Dot-matrix output is now rendered row by row. Lines interrupted mid-print (via the hacked `1F` printer-interrupt keycode) show only the dot-rows that were physically laid down, with no padding below — matching the hard stop of the real printer's stepper motor.
 
+### Fixes
+- **Debug Log** Fixed out-of-memory crash and GUI slowdown when the LOG panel is active at DEBUG level.
+
 ## [1.4.0] - 2026-06-29
 
 - **State Files** New `MODEL:` keyword switches the machine variant (TI-59/58/58C) when a state file is loaded.
