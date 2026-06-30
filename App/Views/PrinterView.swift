@@ -114,8 +114,8 @@ struct PrinterView: View {
         LazyVStack(spacing: 0) {
             ForEach(viewModel.printerLines.indices, id: \.self) { i in
                 if viewModel.printerLines[i].isEmpty {
-                    // PRT_FEED: one blank line pitch
-                    Color.clear.aspectRatio(PrinterDotLine.aspectRatio, contentMode: .fit)
+                    // PRT_FEED: half a print-line pitch (manual: "Feed paper by half print line")
+                    Color.clear.aspectRatio(PrinterDotLine.aspectRatio * 2.0, contentMode: .fit)
                 } else {
                     PrinterDotLine(
                         codes: i < viewModel.printerCodeLines.count
@@ -217,7 +217,7 @@ struct PrinterView: View {
         let strip = VStack(spacing: 0) {
             ForEach(lines.indices, id: \.self) { i in
                 if lines[i].isEmpty {
-                    Color.white.frame(width: lineW, height: lineH)
+                    Color.white.frame(width: lineW, height: lineH / 2)
                 } else {
                     PrinterDotLine(
                         codes: i < codeLines.count

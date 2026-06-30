@@ -5,6 +5,7 @@
 - **Printer** Dot-matrix output is now rendered row by row. Lines interrupted mid-print (via the hacked `1F` printer-interrupt keycode) show only the dot-rows that were physically laid down, with no padding below — matching the hard stop of the real printer's stepper motor.
 
 ### Fixes
+- **Printer** The ADV button now advances paper by one line, matching the PC-100C hardware. Previously it advanced two lines because each of the two `PRT.FEED` opcodes it issues was rendered as a full line instead of the correct half-line.
 - **Debug Log** Fixed out-of-memory crash and GUI slowdown when the LOG panel is active at DEBUG level.
 
 ## [1.4.0] - 2026-06-29

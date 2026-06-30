@@ -174,7 +174,6 @@ void TMC0501::reset() {
     // Flush any in-progress dot-line so nothing on paper is lost on reset
     flushPendingIfActive();
     m_prnBusyCycles = 0;
-    m_prnInterrupted = false;
 }
 
 void TMC0501::loadLibrary(const uint8_t* data, size_t count) {
@@ -790,7 +789,6 @@ int TMC0501::step() {
                     // not foreseen by the ROM; there is no retry or recovery — the printer just stops.
                     if (m_prnBusyCycles > 0 && m_prnHasPending) {
                         flushPendingIfActive();
-                        m_prnInterrupted = true;  // next PRT.FEED completes line pitch, no blank added
                         break;  // new print is silently ignored
                     }
                     // Buffer is right-to-left: read from position 19 down to 0.
@@ -824,12 +822,7 @@ int TMC0501::step() {
                 // Without this, PRT_FEED's blank code-line would steal the print's index,
                 // making the print appear to render at the ADV slot instead.
                 flushPendingIfActive();
-                if (m_prnInterrupted) {
-                    // First PRT.FEED after an aborted print: the printer completes the remaining
-                    // line pitch (paper moves from the interrupted row to end-of-line). No new
-                    // blank line is added — the partial line height already accounts for this gap.
-                    m_prnInterrupted = false;
-                } else {
+                {
                     std::lock_guard<std::mutex> lk(m_prnMutex);
                     m_prnLines.emplace_back();
                     m_prnCodeLines.emplace_back();  // zero-filled
