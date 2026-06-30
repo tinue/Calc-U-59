@@ -127,7 +127,9 @@ class EmulatorViewModel {
     var debugLevel: DebugLevel = .off
     var debugEnabled: Bool { debugLevel != .off }   // convenience for existing callers
     var debugLines: [String] = []
-    var debugClearID: Int = 0   // incremented on clear to reset Text identity and drop selection
+    var debugClearID: Int = 0       // incremented on clear to reset Text identity and drop selection
+    var debugAppendCount: Int = 0   // incremented on every append; drives auto-scroll when buffer is full
+    private let debugLinesCap = 2_000
     var asmFileName: String = "No file selected"
     var asmWordCount: Int = 0
     var asmStatusMessage: String = "Load a hex opcode file and press Run."
@@ -1908,6 +1910,7 @@ class EmulatorViewModel {
     func clearDebug() {
         debugLines = []
         debugClearID &+= 1
+        debugAppendCount = 0
     }
 
     func loadASMOverlayFile(_ url: URL) {
@@ -2110,6 +2113,10 @@ class EmulatorViewModel {
     private func debugAppend(_ lines: [String], level: DebugLevel = .info) {
         guard debugLevel >= level else { return }
         debugLines.append(contentsOf: lines)
+        if debugLines.count > debugLinesCap {
+            debugLines.removeFirst(debugLines.count - debugLinesCap)
+        }
+        debugAppendCount &+= 1
     }
 
     /// Dump non-zero data variables within the current partition.
@@ -2169,6 +2176,8 @@ class EmulatorViewModel {
         }
 
         debugLines.append(contentsOf: lines)
+        if debugLines.count > debugLinesCap { debugLines.removeFirst(debugLines.count - debugLinesCap) }
+        debugAppendCount &+= 1
     }
 
     /// Dump all 16 SCOM rows in compact hex nibble format.
@@ -2183,6 +2192,8 @@ class EmulatorViewModel {
             }
         }
         debugLines.append(contentsOf: lines)
+        if debugLines.count > debugLinesCap { debugLines.removeFirst(debugLines.count - debugLinesCap) }
+        debugAppendCount &+= 1
     }
 
     /// Dump program RAM registers as raw nibble pairs in storage order.
@@ -2203,6 +2214,8 @@ class EmulatorViewModel {
             lines.append(String(format: "P%03d: %@", reg, pairs))
         }
         debugLines.append(contentsOf: lines)
+        if debugLines.count > debugLinesCap { debugLines.removeFirst(debugLines.count - debugLinesCap) }
+        debugAppendCount &+= 1
     }
 
     /// Dump entire RAM memory with address information.
@@ -2224,6 +2237,8 @@ class EmulatorViewModel {
             lines.append(String(format: "R%03d: %@", reg, hex as NSString))
         }
         debugLines.append(contentsOf: lines)
+        if debugLines.count > debugLinesCap { debugLines.removeFirst(debugLines.count - debugLinesCap) }
+        debugAppendCount &+= 1
     }
 
     /// Debug helper: dump step counter encoding from SCOM[0] and surrounding rows.

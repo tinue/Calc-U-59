@@ -97,7 +97,7 @@ private struct StaticDebugContent: View {
                 RoundedRectangle(cornerRadius: 2)
                     .stroke(Color(white: 0.25), lineWidth: 0.5)
             )
-            .onChange(of: vm.debugLines.count) {
+            .onChange(of: vm.debugAppendCount) {
                 withAnimation(.easeOut(duration: 0.15)) {
                     proxy.scrollTo("bottom", anchor: .bottom)
                 }
