@@ -126,11 +126,11 @@ class EmulatorViewModel {
     var debugTab: DebugTab = .live   // persists tab selection across iPhone navigation
     var debugLevel: DebugLevel = .off
     var debugEnabled: Bool { debugLevel != .off }   // convenience for existing callers
-    @ObservationIgnored private var ringBuf: [String] = Array(repeating: "", count: 2_000)
+    private static let ringBufCap = 2_000
+    private static let displayLinesPerPage = 40   // approx visible lines in the log pane
+    private static let displayPageCap = 10        // max pages copied to the display panel
+    @ObservationIgnored private var ringBuf: [String] = Array(repeating: "", count: ringBufCap)
     @ObservationIgnored private var ringHead: Int = 0   // monotonically increasing write position
-    private let ringBufCap = 2_000
-    private let displayLinesPerPage = 40   // approx visible lines in the log pane
-    private let displayPageCap = 10        // max pages copied to the display panel
     @ObservationIgnored private var debugLastDisplayHead: Int = 0
     var debugClearID: Int = 0              // incremented on clear to reset Text identity
     var debugDisplayText: String = ""      // ring buffer tail, refreshed at 1 Hz
@@ -581,8 +581,7 @@ class EmulatorViewModel {
                 guard msg.count >= 2 else { continue }
                 let msgLevel: DebugLevel = (msg.first! == "I") ? .info : .debug
                 guard debugLevel >= msgLevel else { continue }
-                ringBuf[ringHead % ringBufCap] = String(msg.dropFirst(2))
-                ringHead += 1
+                ringWrite(String(msg.dropFirst(2)))
             }
         }
 
@@ -2126,12 +2125,17 @@ class EmulatorViewModel {
     }
 
     private func ringWrite(_ line: String) {
-        ringBuf[ringHead % ringBufCap] = line
+        ringBuf[ringHead % Self.ringBufCap] = line
         ringHead += 1
     }
 
+    private func ringWriteAll(_ lines: [String]) {
+        for line in lines { ringWrite(line) }
+        refreshDebugDisplay()
+    }
+
     /// Called by the 1 Hz timer and immediately after user-initiated dumps.
-    /// Copies the ring buffer tail into debugDisplayText on the main thread.
+    /// Copies the ring buffer tail into debugDisplayText.
     /// Amount copied adapts to logging rate:
     ///   fast (> one page of new entries since last call) → show only the newest page
     ///   slow (≤ one page)                               → show up to displayPageCap pages
@@ -2140,34 +2144,20 @@ class EmulatorViewModel {
         let newSinceLast = head - debugLastDisplayHead
         debugLastDisplayHead = head
 
-        let totalAvailable = min(head, ringBufCap)
-        if totalAvailable == 0 {
-            debugDisplayText = ""
-            return
-        }
+        let totalAvailable = min(head, Self.ringBufCap)
+        guard totalAvailable > 0 else { debugDisplayText = ""; return }
 
-        let linesToShow: Int
-        if newSinceLast > displayLinesPerPage {
-            linesToShow = min(displayLinesPerPage, totalAvailable)
-        } else {
-            linesToShow = min(displayLinesPerPage * displayPageCap, totalAvailable)
-        }
-
+        let linesToShow = newSinceLast > Self.displayLinesPerPage
+            ? min(Self.displayLinesPerPage, totalAvailable)
+            : min(Self.displayLinesPerPage * Self.displayPageCap, totalAvailable)
         let startPos = head - linesToShow
-        let cap = ringBufCap
-        let snapshot = ringBuf   // shallow copy of 2 000 String structs on main thread
 
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            var lines = [String]()
-            lines.reserveCapacity(linesToShow)
-            for i in 0..<linesToShow {
-                lines.append(snapshot[(startPos + i) % cap])
-            }
-            let text = lines.joined(separator: "\n")
-            DispatchQueue.main.async { [weak self] in
-                self?.debugDisplayText = text
-            }
+        var lines = [String]()
+        lines.reserveCapacity(linesToShow)
+        for i in 0..<linesToShow {
+            lines.append(ringBuf[(startPos + i) % Self.ringBufCap])
         }
+        debugDisplayText = lines.joined(separator: "\n")
     }
 
     /// Dump non-zero data variables within the current partition.
@@ -2227,8 +2217,7 @@ class EmulatorViewModel {
             lines.append(String(format: "%@ = %.10g", entry.label, entry.value))
         }
 
-        for line in lines { ringWrite(line) }
-        refreshDebugDisplay()
+        ringWriteAll(lines)
     }
 
     /// Dump all 16 SCOM rows in compact hex nibble format.
@@ -2242,8 +2231,7 @@ class EmulatorViewModel {
                 lines.append(String(format: "S%02d %@", s, nibbles))
             }
         }
-        for line in lines { ringWrite(line) }
-        refreshDebugDisplay()
+        ringWriteAll(lines)
     }
 
     /// Dump program RAM registers as raw nibble pairs in storage order.
@@ -2263,8 +2251,7 @@ class EmulatorViewModel {
                 .joined(separator: " ")
             lines.append(String(format: "P%03d: %@", reg, pairs))
         }
-        for line in lines { ringWrite(line) }
-        refreshDebugDisplay()
+        ringWriteAll(lines)
     }
 
     /// Dump entire RAM memory with address information.
@@ -2285,8 +2272,7 @@ class EmulatorViewModel {
             let hex = bytes.map { String(format: "%02X", $0) }.joined(separator: " ")
             lines.append(String(format: "R%03d: %@", reg, hex as NSString))
         }
-        for line in lines { ringWrite(line) }
-        refreshDebugDisplay()
+        ringWriteAll(lines)
     }
 
     /// Debug helper: dump step counter encoding from SCOM[0] and surrounding rows.
@@ -2334,8 +2320,7 @@ class EmulatorViewModel {
         lines.append("PC=400 → SCOM[0] pos 4-6 = '425'")
         lines.append("Pattern: nibbles don't decode as BCD or simple hex")
 
-        for line in lines { ringWrite(line) }
-        refreshDebugDisplay()
+        ringWriteAll(lines)
     }
 
     /// Read a raw 16-nibble RAM register (reg 0–119).
