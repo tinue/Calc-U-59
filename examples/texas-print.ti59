@@ -1,0 +1,65 @@
+# printer-quirks.ti59 Program that demonstrates interrupting the printer while printing a row.
+# From Magatzine "PPX Exchange", March/April 1982, page 5.
+#
+# These are the original notes in the article:
+#  The following program (reprinted with permission) by Dave Leising produces a print-code table with the characters
+#  printed as they appear normally and as they appear after an immediate interrupt. Note: all printers may not print the
+#  same portion of the characters. On our printers, they appear as shown.
+#
+#  Initialize the pseudo-code by pressing the sequence: [9] [2nd] [OP] [1] [7] [2nd] [Pgm] [1] [2] [SBR] [4] [4] [4]
+#  [R/S] [2nd] [P/R] [LRN] [2nd] [Ins] [LRN] [CLR] [RST].
+#  The display will begin flashing when [SBR] [4] [4] [4] is pressed. Press [A] and the print code table with full and inter-
+#  rupted characters will be printed.
+
+MODEL: TI-59
+SOLID-STATE-MODULE: ML
+PRINTER: on
+
+
+# For compactness, the program is only here as key codes. If you need the listing, load the program and LIST it on the printer.
+PROGRAM:
+92 00 00 76 11 00 69 05 23 53 00 00 00 00 00 00 00 69 17 58 09 25 69 00 06 06 07 06 07 06 07 01 00 69 02 11 02 07 00 00 00 00 00 00 02 05 69 02 11 11 01 00 00 69 03 11 00 69 03 11 02 05 00 00 02 07 69 03
+11 00 69 03 11 06 06 00 00 69 03 11 00 69 03 11 02 07 58 08 69 02 11 07 00 69 03 11 05 06 58 06 69 03 11 05 01 58 08 69 04 58 04 07 05 01 69 03 11 06 07 04 07 69 04 58 09 07 04 07 04 07 04 06 07 69 03 11
+04 07 58 04 69 04 58 02 07 04 07 04 07 04 69 03 11 11 05 07 04 06 07 07 04 69 03 11 07 02 04 00 00 00 07 69 03 11 07 04 05 06 00 00 02 04 07 04 69 03 32 58 04 02 07 00 00 04 07 69 04 02 07 00 00 00 00 05
+05 07 04 69 02 75 11 05 00 00 00 95 69 02 32 85 05 00 00 00 95 69 03 11 32 85 06 00 00 00 05 69 02 75 11 03 05 00 00 95 69 02 85 07 04 02 07 00 00 07 04 07 04 69 03 11 05 01 04 00 00 95 69 02 06 02 69 04
+11 07 04 00 00 05 03 07 04 07 04 69 03 02 05 69 04 58 09 07 04 07 04 69 02 07 06 07 06 07 06 07 06 07 69 01 11 00 69 04 04 07 58 08 69 01 07 04 00 00 02 05 07 04 07 04 69 03 75 11 05 03 69 01 02 07 58 02
+69 04 11 07 04 07 04 95 58 04 69 03 85 00 69 02 05 06 58 06 69 01 11 05 06 00 00 95 69 03 04 07 69 03 11 05 03 69 01 07 00 00 00 05 02 07 58 02 69 03 11 02 00 00 06 05 02 07 69 03 05 06 58 04 69 01 11 04
+07 69 01 05 06 00 00 06 05 69 03 75 04 01 03 95 69 03 05 03 69 01 58 09 69 02 11 00 69 01 02 05 69 02 02 07 00 00 07 04 00 00 00 00 69 03 11 05 69 02 11 69 04 05 06 00 00 69 01 06 05 69 02 07 04 07 04 07
+04 58 04 69 03 95 58 02 04 07 69 01 58 04 05 05 69 04 11 58 02 02 05 69 01 05 03 06 07 07 01 00 00 06 05 69 02 58 06 05 03 69 04 11 07 04 07 04 07 04 07 04
+69 03 75 04 07 69 04 58 04 00 69 01 06 05 69 02 11 02 07 69 01 07 00 00 00 00 02 07 06 05 69 02 05 03 02 07 58 06 69 04 11 07 02 95 69 03 05 58 02 05 06 69
+01 02 07 00 00 00 00 02 07 02 05 69 02 04 07 58 08 69 04 11 02 07 69 04 58 07 05 03 69 01 58 02 05 06 69 02 05 04 95 69 03 11 69 00 04 07 69 02 07 04 07 04
+07 04 02 07 05 03 69 03 44 06 00 07 04 07 04 00 00 00 07 69 03 11 06 02 69 02 05 03 07 04 07 07 00 00 02 07 69 03 11 05 03 69 02 69 03 11 04 07 58 03 11 69
+02 11 58 09 69 00 05 08 69 02 58 02 01 00 00 69 03 04 07 69 02 11 05 03 58 02 11 69 02 58 02 05 06 58 03 01 05 06 00 00 00 00 04 07 69 03 11 05 03 00 01 07
+00 04 07 69 03 95 91 05 00 00 07 02 07 03 11 05 03 00 00 05 03 69 03 95 06 07 06 07 69 03 11 58 09 98 98 98 92 61 00 07 17 00 00 00 00 00 00 00 00 00 00 00
+
+# To simplify things, the keystrokes outlined in the article are automated. When the Preset finished loading, the invalid
+# key code will be in memory.
+# KEYSTROKES:
+# 61  GTO
+# 92  0
+# 92  0
+# 63  8
+# 64  9
+# 21  2nd
+# 64  OP
+# 82  1
+# 62  7
+# 21  2nd
+# 31  Pgm
+# 82  1
+# 83  2
+# 71  SBR
+# 72  4
+# 72  4
+# 72  4
+# Wait: 1s
+# 91  R/S
+# WaitFullSpeed: 1s
+# 21  2nd
+# 32  P/R
+# 31  LRN
+# 21  2nd
+# 41  Ins
+# 31  LRN
+# 25  CLR
+# 81  RST
