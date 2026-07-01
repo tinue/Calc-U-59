@@ -1,17 +1,151 @@
-# printer-quirks.ti59 Program that demonstrates interrupting the printer while printing a row.
-# From Magatzine "PPX Exchange", March/April 1982, page 5.
+# texas-print.ti59 - High Rez Graphics by Frank Dever
+# From Magatzine "PPX Exchange", March/April 1982, front page.
+#
+# Another program that demonstrates interrupting the printer while printing a row.
+#
 #
 # These are the original notes in the article:
-#  The following program (reprinted with permission) by Dave Leising produces a print-code table with the characters
-#  printed as they appear normally and as they appear after an immediate interrupt. Note: all printers may not print the
-#  same portion of the characters. On our printers, they appear as shown.
 #
-#  Initialize the pseudo-code by pressing the sequence: [9] [2nd] [OP] [1] [7] [2nd] [Pgm] [1] [2] [SBR] [4] [4] [4]
-#  [R/S] [2nd] [P/R] [LRN] [2nd] [Ins] [LRN] [CLR] [RST].
-#  The display will begin flashing when [SBR] [4] [4] [4] is pressed. Press [A] and the print code table with full and inter-
-#  rupted characters will be printed.
+# Editors Note: Through experimenting with unusual key sequences, some TI-59 owners have found that
+# their calculators will respond to certain illegal key sequences not intended by the designers. By-
+# products of these key sequences include fractured displays, access to hard-wired functions, a fast
+# mode and the subject of this article - printer interrupt.
+#
+# The sequence described in this article is a command which tells the printer its job is over before
+# a complete character is printed. Known results outlined in this article are the discoveries of
+# avid TI-59 fans. This is not a Texas Instruments designed feature, but rather a machine 'quirk';
+# therefore, there may be unpredictable results which have yet to be discovered.
+#
+# The user should exercise caution in observing the limitations outlined below. The failure to do so
+# can cause a 'system crash' from which control can only be regained by turning the calculator off
+# and on. Use of the printer interrupt may have unexpected consequences. The number of dots printed
+# is affected by timing differences on each TI-59/PC-100A(C) combination. Texas Instruments cannot
+# endorse the use of the printer interrupt nor will Texas Instruments be responsible for software
+# damage caused thereby. This item is presented solely as an item of interest to TI-59 owners.
+#
+# One of the most recent and interesting of the 'quirk' variety discoveries is the 'print interrupt'
+# pseudo-code. Insertion of this code in the learn mode will, when executed by a program, instruct
+# the printer to halt. The result of this printer interrupt is that the character being printed is
+# restricted to as few as two rows of dots. The discovery was made by the dilligent efforts of
+# Michael Sperber, Gerald Schuetzer, and Johan Berger. Also contributing to the development of the
+# technique is Maurice Swinnen, Editor TI PPC NOTES and Dave Leising. No doubt it has already
+# occurred to the more avid fan of the TI-59 that this discovery is a fantastic opportunity to
+# experiment with high resolution graphics. And so it is. Included in this article is all the
+# information you need to get started printing high resolution graphs of functions, pictures of your
+# favorite comic book character, or whatever. Your imagination is the limit.
+#
+# However, be forewarned that the function outlined in this article was not designed by Texas
+# Instruments and therefore you may have unexpected difficulties in the use of the printer
+# interrupt. It has been the author's experience that endless loops are a frequent malady.
+#
+# How does it work? On command, the thermal printhead will print 20 characters (blanks are also
+# considered characters), each one as a matrix of dots, 7 rows by 5 columns. The characters are
+# printed one row at a time. After each row, the printer advances the paper for the next row of
+# dots. After printing the entire matrix for each of the 20 characters, the printer will advance the
+# paper for the next set of characters to be printed. The calculator is designed to continue to
+# execute program instructions while the printer is carrying out a print instruction. It is this
+# feature that makes the printer interrupt work. A command to print is sent to the printer and very
+# shortly afterwards a special printer interrupt described below is relayed to the printer. This
+# causes the printer to stop, leaving the characters vertically incomplete.
+#
+# The printer-interrupt command is created by placing a special 'pseudo-code' in program memory. But
+# before attempting to use this instruction, the user should make note of the following limitations
+# and restrictions when using the printer interrupt. Failure to do so may result in an endless loop
+# from which keyboard control can only be regained by turning the calculator off and on again. Keep
+# in mind that the list given below may not be complete; there may still be much to learn about the
+# printer-interrupt instruction.
+#
+# 1) The Master Library module should be installed when sequences in this article are used.
+# 2) The pseudo-code must be inserted in a location evenly divisible by eight.
+# 3) The sequences given for the insertion of the pseudo-code will leave a [RTN] instruction in the
+#    step following the code. This is essential for the operation of the printer-interrupt. The next
+#    7 steps following the [RTN] will contain meaningless code.
+# 4) Since 9 [OP] 17 is used in the initialization sequence, the insertion of the printer-interrupt
+#    moves the eighth step following the pseudo-code through step 239 over one step. This results in
+#    the loss of step 239. It is suggested that if your program is longer than 238 steps, a [NOP] is
+#    inserted in step 239. Be sure to repartition the calculator to the partitioning required by the
+#    program after initialization.
+# 5) All labels must preceed the pseudo-code.
+# 6) The display must contain a zero when the printer-interrupt is executed.
+# 7) Error conditions or EE display modes must not be present when the printer-interrupt is
+#    executed.
+# 8) Location 000 must contain an [INV] [SBR] instruction. Execution is transferred to this location
+#    after the printer interrupt is encountered in a program.
+# 9) On some printers, a complete line of interrupted characters will arrest the paper advance.
+# 10) Magnetic cards recorded after initialization will not contain the appropriate pseudo-code. To
+#     avoid this, record your program before initialization.
+# 11) The differences in timing on various calculator-printer combinations may affect the number of
+#     rows of dots that are printed. This may make a program using the printer-interrupt run
+#     differently on different machines.
+#
+# To Insert The Pseudo-Code:
+#
+# 1) Turn the calculator on.
+# 2) Position the program counter to one of the locations given in the initialization table by
+#    pressing [GTO] followed by the three digit location number.
+# 3) Press [LRN].
+# 4) Find the key strokes corresponding to the location you have chosen in the pseudo-code
+#    initialization table, and key them in.
+# 5) Press [LRN].
+# 6) Reposition the program counter to the location in which you intend to insert the pseudo-code by
+#    pressing [GTO] followed by the three digit location number.
+# 7) Initialize the pseudo-code by pressing the sequence: [9] [2nd] [OP] [1] [7] [2nd] [Pgm] [1] [2]
+#    [SBR] [4] [4] [4] [R/S] [2nd] [P/R] [LRN] [2nd] [Ins] [LRN] [CLR] [RST]. The display will begin
+#    flashing when [SBR] [4] [4] [4] is pressed. Press [A] and the print code table with full and
+#    interrupted characters will be printed.
+#
+# Pseudo-Code Initialization Table
+#
+# TO INSERT  STARTING
+# AT STEP    AT STEP    KEY IN THE FOLLOWING
+# 008        008        [lnx] [(]
+# 016        016        [SUM] [2nd] [Ind] [9] [0]
+# 024        024        [SUM] [2nd] [Ind] [8] [0]
+# 032        032        [2nd] [OP] [2nd] [Ind] [5] [9]
+# 040        040        [RCL] [2nd] [Ind] [.]
+# 048        048        [STO] [2nd] [Ind] [x²]
+# 056        056        [RCL] [2nd] [Ind] [3] [0]
+# 064        064        [STO] [5] [1] [Bst] [Bst] [2nd]
+#                       [Del] [Sst] [D]
+# 072        072        [INV] [RCL]
+# 080        080        [INV] [RCL]
+# 088        088        [2nd] [PGM] [2nd] [Ind] [5] [1]
+# 096        096        [STO] [2nd] [Ind] [x²]
+# 104        104        [RCL] [2nd] [Ind] [7] [0]
+#
+# Each data register is associated with eight program locations. This grouping of eight appears to
+# be important in determining the locations in which the pseudo-code may be inserted. To our
+# knowledge, only in a location which is evenly divisible by eight has the pseudo-code been
+# successfully inserted.
+#
+# RESOLUTION IS AFFECTED BY:
+#
+# 1) The timing of the calculator-printer combination. Some calculator-printer combinations will
+#    print a different number of rows of dots than others given the same amount of time to do so.
+# 2) The number and type of instructions executed between the print instruction and the execution of
+#    the printer-interrupt. For example, [OP] [05] [CLR] "[pseudo-code]" will print fewer rows of
+#    dots than [OP] [05] [DMS] "[pseudo-code]" because of the differing amounts of time required to
+#    execute [CLR] and [DMS]. Also, the insertion of [NOP]s between the print instruction and the
+#    pseudo-code will slightly affect the number of rows of dots printed.
+# 3) The location at which the pseudo-code is inserted. On our printers, two rows of dots are
+#    printed using the printer-interrupt in location 008 and [OP] 05 beginning in location 006.
+#    However, the entire character is printed normally (without paper advance afterwards) using the
+#    printer-interrupt in location 140 and with [OP] 05 beginning in location 138.
+#
+# Here is a program written by Don O'Grady which prints out the TI Logo as shown on the front page.
+# You may find the techniques used in this program useful in your own printer-interrupt programs.
+# Notice that [lnx] and [(] are in steps 008 and 009 respectively. These codes must be present
+# during insertion of the pseudo-code.
+#
+# 1) Set partitioning by pressing [0] [2nd] [OP] [1] [7].
+# 2) Key in program exactly as listed.
+# 3) Record on magnetic cards, if desired.
+# 4) Enter the pseudo-code at location 008 using the method outlined in the pseudo-code
+#    initialization table.
+# 5) Execute the program by pressing [GTO] [0] [1] [7] [R/S].
 
 MODEL: TI-59
+PARTITION: 959.0
 SOLID-STATE-MODULE: ML
 PRINTER: on
 
@@ -29,63 +163,76 @@ PROGRAM:
 04 69 03 11 07 02 04 00 00 00  07 69 03 11 07 04 05 06 00 00   # 160-179
 02 04 07 04 69 03 32 58 04 02  07 00 00 04 07 69 04 02 07 00   # 180-199
 00 00 00 05 05 07 04 69 02 75  11 05 00 00 00 95 69 02 32 85   # 200-219
-05 00 00 00 95 69 03 11 32 85  06 00 00 00 05 69 02 75 11 03   # 220-239
+05 00 00 00 95 69 03 11 32 85  06 00 00 00 95 69 02 75 11 59   # 220-239
 05 00 00 95 69 02 85 07 04 02  07 00 00 07 04 07 04 69 03 11   # 240-259
-05 01 04 00 00 95 69 02 06 02  69 04 11 07 04 00 00 05 03 07   # 260-279
+85 01 04 00 00 95 69 02 06 02  69 04 11 07 04 00 00 05 03 07   # 260-279
 04 07 04 69 03 02 05 69 04 58  09 07 04 07 04 69 02 07 06 07   # 280-299
 06 07 06 07 06 07 69 01 11 00  69 04 04 07 58 08 69 01 07 04   # 300-319
 00 00 02 05 07 04 07 04 69 03  75 11 05 03 69 01 02 07 58 02   # 320-339
 69 04 11 07 04 07 04 95 58 04  69 03 85 00 69 02 05 06 58 06   # 340-359
-69 01 11 05 06 00 00 95 69 03  04 07 69 03 11 05 03 69 01 07   # 360-379
+69 01 11 05 06 00 00 95 69 03  04 07 69 01 11 05 03 69 01 07   # 360-379
 00 00 00 05 02 07 58 02 69 03  11 02 00 00 06 05 02 07 69 03   # 380-399
 05 06 58 04 69 01 11 04 07 69  01 05 06 00 00 06 05 69 03 75   # 400-419
 04 01 03 95 69 03 05 03 69 01  58 09 69 02 11 00 69 01 02 05   # 420-439
 69 02 02 07 00 00 07 04 00 00  00 00 69 03 11 05 69 02 11 69   # 440-459
-04 05 06 00 00 69 01 06 05 69  02 07 04 07 04 07 04 58 04 69   # 460-479
+00 05 06 00 00 69 01 06 05 69  02 07 04 07 04 07 04 58 04 69   # 460-479
 03 95 58 02 04 07 69 01 58 04  05 05 69 04 11 58 02 02 05 69   # 480-499
-01 05 03 06 07 07 01 00 00 06  05 69 02 58 06 05 03 69 04 11   # 500-519
-07 04 07 04 07 04 07 04 69 03  75 04 07 69 04 58 04 00 69 01   # 520-539
+01 05 03 06 07 07 00 00 00 06  05 69 02 58 06 05 03 69 04 11   # 500-519
+07 04 07 04 07 04 07 04 69 03  75 04 07 69 04 58 09 00 69 01   # 520-539
 06 05 69 02 11 02 07 69 01 07  00 00 00 00 02 07 06 05 69 02   # 540-559
-05 03 02 07 58 06 69 04 11 07  02 95 69 03 05 58 02 05 06 69   # 560-579
+05 03 02 07 58 06 69 04 11 07  02 95 69 03 85 58 09 05 06 69   # 560-579
 01 02 07 00 00 00 00 02 07 02  05 69 02 04 07 58 08 69 04 11   # 580-599
-02 07 69 04 58 07 05 03 69 01  58 02 05 06 69 02 05 04 95 69   # 600-619
+02 07 69 04 58 09 05 03 69 01  58 02 05 06 69 02 05 04 95 69   # 600-619
 03 11 69 00 04 07 69 02 07 04  07 04 07 04 02 07 05 03 69 03   # 620-639
-44 06 00 07 04 07 04 00 00 00  07 69 03 11 06 02 69 02 05 03   # 640-659
+11 06 00 07 04 07 04 00 00 00  07 69 03 11 06 02 69 02 05 03   # 640-659
 07 04 07 07 00 00 02 07 69 03  11 05 03 69 02 69 03 11 04 07   # 660-679
-58 03 11 69 02 11 58 09 69 00  05 08 69 02 58 02 01 00 00 69   # 680-699
-03 04 07 69 02 11 05 03 58 02  11 69 02 58 02 05 06 58 03 01   # 700-719
-05 06 00 00 00 00 04 07 69 03  11 05 03 00 01 07 00 04 07 69   # 720-739
-03 95 91 05 00 00 07 02 07 03  11 05 03 00 00 05 03 69 03 95   # 740-759
-06 07 06 07 69 03 11 58 09 98  98 98 92 61 00 07 17 00 00 00   # 760-779
+69 03 11 69 02 11 58 09 69 00  05 06 69 02 11 02 07 00 00 69   # 680-699
+03 04 07 69 02 11 05 03 69 02  11 69 02 58 02 05 06 69 03 11   # 700-719
+05 06 00 00 00 00 04 07 69 03  11 05 03 00 00 00 00 04 07 69   # 720-739
+03 11 05 06 00 00 06 03 69 03  11 05 03 00 00 05 03 69 03 11   # 740-759
+06 07 06 07 69 03 11 58 09 98  98 98 98 92 61 00 17 00 00 00   # 760-779
+
 
 # To simplify things, the keystrokes outlined in the article are automated. When the Preset finished loading, the invalid
 # key code will be in memory.
-# KEYSTROKES:
-# 61  GTO
-# 92  0
-# 92  0
-# 63  8
-# 64  9
-# 21  2nd
-# 64  OP
-# 82  1
-# 62  7
-# 21  2nd
-# 31  Pgm
-# 82  1
-# 83  2
-# 71  SBR
-# 72  4
-# 72  4
-# 72  4
-# Wait: 1s
-# 91  R/S
-# WaitFullSpeed: 1s
-# 21  2nd
-# 32  P/R
-# 31  LRN
-# 21  2nd
-# 41  Ins
-# 31  LRN
-# 25  CLR
-# 81  RST
+KEYSTROKES:
+61  GTO
+92  0
+92  0
+63  8
+64  9
+21  2nd
+64  OP
+82  1
+62  7
+21  2nd
+31  Pgm
+82  1
+83  2
+71  SBR
+72  4
+72  4
+72  4
+Wait: 1s
+91  R/S
+WaitFullSpeed: 1s
+21  2nd
+32  P/R
+31  LRN
+21  2nd
+41  Ins
+31  LRN
+25  CLR
+81  RST
+92  0
+21  2nd
+64  OP
+82  1
+62  7
+Wait: 1s
+61  GTO
+92  0
+82  1
+62  7
+91  R/S
+WaitFullSpeed: 2s
