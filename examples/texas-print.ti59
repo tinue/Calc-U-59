@@ -1,10 +1,9 @@
 # texas-print.ti59 - High Rez Graphics by Frank Dever
-# From Magatzine "PPX Exchange", March/April 1982, front page.
+# From Magazine "PPX Exchange", March/April 1982, front page.
 #
 # Another program that demonstrates interrupting the printer while printing a row.
 #
-#
-# These are the original notes in the article:
+# These are the original notes from the article:
 #
 # Editors Note: Through experimenting with unusual key sequences, some TI-59 owners have found that
 # their calculators will respond to certain illegal key sequences not intended by the designers. By-
@@ -144,11 +143,11 @@
 #    initialization table.
 # 5) Execute the program by pressing [GTO] [0] [1] [7] [R/S].
 
+
 MODEL: TI-59
 PARTITION: 959.0
 SOLID-STATE-MODULE: ML
 PRINTER: on
-
 
 # For compactness, the program is only here as key codes. If you need the listing, load the program and LIST it on the printer.
 PROGRAM:
@@ -194,7 +193,8 @@ PROGRAM:
 
 
 # To simplify things, the keystrokes outlined in the article are automated. When the Preset finished loading, the invalid
-# key code will be in memory.
+# key code will be in memory. The program wwould run for a long time, the preset speeds through quickly, and the result
+# is visible on the printer tape immediately.
 KEYSTROKES:
 61  GTO
 92  0
