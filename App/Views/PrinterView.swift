@@ -232,8 +232,18 @@ struct PrinterView: View {
         }
         .background(Color.white)
 
+        // GPU-backed rendering (both AppKit and UIKit ImageRenderer back-ends) is capped at a
+        // 16384 px texture dimension. A full 959-step listing easily exceeds that in height at
+        // 600 DPI, silently truncating/corrupting the snapshot. Back off the DPI for long tapes
+        // so the whole listing still fits in one image.
+        let fullLineCount  = lines.filter { !$0.isEmpty }.count
+        let feedLineCount  = lines.count - fullLineCount
+        let totalHeightPt  = Double(fullLineCount) * lineH + Double(feedLineCount) * (lineH / 2)
+        let maxTextureDim  = 16000.0  // stay safely under the 16384 px GPU limit
+        let maxScale       = totalHeightPt > 0 ? maxTextureDim / totalHeightPt : .infinity
+
         let renderer = ImageRenderer(content: strip)
-        renderer.scale = 600.0 / 72.0  // 600 DPI — crisp on a laser printer, physical size preserved
+        renderer.scale = min(600.0 / 72.0, maxScale)  // up to 600 DPI — crisp, but never exceeds the texture limit
 
         #if os(macOS)
         NSPasteboard.general.clearContents()
