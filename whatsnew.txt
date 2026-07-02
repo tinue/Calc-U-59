@@ -1,9 +1,5 @@
-• STATE FILES: New "MODEL:" keyword switches the machine variant (TI-59/58/58C) when a state file is loaded.
-• STATE FILES: New "WaitFullSpeed: Xs" keyword runs the calculator at full speed for the given duration before continuing.
-• STATE FILES: New "SKIP-RESET:" directive applies only PROGRAM, REGISTERS, and KEYSTROKES to the running machine, skipping the reset.
-• STATE FILES: Printer tape is cleared whenever a state file is loaded.
+• PRINTER: Dot-matrix output is now rendered row by row. Lines interrupted mid-print (via the hacked "1F" printer-interrupt keycode) show only the dot-rows that were physically laid down, with no padding below — matching the hard stop of the real printer's stepper motor.
 
 FIXES
-• ASM OVERLAY: Running an overlay no longer spuriously times out.
-• ASM OVERLAY: FREEZE ON START in the CPU tab now also triggers when Run is pressed in the ASM Overlay.
-• CPU DEBUGGER: KEY instruction disassembly no longer shows a spurious digit suffix.
+• PRINTER: Multiple blank-line errors fixed (ADV button). Blank lines now match the real PC-100A/B/C exactly.
+• DEBUG LOG: Fixed out-of-memory crash and GUI slowdown when the LOG panel is active at DEBUG level.
