@@ -178,6 +178,10 @@ void TMC0501::reset() {
 
 void TMC0501::loadLibrary(const uint8_t* data, size_t count) {
     count = std::min(count, size_t{5000});
+    // Zero the full image first: a smaller module must not leave bytes of the
+    // previously loaded module beyond its own end (IN LIB wraps at 5000 and
+    // could otherwise fetch stale keycodes).
+    memset(m_libData, 0, sizeof(m_libData));
     memcpy(m_libData, data, count);
     m_libExecPC = kLibExecPCNone;  // stale address would point into the old module
 }
@@ -1539,7 +1543,7 @@ uint32_t TMC0501::drainCpuFrames(CpuFrame* out, uint32_t max, uint32_t* outLost)
     if (outLost) *outLost = lostCount;
 
     // Drain from m_diskCursor up to head (exclusive)
-    if (m_diskCursor == head || max == 0) return 0;
+    if (m_diskCursor == head) return 0;
 
     uint32_t available = head - m_diskCursor;
     uint32_t count = (available < max) ? available : max;

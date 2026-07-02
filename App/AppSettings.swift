@@ -43,7 +43,7 @@ enum SettingsKey {
     static let traceLocation          = "traceLocation"            // Int: TraceLocation.rawValue
     static let traceCustomPath        = "traceCustomPath"          // String: absolute directory path (macOS only)
     static let traceCustomPathBookmark = "traceCustomPathBookmark" // Data: security-scoped bookmark for custom path
-    static let traceMaxFileSizeMB     = "traceMaxFileSizeMB"       // Int: maximum trace file size in MB (default 10)
+    static let traceMaxFileSizeMB     = "traceMaxFileSizeMB"       // Int: maximum trace file size in MB (default 50)
     static let keyboardFeedback       = "keyboardFeedback"         // Int: KeyboardFeedbackType.rawValue
     static let ledFontStyle           = "ledFontStyle"             // Int: LEDFontStyle.rawValue
     static let portraitDebugPage      = "portraitDebugPage"        // Bool: show Debug as third portrait page (default false)
