@@ -126,6 +126,7 @@ run_named_test "iphone-04-diagnostics"      "$IPHONE_UDID" LoadDiagPreset
 run_named_test "iphone-05-settings"         "$IPHONE_UDID" Settings
 run_named_test "ipad-01-assembly"           "$IPAD_UDID"   Assembly
 run_named_test "ipad-02-calc-debugger"      "$IPAD_UDID"   CalcDebugger
+run_named_test "ipad-03-texas"              "$IPAD_UDID"   Texas
 
 echo ""
 echo "Screenshots in $SCREENSHOT_DIR:"

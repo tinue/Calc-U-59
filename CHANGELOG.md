@@ -1,8 +1,8 @@
 # Changelog
 
-## [1.5.0] - Work in progress
+## [1.5.0] - 2026-07-02
 
-- **Printer** Dot-matrix output is now rendered row by row. Lines interrupted mid-print (via the hacked `1F` printer-interrupt keycode) show only the dot-rows that were physically laid down, with no padding below — matching the hard stop of the real printer's stepper motor.
+- **Printer** Dot-matrix output now correctly supports printer-interrupt, also known as "High Rez Graphics". This is a hack documented in the 1982 magazine "PPX Exchange". Check the GitHub repository for the example state file `texas-print.ti59`.
 
 ### Fixes
 - **Printer** Multiple blank-line errors fixed (ADV button). Blank lines now match the real PC-100A/B/C exactly.
