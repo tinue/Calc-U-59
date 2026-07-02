@@ -170,7 +170,7 @@ PARTITION: 959.0
 SOLID-STATE-MODULE: ML
 PRINTER: on
 
-# For compactness, the program is only here as key codes. If you need the listing, load the program and LIST it on the printer.
+# For compactness, the program is only here as keycodes. If you need the listing, load the program and LIST it on the printer.
 PROGRAM:
 92 00 00 76 11 00 69 05 23 53  00 00 00 00 00 00 00 69 17 58   # 000-019
 09 25 69 00 06 06 07 06 07 06  07 01 00 69 02 11 02 07 00 00   # 020-039
@@ -213,8 +213,8 @@ PROGRAM:
 06 07 06 07 69 03 11 58 09 98  98 98 98 92 61 00 17 00 00 00   # 760-779
 
 
-# To simplify things, the keystrokes outlined in the article are automated. When the Preset finished loading, the invalid
-# key code will be in memory. The program wwould run for a long time, the preset speeds through quickly, and the result
+# To simplify things, the keystrokes outlined in the article are automated. When the Preset has finished loading, the invalid
+# key code will be in memory. The program would run for a long time, the preset speeds through quickly, and the result
 # is visible on the printer tape immediately.
 KEYSTROKES:
 61  GTO

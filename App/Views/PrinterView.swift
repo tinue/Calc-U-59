@@ -114,8 +114,9 @@ struct PrinterView: View {
         LazyVStack(spacing: 0) {
             ForEach(viewModel.printerLines.indices, id: \.self) { i in
                 if viewModel.printerLines[i].isEmpty {
-                    // PRT_FEED: half a print-line pitch (manual: "Feed paper by half print line")
-                    Color.clear.aspectRatio(PrinterDotLine.aspectRatio * 2.0, contentMode: .fit)
+                    // PRT_FEED: manual says "half print line", but measured hardware spacing
+                    // needs 2 dp more than the naive half-pitch — see feedHeightUnits.
+                    Color.clear.aspectRatio(PrinterDotLine.widthUnits / PrinterDotLine.feedHeightUnits, contentMode: .fit)
                 } else {
                     PrinterDotLine(
                         codes: i < viewModel.printerCodeLines.count
@@ -212,12 +213,13 @@ struct PrinterView: View {
         let dotPitchPt = PrinterDotLine.dotPitchMM * 72.0 / 25.4
         let lineW = PrinterDotLine.widthUnits  * dotPitchPt
         let lineH = PrinterDotLine.heightUnits * dotPitchPt
+        let feedH = PrinterDotLine.feedHeightUnits * dotPitchPt
         let lines     = viewModel.printerLines
         let codeLines = viewModel.printerCodeLines
         let strip = VStack(spacing: 0) {
             ForEach(lines.indices, id: \.self) { i in
                 if lines[i].isEmpty {
-                    Color.white.frame(width: lineW, height: lineH / 2)
+                    Color.white.frame(width: lineW, height: feedH)
                 } else {
                     PrinterDotLine(
                         codes: i < codeLines.count
@@ -238,7 +240,7 @@ struct PrinterView: View {
         // so the whole listing still fits in one image.
         let fullLineCount  = lines.filter { !$0.isEmpty }.count
         let feedLineCount  = lines.count - fullLineCount
-        let totalHeightPt  = Double(fullLineCount) * lineH + Double(feedLineCount) * (lineH / 2)
+        let totalHeightPt  = Double(fullLineCount) * lineH + Double(feedLineCount) * feedH
         let maxTextureDim  = 16000.0  // stay safely under the 16384 px GPU limit
         let maxScale       = totalHeightPt > 0 ? maxTextureDim / totalHeightPt : .infinity
 
@@ -317,6 +319,13 @@ struct PrinterDotLine: View {
     static let widthUnits  = 100.0 + 19.0 * charGap            // ≈ 129.1 dp
     static let heightUnits = 10.18                              // 7 dot rows + inter-line gap
     static let aspectRatio = widthUnits / heightUnits
+
+    // A PRT_FEED blank line (one ROM-level ADV; the physical ADV key issues two)
+    // is not simply half the full line pitch — a laser-printed copy of the
+    // clipboard export measured 4 dp too little gap across an ADV keypress
+    // (two PRT_FEED opcodes), i.e. 2 dp per opcode. Add that on top of the
+    // naive half-pitch value.
+    static let feedHeightUnits = heightUnits / 2.0 + 2.0
 
     var dotColor: Color = Color(white: 0.12)
     private static let dotRadiusFraction = 0.38   // dot radius as fraction of dotPitch
