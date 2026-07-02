@@ -3,6 +3,27 @@
 #
 # Another program that demonstrates interrupting the printer while printing a row.
 #
+# How the "printer interrupt" actually works (confirmed against a CPU trace of this file):
+#
+# The insertion procedure below corrupts the keycode at program step 008 into 1F -- a value
+# whose second BCD digit (F) is outside the legal 0-9 range. The RAM-program keycode dispatcher
+# in ROM (rom/TI59-commented.asm, 0x0F53-0x0F6D) fetches both digits of a step's keycode and
+# packs them into a 16-bit computed-jump vector without ever range-checking either digit against
+# 0-9; a digit of F packs in just like a legal digit would. For keycode 1F this produces a jump
+# to ROM address 0x0EF1, which is not a legitimate dispatch target at all -- it is an ordinary
+# instruction sitting three instructions upstream of 0x0EFC PRT.GO, the normal "character
+# finished, advance paper" signal that firmware sends to the printer. Execution falls straight
+# through into PRT.GO without ever running the actual per-row print sequence (PRT.STEP / PRT.CLR
+# / PRT.OUT). Because the printhead runs asynchronously off its own timing, firing PRT.GO out of
+# band while the *previous* legitimate print job is still mid-character truncates that character
+# to whatever rows have physically printed so far. So the "printer interrupt" is not a real
+# command Texas Instruments built in -- it is a garbage keycode that happens to mis-dispatch into
+# the tail end of an unrelated routine which happens to end in the print-complete signal. See the
+# annotations at 0x0EF1 and 0x0F53 in rom/TI59-commented.asm for the full trace-verified mechanism.
+#
+# How the key sequence below produces the invalid 1F keycode in the first place remains
+# unconfirmed/speculative and is not documented here.
+#
 # These are the original notes from the article:
 #
 # Editors Note: Through experimenting with unusual key sequences, some TI-59 owners have found that

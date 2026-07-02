@@ -3928,6 +3928,26 @@
 0EEE: 0C19  IO=-B MAEX
 0EEF: 1810  JC 0EF7
 0EF0: 0AA7  MOV R5,#10
+; ── Printer-interrupt "quirk" landing zone ──────────────────────────────────
+; 0x0EF1 is an ordinary mid-routine instruction of the OP-05-style numeric
+; print formatter (part of the same subroutine that ends in PRT.GO at 0EFC
+; below) — it is not a dispatch-table entry and has no keycode legitimately
+; targeting it. But it is exactly where the unvalidated keycode dispatcher at
+; 0x0F53-0x0F6D (see annotation there) lands when a corrupted program step
+; keycode's second BCD digit is 0xF: PREG = 0x0EF1 was observed directly in
+; CALCU59_TRACE.ans while executing the "1F" pseudo-code keycode written into
+; program memory by examples/texas-print.ti59's printer-interrupt sequence.
+; From 0EF1 the code falls through B=R5 DPT / IO=A-B DPT / JC 0EF7 (taken) /
+; TST fA[2] / JC 0EFC (taken) straight into PRT.GO three instructions later —
+; none of PRT.STEP/PRT.CLR/PRT.OUT ever execute. PRT.GO tells the printer
+; hardware the current character is finished and to advance the paper; issuing
+; it here, mid-way through the *previous, legitimate* print job's row-by-row
+; dot output (the printer runs asynchronously off firmware timing — see
+; "Printer (PC-100C)" in reference/CoreArchitecture.md), truncates that
+; character to whatever rows had physically printed so far. This is the
+; mechanism behind the 1980s "printer interrupt" hack: it doesn't stop the
+; printer via any dedicated command, it just tricks the firmware into firing
+; the ordinary print-complete signal early by mis-dispatching on garbage.
 0EF1: 02F3  B=R5 DPT
 0EF2: 0289  IO=A-B DPT
 0EF3: 1808  JC 0EF7
@@ -3939,7 +3959,7 @@
 0EF9: 0020  TST fA[2]
 0EFA: 1804  JC 0EFC
 0EFB: 0A68  PRT.OUT
-0EFC: 0AA8  PRT.GO
+0EFC: 0AA8  PRT.GO           ; print-complete/advance-paper signal; the printer-interrupt quirk fires this out of band — see landing-zone note above
 0EFD: 00A2  CLR fA[10]
 0EFE: 0042  CLR fA[4]
 0EFF: 0002  CLR fA[0]
@@ -4013,7 +4033,7 @@
 0F43: 1019  JNC 0F37
 0F44: 1E55  JC 0C1A
 0F45: 0140  A=SLA ALL
-0F46: 0AF8  RAM.OP
+0F46: 0AF8  RAM.OP           ; fetch the 8-keycode RAM register (row RAMREG = step/8) holding this step's program word
 0F47: 01B1  IO=A+D ALL
 0F48: 01D6  D=LOAD ALL
 0F49: 0A77  MOV R5,#7
@@ -4026,6 +4046,32 @@
 0F50: 14B8  JNC 11AC
 0F51: 0000  TST fA[0]
 0F52: 15E2  JNC 1243
+; ── RAM-program keycode fetch & computed-jump dispatch (0x0F53-0x0F6D) ──────
+; Confirmed against CALCU59_TRACE.ans while single-stepping examples/texas-print.ti59.
+; Extracts the two BCD digits of the current step's keycode from D (DPT nibble
+; field, LSD-first) via IO=D DPT / IO=-D DPT / D=SRD ALL, and builds a 16-bit
+; dispatch vector in KR:
+;   KR[15:13] = 111 (constant marker, set unconditionally at 0F5B-0F5D)
+;   KR[11:8]  = first-fetched digit's raw 4-bit value, copied up by manually
+;               testing each bit of KR[7:4] (0F5E-0F69: TST KR[7..4]; on-bit
+;               conditionally SETs the matching KR[11..8]) — there is no
+;               hardware nibble-shift, so this bit-copy loop stands in for one
+;   KR[7:4]   = second-fetched digit, reloaded fresh at 0F6A-0F6B
+; 0F6C SET KR[1] then triggers the PREG computed jump (see "Computed jump
+; (PREG)" in reference/CoreArchitecture.md): addr = KR rotated into PREG.
+; NEITHER digit is range-checked against 0-9 before this bit-copy/jump. A
+; corrupted keycode whose digit value is >9 (e.g. the "1F" keycode the
+; printer-interrupt pseudo-code writes into program memory — see
+; examples/texas-print.ti59) still produces a full 4-bit pattern (F=1111) and
+; is dispatched exactly like a legal digit, landing PREG on whatever ROM
+; address the arithmetic happens to produce — there is no invalid-opcode trap.
+; Traced example: keycode 0x1F at step 008 (RAMREG=001, i.e. steps 008-015)
+; is fetched with R5=F on the first digit and R5=1 on the second, producing
+; KR=0xEF10 at 0F6B and PREG=0x0EF1 at 0F6C — landing execution 11 instructions
+; upstream of the unrelated PRT.GO at 0x0EFC (print-complete/advance-paper),
+; which is then reached after only 3 more instructions (0EF1→0EF2→JC 0EF7 at
+; 0EF3→...→JC 0EFC at 0EFA) with none of the normal PRT.STEP/PRT.CLR/PRT.OUT
+; print-a-character sequence executed first. See annotation at 0x0EF1 below.
 0F53: 0A0C  MOV KR,EXT[4..15]
 0F54: 0231  IO=D DPT
 0F55: 0A18  MOV KR[4..7],R5
@@ -4051,7 +4097,7 @@
 0F69: 0085  SET KR[8]
 0F6A: 0231  IO=D DPT
 0F6B: 0A18  MOV KR[4..7],R5
-0F6C: 0015  SET KR[1] ; PREG
+0F6C: 0015  SET KR[1] ; PREG    ; computed jump: unvalidated keycode digits become the jump vector — see printer-interrupt quirk note above
 0F6D: 0A0C  MOV KR,EXT[4..15]
 0F6E: 0120  A=C ALL
 0F6F: 0633  B=D EXP
