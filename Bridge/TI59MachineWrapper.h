@@ -69,7 +69,8 @@ typedef struct {
 - (uint32_t)stepN:(uint32_t)n;
 
 /// Execute steps until the program-step counter (SCOM[0][4:7]) changes (keycode boundary).
-/// Returns the number of steps executed. Stops at ~50,000 steps if no boundary is found.
+/// Returns cycle-equivalents executed (IDLE steps count as 4, active steps as 1).
+/// Stops at ~50,000 cycle-equivalents if no boundary is found.
 - (uint32_t)stepUntilNextKeycode
     NS_SWIFT_NAME(stepUntilNextKeycode());
 

@@ -624,22 +624,6 @@ class EmulatorViewModel {
             if dpPos            != snap.dpPos      { dpPos            = snap.dpPos }
             if dpAfterglowMask  != snap.dpAfterglowMask { dpAfterglowMask = snap.dpAfterglowMask }
         }
-        // C indicator opacity driven by the integrated duty cycle from the C++ core.
-        //
-        // Hardware model (per Sladký 2014 HW guide):
-        //   • IDLE mode: C driven by fA[14] only (other fA bits = display state)
-        //   • RUN mode:  C driven by any fA bit
-        //
-        // 60 Hz aliasing: the ROM's IDLE display-update scan lasts ~4.5 ms
-        // (16 IDLE steps × 281 µs/step).  The 60 Hz poll (16.7 ms window) can
-        // capture the entire IDLE phase as a single zero-duty frame even though
-        // the real C darkness is <4.5 ms.  On hardware that gap is imperceptible.
-        //
-        // Three-mode update:
-        //   • target > current  → instant rise
-        //   • target = 0, first zero frame → hold (aliasing artefact; see below)
-        //   • target = 0, frame 2+         → rapid decay (genuine dark phase)
-        //   • 0 < target < current → proportional-alpha fall
         // Live debug snapshot — sampled at 60 Hz when the panel is open (unless frozen).
         if liveDebugEnabled && !isFrozen {
             let s = buildLiveSnapshot(machine: machine)
@@ -658,6 +642,23 @@ class EmulatorViewModel {
             // never execute until the loop exits — we drain here at 60 Hz instead.
             drainTraceEvents(machine: machine)
         }
+
+        // C indicator opacity driven by the integrated duty cycle from the C++ core.
+        //
+        // Hardware model (per Sladký 2014 HW guide):
+        //   • IDLE mode: C driven by fA[14] only (other fA bits = display state)
+        //   • RUN mode:  C driven by any fA bit
+        //
+        // 60 Hz aliasing: the ROM's IDLE display-update scan lasts ~4.5 ms
+        // (16 IDLE steps × 281 µs/step).  The 60 Hz poll (16.7 ms window) can
+        // capture the entire IDLE phase as a single zero-duty frame even though
+        // the real C darkness is <4.5 ms.  On hardware that gap is imperceptible.
+        //
+        // Three-mode update:
+        //   • target > current  → instant rise
+        //   • target = 0, first zero frame → hold (aliasing artefact; see below)
+        //   • target = 0, frame 2+         → rapid decay (genuine dark phase)
+        //   • 0 < target < current → proportional-alpha fall
         let target = Double(snap.calcIndicator) * 0.65
         if target < 0.001 {
             cZeroFrames += 1
@@ -2240,7 +2241,7 @@ class EmulatorViewModel {
     func debugDumpProg() {
         guard let m = machine else { return }
         let progRegs = Int(m.partitionProgramRegs)
-        var lines: [String] = [String(format: "── Prog P000–P%03d (key codes) ──", progRegs - 1)]
+        var lines: [String] = [String(format: "── Prog P000–P%03d (key codes) ──", max(progRegs - 1, 0))]
         for reg in 0..<progRegs {
             let n = Array(m.rawRegister(reg) as Data)
             if n.allSatisfy({ $0 == 0 }) { continue }

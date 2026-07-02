@@ -320,7 +320,9 @@ static TICpuFrame marshalCpuFrame(const CpuFrame& f) {
 }
 
 - (NSData*)allProgramSteps {
-    int count = (int)_machine->partitionProgramRegs() * 8;
+    // The partition nibble can transiently claim more registers than the model
+    // has (raw SCOM value up to 15 → 150 regs); clamp to the accessible RAM.
+    int count = (int)MIN(_machine->partitionProgramRegs(), _machine->ramRegCount()) * 8;
     NSMutableData* data = [NSMutableData dataWithLength:count];
     uint8_t* bytes = (uint8_t*)data.mutableBytes;
     for (int i = 0; i < count; i++)
