@@ -32,6 +32,25 @@
 000E: 1ECE  JC 0375           ; → main power-on setup (unconditional here: COND=1 after the loop)
 000F: 0A77  MOV R5,#7
 0010: 0085  SET KR[8]
+; ═══════════════════════════════════════════════════════════════════════════
+; KEYBOARD DISPATCH TABLE  (0x0011–0x0059)
+; Landing zone of the keyboard computed jump at 0x06B1 (see the decode block
+; at 0x0661): after a debounced keypress the CPU branches to 0x0<col><row> —
+; the key's matrix position IS the ROM address (column 1–5 in the second
+; nibble, row 1–9 in the low nibble; the same two digits, reversed, as the
+; LRN keycode row·10+col). Each slot holds the first instruction of that
+; key's handler, usually a JC. Digit keys are the exception: their slots jump
+; into the INC KR slide at 0x0163 at a depth equal to the digit value (see
+; there), which is how a row/column position becomes the 00–09 keycode:
+;     col 2          col 3          col 4
+;   0026 "7"→0165  0036 "8"→0164  0046 "9"→0163   (row 6)
+;   0027 "4"→0168  0037 "5"→0167  0047 "6"→0166   (row 7)
+;   0028 "1"→016B  0038 "2"→016A  0048 "3"→0169   (row 8)
+;   0029 "0"→016C  (zero INCs)                    (row 9)
+; Keyboard row 1 (A–E) is dispatched at 0x02D2 instead and never lands here;
+; the printer PRINT/ADV keys arrive remapped as pseudo-entries 0x0099/0x0089.
+; Trace-confirmed for key "6" (row 7, col 4 → 0x0047) in KEYPRESS_59.txt.
+; ═══════════════════════════════════════════════════════════════════════════
 0011: 1A60  JC 0141
 0012: 1CAC  JC 0268
 0013: 1FD0  JC 03FB
@@ -370,6 +389,14 @@
 0160: 01D7  A<>E ALL
 0161: 01D2  A<>B ALL
 0162: 1872  JC 019B
+; ── Digit-key value slide (0x0163–0x016C) ───────────────────────────────────
+; Keyboard digit keys have no row/col-shaped keycode; their dispatch-table
+; slots (see 0x0011) jump into this run of INC KR instructions with KR
+; already zeroed (by 0x06B2). The entry depth equals the digit: "9" enters at
+; 0163 (nine INCs), "6" at 0166 (six — trace-confirmed in KEYPRESS_59.txt),
+; "0" at 016C (none). On exit KR[4..7] holds the digit value — identical to
+; the low digit of the 00–09 program keycode — and 016E hands it to the
+; number-entry path, which reads it at 0x0326 via MOV R5,KR[4..7].
 0163: 0A04  INC KR
 0164: 0A04  INC KR
 0165: 0A04  INC KR
@@ -381,7 +408,7 @@
 016B: 0A04  INC KR
 016C: 0008  TST fB[0]
 016D: 00D8  TST fB[13]
-016E: 1B5A  JC 031B
+016E: 1B5A  JC 031B          ; → number entry with the digit in KR[4..7]
 016F: 0A08  MOV R5,KR[4..7]
 0170: 0095  SET KR[9]
 0171: 1A0C  JC 0277
@@ -820,6 +847,9 @@
 ; Tests the persistent fB status bits to decide how this wake-up was caused
 ; and branches to the matching handler. On a clean cold start none of these
 ; conditions hold, so control falls straight through to 0x0343.
+; NOTE: keyboard digit keys enter at 0x031B (from 0x016E), BYPASSING the
+; SET KR[8] scratch flag — so for them 0324/0325 falls through into the
+; digit-insert code at 0326 instead of skipping to 0343.
 031A: 0085  SET KR[8]         ; KR[8] used as a scratch "decision" flag, re-tested at 0324
 031B: 00C8  TST fB[12]
 031C: 1754  JNC 06C6          ; fB[12] handler (not taken on cold start)
@@ -832,7 +862,7 @@
 0323: 005A  CLR fB[5]
 0324: 0A85  TST KR[8]         ; re-test the scratch flag set at 031A
 0325: 103C  JNC 0343
-0326: 0A08  MOV R5,KR[4..7]
+0326: 0A08  MOV R5,KR[4..7]   ; R5 := digit keycode (from the 0163 INC slide)
 0327: 0EF3  B=R5 MMSD1
 0328: 0653  B=SLB EXP
 0329: 00F0  TST fA[15]
@@ -1660,20 +1690,41 @@
 ; card switch (col 10) at 063F, and the printer TRACE switch (col 15, bit 2) by
 ; a WAIT D0 + KEY[P] pair in the keystroke/print path (e.g. 05A9, 069A) — never
 ; during reset, which is why a latched TRACE switch has no effect on cold start.
+;
+; SOFTWARE DEBOUNCE & KEY ACCEPTANCE (trace-confirmed: KEYPRESS_59.txt).
+; There is no debounce counter or timer; the filter is built from the topology
+; of the four KEY...ALL scan sites, which have distinct roles:
+;   0x062D, 0x0635 — "release gate" windows on the entry path from reset or
+;       from finishing a keycode: a key seen here is the PREVIOUS key still
+;       held down, so the TST KR[4..7] + JNC pairs bounce control back to
+;       0x0627 and the loop spins there until the key is released. A held key
+;       can therefore never re-trigger (no auto-repeat), because acceptance is
+;       only reachable through the 0x0657/0x065A pair below.
+;   0x0657 — ARMING window: first sight of a new key (the only scan window in
+;       the steady-state idle cycle 063C→0658).
+;   0x065A — CONFIRMATION window, one full 16-digit sweep after arming: the
+;       key must still be down to be accepted at 0x0661. Contact bounce or a
+;       glitch shorter than one sweep fails one of the two samples and is
+;       discarded (065B → back to 063C). Two agreeing samples one sweep apart
+;       are the entire press debounce.
 ; ═══════════════════════════════════════════════════════════════════════════
 062A: 0A10  WAIT D1           ; sync to digit 1
 062B: 0A09  SET.IDLE          ; enter idle: hardware multiplexes the display, CPU runs at 1/4 speed
 062C: 0AE0  WAIT D14          ; align the scan to the top of the digit sweep
-062D: 0820  KEY [N,O,P,Q,S,T] ALL ; strobe the key matrix down to D0
+062D: 0820  KEY [N,O,P,Q,S,T] ALL ; release-gate window #1 (see header above)
 062E: 180C  JC 0634           ; no key this window → next scan window
-; Key-found decode (only entered when KEY...ALL cleared COND): identify which
-; of the K4–K7 column lines is active, then loop back to rescan.
+; Key found at a release gate: KR[4..7] (digit row at detection) is non-zero
+; for any real key, so the TST chain clears COND and JNC loops back to 0627 —
+; the key is the previous keypress still held down; ignore it until released.
+; (A detection with row nibble 0 would fall through to the next window;
+; speculative: guards against spurious hardware detection at the D0 sweep
+; boundary, where the printer-present KP line is live.)
 062F: 0A45  TST KR[4]
 0630: 0A55  TST KR[5]
 0631: 0A65  TST KR[6]
 0632: 0A75  TST KR[7]
 0633: 1019  JNC 0627
-0634: 0AE0  WAIT D14          ; second scan window (identical structure)
+0634: 0AE0  WAIT D14          ; release-gate window #2 (identical structure)
 0635: 0820  KEY [N,O,P,Q,S,T] ALL
 0636: 180C  JC 063C           ; no key → housekeeping
 0637: 0A45  TST KR[4]
@@ -1720,44 +1771,67 @@
 0653: 0213  B=B DPT
 0654: 0A10  WAIT D1
 0655: 0A09  SET.IDLE
-; Closing scan window: strobe the matrix once more, then loop back to the
-; housekeeping check at 063C — the steady-state idle cycle.
+; Steady-state scan window: strobe the matrix once, then loop back to the
+; housekeeping check at 063C — the steady-state idle cycle (10 instructions:
+; 063C→0642, 0656→0658). A new keypress is always seen here first.
 0656: 0AE0  WAIT D14
-0657: 0820  KEY [N,O,P,Q,S,T] ALL
+0657: 0820  KEY [N,O,P,Q,S,T] ALL ; ARMING scan — first sight of a new key
 0658: 1839  JC 063C           ; no key → back to top of the idle loop
-0659: 0AE0  WAIT D14
-065A: 0820  KEY [N,O,P,Q,S,T] ALL
-065B: 183F  JC 063C
-065C: 0A45  TST KR[4]
-065D: 0A55  TST KR[5]
+0659: 0AE0  WAIT D14          ; key seen — wait one full display sweep…
+065A: 0820  KEY [N,O,P,Q,S,T] ALL ; …CONFIRMATION scan (debounce sample #2)
+065B: 183F  JC 063C           ; released in between → bounce/glitch, discard
+065C: 0A45  TST KR[4]         ; sanity guard: digit row nibble must be ≠ 0
+065D: 0A55  TST KR[5]         ; (same check as the release gates at 062F)
 065E: 0A65  TST KR[6]
 065F: 0A75  TST KR[7]
-0660: 1849  JC 063C
-0661: 0A01  CLR.IDLE
+0660: 1849  JC 063C           ; row 0 → not a real key, discard
+; ═══════════════════════════════════════════════════════════════════════════
+; KEYBOARD DECODE & DISPATCH  (0x0661–0x06B2)
+; Trace-confirmed for the "6" key (KEYPRESS_59.txt). The hardware never
+; produces a TI keycode — KEY...ALL latches the raw matrix position into KR:
+;   KR[4..7]  = digit line D1–D13 at detection = physical keyboard ROW (1–9)
+;   KR[8..10] = K-line index (KO=1, KP=2, KQ=3, KS=5, KT=6) = physical COLUMN
+;   (key "6" = row 7, col 4 → K-line KS at D7 → KR = 0x0570)
+; Pipeline:
+;   0666–0671  D12 pseudo-keys (printer PRINT = KP, paper ADV = KN, the only
+;              keys with KR[6] and KR[7] both set): remap row 12 → 9, tag with
+;              fA[9]; real keyboard rows 1–9 skip via the JC at 0667/0669.
+;   0672–0678  K-line index → column number: the unscanned KR line (bit 4 of
+;              the K mask) is collapsed out of the 3-bit index, mapping
+;              {1,2,3,5,6} → {1,2,3,4,5}, so KR[8..11] = keyboard column 1–5.
+;   0679–0688  second remap for the fA[9]-tagged printer pseudo-keys into
+;              pseudo table entries 0x0089 (ADV) / 0x0099 (PRINT) — derived
+;              from the bit arithmetic, not exercised in the keypress trace.
+;   0689–06A1  keystroke print/trace gate — see notes inline.
+;   06A9–06B2  computed dispatch: PC := 0x0<col><row> via SET KR[1]/PREG,
+;              landing in the per-key dispatch table at 0x0011 (see there).
+; ═══════════════════════════════════════════════════════════════════════════
+0661: 0A01  CLR.IDLE          ; KEY ACCEPTED — leave idle, CPU back to full speed
 0662: 0619  IO=-B EXP
 0663: 1806  JC 0666
 0664: 0C48  A=SRA MAEX
 0665: 0948  A=SRA MANT
-0666: 0A75  TST KR[7]
-0667: 1816  JC 0672
+0666: 0A75  TST KR[7]         ; rows 12+ (KR[6] and KR[7] both set) are the
+0667: 1816  JC 0672           ; D12 printer pseudo-keys; real rows skip ahead
 0668: 0A65  TST KR[6]
 0669: 1812  JC 0672
-066A: 0045  SET KR[4]
-066B: 006D  CLR KR[6]
+066A: 0045  SET KR[4]         ; printer PRINT/ADV: row 12 → 9, tag fA[9],
+066B: 006D  CLR KR[6]         ; and adjust the K-line bits for the remap
 066C: 0085  SET KR[8]
 066D: 0091  SET fA[9]
 066E: 0A95  TST KR[9]
 066F: 0095  SET KR[9]
 0670: 1804  JC 0672
 0671: 00A5  SET KR[10]
-0672: 0AA5  TST KR[10]
+; K-line index → keyboard column number (see pipeline note above).
+0672: 0AA5  TST KR[10]        ; index < 4 (KO/KP/KQ = cols 1–3) → unchanged
 0673: 180C  JC 0679
-0674: 009D  CLR KR[9]
+0674: 009D  CLR KR[9]         ; KS (101) → 100 = col 4;  KT (110) → 101 = col 5
 0675: 0A85  TST KR[8]
 0676: 008D  CLR KR[8]
 0677: 1004  JNC 0679
 0678: 0085  SET KR[8]
-0679: 0090  TST fA[9]
+0679: 0090  TST fA[9]         ; D12 printer pseudo-key? → second remap below
 067A: 181E  JC 0689
 067B: 0092  CLR fA[9]
 067C: 0A85  TST KR[8]
@@ -1775,9 +1849,13 @@
 0688: 00B5  SET KR[11]
 0689: 00A8  TST fB[10]
 068A: 1628  JNC 099E
+; Keystroke print/trace gate: poll printer-present (KP at D0, via WAIT D1 +
+; KEY[P]) and the printer TRACE switch (KP at D15, via WAIT D0 + KEY[P]) —
+; see the idle-loop header note on these dedicated polls. With the printer
+; attached and TRACE on, 0A68 prints the keystroke before it executes.
 068B: 0A10  WAIT D1
-068C: 08FB  KEY [P] D3
-068D: 182A  JC 06A2
+068C: 08FB  KEY [P] D3        ; printer present?
+068D: 182A  JC 06A2           ; no printer → skip straight to dispatch
 068E: 0A97  MOV R5,#9
 068F: 02F6  D=R5 DPT
 0690: 0131  IO=D ALL
@@ -1791,8 +1869,8 @@
 0698: 0639  IO=-D EXP
 0699: 1012  JNC 06A2
 069A: 0A00  WAIT D0
-069B: 08FB  KEY [P] D3
-069C: 1798  JNC 0A68
+069B: 08FB  KEY [P] D3        ; printer TRACE switch on?
+069C: 1798  JNC 0A68          ; → print the keystroke
 069D: 09D5  C<>D MANT
 069E: 0E2C  C=C-1 MMSD1
 069F: 0E2C  C=C-1 MMSD1
@@ -1805,14 +1883,19 @@
 06A6: 1717  JNC 031B
 06A7: 00C8  TST fB[12]
 06A8: 1066  JNC 06DB
+; Computed dispatch (trace-confirmed): stash a return vector in SR, then
+; branch through PREG to the table entry addressed by the key's row/column.
 06A9: 0A0D  SWAP KR,SR
-06AA: 0A0C  MOV KR,EXT[4..15]
-06AB: 0085  SET KR[8]
-06AC: 0A0D  SWAP KR,SR
-06AD: 0A75  TST KR[7]
-06AE: 0A65  TST KR[6]
-06AF: 0A55  TST KR[5]
+06AA: 0A0C  MOV KR,EXT[4..15] ; KR := 0
+06AB: 0085  SET KR[8]         ; KR = 0x0100 → return address 0x0010 stashed in
+06AC: 0A0D  SWAP KR,SR        ; SR (speculative: for SWAP KR,SR + SET KR[1] returns)
+06AD: 0A75  TST KR[7]         ; keyboard row 1 (A–E: KR[5..7] all clear) is
+06AE: 0A65  TST KR[6]         ; dispatched separately at 02D2 (user-defined
+06AF: 0A55  TST KR[5]         ; label keys) and never reaches the table
 06B0: 1FBD  JC 02D2
+; 06B1 arms the computed jump: PC := 0x0<col><row> — for "6" (col 4, row 7)
+; PREG = 0x047 → dispatch table entry 0x0047. PREG redirects one instruction
+; late, so 06B2 still executes, conveniently zeroing KR for the handler.
 06B1: 0015  SET KR[1] ; PREG
 06B2: 0A0C  MOV KR,EXT[4..15]
 06B3: 0F01  IO=A+1 MAEX1
