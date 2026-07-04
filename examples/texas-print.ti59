@@ -21,26 +21,40 @@
 # the tail end of an unrelated routine which happens to end in the print-complete signal. See the
 # annotations at 0x0EF1 and 0x0F53 in rom/TI59-commented.asm for the full trace-verified mechanism.
 #
-# How the key sequence below produces the invalid 1F keycode (confirmed against a CPU trace,
-# CALCU59_TRACE.txt; ROM annotations at 0x08B2, 0x0A4B, 0x0B9D, 0x0C10, 0x1213 in
+# How the key sequence below produces the invalid 1F keycode (confirmed against CPU traces:
+# CALCU59_TRACE.txt, plus dedicated SBR-444 and R/S traces for quirk 1; ROM annotations at
+# 0x08B2, 0x0A4B, 0x0B9D, 0x0C10, 0x11E1, 0x1213, 0x1286 in
 # rom/TI59-commented.asm) — a chain of four quirks:
 #
-# 1. [Pgm] [1] [2] [SBR] [4] [4] [4] starts executing 444 steps past the start of Master Library
-#    program 12 (module address 2609+444 = 3053) — which is the middle of program 14's code,
-#    entered mid-formula ("...2 x .3565663782 + .31938153 )..."), so it quickly errors and halts
-#    with 239.89 blinking. [R/S] does NOT stop anything — it RESUMES the halted library run,
-#    which crashes a second time about half a second later, halting with an EE-mode zero
-#    ("0. 00") blinking. This second crash is essential: unlike the first, it leaves fB[0]
-#    clear, which is what quirk 2 exploits. Without the R/S resume the hack fails — a P/R
-#    press in the first-halt state launches normally (trace-verified: check bypassed, the
-#    sub-program runs and restores PC 008 / flag 0) and LRN shows the correctly entered step.
-#    GTO 008 earlier left the step counter at 008.
+# 1. [Pgm] [1] [2] [SBR] [4] [4] [4] never executes a single step of library code. The library
+#    transfer resolver (ROM 0x1286) reads TWO consecutive module-header entries — Pgm 12's
+#    start address (2609) and Pgm 13's (2764, i.e. Pgm 12's end bound; the program is 155
+#    steps) — computes the target 2609+444 = 3053 and range-checks it at 0x12AE: 3053 >= 2764,
+#    so the transfer is rejected before a single keycode is fetched. The error halt (0x11E1)
+#    sets fB[9] (239.89 blinking, step counter still at 008 from the earlier GTO) and resets
+#    the Prg Src Flag the launch prologue had written — but the cleanup is incomplete: the
+#    CROM chip's internal PC is left in the module HEADER (at address 28, auto-incremented
+#    past the two entries just read) and the SCOM[9] run descriptor still names library
+#    program 12.
+#    [R/S] does NOT stop anything — it does its normal job and RESUMES the "interrupted"
+#    library run: Prg Src Flag := 1 again (from the SCOM[9] descriptor), display zeroed, no
+#    validity check of any kind. The interpreter fetches from the leftover header address and
+#    executes the two BCD bytes of Pgm 14's start-address entry (2952) as keycodes: 29 = CP
+#    (harmless), then 52 = EE, whose handler exits through the keyboard epilogue and ends the
+#    run. The machine halts a second time — not a new error, fB[9] still blinks from the
+#    first one — showing an EE-mode zero ("0. 00"). This second halt is the state quirk 2
+#    needs. (The live fB[0] is clear after BOTH halts; what the second halt changes is the
+#    persisted state — EE mode fB[15] set, Prg Src Flag left at 1, CROM PC in the header.
+#    Trace-verified either way: a P/R pressed after the second halt reaches the 0x087E check
+#    with fB[0] CLEAR and leaks; pressed after the first halt alone it arrives SET, launches
+#    normally, restores PC 008 / flag 0, and LRN shows the correctly entered step — the hack
+#    fails.)
 # 2. [2nd] [P/R]: P->R is implemented as a ROM-resident keycode sub-program whose entry point is
 #    step 284 of the calculator-PC address space. Normally its launch is partition-independent:
 #    the shared transfer routine (ROM 0x086F) sees fB[0] SET, skips the RAM range check, writes
 #    SCOM[0] := PC 284 / Prg Src Flag 8, and the sub-program executes from constant rows 51+
 #    (trace-verified with a plain P->R press under 239.89: three row fetches, PC advancing
-#    284 -> 301). But pressed after the R/S-resumed garbage run's second crash (quirk 1),
+#    284 -> 301). But pressed after the R/S-resumed garbage run's second halt (quirk 1),
 #    fB[0] is CLEAR: after the launcher (0x0A4B-0x0A53) has already written Prg Src Flag := 8,
 #    the transfer is treated as a RAM-program branch and step 284's register (35) is
 #    range-checked against the program-partition register count in SCOM[13] (0x0887/0888).
@@ -69,11 +83,12 @@
 # side, the insertion location plus its register must lie INSIDE the partition (the table's
 # largest location, 104, needs >= 112 steps), which caps nn at 10 (159.99). So exactly 9 and 10
 # work — confirmed empirically on real hardware: 9 and 10 leave the PC at 008, while 8 and lower
-# end with the PC moved to 284 (P->R's entry step) and the hack fails. Two side benefits of the
+# end with the PC moved to 284 (P->R's entry step) and the hack fails. A side benefit of the
 # small program partition: the Ins shift loop stops at the program/data boundary (trace: it
 # rewrites registers 001-029 and no further, so steps 240+ survive and only step 239 is lost —
-# article note 4), and the SBR 444 garbage's RCL 02 / RCL 01 find valid data registers (under
-# the initial 959.00 partition there are none).
+# article note 4). (An earlier revision claimed the SBR 444 garbage run needs valid data
+# registers for RCL 02 / RCL 01 — wrong: the run never reaches program code, and neither trace
+# contains a single data-register access.)
 #
 # The per-location key-in table below now makes sense: each location's Ins subtracts the
 # constant-table row covering it (row 16 + step/8), so the two pre-keyed codes must be tuned to

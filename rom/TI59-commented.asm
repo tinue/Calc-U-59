@@ -2453,10 +2453,10 @@
 ;           register — in range → commit, out of range → 0B0A abandons
 ;           the transfer, leaving any source flag written by the launch
 ;           prologue (0A4B) in place.
-; The new calculator PC is committed to SCOM[0] at 089A/089B. Quirk: the
-; second crash of the R/S-resumed SBR 444 garbage run leaves fB[0] clear,
-; so a subsequent P/R launch mis-routes into the RAM range check — see
-; examples/texas-print.ti59.
+; The new calculator PC is committed to SCOM[0] at 089A/089B. Quirk: a P/R
+; pressed in the halt state left by the R/S-resumed SBR 444 run reaches the
+; 087E test with fB[0] clear, so the launch mis-routes into the RAM range
+; check — see examples/texas-print.ti59.
 086F: 0A87  MOV R5,#8
 0870: 09F3  B=R5 MANT
 0871: 0988  A=A-B MANT
@@ -4979,6 +4979,17 @@
 11DE: 0051  SET fA[5]
 11DF: 1BC3  JC 0FFE
 11E0: 1FB4  JC 15BA
+; ── Transfer-error halt: reject a library transfer and blink ────────────────
+; Error exit of the library transfer resolver (sole caller: 12AF) for an
+; out-of-range target. Rewrites SCOM[0] with the Prg Src Flag nibble cleared
+; (the SRB/SLB MANT pair drops nibble 3, keeping the step counter), sets the
+; error flag fB[9] (blinking display), clears fB[0] and idles. The cleanup is
+; minimal, which is what the SBR 444 quirk exploits: the CROM chip's internal
+; PC and the SCOM[9] descriptor ("library program p selected") keep whatever
+; the rejected launch left behind, so a subsequent R/S resume re-enters the
+; interpreter at the leftover CROM address — after a failed library SBR that
+; is the module HEADER, whose bytes then execute as keycodes. See
+; examples/texas-print.ti59.
 11E1: 01D5  C<>D ALL
 11E2: 0A1F  RCLF
 11E3: 01D3  B=LOAD ALL
@@ -5158,6 +5169,22 @@
 1283: 1E9F  JC 0F34
 1284: 02D8  A=0 DPT
 1285: 180F  JC 127E
+; ── Library transfer target: resolve against module header, bounds-check ────
+; SBR/GTO nnn while the target program lives in a solid-state module (reached
+; from the shared transfer routine via 0868 → 0BD1 → 0FAC; the launch
+; prologue at 0A4B has already written Prg Src Flag := 1). 1286 selects
+; SCOM[9] (R5 = 9); 128B-1290 recall it — its mantissa holds the selected
+; library program number p ("Pgm nn") — and form the header offset 2p (one
+; 2-byte BCD start address per program from module address 0002). The LIB.PC
+; loop at 1293-1297 points the CROM pointer there; 1298-12AA read TWO
+; consecutive header entries: B := start address of program p, C := start of
+; program p+1, i.e. p's end bound. 12AB adds the keyed offset (A := start +
+; nnn) and 12AE/12AF range-check the result: target >= next program's start
+; → out of range → error halt at 11E1, with nothing executed and the CROM
+; pointer left in the header; in range → 12B0-12B6 commit the target to the
+; CROM PC via LIB.PC. Trace-verified with Pgm 12 SBR 444 under 239.89:
+; header reads 2609 (Pgm 12) and 2764 (Pgm 13), target 3053 rejected — see
+; examples/texas-print.ti59.
 1286: 0A97  MOV R5,#9
 1287: 02F0  A=R5 DPT
 1288: 0D09  IO=A-1 MLSD1
