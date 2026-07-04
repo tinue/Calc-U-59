@@ -41,7 +41,8 @@
 #    (it is hexadecimal in hardware), so step 008 becomes 23−04 = 1F — tens 2−0−borrow = 1,
 #    units 3−4 = F — and step 009 becomes 53−65 → 88, +04 shifted in → 92 = RTN, exactly the
 #    RTN the article says follows the pseudo-code. Steps 010–015 receive the "meaningless"
-#    garbage 21 42 46 11 40 49.
+#    garbage 21 42 46 11 40 49. In the trace: C−B = 459656449856881F, +(B<<2) →
+#    494011464221921F, committed as the single write to RAM[001] at ROM 0x0F85–0x0F88.
 #
 # The per-location key-in table below now makes sense: each location's keys pre-load values
 # tuned against the constant-table row covering that location, so the mixed arithmetic lands on

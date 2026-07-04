@@ -2517,8 +2517,8 @@
 ; fB[11] = "SCOM[10] register cache is stale" (set whenever SCOM[0] is
 ; rewritten, e.g. by KEY_PR at 089D): set → refetch at 0B95 (which clears
 ; it) and recache via 0C10; clear → callers reuse the SCOM[10] copy.
-; Trace-confirmed in CALCU59_TRACE.txt with flag=1 (SBR into library) and
-; flag=8 (leaked by P/R; see the texas-print.ti59 analysis at 1213 below).
+; Trace-confirmed in CALCU59_TRACE.txt with flag=1 (library execution) and
+; flag=8 (keycode sub-program).
 08B2: 0A1F  RCLF
 08B3: 01D0  A=LOAD ALL
 08B4: 0948  A=SRA MANT
@@ -2933,12 +2933,11 @@
 0A4A: 01D2  A<>B ALL
 ; ── Set Prg Src Flag: launch a ROM-resident keycode sub-program ─────────────
 ; Rewrites SCOM[0] with nibble 3 (Prg Src Flag) := R5 while keeping the
-; step counter in nibbles 4–7. Observed in CALCU59_TRACE.txt from the P/R
-; handler with R5=8: SCOM[0] := 0000000000108010 (flag=8 "keycode
-; sub-program", PC still 008 from an earlier GTO). The sub-program itself is
-; only started later by the run loop; if the machine is halted in the
-; flashing error state the run never happens and flag=8 LEAKS — the first
-; link in texas-print.ti59's pseudo-code insertion chain (see 1213).
+; step counter in nibbles 4–7 (trace-confirmed from KEY_PR with R5=8). The
+; sub-program itself is only started later by the run loop, which restores
+; the flag on completion. Missing safeguard: nothing verifies the run can
+; actually start, so a machine halted in the error state keeps the flag —
+; see examples/texas-print.ti59.
 0A4B: 0A1F  RCLF
 0A4C: 01D6  D=LOAD ALL
 0A4D: 0C78  A=SRD MAEX
@@ -3411,8 +3410,8 @@
 ; Common tail of PRGREG_FETCH (08B2): whatever register was fetched — from
 ; RAM, CROM, or the constant table — is stored in SCOM[10] for later reuse
 ; (display in LRN mode, Ins/Del shift arithmetic at 11FE). The cache is
-; only refetched when fB[11] flags it stale; nothing revalidates the SOURCE,
-; which is what lets a leaked Prg Src Flag poison a later Ins (see 1213).
+; only refetched when fB[11] flags it stale; the source is never
+; revalidated (exploited by texas-print.ti59's pseudo-code insertion).
 0C10: 0AA7  MOV R5,#10
 0C11: 02F0  A=R5 DPT
 0C12: 0101  IO=A ALL
@@ -4991,7 +4990,7 @@
 ; ── Ins per-register shift: recall the SCOM[10] register cache ──────────────
 ; B := SCOM[10], the program-register copy cached by PRGREG_FETCH/0C10.
 ; The shift arithmetic below trusts this cache to equal the register's
-; actual content; see the quirk note at 1213.
+; actual content (see 1213).
 11FE: 0AA7  MOV R5,#10
 11FF: 02F0  A=R5 DPT
 1200: 0101  IO=A ALL
@@ -5013,36 +5012,16 @@
 1210: 01D5  C<>D ALL
 1211: 0080  TST fA[8]
 1212: 172F  JNC 0E7B
-; ── Ins shift arithmetic — and the birth of the "1F" pseudo-code ────────────
+; ── Ins shift arithmetic ────────────────────────────────────────────────────
 ; new register := (C − B) + (B << 2 nibbles), with C = the register's actual
 ; RAM content (read at 0EDB) and B = the SCOM[10] cache of the same register
-; (recalled at 1201). Normally B == C, so this reduces to "shift the register
-; up one keycode and insert 00" — the classic Ins. The subtraction runs in
-; the digit-serial ALU where DIGIT 0 IS HEXADECIMAL (no BCD correction; see
-; the ALU note in Core/TMC0501.cpp), so mismatched operands can manufacture
-; keycode digits outside 0–9.
-;
-; This is exactly how examples/texas-print.ti59 plants the illegal keycode 1F
-; at step 008 (trace-verified end to end in CALCU59_TRACE.txt):
-;   1. 2nd P/R in the flashing error state (after Pgm 12 SBR 444) writes
-;      Prg Src Flag = 8 (0A4B–0A53) but the keycode sub-program never runs —
-;      the flag leaks, with the step counter still at 008 from GTO 008.
-;   2. LRN must display step 008, so PRGREG_FETCH (08B2) honours flag=8 and
-;      fetches CONSTANT-TABLE row 33 (0B9D/0BB0) — a slice of the P→R
-;      keycode program, 5403435501436504 — and caches it in SCOM[10] (0C10).
-;   3. 2nd Ins reads the real RAM register (steps 008–015 = 23 53 00…, i.e.
-;      C = 0000000000005323 — [lnx] [(] pre-keyed per the PPX article) but
-;      recalls the poisoned cache as B. Here at 1214–1217:
-;        C−B  = 459656449856881F   (digit 0: 3−4 = F, hex, no correction)
-;        +B<<2 = 494011464221921F  → written back to RAM[001] at 0F85–0F88.
-;      Step 008 becomes 1F (23−04 → tens 2−0−borrow=1, units 3−4=F) and
-;      step 009 becomes 92 = RTN (53−65 → 88, +04 shifted in → 92) — the
-;      RTN the article promises "in the step following the code". Steps
-;      010–015 get the garbage 21 42 46 11 40 49. The article's per-location
-;      key-in sequences ([lnx] [(] for 008, etc.) are values tuned against
-;      the constant-table row covering that location so the mixed arithmetic
-;      lands on 1F + RTN. Executing the 1F then mis-dispatches into the
-;      printer routine — see PRG_DISPATCH (0F53) and 0EF1.
+; (recalled at 1201). With B == C this reduces to "shift the register up one
+; keycode and insert 00" — the classic Ins. Missing safeguard: B is trusted
+; as-is, never re-read from RAM, and the digit-serial ALU applies no BCD
+; correction to digit 0 (hexadecimal in hardware; see Core/TMC0501.cpp), so
+; a stale cache yields keycode digits outside 0–9. texas-print.ti59's
+; pseudo-code insertion (the illegal 1F at step 008) exploits exactly this;
+; the full quirk chain is documented in that file's header.
 1213: 0920  A=C MANT
 1214: 019C  C=C-B ALL
 1215: 0153  B=SLB ALL

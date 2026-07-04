@@ -57,7 +57,7 @@
 03FB  KEY_LRN            [D] "LRN" handler (slot 0013)
 040A  KEY_RS             [D] "R/S" handler (slot 0019)
 040B  KEY_BST            [D] "BST" handler (slot 0015)
-0462  KEY_PR             [T] "P/R" handler (2nd slot 0073); launches the P→R keycode sub-program: Prg Src Flag := 8 via 0A4B–0A53 (leaks if the run is blocked by the error state — texas-print.ti59)
+0462  KEY_PR             [T] "P/R" handler (2nd slot 0073); launches the P→R keycode sub-program: Prg Src Flag := 8 via 0A4B–0A53
 0B11  OP_INS             [T] "Ins" operation body (2nd slot 0064 → KEY_OP_ENTRY chain, vector 0xB11); per-register shift loop uses PRGREG_RAM_READ / PRGREG_CACHE / 1213
 0089  KEY_PSEUDO_ADV     [D] pseudo table entry for the printer paper-ADVANCE key (remapped at 0679–0688)
 0099  KEY_PSEUDO_PRINT   [D] pseudo table entry for the printer PRINT key (remapped at 0679–0688)
