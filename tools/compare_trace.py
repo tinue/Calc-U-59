@@ -48,7 +48,7 @@ LINE3 = re.compile(
     r'.*?COND=(\d).*?IDLE=(\d).*?IO=([0-9A-Fa-f]+)')
 LINE4 = re.compile(
     r'FB=([0-9A-Fa-f]+).*?SR=([0-9A-Fa-f]+).*?R5=([0-9A-Fa-f]+)'
-    r'.*?PREG=([0-9A-Fa-f]+).*?RAMOP=(\S+).*?RAMREG=(\d+).*?ROMREG=(\d+)')
+    r'.*?PREG=([0-9A-Fa-f]+).*?RAMOP=(\S+).*?RAMREG=(\S+).*?SREG=(\S+)')
 
 def parse(path):
     entries = []
@@ -82,7 +82,7 @@ def parse(path):
         if m4:
             e.update(FB=m4.group(1).upper(), SR=m4.group(2).upper(),
                      R5=m4.group(3).upper(), PREG=m4.group(4).upper(),
-                     RAMOP=m4.group(5), RAMREG=m4.group(6), ROMREG=m4.group(7))
+                     RAMOP=m4.group(5), RAMREG=m4.group(6), SREG=m4.group(7))
         entries.append(e)
         i += 5
     return entries
@@ -166,7 +166,7 @@ def sync_active(ref_active, mine_active, lookahead=30):
 
 # Fields to compare, in priority order (PC/OP divergence is most severe).
 SCALAR_FIELDS  = ['COND', 'IDLE', 'FA', 'FB', 'KR', 'SR', 'R5', 'PREG',
-                  'EXT', 'RAMOP', 'RAMREG', 'ROMREG']
+                  'EXT', 'RAMOP', 'RAMREG', 'SREG']
 NIBBLE_FIELDS  = ['A', 'B', 'C', 'D', 'E', 'IO']   # 16-char hex strings
 
 def diff_entries(r, m):
@@ -220,7 +220,7 @@ def fmt_full(e, label):
         f"EXT={e.get('EXT','?')} IO={e.get('IO','?')}",
         f"    FB={e.get('FB','?')} SR={e.get('SR','?')} R5={e.get('R5','?')} "
         f"PREG={e.get('PREG','?')} RAMOP={e.get('RAMOP','?')} "
-        f"RAMREG={e.get('RAMREG','?')} ROMREG={e.get('ROMREG','?')}",
+        f"RAMREG={e.get('RAMREG','?')} SREG={e.get('SREG','?')}",
     ]
     return '\n'.join(lines)
 
@@ -397,8 +397,12 @@ def load_bin(path):
         if r['type'] != 'trace':
             continue
         # translate binary dict → compare_trace field names
-        # RAMOP: interpret flags bit 6 as "RAM op pending"
-        ramop = f"{r['RAM_OP']:X}" if (r['cpuFlags'] & 0x0040) else '-'
+        # RAMOP/RAMREG/SREG are only meaningful within the validity windows
+        # computed by read_trace._compute_validity_windows(); see its docstring.
+        ram_valid = r.get('_ram_valid', False)
+        ramop = f"{r['RAM_OP']:X}" if ram_valid else '-'
+        ramreg = f"{r['RAM_ADDR']:03d}" if ram_valid else '---'
+        sreg = f"{r['REG_ADDR']:02d}" if r.get('_scom_reg_valid', False) else '--'
         entries.append({
             'pc':     r['pc'],
             'opcode': r['opcode'],
@@ -413,8 +417,8 @@ def load_bin(path):
             'R5':     r['R5'],
             'PREG':   r['PREG'],
             'RAMOP':  ramop,
-            'RAMREG': f"{r['RAM_ADDR']:03d}",
-            'ROMREG': f"{r['REG_ADDR']:02d}",
+            'RAMREG': ramreg,
+            'SREG':   sreg,
         })
     return entries
 

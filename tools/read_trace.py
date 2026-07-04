@@ -225,9 +225,15 @@ def load_trace(path):
     'KR', 'FA', 'FB', 'COND', 'IDLE', 'IO', 'SR', 'R5', 'PREG', 'EXT',
     'RAM_ADDR', 'RAM_OP', 'REG_ADDR' — same field names as the text parser.
 
-    Note: RAMOP and RAMREG are not directly available from the binary format
-    (RAM_OP is the raw op code, not the text flag). The compare pipeline uses
-    COND/IDLE/KR/FA/registers as the primary match keys; RAMOP is advisory only.
+    Each 'trace' record is also tagged with three computed validity flags —
+    '_ram_valid', '_scom_reg_valid', '_rom_valid' — set by
+    _compute_validity_windows() below. RAM_OP/RAM_ADDR, REG_ADDR, and
+    m_libAddr are all deferred/latched hardware fields that only hold
+    meaningful data for a couple of instructions after the opcode that
+    triggers them; outside that window the raw struct fields are stale
+    leftovers from a previous operation. Consumers that print or compare
+    these fields should gate on the matching '_*_valid' flag rather than
+    using the raw fields unconditionally.
 
     Each 'trace' record is tagged with _trace_index (1-indexed) for numbering.
     """
@@ -262,7 +268,72 @@ def load_trace(path):
                 records.append(_parse_user_event(payload))
             # Unknown types: skip (forward-compatible per spec)
 
+    _compute_validity_windows(records)
     return records
+
+# ── Deferred-field validity windows ───────────────────────────────────────────
+#
+# RAM_OP/RAM_ADDR, REG_ADDR, and the library pointer (m_libAddr) are all
+# hardware fields the CPU latches on one instruction and consumes on a later
+# one (see Core/TMC0501.cpp). Between those instructions the raw struct field
+# still holds whatever was last written — stale, not "unknown". This computes,
+# per trace record, the exact window of instructions where each field is
+# actually meaningful, driven entirely by the opcode sequence already present
+# in the trace (no binary format changes needed).
+#
+# Opcode encoding reference (Core/TMC0501.cpp, hi nibble 0xA = Wait/Control):
+#   RAM.OP        0x0AF8  (case 0x8 → 0xF0): decode+address latch happens on
+#                         the NEXT ALU instruction, actual read/write on the
+#                         ALU instruction after that. Own frame stays stale.
+#   MEMWR         0x0A76  (case 0x6, bits_7_4=0x7): address latched immediately;
+#                         write executes on the next ALU instruction.
+#   MEMRD         0x0A86  (case 0x6, bits_7_4=0x8): address latched immediately;
+#                         read executes on the next ALU instruction.
+#   STO           0x0A0F  (case 0xF → 0x00): REG_ADDR latched immediately;
+#                         store executes on the next ALU instruction.
+#   RCL           0x0A1F  (case 0xF → 0x10): REG_ADDR latched immediately;
+#                         recall executes on the next ALU instruction.
+#   IN LIB        0x0A0E  (case 0xE → 0x00): m_libAddr updated immediately.
+#   OUT LIB_PC    0x0A1E  (case 0xE → 0x10): m_libAddr updated immediately.
+#   IN LIB_PC     0x0A2E  (case 0xE → 0x20): m_libAddr not modified, but reflects
+#                         the pointer the ROM is actively reading back.
+#   IN LIB_HIGH   0x0A3E  (case 0xE → 0x30): reads the byte at m_libAddr.
+
+_OPC_RAM_OP  = 0x0AF8
+_OPC_MEMWR   = 0x0A76
+_OPC_MEMRD   = 0x0A86
+_OPC_STO     = 0x0A0F
+_OPC_RCL     = 0x0A1F
+_ROM_OPCODES = {0x0A0E, 0x0A1E, 0x0A2E, 0x0A3E}  # IN LIB, OUT LIB_PC, IN LIB_PC, IN LIB_HIGH
+
+def _compute_validity_windows(records):
+    """Tag each 'trace' record with '_ram_valid', '_scom_reg_valid', and
+    '_rom_valid' booleans marking whether RAMOP/RAMREG, REG_ADDR (SREG), and
+    ROM are meaningful on that instruction. Mutates records in place."""
+    trace_recs = [r for r in records if r['type'] == 'trace']
+    n = len(trace_recs)
+    for r in trace_recs:
+        r['_ram_valid'] = False
+        r['_scom_reg_valid'] = False
+        r['_rom_valid'] = False
+
+    def mark(field, idx):
+        if 0 <= idx < n:
+            trace_recs[idx][field] = True
+
+    for i in range(n):
+        opcode = int(trace_recs[i]['opcode'], 16)
+        if opcode == _OPC_RAM_OP:
+            mark('_ram_valid', i + 1)
+            mark('_ram_valid', i + 2)
+        elif opcode in (_OPC_MEMWR, _OPC_MEMRD):
+            mark('_ram_valid', i)
+            mark('_ram_valid', i + 1)
+        if opcode in (_OPC_STO, _OPC_RCL):
+            mark('_scom_reg_valid', i)
+            mark('_scom_reg_valid', i + 1)
+        if opcode in _ROM_OPCODES:
+            mark('_rom_valid', i)
 
 def trace_events_only(records):
     """Filter to just 'trace' records (drops session/user markers)."""
@@ -278,7 +349,10 @@ def _format_trace_record(rec, trace_number=None):
 
     If trace_number is provided, prepend it (8-digit right-aligned) to the DISP line.
     """
-    ramop_str = (f"{rec['RAM_OP']:X}" if (rec['cpuFlags'] & 0x0040) else '-')
+    ram_valid = rec.get('_ram_valid', False)
+    ramop_str = f"{rec['RAM_OP']:X}" if ram_valid else '-'
+    ramreg_str = f"{rec['RAM_ADDR']:03d}" if ram_valid else '---'
+    sreg_str = f"{rec['REG_ADDR']:02d}" if rec.get('_scom_reg_valid', False) else '--'
     addr = int(rec['pc'], 16)
     opcode = int(rec['opcode'], 16)
     mnemonic = disasm(addr, opcode)
@@ -289,13 +363,13 @@ def _format_trace_record(rec, trace_number=None):
              f"KR={rec['KR']} [{_bin16(int(rec['KR'],16))}] "
              f"EXT={rec['EXT']} COND={rec['COND']} IDLE={rec['IDLE']} "
              f"IO={rec['IO']}")
-    rom_str = rec.get('ROM', '0000')
+    rom_str = rec.get('ROM', '0000') if rec.get('_rom_valid', False) else '----.-'
     disp_status = "ON" if _display_on_from_record(rec) else "OFF"
     decay = rec.get('maxDigitDecay', 0)
     line4 = (f"FB={rec['fB']} [{_bin16(int(rec['fB'],16))}] "
              f"SR={rec['SR']} R5={rec['R5']} ROM={rom_str} PREG={rec['PREG']} "
-             f"RAMOP={ramop_str} RAMREG={rec['RAM_ADDR']:03d} "
-             f"ROMREG={rec['REG_ADDR']:02d}")
+             f"RAMOP={ramop_str} RAMREG={ramreg_str} "
+             f"SREG={sreg_str}")
 
     line5 = f"DISPLAY={disp_status} DECAY={decay}"
 
