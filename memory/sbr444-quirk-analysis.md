@@ -19,7 +19,8 @@ quirk 1 of the chain — and corrected an earlier, wrong account.
 
 | Artifact | Role |
 |----------|------|
-| `rom/TI59-commented.asm` | Commented TI-59 ROM disassembly. Relevant annotations: 0x086F (transfer target validate/commit), 0x08B2 (PRGREG_FETCH source dispatch), 0x0A4B (launch prologue / Prg Src Flag write), 0x1286 (library transfer resolver — added this session), 0x11E1 (transfer-error halt — added this session). |
+| `rom/TI59-commented.asm` | Commented TI-59 ROM disassembly. Relevant annotations: 0x086F (transfer target validate/commit), 0x08B2 (PRGREG_FETCH source dispatch), 0x0A4B (launch prologue / Prg Src Flag write), 0x0D50 (return-stack push), 0x1286 (library transfer resolver — added this session), 0x11E1 (transfer-error halt — added this session). |
+| `reference/CoreArchitecture.md` | Architecture reference; § SCOM registers now documents the SCOM[14]/[15] return stack. |
 | `examples/texas-print.ti59` | State file automating the article's key sequence; its header holds the authoritative quirk walkthrough (quirks 1–4). |
 | `.claude/skills/calc-u-59-core` | Skill covering the emulation core, trace infrastructure, and ROM analysis workflow. |
 | `tools/read_trace.py` | Rendered the binary traces to text (including the deferred-field validity windows for RAMOP/RAMREG/SREG added just before this analysis — commit `fa6799e`). |
@@ -55,9 +56,10 @@ directly off the module header in the traces).
    and would actually execute Pgm 12 code.
 4. **The error halt does a minimal cleanup.** 11E1: reloads SCOM[0] (`…101000`),
    drops nibble 3 with the `SRB MANT`/`SLB MANT` pair (Prg Src back to 0, step counter
-   008 preserved), sets fB[9] (error/blink), stores something to SCOM[15] (value
-   `…10000F` — purpose unresolved, see open questions), clears fB[0], idles → blinking
-   239.89. End flags: fB = 0A60.
+   008 preserved), sets fB[9] (error/blink), resets the subroutine return stack in
+   SCOM[15] (11E9–11EC store `…10000F`: level slots cleared, caller PC 008 in level 1,
+   F in the depth nibble — discarding the return the SBR had pushed), clears fB[0],
+   idles → blinking 239.89. End flags: fB = 0A60.
 5. **The dirty leftovers** (the actual bug): the CROM chip's internal PC sits at header
    address 28 (auto-incremented past the two entries just read), and SCOM[9] still
    holds the run descriptor naming library program 12 (`…1212043` at R/S time).
@@ -100,7 +102,14 @@ directly off the module header in the traces).
   transfer type (set → keycode sub-program, skip RAM range check); fB[11] = SCOM[10]
   cache stale (previously known).
 - SCOM[9] is the run/program descriptor register (program number appears twice:
-  `…1212043`); SCOM row 15 receives writes on halt paths (11E9–11EC, 0BC4–0BCA).
+  `…1212043`).
+- SCOM[14]/SCOM[15] hold the 6-level subroutine return stack — SCOM[15] levels 1–3,
+  SCOM[14] levels 4–6 — pushed on every calculator-level call: SBR into a RAM or
+  library program, and keycode-ROM sub-program launches such as P→R (user-provided
+  2026-07-04, trace-consistent). The push routine is ROM 0D50–0D78 and runs in *both*
+  traces (during the SBR 444 launch and again during the R/S resume). An earlier
+  revision of this document claimed the R/S handler's 0BC4–0BCA also writes row 15 —
+  that was a static misreading; 0BC4 never executes in rs.txt.
 - Trace frames are post-execution: the COND shown on a `TST`/`Jxx` line is the value
   *after* that instruction; a taken branch is only visible from the next line's
   address. Observed: `TST` of a SET flag leaves COND = 0.
@@ -117,10 +126,14 @@ directly off the module header in the traces).
    only the `2nd P/R` press; `pr-after-halt2.bin` — full sequence, trace only the
    `2nd P/R` press. Compare at 07F3, 0A4B–0A5D, and 087E (use
    `tools/compare_trace.py`).
-2. **What does SCOM row 15 hold?** Both halt paths write it (11E9–11EC stores
-   `…10000F`; the R/S handler's 0BC4–0BCA stores a zeroed value with an F digit).
-   Possibly saved flags / halt marker; would directly inform question 1. Resolve from
-   the same P/R traces (watch SREG=15 accesses) or via the debug panel.
+2. **RESOLVED — What does SCOM row 15 hold?** SCOM[14]/[15] are the 6-level
+   subroutine return stack (15 = levels 1–3, 14 = levels 4–6), written by SBR,
+   library-program calls, and keycode-ROM sub-program launches (P→R). The 11E9–11EC
+   store in the error halt is the stack being reset (return discarded, F depth
+   marker). Push routine annotated at ROM 0x0D50; SCOM table updated in
+   reference/CoreArchitecture.md. Remaining detail: exact per-level nibble layout and
+   the meaning of the depth nibble values (F observed as empty/reset marker) — falls
+   out of any future SBR/RTN trace.
 3. **Why exactly does the EE handler end a running program?** The keyboard-epilogue
    gate (fB[10] at 06C0, plus fA[5] at 06BE — fA[5] was clear during the whole resumed
    run) fell through. A *normal* running program that contains keycode 52 presumably

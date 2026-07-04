@@ -3753,6 +3753,17 @@
 0D4D: 0092  CLR fA[9]
 0D4E: 18CF  JC 0CE7
 0D4F: 1F81  JC 098F
+; ── Return-stack push: save the caller's calculator-level return address ────
+; The 6-level subroutine return stack lives in SCOM[15] (levels 1-3) and
+; SCOM[14] (levels 4-6); see reference/CoreArchitecture.md § SCOM registers.
+; This routine pushes on every calculator-level call: SBR into a RAM or
+; library program, and keycode-ROM sub-program launches (P->R). 0D53/0D54
+; load SCOM[15]; 0D57 checks the depth in the DPT nibble; the shift loops
+; move the existing levels up, spilling the displaced level into SCOM[14]
+; (reloaded at 0D6C/0D6D, rewritten at 0D77/0D78), and the new return entry
+; is merged into level 1 before SCOM[15] is stored back at 0D68/0D69.
+; Trace-observed during both the SBR 444 launch and the R/S resume — see
+; memory/sbr444-quirk-analysis.md.
 0D50: 0AF7  MOV R5,#15
 0D51: 02F4  C=R5 DPT
 0D52: 0121  IO=C ALL
@@ -4982,8 +4993,11 @@
 ; ── Transfer-error halt: reject a library transfer and blink ────────────────
 ; Error exit of the library transfer resolver (sole caller: 12AF) for an
 ; out-of-range target. Rewrites SCOM[0] with the Prg Src Flag nibble cleared
-; (the SRB/SLB MANT pair drops nibble 3, keeping the step counter), sets the
-; error flag fB[9] (blinking display), clears fB[0] and idles. The cleanup is
+; (the SRB/SLB MANT pair drops nibble 3, keeping the step counter), resets
+; the subroutine return stack in SCOM[15] (11E9-11EC: level slots cleared,
+; caller PC in level 1, F in the depth nibble — discarding the return the
+; failed SBR had pushed at 0D50), sets the error flag fB[9] (blinking
+; display), clears fB[0] and idles. The cleanup is
 ; minimal, which is what the SBR 444 quirk exploits: the CROM chip's internal
 ; PC and the SCOM[9] descriptor ("library program p selected") keep whatever
 ; the rejected launch left behind, so a subsequent R/S resume re-enters the

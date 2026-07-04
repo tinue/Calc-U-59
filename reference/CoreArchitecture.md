@@ -92,6 +92,10 @@ Bit 1 of nibble 0 = mantissa sign; bit 2 = exponent sign.
 - Display state, pending operations, and intermediate results
 - The RAM/program partition pointer (SCOM[9][0])
 - ALU addressing during STO/RCL sequences
+- The 6-level subroutine return stack: SCOM[15] holds levels 1–3, SCOM[14]
+  levels 4–6.  Pushed on every calculator-level call — `SBR` into a RAM or
+  library program, and launches of keycode-ROM sub-programs such as P→R
+  (push routine at ROM 0x0D50)
 
 SCOM also contains a **64-entry constant table** (entries 0–15 = mathematical
 constants for transcendental functions; entries 16–63 = keystroke display codes
