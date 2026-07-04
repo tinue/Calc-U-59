@@ -90,7 +90,11 @@ Bit 1 of nibble 0 = mantissa sign; bit 2 = exponent sign.
 
 - The AOS (algebraic operating system) operator-precedence stack
 - Display state, pending operations, and intermediate results
-- The RAM/program partition pointer (SCOM[9][0])
+- Library/partition bookkeeping in SCOM[9]: nibble 15 = list-data flag,
+  nibbles 6–5 = current library program ("current page"), 4–3 = pending
+  `Pgm nn` selection ("new page"), 2 = module security code, 1 = number of
+  RAM chips (4 on the TI-59), 0 = the RAM/program partition pointer
+  (program-partition register count / 10, set by `OP 17`)
 - ALU addressing during STO/RCL sequences
 - The 6-level subroutine return stack: SCOM[15] holds levels 1–3, SCOM[14]
   levels 4–6.  Pushed on every calculator-level call — `SBR` into a RAM or

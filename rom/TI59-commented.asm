@@ -5187,8 +5187,10 @@
 ; SBR/GTO nnn while the target program lives in a solid-state module (reached
 ; from the shared transfer routine via 0868 → 0BD1 → 0FAC; the launch
 ; prologue at 0A4B has already written Prg Src Flag := 1). 1286 selects
-; SCOM[9] (R5 = 9); 128B-1290 recall it — its mantissa holds the selected
-; library program number p ("Pgm nn") — and form the header offset 2p (one
+; SCOM[9] (R5 = 9); 128B-1290 recall it — its current/new-page fields
+; (nibbles 6-5 / 4-3, see reference/CoreArchitecture.md § SCOM registers)
+; hold the selected library program number p ("Pgm nn") — and form the
+; header offset 2p (one
 ; 2-byte BCD start address per program from module address 0002). The LIB.PC
 ; loop at 1293-1297 points the CROM pointer there; 1298-12AA read TWO
 ; consecutive header entries: B := start address of program p, C := start of

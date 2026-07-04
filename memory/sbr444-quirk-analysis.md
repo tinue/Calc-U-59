@@ -101,8 +101,9 @@ directly off the module header in the traces).
 - Flag semantics: fB[9] = error/blink; fB[15] = EE mode; fB[0] at the 087E test =
   transfer type (set → keycode sub-program, skip RAM range check); fB[11] = SCOM[10]
   cache stale (previously known).
-- SCOM[9] is the run/program descriptor register (program number appears twice:
-  `…1212043`).
+- SCOM[9] is the library/partition bookkeeping register (layout documented — see
+  resolved open question 4): the "program number appearing twice" (`…1212043`) is the
+  current-page / new-page field pair.
 - SCOM[14]/SCOM[15] hold the 6-level subroutine return stack — SCOM[15] levels 1–3,
   SCOM[14] levels 4–6 — pushed on every calculator-level call: SBR into a RAM or
   library program, and keycode-ROM sub-program launches such as P→R (user-provided
@@ -141,10 +142,19 @@ directly off the module header in the traces).
    garbage run lacks.
    **Proposed trace:** a small RAM program containing keycode 52 (EE), started with
    R/S and traced across the EE step; compare the 02DE/06B9/06C0 flags with rs.txt.
-4. **SCOM[9] descriptor layout.** The program number is stored twice (`12 12 0 x y`);
-   nibbles 0–2 change across states (`…010` during the SBR launch, `…043` at R/S
-   time). Decode the trailing digits (last key? run state?). Falls out of the traces
-   for question 1 at 0BB3–0BBE (descriptor rebuild) with no extra capture needed.
+4. **RESOLVED — SCOM[9] descriptor layout.** Documented by an external SCOM register
+   table (user-provided screenshot, 2026-07-04; original source not yet cited — add
+   the reference when known). Nibble 15 = list-data flag; 14–7 = 0; 6–5 = "current
+   page" (current library program); 4–3 = "new page" (pending `Pgm nn` selection);
+   2 = module security code; 1 = number of RAM chips; 0 = number of program banks =
+   program-partition registers / 10 (the OP 17 partition pointer already known from
+   CoreArchitecture.md). Trace check (07F3 `B=LOAD ALL` → `…1212043`): current page
+   12, new page 12, security 0, RAMs 4, banks 3 (= 30 program registers under
+   239.89) — all consistent. Correction to the original question: the `…010` tail
+   seen during the SBR launch was an artifact — that read was `C=LOAD MANT`
+   (nibbles 3–15 only), so nibbles 0–2 were stale C content, not SCOM[9]; nothing
+   actually changes across states. Layout added to reference/CoreArchitecture.md
+   § SCOM registers.
 
 Traces for 1 and 3 can be captured the same way as the existing ones: temporarily
 insert `Trace: <name>.bin` / `Trace: Off` around the key of interest in the
