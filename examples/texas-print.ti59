@@ -30,15 +30,19 @@
 #    entered mid-formula ("...2 x .3565663782 + .31938153 )..."), so it quickly ends in the
 #    flashing error state; [R/S] halts it. GTO 008 earlier left the step counter at 008.
 # 2. [2nd] [P/R]: P->R is implemented as a ROM-resident keycode sub-program whose entry point is
-#    step 284 of the calculator-PC address space. The launcher (ROM 0x0A4B-0x0A53) first writes
-#    Prg Src Flag := 8 ("program lives in the SCOM constant table") into SCOM[0] nibble 3, then
-#    range-checks the entry step's register (284/8 = 35) against the program-partition register
-#    count kept in SCOM[13] (ROM 0x0879-0x0888). Under 239.89 there are only 30 program
-#    registers, so the check fails and the launch is ABANDONED — after the flag was already
-#    written. It LEAKS, with the step counter still at 008. (Trace-verified both ways: with
-#    6 Op 17 = 60 program registers the check passes, SCOM[0] is rewritten with PC=284 at ROM
-#    0x089A, and the hack fails — LRN then shows step 284 and fetches RAM honestly, matching
-#    real-hardware behaviour observed for every partition 8 Op 17 and below.)
+#    step 284 of the calculator-PC address space. Normally its launch is partition-independent:
+#    the shared transfer routine (ROM 0x086F) sees fB[0] SET, skips the RAM range check, writes
+#    SCOM[0] := PC 284 / Prg Src Flag 8, and the sub-program executes from constant rows 51+
+#    (trace-verified with a plain P->R press under 239.89: three row fetches, PC advancing
+#    284 -> 301). But pressed while the machine is halted mid-library-run by the SBR 444 stunt,
+#    fB[0] is CLEAR: after the launcher (0x0A4B-0x0A53) has already written Prg Src Flag := 8,
+#    the transfer is treated as a RAM-program branch and step 284's register (35) is
+#    range-checked against the program-partition register count in SCOM[13] (0x0887/0888).
+#    Under 239.89 there are only 30 program registers, so the check fails and the launch is
+#    ABANDONED — with the flag already written. It LEAKS, and the step counter stays at 008.
+#    (With >= 320 steps — 8 Op 17 and below — the mis-routed check passes instead: SCOM[0] is
+#    rewritten with PC=284 and the hack fizzles; LRN then shows step 284, matching real-hardware
+#    observations and the 6 Op 17 emulator trace.)
 # 3. [LRN] must display step 008's keycode. The program-register fetch (ROM 0x08B2) honours the
 #    leaked flag and reads constant-table row 17 (= 16 + step/8) — a slice of the ROM's
 #    keycode-program area, 5403435501436504 — instead of RAM, and caches it in SCOM[10] as

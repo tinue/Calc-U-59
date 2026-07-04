@@ -2438,19 +2438,24 @@
 086C: 0953  B=SLB MANT
 086D: 0989  IO=A-B MANT
 086E: 1D38  JC 0B0A
-; ── Program-transfer target: split into register·offset and range-check ─────
-; The divide-by-8 loop at 0871–0873 splits a target step address into
-; register number and step offset (assembled in C, e.g. step 284 → "35·4").
-; 087D loads SCOM[13], whose mantissa also holds the PROGRAM-partition
-; register count (30 under 239.89, 60 under 479.59); after alignment
-; (0884–0886) the compare at 0887 range-checks the target register:
-;   in range     → fall through; the step is re-encoded as calculator-PC
-;                  nibbles and written to SCOM[0] at 089A/089B.
-;   out of range → 0B0A: the transfer is abandoned — with any source flag
-;                  written by the launch prologue (0A4B) left in place.
-;                  Exploited by texas-print.ti59's pseudo-code insertion.
-; Trace-confirmed both ways in CALCU59_TRACE.txt / InsertInvalidKeycode
-; captures with the P→R keycode sub-program, whose entry step is 284.
+; ── Program-transfer target: split into register·offset, validate, commit ───
+; Generic "transfer to step N" tail, shared by RAM-program transfers and
+; ROM keycode sub-program launches. The divide-by-8 loop at 0871–0873
+; splits the target step into register number and offset (assembled in C,
+; e.g. step 284 → "35·4"). fB[0], tested at 087E, selects the target type:
+;   set   → keycode sub-program target: skip the range check (0883 → 0889)
+;           and encode Prg Src Flag 8 into the new SCOM[0] — the normal
+;           P→R path, partition-independent (P→R entry step is 284,
+;           constant rows 51+).
+;   clear → RAM-program target: 087D loads SCOM[13], whose mantissa also
+;           holds the PROGRAM-partition register count (30 under 239.89,
+;           60 under 479.59); the compare at 0887 range-checks the target
+;           register — in range → commit, out of range → 0B0A abandons
+;           the transfer, leaving any source flag written by the launch
+;           prologue (0A4B) in place.
+; The new calculator PC is committed to SCOM[0] at 089A/089B. Quirk: the
+; post-SBR-444 halted-mid-library state leaves fB[0] clear, so a P/R
+; launch mis-routes into the RAM range check — see examples/texas-print.ti59.
 086F: 0A87  MOV R5,#8
 0870: 09F3  B=R5 MANT
 0871: 0988  A=A-B MANT

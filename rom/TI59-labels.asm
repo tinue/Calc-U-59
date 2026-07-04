@@ -81,7 +81,7 @@
 0F85  PRGREG_RAM_WRITE   [T] write a program register to RAM (RAM.OP write; specifier then data on the two following IO values)
 0C10  PRGREG_CACHE       [T] cache the fetched program register in SCOM[10] (reused by LRN display and Ins/Del shift; never source-revalidated)
 
-086F  STEP_TO_REG        [T] split a program-transfer target step into register·offset (÷8 loop), range-check the register against the program partition (SCOM[13] mantissa, 0887), and commit the new calculator PC to SCOM[0] (089A) or abandon at 0B0A
+086F  STEP_TO_REG        [T] generic transfer-to-step tail: split target into register·offset (÷8 loop); fB[0] set = keycode-sub-program target (no range check, flag 8); clear = RAM target, range-checked against the program partition (SCOM[13] mantissa, 0887); commit PC to SCOM[0] (089A) or abandon at 0B0A
 
 ; ── Named instruction sites (not jump targets) ──────────────────────────────
 02E3  —                  [T] CLR fA[10]: digit keys discard their pending trace record here
