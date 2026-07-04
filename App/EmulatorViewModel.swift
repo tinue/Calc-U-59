@@ -645,10 +645,14 @@ class EmulatorViewModel {
             if s != cpuDebugSnapshot { cpuDebugSnapshot = s }
         }
 
-        if cIndicatorDebug {
+        if cIndicatorDebug || scriptedTraceWriter.isOpen {
             // Drain trace events directly on main thread (tick() is already on main).
             // The emulation loop runs on the serial emulQueue, so async dispatches would
             // never execute until the loop exits — we drain here at 60 Hz instead.
+            // Must also run for the scripted (KEYSTROKES "Trace:") writer: without this,
+            // frames only get drained at the Trace:/Trace: Off calls in playKeystrokes,
+            // letting the 1024-frame ring buffer overflow and silently lose most of a
+            // session that runs for more than an instant (e.g. spans a Wait:/WaitFullSpeed:).
             drainTraceEvents(machine: machine)
         }
 
