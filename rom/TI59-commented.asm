@@ -3762,8 +3762,12 @@
 ; move the existing levels up, spilling the displaced level into SCOM[14]
 ; (reloaded at 0D6C/0D6D, rewritten at 0D77/0D78), and the new return entry
 ; is merged into level 1 before SCOM[15] is stored back at 0D68/0D69.
-; Trace-observed during both the SBR 444 launch and the R/S resume — see
-; memory/sbr444-quirk-analysis.md.
+; Level entry (5 nibbles): RAM register no. (3) + byte no. (1) — or a
+; 4-digit CROM ("second ROM") address for library callers — plus the
+; caller's Prg Src Flag; SCOM[15] nibble 0 counts the pushed levels.
+; Trace-verified during the SBR 444 launch: the push stores
+; 0000000000001001 = register 001 / byte 0 / source 0 / depth 1, the
+; keyboard caller at step 008 — see memory/sbr444-quirk-analysis.md.
 0D50: 0AF7  MOV R5,#15
 0D51: 02F4  C=R5 DPT
 0D52: 0121  IO=C ALL

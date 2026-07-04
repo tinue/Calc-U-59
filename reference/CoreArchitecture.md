@@ -97,9 +97,14 @@ Bit 1 of nibble 0 = mantissa sign; bit 2 = exponent sign.
   (program-partition register count / 10, set by `OP 17`)
 - ALU addressing during STO/RCL sequences
 - The 6-level subroutine return stack: SCOM[15] holds levels 1–3, SCOM[14]
-  levels 4–6.  Pushed on every calculator-level call — `SBR` into a RAM or
-  library program, and launches of keycode-ROM sub-programs such as P→R
-  (push routine at ROM 0x0D50)
+  levels 4–6, and SCOM[15] nibble 0 the number of pushed levels.  Each level
+  is a 5-nibble entry: 4 address nibbles — RAM register number (3) + byte
+  number (1) for RAM-program and keycode-ROM callers, or a 4-digit "second
+  ROM" (CROM) address for library callers — plus the caller's Prg Src Flag.
+  Pushed on every calculator-level call: `SBR` into a RAM or library
+  program, and launches of keycode-ROM sub-programs such as P→R (push
+  routine at ROM 0x0D50).  Example: a keyboard caller at step 008 pushes
+  register 001 · byte 0 · source 0, giving SCOM[15] = `…001001`
 
 SCOM also contains a **64-entry constant table** (entries 0–15 = mathematical
 constants for transcendental functions; entries 16–63 = keystroke display codes

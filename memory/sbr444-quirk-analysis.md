@@ -132,9 +132,17 @@ directly off the module header in the traces).
    library-program calls, and keycode-ROM sub-program launches (P→R). The 11E9–11EC
    store in the error halt is the stack being reset (return discarded, F depth
    marker). Push routine annotated at ROM 0x0D50; SCOM table updated in
-   reference/CoreArchitecture.md. Remaining detail: exact per-level nibble layout and
-   the meaning of the depth nibble values (F observed as empty/reset marker) — falls
-   out of any future SBR/RTN trace.
+   reference/CoreArchitecture.md. Per-level layout documented by the same external
+   SCOM register table (user-provided screenshot, 2026-07-04; source citation still
+   pending): each level is 5 nibbles — RAM register no. (3) + byte no. (1), or a
+   4-digit "second ROM" (CROM) address for library callers, plus the caller's Prg
+   Src Flag — and SCOM[15] nibble 0 holds the number of pushed levels.
+   Trace-verified: the SBR 444 push stores SCOM[15] = `0000000000001001` = register
+   001 / byte 0 / source 0 / depth 1, i.e. the keyboard caller at step 008. This
+   also clarifies the error-path value `…10000F`: it is *not* an encoded level entry
+   but the raw SCOM[0] image with F stuffed into the depth nibble — the F is what
+   invalidates the stack. Only the exact semantics of F (empty vs. locked) remain
+   unverified.
 3. **Why exactly does the EE handler end a running program?** The keyboard-epilogue
    gate (fB[10] at 06C0, plus fA[5] at 06BE — fA[5] was clear during the whole resumed
    run) fell through. A *normal* running program that contains keycode 52 presumably
