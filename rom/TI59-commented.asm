@@ -2438,6 +2438,19 @@
 086C: 0953  B=SLB MANT
 086D: 0989  IO=A-B MANT
 086E: 1D38  JC 0B0A
+; ── Program-transfer target: split into register·offset and range-check ─────
+; The divide-by-8 loop at 0871–0873 splits a target step address into
+; register number and step offset (assembled in C, e.g. step 284 → "35·4").
+; 087D loads SCOM[13], whose mantissa also holds the PROGRAM-partition
+; register count (30 under 239.89, 60 under 479.59); after alignment
+; (0884–0886) the compare at 0887 range-checks the target register:
+;   in range     → fall through; the step is re-encoded as calculator-PC
+;                  nibbles and written to SCOM[0] at 089A/089B.
+;   out of range → 0B0A: the transfer is abandoned — with any source flag
+;                  written by the launch prologue (0A4B) left in place.
+;                  Exploited by texas-print.ti59's pseudo-code insertion.
+; Trace-confirmed both ways in CALCU59_TRACE.txt / InsertInvalidKeycode
+; captures with the P→R keycode sub-program, whose entry step is 284.
 086F: 0A87  MOV R5,#8
 0870: 09F3  B=R5 MANT
 0871: 0988  A=A-B MANT
@@ -2931,13 +2944,14 @@
 0A48: 0110  A=B ALL
 0A49: 01D7  A<>E ALL
 0A4A: 01D2  A<>B ALL
-; ── Set Prg Src Flag: launch a ROM-resident keycode sub-program ─────────────
+; ── Set Prg Src Flag: program-source switch of the launch prologue ──────────
 ; Rewrites SCOM[0] with nibble 3 (Prg Src Flag) := R5 while keeping the
-; step counter in nibbles 4–7 (trace-confirmed from KEY_PR with R5=8). The
-; sub-program itself is only started later by the run loop, which restores
-; the flag on completion. Missing safeguard: nothing verifies the run can
-; actually start, so a machine halted in the error state keeps the flag —
-; see examples/texas-print.ti59.
+; step counter in nibbles 4–7. Generic launch step: traced with R5=1
+; (SBR into a library program, E descriptor "…444001" = target 444,
+; source 1) and R5=8 (P→R keycode sub-program via KEY_PR, E "…284008" =
+; entry step 284, source 8). Missing safeguard: the flag is written before
+; the target-step range check at 0871–0888, so an abandoned launch leaves
+; the new source flag in place — see examples/texas-print.ti59.
 0A4B: 0A1F  RCLF
 0A4C: 01D6  D=LOAD ALL
 0A4D: 0C78  A=SRD MAEX

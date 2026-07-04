@@ -29,10 +29,16 @@
 #    program 12 (module address 2609+444 = 3053) — which is the middle of program 14's code,
 #    entered mid-formula ("...2 x .3565663782 + .31938153 )..."), so it quickly ends in the
 #    flashing error state; [R/S] halts it. GTO 008 earlier left the step counter at 008.
-# 2. [2nd] [P/R]: P->R is implemented as a ROM-resident keycode sub-program. Its handler writes
-#    Prg Src Flag := 8 ("program lives in the SCOM constant table") into SCOM[0] nibble 3 — but
-#    because the machine sits in the error state, the sub-program never actually runs, so the
-#    flag is never restored. It LEAKS, with the step counter still at 008.
+# 2. [2nd] [P/R]: P->R is implemented as a ROM-resident keycode sub-program whose entry point is
+#    step 284 of the calculator-PC address space. The launcher (ROM 0x0A4B-0x0A53) first writes
+#    Prg Src Flag := 8 ("program lives in the SCOM constant table") into SCOM[0] nibble 3, then
+#    range-checks the entry step's register (284/8 = 35) against the program-partition register
+#    count kept in SCOM[13] (ROM 0x0879-0x0888). Under 239.89 there are only 30 program
+#    registers, so the check fails and the launch is ABANDONED — after the flag was already
+#    written. It LEAKS, with the step counter still at 008. (Trace-verified both ways: with
+#    6 Op 17 = 60 program registers the check passes, SCOM[0] is rewritten with PC=284 at ROM
+#    0x089A, and the hack fails — LRN then shows step 284 and fetches RAM honestly, matching
+#    real-hardware behaviour observed for every partition 8 Op 17 and below.)
 # 3. [LRN] must display step 008's keycode. The program-register fetch (ROM 0x08B2) honours the
 #    leaked flag and reads constant-table row 17 (= 16 + step/8) — a slice of the ROM's
 #    keycode-program area, 5403435501436504 — instead of RAM, and caches it in SCOM[10] as
@@ -47,17 +53,17 @@
 #    garbage 21 42 46 11 40 49. In the trace: C−B = 459656449856881F, +(B<<2) →
 #    494011464221921F, committed as the single write to RAM[001] at ROM 0x0F85–0x0F88.
 #
-# Why the temporary [9] [Op] [1] [7] partition (239.89)? Two reasons. (a) Containment: the Ins
-# shift loop stops at the program/data boundary — in the trace it reads and rewrites registers
-# 001 through 029 (= step 239) and no further. Only steps 016-239 move (step 239 falls off the
-# end, article note 4); steps 240+ sit on the data side of the temporary boundary and are never
-# touched, so repartitioning back afterwards restores the rest of the program intact. Under the
-# full 959.00 partition the same Ins would rewrite all 119 registers and shift the entire
-# program. (b) The garbage stream executed by SBR 444 contains RCL 02 and RCL 01; under the
-# initial 959.00 partition no data registers exist, so the run would error at the RCL and take a
-# different path. The exact value 9 is not forced by anything verified here — any partition with
-# a few data registers and enough program space for the insertion location should behave the
-# same; 9 is simply the published recipe (single keystroke, near-maximal containment).
+# Why the temporary [9] [Op] [1] [7] partition (239.89)? The hard requirement is the P->R
+# entry-step range check described in quirk 2: the flag only leaks if step 284 lies OUTSIDE the
+# program partition, i.e. fewer than 285 program steps — nn Op 17 with nn >= 9. On the other
+# side, the insertion location plus its register must lie INSIDE the partition (the table's
+# largest location, 104, needs >= 112 steps), which caps nn at 10 (159.99). So exactly 9 and 10
+# work — confirmed empirically on real hardware: 9 and 10 leave the PC at 008, while 8 and lower
+# end with the PC moved to 284 (P->R's entry step) and the hack fails. Two side benefits of the
+# small program partition: the Ins shift loop stops at the program/data boundary (trace: it
+# rewrites registers 001-029 and no further, so steps 240+ survive and only step 239 is lost —
+# article note 4), and the SBR 444 garbage's RCL 02 / RCL 01 find valid data registers (under
+# the initial 959.00 partition there are none).
 #
 # The per-location key-in table below now makes sense: each location's Ins subtracts the
 # constant-table row covering it (row 16 + step/8), so the two pre-keyed codes must be tuned to
