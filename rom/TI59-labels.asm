@@ -10,7 +10,8 @@
 ;   [S] speculative
 ; Traces: KEYPRESS_59.txt (key "6", no printer), KEYPRESS_TRC_59.txt (keys
 ; "0" and "+", printer attached, TRACE switch latched), CALCU59_TRACE.ans
-; (examples/texas-print.ti59 single-step).
+; (examples/texas-print.ti59 single-step), CALCU59_TRACE.txt
+; (texas-print.ti59 scripted pseudo-code insertion: SBR 444 … P/R, LRN, Ins).
 ; ══════════════════════════════════════════════════════════════════════════
 
 ; ── Reset / idle / keyboard front end ───────────────────────────────────────
@@ -56,6 +57,8 @@
 03FB  KEY_LRN            [D] "LRN" handler (slot 0013)
 040A  KEY_RS             [D] "R/S" handler (slot 0019)
 040B  KEY_BST            [D] "BST" handler (slot 0015)
+0462  KEY_PR             [T] "P/R" handler (2nd slot 0073); launches the P→R keycode sub-program: Prg Src Flag := 8 via 0A4B–0A53 (leaks if the run is blocked by the error state — texas-print.ti59)
+0B11  OP_INS             [T] "Ins" operation body (2nd slot 0064 → KEY_OP_ENTRY chain, vector 0xB11); per-register shift loop uses PRGREG_RAM_READ / PRGREG_CACHE / 1213
 0089  KEY_PSEUDO_ADV     [D] pseudo table entry for the printer paper-ADVANCE key (remapped at 0679–0688)
 0099  KEY_PSEUDO_PRINT   [D] pseudo table entry for the printer PRINT key (remapped at 0679–0688)
 
@@ -72,6 +75,11 @@
 ; ── User-program execution ──────────────────────────────────────────────────
 0F53  PRG_DISPATCH       [T] RAM-program keycode fetch & computed-jump dispatch (0F53–0F6D); no keycode validation
 082F  LIB_EXEC_FETCH     [T] solid-state (CROM) execution-interpreter IN LIB fetch site — latches the user-visible library PC (see reference/CoreArchitecture.md); instruction site, not an entry point
+08B2  PRGREG_FETCH       [T] source-aware program-register fetch: dispatches on Prg Src Flag (SCOM[0] nibble 3) to CROM (082B), constant table (0B9D), or RAM (0EDB); fB[11] = SCOM[10] cache stale
+0B9D  PRGREG_FETCH_CON   [T] constant-table branch of PRGREG_FETCH: step counter → row index in KR[10:4], C=C+CON reads 8 packed keycodes (step 008 → row 33 traced)
+0EDB  PRGREG_RAM_READ    [T] read a program register from RAM (RAM.OP read; register number in the next IO value, nibbles 3·2)
+0F85  PRGREG_RAM_WRITE   [T] write a program register to RAM (RAM.OP write; specifier then data on the two following IO values)
+0C10  PRGREG_CACHE       [T] cache the fetched program register in SCOM[10] (reused by LRN display and Ins/Del shift; never source-revalidated)
 
 ; ── Named instruction sites (not jump targets) ──────────────────────────────
 02E3  —                  [T] CLR fA[10]: digit keys discard their pending trace record here

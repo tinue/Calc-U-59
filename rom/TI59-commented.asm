@@ -54,6 +54,10 @@
 ; the printer PRINT/ADV keys arrive remapped as pseudo-entries 0x0099/0x0089.
 ; Trace-confirmed for key "6" (row 7, col 4 → 0x0047) in KEYPRESS_59.txt and
 ; for keys "0" (slot 0029) and "+" (slot 0058) in KEYPRESS_TRC_59.txt.
+; 2nd-shifted keys land in a mirror table at 0x0062–0x00A9: same scheme with
+; column+5 (fA[9], toggled by KEY_2ND, biases the column decode). Trace-
+; confirmed in CALCU59_TRACE.txt for "P/R" (2nd x⇄t, matrix 32 → slot 0073)
+; and "Ins" (2nd SST, matrix 41 → slot 0064).
 ; Slot targets are annotated with labels below; the label table (all named
 ; jump targets, with confidence tags) lives in rom/TI59-labels.asm. Key slots
 ; exist at x1–x9 only; the x0/xA–xF gaps between them hold helper stubs,
@@ -148,7 +152,8 @@
 0061: 18A3  JC 0010           ;   … → KEY_RET (tag KR[8]) → KEY_OP_ENTRY
 0062: 1C0E  JC 0269
 0063: 1F1A  JC 03F0
-0064: 1C1E  JC 0273
+0064: 1C1E  JC 0273           ; 2nd slot: "Ins" (2nd SST) — trace-confirmed; op
+                              ;   dispatch continues via KEY_OP_ENTRY chain → OP_INS 0B11
 0065: 1C1A  JC 0272
 0066: 1C40  JC 0286
 0067: 1F18  JC 03F3
@@ -163,7 +168,7 @@
 0070: 0AE7  MOV R5,#14
 0071: 1A1C  JC 017F
 0072: 1BEA  JC 0267
-0073: 1FDE  JC 0462
+0073: 1FDE  JC 0462           ; 2nd slot: "P/R" (2nd x⇄t) → KEY_PR — trace-confirmed
 0074: 1C20  JC 0284
 0075: 1C0E  JC 027C
 0076: 180D  JC 0070
@@ -2500,6 +2505,20 @@
 08AF: 001A  CLR fB[1]
 08B0: 16B6  JNC 0C0B
 08B1: 01D2  A<>B ALL
+; ── Program-register fetch: source dispatch (PRGREG_FETCH) ──────────────────
+; Fetches the 8-keycode program register containing the current step, from
+; whichever memory the Prg Src Flag (SCOM[0] nibble 3) says the program lives
+; in. 08B2/08B3 load SCOM[0]; A=SRA MANT shifts nibble 3 out into R5, so
+; MOV KR[4..7],R5 leaves the flag in KR[4..7]:
+;   KR[4] (flag&1, solid-state module)  → 082B CROM interpreter fetch
+;   KR[7] (flag&8, ROM-resident keycode sub-program, tested at 0B98)
+;                                       → 0B9D constant-table fetch
+;   neither (flag=0, RAM program)       → 0EDB RAM.OP read
+; fB[11] = "SCOM[10] register cache is stale" (set whenever SCOM[0] is
+; rewritten, e.g. by KEY_PR at 089D): set → refetch at 0B95 (which clears
+; it) and recache via 0C10; clear → callers reuse the SCOM[10] copy.
+; Trace-confirmed in CALCU59_TRACE.txt with flag=1 (SBR into library) and
+; flag=8 (leaked by P/R; see the texas-print.ti59 analysis at 1213 below).
 08B2: 0A1F  RCLF
 08B3: 01D0  A=LOAD ALL
 08B4: 0948  A=SRA MANT
@@ -2912,6 +2931,14 @@
 0A48: 0110  A=B ALL
 0A49: 01D7  A<>E ALL
 0A4A: 01D2  A<>B ALL
+; ── Set Prg Src Flag: launch a ROM-resident keycode sub-program ─────────────
+; Rewrites SCOM[0] with nibble 3 (Prg Src Flag) := R5 while keeping the
+; step counter in nibbles 4–7. Observed in CALCU59_TRACE.txt from the P/R
+; handler with R5=8: SCOM[0] := 0000000000108010 (flag=8 "keycode
+; sub-program", PC still 008 from an earlier GTO). The sub-program itself is
+; only started later by the run loop; if the machine is halted in the
+; flashing error state the run never happens and flag=8 LEAKS — the first
+; link in texas-print.ti59's pseudo-code insertion chain (see 1213).
 0A4B: 0A1F  RCLF
 0A4C: 01D6  D=LOAD ALL
 0A4D: 0C78  A=SRD MAEX
@@ -3256,6 +3283,15 @@
 0B9A: 0148  A=SRA ALL
 0B9B: 0148  A=SRA ALL
 0B9C: 1865  JC 0B6A
+; ── PRGREG_FETCH, constant-table branch (Prg Src Flag = 8) ──────────────────
+; ROM-resident keycode sub-programs (P/R etc.) live in the SCOM constant
+; table (rows 16–63; see the constant-table note in Core/TMC0501.cpp). This
+; branch converts the step counter into a constant-table row index: the
+; divide-by-8 loop at 0B9E–0BA0 yields the register number, the KR[8..10]
+; tagging below builds the row index in KR[10:4], and C=C+CON at 0BB0 (C
+; pre-cleared) reads the row's 8 packed keycodes. Trace-confirmed in
+; CALCU59_TRACE.txt: step 008 → KR[10:4] = 0x21 → row 33 =
+; 5403435501436504 (a slice of the P→R keycode program).
 0B9D: 05D0  A=LOAD LLSD1
 0B9E: 06B8  A=A-D EXP
 0B9F: 0500  A=A+1 LLSD1
@@ -3371,6 +3407,12 @@
 0C0D: 017E  D=SRD ALL
 0C0E: 00EA  CLR fB[14]
 0C0F: 1FA1  JC 083F
+; ── PRGREG_CACHE: cache the fetched program register in SCOM[10] ────────────
+; Common tail of PRGREG_FETCH (08B2): whatever register was fetched — from
+; RAM, CROM, or the constant table — is stored in SCOM[10] for later reuse
+; (display in LRN mode, Ins/Del shift arithmetic at 11FE). The cache is
+; only refetched when fB[11] flags it stale; nothing revalidates the SOURCE,
+; which is what lets a leaked Prg Src Flag poison a later Ins (see 1213).
 0C10: 0AA7  MOV R5,#10
 0C11: 02F0  A=R5 DPT
 0C12: 0101  IO=A ALL
@@ -4086,6 +4128,12 @@
 0ED8: 0901  IO=A MANT
 0ED9: 02F6  D=R5 DPT
 0EDA: 1AB7  JC 0D7F
+; ── PRGREG_FETCH, RAM branch: read a program register from RAM ──────────────
+; RAM.OP armed as a READ: the next instruction's IO value (IO=A+D) is the
+; operation specifier — nibble 0 = 0 (read), nibbles 3·2 = register number —
+; and D=LOAD then takes the register content off the bus. Ins/Del also
+; enter here directly for every register of the shift loop, regardless of
+; the Prg Src Flag (program edits always target RAM).
 0EDB: 0140  A=SLA ALL
 0EDC: 0AF8  RAM.OP
 0EDD: 01B1  IO=A+D ALL
@@ -4302,6 +4350,11 @@
 0F82: 01D0  A=LOAD ALL
 0F83: 1844  JC 0FA5
 0F84: 0140  A=SLA ALL
+; ── Write a program register back to RAM ────────────────────────────────────
+; RAM.OP armed as a WRITE: the next IO value (IO=A+B) is the specifier —
+; nibble 0 = 1 (write), nibbles 3·2 = register number — and IO=D on the
+; following cycle supplies the 16-nibble data. Used by the Ins/Del shift
+; loop to commit each recomputed register (see 1213).
 0F85: 03D3  B=LOAD DPT1
 0F86: 0AF8  RAM.OP
 0F87: 0181  IO=A+B ALL
@@ -4935,6 +4988,10 @@
 11FB: 0910  A=B MANT
 11FC: 1066  JNC 122F
 11FD: 02D7  A<>E DPT
+; ── Ins per-register shift: recall the SCOM[10] register cache ──────────────
+; B := SCOM[10], the program-register copy cached by PRGREG_FETCH/0C10.
+; The shift arithmetic below trusts this cache to equal the register's
+; actual content; see the quirk note at 1213.
 11FE: 0AA7  MOV R5,#10
 11FF: 02F0  A=R5 DPT
 1200: 0101  IO=A ALL
@@ -4956,6 +5013,36 @@
 1210: 01D5  C<>D ALL
 1211: 0080  TST fA[8]
 1212: 172F  JNC 0E7B
+; ── Ins shift arithmetic — and the birth of the "1F" pseudo-code ────────────
+; new register := (C − B) + (B << 2 nibbles), with C = the register's actual
+; RAM content (read at 0EDB) and B = the SCOM[10] cache of the same register
+; (recalled at 1201). Normally B == C, so this reduces to "shift the register
+; up one keycode and insert 00" — the classic Ins. The subtraction runs in
+; the digit-serial ALU where DIGIT 0 IS HEXADECIMAL (no BCD correction; see
+; the ALU note in Core/TMC0501.cpp), so mismatched operands can manufacture
+; keycode digits outside 0–9.
+;
+; This is exactly how examples/texas-print.ti59 plants the illegal keycode 1F
+; at step 008 (trace-verified end to end in CALCU59_TRACE.txt):
+;   1. 2nd P/R in the flashing error state (after Pgm 12 SBR 444) writes
+;      Prg Src Flag = 8 (0A4B–0A53) but the keycode sub-program never runs —
+;      the flag leaks, with the step counter still at 008 from GTO 008.
+;   2. LRN must display step 008, so PRGREG_FETCH (08B2) honours flag=8 and
+;      fetches CONSTANT-TABLE row 33 (0B9D/0BB0) — a slice of the P→R
+;      keycode program, 5403435501436504 — and caches it in SCOM[10] (0C10).
+;   3. 2nd Ins reads the real RAM register (steps 008–015 = 23 53 00…, i.e.
+;      C = 0000000000005323 — [lnx] [(] pre-keyed per the PPX article) but
+;      recalls the poisoned cache as B. Here at 1214–1217:
+;        C−B  = 459656449856881F   (digit 0: 3−4 = F, hex, no correction)
+;        +B<<2 = 494011464221921F  → written back to RAM[001] at 0F85–0F88.
+;      Step 008 becomes 1F (23−04 → tens 2−0−borrow=1, units 3−4=F) and
+;      step 009 becomes 92 = RTN (53−65 → 88, +04 shifted in → 92) — the
+;      RTN the article promises "in the step following the code". Steps
+;      010–015 get the garbage 21 42 46 11 40 49. The article's per-location
+;      key-in sequences ([lnx] [(] for 008, etc.) are values tuned against
+;      the constant-table row covering that location so the mixed arithmetic
+;      lands on 1F + RTN. Executing the 1F then mis-dispatches into the
+;      printer routine — see PRG_DISPATCH (0F53) and 0EF1.
 1213: 0920  A=C MANT
 1214: 019C  C=C-B ALL
 1215: 0153  B=SLB ALL
