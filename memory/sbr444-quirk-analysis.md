@@ -1,0 +1,136 @@
+# SBR 444 / R/S Quirk Analysis (texas-print printer-interrupt chain)
+
+**Maintenance rule: any further analysis of this quirk chain must update all three
+files together — `rom/TI59-commented.asm` (ROM annotations), `examples/texas-print.ti59`
+(quirk walkthrough in the file header), and this document.** Much of the information
+below is deliberately redundant with those two files; this document adds the trace
+archive, the analysis provenance, and the open questions.
+
+## Background
+
+The TI-59 "printer interrupt" hack (PPX Exchange, March/April 1982) plants an invalid
+keycode `1F` in program memory through a chain of four firmware quirks. The
+initialization sequence `[9 Op 17] [Pgm 12] [SBR 444] [R/S] [P/R] [LRN] [Ins] [LRN]`
+looks harmless, yet leaves the machine in a state where `Ins` computes the invalid
+keycode. The session of 2026-07-04 analyzed exactly what `SBR 444` and `R/S` do —
+quirk 1 of the chain — and corrected an earlier, wrong account.
+
+### Files and tools used
+
+| Artifact | Role |
+|----------|------|
+| `rom/TI59-commented.asm` | Commented TI-59 ROM disassembly. Relevant annotations: 0x086F (transfer target validate/commit), 0x08B2 (PRGREG_FETCH source dispatch), 0x0A4B (launch prologue / Prg Src Flag write), 0x1286 (library transfer resolver — added this session), 0x11E1 (transfer-error halt — added this session). |
+| `examples/texas-print.ti59` | State file automating the article's key sequence; its header holds the authoritative quirk walkthrough (quirks 1–4). |
+| `.claude/skills/calc-u-59-core` | Skill covering the emulation core, trace infrastructure, and ROM analysis workflow. |
+| `tools/read_trace.py` | Rendered the binary traces to text (including the deferred-field validity windows for RAMOP/RAMREG/SREG added just before this analysis — commit `fa6799e`). |
+| `memory/sbr444.txt` | CPU trace: from just before the third `4` of `SBR 444` through the first halt (blinking 239.89). Captured with a scripted `Trace:` directive in the keystroke script (temporary edit of `examples/printer-quirks.ti59`, which replays the same sequence). |
+| `memory/rs.txt` | CPU trace: the `R/S` keypress through the second halt (EE-mode "0. 00"). Same capture method. |
+
+Setup at trace start: TI-59 + Master Library, partition 239.89 (after `9 Op 17`),
+step counter at 008 (from an earlier `GTO 008`), Pgm 12 selected.
+Master Library layout facts used throughout: Pgm 12 starts at module address 2609 and
+is 155 steps long; Pgm 13 starts at 2764; Pgm 14 starts at 2952 (all three read
+directly off the module header in the traces).
+
+## Verified findings
+
+### SBR 444 never executes any library code (sbr444.txt)
+
+1. **Launch prologue writes the source flag first.** ROM 0A4B–0A53 rewrites SCOM[0]
+   with Prg Src Flag (nibble 3) := 1 *before* any validation. E holds the launch
+   descriptor `…444001` (target 444, source 1).
+2. **The resolver reads two header entries.** ROM 1286 selects SCOM[9] (R5 = 9);
+   128B–1290 recall it — its mantissa holds the selected program number 12 — and form
+   the header offset 2·12 = 24. The `LIB.PC` loop 1293–1297 points the CROM pointer
+   there; 1298–12AA read header bytes 24–27: **B := 2609** (Pgm 12 start),
+   **C := 2764** (Pgm 13 start = Pgm 12's end bound).
+3. **The bounds check.** 12AB computes A := 2609 + 444 = 3053; `12AE B=A-B MANT` /
+   `12AF JC 11E1` rejects because 3053 ≥ 2764. The transfer dies here, before a single
+   program byte is fetched (zero `IN LIB` fetches at the interpreter site 082F in the
+   whole trace). The success path 12B0–12B6 (commit target to CROM PC) never runs.
+4. **The error halt does a minimal cleanup.** 11E1: reloads SCOM[0] (`…101000`),
+   drops nibble 3 with the `SRB MANT`/`SLB MANT` pair (Prg Src back to 0, step counter
+   008 preserved), sets fB[9] (error/blink), stores something to SCOM[15] (value
+   `…10000F` — purpose unresolved, see open questions), clears fB[0], idles → blinking
+   239.89. End flags: fB = 0A60.
+5. **The dirty leftovers** (the actual bug): the CROM chip's internal PC sits at header
+   address 28 (auto-incremented past the two entries just read), and SCOM[9] still
+   holds the run descriptor naming library program 12 (`…1212043` at R/S time).
+
+### R/S resumes into the module header (rs.txt)
+
+1. The R/S handler (07F3) loads SCOM[9] (SREG=09), finds fB[0]/fB[13] both clear →
+   resume path 0BB3 → 0928, which fetches the saved source digit **1** from the
+   descriptor; the same 0A4B launcher then writes Prg Src Flag := 1 again. Display is
+   zeroed (0BCD), target E := 0 — a resume is not a transfer, so **no range check of
+   any kind runs**.
+2. PRGREG_FETCH (08B2) dispatches flag = 1 → CROM interpreter fetch at 082B/082F…
+   from chip PC 0028 = **the header**. Exactly two keycodes are fetched: module[28] =
+   0x29 and module[29] = 0x52 — literally the two BCD bytes of **Pgm 14's start
+   address 2952** — executed as keycodes **29 = CP** and **52 = EE**.
+3. CP is harmless and its epilogue re-enters the fetch loop (…054C → 08A1 → 08AE →
+   082B). EE dispatches into KEY_EE (0110), sets fB[15] (EE mode) at 011A, and exits
+   through the *keyboard* epilogue (0129–012C → 02DE → 06B9); the continue-run gate
+   there (06C0 `TST fB[10]` / 06C3 `JNC 08AE`) fails, so the machine falls into the
+   display idle loop. **The run ends — no third fetch, no new error.**
+4. Final state after the second halt: fB = 8A60 — fB[9] still set (the blink is the
+   *first* crash's error, R/S never cleared it), fB[15] set (EE mode → display
+   "0. 00" from the zeroed display), fB[0]/fB[13] clear; SCOM[0] Prg Src Flag **still
+   1**, PC 008; CROM PC now 0030.
+
+### Corrections applied to the repo (commit `0c57628`)
+
+- The old quirk-1 story ("SBR 444 starts executing mid-formula in Pgm 14's code at
+  3053, quickly errors; R/S resumes and crashes again half a second later") was
+  **wrong** on every mechanism point and was rewritten in `texas-print.ti59`.
+- The "side benefit" claim that the garbage run's `RCL 02`/`RCL 01` need valid data
+  registers is disproved: neither trace contains a single data-register access
+  (`RAMOP` never fires).
+- New ROM annotations at 0x1286 and 0x11E1; the 0x086F note now states only what was
+  verified (P/R after the second halt *reaches the 087E test* with fB[0] clear).
+
+### Incidental knowledge gained
+
+- Flag semantics: fB[9] = error/blink; fB[15] = EE mode; fB[0] at the 087E test =
+  transfer type (set → keycode sub-program, skip RAM range check); fB[11] = SCOM[10]
+  cache stale (previously known).
+- SCOM[9] is the run/program descriptor register (program number appears twice:
+  `…1212043`); SCOM row 15 receives writes on halt paths (11E9–11EC, 0BC4–0BCA).
+- Trace frames are post-execution: the COND shown on a `TST`/`Jxx` line is the value
+  *after* that instruction; a taken branch is only visible from the next line's
+  address. Observed: `TST` of a SET flag leaves COND = 0.
+
+## Open questions and proposed next steps
+
+1. **Why does P/R arrive at the 087E test with fB[0] SET after halt 1 but CLEAR after
+   halt 2?** The live fB[0] is clear after *both* halts (fB = 0A60 / 8A60), so the
+   value must be re-derived during P/R key processing — candidate: the 0A59–0A5D block
+   (`TST fB[0] / TST fB[13] / SET fB[0] / SET fB[13]`) or a flags restore from
+   persisted state (SCOM[15]? EE flag fB[15]? Prg Src still 1?). The end behaviour was
+   trace-verified in earlier sessions; the mechanism was not.
+   **Proposed traces:** `pr-after-halt1.bin` — run the sequence *without* R/S and trace
+   only the `2nd P/R` press; `pr-after-halt2.bin` — full sequence, trace only the
+   `2nd P/R` press. Compare at 07F3, 0A4B–0A5D, and 087E (use
+   `tools/compare_trace.py`).
+2. **What does SCOM row 15 hold?** Both halt paths write it (11E9–11EC stores
+   `…10000F`; the R/S handler's 0BC4–0BCA stores a zeroed value with an F digit).
+   Possibly saved flags / halt marker; would directly inform question 1. Resolve from
+   the same P/R traces (watch SREG=15 accesses) or via the debug panel.
+3. **Why exactly does the EE handler end a running program?** The keyboard-epilogue
+   gate (fB[10] at 06C0, plus fA[5] at 06BE — fA[5] was clear during the whole resumed
+   run) fell through. A *normal* running program that contains keycode 52 presumably
+   does not halt — determine which flag a normal run carries that the R/S-resumed
+   garbage run lacks.
+   **Proposed trace:** a small RAM program containing keycode 52 (EE), started with
+   R/S and traced across the EE step; compare the 02DE/06B9/06C0 flags with rs.txt.
+4. **SCOM[9] descriptor layout.** The program number is stored twice (`12 12 0 x y`);
+   nibbles 0–2 change across states (`…010` during the SBR launch, `…043` at R/S
+   time). Decode the trailing digits (last key? run state?). Falls out of the traces
+   for question 1 at 0BB3–0BBE (descriptor rebuild) with no extra capture needed.
+
+Traces for 1 and 3 can be captured the same way as the existing ones: temporarily
+insert `Trace: <name>.bin` / `Trace: Off` around the key of interest in the
+`KEYSTROKES` script of a scenario file, then render with `tools/read_trace.py`.
+
+**Reminder:** whatever any of these resolves, update `rom/TI59-commented.asm`,
+`examples/texas-print.ti59`, *and* this document.
