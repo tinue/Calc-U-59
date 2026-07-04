@@ -301,7 +301,7 @@ heavy computation.
 
 ---
 
-## Keyboard Matrix
+## Keyboard Matrix and Scanning
 
 ```cpp
 key[col]  // bitmask; col = digit-counter slot (0–15)
@@ -310,16 +310,88 @@ key[col]  // bitmask; col = digit-counter slot (0–15)
 Keyboard rows connect at digit-counter slots 1–9 (D1–D9).  Each slot's bitmask
 encodes which K-lines are pressed (KN=bit 0 … KT=bit 6).
 
-Special keys assigned outside the main matrix:
+### Scanning model: the digit counter is the only scanner
 
-| col | bit | Signal |
+There is exactly one scanner in the machine: the free-running 4-bit digit
+counter (15→14→…→1→0→15, one step per instruction cycle — see the step
+pipeline above).  It simultaneously drives the LED display multiplex and the
+keyboard row strobe; display refresh *is* the keyboard strobe.  No instruction
+scans anything by itself — instructions only *sample* the matrix at whatever
+row the counter happens to be strobing, or stall until the counter reaches a
+chosen row.
+
+The matrix is digit lines × K-lines:
+
+- **Digit lines** — the strobed side.  Exactly one is active per cycle (the
+  one matching the counter); it selects the row.
+- **K-lines KN…KT** — 7 sense lines, all readable **in parallel**.  A pressed
+  key in the strobed row pulls its K-line active.
+
+So time-scanning happens only across digits (rows); the K-line dimension is
+sampled all at once.  In the emulator this collapses to reading `key[digit]`.
+
+### Instructions that attend to the scan lines
+
+These are the only opcodes that read the K-lines or synchronize with the digit
+counter (`TMC0501.cpp`, opcode groups `0x0800` and `0x0A00`):
+
+| Mnemonic | Cycles | What it does |
 |---|---|---|
-| 10 (TI-59) | 4 | Card switch (high = card absent) |
-| 7 (TI-58/58C) | 4 | Held high by the emulator so the firmware's second card poll (ROM `0x0459`) always vetoes the card path — the TI-58/58C have no card reader. Real-hardware wiring of this line is unverified. |
-| 0 | 2 | PRN_CONNECTED (printer present — KP.D0; checked by test-row ?KEY at digit=0; **invisible to scan-all**) |
-| 12 | 2 | Printer PRINT button |
-| 12 | 0 | Printer ADV button |
-| 15 | 2 | Printer TRACE mode |
+| `KEY […] ALL` (scan-all) | HOLDs | Re-executes every cycle, riding the counter down one row per cycle. Stops when a masked-in K-line is active at the current row (→ COND cleared, `KR` register loaded) or when the counter reaches digit 0 (→ no key, COND stays 1). Digit 0 is a termination sentinel and is **not** sampled. |
+| `KEY […]` (test-row) | 1 | Samples only the currently strobed row against the mask; clears COND on a hit. **Never writes the `KR` register.** |
+| `TST.BUSY` | 1 | Clears COND if bit 4 (the KR *line*) is active at the current row, **or** if the printer-busy flip-flop is set. Effectively a test-row probe for the one K-line that `KEY` masks always exclude. |
+| `WAIT Dn` | HOLDs | Pure synchronizer: stalls until the counter equals *n*. Reads no K-lines itself — its job is to make the *next* instruction execute at a known row. |
+| `WAIT.BUSY` | 1 | Undocumented; treated as a no-op by the emulator. |
+
+The bracket list in a `KEY` mnemonic is the K-line mask — which sense lines
+participate.  The idle-loop scan `KEY [N,O,P,Q,S,T] ALL` deliberately omits
+the KR line, because that line carries peripheral signals (card switch), not
+keys.
+
+**`WAIT` off-by-one:** the counter decrements *before* each instruction
+executes, so the instruction after `WAIT Dn` runs at digit **n−1**.  ROM code
+therefore always encodes target+1: `WAIT D11` + `TST.BUSY` samples digit 10;
+`WAIT D1` + `KEY [P]` samples digit 0.
+
+**`KR` register load format** (scan-all hit only):
+
+```
+KR = (digit << 4) | (K-line index << 8)
+      bits 7:4 = row (digit 1–9)     bits 10:8 = column (0=KN … 6=KT)
+```
+
+The ROM decodes the row with `TST KR[4]`…`TST KR[7]` after a hit.  If no key
+is found, `KR` keeps its previous content.  If two masked-in K-lines are
+active in the same row at once, the hit is discarded (multi-key rejection,
+mirroring the hardware limitation).
+
+### The two ROM idioms
+
+| Goal | Idiom | Why |
+|---|---|---|
+| Scan the whole keyboard | `WAIT D14` + `KEY […] ALL` | Align to the top of the sweep, then let the scan ride the counter down through rows 13…1 |
+| Probe one specific signal | `WAIT Dn+1` + single-cycle probe (`KEY […]` test-row, or `TST.BUSY`) | Random access to one matrix cell: park until the right row is strobed, sample once |
+
+A `WAIT` before a scan-all is not needed for correctness (the scan always
+terminates at digit 0) but guarantees full row coverage; a `WAIT` before a
+test-row probe is essential, since the probe samples whatever row is strobed
+at that instant.
+
+### Non-keyboard digits of importance
+
+Peripheral signals piggyback on matrix positions outside rows 1–9 (or on the
+excluded KR line).  Whether the idle scan can see them depends on where they
+sit relative to the scan window (rows 13…1) and the scan's K-line mask:
+
+| col | bit (K-line) | Signal | How the ROM samples it |
+|---|---|---|---|
+| 10 (TI-59) | 4 (KR) | Card switch (high = card absent) | `WAIT D11` + `TST.BUSY` in the idle loop (ROM `0x063E`); on the KR line, so invisible to scan-all |
+| 7 (TI-58/58C) | 4 (KR) | Held high by the emulator so the firmware's second card poll (ROM `0x0459`, `WAIT D8` + `TST.BUSY`) always vetoes the card path — the TI-58/58C have no card reader. Real-hardware wiring of this line is unverified. | `WAIT D8` + `TST.BUSY` |
+| 0 (TI-59/58) | 2 (KP) | PRN_CONNECTED (printer present) | `WAIT D1` + test-row `KEY [P]` at digit 0 — the scan-all sentinel digit, so **invisible to scan-all** by design |
+| 10 (TI-58C) | 2 (KP) | PRN_CONNECTED — the TI-58C PCB routes the detect pin to a different digit line | `WAIT D11` + test-row `KEY [P]` |
+| 12 | 2 (KP) | Printer PRINT button | Inside the scan window and on a masked-in line → the idle scan-all reports it like an ordinary key at row 12 |
+| 12 | 0 (KN) | Printer ADV button | Same — ordinary scan-all hit at row 12 |
+| 15 | 2 (KP) | Printer TRACE mode (physical latch) | Above the scan window (rows 15/14 are never strobed by the idle scan) → dedicated targeted poll in the keystroke/print path |
 
 ---
 
