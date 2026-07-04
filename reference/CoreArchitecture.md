@@ -106,6 +106,11 @@ Bit 1 of nibble 0 = mantissa sign; bit 2 = exponent sign.
   routine at ROM 0x0D50).  Example: a keyboard caller at step 008 pushes
   register 001 · byte 0 · source 0, giving SCOM[15] = `…001001`
 
+The SCOM[9] and SCOM[14]/[15] layouts follow the SCOM register table in
+"Calculators TI-58/59 HW programming guide" by Hynek Sladký
+(`TI_58_59-HW-manual.pdf`, not in this repository), trace-verified in
+`memory/sbr444-quirk-analysis.md`.
+
 SCOM also contains a **64-entry constant table** (entries 0–15 = mathematical
 constants for transcendental functions; entries 16–63 = keystroke display codes
 used in program-review mode).  The constant index is encoded in `KR[10:4]` and

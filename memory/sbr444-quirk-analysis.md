@@ -21,6 +21,7 @@ quirk 1 of the chain — and corrected an earlier, wrong account.
 |----------|------|
 | `rom/TI59-commented.asm` | Commented TI-59 ROM disassembly. Relevant annotations: 0x086F (transfer target validate/commit), 0x08B2 (PRGREG_FETCH source dispatch), 0x0A4B (launch prologue / Prg Src Flag write), 0x0D50 (return-stack push), 0x1286 (library transfer resolver — added this session), 0x11E1 (transfer-error halt — added this session). |
 | `reference/CoreArchitecture.md` | Architecture reference; § SCOM registers now documents the SCOM[14]/[15] return stack. |
+| `TI_58_59-HW-manual.pdf` | "Calculators TI-58/59 HW programming guide" by Hynek Sladký (external document, not in the repository). Source of the SCOM[9] layout and the return-stack level layout. |
 | `examples/texas-print.ti59` | State file automating the article's key sequence; its header holds the authoritative quirk walkthrough (quirks 1–4). |
 | `.claude/skills/calc-u-59-core` | Skill covering the emulation core, trace infrastructure, and ROM analysis workflow. |
 | `tools/read_trace.py` | Rendered the binary traces to text (including the deferred-field validity windows for RAMOP/RAMREG/SREG added just before this analysis — commit `fa6799e`). |
@@ -132,9 +133,10 @@ directly off the module header in the traces).
    library-program calls, and keycode-ROM sub-program launches (P→R). The 11E9–11EC
    store in the error halt is the stack being reset (return discarded, F depth
    marker). Push routine annotated at ROM 0x0D50; SCOM table updated in
-   reference/CoreArchitecture.md. Per-level layout documented by the same external
-   SCOM register table (user-provided screenshot, 2026-07-04; source citation still
-   pending): each level is 5 nibbles — RAM register no. (3) + byte no. (1), or a
+   reference/CoreArchitecture.md. Per-level layout documented by the SCOM register
+   table in "Calculators TI-58/59 HW programming guide" by Hynek Sladký
+   (TI_58_59-HW-manual.pdf, not in the repository): each level is 5 nibbles — RAM
+   register no. (3) + byte no. (1), or a
    4-digit "second ROM" (CROM) address for library callers, plus the caller's Prg
    Src Flag — and SCOM[15] nibble 0 holds the number of pushed levels.
    Trace-verified: the SBR 444 push stores SCOM[15] = `0000000000001001` = register
@@ -150,9 +152,10 @@ directly off the module header in the traces).
    garbage run lacks.
    **Proposed trace:** a small RAM program containing keycode 52 (EE), started with
    R/S and traced across the EE step; compare the 02DE/06B9/06C0 flags with rs.txt.
-4. **RESOLVED — SCOM[9] descriptor layout.** Documented by an external SCOM register
-   table (user-provided screenshot, 2026-07-04; original source not yet cited — add
-   the reference when known). Nibble 15 = list-data flag; 14–7 = 0; 6–5 = "current
+4. **RESOLVED — SCOM[9] descriptor layout.** Documented by the SCOM register table
+   in "Calculators TI-58/59 HW programming guide" by Hynek Sladký
+   (TI_58_59-HW-manual.pdf, not in the repository). Nibble 15 = list-data flag;
+   14–7 = 0; 6–5 = "current
    page" (current library program); 4–3 = "new page" (pending `Pgm nn` selection);
    2 = module security code; 1 = number of RAM chips; 0 = number of program banks =
    program-partition registers / 10 (the OP 17 partition pointer already known from
