@@ -314,7 +314,8 @@ Special keys assigned outside the main matrix:
 
 | col | bit | Signal |
 |---|---|---|
-| 10 (TI-59) or 7 (TI-58/58C) | 4 | Card-switch (high = card absent) |
+| 10 (TI-59) | 4 | Card switch (high = card absent) |
+| 7 (TI-58/58C) | 4 | Held high by the emulator so the firmware's second card poll (ROM `0x0459`) always vetoes the card path — the TI-58/58C have no card reader. Real-hardware wiring of this line is unverified. |
 | 0 | 2 | PRN_CONNECTED (printer present — KP.D0; checked by test-row ?KEY at digit=0; **invisible to scan-all**) |
 | 12 | 2 | Printer PRINT button |
 | 12 | 0 | Printer ADV button |
@@ -489,7 +490,7 @@ the write path in `step()` is unsynchronised (emulation-thread-only).
 |---|---|---|---|
 | ROM words | 6144 | 5120 | 5120 |
 | RAM registers | 120 | 60 | 60 |
-| Card reader | Yes (slot 10) | No (slot 7, unused) | No (slot 7, unused) |
+| Card reader | Yes (switch on slot 10) | No (slot 7 held high to veto the card path) | No (slot 7 held high to veto the card path) |
 | Library module | Yes | Yes | Yes |
 | Persistent RAM | No | No | Yes (`serialiseRAM`) |
 | Magnetic card slot | digit 10 | — | — |

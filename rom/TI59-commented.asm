@@ -1199,9 +1199,14 @@
 0456: 0CC0  A=A+CON MAEX
 0457: 005A  CLR fB[5]
 0458: 1F74  JC 0812
-0459: 0A80  WAIT D8
+; Second card-path gate, entered from the idle-loop card poll (JC at 0640):
+; sample digit 7. Asserted (or printer busy) → COND=0 → back to idle; clear →
+; fall through toward card handling. See the discussion at 063C: on a TI-58
+; this line vetoes the card path (speculative "no card reader" strap); its
+; real-hardware identity on the TI-59 is unverified.
+0459: 0A80  WAIT D8           ; → next instruction samples digit 7
 045A: 0A0B  TST.BUSY
-045B: 13CC  JNC 0641
+045B: 13CC  JNC 0641          ; digit-7 line asserted (or printer busy) → back to idle
 045C: 0A01  CLR.IDLE
 045D: 0081  SET fA[8]
 045E: 0A0C  MOV KR,EXT[4..15]
@@ -1732,21 +1737,26 @@
 0639: 0A65  TST KR[6]
 063A: 0A75  TST KR[7]
 063B: 1029  JNC 0627
-; Per-sweep housekeeping: check status flags, then poll the card-reader switch
-; before looping back for the next scan.
+; Per-sweep housekeeping: check status flags, then poll the card switch before
+; looping back for the next scan.
 ; TST.BUSY (0A0B) is a digit-multiplexed peripheral probe: it clears COND when
 ; bit 4 of the key column AT THE CURRENT DIGIT is set, OR when the printer-busy
-; flag is set. It is NOT an idle-mode test. The card-switch line sits on bit 4
-; of one specific column — digit 10 on the TI-59, digit 7 on the TI-58 — so the
-; meaning depends entirely on which digit TST.BUSY runs at.
+; flag is set. It is NOT an idle-mode test. The TI-59 card switch sits on bit 4
+; of digit 10 (asserted = card absent), so the probe's meaning depends entirely
+; on which digit TST.BUSY runs at.
 063C: 00C8  TST fB[12]
 063D: 00A8  TST fB[10]
-063E: 0AB0  WAIT D11          ; → next instruction samples digit 10 = the TI-59 card-switch column
+063E: 0AB0  WAIT D11          ; → next instruction samples digit 10 = the card-switch column
 063F: 0A0B  TST.BUSY          ; card-switch poll: card absent (or printer busy) clears COND
-; Same shared ROM serves both card-switch positions: if digit 10 read not-busy
-; (e.g. a TI-58, whose switch is on digit 7), 0459 re-polls via WAIT D8 → digit 7.
-; TI-59 here: card absent at digit 10 → COND=0 → JC not taken, continue.
-; TI-58 there: digit 10 idle → COND=1 → JC taken → 0459 checks digit 7 instead.
+; TI-59, card absent: digit 10 asserted → COND=0 → JC not taken, idle continues.
+; If digit 10 reads idle — a TI-59 with a card inserted, or a TI-58 (no card
+; reader at all, so nothing drives digit 10) — the JC lands at 0459, which
+; re-polls via WAIT D8 → digit 7 and bounces back to idle (JNC 0641) if that
+; line is asserted; only with both lines clear does 045C fall into card
+; handling. What the digit-7 line is on real hardware is unverified;
+; speculative: on the TI-58 it is strapped asserted as a "no card reader"
+; signal, so the shared ROM can never enter the card path. The emulator models
+; exactly that (bit 4 of digit 7 held on TI-58/58C — TI59Machine::cardSwitchCol).
 0640: 1BCF  JC 0459
 0641: 0098  TST fB[9]
 0642: 1828  JC 0656           ; loop straight back to the scan window
