@@ -27,14 +27,20 @@
 #
 # 1. [Pgm] [1] [2] [SBR] [4] [4] [4] starts executing 444 steps past the start of Master Library
 #    program 12 (module address 2609+444 = 3053) — which is the middle of program 14's code,
-#    entered mid-formula ("...2 x .3565663782 + .31938153 )..."), so it quickly ends in the
-#    flashing error state; [R/S] halts it. GTO 008 earlier left the step counter at 008.
+#    entered mid-formula ("...2 x .3565663782 + .31938153 )..."), so it quickly errors and halts
+#    with 239.89 blinking. [R/S] does NOT stop anything — it RESUMES the halted library run,
+#    which crashes a second time about half a second later, halting with an EE-mode zero
+#    ("0. 00") blinking. This second crash is essential: unlike the first, it leaves fB[0]
+#    clear, which is what quirk 2 exploits. Without the R/S resume the hack fails — a P/R
+#    press in the first-halt state launches normally (trace-verified: check bypassed, the
+#    sub-program runs and restores PC 008 / flag 0) and LRN shows the correctly entered step.
+#    GTO 008 earlier left the step counter at 008.
 # 2. [2nd] [P/R]: P->R is implemented as a ROM-resident keycode sub-program whose entry point is
 #    step 284 of the calculator-PC address space. Normally its launch is partition-independent:
 #    the shared transfer routine (ROM 0x086F) sees fB[0] SET, skips the RAM range check, writes
 #    SCOM[0] := PC 284 / Prg Src Flag 8, and the sub-program executes from constant rows 51+
 #    (trace-verified with a plain P->R press under 239.89: three row fetches, PC advancing
-#    284 -> 301). But pressed while the machine is halted mid-library-run by the SBR 444 stunt,
+#    284 -> 301). But pressed after the R/S-resumed garbage run's second crash (quirk 1),
 #    fB[0] is CLEAR: after the launcher (0x0A4B-0x0A53) has already written Prg Src Flag := 8,
 #    the transfer is treated as a RAM-program branch and step 284's register (35) is
 #    range-checked against the program-partition register count in SCOM[13] (0x0887/0888).

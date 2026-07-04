@@ -2454,8 +2454,9 @@
 ;           the transfer, leaving any source flag written by the launch
 ;           prologue (0A4B) in place.
 ; The new calculator PC is committed to SCOM[0] at 089A/089B. Quirk: the
-; post-SBR-444 halted-mid-library state leaves fB[0] clear, so a P/R
-; launch mis-routes into the RAM range check — see examples/texas-print.ti59.
+; second crash of the R/S-resumed SBR 444 garbage run leaves fB[0] clear,
+; so a subsequent P/R launch mis-routes into the RAM range check — see
+; examples/texas-print.ti59.
 086F: 0A87  MOV R5,#8
 0870: 09F3  B=R5 MANT
 0871: 0988  A=A-B MANT
