@@ -102,6 +102,22 @@ final class TraceWriter {
         return openFile(at: url)
     }
 
+    /// Resolve `fileName` under the configured trace directory, delete any existing
+    /// file of that name, create a fresh one, and write a SESSION_START record.
+    /// Used for scripted (KEYSTROKES "Trace:") captures, which target a caller-chosen
+    /// filename instead of the fixed model-derived one used by `open()`.
+    @discardableResult
+    func open(fileName: String) -> Bool {
+        guard !isOpen else { return true }
+        guard isAvailable else { return false }
+
+        let maxMB = UserDefaults.standard.integer(forKey: SettingsKey.traceMaxFileSizeMB)
+        sessionMaxBytes = UInt64(maxMB > 0 ? maxMB : Self.defaultMaxFileSizeMB) * 1_000_000
+
+        let url = AppSettings.traceDirectory().appendingPathComponent(fileName)
+        return openFile(at: url)
+    }
+
     /// Open file at the given URL. Creates a new file (deletes existing). Returns true on success.
     private func openFile(at url: URL) -> Bool {
         let fm = FileManager.default

@@ -205,6 +205,40 @@ WaitFullSpeed: 5s   # run flat-out until program reaches input prompt
 
 ---
 
+## `Trace:` — Scripted CPU Trace Capture
+
+Starts or stops a binary CPU instruction trace (same format as the manual "C"
+indicator button — see `reference/DebugAPI.md`), independent of that button
+and of any other `Trace:` session. Written under the configured trace
+directory (Settings → trace location: Local / iCloud / Custom).
+
+- `Trace: <filename>` — starts a fresh capture to `<filename>`, silently
+  overwriting an existing file of that name. The filename is the entire
+  trimmed remainder of the line, taken verbatim (spaces allowed, no
+  whitespace splitting) — it must not contain `/` or `\`. Opening a new
+  file while one is already open first closes the previous one cleanly.
+- `Trace: Off` — stops the current scripted capture, if any.
+- Any capture still open when the KEYSTROKES sequence ends is closed
+  automatically.
+- Each `Trace: <filename>` gets its own full size budget (Settings → max
+  trace file size); usage does not carry over between files.
+
+```
+Trace: LrnCheck.bin
+83  2
+72  4
+91  R/S
+Wait: 5s
+Trace: Off
+```
+
+**Not the same thing as** the `99` virtual key below — that toggles the
+*emulated printer's* own TRACE latch (a calculator feature, printed on
+paper); `Trace:` here is a debugging/CPU-instruction capture to a file on
+disk, unrelated to the printer.
+
+---
+
 ## Special Virtual Keys in KEYSTROKES
 
 Matrix code `99` is outside the valid key grid (rows 1–9, cols 1–5 give max code 95) and is repurposed as a virtual button:

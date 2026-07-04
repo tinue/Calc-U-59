@@ -114,6 +114,12 @@ class EmulatorViewModel {
     private var traceWriter: TraceWriter!  // initialized in init, updated when model changes
     var isTraceAvailable: Bool { traceWriter?.isAvailable ?? true }  // false if trace location (e.g., iCloud) unavailable
 
+    // Scripted CPU trace (KEYSTROKES "Trace:" directive) — independent of the
+    // manual "C" indicator toggle above: its own writer, own filename, own
+    // session lifecycle. Both may be open simultaneously; drainTraceEvents()
+    // fans each drained frame out to whichever of the two is currently open.
+    private var scriptedTraceWriter: TraceWriter!
+
     private func configureTraceWriter() {
         traceWriter.onSizeLimitReached = { [weak self] in
             // Called on the main thread from inside drainTraceEvents().
@@ -244,7 +250,8 @@ class EmulatorViewModel {
     private func updateDebugTraceFlags() {
         guard let m = machine else { return }
         var flags: TITraceFlags = []
-        if cpuDebugEnabled || isFrozen || cIndicatorDebug || pendingFreezeOnPCChange || pendingCPUScanLoopFreeze {
+        if cpuDebugEnabled || isFrozen || cIndicatorDebug || pendingFreezeOnPCChange || pendingCPUScanLoopFreeze
+            || scriptedTraceWriter.isOpen {
             flags.insert([.pc, .regsFull])
         }
         if !breakpoints.isEmpty {
@@ -320,6 +327,7 @@ class EmulatorViewModel {
         configureTraceWriter()
         // Check trace availability at startup (for iOS/iPadOS iCloud detection, etc.)
         traceWriter.checkAvailability()
+        scriptedTraceWriter = TraceWriter(model: model)
         Task { await self.start(model: AppSettings.resolvedStartupModel()) }
     }
 
@@ -357,6 +365,7 @@ class EmulatorViewModel {
         cueCardContent = nil  // clear cuecard when switching models
         traceWriter = TraceWriter(model: model)
         configureTraceWriter()  // reinitialize with new model for correct trace filename
+        scriptedTraceWriter = TraceWriter(model: model)
         UserDefaults.standard.set(model.rawValue, forKey: SettingsKey.lastUsedModel)
         await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .utility).async {
@@ -2554,7 +2563,16 @@ class EmulatorViewModel {
     /// program computes).  Full speed is restored to its previous state after each such wait.
     private func playKeystrokes(_ events: [KeystrokeEvent]) async {
         isKeystrokesPlaying = true
-        defer { isKeystrokesPlaying = false }
+        defer {
+            isKeystrokesPlaying = false
+            // Auto-stop a scripted trace left running past the end of the script,
+            // so no session is ever left dangling without a matching "Trace: Off".
+            if scriptedTraceWriter.isOpen, let m = machine {
+                drainTraceEvents(machine: m)
+                scriptedTraceWriter.close()
+                updateDebugTraceFlags()
+            }
+        }
 
         for event in events {
             switch event {
@@ -2572,6 +2590,17 @@ class EmulatorViewModel {
                 isFullSpeedMode = true
                 try? await Task.sleep(nanoseconds: UInt64(t * 1_000_000_000))
                 isFullSpeedMode = previous
+            case .trace(let name):
+                // Switching files (or turning off) first flushes and closes whatever
+                // scripted session is currently open, for a clean SESSION_END.
+                if scriptedTraceWriter.isOpen, let m = machine {
+                    drainTraceEvents(machine: m)
+                    scriptedTraceWriter.close()
+                }
+                if let name {
+                    scriptedTraceWriter.open(fileName: name)
+                }
+                updateDebugTraceFlags()
             }
         }
     }
@@ -2584,18 +2613,23 @@ class EmulatorViewModel {
         var lost: UInt = 0
         let framesNS = m.drainCpuFrames(max: 1024, lost: &lost)
 
-        // Write gap record if ring overflow occurred
+        // Write gap record if ring overflow occurred, to whichever writer(s) are open.
         if lost > 0 {
             traceWriter.writeLostGap(count: UInt32(lost))
+            scriptedTraceWriter.writeLostGap(count: UInt32(lost))
         }
 
         guard !framesNS.isEmpty else { return }
 
+        // There is a single consuming ring-buffer cursor (drainCpuFrames above), so both
+        // writers — the manual "C" indicator toggle and the scripted Trace: directive —
+        // share this one drain and independently choose whether to persist each frame.
         for frameVal in framesNS {
-            guard traceWriter.isOpen else { break }
+            guard traceWriter.isOpen || scriptedTraceWriter.isOpen else { break }
             var frame = TICpuFrame()
             frameVal.getValue(&frame)
-            traceWriter.write(frame: frame)
+            if traceWriter.isOpen { traceWriter.write(frame: frame) }
+            if scriptedTraceWriter.isOpen { scriptedTraceWriter.write(frame: frame) }
         }
     }
 }

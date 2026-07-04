@@ -51,11 +51,27 @@ import Foundation
 //       The wait is applied after the preceding line completes, before the
 //       next line starts.
 //
+//       A CPU instruction trace can be scripted with:
+//           Trace: name.bin  starts (or restarts) a trace, writing every
+//                            executed instruction to name.bin under the
+//                            configured trace directory (see Settings).
+//                            An existing file of that name is silently
+//                            overwritten. The rest of the line, verbatim
+//                            (no whitespace splitting), is the filename —
+//                            it must not contain "/" or "\". Starting a
+//                            new Trace: while one is open first closes it.
+//           Trace: Off       stops the current scripted trace, if any.
+//       Any trace still open when the KEYSTROKES sequence finishes is
+//       closed automatically. This is unrelated to the "99" virtual key
+//       below, which toggles the emulated printer's own TRACE switch.
+//
 //       Matrix code format: row*10 + col, row 1–9 (top–bottom), col 1–5 (left–right).
 //       Valid matrix codes: 11–95.  Example:
+//           Trace: demo.bin
 //           21 84 65 83 95   # [2nd][π] × 2 =  → display should show 6.283185307
 //           Wait: 1s
 //           42 00            # STO 00
+//           Trace: Off
 //
 //   SOLID-STATE-MODULE: ML
 //       Specifies the solid-state module to load. Module ID on same line.
@@ -74,9 +90,10 @@ import Foundation
 /// A single event in the KEYSTROKES section.
 enum KeystrokeEvent {
     case key(UInt8)                  // matrix code to press (row*10 + col, row 1–9, col 1–5)
-    case toggleTrace                 // virtual: toggle the printer TRACE latch (file token: 99)
+    case toggleTrace                 // virtual: toggle the emulated printer's TRACE latch (file token: 99)
     case wait(TimeInterval)          // explicit pause; emulator runs at normal speed
     case waitFullSpeed(TimeInterval) // enable full speed, wait, then restore normal speed
+    case trace(String?)              // start CPU trace capture to the given filename, or stop it (nil) — unrelated to .toggleTrace
 }
 
 struct LoadStateResult {
@@ -215,6 +232,10 @@ func parseStateFile(_ text: String, maxStepAddr: Int = 479, allowHiddenRegisters
                 result.keystrokes.append(.waitFullSpeed(t))
             } else if let t = parseWaitLine(line) {
                 result.keystrokes.append(.wait(t))
+            } else if upper.hasPrefix("TRACE:") {
+                if let event = parseTraceLine(line, errors: &result.errors) {
+                    result.keystrokes.append(event)
+                }
             } else {
                 result.keystrokes.append(contentsOf: parseKeystrokeLine(line))
             }
@@ -326,6 +347,28 @@ private func parseWaitInterval(_ line: String, prefix: String) -> TimeInterval? 
         return v
     }
     return nil
+}
+
+/// Parse a "Trace: <filename>" / "Trace: Off" line (caller has already
+/// verified the "TRACE:" prefix). The entire trimmed remainder of the line
+/// is taken verbatim as the filename — no whitespace splitting, since a
+/// filename may legitimately contain spaces and there is nothing else to
+/// parse on this line. Returns nil (and appends an error) for a bare
+/// "Trace:" with no filename, or one containing a path separator.
+private func parseTraceLine(_ line: String, errors: inout [String]) -> KeystrokeEvent? {
+    let rest = String(line.dropFirst("TRACE:".count)).trimmingCharacters(in: .whitespaces)
+    if rest.uppercased() == "OFF" {
+        return .trace(nil)
+    }
+    if rest.isEmpty {
+        errors.append("Trace: requires a filename or \"Off\".")
+        return nil
+    }
+    if rest.contains("/") || rest.contains("\\") {
+        errors.append("Trace: filename \"\(rest)\" must not contain a path separator.")
+        return nil
+    }
+    return .trace(rest)
 }
 
 // MARK: - BCD encoder
