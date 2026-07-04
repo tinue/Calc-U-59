@@ -786,7 +786,9 @@
 ; the digit-scan loop at 0x02F4 that walks the display positions.
 ; ═══════════════════════════════════════════════════════════════════════════
 02E2: 0030  TST fA[3]
-02E3: 00A2  CLR fA[10]
+02E3: 00A2  CLR fA[10]        ; drop any pending trace record (see 0689 gate):
+                              ; digit keys reach here without printing, so their
+                              ; queued symbol is discarded, never put on paper
 02E4: 01DB  B=0 ALL
 02E5: 0DD6  D=LOAD MLSD1      ; load the most-significant-digit constant into D
 02E6: 001A  CLR fB[1]
@@ -1539,13 +1541,19 @@
 05A5: 0E2C  C=C-1 MMSD1
 05A6: 09D5  C<>D MANT
 05A7: 180A  JC 05AC
-05A8: 00A0  TST fA[10]
+; Trace-line trigger (trace-confirmed: KEYPRESS_TRC_59.txt): once an operation
+; key's processing gets here, re-check the pending trace record (fA[10], queued
+; at the 0689 gate) and re-poll the printer TRACE switch (KP at D0). With both
+; set, the branch at 05AE runs (via 08C5→0BFB→0FD4→13AA→152B) into the numeric
+; print formatter: it appends the display value to the already-queued key
+; symbol and PRT.GO at 0EFC finally prints the line ("0.     +").
+05A8: 00A0  TST fA[10]        ; trace record pending?
 05A9: 0A00  WAIT D0
-05AA: 08FB  KEY [P] D3
+05AA: 08FB  KEY [P] D3        ; printer TRACE switch still on?
 05AB: 1808  JC 05AF
 05AC: 0000  TST fA[0]
 05AD: 00C8  TST fB[12]
-05AE: 1E2E  JC 08C5
+05AE: 1E2E  JC 08C5           ; → print the queued trace line
 05AF: 0A06  MOV R5,fA[1..4]
 05B0: 0000  TST fA[0]
 05B1: 0A02  CLR fA
@@ -1812,7 +1820,8 @@
 ;   0679–0688  second remap for the fA[9]-tagged printer pseudo-keys into
 ;              pseudo table entries 0x0089 (ADV) / 0x0099 (PRINT) — derived
 ;              from the bit arithmetic, not exercised in the keypress trace.
-;   0689–06A1  keystroke print/trace gate — see notes inline.
+;   0689–06A1  keystroke print/trace gate: with printer + TRACE it QUEUES the
+;              key's print symbol (no immediate print) — see notes inline.
 ;   06A9–06B2  computed dispatch: PC := 0x0<col><row> via SET KR[1]/PREG,
 ;              landing in the per-key dispatch table at 0x0011 (see there).
 ; ═══════════════════════════════════════════════════════════════════════════
@@ -1862,7 +1871,26 @@
 ; Keystroke print/trace gate: poll printer-present (KP at D0, via WAIT D1 +
 ; KEY[P]) and the printer TRACE switch (KP at D15, via WAIT D0 + KEY[P]) —
 ; see the idle-loop header note on these dedicated polls. With the printer
-; attached and TRACE on, 0A68 prints the keystroke before it executes.
+; attached and TRACE on, 069C branches to 0A68 — but nothing is printed yet
+; (trace-confirmed: KEYPRESS_TRC_59.txt, keys "0" then "+"). The keystroke's
+; print symbol is only QUEUED into the printer's 20-column line buffer, so the
+; display value can later share the same printed line. The gate is traversed
+; twice per keypress:
+;   pass 1  fA[10] ("trace record pending") clear → 0A68 sets it, tags fA[4]
+;           and jumps to 0788: the key's row/col is packed into a 2-digit
+;           position code, and the queue routine at 1422 (reached via 0B16/
+;           0EA4/1278) PRT.CLRs the line buffer and writes the code's 3-char
+;           print symbol right-justified (3× PRT.OUT at 13BC). No PRT.GO —
+;           no paper output. Control returns to 0689 via 12CD→10DE→…→0855.
+;   pass 2  fA[10] now set → 0A6A jumps to 06A2, the key dispatches normally.
+; The queued record is consumed later, depending on the key:
+;   digit keys   the display-rebuild path clears fA[10] at 02E3 without ever
+;                printing; the symbol sits in the buffer until the next key's
+;                PRT.CLR wipes it. Hence pressing "0" prints nothing.
+;   operation keys  after the operation completes, 05A8–05AE re-check fA[10]
+;                and the TRACE switch, then the numeric formatter (152B/160F)
+;                appends the display value and PRT.GO at 0EFC finally prints
+;                the whole line — e.g. "0" then "+" prints "0.     +".
 068B: 0A10  WAIT D1
 068C: 08FB  KEY [P] D3        ; printer present?
 068D: 182A  JC 06A2           ; no printer → skip straight to dispatch
@@ -1880,7 +1908,10 @@
 0699: 1012  JNC 06A2
 069A: 0A00  WAIT D0
 069B: 08FB  KEY [P] D3        ; printer TRACE switch on?
-069C: 1798  JNC 0A68          ; → print the keystroke
+069C: 1798  JNC 0A68          ; → queue the keystroke's print symbol (no print yet)
+; ── 069D–06A1: printer present but TRACE off — a test on D (same C=C-1 MMSD1
+; ── pair as at 05A4/05A5) can still route to the queue at 0A68; speculative:
+; ── serves the D12 PRINT pseudo-key. Not exercised in either keypress trace. ─
 069D: 09D5  C<>D MANT
 069E: 0E2C  C=C-1 MMSD1
 069F: 0E2C  C=C-1 MMSD1
@@ -2860,11 +2891,14 @@
 0A65: 0D00  A=A+1 MLSD1
 0A66: 0140  A=SLA ALL
 0A67: 1DD2  JC 0D50
-0A68: 00A0  TST fA[10]
-0A69: 00A1  SET fA[10]
-0A6A: 1791  JNC 06A2
-0A6B: 0041  SET fA[4]
-0A6C: 1DC9  JC 0788
+; Trace-queue gate (from 069C/06A1, printer + TRACE on; trace-confirmed:
+; KEYPRESS_TRC_59.txt). fA[10] = "trace record pending"; run twice per key —
+; see the keystroke print/trace gate header at 0689.
+0A68: 00A0  TST fA[10]        ; record already queued for this keypress?
+0A69: 00A1  SET fA[10]        ; mark pending
+0A6A: 1791  JNC 06A2          ; 2nd pass (was set) → normal dispatch at 06A2
+0A6B: 0041  SET fA[4]         ; 1st pass: tag "trace queue" (tested at 07A6)
+0A6C: 1DC9  JC 0788           ; → pack key position code, queue print symbol
 0A6D: 005A  CLR fB[5]
 0A6E: 01D7  A<>E ALL
 0A6F: 0091  SET fA[9]
@@ -2896,6 +2930,9 @@
 0A89: 17B1  JNC 06B1
 0A8A: 00A8  TST fB[10]
 0A8B: 11AF  JNC 09B4
+; ── 0A8C–0A8F: another consume site for a pending trace record (fA[10], see
+; ── the 0689 gate): flush the queued line buffer as-is with PRT.GO.
+; ── Not exercised in the keypress traces. ─────────────────────────────────
 0A8C: 00A0  TST fA[10]
 0A8D: 00A2  CLR fA[10]
 0A8E: 1804  JC 0A90
@@ -4053,7 +4090,7 @@
 0EFA: 1804  JC 0EFC
 0EFB: 0A68  PRT.OUT
 0EFC: 0AA8  PRT.GO           ; print-complete/advance-paper signal; the printer-interrupt quirk fires this out of band — see landing-zone note above
-0EFD: 00A2  CLR fA[10]
+0EFD: 00A2  CLR fA[10]        ; trace record printed → clear pending flag
 0EFE: 0042  CLR fA[4]
 0EFF: 0002  CLR fA[0]
 0F00: 0050  TST fA[5]
@@ -5056,8 +5093,8 @@
 12CB: 0616  D=B EXP
 12CC: 0A98  PRT.STEP
 12CD: 0A98  PRT.STEP
-12CE: 00A0  TST fA[10]
-12CF: 13E3  JNC 10DE
+12CE: 00A0  TST fA[10]        ; trace-queue call (fA[10] set)? → return to the
+12CF: 13E3  JNC 10DE          ;   0689 gate via 10DE→0D4F→098F→083F…0855
 12D0: 07D0  A=LOAD EXP1
 12D1: 03D0  A=LOAD DPT1
 12D2: 0A0C  MOV KR,EXT[4..15]
@@ -5401,13 +5438,25 @@
 141F: 0AA0  WAIT D10
 1420: 08FD  KEY [O] D5
 1421: 1465  JNC 11EF
+; ── Keystroke trace-symbol QUEUE routine (trace-confirmed: KEYPRESS_TRC_59.txt).
+; Reached from the 0689 gate's first pass (0A6B/0788, fA[4] set) via 0B16→
+; 0EA4→1278. Re-checks printer-present (1423), waits until not BUSY (1425–
+; 1427), PRT.CLRs the 20-column line buffer, then converts the 2-digit key
+; position code into three 6-bit printer character codes (JC dispatch table
+; around 1117–112F jumping into the INC-KR chains at 1399–13BB) and writes them
+; right-justified via 3× PRT.OUT at 13BC. Crucially, no PRT.GO: the symbol
+; only waits in the buffer — an operation key later appends the display value
+; and prints the line (05A8/0EFC), a digit key discards the record (02E3).
+; Note the symbol is looked up from the raw POSITION code, before any digit
+; remapping: key "0" (row 9, col 2 → code 92) queues "RTN" — the symbol of
+; keycode 92 (INV SBR). Harmless, since digit records are never printed.
 1422: 0A10  WAIT D1
-1423: 08FB  KEY [P] D3
+1423: 08FB  KEY [P] D3        ; printer still present?
 1424: 1835  JC 140A
 1425: 0A98  PRT.STEP
-1426: 0A0B  TST.BUSY
+1426: 0A0B  TST.BUSY          ; wait for any running print to finish
 1427: 1005  JNC 1425
-1428: 0A88  PRT.CLR
+1428: 0A88  PRT.CLR           ; clear line buffer (wipes a discarded record)
 1429: 0A0C  MOV KR,EXT[4..15]
 142A: 0133  B=D ALL
 142B: 00A0  TST fA[10]
