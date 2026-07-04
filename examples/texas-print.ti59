@@ -24,13 +24,26 @@
 # How the key sequence below produces the invalid 1F keycode (confirmed against CPU traces:
 # CALCU59_TRACE.txt, plus dedicated SBR-444 and R/S traces for quirk 1; ROM annotations at
 # 0x08B2, 0x0A4B, 0x0B9D, 0x0C10, 0x11E1, 0x1213, 0x1286 in
-# rom/TI59-commented.asm) — a chain of four quirks:
+# rom/TI59-commented.asm) — a chain of four quirks, in one line each:
+#
+#   1. SBR 444 → rejected as out of range, but leaves the CROM pointer in the module header;
+#      R/S then executes two header bytes as keycodes (29=CP, 52=EE) and halts again.
+#   2. P/R → Prg Src Flag := 8 is written first, the launch then abandoned by a mis-routed
+#      range check: the flag LEAKS.
+#   3. LRN → honours the leaked flag, caches a ROM constant-table row as step 008's register
+#      content.
+#   4. Ins → subtracts that wrong cache; hexadecimal digit arithmetic turns step 008 into
+#      keycode 1F.
+#
+# In detail:
 #
 # 1. [Pgm] [1] [2] [SBR] [4] [4] [4] never executes a single step of library code. The library
 #    transfer resolver (ROM 0x1286) reads TWO consecutive module-header entries — Pgm 12's
 #    start address (2609) and Pgm 13's (2764, i.e. Pgm 12's end bound; the program is 155
 #    steps) — computes the target 2609+444 = 3053 and range-checks it at 0x12AE: 3053 >= 2764,
-#    so the transfer is rejected before a single keycode is fetched. The error halt (0x11E1)
+#    so the transfer is rejected before a single keycode is fetched. Nothing is special about
+#    444: any offset >= 155 (past Pgm 12's end) fails the same check and leaves identical state
+#    (333 confirmed empirically); offsets 000-154 are valid and would actually run Pgm 12 code. The error halt (0x11E1)
 #    sets fB[9] (239.89 blinking, step counter still at 008 from the earlier GTO) and resets
 #    the Prg Src Flag the launch prologue had written — but the cleanup is incomplete: the
 #    CROM chip's internal PC is left in the module HEADER (at address 28, auto-incremented

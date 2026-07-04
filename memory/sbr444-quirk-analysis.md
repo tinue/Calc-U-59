@@ -48,6 +48,11 @@ directly off the module header in the traces).
    `12AF JC 11E1` rejects because 3053 ≥ 2764. The transfer dies here, before a single
    program byte is fetched (zero `IN LIB` fetches at the interpreter site 082F in the
    whole trace). The success path 12B0–12B6 (commit target to CROM PC) never runs.
+   Nothing is special about 444: any offset ≥ 155 (past Pgm 12's end) fails the same
+   check, and since the leftover CROM pointer position comes from the *header reads*
+   (not the target value), the resulting state is identical for every rejected offset —
+   SBR 333 confirmed empirically to work just as well. Offsets 000–154 are in range
+   and would actually execute Pgm 12 code.
 4. **The error halt does a minimal cleanup.** 11E1: reloads SCOM[0] (`…101000`),
    drops nibble 3 with the `SRB MANT`/`SLB MANT` pair (Prg Src back to 0, step counter
    008 preserved), sets fB[9] (error/blink), stores something to SCOM[15] (value
