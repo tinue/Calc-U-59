@@ -25,7 +25,9 @@
 # CALCU59_TRACE.txt; ROM annotations at 0x08B2, 0x0A4B, 0x0B9D, 0x0C10, 0x1213 in
 # rom/TI59-commented.asm) — a chain of four quirks:
 #
-# 1. [Pgm] [1] [2] [SBR] [4] [4] [4] runs Master Library program 12 into data, which ends in the
+# 1. [Pgm] [1] [2] [SBR] [4] [4] [4] starts executing 444 steps past the start of Master Library
+#    program 12 (module address 2609+444 = 3053) — which is the middle of program 14's code,
+#    entered mid-formula ("...2 x .3565663782 + .31938153 )..."), so it quickly ends in the
 #    flashing error state; [R/S] halts it. GTO 008 earlier left the step counter at 008.
 # 2. [2nd] [P/R]: P->R is implemented as a ROM-resident keycode sub-program. Its handler writes
 #    Prg Src Flag := 8 ("program lives in the SCOM constant table") into SCOM[0] nibble 3 — but
@@ -44,6 +46,18 @@
 #    RTN the article says follows the pseudo-code. Steps 010–015 receive the "meaningless"
 #    garbage 21 42 46 11 40 49. In the trace: C−B = 459656449856881F, +(B<<2) →
 #    494011464221921F, committed as the single write to RAM[001] at ROM 0x0F85–0x0F88.
+#
+# Why the temporary [9] [Op] [1] [7] partition (239.89)? Two reasons. (a) Containment: the Ins
+# shift loop stops at the program/data boundary — in the trace it reads and rewrites registers
+# 001 through 029 (= step 239) and no further. Only steps 016-239 move (step 239 falls off the
+# end, article note 4); steps 240+ sit on the data side of the temporary boundary and are never
+# touched, so repartitioning back afterwards restores the rest of the program intact. Under the
+# full 959.00 partition the same Ins would rewrite all 119 registers and shift the entire
+# program. (b) The garbage stream executed by SBR 444 contains RCL 02 and RCL 01; under the
+# initial 959.00 partition no data registers exist, so the run would error at the RCL and take a
+# different path. The exact value 9 is not forced by anything verified here — any partition with
+# a few data registers and enough program space for the insertion location should behave the
+# same; 9 is simply the published recipe (single keystroke, near-maximal containment).
 #
 # The per-location key-in table below now makes sense: each location's Ins subtracts the
 # constant-table row covering it (row 16 + step/8), so the two pre-keyed codes must be tuned to
