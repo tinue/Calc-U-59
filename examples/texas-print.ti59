@@ -32,8 +32,9 @@
 #    because the machine sits in the error state, the sub-program never actually runs, so the
 #    flag is never restored. It LEAKS, with the step counter still at 008.
 # 3. [LRN] must display step 008's keycode. The program-register fetch (ROM 0x08B2) honours the
-#    leaked flag and reads constant-table row 33 — a slice of the P->R keycode program,
-#    5403435501436504 — instead of RAM, and caches it in SCOM[10] as "current register content".
+#    leaked flag and reads constant-table row 17 (= 16 + step/8) — a slice of the ROM's
+#    keycode-program area, 5403435501436504 — instead of RAM, and caches it in SCOM[10] as
+#    "current register content".
 # 4. [2nd] [Ins] shifts program memory one step up. Per register it computes
 #    new := (RAM content − SCOM[10] cache) + (cache << 1 keycode) — an identity when the cache
 #    is honest, but here RAM holds 23 53 00... ([lnx] [(] keyed in beforehand) while the cache
@@ -44,10 +45,20 @@
 #    garbage 21 42 46 11 40 49. In the trace: C−B = 459656449856881F, +(B<<2) →
 #    494011464221921F, committed as the single write to RAM[001] at ROM 0x0F85–0x0F88.
 #
-# The per-location key-in table below now makes sense: each location's keys pre-load values
-# tuned against the constant-table row covering that location, so the mixed arithmetic lands on
-# 1F + RTN; that is also why the code can only be planted at register-aligned steps (divisible
-# by eight), where Ins uses the plain whole-register shift form.
+# The per-location key-in table below now makes sense: each location's Ins subtracts the
+# constant-table row covering it (row 16 + step/8), so the two pre-keyed codes must be tuned to
+# that row's content for the arithmetic to land on 1F + RTN. Verified computationally for all
+# 13 table entries against the TMC0582/83 constant-ROM dumps: with the TI-59's merged indirect
+# keycodes (STO Ind = 72, RCL Ind = 73, SUM Ind = 74, Pgm Ind = 62, Op Ind = 84; two address
+# digits fuse into one step) every listed sequence records exactly the two keycodes the
+# arithmetic requires — e.g. 016 needs "74 90" = [SUM] [Ind] [9] [0]. The odd
+# [STO] [5] [1] [Bst] [Bst] [Del] [Sst] [D] dance at 064 manufactures "51 14", which no direct
+# key sequence can record (a bare 51 only exists merged after STO; Del then removes the 42, and
+# [D] records 14). Locations 048/096 and 072/080 share sequences because their constant rows
+# happen to begin with identical keycode pairs. Register-aligned steps beyond 104 would mostly
+# work too (a few, e.g. 280/320/376, have no digit-legal pre-key at all); the article's table
+# simply stops where its authors did. This tuning is also why the code can only be planted at
+# register-aligned steps (divisible by eight), where Ins uses the plain whole-register shift.
 #
 # These are the original notes from the article:
 #

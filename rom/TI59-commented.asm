@@ -3287,10 +3287,11 @@
 ; table (rows 16–63; see the constant-table note in Core/TMC0501.cpp). This
 ; branch converts the step counter into a constant-table row index: the
 ; divide-by-8 loop at 0B9E–0BA0 yields the register number, the KR[8..10]
-; tagging below builds the row index in KR[10:4], and C=C+CON at 0BB0 (C
-; pre-cleared) reads the row's 8 packed keycodes. Trace-confirmed in
-; CALCU59_TRACE.txt: step 008 → KR[10:4] = 0x21 → row 33 =
-; 5403435501436504 (a slice of the P→R keycode program).
+; tagging below builds the row index (KR[10:8]·8 + KR[6:4]; KR[7] is not an
+; index bit — it carries the flag-8 tag), and C=C+CON at 0BB0 (C pre-cleared)
+; reads the row's 8 packed keycodes. Row = 16 + register number.
+; Trace-confirmed in CALCU59_TRACE.txt: step 008 → row 17 =
+; 5403435501436504 (TMC0582 constant ROM).
 0B9D: 05D0  A=LOAD LLSD1
 0B9E: 06B8  A=A-D EXP
 0B9F: 0500  A=A+1 LLSD1
