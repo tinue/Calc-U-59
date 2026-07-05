@@ -28,14 +28,7 @@ Unsorted collection of ideas, bugs, observations etc.
 - **Card stacking** — a queue of cards fed automatically on successive read/write requests, for programs that use multiple cards.
 - **CMake build** — standalone build targeting the C++ core, enabling headless use and non-macOS platforms.
 - **Headless / REST API** — full GUI decoupling to enable scripted research workflows and alternative frontends.
-- **Printer hardware support** - Enable features like printer interrupt, i.e. pseudo graphics mode
 - **Frozen** - Visually indicate when the calculator is frozen in one of the debuggers (mostly useful on iPhone, where only one panel is visible at a time)
 
 ## Far out (if ever)
 - **Additional calculator models** Such as TI-57
-
-# Known issues
-- **Frozen CPU live view** - The CPU live view freezes sometimes:
-    - TI-58C keyboard scan loop is always frozen
-    - TI-58 error blink (CLS - 1/x): Frozen when dark (probably TI-59 as well, but not visible due to higher clock)
-    - Need to validate this: It seems to not be frozen, but only look very static.

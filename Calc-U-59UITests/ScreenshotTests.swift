@@ -331,6 +331,36 @@ final class ScreenshotTests: XCTestCase {
         attachScreenshot(app, name: "Calc Debugger — frozen on run")
     }
 
+    /// Texas Instruments printer program screenshot — iPad only.
+    ///
+    /// Loads test_texas.ti59, waits for keystroke playback to complete, captures a screenshot.
+    func testScreenshotTexas() throws {
+        let app = launchApp(orientation: .landscapeLeft)
+
+        let presetButton = app.buttons["btn-preset"]
+        XCTAssertTrue(presetButton.waitForExistence(timeout: 5), "Preset button not found")
+        presetButton.tap()
+
+        navigateToOnMyIPhone(app, targetFile: "test_texas.ti59")
+        let cell = app.cells.containing(.staticText, identifier: "test_texas.ti59").firstMatch
+        XCTAssertTrue(cell.waitForExistence(timeout: 5), "test_texas.ti59 not found")
+
+        let statusEl = app.otherElements["keystroke-playback-status"]
+        let playing = NSPredicate(format: "value == 'playing'")
+        let idle = NSPredicate(format: "value == 'idle'")
+        let playbackStarted = XCTNSPredicateExpectation(predicate: playing, object: statusEl)
+        cell.tap()
+        XCTAssertEqual(XCTWaiter.wait(for: [playbackStarted], timeout: 8), .completed,
+                       "test_texas.ti59 did not load")
+        let playbackDone = XCTNSPredicateExpectation(predicate: idle, object: statusEl)
+        XCTAssertEqual(XCTWaiter.wait(for: [playbackDone], timeout: 45), .completed,
+                       "test_texas.ti59 keystrokes did not complete")
+
+        let dest = URL(fileURLWithPath: "\(screenshotDir)/\(screenshotName ?? "Texas-\(UIDevice.current.name)").png")
+        try XCUIScreen.main.screenshot().pngRepresentation.write(to: dest)
+        attachScreenshot(app, name: "Texas — test_texas.ti59 complete")
+    }
+
     // MARK: - Helpers
 
     private func navigateToOnMyIPhone(_ app: XCUIApplication, targetFile: String) {

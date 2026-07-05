@@ -171,11 +171,17 @@ void TMC0501::reset() {
     for (auto& s : m_prnBuf) s = " ";
     m_prnPtr = 0;
     m_prnReady = false;
+    // Flush any in-progress dot-line so nothing on paper is lost on reset
+    flushPendingIfActive();
     m_prnBusyCycles = 0;
 }
 
 void TMC0501::loadLibrary(const uint8_t* data, size_t count) {
     count = std::min(count, size_t{5000});
+    // Zero the full image first: a smaller module must not leave bytes of the
+    // previously loaded module beyond its own end (IN LIB wraps at 5000 and
+    // could otherwise fetch stale keycodes).
+    memset(m_libData, 0, sizeof(m_libData));
     memcpy(m_libData, data, count);
     m_libExecPC = kLibExecPCNone;  // stale address would point into the old module
 }
@@ -480,7 +486,10 @@ int TMC0501::step() {
 
     // ── Printer busy countdown ────────────────────────────────────────
     if (m_prnBusyCycles > 0) {
-        if (--m_prnBusyCycles == 0) flags &= ~FLG_BUSY;
+        if (--m_prnBusyCycles == 0) {
+            flags &= ~FLG_BUSY;
+            flushPendingCodeLine(7);  // complete: all 7 dot-rows printed
+        }
     }
 
     // Pre-execution phase: COND auto-restore, patch previous ring entry, capture snapshot
@@ -779,17 +788,25 @@ int TMC0501::step() {
                 break;
             case 0xA0: { // PRT_PRINT — output buffer as a line
                 if (m_prnReady) {
+                    // PRT.GO while BUSY: the printer aborts the in-progress print and ignores the
+                    // new one. This is an unhandled hardware edge case (e.g. hacked "1F" keycode)
+                    // not foreseen by the ROM; there is no retry or recovery — the printer just stops.
+                    if (m_prnBusyCycles > 0 && m_prnHasPending) {
+                        flushPendingIfActive();
+                        break;  // new print is silently ignored
+                    }
                     // Buffer is right-to-left: read from position 19 down to 0.
+                    // Text is committed immediately (always shows full content, even if aborted).
                     std::string line;
-                    std::array<uint8_t,20> codes{};
                     for (int i = 19; i >= 0; --i) {
                         line += m_prnBuf[i];
-                        codes[19 - i] = m_prnCodeBuf[i];
+                        m_prnPending.codes[19 - i] = m_prnCodeBuf[i];
                     }
+                    m_prnPending.rowCount = 7;
+                    m_prnHasPending = true;
                     {
                         std::lock_guard<std::mutex> lk(m_prnMutex);
                         m_prnLines.push_back(std::move(line));
-                        m_prnCodeLines.push_back(codes);
                     }
                     flags |= FLG_BUSY;
                     m_prnBusyCycles = getPrinterBusyCycles();
@@ -803,6 +820,12 @@ int TMC0501::step() {
                 // communication overhead (serial transfer of ~13 characters at ~9.5ms each).
                 // That overhead is not yet modelled — it requires per-output BUSY pulses that
                 // only fire when the ROM polls TST BUSY between characters.
+                //
+                // If a PRT_PRINT is in progress (deferred code-line pending), flush it now
+                // so the print's code-line lands at the same index as its text line.
+                // Without this, PRT_FEED's blank code-line would steal the print's index,
+                // making the print appear to render at the ADV slot instead.
+                flushPendingIfActive();
                 {
                     std::lock_guard<std::mutex> lk(m_prnMutex);
                     m_prnLines.emplace_back();
@@ -1186,9 +1209,24 @@ std::vector<std::string> TMC0501::drainPrinterLines() {
     return std::move(m_prnLines);
 }
 
-std::vector<std::array<uint8_t,20>> TMC0501::drainPrinterCodeLines() {
+std::vector<PrinterCodeLine> TMC0501::drainPrinterCodeLines() {
     std::lock_guard<std::mutex> lk(m_prnMutex);
     return std::move(m_prnCodeLines);
+}
+
+void TMC0501::flushPendingCodeLine(int rowCount) {
+    if (!m_prnHasPending) return;
+    m_prnPending.rowCount = static_cast<uint8_t>(std::max(0, std::min(7, rowCount)));
+    std::lock_guard<std::mutex> lk(m_prnMutex);
+    m_prnCodeLines.push_back(m_prnPending);
+    m_prnHasPending = false;
+}
+
+void TMC0501::flushPendingIfActive() {
+    if (!m_prnHasPending) return;
+    uint32_t total   = getPrinterBusyCycles();
+    uint32_t elapsed = total - m_prnBusyCycles;
+    flushPendingCodeLine(static_cast<int>(elapsed * 7u / total));
 }
 
 void TMC0501::pressPrinterPrint(bool pressed) {
@@ -1505,7 +1543,7 @@ uint32_t TMC0501::drainCpuFrames(CpuFrame* out, uint32_t max, uint32_t* outLost)
     if (outLost) *outLost = lostCount;
 
     // Drain from m_diskCursor up to head (exclusive)
-    if (m_diskCursor == head || max == 0) return 0;
+    if (m_diskCursor == head) return 0;
 
     uint32_t available = head - m_diskCursor;
     uint32_t count = (available < max) ? available : max;

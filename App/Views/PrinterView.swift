@@ -114,8 +114,9 @@ struct PrinterView: View {
         LazyVStack(spacing: 0) {
             ForEach(viewModel.printerLines.indices, id: \.self) { i in
                 if viewModel.printerLines[i].isEmpty {
-                    // PRT_FEED: one blank line pitch
-                    Color.clear.aspectRatio(PrinterDotLine.aspectRatio, contentMode: .fit)
+                    // PRT_FEED: manual says "half print line", but measured hardware spacing
+                    // needs 2 dp more than the naive half-pitch — see feedHeightUnits.
+                    Color.clear.aspectRatio(PrinterDotLine.widthUnits / PrinterDotLine.feedHeightUnits, contentMode: .fit)
                 } else {
                     PrinterDotLine(
                         codes: i < viewModel.printerCodeLines.count
@@ -212,30 +213,39 @@ struct PrinterView: View {
         let dotPitchPt = PrinterDotLine.dotPitchMM * 72.0 / 25.4
         let lineW = PrinterDotLine.widthUnits  * dotPitchPt
         let lineH = PrinterDotLine.heightUnits * dotPitchPt
+        let feedH = PrinterDotLine.feedHeightUnits * dotPitchPt
         let lines     = viewModel.printerLines
         let codeLines = viewModel.printerCodeLines
         let strip = VStack(spacing: 0) {
             ForEach(lines.indices, id: \.self) { i in
-                Group {
-                    if lines[i].isEmpty {
-                        Color.white
-                    } else {
-                        PrinterDotLine(
-                            codes: i < codeLines.count
-                                ? [UInt8](codeLines[i])
-                                : [UInt8](repeating: 0, count: 20),
-                            dotColor: .black
-                        )
-                        .background(Color.white)
-                    }
+                if lines[i].isEmpty {
+                    Color.white.frame(width: lineW, height: feedH)
+                } else {
+                    PrinterDotLine(
+                        codes: i < codeLines.count
+                            ? [UInt8](codeLines[i])
+                            : [UInt8](repeating: 0, count: 20),
+                        dotColor: .black
+                    )
+                    .background(Color.white)
+                    .frame(width: lineW)
                 }
-                .frame(width: lineW, height: lineH)
             }
         }
         .background(Color.white)
 
+        // GPU-backed rendering (both AppKit and UIKit ImageRenderer back-ends) is capped at a
+        // 16384 px texture dimension. A full 959-step listing easily exceeds that in height at
+        // 600 DPI, silently truncating/corrupting the snapshot. Back off the DPI for long tapes
+        // so the whole listing still fits in one image.
+        let fullLineCount  = lines.filter { !$0.isEmpty }.count
+        let feedLineCount  = lines.count - fullLineCount
+        let totalHeightPt  = Double(fullLineCount) * lineH + Double(feedLineCount) * feedH
+        let maxTextureDim  = 16000.0  // stay safely under the 16384 px GPU limit
+        let maxScale       = totalHeightPt > 0 ? maxTextureDim / totalHeightPt : .infinity
+
         let renderer = ImageRenderer(content: strip)
-        renderer.scale = 600.0 / 72.0  // 600 DPI — crisp on a laser printer, physical size preserved
+        renderer.scale = min(600.0 / 72.0, maxScale)  // up to 600 DPI — crisp, but never exceeds the texture limit
 
         #if os(macOS)
         NSPasteboard.general.clearContents()
@@ -310,34 +320,62 @@ struct PrinterDotLine: View {
     static let heightUnits = 10.18                              // 7 dot rows + inter-line gap
     static let aspectRatio = widthUnits / heightUnits
 
-    var dotColor: Color = Color(white: 0.12)
-    private static let dotRadiusFraction = 0.38  // dot radius as fraction of dotPitch
+    // A PRT_FEED blank line (one ROM-level ADV; the physical ADV key issues two)
+    // is not simply half the full line pitch — a laser-printed copy of the
+    // clipboard export measured 4 dp too little gap across an ADV keypress
+    // (two PRT_FEED opcodes), i.e. 2 dp per opcode. Add that on top of the
+    // naive half-pitch value.
+    static let feedHeightUnits = heightUnits / 2.0 + 2.0
 
+    var dotColor: Color = Color(white: 0.12)
+    private static let dotRadiusFraction = 0.38   // dot radius as fraction of dotPitch
+    private static let interLineGap      = heightUnits - 7.0  // ≈ 3.18 dp — stepper advance gap
+
+    // Byte 20, when present, carries the rowCount from the C++ PrinterCodeLine struct.
+    // 7 = complete line; 1–6 = aborted mid-stroke (partial dot-rows visible on paper).
+    private var rowCount: Int {
+        codes.count > 20 ? max(1, min(7, Int(codes[20]))) : 7
+    }
+
+    // Dot-row model: each row is a separate Canvas with aspect ratio widthUnits:1
+    // (one dot-pitch tall, full line width). This gives SwiftUI a concrete height per
+    // row regardless of scroll context, avoiding the unreliable aspectRatio-on-Canvas
+    // behaviour in an unconstrained LazyVStack.
+    //
+    // Complete lines append an inter-line gap spacer (3.18 dp) after row 6, matching
+    // the stepper's paper advance. Partial lines have no spacer — the motor stopped hard.
     var body: some View {
+        VStack(spacing: 0) {
+            ForEach(0..<rowCount, id: \.self) { rowIdx in
+                singleRow(rowIdx)
+            }
+            if rowCount == 7 {
+                Color.clear
+                    .aspectRatio(Self.widthUnits / Self.interLineGap, contentMode: .fit)
+            }
+        }
+    }
+
+    private func singleRow(_ rowIdx: Int) -> some View {
         Canvas { ctx, size in
-            let dotPitch  = size.width / Self.widthUnits
-            let dotR      = dotPitch * Self.dotRadiusFraction
-            let charStep  = (5.0 + Self.charGap) * dotPitch  // first-col to first-col of next char
+            let dotPitch = size.width / Self.widthUnits
+            let dotR     = dotPitch * Self.dotRadiusFraction
+            let charStep = (5.0 + Self.charGap) * dotPitch
+            let dotY     = size.height * 0.5  // vertically centred in the one-row canvas
 
             for charIdx in 0..<min(codes.count, 20) {
-                let fontRows = pc100cFont[Int(codes[charIdx])]
-                let charX    = Double(charIdx) * charStep
-
-                for rowIdx in 0..<7 {
-                    let bits = fontRows[rowIdx]
-                    let dotY = (Double(rowIdx) + 0.5) * dotPitch
-
-                    for colIdx in 0..<5 {
-                        guard bits & (0x10 >> colIdx) != 0 else { continue }
-                        let dotX = charX + (Double(colIdx) + 0.5) * dotPitch
-                        let rect = CGRect(x: dotX - dotR, y: dotY - dotR,
-                                          width: 2 * dotR, height: 2 * dotR)
-                        ctx.fill(Path(ellipseIn: rect), with: .color(dotColor))
-                    }
+                let bits = pc100cFont[Int(codes[charIdx])][rowIdx]
+                let charX = Double(charIdx) * charStep
+                for colIdx in 0..<5 {
+                    guard bits & (0x10 >> colIdx) != 0 else { continue }
+                    let dotX = charX + (Double(colIdx) + 0.5) * dotPitch
+                    let rect = CGRect(x: dotX - dotR, y: dotY - dotR,
+                                      width: 2 * dotR, height: 2 * dotR)
+                    ctx.fill(Path(ellipseIn: rect), with: .color(dotColor))
                 }
             }
         }
-        .aspectRatio(Self.aspectRatio, contentMode: .fit)
+        .aspectRatio(Self.widthUnits, contentMode: .fit)  // width:height = widthUnits:1
     }
 }
 

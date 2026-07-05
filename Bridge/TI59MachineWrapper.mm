@@ -146,8 +146,13 @@ static const int kbits[] = {0, 1, 2, 3, 5, 6};  // index 0 unused; index col
 - (NSArray<NSData*>*)drainPrinterCodeLines {
     auto lines = _machine->drainPrinterCodeLines();
     NSMutableArray<NSData*>* result = [NSMutableArray arrayWithCapacity:lines.size()];
-    for (const auto& arr : lines)
-        [result addObject:[NSData dataWithBytes:arr.data() length:arr.size()]];
+    for (const auto& line : lines) {
+        // 21 bytes: codes[0..19] + rowCount[20]
+        uint8_t buf[21];
+        memcpy(buf, line.codes.data(), 20);
+        buf[20] = line.rowCount;
+        [result addObject:[NSData dataWithBytes:buf length:21]];
+    }
     return result;
 }
 
@@ -315,7 +320,9 @@ static TICpuFrame marshalCpuFrame(const CpuFrame& f) {
 }
 
 - (NSData*)allProgramSteps {
-    int count = (int)_machine->partitionProgramRegs() * 8;
+    // The partition nibble can transiently claim more registers than the model
+    // has (raw SCOM value up to 15 → 150 regs); clamp to the accessible RAM.
+    int count = (int)MIN(_machine->partitionProgramRegs(), _machine->ramRegCount()) * 8;
     NSMutableData* data = [NSMutableData dataWithLength:count];
     uint8_t* bytes = (uint8_t*)data.mutableBytes;
     for (int i = 0; i < count; i++)

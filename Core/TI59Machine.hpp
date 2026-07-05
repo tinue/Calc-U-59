@@ -67,8 +67,8 @@ public:
     int  cardMode()         const;  ///< 0=none, 1=read, 2=write
 
     // ── Printer ──────────────────────────────────────────────────────────────
-    std::vector<std::string>             drainPrinterLines();
-    std::vector<std::array<uint8_t,20>> drainPrinterCodeLines();
+    std::vector<std::string>     drainPrinterLines();
+    std::vector<PrinterCodeLine> drainPrinterCodeLines();
     void pressPrinterPrint(bool pressed);
     void pressPrinterAdv(bool pressed);
     void setPrinterTrace(bool enabled);

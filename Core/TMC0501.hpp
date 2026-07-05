@@ -12,6 +12,16 @@
 class ROM;
 class RAM;
 
+// ── Printer output line ───────────────────────────────────────────────────────
+//
+// Each printed character-line produces one PrinterCodeLine.  rowCount is 7 for
+// a complete line; 1–6 when the print was aborted mid-stroke (a new PRT_PRINT
+// arrived before the previous line's 197 ms BUSY window elapsed).
+struct PrinterCodeLine {
+    std::array<uint8_t, 20> codes{};
+    uint8_t rowCount{7};   // dot-rows physically printed (1–7); 7 = complete
+};
+
 // ── Display snapshot ──────────────────────────────────────────────────────────
 //
 // Atomic copy of the display state, written by the CPU thread at every digit==0
@@ -149,8 +159,8 @@ public:
     /// Drain all pending printer output lines (called at 60 Hz by the UI thread).
     std::vector<std::string> drainPrinterLines();
     /// Drain raw 6-bit character codes for dot-matrix rendering, parallel to drainPrinterLines().
-    /// Each array is 20 bytes (one per column, code 0–63).  Feed lines are zero-filled.
-    std::vector<std::array<uint8_t,20>> drainPrinterCodeLines();
+    /// Each entry is 20 codes (one per column, 0–63) plus a rowCount (1–7).  Feed lines are zero-filled.
+    std::vector<PrinterCodeLine> drainPrinterCodeLines();
 
     // ── Trace / debug API ─────────────────────────────────────────────────────
     // Zero overhead when disabled: step() hot path costs one atomic<uint32_t>
@@ -331,9 +341,13 @@ private:
     uint8_t  m_prnPtr{0};            // Write position in buffer
     bool     m_prnReady{false};      // True after first PRT_CLEAR; gates OUT PRT/FUNC/STEP/PRINT
     uint32_t m_prnBusyCycles{0};     // Countdown for FLG_BUSY assertion
-    std::vector<std::string>             m_prnLines;      // Thread-safe text output queue
-    std::vector<std::array<uint8_t,20>> m_prnCodeLines;  // Parallel raw-code queue
-    mutable std::mutex                   m_prnMutex;
+    PrinterCodeLine  m_prnPending{};      // Code-line in progress (deferred until BUSY expires or aborted)
+    bool             m_prnHasPending{false};
+    std::vector<std::string>      m_prnLines;      // Thread-safe text output queue
+    std::vector<PrinterCodeLine>  m_prnCodeLines;  // Parallel raw-code queue (deferred commits)
+    mutable std::mutex            m_prnMutex;
+    void flushPendingCodeLine(int rowCount);  // commit m_prnPending with the given rowCount
+    void flushPendingIfActive();              // flush with elapsed-proportional rowCount; no-op if !m_prnHasPending
 
     // ── Display state (shared between CPU thread and UI thread) ───────
     // Per-digit live buffers: updated during each digit's strobe phase when IDLE.

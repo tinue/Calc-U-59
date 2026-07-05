@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.0] - 2026-07-02
+
+- **Printer** Dot-matrix output now correctly supports printer-interrupt, also known as "High Rez Graphics". This is a hack documented in the 1982 magazine "PPX Exchange". Check the GitHub repository for the example state file `texas-print.ti59`.
+
+### Fixes
+- **Printer** Multiple blank-line errors fixed (ADV button). Blank lines now match the real PC-100A/B/C exactly.
+- **Debug Log** Fixed out-of-memory crash and GUI slowdown when the LOG panel is active at DEBUG level.
+
 ## [1.4.0] - 2026-06-29
 
 - **State Files** New `MODEL:` keyword switches the machine variant (TI-59/58/58C) when a state file is loaded.

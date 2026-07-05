@@ -83,7 +83,7 @@ private struct StaticDebugContent: View {
     private var outputArea: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                Text(vm.debugLines.isEmpty ? " " : vm.debugLines.joined(separator: "\n"))
+                Text(vm.debugDisplayText.isEmpty ? " " : vm.debugDisplayText)
                     .font(.system(size: 11, design: .monospaced))
                     .foregroundStyle(Color(white: 0.85))
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -97,7 +97,7 @@ private struct StaticDebugContent: View {
                 RoundedRectangle(cornerRadius: 2)
                     .stroke(Color(white: 0.25), lineWidth: 0.5)
             )
-            .onChange(of: vm.debugLines.count) {
+            .onChange(of: vm.debugDisplayText) {
                 withAnimation(.easeOut(duration: 0.15)) {
                     proxy.scrollTo("bottom", anchor: .bottom)
                 }
@@ -125,7 +125,7 @@ private struct StaticDebugContent: View {
                     Image(systemName: "trash")
                         .foregroundStyle(.white.opacity(0.6))
                 }
-                .disabled(vm.debugLines.isEmpty)
+                .disabled(vm.debugDisplayText.isEmpty)
             }
 
             // Row 2: Status toggles
@@ -269,13 +269,13 @@ private struct ASMDebugContent: View {
         .environment({
             let vm = EmulatorViewModel()
             vm.debugLevel = .info
-            vm.debugLines = [
-                "── RAM (part=60) ──",
-                "RAM[60] = 3.141592653589",
-                "RAM[65] = 7.77e+22",
-                "── SCOM ──",
-                "SCOM[9] = [6, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]",
-            ]
+            vm.debugDisplayText = """
+                ── RAM (part=60) ──
+                RAM[60] = 3.141592653589
+                RAM[65] = 7.77e+22
+                ── SCOM ──
+                SCOM[9] = [6, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+                """
             return vm
         }())
         .frame(width: 260, height: 400)

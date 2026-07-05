@@ -94,8 +94,10 @@ final class TraceWriter {
         let url = self.traceFileURL()
 
         // Cache the size limit for the upcoming session.
+        // integer(forKey:) returns 0 when unset; any positive user value is
+        // honoured (including values below the default).
         let maxMB = UserDefaults.standard.integer(forKey: SettingsKey.traceMaxFileSizeMB)
-        sessionMaxBytes = UInt64(max(maxMB, Self.defaultMaxFileSizeMB)) * 1_000_000
+        sessionMaxBytes = UInt64(maxMB > 0 ? maxMB : Self.defaultMaxFileSizeMB) * 1_000_000
 
         return openFile(at: url)
     }
