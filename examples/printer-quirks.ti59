@@ -38,11 +38,11 @@ KEYSTROKES:
 31  Pgm
 82  1
 83  2
-Trace: InsertInvalidKeycode.bin
+Trace: printhack.bin
 71  SBR
-72  4
-72  4
-72  4
+84  4
+84  4
+84  4
 Wait: 1s
 91  R/S
 WaitFullSpeed: 1s
@@ -52,7 +52,7 @@ Wait: 2s
 31  LRN
 21  2nd
 41  Ins
+Trace: Off
 31  LRN
 25  CLR
-Trace: Off
 81  RST
