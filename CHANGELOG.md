@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.6.0] - work in progress
+
+- **State Files** New `Trace: name.bin` / `Trace: Off` keywords turn CPU instruction tracing on or off while a state file's KEYSTROKES are executing.
+
 ## [1.5.0] - 2026-07-02
 
 - **Printer** Dot-matrix output now correctly supports printer-interrupt, also known as "High Rez Graphics". This is a hack documented in the 1982 magazine "PPX Exchange". Check the GitHub repository for the example state file `texas-print.ti59`.
