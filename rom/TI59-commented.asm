@@ -2453,10 +2453,14 @@
 ;           register — in range → commit, out of range → 0B0A abandons
 ;           the transfer, leaving any source flag written by the launch
 ;           prologue (0A4B) in place.
-; The new calculator PC is committed to SCOM[0] at 089A/089B. Quirk: a P/R
-; pressed in the halt state left by the R/S-resumed SBR 444 run reaches the
-; 087E test with fB[0] clear, so the launch mis-routes into the RAM range
-; check — see examples/texas-print.ti59.
+; The new calculator PC is committed to SCOM[0] at 089A/089B. fB[0] is not
+; persisted state: the launch prologue derives it fresh each launch from
+; the caller's Prg Src Flag (dispatch at 0A57 — keyboard/RAM callers set it
+; at 0A5C, library callers take the 0DA7 path and leave it clear). Quirk: a
+; P/R pressed in the halt state left by the R/S-resumed SBR 444 run
+; launches with SCOM[0] still saying source 1, so it reaches the 087E test
+; with fB[0] clear and the keycode sub-program target mis-routes into the
+; RAM range check — see examples/texas-print.ti59.
 086F: 0A87  MOV R5,#8
 0870: 09F3  B=R5 MANT
 0871: 0988  A=A-B MANT
@@ -2958,6 +2962,13 @@
 ; entry step 284, source 8). Missing safeguard: the flag is written before
 ; the target-step range check at 0871–0888, so an abandoned launch leaves
 ; the new source flag in place — see examples/texas-print.ti59.
+; The 0A4D–0A51 shuffle also stashes the CALLER's source (SCOM[0]'s old
+; nibble 3) into nibble 1 of the rewritten SCOM[0]; 0A54–0A57 then dispatch
+; on it (traces pr-after-halt1/2, memory/sbr444-quirk-analysis.md):
+;   0        → keyboard/RAM caller: fall through to 0A58; 0A5C/0A5D set
+;              fB[0]+fB[13], so 087E later skips the RAM range check.
+;   non-zero → library caller: 0A57 branches to 0DA7 to save the CROM PC
+;              as the return address; fB[0]/fB[13] stay clear.
 0A4B: 0A1F  RCLF
 0A4C: 01D6  D=LOAD ALL
 0A4D: 0C78  A=SRD MAEX
@@ -3155,6 +3166,15 @@
 0B07: 0072  CLR fA[7]
 0B08: 00C9  SET fB[12]
 0B09: 1AD3  JC 09A0
+; ── Transfer reject: target step out of range (from 0888) ───────────────────
+; Sets the error blink and clears the transfer-type flag, then exits via
+; 089C WITHOUT undoing the launch: the Prg Src Flag written by the
+; prologue (0A52) stays in SCOM[0], and the return-stack level pushed at
+; 0D50 is never popped (contrast the 11E1 error halt, which resets the
+; stack). Trace pr-after-halt2: the abandoned P/R launch leaves SCOM[0] =
+; "…108010" (leaked source 8, stashed caller source 1, step 008) and a
+; dead stack level naming the leftover CROM position — the state quirk 3
+; of examples/texas-print.ti59 builds on.
 0B0A: 0099  SET fB[9]
 0B0B: 000A  CLR fB[0]
 0B0C: 1CE1  JC 089C
@@ -3855,6 +3875,18 @@
 0DA4: 0101  IO=A ALL
 0DA5: 00D2  CLR fA[13]
 0DA6: 1BD8  JC 0F92
+; ── Launch prologue, library-caller path (from 0A57) ────────────────────────
+; Reached when the caller's Prg Src digit is non-zero: the (believed-)
+; running program lives in the module, so the caller's return address is
+; the CROM chip's internal PC. The 0DAE–0DB4 loop reads it digit-by-digit
+; (LIB.PC.IN ×4, LSD first, non-destructive) and 0DB5–0DB8 assemble it into
+; the launch descriptor, then rejoin the common return-stack push at 0A66.
+; fB[0]/fB[13] are NOT set on this path, so at 087E the transfer target
+; gets the RAM-partition range check even when it is a keycode
+; sub-program — the quirk-2 flag leak of examples/texas-print.ti59
+; (trace pr-after-halt2: P/R after the R/S-resumed garbage run lands here
+; because SCOM[0] still says source 1; its entry step 284 then fails the
+; check at 0888).
 0DA7: 00D8  TST fB[13]
 0DA8: 1808  JC 0DAC
 0DA9: 0A27  MOV R5,#2

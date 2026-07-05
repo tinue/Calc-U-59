@@ -22,8 +22,9 @@
 # annotations at 0x0EF1 and 0x0F53 in rom/TI59-commented.asm for the full trace-verified mechanism.
 #
 # How the key sequence below produces the invalid 1F keycode (confirmed against CPU traces:
-# CALCU59_TRACE.txt, plus dedicated SBR-444 and R/S traces for quirk 1; ROM annotations at
-# 0x08B2, 0x0A4B, 0x0B9D, 0x0C10, 0x11E1, 0x1213, 0x1286 in
+# CALCU59_TRACE.txt, plus dedicated SBR-444 and R/S traces for quirk 1 and P/R-after-halt
+# traces for quirk 2; ROM annotations at
+# 0x08B2, 0x0A4B, 0x0B0A, 0x0B9D, 0x0C10, 0x0DA7, 0x11E1, 0x1213, 0x1286 in
 # rom/TI59-commented.asm) — a chain of four quirks, in one line each:
 #
 #   1. SBR 444 → rejected as out of range, but leaves the CROM pointer in the module header;
@@ -56,23 +57,31 @@
 #    (harmless), then 52 = EE, whose handler exits through the keyboard epilogue and ends the
 #    run. The machine halts a second time — not a new error, fB[9] still blinks from the
 #    first one — showing an EE-mode zero ("0. 00"). This second halt is the state quirk 2
-#    needs. (The live fB[0] is clear after BOTH halts; what the second halt changes is the
-#    persisted state — EE mode fB[15] set, Prg Src Flag left at 1, CROM PC in the header.
-#    Trace-verified either way: a P/R pressed after the second halt reaches the 0x087E check
-#    with fB[0] CLEAR and leaks; pressed after the first halt alone it arrives SET, launches
-#    normally, restores PC 008 / flag 0, and LRN shows the correctly entered step — the hack
-#    fails.)
+#    needs: SCOM[0]'s Prg Src Flag is left at 1, and that leftover is exactly what the next
+#    launch dispatches on. (Trace-verified both ways with dedicated P/R traces: pressed after
+#    the second halt, P/R's launch reads caller source 1, takes the library-caller path —
+#    which saves the CROM pointer as a return address and leaves fB[0] clear — and leaks;
+#    pressed after the first halt alone it reads source 0 (the error halt had reset it),
+#    takes the keyboard-caller path that sets fB[0], launches normally, restores PC 008 /
+#    flag 0, and LRN shows the correctly entered step — the hack fails.)
 # 2. [2nd] [P/R]: P->R is implemented as a ROM-resident keycode sub-program whose entry point is
 #    step 284 of the calculator-PC address space. Normally its launch is partition-independent:
 #    the shared transfer routine (ROM 0x086F) sees fB[0] SET, skips the RAM range check, writes
 #    SCOM[0] := PC 284 / Prg Src Flag 8, and the sub-program executes from constant rows 51+
 #    (trace-verified with a plain P->R press under 239.89: three row fetches, PC advancing
-#    284 -> 301). But pressed after the R/S-resumed garbage run's second halt (quirk 1),
-#    fB[0] is CLEAR: after the launcher (0x0A4B-0x0A53) has already written Prg Src Flag := 8,
-#    the transfer is treated as a RAM-program branch and step 284's register (35) is
+#    284 -> 301). fB[0] is not persisted state: the launcher derives it fresh on every launch
+#    from the CALLER's Prg Src Flag (dispatch at 0x0A57) — caller 0 (keyboard/RAM) sets it,
+#    a library caller leaves it clear and saves the CROM pointer as the return address
+#    instead. Pressed after the R/S-resumed garbage run's second halt (quirk 1), SCOM[0]
+#    still says source 1, so the launcher treats P->R's launch as a call from a LIBRARY
+#    program: after 0x0A4B-0x0A53 have already written Prg Src Flag := 8, fB[0] stays clear,
+#    the transfer is treated as a RAM-program branch, and step 284's register (35) is
 #    range-checked against the program-partition register count in SCOM[13] (0x0887/0888).
 #    Under 239.89 there are only 30 program registers, so the check fails and the launch is
-#    ABANDONED — with the flag already written. It LEAKS, and the step counter stays at 008.
+#    ABANDONED at 0x0B0A — with the flag already written. It LEAKS, and the step counter
+#    stays at 008. (Two more leftovers, harmless to the hack: the stashed caller source 1 in
+#    SCOM[0] nibble 1, and a never-popped return-stack level naming the garbage CROM
+#    position — 0x0B0A, unlike the 0x11E1 error halt, does not reset the stack.)
 #    (With >= 320 steps — 8 Op 17 and below — the mis-routed check passes instead: SCOM[0] is
 #    rewritten with PC=284 and the hack fizzles; LRN then shows step 284, matching real-hardware
 #    observations and the 6 Op 17 emulator trace.)
