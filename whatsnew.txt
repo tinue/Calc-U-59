@@ -1,5 +1,1 @@
-• PRINTER: Dot-matrix output now correctly supports printer-interrupt, also known as "High Rez Graphics". This is a hack documented in the 1982 magazine "PPX Exchange". Check the GitHub repository for the example state file "texas-print.ti59".
-
-FIXES
-• PRINTER: Multiple blank-line errors fixed (ADV button). Blank lines now match the real PC-100A/B/C exactly.
-• DEBUG LOG: Fixed out-of-memory crash and GUI slowdown when the LOG panel is active at DEBUG level.
+• STATE FILES: New "Trace: name.bin" / "Trace: Off" keywords turn CPU instruction tracing on or off while a state file's KEYSTROKES are executing.
