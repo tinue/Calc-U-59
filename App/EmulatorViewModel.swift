@@ -2228,7 +2228,10 @@ class EmulatorViewModel {
         // Sort by label and add to output
         regEntries.sort { $0.label < $1.label }
         for entry in regEntries {
-            lines.append(String(format: "%@ = %.10g", entry.label, entry.value))
+            // 13 significant digits, matching the BCD mantissa width exactly: %.10g
+            // silently rounded away trailing precision-loss bugs (e.g. a register
+            // holding 1731371734.999090 printed as the misleadingly-clean 1731371735).
+            lines.append(String(format: "%@ = %.13g", entry.label, entry.value))
         }
 
         ringWriteAll(lines)

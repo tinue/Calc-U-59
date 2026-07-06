@@ -175,7 +175,9 @@ struct LiveDebugView: View {
                 LazyVStack(alignment: .leading, spacing: 2) {
                     ForEach(Array(snap.nonZeroRegs.enumerated()), id: \.offset) { _, entry in
                         let label = entry.isHidden ? String(format: "H%02d", entry.num) : String(format: "R%02d", entry.num)
-                        Text(String(format: "%@ = %.10g", label, entry.value))
+                        // Full 13-digit mantissa precision, not the calculator's 10-digit
+                        // display rounding — hiding digits here can mask stored-value bugs.
+                        Text(String(format: "%@ = %.13g", label, entry.value))
                             .font(.system(size: baseFontSize + 2, design: .monospaced))
                             .foregroundStyle(Color(white: 0.85))
                     }
@@ -354,7 +356,7 @@ struct LiveDebugView: View {
         let isZero = snap.tRegister == 0
         let color = isZero ? Color(white: 0.6) : Color(white: 0.85)
         return SectionBox(title: "") {
-            Text(String(format: "T: %.10g", snap.tRegister))
+            Text(String(format: "T: %.13g", snap.tRegister))
                 .font(.system(size: baseFontSize + 2, design: .monospaced))
                 .foregroundStyle(color)
                 .padding(.horizontal, 8)
