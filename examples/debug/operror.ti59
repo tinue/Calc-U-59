@@ -1,0 +1,53 @@
+# operror.ti59 Op 01 error in emulator (FIXED)
+#
+# Expections: - Calc. display shows 1731371735
+# Reality:    - Calc. display shows 1731371734
+
+# The display changes during Op 01 (correct before, wrong after).
+# Op 01 stores the wrong value. This only hgappens when the value is retrieved from
+# a memory register (RCL). When the same number is keyed in, Op 01 does not change
+# it when storing.
+# Real hardware does not show this behaviour.
+#
+# Root cause: not Op 01 itself. The REGISTERS: preset loader
+# (encodeTI59BCD in App/StateFileLoader.swift) converted the decimal literal
+# to BCD via an iterative float digit-extraction loop (mantissa/pow, then
+# repeated subtract+multiply-by-10). That loop accumulates floating-point
+# rounding error across the 13 mantissa digits, so register 15 was actually
+# stored as 1731371734.999090, not 1731371735. IDLE's normal display
+# formatting rounds this back to ...735, hiding the error, but Op 01's
+# processing exposed the true stored value as ...734. Keying the digits in
+# directly builds the BCD register digit-by-digit with no floating-point
+# step, so it never hit this. Fixed by using a correctly-rounded %.12e
+# string conversion instead of the manual loop.
+
+#MODEL: TI-59
+
+REGISTERS:
+15 = 1731371735
+
+KEYSTROKES:
+Trace: operror.bin
+43  RCL
+82  1
+73  5
+21  2nd
+64  Op
+92  0
+82  1
+Trace: opok.bin
+82  1
+62  7
+84  3
+82  1
+84  3
+62  7
+82  1
+62  7
+84  3
+73  5
+21  2nd
+64  Op
+92  0
+82  1
+Trace: Off

@@ -536,13 +536,18 @@ func encodeTI59BCD(_ value: Double) -> [UInt8] {
     let negative = value < 0.0
     let absVal   = abs(value)
 
-    // Normalised form: mantissa in [1.0, 10.0), exponent is base-10.
-    var exp      = Int(floor(log10(absVal)))
-    var mantissa = absVal / pow(10.0, Double(exp))
-
-    // Correct floating-point rounding at boundaries
-    if mantissa >= 10.0 { mantissa /= 10.0; exp += 1 }
-    else if mantissa < 1.0 { mantissa *= 10.0; exp -= 1 }
+    // Get 13 correctly-rounded significant digits and the base-10 exponent via
+    // the C library's %e conversion, rather than an iterative float digit
+    // extraction (mantissa/10, subtract, multiply by 10, repeat): that loop
+    // accumulates rounding error over 13 iterations and can turn e.g.
+    // 1731371735 into a stored mantissa of 1731371734.999090.  %e is defined
+    // to always emit a single leading digit in [1,9] and to bump the exponent
+    // itself on rounding overflow (e.g. 9.9999999999995e8 -> 1.000000000000e9),
+    // so no separate boundary correction is needed here.
+    let formatted = String(format: "%.12e", absVal)
+    let eIndex = formatted.firstIndex(of: "e")!
+    let digitChars = formatted[..<eIndex].filter { $0.isNumber }
+    let exp = Int(formatted[formatted.index(after: eIndex)...])!
 
     // nibble[0]: bit 1 = mantissa sign (1=negative), bit 2 = exponent sign (1=negative)
     nibbles[0] = (negative ? 2 : 0) | (exp < 0 ? 4 : 0)
@@ -556,11 +561,9 @@ func encodeTI59BCD(_ value: Double) -> [UInt8] {
     // nibble[15..3]: 13 mantissa digits, MSD at nibble[15], LSD at nibble[3].
     // (Serial BCD arithmetic propagates carry from low to high index, so LSD
     //  lives at the lower index.  MSD = nibble[15] matches the display order.)
-    var remaining = mantissa
-    for i in stride(from: 15, through: 3, by: -1) {
-        let digit = Int(remaining)
-        nibbles[i] = UInt8(min(max(digit, 0), 9))
-        remaining = (remaining - Double(digit)) * 10.0
+    for (offset, i) in stride(from: 15, through: 3, by: -1).enumerated() {
+        let digitIndex = digitChars.index(digitChars.startIndex, offsetBy: offset)
+        nibbles[i] = UInt8(digitChars[digitIndex].wholeNumberValue!)
     }
 
     return nibbles
