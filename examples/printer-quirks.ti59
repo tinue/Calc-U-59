@@ -11,19 +11,24 @@
 #  The display will begin flashing when [SBR] [4] [4] [4] is pressed. Press [A] and the print code table with full and inter-
 #  rupted characters will be printed.
 
-MODEL: TI-59
+#MODEL: TI-59
 SOLID-STATE-MODULE: ML
 PRINTER: on
 
 
 # For compactness, the program is only here as key codes. If you need the listing, load the program and LIST it on the printer.
 PROGRAM:
-92 76 11 61 00 17 69 05 23 53 00 00 00 00 00 00 98 22 58 25 22 57 01 69 01 02 00 00 00 03 00 00 69 02 04 00 00 00 05 00 00 00 06 69 03 07 00 00 00 08 00 00 69 04 69 05 69 00 69 05 01 52 06 22
-52 69 01 01 00 00 00 02 00 00 69 02 03 00 00 00 04 00 00 00 05 69 03 06 00 00 00 07 00 00 69 04 07 32 69 05 25 71 00 06 98 01 85 09 09 09 09 09 00 35 95 82 35 01 85 09 09 09 93 09 35 95 82 37
-22 59 55 01 00 00 85 01 95 82 36 82 38 69 05 25 71 00 06 98 82 18 59 22 77 01 06 25 92 61 11 00
+92 76 11 61 00 17 69 05 23 53  00 00 00 00 00 00 98 22 58 25
+22 57 01 69 01 02 00 00 00 03  00 00 69 02 04 00 00 00 05 00
+00 00 06 69 03 07 00 00 00 08  00 00 69 04 69 05 69 00 69 05
+01 52 06 22 52 69 01 01 00 00  00 02 00 00 69 02 03 00 00 00
+04 00 00 00 05 69 03 06 00 00  00 07 00 00 69 04 07 32 69 05
+25 71 00 06 98 01 85 09 09 09  09 09 00 35 95 82 35 01 85 09
+09 09 93 09 35 95 82 37 22 59  55 01 00 00 85 01 95 82 36 82
+38 69 05 25 71 00 06 98 82 18  59 22 77 01 06 25 92 61 11 00
 
 # To simplify things, the keystrokes outlined in the article are automated. When the Preset finished loading, the invalid
-# key code will be in memory.
+# key code will be in memory. Uncomment the Trace when needed.
 KEYSTROKES:
 61  GTO
 92  0
@@ -38,7 +43,7 @@ KEYSTROKES:
 31  Pgm
 82  1
 83  2
-Trace: printhack.bin
+#Trace: printhack.bin
 71  SBR
 84  4
 84  4
@@ -56,3 +61,5 @@ Trace: Off
 31  LRN
 25  CLR
 81  RST
+11  A
+WaitFullSpeed: 0.5s
