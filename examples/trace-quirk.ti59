@@ -1,0 +1,67 @@
+# trace-quirks.ti59 Q quirk that enables some sort of trace mode on the printer.
+# From Magatzine "TI PPC NOTES", V6N4-5P17, 1981
+#
+# Note that the article has a typo: What is shown on the display is "7993", not "9993".
+#
+# These are the original notes in the article:
+#
+# QUIRK- John Miranda (the youngest member, I suppose, at 14) found this quirk in the
+# TI-58. I tested it and found it to work in the TI-59 as well. With the printer attached,
+# it puts the calculator in TRACE mode. RST kills this state.
+#
+# From turn-on press:
+# CP LRN LBL A FIX O R/S LRN 999 + . 00000999 = A STF IND 7 INV LRN
+#
+# The display nows says 9993 00. You can SST through it to 99999 when it reverts to
+# step 000 and you see your program LBL A FIX 0 R/S again.
+#
+# If you BST, you loose the display, but stay with the TRACE mode. But it is impossible
+# to go back into LRN at this point, unless you press GTO 000 then LRN.
+# The "listing" of your program you now get, if you press SST repeatedly, is SR-52-like,
+# no mnemonics, just the program step and the key code.
+#
+# Further investigating invited from the membership.
+
+MODEL: TI-58
+PRINTER: on
+
+# Prepare the magnet card inlay
+CUECARD:
+Template: MagnetCard
+Title: Trace Quirk
+Banks: 1
+Row1: From Magatzine "TI PPC NOTES", V6N4-5P17, 1981
+Row1Align: center
+
+PROGRAM:
+000  76 LBL
+001  11  A
+002  58 FIX
+003  00  00
+004  91 R/S
+
+
+# Brings the display to the described state:
+KEYSTROKES:
+64 9
+64 9
+64 9
+85 +
+93 ,
+92 0
+92 0
+92 0
+92 0
+92 0
+64 9
+64 9
+64 9
+95 =
+11 A
+21 2nd
+81 St flg
+21 2nd
+45 Ind
+62 7
+22 INV
+31 LRN

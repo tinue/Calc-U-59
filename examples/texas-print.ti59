@@ -273,6 +273,17 @@ PARTITION: 959.0
 SOLID-STATE-MODULE: ML
 PRINTER: on
 
+# Prepare the magnet card inlay
+CUECARD:
+Template: MagnetCard
+Title: TI Logo
+Banks: 1,2
+Row1: See PPX Exchange March/April 1982
+Row1Align: center
+Row2: for instructions to run
+Row2Align: center
+
+
 # For compactness, the program is only here as keycodes. If you need the listing, load the program and LIST it on the printer.
 PROGRAM:
 92 00 00 76 11 00 69 05 23 53  00 00 00 00 00 00 00 69 17 58   # 000-019

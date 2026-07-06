@@ -28,10 +28,16 @@
 # care of that) nor in the display (it was wiped out by he CLR). OP 05 messages may
 # be printed out a second time as well this way.
 
-
-#MODEL: TI-59
+MODEL: TI-59
 SOLID-STATE-MODULE: ML
 PRINTER: on
+
+# Prepare the magnet card inlay
+CUECARD:
+Template: MagnetCard
+Title: Stars & Stripes
+Banks: 1,4
+E: Instructions
 
 # For compactness, the program is only here as key codes. If you need the listing,
 # load the program and LIST it on the printer.
