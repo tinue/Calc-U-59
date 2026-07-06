@@ -2605,7 +2605,10 @@ class EmulatorViewModel {
                     scriptedTraceWriter.close()
                 }
                 if let name {
-                    scriptedTraceWriter.open(fileName: name)
+                    let opened = scriptedTraceWriter.open(fileName: name)
+                    if !opened {
+                        print("[EmulatorViewModel] KEYSTROKES \"Trace: \(name)\" failed to open trace file — see TraceWriter/AppSettings logs above for the reason")
+                    }
                 }
                 updateDebugTraceFlags()
             }

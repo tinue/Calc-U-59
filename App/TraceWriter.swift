@@ -77,6 +77,7 @@ final class TraceWriter {
             try fm.createDirectory(at: traceDir, withIntermediateDirectories: true)
             isAvailable = true
         } catch {
+            print("[TraceWriter] checkAvailability(): failed to create/access trace directory \(traceDir.path): \(error)")
             isAvailable = false
         }
     }
@@ -89,7 +90,10 @@ final class TraceWriter {
     @discardableResult
     func open() -> Bool {
         guard !isOpen else { return true }
-        guard isAvailable else { return false }
+        guard isAvailable else {
+            print("[TraceWriter] open(): trace location is not available (checkAvailability() previously failed) — no file will be written")
+            return false
+        }
 
         let url = self.traceFileURL()
 
@@ -109,7 +113,10 @@ final class TraceWriter {
     @discardableResult
     func open(fileName: String) -> Bool {
         guard !isOpen else { return true }
-        guard isAvailable else { return false }
+        guard isAvailable else {
+            print("[TraceWriter] open(fileName: \(fileName)): trace location is not available (checkAvailability() previously failed) — no file will be written")
+            return false
+        }
 
         let maxMB = UserDefaults.standard.integer(forKey: SettingsKey.traceMaxFileSizeMB)
         sessionMaxBytes = UInt64(maxMB > 0 ? maxMB : Self.defaultMaxFileSizeMB) * 1_000_000
@@ -127,6 +134,7 @@ final class TraceWriter {
             do {
                 try fm.removeItem(at: url)
             } catch {
+                print("[TraceWriter] openFile(): failed to remove existing trace file at \(url.path): \(error)")
                 return false
             }
         }
@@ -138,15 +146,18 @@ final class TraceWriter {
                 try Data().write(to: url)
                 created = true
             } catch {
+                print("[TraceWriter] openFile(): failed to create trace file at \(url.path): \(error)")
                 return false
             }
         }
         if !created {
+            print("[TraceWriter] openFile(): createFile() and Data().write() both failed silently for \(url.path)")
             return false
         }
 
         // Open for writing
         guard let fh = try? FileHandle(forWritingTo: url) else {
+            print("[TraceWriter] openFile(): FileHandle(forWritingTo:) failed for \(url.path)")
             return false
         }
 
