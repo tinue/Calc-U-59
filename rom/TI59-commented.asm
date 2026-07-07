@@ -391,9 +391,12 @@
 ; and of KEY_RET (0010); see the dispatch-table annotations at 0011.
 0141: 00A5  SET KR[10]
 0142: 00B5  SET KR[11]
-0143: 0A18  MOV KR[4..7],R5
-0144: 0015  SET KR[1] ; PREG
-0145: 0100  A=A ALL
+0143: 0A18  MOV KR[4..7],R5   ; op/fn code into the PREG address
+0144: 0015  SET KR[1] ; PREG  ; arm PREG: after one delay-slot instruction,
+                              ;   fetch continues at KR[15..4] — for FN_ENTRY
+                              ;   the fn table at 0x0500+fn (trace-confirmed
+                              ;   1/x → 0x050A in errorblink.txt)
+0145: 0100  A=A ALL           ; delay slot — still executes before the target
 0146: 0DD3  B=LOAD MLSD1
 0147: 0300  A=A+1 DPT1
 0148: 0101  IO=A ALL
@@ -608,7 +611,9 @@
 ; FN_ENTRY_KR8: FN_ENTRY variant that tags KR[8] first ("√x" enters with fn code 0)
 020F: 0085  SET KR[8]
 ; FN_ENTRY: common unary-function entry, function code in R5
-; ("x²" code 7, "1/x" code 10, "lnx" code 2 via 020B)
+; ("x²" code 7, "1/x" code 10, "lnx" code 2 via 020B). KR[14]+KR[12] plus the
+; code moved into KR[4..7] at 0143 form fetch address 0x0500+fn — see the
+; unary-function dispatch table there.
 0210: 00E5  SET KR[14]
 0211: 00C5  SET KR[12]
 0212: 199F  JC 0143
@@ -647,6 +652,14 @@
 0233: 1788  JNC 05F7
 0234: 008E  MOV fB[8],fA[8]
 0235: 0051  SET fA[5]
+; ═══════════════════════════════════════════════════════════════════════════
+; NUM_NORM  (0x0236–0x0263) — trace-confirmed in errorblink.txt (1/x of 0).
+; Normalizes the working value in A: handles the zero case at 02BF, left-
+; aligns the mantissa (SLA loop 0246–0249) while tracking the decimal exponent
+; (fA[3] = exponent negative), and clamps at 025A on over/underflow. Usually
+; entered through the 041C prologue with a PREG continuation parked in SR;
+; exits through the display epilogue at 02C2, which returns via 02D1/02D2.
+; ═══════════════════════════════════════════════════════════════════════════
 0236: 0058  TST fB[5]
 0237: 180A  JC 023C
 0238: 005A  CLR fB[5]
@@ -683,16 +696,24 @@
 0257: 0033  TOG fA[3]
 0258: 0700  A=A+1 EXP1
 0259: 1837  JC 023E
-025A: 00E0  TST fA[14]
-025B: 1004  JNC 025D
-025C: 0099  SET fB[9]
+; ── OVER/UNDERFLOW CLAMP (0x025A–0x0263) — trace-confirmed in errorblink.txt.
+; 1/x of 0 lands here twice: once from the divide's overflow exit at 0421, and
+; again when display rounding (05B9) carries the all-9s image back over the
+; top. Sets the ERROR blink flag fB[9] (idle gate at 0641) unless fA[14] is
+; set — routines that tolerate the clamp pre-set fA[14] (03BF, 0A30, 0D11),
+; and the epilogues at 02C9/055B clear it again. Then clamps the value in A:
+; fA[3] (exponent-negative) clear → overflow, +9.9999999…E99; set → underflow,
+; 1E−99 (speculative: underflow branch not exercised in the trace). ──
+025A: 00E0  TST fA[14]        ; error suppressed?
+025B: 1004  JNC 025D          ; fA[14] set → clamp silently
+025C: 0099  SET fB[9]         ; ERROR — start the display blink
 025D: 0030  TST fA[3]
-025E: 1808  JC 0262
-025F: 0ED0  A=LOAD MMSD1
-0260: 0708  A=A-1 EXP1
-0261: 10C2  JNC 02C2
-0262: 0FD8  A=-1 MAEX1
-0263: 10BE  JNC 02C2
+025E: 1808  JC 0262           ; exponent positive → overflow clamp
+025F: 0ED0  A=LOAD MMSD1      ; underflow: mantissa := 1.0000000…
+0260: 0708  A=A-1 EXP1        ;   exponent := 0−1 → 99 (borrow) ≙ 1E−99
+0261: 10C2  JNC 02C2          ; borrow guarantees the jump → display epilogue
+0262: 0FD8  A=-1 MAEX1        ; overflow: borrow floods A[1..15] with 9s
+0263: 10BE  JNC 02C2          ;   = 9.9999999 99 → display epilogue
 0264: 00A1  SET fA[10]
 0265: 1881  JC 0225
 ; KEY_INV: "INV" handler (slot 0022)
@@ -799,7 +820,7 @@
 02C6: 002E  MOV fB[2],fA[2]
 02C7: 003E  MOV fB[3],fA[3]
 02C8: 004A  CLR fB[4]
-02C9: 00E2  CLR fA[14]
+02C9: 00E2  CLR fA[14]        ; re-arm the error clamp (fA[14] = suppress, 025A)
 02CA: 0A0C  MOV KR,EXT[4..15]
 02CB: 0085  SET KR[8]
 02CC: 0A0D  SWAP KR,SR
@@ -807,9 +828,13 @@
 02CE: 00A0  TST fA[10]
 02CF: 14FA  JNC 054C
 02D0: 005A  CLR fB[5]
-02D1: 0015  SET KR[1] ; PREG
+02D1: 0015  SET KR[1] ; PREG  ; NUM_NORM return: arm PREG; the delay-slot SWAP
+                              ;   below pulls the continuation saved at 041D
+                              ;   from SR (e.g. back into the 0x0500 fn table —
+                              ;   trace-confirmed 050B for 1/x, errorblink.txt)
 ; KEY_USERDEF: keyboard row 1, user-defined label keys A–E (from 06B0);
-; bypasses the dispatch table at 0011.
+; bypasses the dispatch table at 0011. (02D2 doubles as the PREG-return delay
+; slot of the 02D1 path above.)
 02D2: 0A0D  SWAP KR,SR
 02D3: 0A27  MOV R5,#2
 02D4: 18BD  JC 0276
@@ -1058,7 +1083,10 @@
 039D: 0A0F  STOF
 039E: 0121  IO=C ALL
 ; KEY_CLR: "CLR" handler (slot 0052); note it checks the pending
-; trace-record flag fA[10] right at entry (see the 0689 gate)
+; trace-record flag fA[10] right at entry (see the 0689 gate).
+; Trace-confirmed in errorblink.txt: pressed during the error blink — the
+; flag wipe at 03B0 (fB[9] is not among the preserved bits) plus the explicit
+; CLR fB[9] at 03BA stop the blink, and 0321 zeroes the display value.
 039F: 00A0  TST fA[10]
 03A0: 1804  JC 03A2           ; if fA[10] clear, skip PRT.GO (no print pending)
 03A1: 0AA8  PRT.GO
@@ -1077,6 +1105,8 @@
 ; Idiom: clear all of fB EXCEPT bits {0,7,11,13}. The four SWAPs park those
 ; bits in fA, CLR fB wipes the rest, and the second four SWAPs restore them.
 ; Net effect: reset the volatile flag bits, keep the 4 sticky status bits.
+; The wipe includes the ERROR flag fB[9] — this is what makes CLR end the
+; error blink (trace-confirmed: errorblink.txt).
 03AC: 0074  SWAP fA[7],fB[7]
 03AD: 00D4  SWAP fA[13],fB[13]
 03AE: 0004  SWAP fA[0],fB[0]
@@ -1092,7 +1122,8 @@
 03B8: 0069  SET fB[6]         ; speculative: fB[6] = "calculator ready / first-pass" status
 ; KEY_CE: "CE" handler (slot 0042)
 03B9: 0058  TST fB[5]
-03BA: 009A  CLR fB[9]
+03BA: 009A  CLR fB[9]         ; clear ERROR — the CE entry at 03B9 also passes
+                              ;   here, so CE too stops the error blink
 03BB: 11BB  JNC 02DE          ; not taken on cold start (COND=1 after the flag ops)
 03BC: 0059  SET fB[5]
 03BD: 004A  CLR fB[4]
@@ -1110,18 +1141,22 @@
 03C9: 0034  SWAP fA[3],fB[3]
 03CA: 0090  TST fA[9]
 03CB: 13E4  JNC 05BD
-03CC: 0010  TST fA[1]
-03CD: 1882  JC 040E
+; ── MUL/DIV CORE ENTRY (0x03CC) — entered from the arithmetic ops and from
+; RECIP (0770); A = divisor, B = dividend, fA[1] set = divide. Only the
+; zero-divisor checks are trace-confirmed (errorblink.txt, 1/x of 0); the
+; multiply/divide loops themselves (0424–0447) are unannotated. ──
+03CC: 0010  TST fA[1]         ; divide?
+03CD: 1882  JC 040E           ; fA[1] clear (multiply) → skip divisor checks
 03CE: 0011  SET fA[1]
-03CF: 0D09  IO=A-1 MLSD1
-03D0: 187A  JC 040D
-03D1: 0989  IO=A-B MANT
+03CF: 0D09  IO=A-1 MLSD1      ; divisor mantissa == 0? (borrow clears COND)
+03D0: 187A  JC 040D           ; non-zero → normal division setup
+03D1: 0989  IO=A-B MANT       ; divisor IS 0 — dividend zero too?
 03D2: 0026  MOV fA[2],fB[2]
-03D3: 108A  JNC 0418
-03D4: 0099  SET fB[9]
+03D3: 108A  JNC 0418          ; x÷0, x≠0 → overflow exit 0418 → clamp at 025A
+03D4: 0099  SET fB[9]         ; 0÷0: ERROR, and…
 03D5: 0022  CLR fA[2]
-03D6: 0ED0  A=LOAD MMSD1
-03D7: 1902  JC 0458
+03D6: 0ED0  A=LOAD MMSD1      ; …result := 1.0 — the infamous blinking "1"
+03D7: 1902  JC 0458           ;   for 0÷0 (speculative: path not exercised)
 03D8: 00AB  TOG fB[10]
 03D9: 00A8  TST fB[10]
 03DA: 0082  CLR fA[8]
@@ -1191,16 +1226,23 @@
 0415: 181E  JC 0424
 0416: 0680  A=A+B EXP
 0417: 1820  JC 0427
-0418: 0041  SET fA[4]
+; ── Shared arithmetic exit / NORM_CALL prologue — trace-confirmed in
+; errorblink.txt. Two entries:
+; • 041C, from a 0x0500-table slot (fA[4] clear): parks KR+1 — the caller's
+;   NEXT table slot — in SR, normalizes/rounds X via NUM_NORM (0236), and
+;   PREG-returns to that slot at 02D1/02D2 ("normalize, then do the work").
+; • 0418, on arithmetic overflow (fA[4] set): bumps the pending continuation
+;   the same way, but exits to the over/underflow clamp at 025A instead. ──
+0418: 0041  SET fA[4]         ; mark: overflow exit
 0419: 00C8  TST fB[12]
 041A: 13BD  JNC 023C
 041B: 0A0D  SWAP KR,SR
-041C: 0A04  INC KR
-041D: 0A0D  SWAP KR,SR
+041C: 0A04  INC KR            ; continuation := next table slot (+0x10 in KR)
+041D: 0A0D  SWAP KR,SR        ; …parked in SR
 041E: 0040  TST fA[4]
-041F: 1BD3  JC 0236
+041F: 1BD3  JC 0236           ; fA[4] clear → NUM_NORM, return via 02D1
 0420: 0042  CLR fA[4]
-0421: 1B8F  JC 025A
+0421: 1B8F  JC 025A           ; overflow → clamp & error blink
 0422: 0033  TOG fA[3]
 0423: 06D2  A<>B EXP
 0424: 0689  IO=A-B EXP
@@ -1411,23 +1453,33 @@
 04EC: 0A98  PRT.STEP
 04ED: 0A0B  TST.BUSY
 04EE: 1005  JNC 04EC
-04EF: 0213  B=B DPT
+04EF: 0213  B=B DPT           ; reload R5 = dp digit before SET.IDLE (R5 is the
+                              ;   display's decimal-point position; cf. 0653)
 04F0: 0A10  WAIT D1
 04F1: 0A09  SET.IDLE
 04F2: 0A04  INC KR
 04F3: 0AD5  TST KR[13]
 04F4: 1805  JC 04F2
 04F5: 0A01  CLR.IDLE
-04F6: 0619  IO=-B EXP
-04F7: 1806  JC 04FA
-04F8: 0C48  A=SRA MAEX
-04F9: 0948  A=SRA MANT
+04F6: 0619  IO=-B EXP         ; EE-image realign, same idiom as 0662–0665:
+04F7: 1806  JC 04FA           ;   if the display image carries exponent digits
+04F8: 0C48  A=SRA MAEX        ;   (B EXP ≠ 0), shift A's mantissa right twice
+04F9: 0948  A=SRA MANT        ;   back into the mantissa/EXP working layout
 04FA: 0050  TST fA[5]
 04FB: 15BE  JNC 07DA
 04FC: 00E8  TST fB[14]
 04FD: 1766  JNC 08B0
 04FE: 1D2B  JC 0269
 04FF: 1FCA  JC 08E4
+; ═══════════════════════════════════════════════════════════════════════════
+; UNARY-FUNCTION DISPATCH TABLE  (0x0500–0x051F)
+; Landing zone of FN_ENTRY's computed PREG jump (0210 → 0143/0144): KR[14] +
+; KR[12] plus the function code in KR[4..7] form fetch address 0x0500+fn
+; (FN_ENTRY_KR8 adds KR[8] → 0x0510+fn). Entries chain to their own NEXT slot:
+; a "JC 041C" slot normalizes/rounds X first, and 041C's INC KR makes the PREG
+; return at 02D1/02D2 land on the slot after it, which jumps to the
+; implementation. Trace-confirmed for 1/x (fn 10 → 050A/050B, errorblink.txt).
+; ═══════════════════════════════════════════════════════════════════════════
 0500: 19C9  JC 041C
 0501: 1FBA  JC 08DE
 0502: 1B79  JC 0346
@@ -1438,8 +1490,8 @@
 0507: 19D7  JC 041C
 0508: 0051  SET fA[5]
 0509: 1CD8  JC 0775
-050A: 19DD  JC 041C
-050B: 1CCA  JC 0770
+050A: 19DD  JC 041C           ; fn 10 "1/x": normalize X, PREG-return to 050B…
+050B: 1CCA  JC 0770           ;   …→ RECIP (1 ÷ X)
 050C: 1C22  JC 071D
 050D: 1D60  JC 07BD
 050E: 1BE2  JC 06FF
@@ -1504,6 +1556,17 @@
 0549: 17D5  JNC 015F
 054A: 03D3  B=LOAD DPT1
 054B: 1F91  JC 0183
+; ═══════════════════════════════════════════════════════════════════════════
+; DISPLAY FORMAT & ROUND  (0x054C–0x05BE)
+; Builds the display image in A from the normalized value (decimal-point
+; position, EE exponent digits, blanking mask in B). Two passes, flagged by
+; fB[5]: on the first pass 05B9 rounds the value at the display's guard digit
+; and re-runs NUM_NORM at 023C with fB[5] set (a round that carries — e.g. the
+; error clamp's all-9s image — re-overflows and re-clamps at 025A); the second
+; pass finishes the image and falls through to the print/idle epilogue.
+; Control flow trace-confirmed in errorblink.txt (error image 9.9999999 99);
+; most line-level semantics are still unannotated.
+; ═══════════════════════════════════════════════════════════════════════════
 054C: 00A0  TST fA[10]
 054D: 00A8  TST fB[10]
 054E: 100C  JNC 0554
@@ -1619,12 +1682,13 @@
 05B6: 0042  CLR fA[4]
 05B7: 0A0D  SWAP KR,SR
 05B8: 1E1D  JC 02AA
-05B9: 0B00  A=A+5 MLSD5
-05BA: 0948  A=SRA MANT
-05BB: 0940  A=SLA MANT
+05B9: 0B00  A=A+5 MLSD5       ; round: +5 at the mantissa guard digit
+05BA: 0948  A=SRA MANT        ; shift the guard digit off…
+05BB: 0940  A=SLA MANT        ;   …and back: guard digit is now 0
 05BC: 0A0D  SWAP KR,SR
-05BD: 0059  SET fB[5]
-05BE: 1F05  JC 023C
+05BD: 0059  SET fB[5]         ; mark "rounded" → second pass skips this
+05BE: 1F05  JC 023C           ; renormalize (a carry, 9.99… → 10.0…, may
+                              ;   re-overflow → clamp again at 025A)
 05BF: 0AB5  TST KR[11]
 05C0: 136E  JNC 0777
 05C1: 0AA5  TST KR[10]
@@ -1737,9 +1801,10 @@
 ; printer is already idle, so this passes immediately: diffing the printer vs
 ; no-printer TI-59 traces shows this loop (and the whole reset path) runs
 ; identically either way — reset behaviour is fully printer-independent.
-0624: 0DD6  D=LOAD MLSD1
+0624: 0DD6  D=LOAD MLSD1      ; D[3] := 1 (side effect: seeds the error-blink
+                              ;   counter at 0643 — the blink starts dark)
 0625: 00DA  CLR fB[13]
-0626: 0213  B=B DPT
+0626: 0213  B=B DPT           ; reload R5 = dp digit before idling (cf. 04EF)
 0627: 0A98  PRT.STEP          ; advance the printer one column
 0628: 0A0B  TST.BUSY          ; here reading printer-busy (the FLG_BUSY half of TST.BUSY)
 0629: 1005  JNC 0627          ; wait here until it finishes (no wait at reset)
@@ -1821,29 +1886,48 @@
 ; signal, so the shared ROM can never enter the card path. The emulator models
 ; exactly that (bit 4 of digit 7 held on TI-58/58C — TI59Machine::cardSwitchCol).
 0640: 1BCF  JC 0459
-0641: 0098  TST fB[9]
-0642: 1828  JC 0656           ; loop straight back to the scan window
-; ── 0x0643: reached only when 0642 falls through. Uses PRT.STEP/MOV KR[4..7];
-; ── speculative: print-in-progress / trace-mode service. Not exercised here. ─
-0643: 0A01  CLR.IDLE
-0644: 0CD5  C<>D MAEX
-0645: 0F24  C=C+1 MAEX1
-0646: 0921  IO=C MANT
-0647: 0A18  MOV KR[4..7],R5
-0648: 0CD5  C<>D MAEX
-0649: 0A45  TST KR[4]
-064A: 1018  JNC 0656
-064B: 0CD5  C<>D MAEX
-064C: 0F24  C=C+1 MAEX1
+; Error gate: fB[9] = ERROR flag (set by the over/underflow clamp at 025A, the
+; 0÷0 path at 03D4, failed SBR at 11E8, …; cleared by CLR/CE at 03B0/03BA).
+0641: 0098  TST fB[9]         ; error pending?
+0642: 1828  JC 0656           ; no → loop straight back to the scan window
+; ═══════════════════════════════════════════════════════════════════════════
+; ERROR BLINK SERVICE  (0x0643–0x0655)
+; Trace-confirmed in errorblink.txt (1/x on a zero display → blinking
+; "9.9999999 99", ended by CLR). Runs once per idle pass while fB[9] is set.
+; D[1..3] serves as a pass counter (the MAEX swaps leave D's nibble 0 alone);
+; each pass increments it, and the PARITY of its hundreds digit (nibble 3)
+; drives the blink: odd → the display, blanked by CLR.IDLE at 0643, is left
+; dark for the pass; even → three extra increments and SET.IDLE re-lights it.
+; Counting +1/pass dark but +4/pass lit gives ≈100 dark : 25 lit passes — the
+; fast ~4:1 error flicker. errorblink.txt shows 21-instruction dark passes
+; ×99 alternating with 32-instruction lit passes ×24, ≈48 machine cycles per
+; pass (the loop's WAIT D14 → D11 → D8 spans three 16-digit sweeps). The
+; counter is simply whatever D holds — the epilogue at 0624 (D=LOAD MLSD1)
+; leaves D[3] = 1, so the blink always opens with a dark phase. The arming
+; scan at 0656/0657 keeps running, so any key stays live during the blink.
+; ═══════════════════════════════════════════════════════════════════════════
+0643: 0A01  CLR.IDLE          ; blank the display; CPU takes the bus back
+0644: 0CD5  C<>D MAEX         ; blink counter (D[1..3]) into C
+0645: 0F24  C=C+1 MAEX1       ; counter += 1 (units digit = nibble 1)
+0646: 0921  IO=C MANT         ; ALU pass: R5 latches the digit at the MANT
+                              ;   constant position, nibble 3 = hundreds digit
+0647: 0A18  MOV KR[4..7],R5   ; park it in KR so it can be bit-tested
+0648: 0CD5  C<>D MAEX         ; counter back into D
+0649: 0A45  TST KR[4]         ; hundreds digit odd?
+064A: 1018  JNC 0656          ; odd → dark phase: skip the re-light
+064B: 0CD5  C<>D MAEX         ; even → lit phase: +3 more, so this phase
+064C: 0F24  C=C+1 MAEX1       ;   advances 4×/pass and lasts ¼ as long
 064D: 0F24  C=C+1 MAEX1
 064E: 0F24  C=C+1 MAEX1
 064F: 0CD5  C<>D MAEX
-0650: 0A98  PRT.STEP
-0651: 0A0B  TST.BUSY
-0652: 1008  JNC 0656
-0653: 0213  B=B DPT
+0650: 0A98  PRT.STEP          ; speculative: keep the PC-100 print head
+0651: 0A0B  TST.BUSY          ;   serviced during the blink; no-op without one
+0652: 1008  JNC 0656          ; printer busy → stay dark this pass
+0653: 0213  B=B DPT           ; ALU pass reloads R5 = decimal-point digit from
+                              ;   B's DPT field (R5 doubles as the display dp
+                              ;   position and was clobbered at 0646)
 0654: 0A10  WAIT D1
-0655: 0A09  SET.IDLE
+0655: 0A09  SET.IDLE          ; display back on at the sweep boundary
 ; Steady-state scan window: strobe the matrix once, then loop back to the
 ; housekeeping check at 063C — the steady-state idle cycle (10 instructions:
 ; 063C→0642, 0656→0658). A new keypress is always seen here first.
@@ -1881,10 +1965,12 @@
 ;              landing in the per-key dispatch table at 0x0011 (see there).
 ; ═══════════════════════════════════════════════════════════════════════════
 0661: 0A01  CLR.IDLE          ; KEY ACCEPTED — leave idle, CPU back to full speed
-0662: 0619  IO=-B EXP
-0663: 1806  JC 0666
-0664: 0C48  A=SRA MAEX
-0665: 0948  A=SRA MANT
+0662: 0619  IO=-B EXP         ; display image in EE form? (B's exponent field
+0663: 1806  JC 0666           ;   is non-zero when an exponent is shown)
+0664: 0C48  A=SRA MAEX        ; yes → shift A's mantissa right twice, back to
+0665: 0948  A=SRA MANT        ;   the mantissa/EXP working layout (trace-
+                              ;   confirmed in errorblink.txt: CLR pressed on
+                              ;   the blinking 9.9999999 99; cf. twin at 04F6)
 0666: 0A75  TST KR[7]         ; rows 12+ (KR[6] and KR[7] both set) are the
 0667: 1816  JC 0672           ; D12 printer pseudo-keys; real rows skip ahead
 0668: 0A65  TST KR[6]
@@ -2183,13 +2269,16 @@
 076D: 00CA  CLR fB[12]
 076E: 161A  JNC 0A7B
 076F: 19CD  JC 0689
-0770: 0051  SET fA[5]
-0771: 0ED4  C=LOAD MMSD1
+; RECIP: "1/x" implementation (table slot 050B; X was already normalized and
+; rounded by the 041C prologue). Computes 1 ÷ X through the MUL/DIV core.
+; Trace-confirmed in errorblink.txt (X = 0 → x÷0 exit → error blink).
+0770: 0051  SET fA[5]         ; speculative: fA[5] = display refresh pending
+0771: 0ED4  C=LOAD MMSD1      ; C := 1.0000000… (mask constant 1 at the MSD)
 0772: 003A  CLR fB[3]
 0773: 002A  CLR fB[2]
-0774: 0013  TOG fA[1]
-0775: 0123  B=C ALL
-0776: 1F55  JC 03CC
+0774: 0013  TOG fA[1]         ; fA[1] set = divide mode
+0775: 0123  B=C ALL           ; dividend B := 1.0 (0775 is also table slot
+0776: 1F55  JC 03CC           ;   0509's entry) → MUL/DIV core, divisor in A
 0777: 0AA5  TST KR[10]
 0778: 0A85  TST KR[8]
 0779: 0A75  TST KR[7]

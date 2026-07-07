@@ -11,7 +11,9 @@
 ; Traces: KEYPRESS_59.txt (key "6", no printer), KEYPRESS_TRC_59.txt (keys
 ; "0" and "+", printer attached, TRACE switch latched), CALCU59_TRACE.ans
 ; (examples/texas-print.ti59 single-step), CALCU59_TRACE.txt
-; (texas-print.ti59 scripted pseudo-code insertion: SBR 444 … P/R, LRN, Ins).
+; (texas-print.ti59 scripted pseudo-code insertion: SBR 444 … P/R, LRN, Ins),
+; errorblink.txt (1/x on a zero display after reset → error blink → CLR,
+; no printer).
 ; ══════════════════════════════════════════════════════════════════════════
 
 ; ── Reset / idle / keyboard front end ───────────────────────────────────────
@@ -26,6 +28,7 @@
 0788  KEY_ENCODE         [T] pack key row/col into 2-digit position code in D
 02D2  KEY_USERDEF        [D] keyboard row 1 (A–E user-defined label keys); bypasses KEY_TABLE
 02E2  DISP_REBUILD       [T] display / working-register rebuild; drops pending trace record (02E3)
+0643  ERR_BLINK          [T] error-blink service: runs each idle pass while fB[9] set; D[1..3] pass counter, hundreds-digit parity gates SET.IDLE (~100 dark : 25 lit passes)
 
 ; ── Keyboard dispatch table and key handlers ────────────────────────────────
 ; The computed jump at 06B1 lands at 0x0<col><row>. Slots at x1–x9 only;
@@ -43,14 +46,14 @@
 0163  DIGIT_SLIDE        [T] INC KR slide 0163–016C; digit d enters at 016C−d ("6"→0166 traced, "0"→016C traced)
 020B  KEY_LNX            [D] "lnx" handler (slot 0032); R5 := 2, falls through 020F into FN_ENTRY
 020F  FN_ENTRY_KR8       [D] FN_ENTRY variant: sets KR[8] first ("√x" enters here with R5=0)
-0210  FN_ENTRY           [D] common unary-function entry; function code in R5 ("x²" R5=7, "1/x" R5=10)
+0210  FN_ENTRY           [T] common unary-function entry; function code in R5 ("x²" R5=7, "1/x" R5=10); PREG jump to FN_TABLE 0x0500+fn — traced for 1/x
 0266  KEY_INV            [D] "INV" handler (slot 0022)
 0268  KEY_2ND            [D] "2nd" handler (slot 0012); TOG fA[9]
 027A  KEY_XT             [D] "x⇄t" handler (slot 0023)
 0291  KEY_RST            [D] "RST" handler (slot 0018)
 02AC  KEY_GTO            [D] "GTO" handler (slot 0016)
 0318  KEY_DPT            [D] "." handler (slot 0039)
-039F  KEY_CLR            [D] "CLR" handler (slot 0052); checks pending trace record (fA[10]) at entry
+039F  KEY_CLR            [T] "CLR" handler (slot 0052); checks pending trace record (fA[10]) at entry; flag wipe at 03B0 + CLR fB[9] at 03BA end an error blink — traced in errorblink.txt
 03B9  KEY_CE             [D] "CE" handler (slot 0042)
 03E9  KEY_SBR            [D] "SBR" handler (slot 0017)
 03F8  KEY_SST            [D] "SST" handler (slot 0014)
@@ -61,6 +64,17 @@
 0B11  OP_INS             [T] "Ins" operation body (2nd slot 0064 → KEY_OP_ENTRY chain, vector 0xB11); per-register shift loop uses PRGREG_RAM_READ / PRGREG_CACHE / 1213
 0089  KEY_PSEUDO_ADV     [D] pseudo table entry for the printer paper-ADVANCE key (remapped at 0679–0688)
 0099  KEY_PSEUDO_PRINT   [D] pseudo table entry for the printer PRINT key (remapped at 0679–0688)
+
+; ── Arithmetic / number pipeline (trace: errorblink.txt, 1/x of 0) ──────────
+0500  FN_TABLE           [T] unary-function dispatch table (0500–051F), reached by FN_ENTRY's PREG jump at 0x0500+fn (KR[8] variant → 0x0510+fn); entries chain to their own next slot via NORM_CALL
+041C  NORM_CALL          [T] "normalize, then do the work" prologue: parks KR+1 (caller's next FN_TABLE slot) in SR, runs NUM_NORM, PREG-returns via 02D1/02D2
+0418  ARITH_OVFL_EXIT    [T] arithmetic overflow exit (fA[4] tag): bumps the pending continuation, then exits to OVFL_CLAMP
+0236  NUM_NORM           [T] normalize working value in A: zero case (02BF), mantissa left-align, decimal exponent (fA[3] = negative); clamps at OVFL_CLAMP on over/underflow
+025A  OVFL_CLAMP         [T] over/underflow clamp: SET fB[9] (ERROR blink) unless fA[14]; clamps A to 9.9999999E99 (fA[3] clear) or 1E−99 (fA[3] set, [S] not exercised)
+03CC  MULDIV             [T] multiply/divide core entry: A = divisor, B = dividend, fA[1] = divide; zero-divisor checks traced (x÷0 → ARITH_OVFL_EXIT, 0÷0 → error + result 1.0 [S]); main loops (0424–0447) unannotated
+0770  RECIP              [T] "1/x" implementation (FN_TABLE slot 050B): B := 1.0, divide mode, → MULDIV with X as divisor
+054C  DISP_FORMAT        [T] display format & round (054C–05BE): builds the display image in A; two passes flagged by fB[5]
+05B9  DISP_ROUND         [T] first-pass display rounding: +5 at the guard digit, clear it, re-run NUM_NORM (a carry can re-overflow → OVFL_CLAMP again)
 
 ; ── Printer / TRACE ─────────────────────────────────────────────────────────
 0A68  TRC_QUEUE_GATE     [T] trace-queue gate (from KEY_PRINT_GATE): fA[10] = record pending; 1st pass queues, 2nd pass dispatches
