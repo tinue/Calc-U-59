@@ -65,6 +65,7 @@ class EmulatorViewModel {
     var isDisplayPressed: Bool = false
     var isFullSpeedMode: Bool = false  // true when user is pressing display; emulation runs unrestricted
     var isKeystrokesPlaying: Bool = false
+    private var keystrokeTask: Task<Void, Never>?
 
     // ── Printer state ────────────────────────────────────────────────────────
     var printerLines: [String] = []
@@ -798,6 +799,7 @@ class EmulatorViewModel {
     // MARK: - Reset
 
     func resetMachine() {
+        keystrokeTask?.cancel()
         unfreeze()  // exit freeze mode when resetting
         asmOverlayActive = false
         cardState = .noCard
@@ -834,6 +836,7 @@ class EmulatorViewModel {
     /// Clean reset (all models): zero all RAM, then reset.
     /// For TI-58C, writes the zeroed state immediately to the save file.
     func cleanResetMachine() {
+        keystrokeTask?.cancel()
         unfreeze()  // exit freeze mode when resetting
         asmOverlayActive = false
         machine?.deserialiseRAM(Data(repeating: 0, count: 120 * 16))
@@ -2493,7 +2496,7 @@ class EmulatorViewModel {
         self.cueCardContent = resolvedCueCard()
 
         if !parsed.keystrokes.isEmpty {
-            Task { await playKeystrokes(parsed.keystrokes) }
+            keystrokeTask = Task { await playKeystrokes(parsed.keystrokes) }
         }
     }
 
@@ -2556,7 +2559,7 @@ class EmulatorViewModel {
         }
 
         if !parsed.keystrokes.isEmpty {
-            Task { await playKeystrokes(parsed.keystrokes) }
+            keystrokeTask = Task { await playKeystrokes(parsed.keystrokes) }
         }
     }
 
@@ -2582,6 +2585,7 @@ class EmulatorViewModel {
         }
 
         for event in events {
+            guard !Task.isCancelled else { return }
             switch event {
             case .key(let matrixCode):
                 machine?.pressMatrixKey(matrixCode)
