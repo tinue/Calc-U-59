@@ -15,7 +15,7 @@ State files are plain UTF-8 text (`.ti59`, `.ti58`, `.ti58c`). The authoritative
 | Keyword | Purpose |
 |---------|---------|
 | `PARTITION: nnn` | Last visible step (display shows nnn). Total steps = nnn+1, rounded up to multiple of 80. Default: 479 (480 steps). |
-| `PROGRAM:` | Program listing. Accepts bare keycodes, step-prefixed keycodes, or printer-trace format (mnemonics ignored). |
+| `PROGRAM:` | Program listing. Accepts bare keycodes (many per line) or step-prefixed lines (`002 61 GTO`) — a prefixed line always carries exactly **one** keycode, the token right after the prefix; anything after that (including a numeric mnemonic like the `0` in `473 00 0`) is a label and is ignored. Notation is chosen per line, never mixed mid-line. |
 | `REGISTERS:` | `NN = value` lines. NN = 00–99; TI-58C only: `HNN` for hidden regs 00–03. |
 | `KEYSTROKES:` | Physical key presses to inject after load. Uses **matrix codes**, not keycodes (see below). |
 | `SOLID-STATE-MODULE: ID` | Load a module. IDs: ML ST RE SY NG AV **LE** SA BD MU EE SE AG RP |

@@ -13,17 +13,24 @@ import Foundation
 //       Default if omitted: 479 (480 steps, 60 program-RAM registers).
 //
 //   PROGRAM:
-//       One or more lines of keycodes.  Three formats are accepted and may be
-//       mixed freely within the same file:
+//       One or more lines of keycodes.  Two formats are accepted and may be
+//       mixed freely within the same file, but the choice is per line — a
+//       single line is always entirely one format, never a mix of both:
 //
 //         Format 1 — bare keycodes:        76 11 42 00
-//         Format 2 — step-number prefix:   002  42 00
-//         Format 3 — printer listing:      002  STO  00
+//         Format 2 — step-number prefix:   002  61        (one step per line)
 //
 //       A 3-or-more-digit number at the start of a line sets the current step
-//       address (sparse loading: unlisted steps default to 00).  Without a
-//       prefix, keycodes continue from the previous step.  Mnemonic text is
-//       silently ignored; only numeric tokens 0–99 are treated as keycodes.
+//       address (sparse loading: unlisted steps default to 00) and marks the
+//       line as format 2. Format-2 lines carry exactly one keycode — the
+//       first numeric token after the prefix; any further token on that line
+//       (e.g. the mnemonic label from a printer listing, such as "002 61 GTO"
+//       or the self-describing "473 00 0" for a digit key) is ignored. This
+//       matters because digit keys' mnemonics are themselves numeric ("0"–"9"),
+//       so a naive scan would misread the label as a second keycode. Without
+//       a prefix (format 1), every numeric token 0–99 on the line is a
+//       keycode, continuing from the previous step. Mnemonic text is silently
+//       ignored in both formats.
 //
 //       A line containing only "..." is a gap marker: it is ignored by the
 //       parser (steps in the gap remain 00) but documents that a section of
@@ -253,20 +260,39 @@ func parseStateFile(_ text: String, maxStepAddr: Int = 479, allowHiddenRegisters
 // MARK: - Line parsers
 
 /// Parse one program line. Returns the step address set by a prefix (if any) and
-/// the keycodes found on the line. A 3-or-more-digit token that is a valid step
-/// address (0–479) is treated as a position prefix, not a keycode.
+/// the keycodes found on the line. A 3-or-more-digit token at the start of the
+/// line that is a valid step address (0–479) is a position prefix, not a keycode.
+///
+/// The notation is chosen once per line, not per token: a prefixed line (format 2)
+/// always carries exactly one keycode — the token right after the prefix — and any
+/// further token on that line is a mnemonic label to be ignored, even if the label
+/// happens to be numeric (digit keys 0–9 are their own mnemonic, e.g. "473 00 0").
+/// An un-prefixed line (format 1) treats every numeric token as a keycode.
 private func parseProgLine(_ line: String, maxStepAddr: Int = 479) -> (stepAddr: Int?, keycodes: [UInt8]) {
     let tokens = line.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
-    var startStep: Int? = nil
-    var keycodes: [UInt8] = []
+    guard !tokens.isEmpty else { return (nil, []) }
 
-    for token in tokens {
-        if startStep == nil && token.count >= 3, let n = Int(token), n >= 0, n <= maxStepAddr {
-            startStep = n   // step-address prefix: sets position, not a keycode
-            continue
+    var startIndex = 0
+    var startStep: Int? = nil
+    if tokens[0].count >= 3, let n = Int(tokens[0]), n >= 0, n <= maxStepAddr {
+        startStep = n   // step-address prefix: sets position, not a keycode
+        startIndex = 1
+    }
+
+    if startStep != nil {
+        // Format 2: single keycode follows the prefix; anything after it is a label.
+        guard startIndex < tokens.count,
+              tokens[startIndex].count <= 2,
+              let n = Int(tokens[startIndex]), n >= 0, n <= 99 else {
+            return (startStep, [])
         }
-        // 1–2 digit numeric token in 0–99 range is a keycode
-        if token.count <= 2, let n = Int(token), n >= 0, n <= 99 {
+        return (startStep, [UInt8(n)])
+    }
+
+    // Format 1: every 1–2 digit numeric token in 0–99 range is a keycode.
+    var keycodes: [UInt8] = []
+    for token in tokens where token.count <= 2 {
+        if let n = Int(token), n >= 0, n <= 99 {
             keycodes.append(UInt8(n))
         }
     }
