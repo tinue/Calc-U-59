@@ -1,0 +1,265 @@
+# fast-grafik-3d-plot.ti59 Program that demonstrates interrupting the printer while printing a row.
+# From Magatzine "TI PPC NOTES", V8N2P11ff, 1983
+#
+# These are the original notes in the article:
+
+# FAST-GRAFIK-3-D-PLOT - by Peter Poloczek, This superb program was first
+# mentioned in V7N6P6. Then, V7N7/8P7 announced the availability of a 25 page
+# English language version for four dollars in the United States. Now, the
+# Volume 5 Number 1 issue of the TISOFT Newsletter (October, November,
+# December 1982) has reduced the program description and operating
+# instructions to seven pages, a length suitable for inclusion ina newsletter.
+# I tested the program in several ways with outstanding results as illustrated
+# by the figures on page 1 of this issue. I showed the resulting figures to
+# others--every one expressed amazement at that kind of capability from a
+# TI-59/PC-100. Peter has kindly agreed to let us publish the program in TI
+# PPC Notes.
+#
+# The two part program provides for user selection of the minimum and maximum
+# values for the x, y and z axes, of the number of tapes and print lines, and
+# of the distance between the grid lines. The x axis is in the direction of
+# paper transport. The user can also select the angle between the x and y
+# axes, and whether points that would be hidden by surfaces of the three
+# dimensional figure should be plotted or not. Much of the user control
+# techniques will be recognized as similar to those used with the Superplotter
+# program in the Math/Utilities module. But this program also provides a
+# user-friendly set of prompting commands.
+#
+# The first part of the program asks for definition of the plotting
+# parameters:
+#
+# * X-MAX Final value for X
+# * X-MIN Starting value for X
+# * Y-MAX Final value for Y
+# * Y-MIN Starting value for Y
+# * 2-MAX The scale is not correct
+# * Z-MIN
+# * DIF-X Distance between X grid lines
+# * DIF-Y Distance between Y grid lines
+# * ZEILEN The number of lines
+# * STREIFEN The number of tapes
+# * X-Y-WINKEL The perspective angle
+# * VERDECKT? Whether to plot hidden points 1 = no 0 yes
+#
+# Each of these inputs is prompted with the print notation shown. The user
+# enters the desired values and presses R/S. The input value is printed,
+# followed by the next prompt. After the last plot control input is entered in
+# response to VERDECKT? the number of function values to be calculated is
+# calculated and printed following the notation F-WERTE or function values.
+# This number provides an estimate of how long the plotting routine will run.
+# It takes about an hour to plot 870 function values.
+#
+# After the F-WERTE is calculated and printed, the program goes on to list the
+# keystrokes needed to initialize the second part of the program for fast mode
+# and high resolution graphics, and prompting sequences for the entry of the
+# function to be plotted. MThis will be recognized as similar to the prompting
+# Richard Snow provided with his Stars and Stripes program in V6N4-5P8. The
+# three zeroes at steps 472 through 474 of the prompting list are symbolic of
+# the function to be entered, which could include as many as 87 steps, but
+# which must finish with the program sequence GTO 288. The function calls X
+# and Y values from data registers 40 and 41 respectively. The function
+# routine should end with the value for Z in the display. Plotting begins by
+# pressing A.
+#
+# User Instructions:
+#
+# 1. Enter and record the first part of the program in 6 Op 17. Banks 1 and 2
+# are required.
+#
+# 2. Enter the second part of the program into memory in 4 Op 17, but record
+# it in 6 Op 17. Banks 1, 2 and 3 are required. If you are like Maurice
+# Swinnen and can't stand the sight of Nop's, then you can use zeroes at
+# locations 158 and 159. Whatever you put in those locations will be pushed
+# out of memory by the sequence which inserts the hexadecimal codes.
+#
+# 3. Enter the first part of the program and press A. The program will respond
+# with the prompt "X-MAX". Enter the desired value and press R/S. The program
+# will respond by printing the entered value followed by the prompt "X-MIN".
+# Continue through the prompting sequence until you enter the response to the
+# prompt "VERDECKT ?". After calculating and printing the number of function
+# values (F-WERTE) the program will print out the following listing and stop
+# with the "F-WERTE" value in the display.
+#
+# [Listing intentionally left out. Run the preset, and the listing appears.]
+#
+# This printout provides the prompting for the hexadecimal initialization.
+# Enter the second part of the program. Then follow the prompting sequence of
+# keystrokes from the keyboard. That is, once the three card sides of the
+# second part of the program have been entered you begin by pressing GTO 0 1 6
+# 1.0 2nd Op 1 7 CLR 2nd Pem1 9 SBRO 4 5 At this point you will see a flashing
+# 0. Do not clear it but proceed with the initialization sequence by pressing
+# 2nd P/R. The flashing display will change from a 0. to a O (no decimal
+# point). Press LRN and see 016 55 in the display. Press 2nd INS and continue
+# to see 016 55 in the display. Press LRN and see the zero without the decimal
+# point in the display. Press RST CLR GTO 0 2 4 2nd Pem 1 9 SBR 0 4 5 and
+# again see the flashing 0. (with a decimal point) in the display. Do not
+# clear it and press 2nd P/R to see the flashing zero without the decimal
+# point. Press LRN and see 024 55 in the display. Press 2nd INS and continue
+# to see 024 55 in the display. Press LRN RST CLR and see the zero without the
+# decimal point in the display. Press 5 2nd Op 1 7 GTO 0 1 7 LRN and see 017
+# 01 in the display. Now press 2nd Nop (sorry about that Maurice--you really
+# have to use this Nop) GTO 2 6 5 CLR 2nd Op O 5 and see 024 25 in the
+# display. This is a critical checkpoint; if you don't have that display you
+# have made a mistake. Press LRN and see 559.49 in the display. Press GTO 4 7
+# 3 LRN and see 473 00 in this display.
+#
+# At this point you are ready to enter the function you wish to plot.
+# Locations 471 through 478 ave symbolic prompting to indicate that you may
+# begin your function with a parenthesis and close your function with a
+# parenthesis, and follow the end of your function with a GTO 288 to return to
+# the main program. The size of the function to be plotted is limited to 87
+# steps including the GTO 288 by the continuation of the main program at step
+# 560. When you have entered your function followed by GTO 288 press LRN and
+# you are ready to plot. Press A to start plotting.
+#
+# 4. Some rules for setting up the function:
+# a. The variables used by the function (x,y) are in memory registers 40 (x)
+# and 41 (y).
+# b. The function routine should end with the calculated value for z in the
+# display.
+# c. The calculator is in DEG mode when it calls up the function.
+# d. You can use = in your function, Parentheses not required.
+#
+# 5. Troubleshooting: If you are having problems you can make two quick checks
+# on your hexadecimal initialization. First, as noted in paragraph 3 you must
+# see 024 25 in the display after the GTO 26 5 CLR 2nd Op O 5 part of the
+# initialization sequence. Second, when the initialization is complete you may
+# list the modified program starting at location 000 and see the code listed
+# below. Note there is no location 016 but two locations 017, and that a blank
+# space like an advance replaces location 024. What had been the code at
+# locations 032 and following has been moved down two steps by the two INS
+# commands in the initialization sequence, and the code from what had been
+# locations 016 through 033 is entirely different.
+#
+# [Listing intentionally left out, as it was not scannable]
+#
+# 6. If you prefer not to have the prompting printed out for the hexadecimal
+# initialization simply replace the GTO at location 396 of the first part with
+# a R/S.
+#
+# 7. A sample problem to plot the function z= 12/(1 + x² + y²) appears at the
+# right.
+#
+# The plots on the cover sheet were obtained using two strips. The upper plot
+# used the same function listed above, but with DIF-X = 0.25, DIF-Y = 0.5,
+# ZEILEN = 160, and STREIFEN = 2.
+#
+# The lower plot on the cover sheet used the function z= (x² = y²)/4 with
+# X-MAX = 8, X-MIN = -8, Y-MAX = 8, Y-MIN = -8, Z-MAX = 16, Z-MIN = -16, DIF-X
+# = 0.5, DIF-Y = 1, ZEILEN = 160, STREIFEN = 2, and X-Y-WINKEL = 65.
+#
+# The program presented here is for single valued functions. Peter has also
+# provided a multi-function version which will be presented in a future issue.
+# The program is a revision of an original program by Josef Schnieder to
+# include the fast mode capability.
+#
+# Happy 3-D plotting. Peter requests that you send printouts and data for any
+# particularly nice plots to him. His address is
+#
+# Peter G. Poloczek
+# Kalbacher Hauptstrasse 71
+# D-6000 Frankfurt/M. -56
+# West Germany
+#
+# The first part of the program appears on page 15. The second part of the
+# program, before hexadecimal initialization, appears on page 16.
+
+MODEL: TI-59
+SOLID-STATE-MODULE: ML
+PRINTER: on
+
+# Prepare the magnet card inlay
+CUECARD:
+Template: MagnetCard
+Title: Fast Grafik 3D Plot - Part 1
+Banks: 1,2
+A: Start
+
+# For compactness, the program is only here as key codes. If you need the listing,
+# load the program and LIST it on the printer.
+PROGRAM:
+76 16 69 01 76 17 69 05 25 91  99 92 76 11 69 00 04 04 02 00
+03 00 01 03 04 04 16 42 12 04  04 02 00 03 00 02 04 03 01 16
+42 13 04 05 02 00 03 00 01 03  04 04 16 42 10 04 05 02 00 03
+00 02 04 03 01 16 42 11 04 06  02 00 03 00 01 03 04 04 16 42
+23 04 06 02 00 03 00 02 04 03  01 16 42 24 01 06 02 04 02 01
+02 00 04 04 16 42 18 01 06 02  04 02 01 02 00 04 05 16 42 19
+04 06 01 07 02 04 02 07 01 07  69 01 03 01 52 08 22 52 69 02
+17 42 22 03 06 03 07 03 05 01  07 02 04 69 01 02 01 01 07 03
+01 00 00 00 00 69 02 17 42 26  04 04 02 00 04 05 02 00 04 03
+69 01 02 04 03 01 02 06 01 07  02 07 69 02 17 42 17 43 12 75
+43 13 95 42 14 43 10 75 43 11  95 42 15 65 43 17 39 42 06 95
+42 16 43 18 55 43 06 95 42 20  43 19 65 43 06 95 42 21 43 14
+85 43 16 54 55 43 22 95 42 27  43 23 75 43 24 85 43 15 65 43
+17 38 42 17 95 55 05 09 93 09  09 55 43 26 95 42 25 04 02 01
+07 03 05 01 06 01 07 69 01 01  05 02 06 03 07 00 00 07 01 69
+02 17 42 00 43 24 85 43 11 65  43 17 95 55 43 25 95 42 23 43
+14 55 43 18 85 01 95 65 55 43  16 55 53 43 14 85 43 16 95 85
+53 43 15 55 43 19 85 01 54 65  53 43 14 55 53 24 85 43 16 95
+65 43 22 65 69 00 02 01 02 00  04 03 01 07 03 05 69 01 03 07
+01 07 52 06 22 52 69 02 69 05  43 26 95 59 99 98 61 04 18 00
+00 00 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00 90 61
+00 16 01 00 69 17 25 36 19 71  00 45 37 31 46 31 81 25 61 00
+24 36 19 71 00 45 37 31 46 31  81 25 05 69 17 61 00 17 31 68
+61 02 65 25 69 05 31 61 04 73  31 53 00 00 00 54 61 02 88 31
+
+# The keystrokes entered will plot something nice. If you want
+# your own output, change them here, or delete this section and
+# enter the values manually.
+KEYSTROKES:
+# Launch
+11  A
+WaitFullSpeed: 0.5s
+# X-MAX
+72  4
+91  R/S
+WaitFullSpeed: 0.5s
+# X-MIN
+72  4
+94  +/-
+91  R/S
+WaitFullSpeed: 0.5s
+# Y-MAX
+72  4
+91  R/S
+WaitFullSpeed: 0.5s
+# Y-MIN
+72  4
+94  +/-
+91  R/S
+WaitFullSpeed: 0.5s
+# Z-MAX
+82  1
+83  2
+91  R/S
+WaitFullSpeed: 0.5s
+# Z-MIN
+92  0
+91  R/S
+WaitFullSpeed: 0.5s
+# DIF-X
+82  1
+91  R/S
+WaitFullSpeed: 0.5s
+# DIF-Y
+82  1
+91  R/S
+WaitFullSpeed: 0.5s
+# ZEILEN
+63  8
+92  0
+91  R/S
+WaitFullSpeed: 0.5s
+# STREIFEN
+82  1
+91  R/S
+WaitFullSpeed: 0.5s
+# X-Y-WINKEL
+74  6
+73  5
+91  R/S
+WaitFullSpeed: 0.5s
+# VERDECKT
+82  1
+91 R/S
+WaitFullSpeed: 0.5s
