@@ -2,6 +2,7 @@
 
 ## [1.6.0] - work in progress
 
+- **App Icon** Rebuilt as a layered Icon Composer `.icon` document, adding Liquid Glass depth and Light/Dark/Tinted/Clear appearance variants on iOS/macOS 26.
 - **State Files** New `Trace: name.bin` / `Trace: Off` keywords turn CPU instruction tracing on or off while a state file's KEYSTROKES are executing.
 
 ## [1.5.0] - 2026-07-02

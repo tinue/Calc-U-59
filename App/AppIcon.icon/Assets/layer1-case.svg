@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <g id="calculator-body">
+    <rect x="222" y="80" width="580" height="860" rx="52"
+          fill="none" stroke="#edd47a" stroke-width="11"/>
+  </g>
+  <g id="display-and-buttons">
+    <rect x="252" y="122" width="520" height="185" rx="16"
+          fill="#0f0c09" stroke="#edd47a" stroke-width="6"/>
+    <rect x="282" y="378" width="140" height="86" rx="12" fill="none" stroke="#edd47a" stroke-width="8"/>
+    <rect x="442" y="378" width="140" height="86" rx="12" fill="none" stroke="#edd47a" stroke-width="8"/>
+    <rect x="602" y="378" width="140" height="86" rx="12" fill="none" stroke="#edd47a" stroke-width="8"/>
+    <rect x="282" y="480" width="140" height="86" rx="12" fill="none" stroke="#edd47a" stroke-width="8"/>
+    <rect x="442" y="480" width="140" height="86" rx="12" fill="none" stroke="#edd47a" stroke-width="8"/>
+    <rect x="602" y="480" width="140" height="86" rx="12" fill="none" stroke="#edd47a" stroke-width="8"/>
+    <rect x="282" y="582" width="140" height="86" rx="12" fill="none" stroke="#edd47a" stroke-width="8"/>
+    <rect x="442" y="582" width="140" height="86" rx="12" fill="none" stroke="#edd47a" stroke-width="8"/>
+    <rect x="602" y="582" width="140" height="86" rx="12" fill="none" stroke="#edd47a" stroke-width="8"/>
+    <rect x="282" y="684" width="140" height="86" rx="12" fill="none" stroke="#edd47a" stroke-width="8"/>
+    <rect x="442" y="684" width="140" height="86" rx="12" fill="none" stroke="#edd47a" stroke-width="8"/>
+    <rect x="602" y="684" width="140" height="86" rx="12" fill="none" stroke="#edd47a" stroke-width="8"/>
+    <rect x="282" y="786" width="140" height="86" rx="12" fill="none" stroke="#edd47a" stroke-width="8"/>
+    <rect x="442" y="786" width="140" height="86" rx="12" fill="none" stroke="#edd47a" stroke-width="8"/>
+    <rect x="602" y="786" width="140" height="86" rx="12" fill="none" stroke="#edd47a" stroke-width="8"/>
+  </g>
+</svg>
