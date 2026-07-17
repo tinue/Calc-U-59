@@ -4,6 +4,51 @@
 
 const { useState: useStateCalc } = React;
 
+// ---- Key bank (module scope: shared with PlayCalculator.jsx) ----
+// tone: cream | dark | yellow
+// top labels: their color hints (silk-cream / silk-yellow / silk-mahogany)
+// Row/col positions here are also the UI grid coordinates the emulation
+// worker's pressUIKey() expects, so there is exactly one copy to keep true.
+const CALC_D = "dark", CALC_C = "cream", CALC_Y = "yellow";
+const CALC_ROWS = [
+  [
+    {top:"A'",label:"A",tone:CALC_D}, {top:"B'",label:"B",tone:CALC_D},
+    {top:"C'",label:"C",tone:CALC_D}, {top:"D'",label:"D",tone:CALC_D}, {top:"E'",label:"E",tone:CALC_D}
+  ],
+  [
+    {top:"",label:"2nd",tone:CALC_Y}, {top:"",label:"INV",tone:CALC_D},
+    {top:"log",label:"lnx",tone:CALC_D}, {top:"CP",label:"CE",tone:CALC_D}, {top:"",label:"CLR",tone:CALC_Y}
+  ],
+  [
+    {top:"Pgm",label:"LRN",tone:CALC_D}, {top:"P→R",label:"x⇄t",tone:CALC_D},
+    {top:"sin",label:"x²",tone:CALC_D}, {top:"cos",label:"√x",tone:CALC_D}, {top:"tan",label:"1/x",tone:CALC_D}
+  ],
+  [
+    {top:"Ins",label:"SST",tone:CALC_D}, {top:"CMs",label:"STO",tone:CALC_D},
+    {top:"Exc",label:"RCL",tone:CALC_D}, {top:"Prd",label:"SUM",tone:CALC_D}, {top:"Ind",label:"yˣ",tone:CALC_D}
+  ],
+  [
+    {top:"Del",label:"BST",tone:CALC_D}, {top:"Eng",label:"EE",tone:CALC_D},
+    {top:"Fix",label:"(",tone:CALC_D}, {top:"Int",label:")",tone:CALC_D}, {top:"|x|",label:"÷",tone:CALC_Y}
+  ],
+  [
+    {top:"Pause",label:"GTO",tone:CALC_D}, {top:"x=t",label:"7",tone:CALC_C},
+    {top:"Nop",label:"8",tone:CALC_C}, {top:"Op",label:"9",tone:CALC_C}, {top:"Deg",label:"×",tone:CALC_Y}
+  ],
+  [
+    {top:"Lbl",label:"SBR",tone:CALC_D}, {top:"x≥t",label:"4",tone:CALC_C},
+    {top:"Σ+",label:"5",tone:CALC_C}, {top:"x̄",label:"6",tone:CALC_C}, {top:"Rad",label:"−",tone:CALC_Y}
+  ],
+  [
+    {top:"St flg",label:"RST",tone:CALC_D}, {top:"If flg",label:"1",tone:CALC_C},
+    {top:"D.MS",label:"2",tone:CALC_C}, {top:"π",label:"3",tone:CALC_C}, {top:"Grad",label:"+",tone:CALC_Y}
+  ],
+  [
+    {top:"Write",label:"R/S",tone:CALC_D}, {top:"Dsz",label:"0",tone:CALC_C},
+    {top:"Adv",label:".",tone:CALC_C}, {top:"Prt",label:"+/-",tone:CALC_C}, {top:"List",label:"=",tone:CALC_Y}
+  ],
+];
+
 function Calculator({ scale = 1 }) {
   const [display, setDisplay] = useStateCalc("-1,234567 8-90");
   const [acc, setAcc] = useStateCalc(null);
@@ -59,48 +104,6 @@ function Calculator({ scale = 1 }) {
     setShift(null);
   };
 
-  // ---- Key bank ----
-  // tone: cream | dark | yellow
-  // top labels: their color hints (silk-cream / silk-yellow / silk-mahogany)
-  const D = "dark", C = "cream", Y = "yellow";
-  const rows = [
-    [
-      {top:"A'",label:"A",tone:D}, {top:"B'",label:"B",tone:D},
-      {top:"C'",label:"C",tone:D}, {top:"D'",label:"D",tone:D}, {top:"E'",label:"E",tone:D}
-    ],
-    [
-      {top:"",label:"2nd",tone:Y}, {top:"",label:"INV",tone:D},
-      {top:"log",label:"lnx",tone:D}, {top:"CP",label:"CE",tone:D}, {top:"",label:"CLR",tone:Y}
-    ],
-    [
-      {top:"Pgm",label:"LRN",tone:D}, {top:"P→R",label:"x⇄t",tone:D},
-      {top:"sin",label:"x²",tone:D}, {top:"cos",label:"√x",tone:D}, {top:"tan",label:"1/x",tone:D}
-    ],
-    [
-      {top:"Ins",label:"SST",tone:D}, {top:"CMs",label:"STO",tone:D},
-      {top:"Exc",label:"RCL",tone:D}, {top:"Prd",label:"SUM",tone:D}, {top:"Ind",label:"yˣ",tone:D}
-    ],
-    [
-      {top:"Del",label:"BST",tone:D}, {top:"Eng",label:"EE",tone:D},
-      {top:"Fix",label:"(",tone:D}, {top:"Int",label:")",tone:D}, {top:"|x|",label:"÷",tone:Y}
-    ],
-    [
-      {top:"Pause",label:"GTO",tone:D}, {top:"x=t",label:"7",tone:C},
-      {top:"Nop",label:"8",tone:C}, {top:"Op",label:"9",tone:C}, {top:"Deg",label:"×",tone:Y}
-    ],
-    [
-      {top:"Lbl",label:"SBR",tone:D}, {top:"x≥t",label:"4",tone:C},
-      {top:"Σ+",label:"5",tone:C}, {top:"x̄",label:"6",tone:C}, {top:"Rad",label:"−",tone:Y}
-    ],
-    [
-      {top:"St flg",label:"RST",tone:D}, {top:"If flg",label:"1",tone:C},
-      {top:"D.MS",label:"2",tone:C}, {top:"π",label:"3",tone:C}, {top:"Grad",label:"+",tone:Y}
-    ],
-    [
-      {top:"Write",label:"R/S",tone:D}, {top:"Dsz",label:"0",tone:C},
-      {top:"Adv",label:".",tone:C}, {top:"Prt",label:"+/-",tone:C}, {top:"List",label:"=",tone:Y}
-    ],
-  ];
 
   return (
     <div className="calcu-device" style={{
@@ -115,7 +118,7 @@ function Calculator({ scale = 1 }) {
 
       {/* Key grid */}
       <div style={{ display: "grid", gap: 8 * scale, marginTop: 14 * scale }}>
-        {rows.map((row, ri) => (
+        {CALC_ROWS.map((row, ri) => (
           <div key={ri} style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 * scale }}>
             {row.map((kc, ci) => <CalcKey key={ci} kc={kc} scale={scale} onPress={press} />)}
           </div>
@@ -265,7 +268,6 @@ function CalcKey({ kc, scale, onPress }) {
       shadow: pressed
         ? "inset 0 2px 4px rgba(0,0,0,.45)"
         : "0 1px 0 #6a5a3c, 0 2px 3px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.4)",
-      radius: 3 * scale,
     },
     dark: {
       background: pressed
@@ -275,7 +277,6 @@ function CalcKey({ kc, scale, onPress }) {
       shadow: pressed
         ? "inset 0 2px 4px rgba(0,0,0,.6)"
         : "0 1px 0 #000, 0 2px 4px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,200,100,.05)",
-      radius: 3 * scale,
     },
     yellow: {
       background: pressed
@@ -285,7 +286,6 @@ function CalcKey({ kc, scale, onPress }) {
       shadow: pressed
         ? "inset 0 2px 4px rgba(0,0,0,.5)"
         : "0 1px 0 #5a3c10, 0 2px 3px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.25)",
-      radius: 3 * scale,
     },
   }[kc.tone];
 
@@ -301,6 +301,7 @@ function CalcKey({ kc, scale, onPress }) {
   // column while still leaving a visible gap. Purely horizontal — height
   // is unaffected.
   const keyHeight = 20 * scale;
+  const keyRadius = 3 * scale;
   const keyWidth = keyHeight * (kc.tone === "cream" ? 2.6 : 2.1);
 
   return (
@@ -328,7 +329,7 @@ function CalcKey({ kc, scale, onPress }) {
           background: styleByTone.background,
           color: styleByTone.color,
           border: 0,
-          borderRadius: styleByTone.radius,
+          borderRadius: keyRadius,
           fontFamily: "var(--font-keycap)",
           fontWeight: 700,
           fontSize: kc.label.length > 3 ? 14 * scale : 16 * scale,
@@ -467,6 +468,6 @@ function formatLED(n) {
 }
 
 Object.assign(window, {
-  Calculator, Display, CalcKey, BottomToolbar,
+  Calculator, Display, CalcKey, BottomToolbar, CALC_ROWS,
   SymbolUndo, SymbolChevrons, SymbolDownload, SymbolPlus, SymbolShare, SymbolGear,
 });

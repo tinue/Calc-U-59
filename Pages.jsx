@@ -867,20 +867,22 @@ function PlayPage({ onNav }) {
       </div>
 
       <h1 className="page-title" style={{ marginTop: 32 }}>Try it right here</h1>
-      <p style={{ lineHeight: 1.7, color: "var(--fg-2)" }}>
-        This is the real emulation core — compiled to WebAssembly and running entirely in your
-        browser — not a screenshot. Debugger, printer, and card reader are not part of this build;
-        everything else works.
-      </p>
-      <p style={{ lineHeight: 1.7, color: "var(--fg-2)" }}>
-        Module 01 (Master Library) is loaded by default. Switch modules, load one of the curated
-        presets, or upload your own <strong>.ti59</strong> file below the keyboard — uploads are
-        read entirely in your browser and never leave your machine.
-      </p>
-      <p style={{ lineHeight: 1.7, color: "var(--fg-2)" }}>
-        Press <strong>2nd</strong> then <strong>Pgm</strong> then a two-digit program number to
-        bring up that program's cue card, the same way it works on the module itself.
-      </p>
+      <div className="prose">
+        <p>
+          This is the real emulation core — compiled to WebAssembly and running entirely in your
+          browser — not a screenshot. Debugger, printer, and card reader are not part of this build;
+          everything else works.
+        </p>
+        <p>
+          Module 01 (Master Library) is loaded by default. Switch modules, load one of the curated
+          presets, or upload your own <strong>.ti59</strong> file below the keyboard — uploads are
+          read entirely in your browser and never leave your machine.
+        </p>
+        <p>
+          Press <strong>2nd</strong> then <strong>Pgm</strong> then a two-digit program number to
+          bring up that program's cue card, the same way it works on the module itself.
+        </p>
+      </div>
 
       <div style={{ marginTop: 24 }}>
         <BackButton onNav={onNav} />

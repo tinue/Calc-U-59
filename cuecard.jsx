@@ -32,7 +32,8 @@
 // Loaded as a plain (non-module) Babel script alongside the other
 // docs/*.jsx files. Exposes global: CueCard (React component).
 
-const CUECARD_BLANK_MARKER = "​";
+// CUECARD_BLANK_MARKER comes from cuecard-data.js (loaded first), which
+// owns the \blank token expansion this marker must stay in sync with.
 
 // Port of CueCardView.getColumnSpans: labels[rowIndex*5 .. rowIndex*5+4],
 // merging trailing \blank cells into the preceding label's span.
@@ -72,7 +73,7 @@ function cueCardColumnSpans(labels, rowIndex, forceAllCells) {
   return spans;
 }
 
-const { useRef: useCueCardRef, useState: useCueCardState, useLayoutEffect: useCueCardLayoutEffect } = React;
+const { useRef: useCueCardRef, useState: useCueCardState, useLayoutEffect: useCueCardLayoutEffect, useMemo: useCueCardMemo } = React;
 
 // Port of CueCardView.cellFittingFontSize: one shared font size per row,
 // shrunk (down to 40% of the base size, same floor Swift uses) just
@@ -162,13 +163,23 @@ const CUECARD_MAGNET_TEXT = "#1a1207";
 const CUECARD_MAGNET_DIVIDER = "rgba(26,18,7,.4)";
 
 function CueCard({ card, scale = 1 }) {
+  const isMagnet = !!card && card.template === "MagnetCard";
+  // Memoized on card identity so CueCardGridRow's shrink-to-fit layout
+  // effect (dep: spans) runs once per card instead of re-measuring — with
+  // a forced synchronous reflow — on every parent re-render, which at the
+  // display's message rate was the most expensive per-frame work on the
+  // page while a card was visible.
+  const topSpans = useCueCardMemo(
+    () => (!card || card.row1 ? null : cueCardColumnSpans(card.labels, 0, isMagnet)),
+    [card]
+  );
+  const bottomSpans = useCueCardMemo(
+    () => (!card || card.row2 || card.row2R ? null : cueCardColumnSpans(card.labels, 1, isMagnet)),
+    [card]
+  );
   if (!card) return null;
   const isSolidState = card.template === "SolidStateCard";
-  const isMagnet = card.template === "MagnetCard";
   const boxed = card.style === "button";
-
-  const topSpans = card.row1 ? null : cueCardColumnSpans(card.labels, 0, isMagnet);
-  const bottomSpans = (card.row2 || card.row2R) ? null : cueCardColumnSpans(card.labels, 1, isMagnet);
 
   const textColor = isSolidState ? CUECARD_SOLID_STATE_GOLD : isMagnet ? CUECARD_MAGNET_TEXT : undefined;
   const dividerColor = isSolidState ? "rgba(196,146,35,.5)" : isMagnet ? CUECARD_MAGNET_DIVIDER : "transparent";

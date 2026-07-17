@@ -64,7 +64,6 @@ public:
         val obj = val::object();
         obj.set("digits", digits);
         obj.set("ctrl", ctrl);
-        obj.set("dpPos", d.dpPos);
         obj.set("dpAfterglowMask", d.dpAfterglowMask);
         obj.set("suppressedMask", d.suppressedMask);
         obj.set("calcIndicator", d.calcIndicator);
@@ -89,11 +88,12 @@ public:
         m_machine.setPartitionProgramRegs(programRAMregs);
     }
 
+    // Despite the Core method's name, this reads SCOM[9] nibbles 4/3 —
+    // the currently selected library *program* number (what "2nd Pgm NN"
+    // sets), the same nibbles EmulatorViewModel.swift's
+    // checkProgramNumber() polls to drive the cue card. The worker polls
+    // it for the same purpose.
     int insertedModuleNumber() const { return m_machine.insertedModuleNumber(); }
-
-    unsigned int stepUntilNextKeycode(unsigned int maxCycles) {
-        return m_machine.stepUntilNextKeycode(maxCycles);
-    }
 
     // Used for the one-off post-reset stabilization burst (300k steps),
     // matching EmulatorViewModel.swift's own `wrapper.stepN(300_000)` call
@@ -170,7 +170,6 @@ EMSCRIPTEN_BINDINGS(ti59_web) {
         .function("writeDataRegister", &WebMachine::writeDataRegister)
         .function("setPartitionProgramRegs", &WebMachine::setPartitionProgramRegs)
         .function("insertedModuleNumber", &WebMachine::insertedModuleNumber)
-        .function("stepUntilNextKeycode", &WebMachine::stepUntilNextKeycode)
         .function("stepN", &WebMachine::stepN)
         .function("stepCycles", &WebMachine::stepCycles)
         .function("insertCard", &WebMachine::insertCard)

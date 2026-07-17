@@ -12,9 +12,16 @@
 // Exposes globals: expandMathTokens, newCueCard, applyCueCardLine,
 // cueCardFromPacked.
 
+// The \blank sentinel: a zero-width space marks a cue-card grid cell as
+// invisible/combined (see CueCardContent.swift's invisibleMarker). Owned
+// here — cuecard.jsx's span-merging references this same constant, so the
+// token expansion and the merge logic can't drift apart.
+const CUECARD_BLANK_MARKER = "​";
+
 // Verbatim (script + regenerated) copy of the token table in
 // App/CueCardContent.swift — do not hand-edit; regenerate from the Swift
-// source if it changes.
+// source if it changes. (Exception: the \blank row references
+// CUECARD_BLANK_MARKER above instead of an invisible literal.)
 const MATH_TOKENS = [
   ["\\lambda", "λ"],
   ["\\Lambda", "Λ"],
@@ -53,7 +60,7 @@ const MATH_TOKENS = [
   ["\\neq", "≠"],
   ["\\leq", "≤"],
   ["\\geq", "≥"],
-  ["\\blank", "​"],
+  ["\\blank", CUECARD_BLANK_MARKER],
   ["^{-1}", "⁻¹"],
   ["^{-2}", "⁻²"],
   ["^{-3}", "⁻³"],
@@ -117,7 +124,6 @@ function newCueCard() {
   return {
     template: "CueCard",
     title: "",
-    banks: [null, null],
     id: "",
     labels: ["", "", "", "", "", "", "", "", "", ""], // [A',B',C',D',E', A,B,C,D,E]
     row1: "", row1Align: "center",
@@ -156,13 +162,9 @@ function applyCueCardLine(card, line) {
     case "title":
       card.title = expandMathTokens(value);
       return;
-    case "banks": {
-      const parts = value.split(",");
-      const left = parts[0] !== undefined ? parts[0].trim() : "";
-      const right = parts[1] !== undefined ? parts[1].trim() : "";
-      card.banks = [left === "" ? null : parseInt(left, 10), right === "" ? null : parseInt(right, 10)];
-      return;
-    }
+    // "Banks:" lines fall through to the default branch and are ignored —
+    // the web build doesn't render the bank/page-arrow badges (mostly
+    // hidden under the LED display on real hardware).
     case "id":
       card.id = expandMathTokens(value);
       return;

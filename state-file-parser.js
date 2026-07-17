@@ -118,16 +118,17 @@ function parseRegLine(line, allowHiddenRegisters, registersOut, errorsOut) {
   registersOut.push({ regNum, nibbles: encodeTI59BCD(value) });
 }
 
-// Port of parseKeystrokeLine: token 99 -> toggleTrace, 11-95 -> key press.
+// Port of parseKeystrokeLine: tokens 11-95 -> key press. Token 99 (the
+// virtual "toggle the printer's TRACE latch" key in the Swift app) is
+// recognized so it can't be misread as a keycode, but dropped — the
+// printer is out of scope in this build, so there's nothing to toggle.
 function parseKeystrokeLine(line) {
   const tokens = line.split(/\s+/).filter((t) => t.length > 0);
   const events = [];
   for (const token of tokens) {
     if (token.length > 2 || !/^\d+$/.test(token)) continue;
     const n = parseInt(token, 10);
-    if (n === 99) {
-      events.push({ type: "toggleTrace" });
-    } else if (n >= 11 && n <= 95) {
+    if (n >= 11 && n <= 95) {
       events.push({ type: "key", matrixCode: n });
     }
   }
@@ -158,10 +159,9 @@ function parseStateFile(text, options) {
 
   const result = {
     partitionMaxStep: 479,
-    partitionWasExplicit: false,
     programSteps: [], // [{stepAddr, keycode}]
     registers: [], // [{regNum, nibbles}]
-    keystrokes: [], // [{type: "key"|"toggleTrace"|"wait"}]
+    keystrokes: [], // [{type: "key"|"wait"}]
     cueCard: null,
     solidStateModuleID: null,
     printerConnected: null,
@@ -208,7 +208,6 @@ function parseStateFile(text, options) {
         }
         result.partitionMaxStep = rounded - 1;
       }
-      result.partitionWasExplicit = true;
       continue;
     }
     if (upper.startsWith("PROGRAM:")) { section = "program"; continue; }

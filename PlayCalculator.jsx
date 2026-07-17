@@ -1,67 +1,25 @@
 // PlayCalculator — the real, WASM-backed TI-59 (docs/#play).
-// Reuses docs/Calculator.jsx's <CalcKey> for identical key chrome, but
-// every press drives the actual emulation core (via calc-engine-worker.js)
-// instead of toy JS arithmetic. See the plan at
-// /Users/me/.claude/plans/replicated-riding-duckling.md for scope
-// decisions (TI-59 only, no debugger/printer/card reader, module 01
-// preloaded, two curated presets, client-side upload only).
+// Reuses docs/Calculator.jsx's <CalcKey> and CALC_ROWS key table for
+// identical key chrome/layout, but every press drives the actual emulation
+// core (via calc-engine-worker.js) instead of toy JS arithmetic. See the
+// plan at /Users/me/.claude/plans/replicated-riding-duckling.md for scope
+// decisions (TI-59 only, no debugger/printer, module 01 preloaded, two
+// curated presets, client-side upload only).
 
-const { useState: usePlayState, useEffect: usePlayEffect, useRef: usePlayRef } = React;
+const {
+  useState: usePlayState,
+  useEffect: usePlayEffect,
+  useRef: usePlayRef,
+  useMemo: usePlayMemo,
+  useCallback: usePlayCallback,
+} = React;
 
-// Same 9x5 grid shape as docs/Calculator.jsx's `rows` — row/col here ARE
-// the UI grid position pressUIKey()/releaseUIKey() expect (see
-// docs/matrix-keys.js).
-const D = "dark", C = "cream", Y = "yellow";
-const PLAY_ROWS = [
-  [
-    { top: "A'", label: "A", tone: D }, { top: "B'", label: "B", tone: D },
-    { top: "C'", label: "C", tone: D }, { top: "D'", label: "D", tone: D }, { top: "E'", label: "E", tone: D },
-  ],
-  [
-    { top: "", label: "2nd", tone: Y }, { top: "", label: "INV", tone: D },
-    { top: "log", label: "lnx", tone: D }, { top: "CP", label: "CE", tone: D }, { top: "", label: "CLR", tone: Y },
-  ],
-  [
-    { top: "Pgm", label: "LRN", tone: D }, { top: "P→R", label: "x⇄t", tone: D },
-    { top: "sin", label: "x²", tone: D }, { top: "cos", label: "√x", tone: D }, { top: "tan", label: "1/x", tone: D },
-  ],
-  [
-    { top: "Ins", label: "SST", tone: D }, { top: "CMs", label: "STO", tone: D },
-    { top: "Exc", label: "RCL", tone: D }, { top: "Prd", label: "SUM", tone: D }, { top: "Ind", label: "yˣ", tone: D },
-  ],
-  [
-    { top: "Del", label: "BST", tone: D }, { top: "Eng", label: "EE", tone: D },
-    { top: "Fix", label: "(", tone: D }, { top: "Int", label: ")", tone: D }, { top: "|x|", label: "÷", tone: Y },
-  ],
-  [
-    { top: "Pause", label: "GTO", tone: D }, { top: "x=t", label: "7", tone: C },
-    { top: "Nop", label: "8", tone: C }, { top: "Op", label: "9", tone: C }, { top: "Deg", label: "×", tone: Y },
-  ],
-  [
-    { top: "Lbl", label: "SBR", tone: D }, { top: "x≥t", label: "4", tone: C },
-    { top: "Σ+", label: "5", tone: C }, { top: "x̄", label: "6", tone: C }, { top: "Rad", label: "−", tone: Y },
-  ],
-  [
-    { top: "St flg", label: "RST", tone: D }, { top: "If flg", label: "1", tone: C },
-    { top: "D.MS", label: "2", tone: C }, { top: "π", label: "3", tone: C }, { top: "Grad", label: "+", tone: Y },
-  ],
-  [
-    { top: "Write", label: "R/S", tone: D }, { top: "Dsz", label: "0", tone: C },
-    { top: "Adv", label: ".", tone: C }, { top: "Prt", label: "+/-", tone: C }, { top: "List", label: "=", tone: Y },
-  ],
-];
+// Keys never change with display state — memoized so the 60 Hz display
+// re-renders don't fan out into 45 key re-renders while a program runs.
+const MemoCalcKey = React.memo(CalcKey);
 
-// Position of the physical "2nd" key and the key whose 2nd-function is
-// "Pgm" (the LRN key) — used to detect a "2nd Pgm NN" dispatch so the
-// matching module cue card can be shown. Digit positions are derived
-// below from PLAY_ROWS itself rather than hand-listed, so they can't
-// drift out of sync with the grid.
-const SECOND_POS = [1, 0];
-const PGM_POS = [2, 0];
-const DIGIT_POS = {};
-PLAY_ROWS.forEach((row, ri) => row.forEach((kc, ci) => {
-  if (/^[0-9]$/.test(kc.label)) DIGIT_POS[kc.label] = [ri, ci];
-}));
+const LED_RED = "var(--led-red)";
+const LED_BAR_GLOW = "0 0 6px rgba(255,38,20,.8), 0 0 12px rgba(255,38,20,.4)";
 
 function decodeDisplayChar(digit, ctrl) {
   switch (ctrl) {
@@ -124,16 +82,15 @@ function decodeDisplayCells(snap) {
 
 function PlayCalculator({ scale = 1 }) {
   const workerRef = usePlayRef(null);
-  const pressBuffer = usePlayRef([]);
 
   const [ready, setReady] = usePlayState(false);
   const [display, setDisplay] = usePlayState(null);
-  const [currentModule, setCurrentModule] = usePlayState(null); // {id, title, menuTitle, cuecards}
-  const [activeCueCard, setActiveCueCard] = usePlayState(null);
+  const [currentModule, setCurrentModule] = usePlayState(null); // {id, menuTitle, cuecards}
+  const [presetCueCard, setPresetCueCard] = usePlayState(null); // from a loaded file's CUECARD: section
+  const [programNumber, setProgramNumber] = usePlayState(0);    // SCOM-selected library program (worker-polled)
   const [modules, setModules] = usePlayState([]);
   const [presets, setPresets] = usePlayState([]);
   const [statusMessage, setStatusMessage] = usePlayState("Starting the emulator…");
-  const fileInputRef = usePlayRef(null);
 
   usePlayEffect(() => {
     const worker = new Worker("calc-engine-worker.js");
@@ -150,18 +107,16 @@ function PlayCalculator({ scale = 1 }) {
           setDisplay(msg);
           break;
         case "moduleLoaded":
-          // Not clearing activeCueCard here: a state-file load can trigger
-          // its own module switch (SOLID-STATE-MODULE:) after already
-          // posting its cueCard message, and that card shouldn't be wiped
-          // out from under it. Explicit user-driven module switches clear
-          // it themselves — see handleModuleChange.
-          setCurrentModule({ id: msg.id, title: msg.title, menuTitle: msg.menuTitle, cuecards: msg.cuecards });
+          setCurrentModule({ id: msg.id, menuTitle: msg.menuTitle, cuecards: msg.cuecards });
           break;
         case "cueCard":
-          if (msg.card) setActiveCueCard(msg.card);
+          if (msg.card) setPresetCueCard(msg.card);
+          break;
+        case "programNumber":
+          setProgramNumber(msg.n);
           break;
         case "stateLoaded":
-          setStatusMessage("");
+          setStatusMessage(msg.errors && msg.errors.length ? msg.errors[0] : "");
           break;
         default:
           break;
@@ -182,53 +137,35 @@ function PlayCalculator({ scale = 1 }) {
     };
   }, []);
 
-  function recordPressForCueCardDetection(row, col) {
-    const buf = pressBuffer.current;
-    buf.push([row, col]);
-    if (buf.length > 4) buf.shift();
-    if (buf.length === 4
-        && buf[0][0] === SECOND_POS[0] && buf[0][1] === SECOND_POS[1]
-        && buf[1][0] === PGM_POS[0] && buf[1][1] === PGM_POS[1]) {
-      const d1 = Object.entries(DIGIT_POS).find(([, p]) => p[0] === buf[2][0] && p[1] === buf[2][1]);
-      const d2 = Object.entries(DIGIT_POS).find(([, p]) => p[0] === buf[3][0] && p[1] === buf[3][1]);
-      if (d1 && d2 && currentModule) {
-        const programNumber = String(parseInt(d1[0] + d2[0], 10));
-        const card = currentModule.cuecards && currentModule.cuecards[programNumber];
-        if (card) setActiveCueCard(cueCardFromPacked(card));
-      }
-      buf.length = 0;
-    }
-  }
-
-  function press(row, col) {
+  const press = usePlayCallback((row, col) => {
     const worker = workerRef.current;
     if (!worker) return;
-    recordPressForCueCardDetection(row, col);
     worker.postMessage({ type: "press", row, col });
     setTimeout(() => worker.postMessage({ type: "release", row, col }), 80);
-  }
+  }, []);
 
   // <CalcKey> (from docs/Calculator.jsx) calls onPress(label); resolve the
-  // label back to its grid position via PLAY_ROWS. Every label is unique.
-  function pressByLabel(label) {
-    for (let ri = 0; ri < PLAY_ROWS.length; ri++) {
-      const ci = PLAY_ROWS[ri].findIndex((kc) => kc.label === label);
+  // label back to its grid position via CALC_ROWS. Every label is unique.
+  // Stable identity (useCallback) so MemoCalcKey's memoization holds.
+  const pressByLabel = usePlayCallback((label) => {
+    for (let ri = 0; ri < CALC_ROWS.length; ri++) {
+      const ci = CALC_ROWS[ri].findIndex((kc) => kc.label === label);
       if (ci !== -1) { press(ri, ci); return; }
     }
-  }
+  }, [press]);
 
   function handleModuleChange(id) {
     // No "Loading module…" status: switching modules is a single fast
     // in-memory swap (well under 100ms), and the message had no message
     // to clear it on completion — it just stuck around forever. Not worth
     // a transient status for something this quick.
-    setActiveCueCard(null);
+    setPresetCueCard(null);
     workerRef.current?.postMessage({ type: "loadModule", id });
   }
 
   function loadPresetText(text) {
     setStatusMessage("Loading program…");
-    setActiveCueCard(null);
+    setPresetCueCard(null);
     workerRef.current?.postMessage({ type: "loadState", text });
   }
 
@@ -243,6 +180,18 @@ function PlayCalculator({ scale = 1 }) {
     file.text().then(loadPresetText);
     e.target.value = "";
   }
+
+  // The shown card mirrors EmulatorViewModel.swift's resolvedCueCard():
+  // while the machine has a library program selected (SCOM[9], polled by
+  // the worker — the source of truth, so preset KEYSTROKES playback,
+  // program-driven Pgm calls, and RST all update it correctly), that
+  // program's module card wins; otherwise the loaded file's own card.
+  const programCueCard = usePlayMemo(() => {
+    if (programNumber <= 0 || !currentModule || !currentModule.cuecards) return null;
+    const record = currentModule.cuecards[String(programNumber)];
+    return record ? cueCardFromPacked(record) : null;
+  }, [programNumber, currentModule]);
+  const activeCueCard = programCueCard || presetCueCard;
 
   const cells = decodeDisplayCells(display);
 
@@ -272,9 +221,9 @@ function PlayCalculator({ scale = 1 }) {
       </div>
 
       <div style={{ display: "grid", gap: 10 * scale, marginTop: 6 * scale }}>
-        {PLAY_ROWS.map((row, ri) => (
+        {CALC_ROWS.map((row, ri) => (
           <div key={ri} style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 * scale }}>
-            {row.map((kc, ci) => <CalcKey key={ci} kc={kc} scale={scale} onPress={pressByLabel} />)}
+            {row.map((kc, ci) => <MemoCalcKey key={ci} kc={kc} scale={scale} onPress={pressByLabel} />)}
           </div>
         ))}
       </div>
@@ -288,54 +237,59 @@ function PlayCalculator({ scale = 1 }) {
         onPresetChange={handlePresetChange}
         onUpload={handleUpload}
         onQueueCard={() => workerRef.current?.postMessage({ type: "queueCard" })}
-        fileInputRef={fileInputRef}
         disabled={!ready}
       />
     </div>
   );
 }
 
-// The "C" (calculate) annunciator, drawn as its own 4-bar shape — top,
-// bottom, and both left segments (7-segment bits A, D, E, F; the same
-// segmentsC = 0b0111001 pattern LEDDisplayView.swift uses) — rather than
-// the display font's letter "C" glyph, which doesn't reliably render at
-// the same weight/size as the digit glyphs in that font.
-function CIndicator({ scale, intensity }) {
-  const bar = {
+// Absolute-positioned LED segment bars (the shared mechanics behind the
+// C annunciator and the digit 7 — both drawn as bars rather than font
+// glyphs). Each entry in `bars` maps the bar thickness to its edge
+// placement. Bar specs live at module scope so their identities are
+// stable across renders.
+function SegmentBars({ scale, inset, opacity, className, bars }) {
+  const t = 3 * scale;
+  const base = {
     position: "absolute",
-    background: "#ff2614",
-    boxShadow: "0 0 6px rgba(255,38,20,.8), 0 0 12px rgba(255,38,20,.4)",
+    background: LED_RED,
+    boxShadow: LED_BAR_GLOW,
     borderRadius: 1 * scale,
   };
-  const thickness = 3 * scale;
   return (
-    <div className="led-cell-c" style={{ position: "absolute", inset: "12% 22%", opacity: intensity }}>
-      <div style={{ ...bar, top: 0, left: 0, right: 0, height: thickness }} />
-      <div style={{ ...bar, bottom: 0, left: 0, right: 0, height: thickness }} />
-      <div style={{ ...bar, top: 0, bottom: "52%", left: 0, width: thickness }} />
-      <div style={{ ...bar, bottom: 0, top: "52%", left: 0, width: thickness }} />
+    <div className={className} style={{ position: "absolute", inset, opacity }}>
+      {bars.map((b, i) => <div key={i} style={{ ...base, ...b(t) }} />)}
     </div>
   );
 }
 
-// The digit "7", drawn as its own 2-bar shape — top bar + a full-height
-// right-side bar (7-segment bits A, B, C) — rather than the display
-// font's "7" glyph, which turned out to include an extra top-left stroke
-// real 7-segment hardware doesn't light for this digit.
+// The "C" (calculate) annunciator — top, bottom, and both left segments
+// (7-segment bits A, D, E, F; the same segmentsC = 0b0111001 pattern
+// LEDDisplayView.swift uses) — rather than the display font's letter "C"
+// glyph, which doesn't reliably render at the same weight/size as the
+// digit glyphs in that font.
+const C_BARS = [
+  (t) => ({ top: 0, left: 0, right: 0, height: t }),
+  (t) => ({ bottom: 0, left: 0, right: 0, height: t }),
+  (t) => ({ top: 0, bottom: "52%", left: 0, width: t }),
+  (t) => ({ bottom: 0, top: "52%", left: 0, width: t }),
+];
+
+function CIndicator({ scale, intensity }) {
+  return <SegmentBars scale={scale} inset="12% 22%" opacity={intensity} className="led-cell-c" bars={C_BARS} />;
+}
+
+// The digit "7" — top bar + a full-height right-side bar (7-segment bits
+// A, B, C) — rather than the display font's "7" glyph, which turned out
+// to include an extra top-left stroke real 7-segment hardware doesn't
+// light for this digit.
+const SEVEN_BARS = [
+  (t) => ({ top: 0, left: 0, right: 0, height: t }),
+  (t) => ({ top: 0, bottom: 0, right: 0, width: t }),
+];
+
 function Digit7({ scale }) {
-  const bar = {
-    position: "absolute",
-    background: "#ff2614",
-    boxShadow: "0 0 6px rgba(255,38,20,.8), 0 0 12px rgba(255,38,20,.4)",
-    borderRadius: 1 * scale,
-  };
-  const thickness = 3 * scale;
-  return (
-    <div className="led-cell-7" style={{ position: "absolute", inset: "8% 20%" }}>
-      <div style={{ ...bar, top: 0, left: 0, right: 0, height: thickness }} />
-      <div style={{ ...bar, top: 0, bottom: 0, right: 0, width: thickness }} />
-    </div>
-  );
+  return <SegmentBars scale={scale} inset="8% 20%" className="led-cell-7" bars={SEVEN_BARS} />;
 }
 
 // One fixed-size digit position: ghost "8" backdrop + the real glyph
@@ -361,7 +315,7 @@ function LedCell({ scale, char, hasDot, isC, cIntensity }) {
           position: "absolute", inset: 0,
           fontFamily: "var(--font-display)",
           fontSize: 26 * scale,
-          color: "#ff2614",
+          color: LED_RED,
           textShadow: "0 0 10px rgba(255,38,20,.7), 0 0 22px rgba(255,38,20,.3)",
         }}>{char}</span>
       )}
@@ -369,7 +323,7 @@ function LedCell({ scale, char, hasDot, isC, cIntensity }) {
         <span className="led-cell-dot" style={{
           position: "absolute", right: -1 * scale, bottom: "8%",
           width: 4 * scale, height: 4 * scale, borderRadius: "50%",
-          background: "#ff2614",
+          background: LED_RED,
           boxShadow: "0 0 6px rgba(255,38,20,.8)",
         }} />
       ) : null}
@@ -380,7 +334,7 @@ function LedCell({ scale, char, hasDot, isC, cIntensity }) {
 function PlayDisplay({ scale, cells, moduleName, statusMessage }) {
   return (
     <div style={{
-      background: "linear-gradient(180deg,#1a0c08 0%,#2c1812 50%,#1a0c08 100%)",
+      background: "linear-gradient(180deg, var(--display-bezel-2) 0%, var(--display-bezel) 50%, var(--display-bezel-2) 100%)",
       borderRadius: 10 * scale,
       padding: `${10 * scale}px ${10 * scale}px ${6 * scale}px`,
       border: "1px solid #3a2418",
@@ -412,18 +366,19 @@ function PlayDisplay({ scale, cells, moduleName, statusMessage }) {
         letterSpacing: ".05em",
         minHeight: 16 * scale,
       }}>
-        <span>{moduleName || " "}</span>
+        <span>{moduleName || " "}</span>
         <span>{statusMessage}</span>
       </div>
     </div>
   );
 }
 
-function PlayControls({ scale, modules, presets, currentModuleId, onModuleChange, onPresetChange, onUpload, onQueueCard, fileInputRef, disabled }) {
+function PlayControls({ scale, modules, presets, currentModuleId, onModuleChange, onPresetChange, onUpload, onQueueCard, disabled }) {
+  const fileInputRef = usePlayRef(null);
   const selectStyle = {
     background: "var(--bg-inset)",
     color: "var(--fg)",
-    border: "1px solid var(--stroke, #5a4628)",
+    border: "1px solid var(--stroke)",
     borderRadius: 6 * scale,
     padding: `${6 * scale}px ${8 * scale}px`,
     fontFamily: "var(--font-body)",

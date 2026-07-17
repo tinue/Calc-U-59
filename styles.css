@@ -205,7 +205,6 @@ h3.sub {
 .cuecard-row { letter-spacing: .02em; line-height: 1.3; }
 .cuecard-row-boxed { display: inline-block; border: 1px solid var(--fg-2); border-radius: 3px; }
 .cuecard-row-pair { display: flex; justify-content: space-between; }
-.cuecard-row-pair .cuecard-row { margin-top: 0 !important; }
 .align-left { text-align: left; }
 .align-center { text-align: center; }
 .align-right { text-align: right; }

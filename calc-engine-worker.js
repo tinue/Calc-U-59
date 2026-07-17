@@ -21,10 +21,12 @@
 //
 // worker -> main thread:
 //   {type: "ready"}
-//   {type: "display", digits, ctrl, dpPos, dpAfterglowMask, suppressedMask, calcIndicator}
-//   {type: "moduleLoaded", id, title, menuTitle, cuecards}
+//   {type: "display", digits, ctrl, dpAfterglowMask, suppressedMask, calcIndicator}
+//                                      -- only posted when the snapshot changed
+//   {type: "moduleLoaded", id, menuTitle, cuecards}
 //   {type: "cueCard", card}            -- from a loaded state file's own CUECARD: section
-//   {type: "stateLoaded"}
+//   {type: "programNumber", n}         -- selected library program (SCOM[9]), 0 = none
+//   {type: "stateLoaded", errors}      -- errors: string[] from the state-file parser
 
 importScripts("cuecard-data.js", "state-file-parser.js", "matrix-keys.js", "wasm/ti59-core.js");
 
@@ -141,7 +143,6 @@ async function loadModule(moduleId) {
   postMessage({
     type: "moduleLoaded",
     id: moduleId,
-    title: data.title,
     menuTitle: data.menuTitle,
     cuecards: data.cuecards,
   });
@@ -154,7 +155,16 @@ async function loadModule(moduleId) {
 // app, there's no separate "clear RAM preserving hidden registers" pass —
 // reset() already zeroes everything, and this build has no constant-memory
 // (TI-58C) variant that would need hidden registers preserved.
+// Bumped on every load; the keystroke-playback loop below re-checks it
+// after each await and bails when a newer load has started — the same
+// cancel-on-new-load behavior EmulatorViewModel.swift's keystrokeTask
+// cancellation provides (a real bug fixed there in commit 182d0f5:
+// without it, a second load mid-playback interleaves the first playback's
+// remaining keystrokes into the freshly reset machine).
+let loadGeneration = 0;
+
 async function applyStateFile(text) {
+  const generation = ++loadGeneration;
   const result = parseStateFile(text, { maxStepAddr: 479, allowHiddenRegisters: false });
 
   // Posted immediately, before reset/program/keystroke playback — a
@@ -173,8 +183,15 @@ async function applyStateFile(text) {
   machine.setPartitionProgramRegs(Math.floor(totalSteps / 8));
   machine.writeProgram(buildProgramArray(result));
 
+  // All of 00-99 goes through writeDataRegister: Core maps data registers
+  // down from the top of the 120-slot RAM (R00 = RAM[119], R75 = RAM[44]),
+  // valid for the whole range on the TI-59. There is no >= 60 special
+  // case here — that branch in EmulatorViewModel.swift exists for TI-58C
+  // hidden registers (H00-H03 -> raw slots 60-63), which this TI-59-only
+  // build never parses (allowHiddenRegisters is always false). A file
+  // whose partition leaves fewer than NN+1 data registers gets exactly
+  // what it wrote — same trust-the-file behavior as the Swift app.
   for (const { regNum, nibbles } of result.registers) {
-    if (regNum >= 60) continue; // hidden registers: TI-58C only, out of scope here
     machine.writeDataRegister(regNum, Uint8Array.from(nibbles));
   }
 
@@ -186,6 +203,7 @@ async function applyStateFile(text) {
   // not applied — the printer is out of scope for this build.
 
   for (const event of result.keystrokes) {
+    if (generation !== loadGeneration) return; // superseded by a newer load
     if (event.type === "key") {
       pressMatrixCode(machine, event.matrixCode);
       await sleep(80);
@@ -194,13 +212,40 @@ async function applyStateFile(text) {
     } else if (event.type === "wait") {
       await sleep(event.seconds * 1000);
     }
-    // toggleTrace: printer TRACE latch, out of scope, no-op.
   }
 
-  postMessage({ type: "stateLoaded" });
+  postMessage({ type: "stateLoaded", errors: result.errors });
 }
 
 // ── Run loop ─────────────────────────────────────────────────────────────
+
+// Last display snapshot actually posted, for change detection: at idle the
+// snapshot is identical frame after frame, and skipping the post keeps the
+// main thread (React re-render per message) at ~zero CPU while the page
+// just sits in a tab. During execution frames genuinely differ (blink,
+// C-indicator duty cycle), so nothing visible is lost.
+let lastPosted = null;
+
+function displayChanged(d) {
+  if (!lastPosted) return true;
+  if (d.dpAfterglowMask !== lastPosted.dpAfterglowMask ||
+      d.suppressedMask !== lastPosted.suppressedMask ||
+      d.calcIndicator !== lastPosted.calcIndicator) return true;
+  for (let i = 0; i < 12; i++) {
+    if (d.digits[i] !== lastPosted.digits[i] || d.ctrl[i] !== lastPosted.ctrl[i]) return true;
+  }
+  return false;
+}
+
+// The selected library program number (SCOM[9] nibbles 4/3 — what
+// "2nd Pgm NN" sets), polled the same way EmulatorViewModel.swift's
+// checkProgramNumber() does at 2 Hz, and posted on change so the UI can
+// show the matching cue card. Machine state is the source of truth here:
+// a UI-side key-sequence matcher would miss preset KEYSTROKES playback,
+// program-driven Pgm calls, and RST clearing the selection.
+const PROGRAM_POLL_TICKS = 30; // every 0.5 s at 60 Hz, matching Swift's 2 Hz-ish cadence
+let tickCount = 0;
+let lastProgramNumber = -1;
 
 function tick() {
   if (!machine) return;
@@ -211,12 +256,21 @@ function tick() {
   cyclesAhead -= TICK_TARGET_CYCLES;
   pollCardReader();
 
+  if (++tickCount % PROGRAM_POLL_TICKS === 0) {
+    const n = machine.insertedModuleNumber();
+    if (n !== lastProgramNumber) {
+      lastProgramNumber = n;
+      postMessage({ type: "programNumber", n });
+    }
+  }
+
   const d = machine.getDisplay();
+  if (!displayChanged(d)) return;
+  lastPosted = d;
   postMessage({
     type: "display",
     digits: d.digits,
     ctrl: d.ctrl,
-    dpPos: d.dpPos,
     dpAfterglowMask: d.dpAfterglowMask,
     suppressedMask: d.suppressedMask,
     calcIndicator: d.calcIndicator,
@@ -237,14 +291,28 @@ function stopLoop() {
 // ── Init ─────────────────────────────────────────────────────────────────
 
 async function init() {
+  // WASM compile, core ROM fetch, and the ML module's manifest+data
+  // fetches are mutually independent — start them all before awaiting
+  // anything, instead of serializing four round-trips (halves
+  // time-to-ready on high-RTT connections).
+  //
   // ti59-core.js resolves its .wasm path relative to *this worker's own*
   // script location (self.location.href, i.e. docs/), not relative to
   // where it was importScripts()'d from (docs/wasm/) — so the default
   // lookup misses. locateFile corrects it back onto docs/wasm/.
-  const Module = await createTI59CoreModule({ locateFile: (path) => `wasm/${path}` });
+  const modulePromise = createTI59CoreModule({ locateFile: (path) => `wasm/${path}` });
+  const corePromise = fetchJSON("wasm/roms/ti59-core.json");
+  const mlPrefetch = loadModulesManifest()
+    .then((manifest) => {
+      const entry = manifest.find((m) => m.id === "ML");
+      return entry ? fetchJSON(`wasm/roms/${entry.file}`) : null;
+    })
+    .then((data) => { if (data) moduleCache.ML = data; });
+
+  const Module = await modulePromise;
   machine = new Module.WebMachine();
 
-  const core = await fetchJSON("wasm/roms/ti59-core.json");
+  const core = await corePromise;
   const romBytes = base64ToBytes(core.romWords);
   const romWords = new Uint16Array(romBytes.buffer, romBytes.byteOffset, romBytes.byteLength / 2);
   machine.loadROM(romWords);
@@ -252,6 +320,7 @@ async function init() {
   machine.reset();
   machine.stepN(POWER_ON_STEPS);
 
+  await mlPrefetch;
   await loadModule("ML"); // startup default: module 01, Master Library
 
   startLoop();
