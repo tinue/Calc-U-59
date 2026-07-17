@@ -18,8 +18,10 @@ This skill covers all work inside `Calc-U-59UITests/`.
 | `LayoutTests.swift` | Button visibility, label-wrapping, portrait/landscape screenshots |
 | `FilePickerTests.swift` | File picker opens; reopens after cancel (regression for iPad popover dismiss bug) |
 | `PresetLoadTests.swift` | End-to-end load of `diag.ti59` via file picker; verifies keystroke playback starts |
+| `ScreenshotTests.swift` | App Store screenshot capture (driven by `bin/run-screenshots`); writes PNGs to the dir named in `/tmp/calc-u-59-screenshot-dir` |
 | `Calc_U_59UITestsLaunchTests.swift` | Default launch test (auto-generated, rarely edited) |
 | `UIRegressionTests.xctestplan` | Test plan used by CI |
+| `Screenshots.xctestplan` | Test plan for the screenshot run (`bin/run-screenshots`) |
 
 All tests are `#if !os(macOS)` guarded (the file picker and orientation APIs are iOS-only).
 
@@ -64,7 +66,7 @@ let home = ProcessInfo.processInfo.environment["SIMULATOR_HOST_HOME"] ?? "/tmp"
 let dest = URL(fileURLWithPath: "\(home)/Desktop/shot.png")
 ```
 
-When running via `xcodebuild`, pass the directory explicitly with `-testenv SCREENSHOT_DIR=<path>` and read it in the test via `ProcessInfo.processInfo.environment["SCREENSHOT_DIR"]`.
+To pass a target directory from a driving script into the test process, use the handoff-file pattern from `bin/run-screenshots`: the script writes the directory path to `/tmp/calc-u-59-screenshot-dir` before invoking `xcodebuild`, and `ScreenshotTests.swift` reads that file at runtime (env vars don't cross the `xcodebuild` → test-runner boundary without scheme changes).
 
 ---
 
@@ -103,7 +105,7 @@ override class func tearDown() {
 
 ## State File Prerequisites
 
-Screenshot tests that load `.ti59` files require those files to be present on the simulator's local storage. Run `bin/setup-simulator-state-files` once per simulator before running tests — it installs all files from `examples/` (including `examples/debug/`) into every simulator's "On My iPhone/iPad" storage. Simulators must have opened the Files app or the file picker at least once for the AppGroup storage to be initialised.
+Screenshot tests that load `.ti59` files require those files to be present on the simulator's local storage. Run `bin/setup-simulators` once before running tests — it ensures the target simulators exist and installs state files into each one: an explicit list of files from `examples/` goes to the storage root, and everything from `examples/screentest/` goes into a `1-Testfiles/` folder (sorted first by name) in the simulator's "On My iPhone/iPad" storage. Simulators must have opened the Files app or the file picker at least once for the AppGroup storage to be initialised.
 
 ---
 
@@ -128,6 +130,7 @@ Screenshot tests that load `.ti59` files require those files to be present on th
 | `btn-asm-select` | Button | "Select File" in ASM overlay (`ASMDebugContent` in `DebugView`); opens `.asm` file picker |
 | `btn-asm-run` | Button | "Run" in ASM overlay; disabled until a file is loaded (`vm.canRunASM`) |
 | `btn-freeze` | Button | "FREEZE" in CALCULATOR debug tab (`LiveDebugView`) |
+| `btn-resume` | Button | "RESUME" in CALCULATOR debug tab (`LiveDebugView`); left of FREEZE |
 
 ---
 
@@ -160,7 +163,7 @@ Never use bare `app.buttons[label]` or `app.staticTexts[label]` for these — bo
 
 ### 3. Fast-path is safe because test filenames are unique
 
-All files in `1-Testfiles/` are prefixed with `screenshot_` (e.g. `screenshot_diag.ti59`). This prefix is never used for files in the root, so a fast-path check is unambiguous: if the file is already visible, we are already inside `1-Testfiles`.
+All files in `1-Testfiles/` (sourced from `examples/screentest/`) are prefixed with `test_` (e.g. `test_diag.ti59`). This prefix is never used for files in the root, so a fast-path check is unambiguous: if the file is already visible, we are already inside `1-Testfiles`.
 
 ```swift
 private func navigateToOnMyIPhone(_ app: XCUIApplication, targetFile: String) {
