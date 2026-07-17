@@ -861,7 +861,7 @@ function ModulesPage({ onNav }) {
 
 function PlayPage({ onNav }) {
   return (
-    <main className="wrap">
+    <main className="wrap-narrow">
       <p className="eyebrow">Play</p>
       <h1 className="page-title">Try it right here</h1>
       <p className="lede">
@@ -871,7 +871,7 @@ function PlayPage({ onNav }) {
       </p>
 
       <div style={{ display: "flex", justifyContent: "center", marginTop: 24 }}>
-        <PlayCalculator scale={1} />
+        <PlayCalculator scale={1.4} />
       </div>
 
       <div className="panel" style={{ padding: 20, marginTop: 32, lineHeight: 1.7 }}>

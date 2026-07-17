@@ -265,7 +265,7 @@ function CalcKey({ kc, scale, onPress }) {
       shadow: pressed
         ? "inset 0 2px 4px rgba(0,0,0,.45)"
         : "0 1px 0 #6a5a3c, 0 2px 3px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.4)",
-      radius: 6 * scale,
+      radius: 3 * scale,
     },
     dark: {
       background: pressed
@@ -275,7 +275,7 @@ function CalcKey({ kc, scale, onPress }) {
       shadow: pressed
         ? "inset 0 2px 4px rgba(0,0,0,.6)"
         : "0 1px 0 #000, 0 2px 4px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,200,100,.05)",
-      radius: 7 * scale,
+      radius: 3 * scale,
     },
     yellow: {
       background: pressed
@@ -285,13 +285,23 @@ function CalcKey({ kc, scale, onPress }) {
       shadow: pressed
         ? "inset 0 2px 4px rgba(0,0,0,.5)"
         : "0 1px 0 #5a3c10, 0 2px 3px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.25)",
-      radius: 7 * scale,
+      radius: 3 * scale,
     },
   }[kc.tone];
 
   const topColor = kc.tone === "yellow" ? "#e8b840"
                  : (kc.top && /[A-E]'/.test(kc.top)) ? "#d4c4a0"
                  : "#d4c4a0";
+
+  // Cream ("white") number keys stay wider than the dark/yellow function
+  // keys, matching real hardware's relative proportions — but the ratios
+  // are no longer tied to real hardware's exact numbers (6:3 / 4.5:3):
+  // at this larger overall scale, those ratios left too much visible gap
+  // between keys, so both are widened further to fill more of their grid
+  // column while still leaving a visible gap. Purely horizontal — height
+  // is unaffected.
+  const keyHeight = 20 * scale;
+  const keyWidth = keyHeight * (kc.tone === "cream" ? 2.6 : 2.1);
 
   return (
     <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap: 2*scale }}>
@@ -313,8 +323,8 @@ function CalcKey({ kc, scale, onPress }) {
         onTouchEnd={() => setPressed(false)}
         onClick={() => onPress(kc.label)}
         style={{
-          width: "100%",
-          height: 36 * scale,
+          width: keyWidth,
+          height: keyHeight,
           background: styleByTone.background,
           color: styleByTone.color,
           border: 0,

@@ -253,13 +253,15 @@ function PlayCalculator({ scale = 1 }) {
         statusMessage={statusMessage}
       />
 
-      {activeCueCard ? (
-        <div style={{ marginTop: 10 * scale }}>
-          <CueCard card={activeCueCard} />
-        </div>
-      ) : null}
+      {/* Reserved even with no card showing, sized to the ML-01 cue card
+          (measured ~88px at scale=1 — that card renders correctly; others
+          currently don't, see cuecard.jsx/cuecard-data.js) so the
+          calculator doesn't jump size when a card appears/disappears. */}
+      <div style={{ marginTop: 10 * scale, minHeight: 88 * scale }}>
+        {activeCueCard ? <CueCard card={activeCueCard} /> : null}
+      </div>
 
-      <div style={{ display: "grid", gap: 8 * scale, marginTop: 14 * scale }}>
+      <div style={{ display: "grid", gap: 10 * scale, marginTop: 14 * scale }}>
         {PLAY_ROWS.map((row, ri) => (
           <div key={ri} style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 * scale }}>
             {row.map((kc, ci) => <CalcKey key={ci} kc={kc} scale={scale} onPress={pressByLabel} />)}
