@@ -1,6 +1,6 @@
 ---
 name: calc-u-59-docs
-description: Use this skill when working on the Calc-U-59 documentation or help website (docs/, reference/, root markdown files). Covers the GitHub Pages static site (HTML + client-side React), the design system, and the reference architecture docs. Trigger on any task that touches docs/*.html, docs/*.jsx, docs/*.css, reference/*.md, README.md, CHANGELOG.md, TODO.md, or PRIVACY.md.
+description: Use this skill when working on the Calc-U-59 documentation or help website (docs/, reference/, root markdown files). Covers the GitHub Pages static site (HTML + client-side React), the design system, and the reference architecture docs. Trigger on any task that touches docs/*.html, docs/*.jsx, docs/*.css, reference/*.md, README.md, CHANGELOG.md, TODO.md, or PRIVACY.md. Also trigger when the user says "update documentation" (or similar) after finishing Core/ and/or App/ work on a release branch — see the Release Documentation Update Workflow section.
 user-invocable: true
 ---
 
@@ -39,6 +39,8 @@ Key files:
 | `docs/CNAME` | Custom domain record (`www.calcu59.ch`) |
 
 There is also a dedicated design skill at `docs/SKILL.md` that covers generating branded interfaces and visual assets. Do not duplicate its content here — use it when the task is primarily visual or brand-driven.
+
+**The playable web calculator (`docs/#play`)** is a real, WASM-compiled build of the emulation core, not a mock — see `docs/PlayCalculator.jsx`, `docs/calc-engine-worker.js`, `docs/wasm/`. It's built from `tools/pack_roms.py` and `tools/build_wasm.sh` in the main repo; see the Release Documentation Update Workflow below for when to re-run them.
 
 ---
 
@@ -82,6 +84,50 @@ When updating these files, keep the provenance notice at the top intact — it s
 | `CHANGELOG.md` | Version history (keep entries under the correct version heading) |
 | `TODO.md` | Development task list |
 | `PRIVACY.md` | App Store privacy policy |
+
+---
+
+## Release Documentation Update Workflow
+
+Triggered by the user saying **"update documentation"** (or similar) after finishing work on `Core/` and/or `App/` for a release. The current dev branch (`dev-X.Y.Z`) always starts at the HEAD of the previous release tag — that tag, not `main` and not an arbitrary commit count, is the diff base.
+
+1. **Find the base commit — verify, don't trust a single command blindly.**
+   This repo has at least one tag anomaly (`v1.6.0` and `v1.5.0` point at the exact same commit — a past tagging mistake), so `git describe --tags --abbrev=0` alone can silently mislead. Cross-check two ways:
+   ```bash
+   git branch --show-current                        # e.g. dev-1.6.0 → target release 1.6.0
+   git tag --list --sort=-v:refname                  # find the entry just below the target version
+   git merge-base HEAD v<previous-version>            # should equal...
+   git rev-parse v<previous-version>                  # ...this, exactly
+   ```
+   If `merge-base` and `rev-parse` don't match, the dev branch has extra commits beyond a clean fork point (rebasing, cherry-picks, etc.) — stop and ask the user which commit is the real base rather than guessing.
+
+2. **Review what actually changed.**
+   ```bash
+   git log <base-commit>..HEAD --oneline
+   git diff <base-commit>..HEAD --stat
+   ```
+   Read the full diff for `Core/`, `App/`, `Bridge/`, and `roms/` — that's where documented facts live. Skip doc-only or test-only commits already made earlier in the same session.
+
+3. **Update `CHANGELOG.md`.** Confirm every user-facing change from step 2 has an entry under the current `[X.Y.Z] - work in progress` heading, in the existing style (bold **Area** prefix, `### Fixes` subsection for bug fixes). Don't add a release date — that happens at release time.
+
+4. **Update reference docs** (`reference/CoreArchitecture.md`, `reference/AppArchitecture.md`, `reference/DebugAPI.md`, `reference/USERGUIDE.md`) for anything the diff invalidated: register model, SCOM layout, PC encoding, machine variants, bridge/debug API surface, settings, file formats. Keep each file's provenance notice intact.
+
+5. **Update the help website** (`docs/Pages.jsx`, `docs/PlayCalculator.jsx`, etc.) if the change is user-facing — new settings, module behavior, install steps, state-file directives. `docs/` is a separate git worktree — commit there, not from the main repo (see above).
+
+6. **Rebuild the WASM calculator (`docs/#play`) only if it's actually affected.** Check whether the diff from step 2 touched:
+   - `Core/*.cpp` / `Core/*.hpp` — specifically anything reachable from `docs/wasm/bindings.cpp`'s bound surface (ROM/library/constants loading, key press/release, display snapshot, program/register writes, `stepN`/`stepCycles`, `insertedModuleNumber`). If `TI59Machine`'s public API itself changed, check `bindings.cpp`'s bound-method list against `Core/TI59Machine.hpp` before assuming a plain rebuild covers it — a new or changed method may need a matching binding.
+   - `roms/calculator/*.txt`, `roms/solid-state/*.txt` (including `roms/solid-state/cuecards.txt`) — any of these changing means `tools/pack_roms.py` must be re-run to regenerate `docs/wasm/roms/*.json`.
+
+   If either applies:
+   ```bash
+   python3 tools/pack_roms.py   # only if roms/*.txt changed
+   tools/build_wasm.sh          # only if Core/ or bindings.cpp changed
+   ```
+   Then run `helpsite-unit-tests/run-tests.sh` — `play-calculator.spec.js` covers arithmetic, module cue cards, and preset loading through the real WASM core end to end — before committing.
+
+   If neither `Core/` nor `roms/*.txt` changed (most releases are Swift-only UI/debugger work), skip this step entirely.
+
+7. **Commit in both places, never push.** Main-repo changes (`CHANGELOG.md`, `reference/`, `README.md`, `TODO.md`, `tools/`) commit from the repo root; `docs/` changes commit from inside `docs/` (separate worktree/branch — see above). Two separate commits, following the "commit often, never push" rule below.
 
 ---
 
