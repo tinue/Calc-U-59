@@ -200,13 +200,8 @@ h3.sub {
   color: var(--fg);
 }
 .cuecard-id { color: var(--accent); white-space: nowrap; }
-.cuecard-banks {
-  display: flex; justify-content: space-between;
-  color: var(--accent); font-weight: 700;
-}
 .cuecard-gridrow { display: grid; grid-template-columns: repeat(5, 1fr); }
 .cuecard-cell { text-align: center; line-height: 1.3; }
-.cuecard-cell-divider { border-left: 1px solid rgba(188,157,96,.35); }
 .cuecard-row { letter-spacing: .02em; line-height: 1.3; }
 .cuecard-row-boxed { display: inline-block; border: 1px solid var(--fg-2); border-radius: 3px; }
 .cuecard-row-pair { display: flex; justify-content: space-between; }

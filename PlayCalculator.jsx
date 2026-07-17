@@ -258,11 +258,13 @@ function PlayCalculator({ scale = 1 }) {
         statusMessage={statusMessage}
       />
 
-      {/* Reserved even with no card showing, sized to the ML-01 cue card
-          (measured ~90px at scale=1.4, i.e. ~65px at scale=1 — against
-          the corrected rendering, see cuecard.jsx) so the calculator
-          doesn't jump size when a card appears/disappears. */}
-      <div style={{ marginTop: 3 * scale, minHeight: 65 * scale }}>
+      {/* Reserved even with no card showing, so the calculator doesn't
+          jump size when a card appears/disappears. Measured against a
+          2-row card (SolidState: ~96.6px, MagnetCard: ~95.75px at
+          scale=1.4, i.e. ~69px at scale=1) after cuecard.jsx's row-height
+          fixes made all 2-row cards a consistent height regardless of
+          which cells are populated — 70px leaves a small margin. */}
+      <div style={{ marginTop: 3 * scale, minHeight: 70 * scale }}>
         {activeCueCard ? <CueCard card={activeCueCard} scale={scale} /> : null}
       </div>
 
