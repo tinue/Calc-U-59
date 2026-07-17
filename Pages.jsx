@@ -859,6 +859,40 @@ function ModulesPage({ onNav }) {
   );
 }
 
+function PlayPage({ onNav }) {
+  return (
+    <main className="wrap">
+      <p className="eyebrow">Play</p>
+      <h1 className="page-title">Try it right here</h1>
+      <p className="lede">
+        This is the real emulation core — compiled to WebAssembly and running entirely in your
+        browser — not a screenshot. Debugger, printer, and card reader are not part of this build;
+        everything else works.
+      </p>
+
+      <div style={{ display: "flex", justifyContent: "center", marginTop: 24 }}>
+        <PlayCalculator scale={1} />
+      </div>
+
+      <div className="panel" style={{ padding: 20, marginTop: 32, lineHeight: 1.7 }}>
+        <p style={{ marginTop: 0 }}>
+          Module 01 (Master Library) is loaded by default. Switch modules, load one of the curated
+          presets, or upload your own <strong>.ti59</strong> file below the keyboard — uploads are
+          read entirely in your browser and never leave your machine.
+        </p>
+        <p style={{ marginBottom: 0 }}>
+          Press <strong>2nd</strong> then <strong>Pgm</strong> then a two-digit program number to
+          bring up that program's cue card, the same way it works on the module itself.
+        </p>
+      </div>
+
+      <div style={{ marginTop: 24 }}>
+        <BackButton onNav={onNav} />
+      </div>
+    </main>
+  );
+}
+
 Object.assign(window, {
   HomePage,
   GettingStartedPage,
@@ -869,4 +903,5 @@ Object.assign(window, {
   ReferencePage,
   ModulesPage,
   FaqPage,
+  PlayPage,
 });

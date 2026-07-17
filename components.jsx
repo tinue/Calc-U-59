@@ -9,6 +9,7 @@ function SiteHeader({ page }) {
   const items = [
     { id: "home",     label: "Overview",        href: "#home" },
     { id: "start",    label: "Getting Started", href: "#start" },
+    { id: "play",     label: "Play",            href: "#play" },
     { id: "ref",      label: "App Reference",   href: "#ref" },
     { id: "modules",  label: "Modules",         href: "#modules" },
     { id: "faq",      label: "FAQ",             href: "#faq" },

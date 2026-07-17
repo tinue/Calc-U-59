@@ -19,12 +19,15 @@
 
 <script type="text/babel" src="components.jsx"></script>
 <script type="text/babel" src="Calculator.jsx"></script>
+<script src="cuecard-data.js"></script>
+<script type="text/babel" src="cuecard.jsx"></script>
+<script type="text/babel" src="PlayCalculator.jsx"></script>
 <script type="text/babel" src="Pages.jsx"></script>
 
 <script type="text/babel">
   const VALID_PAGES = new Set([
     "home","start","install-mobile","install-mac",
-    "state-files","debugger","ref","modules","faq"
+    "state-files","debugger","ref","modules","faq","play"
   ]);
   const VALID_TOPICS = new Set([
     "install-mobile","install-mac","state-files",
@@ -71,6 +74,7 @@
         <SiteHeader page={page} />
         {page === "home"           && <HomePage onNav={onNav} />}
         {page === "start"          && <GettingStartedPage initialTopic={topic} onNav={onNav} />}
+        {page === "play"           && <PlayPage onNav={onNav} />}
         {page === "install-mobile" && <InstallMobilePage onNav={onNav} />}
         {page === "install-mac"    && <InstallMacPage onNav={onNav} />}
         {page === "state-files"    && <StateFilesPage onNav={onNav} />}
