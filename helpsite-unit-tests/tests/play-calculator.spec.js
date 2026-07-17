@@ -29,6 +29,8 @@ async function readLedText(page) {
     for (const cell of document.querySelectorAll('.led-cell')) {
       if (cell.querySelector('.led-cell-c')) {
         out += 'C';
+      } else if (cell.querySelector('.led-cell-7')) {
+        out += '7';
       } else {
         out += cell.querySelector('.led-cell-fg')?.textContent ?? '';
       }
