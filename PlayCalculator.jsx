@@ -218,7 +218,10 @@ function PlayCalculator({ scale = 1 }) {
   }
 
   function handleModuleChange(id) {
-    setStatusMessage("Loading module…");
+    // No "Loading module…" status: switching modules is a single fast
+    // in-memory swap (well under 100ms), and the message had no message
+    // to clear it on completion — it just stuck around forever. Not worth
+    // a transient status for something this quick.
     setActiveCueCard(null);
     workerRef.current?.postMessage({ type: "loadModule", id });
   }
@@ -284,6 +287,7 @@ function PlayCalculator({ scale = 1 }) {
         onModuleChange={handleModuleChange}
         onPresetChange={handlePresetChange}
         onUpload={handleUpload}
+        onQueueCard={() => workerRef.current?.postMessage({ type: "queueCard" })}
         fileInputRef={fileInputRef}
         disabled={!ready}
       />
@@ -314,6 +318,26 @@ function CIndicator({ scale, intensity }) {
   );
 }
 
+// The digit "7", drawn as its own 2-bar shape — top bar + a full-height
+// right-side bar (7-segment bits A, B, C) — rather than the display
+// font's "7" glyph, which turned out to include an extra top-left stroke
+// real 7-segment hardware doesn't light for this digit.
+function Digit7({ scale }) {
+  const bar = {
+    position: "absolute",
+    background: "#ff2614",
+    boxShadow: "0 0 6px rgba(255,38,20,.8), 0 0 12px rgba(255,38,20,.4)",
+    borderRadius: 1 * scale,
+  };
+  const thickness = 3 * scale;
+  return (
+    <div className="led-cell-7" style={{ position: "absolute", inset: "8% 20%" }}>
+      <div style={{ ...bar, top: 0, left: 0, right: 0, height: thickness }} />
+      <div style={{ ...bar, top: 0, bottom: 0, right: 0, width: thickness }} />
+    </div>
+  );
+}
+
 // One fixed-size digit position: ghost "8" backdrop + the real glyph
 // (digit/minus/degree/blank) or the C indicator stacked on top, plus an
 // optional decimal dot anchored to this cell — mirrors
@@ -330,6 +354,8 @@ function LedCell({ scale, char, hasDot, isC, cIntensity }) {
       }}>8</span>
       {isC ? (
         <CIndicator scale={scale} intensity={cIntensity} />
+      ) : char === "7" ? (
+        <Digit7 scale={scale} />
       ) : (
         <span className="led-cell-fg" style={{
           position: "absolute", inset: 0,
@@ -393,7 +419,7 @@ function PlayDisplay({ scale, cells, moduleName, statusMessage }) {
   );
 }
 
-function PlayControls({ scale, modules, presets, currentModuleId, onModuleChange, onPresetChange, onUpload, fileInputRef, disabled }) {
+function PlayControls({ scale, modules, presets, currentModuleId, onModuleChange, onPresetChange, onUpload, onQueueCard, fileInputRef, disabled }) {
   const selectStyle = {
     background: "var(--bg-inset)",
     color: "var(--fg)",
@@ -424,6 +450,15 @@ function PlayControls({ scale, modules, presets, currentModuleId, onModuleChange
           {presets.map((p) => <option key={p.file} value={p.file}>{p.title}</option>)}
         </select>
       </label>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={onQueueCard}
+        title="Feeds a virtual magnetic card to 2nd Write / 2nd Read — same card every time, so writing then reading it back reproduces what was last written."
+        style={{ ...selectStyle, cursor: disabled ? "default" : "pointer" }}
+      >
+        Queue Card
+      </button>
       <button
         type="button"
         disabled={disabled}

@@ -16,6 +16,8 @@
 //   {type: "resume"}
 //   {type: "loadModule", id}           -- e.g. "ML", "ST", ...
 //   {type: "loadState", text}          -- raw .ti59 file contents
+//   {type: "queueCard"}                -- user pressed "Queue Card"; see the
+//                                          Magnetic card reader section below
 //
 // worker -> main thread:
 //   {type: "ready"}
@@ -58,6 +60,49 @@ let currentModuleId = null;
 let cyclesAhead = 0;
 let modulesManifest = null;
 const moduleCache = {};
+
+// ── Magnetic card reader ─────────────────────────────────────────────────
+//
+// Matches EmulatorViewModel.swift's model exactly, not an automatic
+// "detect and answer" scheme — isWaitingForCard() was tried first and
+// rejected: it reads true almost continuously during ordinary idle
+// operation (TST BUSY polls the card-switch line as part of routine
+// keyboard scanning, regardless of whether "2nd Write"/"2nd Read" was
+// ever pressed — confirmed directly against Core), so it doesn't actually
+// signal "the user just asked for a card". Swift's own app never watches
+// it either: the user explicitly triggers insertCard() (there, via a file
+// picker; here, via the "Queue Card" button in PlayCalculator.jsx's
+// controls), and the app reacts only to auto-eject
+// (tick(): "if cardState==.swiping && !machine.isCardPresent
+// { ejectCard() }") to harvest anything written — never re-inserting on
+// its own. Pressing "2nd Write"/"2nd Read" without ever clicking "Queue
+// Card" waits forever, same as real hardware without a card physically
+// swiped.
+//
+// One bank (246 bytes), not the full 4-bank/984-byte card: covers writing
+// and reading back a single program, the realistic common case, and keeps
+// this simple. Persists for the page session (reset()s don't clear it,
+// same as Core: reset() only clears its own m_cardFullData, not our copy)
+// — same as carrying one real card in your wallet across sessions.
+const CARD_BANK_BYTES = 246;
+let cardBuffer = new Uint8Array(CARD_BANK_BYTES);
+let cardQueued = false; // true from "Queue Card" until the ROM auto-ejects it
+
+function queueCard() {
+  machine.insertCard(cardBuffer);
+  cardQueued = true;
+}
+
+// Called every tick; a no-op unless a card was actually queued and the ROM
+// has since finished with it (CRD_OFF auto-ejects on both read and write
+// passes — see reference/CoreArchitecture.md's "Magnetic Card Reader").
+function pollCardReader() {
+  if (cardQueued && !machine.isCardPresent()) {
+    const written = machine.cardEject();
+    if (written.length > 0) cardBuffer = Uint8Array.from(written);
+    cardQueued = false;
+  }
+}
 
 function base64ToBytes(b64) {
   const binary = atob(b64);
@@ -121,6 +166,7 @@ async function applyStateFile(text) {
   if (!result.skipReset) {
     machine.reset();
     machine.stepN(POWER_ON_STEPS);
+    cardQueued = false; // reset() clears Core's own card state too
   }
 
   const totalSteps = result.partitionMaxStep + 1;
@@ -163,6 +209,7 @@ function tick() {
     cyclesAhead += machine.stepCycles(budget);
   }
   cyclesAhead -= TICK_TARGET_CYCLES;
+  pollCardReader();
 
   const d = machine.getDisplay();
   postMessage({
@@ -231,6 +278,9 @@ onmessage = async (e) => {
       break;
     case "loadState":
       await applyStateFile(msg.text);
+      break;
+    case "queueCard":
+      if (machine) queueCard();
       break;
     default:
       break;

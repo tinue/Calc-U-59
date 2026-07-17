@@ -1,7 +1,13 @@
 // Embind wrapper around Core/TI59Machine for the playable web calculator
-// (docs/#play). Deliberately narrow surface: no debug/trace/printer/card
-// API — those features are out of scope for the web build (see the plan
-// at /Users/me/.claude/plans/replicated-riding-duckling.md).
+// (docs/#play). Deliberately narrow surface: no debug/trace/printer API —
+// those remain out of scope (see the plan at
+// /Users/me/.claude/plans/replicated-riding-duckling.md). Card-reader
+// methods ARE bound (unlike the original plan) so calc-engine-worker.js
+// can auto-answer "2nd Write"/"2nd Read" with an in-memory virtual card
+// instead of hanging forever waiting for a physical swipe that can never
+// happen in a browser — see reference/CoreArchitecture.md's "Magnetic
+// Card Reader" section for the exact insertCard/cardEject/TST BUSY
+// handshake this binds.
 //
 // Built by tools/build_wasm.sh into docs/wasm/ti59-core.{js,wasm}.
 
@@ -118,6 +124,32 @@ public:
         return done;
     }
 
+    // ── Magnetic card reader ────────────────────────────────────────────
+    // Matches EmulatorViewModel.swift's own model exactly: the user
+    // explicitly triggers insertCard() (there, via a file picker; here,
+    // via the "Queue Card" button — see PlayCalculator.jsx), and the
+    // worker's tick loop reacts only to auto-eject (Swift's tick():
+    // "if cardState==.swiping && !machine.isCardPresent { ejectCard() }"),
+    // never to isWaitingForCard(). That signal was tried first and
+    // rejected: it reads true almost continuously during ordinary idle
+    // operation (TST BUSY polls the card-switch line as part of routine
+    // keyboard scanning, regardless of whether a card op was requested),
+    // so it doesn't actually indicate "the user just pressed 2nd Write".
+
+    void insertCard(val bytes) {
+        auto v = vecFromJSArray<uint8_t>(bytes);
+        m_machine.insertCard(v.data(), v.size());
+    }
+
+    val cardEject() {
+        std::vector<uint8_t> written = m_machine.cardEject();
+        val arr = val::array();
+        for (size_t i = 0; i < written.size(); ++i) arr.set(i, written[i]);
+        return arr;
+    }
+
+    bool isCardPresent() const { return m_machine.isCardPresent(); }
+
 private:
     TI59Machine m_machine;
 };
@@ -140,5 +172,8 @@ EMSCRIPTEN_BINDINGS(ti59_web) {
         .function("insertedModuleNumber", &WebMachine::insertedModuleNumber)
         .function("stepUntilNextKeycode", &WebMachine::stepUntilNextKeycode)
         .function("stepN", &WebMachine::stepN)
-        .function("stepCycles", &WebMachine::stepCycles);
+        .function("stepCycles", &WebMachine::stepCycles)
+        .function("insertCard", &WebMachine::insertCard)
+        .function("cardEject", &WebMachine::cardEject)
+        .function("isCardPresent", &WebMachine::isCardPresent);
 }
