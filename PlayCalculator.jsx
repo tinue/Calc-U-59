@@ -150,8 +150,12 @@ function PlayCalculator({ scale = 1 }) {
           setDisplay(msg);
           break;
         case "moduleLoaded":
+          // Not clearing activeCueCard here: a state-file load can trigger
+          // its own module switch (SOLID-STATE-MODULE:) after already
+          // posting its cueCard message, and that card shouldn't be wiped
+          // out from under it. Explicit user-driven module switches clear
+          // it themselves — see handleModuleChange.
           setCurrentModule({ id: msg.id, title: msg.title, menuTitle: msg.menuTitle, cuecards: msg.cuecards });
-          setActiveCueCard(null);
           break;
         case "cueCard":
           if (msg.card) setActiveCueCard(msg.card);
@@ -215,6 +219,7 @@ function PlayCalculator({ scale = 1 }) {
 
   function handleModuleChange(id) {
     setStatusMessage("Loading module…");
+    setActiveCueCard(null);
     workerRef.current?.postMessage({ type: "loadModule", id });
   }
 
@@ -254,14 +259,14 @@ function PlayCalculator({ scale = 1 }) {
       />
 
       {/* Reserved even with no card showing, sized to the ML-01 cue card
-          (measured ~88px at scale=1 — that card renders correctly; others
-          currently don't, see cuecard.jsx/cuecard-data.js) so the
-          calculator doesn't jump size when a card appears/disappears. */}
-      <div style={{ marginTop: 10 * scale, minHeight: 88 * scale }}>
-        {activeCueCard ? <CueCard card={activeCueCard} /> : null}
+          (measured ~90px at scale=1.4, i.e. ~65px at scale=1 — against
+          the corrected rendering, see cuecard.jsx) so the calculator
+          doesn't jump size when a card appears/disappears. */}
+      <div style={{ marginTop: 3 * scale, minHeight: 65 * scale }}>
+        {activeCueCard ? <CueCard card={activeCueCard} scale={scale} /> : null}
       </div>
 
-      <div style={{ display: "grid", gap: 10 * scale, marginTop: 14 * scale }}>
+      <div style={{ display: "grid", gap: 10 * scale, marginTop: 6 * scale }}>
         {PLAY_ROWS.map((row, ri) => (
           <div key={ri} style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 * scale }}>
             {row.map((kc, ci) => <CalcKey key={ci} kc={kc} scale={scale} onPress={pressByLabel} />)}

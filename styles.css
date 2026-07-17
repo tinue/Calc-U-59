@@ -181,35 +181,37 @@ h3.sub {
 .site-footer .credits { margin-left: auto; font-family: var(--font-mono); font-size: 11px; opacity: .7; }
 
 /* ---------- Cue card (docs/#play, docs/cuecard.jsx) --------------------- */
+/* Deliberately tight: this sits directly under the LED display, not as a
+   standalone panel, so it should read as part of the calculator rather
+   than an equally-weighted card of its own.
+   Sizing (font-size, padding, margin, gap) is set inline from cuecard.jsx,
+   scaled by the same `scale` prop as the rest of the calculator — this
+   sheet only owns structure and color. */
 .cuecard {
   background: var(--bg-inset);
   border: 1px solid var(--stroke-warm, var(--stroke));
   border-radius: var(--radius-card);
-  padding: 12px 14px;
   font-family: var(--font-keycap);
   color: var(--fg-2);
 }
-.cuecard-button { box-shadow: inset 0 0 0 1px rgba(240,192,64,.25); }
 .cuecard-header {
   display: flex; justify-content: space-between; align-items: baseline;
-  gap: 12px; font-weight: 700; font-size: 12px; letter-spacing: .05em;
+  font-weight: 700; letter-spacing: .05em;
   color: var(--fg);
 }
-.cuecard-id, .cuecard-banks { color: var(--accent); font-size: 11px; white-space: nowrap; }
-.cuecard-rows { margin-top: 8px; font-size: 11px; letter-spacing: .03em; line-height: 1.6; }
-.cuecard-row-pair { display: flex; justify-content: space-between; gap: 12px; }
+.cuecard-id { color: var(--accent); white-space: nowrap; }
+.cuecard-banks {
+  display: flex; justify-content: space-between;
+  color: var(--accent); font-weight: 700;
+}
+.cuecard-gridrow { display: grid; grid-template-columns: repeat(5, 1fr); }
+.cuecard-cell { text-align: center; line-height: 1.3; }
+.cuecard-cell-divider { border-left: 1px solid rgba(188,157,96,.35); }
+.cuecard-row { letter-spacing: .02em; line-height: 1.3; }
+.cuecard-row-boxed { display: inline-block; border: 1px solid var(--fg-2); border-radius: 3px; }
+.cuecard-row-pair { display: flex; justify-content: space-between; }
+.cuecard-row-pair .cuecard-row { margin-top: 0 !important; }
 .align-left { text-align: left; }
 .align-center { text-align: center; }
 .align-right { text-align: right; }
-.cuecard-labels {
-  display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px;
-  margin-top: 10px;
-}
-.cuecard-label {
-  display: flex; flex-direction: column; align-items: center; gap: 2px;
-  font-size: 10px; text-align: center;
-}
-.cuecard-label-2nd { color: var(--accent); min-height: 12px; }
-.cuecard-label-key { color: var(--fg-3); font-weight: 700; }
-.cuecard-label-plain { color: var(--fg-2); min-height: 12px; }
 .site-footer .disclaimer { flex-basis: 100%; font-size: 11px; line-height: 1.5; color: var(--fg-3); opacity: .85; margin-top: 4px; max-width: 80ch; }

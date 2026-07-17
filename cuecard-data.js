@@ -203,8 +203,18 @@ function applyCueCardLine(card, line) {
 // Parse a JSON cue-card record (already { key: value, ... } shaped, as
 // packed by tools/pack_roms.py) into a card object — no line parsing
 // needed since the packer already applied the field mapping.
+// tools/pack_roms.py deliberately doesn't expand math tokens (title, id,
+// row1/row2/row2R, labels) — that's cuecard-data.js's job, same as
+// applyCueCardLine does for preset-embedded CUECARD: sections, so there's
+// one place that owns the token table and packed data isn't duplicating it.
 function cueCardFromPacked(record) {
   const card = newCueCard();
   Object.assign(card, record);
+  card.title = expandMathTokens(card.title);
+  card.id = expandMathTokens(card.id);
+  card.row1 = expandMathTokens(card.row1);
+  card.row2 = expandMathTokens(card.row2);
+  card.row2R = expandMathTokens(card.row2R);
+  card.labels = card.labels.map(expandMathTokens);
   return card;
 }

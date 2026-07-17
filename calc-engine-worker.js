@@ -112,6 +112,12 @@ async function loadModule(moduleId) {
 async function applyStateFile(text) {
   const result = parseStateFile(text, { maxStepAddr: 479, allowHiddenRegisters: false });
 
+  // Posted immediately, before reset/program/keystroke playback — a
+  // preset's KEYSTROKES section can take many seconds to play out (each
+  // key press paced with real delays below), and the card shouldn't wait
+  // on that; it's just reference material for what's about to run.
+  postMessage({ type: "cueCard", card: result.cueCard });
+
   if (!result.skipReset) {
     machine.reset();
     machine.stepN(POWER_ON_STEPS);
@@ -145,7 +151,6 @@ async function applyStateFile(text) {
     // toggleTrace: printer TRACE latch, out of scope, no-op.
   }
 
-  postMessage({ type: "cueCard", card: result.cueCard });
   postMessage({ type: "stateLoaded" });
 }
 
