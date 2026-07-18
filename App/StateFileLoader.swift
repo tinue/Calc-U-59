@@ -338,11 +338,11 @@ private func parseRegLine(_ line: String,
         return
     }
 
-    guard let value = Double(valStr) else {
+    guard Double(valStr) != nil else {
         errors.append("Cannot parse register \(nnStr) value: \"\(valStr)\"")
         return
     }
-    registers.append((regNum: regNum, nibbles: encodeTI59BCD(value), isHidden: isHidden))
+    registers.append((regNum: regNum, nibbles: encodeTI59BCD(text: valStr), isHidden: isHidden))
 }
 
 /// Parse one KEYSTROKES line into `KeystrokeEvent`s.
@@ -554,6 +554,53 @@ func parseCardFile(_ text: String) -> CardFileResult? {
 }
 
 // MARK: - BCD encoder
+
+/// Encodes a `REGISTERS:` literal exactly as written in the state file.
+///
+/// A pure decimal integer (optional leading `-`, digits only — no `.`, no
+/// `e`/`E`) is built digit-by-digit from the source text, never touching
+/// `Double`. This is defense-in-depth, not a fix for an active bug: 787a227
+/// already made `encodeTI59BCD(_:Double)`'s `%.12e` conversion correctly
+/// rounded, and a pure integer like "3641003032" is well within `Double`'s
+/// exact-integer range, so it round-trips exactly through that path too (the
+/// off-by-one/trailing-9s failure reported after this preset was written
+/// turned out to be a v1.5.0 build, which predates 787a227 and still has the
+/// old iterative mantissa/pow/subtract loop — not a gap in the fix). Still,
+/// the TI-59's register mantissa holds 13 significant digits, more than a
+/// human ever keys in on the keypad, and a keyed-in integer never takes a
+/// Double detour on real hardware, so building it straight from the literal
+/// text removes an unnecessary step for the one input class where it's easy
+/// to. Values that actually use a decimal point or exponent notation
+/// ("-1.5e-3", "7.77E22") are genuinely floating-point and still go through
+/// `encodeTI59BCD(_:Double)` below.
+func encodeTI59BCD(text: String) -> [UInt8] {
+    let trimmed = text.trimmingCharacters(in: .whitespaces)
+    guard trimmed.range(of: "^-?[0-9]+$", options: .regularExpression) != nil else {
+        return Double(trimmed).map(encodeTI59BCD) ?? [UInt8](repeating: 0, count: 16)
+    }
+
+    var digits = trimmed
+    let negative = digits.hasPrefix("-")
+    if negative { digits.removeFirst() }
+    while digits.count > 1 && digits.hasPrefix("0") { digits.removeFirst() }
+    if digits == "0" { return [UInt8](repeating: 0, count: 16) }
+
+    var nibbles = [UInt8](repeating: 0, count: 16)
+    let exp = digits.count - 1   // normalised so the first digit is the mantissa MSD
+    nibbles[0] = negative ? 2 : 0
+    nibbles[1] = UInt8(exp % 10)
+    nibbles[2] = UInt8(exp / 10)
+
+    // nibble[15..3]: 13 mantissa digits, MSD at nibble[15], LSD at nibble[3].
+    // Digits past the 13th significant figure (offset >= 13) don't fit in the
+    // register and are dropped -- the same limit real hardware imposes.
+    let digitChars = Array(digits)
+    for (offset, i) in stride(from: 15, through: 3, by: -1).enumerated() {
+        guard offset < digitChars.count, let d = digitChars[offset].wholeNumberValue else { continue }
+        nibbles[i] = UInt8(d)
+    }
+    return nibbles
+}
 
 /// Encode a Double as TI-59 BCD: 16 nibbles.
 ///
