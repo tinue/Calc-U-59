@@ -7,7 +7,7 @@
 //
 // CACHE_NAME is the only thing to bump when any precached file's content
 // changes; the activate handler drops every cache that doesn't match it.
-const CACHE_NAME = "calcu59-app-v2";
+const CACHE_NAME = "calcu59-app-v3";
 
 const CORE_ASSETS = [
   "/app/",
@@ -15,6 +15,8 @@ const CORE_ASSETS = [
   "/app/app.css",
   "/app/app.jsx",
   "/app/manifest.json",
+
+  "/styles.css",
 
   "/vendor/react.production.min.js",
   "/vendor/react-dom.production.min.js",
