@@ -155,6 +155,7 @@ styles.css                      · site-level CSS on top of colors_and_type.css
 components.jsx                  · SiteHeader, SiteFooter, K, KSeq, TopicCard, DocsSidebar, Placeholder
 Calculator.jsx                  · pixel-faithful recreation of the iOS app
 Pages.jsx                       · 5 pages — Home has prose, others are scaffolding
+PlayCalculator.jsx              · #play — real WASM-compiled emulator core, playable in-browser (built from tools/build_wasm.sh in the main repo)
 colors_and_type.css             · shared with the design system
 CNAME                           · "www.calcu59.ch" — GitHub Pages custom domain
 assets/

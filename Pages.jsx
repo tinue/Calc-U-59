@@ -438,7 +438,16 @@ Wait: 2s
         <p><strong>REGISTERS:</strong> stores calculator variables as decimal numbers.</p>
         <p><strong>KEYSTROKES:</strong> injects matrix codes after the file loads. Wait lines are allowed between groups.</p>
         <p><strong>CUECARD:</strong> defines the on-screen cue card that appears with the loaded file or module.</p>
-        <p style={{ marginBottom: 0 }}><strong>SOLID-STATE-MODULE:</strong> and <strong>PRINTER:</strong> let a file select the matching module and printer state automatically.</p>
+        <p><strong>SOLID-STATE-MODULE:</strong> and <strong>PRINTER:</strong> let a file select the matching module and printer state automatically.</p>
+        <p style={{ marginBottom: 0 }}>
+          This page covers enough to load and tweak existing files. The complete
+          grammar — matrix code table, 2nd-function presses, the CUECARD field
+          list, and the math-notation shorthand used in cue cards — is developer
+          documentation kept in the GitHub repository:{" "}
+          <a href="https://github.com/tinue/Calc-U-59/blob/main/reference/StateFileFormat.md" style={{ color: "var(--accent)", textDecoration: "none", borderBottom: "1px solid var(--accent)" }}>
+            reference/StateFileFormat.md →
+          </a>
+        </p>
       </div>
 
       <div style={{ marginTop: 24 }}>
