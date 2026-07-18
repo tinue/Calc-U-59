@@ -64,11 +64,8 @@ CUECARD:
 Template: MagnetCard
 Title: Calendar Printer
 Banks: 1,2
-A': Format: MM.YYYY
-B': \blank
-C': \blank
-D': \blank
-E': \blank
+Row1: Format: MM.YYYY
+Row1Align: left
 A: YEAR
 B: 1 MONTH
 
