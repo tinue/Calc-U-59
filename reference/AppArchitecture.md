@@ -222,6 +222,24 @@ slot, `code % 10` → physical column → K-line bit via `kbits[]`.
 
 ---
 
+## Solid-State Program Display
+
+`ProgramSource` (top of `EmulatorViewModel.swift`) mirrors the firmware's PRG
+SOURCE flag (SCOM[0] nibble 3, see `reference/CoreArchitecture.md`):
+`userProgram = 0`, `solidState = 1`, `solidStateReturn = 2`, `fastMode = 4`,
+`rom = 8`.
+
+Solid-state (library module) programs are shown live in the PROGRAM STEPS view:
+
+- `cacheModuleImage()` parses the module header into `moduleProgramRanges` (program *n*, 1-based = `ranges[n-1]`); it is called at both module-load sites.
+- `libraryProgramStep()` maps the core's latched `libExecPC` (bridge property; `0xFFFF` = none) to `(program, step, range)`. Steps are **program-relative**: step 000 = first keycode of that program.
+- Frozen view: `frozenLibCache` / `frozenLibProgram` mirror the RAM/ROM freeze caches and rebuild in `stepKeycode` when the Pgm number changes.
+- The current Pgm number also lives in SCOM[9] digits 4 (tens) / 3 (units); the latch-derived program is cross-checked against it (mismatches debug-logged).
+- **PRG SOURCE = 2** ("Solid State Return (PC Reload)"): a one-single-step transitional state after a RTN back into the module. The previous frozen cache is held and the highlight advances +1 onto the just-executed RTN (`advanceCachedProgramCurrent()`). During this step SCOM[0] nibbles 4–7 hold a raw CROM address, **not** a step number — never decode it as one.
+- Colors: solid-state steps highlight blue; return-stack levels with source 2 show purple, like library levels.
+
+---
+
 ## ROM Loading
 
 `ROMLoader` loads the ROM from individual chip `.txt` files bundled with the app.
@@ -267,6 +285,53 @@ Zero suppression logic mirrors the hardware display driver: leading zeros are
 blanked unless the digit is immediately left of the decimal point (guarded by
 `dpPos`), or the digit position has a control nibble (`ctrl ≥ 8`) that forces
 display.
+
+---
+
+## Cue Card Rendering
+
+`CueCardView` renders a `CueCardContent` (field grammar for authoring one in a
+state file's `CUECARD:` section is in `reference/StateFileFormat.md`, not
+here — this section covers rendering only) onto one of three background
+images, selected by `template`:
+
+| Template | Background | Text color | Dividers | ID field |
+|---|---|---|---|---|
+| `CueCard` | `CueCard.imageset` | black | no | no |
+| `MagnetCard` | `source-material/MagnetCard.svg` | black | no | no |
+| `SolidStateCard` | shares `CueCard` art | gold `#C49223` | yes | yes, top-right |
+
+Each template has its own set of fractional layout constants (title Y
+position, grid row Y positions, per-column X positions, font sizes) sized
+against the background image's own dimensions, defined in `CueCardView`'s
+`GridCardLayout` values — read those directly for exact numbers; they're
+implementation detail below the level this doc tracks.
+
+Two title-independent algorithms drive the two content rows (label grid vs.
+free `Row1`/`Row2`/`Row2R` text, selected per the field grammar linked above):
+
+- **Column-span merging.** A grid row is 5 label cells. A cell holding the
+  `\blank` sentinel (a zero-width space) doesn't render on its own — it
+  extends the *preceding* non-blank cell's span to cover it, so one label can
+  visually occupy multiple key positions. `MagnetCard` always draws the full
+  5-cell framework (with dividers) even when every cell is empty, since its
+  card artwork shows that grid unconditionally; `SolidStateCard` only draws
+  cells that end up with content.
+- **Shrink-to-fit font sizing.** Each grid row picks one font size shared by
+  all its cells, shrunk down from the template's base size (never below 40%
+  of it) just enough that the widest cell's text fits on one line — never
+  wrapped, never overflowing into the next row. Free-text rows (`Row1`/`Row2`/
+  `Row2R`) use single-line truncation instead, since they're one string, not
+  independently-sized cells.
+
+`docs/cuecard.jsx` is a from-scratch React port of this same view for the web
+build (`docs/#play`) — worth reading as a second, independently-built example
+of these same rules, including the places it deliberately diverges (DOM-measured
+shrink-to-fit instead of Swift's analytic character-width formula, CSS ellipsis
+instead of `.lineLimit(1)`, and dropping `MagnetCard`'s bank badges as
+non-load-bearing). See `reference/NewGUIGuide.md` for why this exists as a
+second implementation rather than shared code, and what's worth changing
+about that going forward.
 
 ---
 

@@ -509,6 +509,7 @@ since solid-state programs never move the SCOM[0] step counter.
 | 0 | Keyboard / RAM program |
 | 1 | Library program executing — CROM counter is live |
 | 2 | Transitional "suspended library" return: the RTN handler popped a saved level `[2][4-digit CROM addr]` into SCOM[0]; the next dispatch reloads the CROM PC via OUT LIB_PC ×4 and sets source back to 1 |
+| 4 | Fast mode |
 | 8 | Keycode-ROM sub-program (e.g. P→R) called from a library program; SCOM PC is used, `m_libExecPC` holds |
 
 Source 2 exists because a library caller cannot be pushed as source 1: source 1
@@ -588,3 +589,7 @@ the write path in `step()` is unsynchronised (emulation-thread-only).
 | Library module | Yes | Yes | Yes |
 | Persistent RAM | No | No | Yes (`serialiseRAM`) |
 | Magnetic card slot | digit 10 | — | — |
+
+**TI-58C memory instructions**: uses dedicated opcodes `0xA76` (MEMWR) and
+`0xA86` (MEMRD) instead of TI-59/TI-58's generic `RAM_OP` (`0xAF8`).
+`TMC0501.cpp` checks the machine variant to distinguish these.

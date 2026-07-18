@@ -66,15 +66,9 @@ The user program step address (0–959) is encoded in nibbles 4–7 of SCOM[0] a
 
 ## Program Source Flag and Solid-State (CROM) Execution
 
-SCOM[0] nibble 3 holds the **PRG SOURCE** flag — where the currently executing user program lives:
-
-| Value | Meaning |
-|-------|---------|
-| 0 | User program in RAM (or keyboard execution) |
-| 1 | Solid-state module (CROM); the program counter lives **in the CROM chip**, not in SCOM |
-| 2 | Transitional "solid-state return": after a RTN back into a module, SCOM[0] nibbles 4–7 hold the saved CROM address (raw BCD, **not** a step number); the firmware reloads the CROM PC from it on the next keycode dispatch and sets the flag back to 1. Lasts exactly one dispatch cycle. |
-| 4 | Fast mode |
-| 8 | ROM-resident keycode sub-program (e.g. P→R is implemented as a firmware keycode sequence using the SCOM PC) |
+SCOM[0] nibble 3 holds the **PRG SOURCE** flag — where the currently executing
+user program lives. Full value table: `reference/CoreArchitecture.md` §
+"PRG SOURCE flag (SCOM[0] nibble 3)".
 
 **CROM program counter** (`m_libAddr`): held in the module chip itself. `IN LIB` fetches a byte and auto-increments; `OUT LIB_PC` (called 4×, one BCD digit each) writes it; `IN LIB_PC` reads it back (used for SBR return addresses). SCOM[0]'s calculator PC is only used for RAM programs.
 
@@ -86,15 +80,10 @@ SCOM[0] nibble 3 holds the **PRG SOURCE** flag — where the currently executing
 
 ## Machine Variants
 
-Defined in `Core/MachineVariant.hpp`: `TI59 | TI58 | TI58C`.
-
-| Variant | RAM registers | Card reader | Constant memory |
-|---------|--------------|-------------|-----------------|
-| TI-59   | 120          | yes         | no              |
-| TI-58   | 60           | no          | no              |
-| TI-58C  | 60           | no          | yes (MEMWR/MEMRD) |
-
-**TI-58C memory instructions**: uses dedicated opcodes `0xA76` (MEMWR) and `0xA86` (MEMRD) instead of TI-59's generic `RAM_OP` (`0xAF8`). `TMC0501.cpp` checks the machine variant to distinguish these.
+Defined in `Core/MachineVariant.hpp`: `TI59 | TI58 | TI58C`. Full comparison
+table (RAM registers, card reader, persistent RAM, ROM size) and the
+TI-58C-specific MEMWR/MEMRD opcode note: `reference/CoreArchitecture.md` §
+"Variant Differences".
 
 ---
 

@@ -46,10 +46,17 @@ REGISTERS:           # omit if no preset values are needed
 - Do **not** use REGISTERS for values the user enters at runtime
 
 ### PARTITION section rules
-- Omit unless you have a reason to deviate from the default (479.59 = 480 steps, 60 data registers)
+- Omit unless you have a reason to deviate from the default (479 = 480 steps, 60 data registers on TI-59; 239 = 240 steps, 30 data registers on TI-58/TI-58C)
+- The `.rr` suffix (e.g. `.59` in `PARTITION: 479.59`) is accepted for readability but is **ignored by the parser** — only the number before the dot controls the actual split, and the register count is always derived from it (rounded up to a multiple of 80 steps). Don't rely on the suffix to set a specific register count.
 
 ### KEYSTROKES section
 - **Never include a KEYSTROKES section when writing a program**
+
+### Other sections (rarely needed when just writing a program)
+- `MODEL: TI-59` / `TI-58` / `TI-58C` — switch the machine variant before loading. Omit unless the user specifically asks for TI-58/TI-58C behavior.
+- `SKIP-RESET: on` — apply only PROGRAM/REGISTERS/PARTITION/CUECARD to the already-running machine instead of resetting first. Only relevant when chaining multiple `.ti59` files against one session; never use it for a normal single-file program.
+- `CUECARD:` — custom reference-card text (`Template:`, `Title:`, `Row1:`/`Row2:`/`Row2R:`, `A`–`E`/`A'`–`E'` labels). Only include this if the user explicitly asks for a cue card; it plays no role in program execution.
+- `Trace: <filename>` / `Trace: Off` — starts/stops a scripted binary CPU trace capture during KEYSTROKES playback. This is a debugging feature, not part of normal program output — do not include it unless explicitly asked to produce a trace.
 
 ---
 

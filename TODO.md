@@ -16,18 +16,18 @@ Unsorted collection of ideas, bugs, observations etc.
 
 ## Debugger
 ### CPU Debugger
-- **Break points** Support break points (e.g. register content, IDLE-RUN change, PGM counter, and more)
-- **Latch keyboard entries** Support catching a keypress in single step mode
+- **Break points** PC-based breakpoints are fully implemented end to end (`TI59Machine`/`EmulatorViewModel`/`reference/DebugAPI.md` § "Breakpoints") with a working UI already written in `CPUDebugView.swift` — it just isn't wired into the app's navigation (see `Redesign.md` item 9). Remaining work here is narrower than it sounds: wire up (or rebuild) that UI, then extend to conditional triggers (register content, IDLE-RUN change, and more) which genuinely don't exist yet.
+- **Latch keyboard entries** Support catching a keypress in single step mode — see `KeypressLatch.md` for the existing design proposal.
 
 ### Calculator Debugger
-- **Break points** Support break points (e.g. STO content, t content, PGM step)
-- **Latch keyboard entries** Support catching a keypress in single step mode
+- **Break points** Support break points (e.g. STO content, t content, PGM step) — unlike the CPU Debugger, nothing exists here yet, not even PC-level.
+- **Latch keyboard entries** Support catching a keypress in single step mode — see `KeypressLatch.md`.
 
 ## Various
 - **Event callbacks** — push notifications for display updates and register changes, replacing the current polling model.
 - **Card stacking** — a queue of cards fed automatically on successive read/write requests, for programs that use multiple cards.
-- **CMake build** — standalone build targeting the C++ core, enabling headless use and non-macOS platforms.
-- **Headless / REST API** — full GUI decoupling to enable scripted research workflows and alternative frontends.
+- **CMake build** — standalone build targeting the C++ core, enabling headless use and non-macOS platforms. See `memory/headless.md` for a Python/CMake-based plan, and `reference/NewGUIGuide.md` for the WASM build's already-working precedent of building `Core/` standalone without CMake.
+- **Headless / REST API** — full GUI decoupling to enable scripted research workflows and alternative frontends. See `memory/headless.md` and `reference/NewGUIGuide.md`.
 - **Frozen** - Visually indicate when the calculator is frozen in one of the debuggers (mostly useful on iPhone, where only one panel is visible at a time)
 
 ## Far out (if ever)

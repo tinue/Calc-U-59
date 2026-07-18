@@ -10,6 +10,33 @@ This skill covers the help website (`docs/`), reference architecture docs (`refe
 
 ---
 
+## Documentation Policy: two audiences, two locations
+
+- **`docs/` (the `www.calcu59.ch` website) is the *only* place for end-user
+  documentation** — installing, operating, syncing, modules, settings, and
+  the debug panel from a user's point of view. If you're about to write
+  something an app user (not a contributor) would want to read, it goes
+  here, not in `reference/` or a root markdown file.
+- **Everything in the main repository (`reference/`, root markdown files,
+  `.claude/skills/`) is developer documentation** — for contributors, the
+  project owner, and AI agents working on the code. It assumes the reader
+  can read Swift/C++ and doesn't need app-usage instructions.
+- **`README.md` links to the website exactly once, prominently** (the "User
+  Guide" section) rather than re-explaining or indexing end-user content.
+  Technical facts that a developer needs but an end user doesn't — the
+  `.ti59` file format, the CUECARD grammar, the debug API — live in
+  `reference/` even though the website mentions that such things exist and
+  links back here for anyone who wants them.
+- **Skill files (`.claude/skills/*/SKILL.md`) must not duplicate content
+  that already has a home in a developer-accessible markdown file.** A human
+  developer reads `reference/*.md`; only the agent reads skill files. If a
+  skill and a reference doc say the same thing, delete it from the skill and
+  link to the doc instead — see `calc-u-59-statefiles/SKILL.md` for the
+  pattern (a few navigation aids, everything else is one link to
+  `reference/StateFileFormat.md`).
+
+---
+
 ## Help Website (`docs/`)
 
 **Hosting:** GitHub Pages at `www.calcu59.ch`  
@@ -69,8 +96,12 @@ These are AI-generated documents produced by reading the source code alongside h
 |------|---------|
 | `reference/CoreArchitecture.md` | C++ emulation core: TMC0501, SCOM, register model |
 | `reference/AppArchitecture.md` | Swift app structure and EmulatorViewModel |
-| `reference/DebugAPI.md` | Debug panel and bridge API |
-| `reference/USERGUIDE.md` | User-facing guide to the app |
+| `reference/DebugAPI.md` | Debug panel and bridge API, including the ASM overlay feature |
+| `reference/StateFileFormat.md` | `.ti59`/`.ti58`/`.ti58c` file format: sections, PARTITION/PROGRAM/REGISTERS, matrix codes, KEYSTROKES syntax, CUECARD grammar |
+| `reference/NewGUIGuide.md` | Porting guide for adding a new GUI frontend (Windows/Linux/Android/etc.) — the contract a new GUI must implement and what's still duplicated per-platform |
+
+There is no end-user guide in `reference/` — that content lives on the
+website (`docs/Pages.jsx`'s `DebuggerPage`, etc.) and is out of scope here.
 
 When updating these files, keep the provenance notice at the top intact — it signals that the content is best-effort reverse-engineering, not authoritative hardware documentation.
 
@@ -110,9 +141,9 @@ Triggered by the user saying **"update documentation"** (or similar) after finis
 
 3. **Update `CHANGELOG.md`.** Confirm every user-facing change from step 2 has an entry under the current `[X.Y.Z] - work in progress` heading, in the existing style (bold **Area** prefix, `### Fixes` subsection for bug fixes). Don't add a release date — that happens at release time.
 
-4. **Update reference docs** (`reference/CoreArchitecture.md`, `reference/AppArchitecture.md`, `reference/DebugAPI.md`, `reference/USERGUIDE.md`) for anything the diff invalidated: register model, SCOM layout, PC encoding, machine variants, bridge/debug API surface, settings, file formats. Keep each file's provenance notice intact.
+4. **Update reference docs** (`reference/CoreArchitecture.md`, `reference/AppArchitecture.md`, `reference/DebugAPI.md`, `reference/StateFileFormat.md`) for anything the diff invalidated: register model, SCOM layout, PC encoding, machine variants, bridge/debug API surface, settings, file formats. Keep each file's provenance notice intact.
 
-5. **Update the help website** (`docs/Pages.jsx`, `docs/PlayCalculator.jsx`, etc.) if the change is user-facing — new settings, module behavior, install steps, state-file directives. `docs/` is a separate git worktree — commit there, not from the main repo (see above).
+5. **Update the help website** (`docs/Pages.jsx`, `docs/PlayCalculator.jsx`, etc.) if the change is user-facing — new settings, module behavior, install steps, state-file directives (mention the directive exists and link back to `reference/StateFileFormat.md` for the grammar, don't restate it). `docs/` is a separate git worktree with its own versioning (i.e. none) — a change only needing a website update, with nothing in `Core/`/`App/`/`roms/`, does not need a `CHANGELOG.md` entry. Commit `docs/` changes from inside `docs/`, not from the main repo (see above).
 
 6. **Rebuild the WASM calculator (`docs/#play`) only if it's actually affected.** Check whether the diff from step 2 touched:
    - `Core/*.cpp` / `Core/*.hpp` — specifically anything reachable from `docs/wasm/bindings.cpp`'s bound surface (ROM/library/constants loading, key press/release, display snapshot, program/register writes, `stepN`/`stepCycles`, `insertedModuleNumber`). If `TI59Machine`'s public API itself changed, check `bindings.cpp`'s bound-method list against `Core/TI59Machine.hpp` before assuming a plain rebuild covers it — a new or changed method may need a matching binding.

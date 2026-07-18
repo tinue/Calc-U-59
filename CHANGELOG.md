@@ -4,6 +4,7 @@
 
 - **App Icon** Rebuilt as a layered Icon Composer `.icon` document, adding Liquid Glass depth and Light/Dark/Tinted/Clear appearance variants on iOS/macOS 26.
 - **State Files** New `Trace: name.bin` / `Trace: Off` keywords turn CPU instruction tracing on or off while a state file's KEYSTROKES are executing.
+- **Documentation** Reworked the repository's documentation around a strict split: `reference/` and skill files are developer-only, the `www.calcu59.ch` website is the sole home for end-user content, and README now links to it once instead of duplicating it. Consolidated the `.ti59`/`.ti58`/`.ti58c` state-file and CUECARD format into a new `reference/StateFileFormat.md` (previously scattered across a skill file and a section of `DebugAPI.md`), folded `reference/USERGUIDE.md`'s still-relevant ASM Overlay content into `DebugAPI.md` and retired the rest as redundant with the website, and trimmed several skill files that were restating facts already in `reference/`.
 
 ## [1.5.0] - 2026-07-02
 
