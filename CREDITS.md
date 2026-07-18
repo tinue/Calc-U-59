@@ -56,6 +56,6 @@ The original TI-59 owner's manual and ad material were consulted **privately** t
 
 ## Code
 
-- **React 18 / ReactDOM** — MIT (loaded from unpkg CDN).
-- **Babel Standalone** — MIT (loaded from unpkg CDN).
+- **React 18 / ReactDOM** (18.3.1, production builds) — MIT, self-hosted in `vendor/`.
+- **Babel Standalone** (7.29.0) — MIT, self-hosted in `vendor/`.
 - Site source (HTML/CSS/JSX) — authored for this project.
