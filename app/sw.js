@@ -7,7 +7,7 @@
 //
 // CACHE_NAME is the only thing to bump when any precached file's content
 // changes; the activate handler drops every cache that doesn't match it.
-const CACHE_NAME = "calcu59-app-v1";
+const CACHE_NAME = "calcu59-app-v2";
 
 const CORE_ASSETS = [
   "/app/",
@@ -23,6 +23,7 @@ const CORE_ASSETS = [
   "/Calculator.jsx",
   "/cuecard-data.js",
   "/cuecard.jsx",
+  "/led-display.jsx",
   "/PlayCalculator.jsx",
   "/calc-engine-worker.js",
   "/state-file-parser.js",
@@ -39,7 +40,6 @@ const CORE_ASSETS = [
   "/fonts/archivo-800.woff2",
   "/fonts/barlow-condensed-600.woff2",
   "/fonts/barlow-condensed-700.woff2",
-  "/fonts/DSEG7Classic-Bold.woff2",
 
   "/wasm/ti59-core.js",
   "/wasm/ti59-core.wasm",
