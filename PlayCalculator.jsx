@@ -1,4 +1,8 @@
-// PlayCalculator — the real, WASM-backed TI-59 (docs/#play).
+// PlayCalculator — the real, WASM-backed TI-59. Mounted from two places:
+// docs/index.html (docs/#play, with the module/preset/upload controls) and
+// docs/app/index.html (the installable standalone app, controls={false} —
+// calculator face only, module 01 preloaded, no way to switch modules or
+// load a file).
 // Reuses docs/Calculator.jsx's <CalcKey> and CALC_ROWS key table for
 // identical key chrome/layout, but every press drives the actual emulation
 // core (via calc-engine-worker.js) instead of toy JS arithmetic. See the
@@ -80,7 +84,7 @@ function decodeDisplayCells(snap) {
   return cells;
 }
 
-function PlayCalculator({ scale = 1 }) {
+function PlayCalculator({ scale = 1, controls = true }) {
   const workerRef = usePlayRef(null);
 
   const [ready, setReady] = usePlayState(false);
@@ -93,7 +97,15 @@ function PlayCalculator({ scale = 1 }) {
   const [statusMessage, setStatusMessage] = usePlayState("Starting the emulator…");
 
   usePlayEffect(() => {
-    const worker = new Worker("calc-engine-worker.js");
+    // Root-relative: PlayCalculator is mounted both from docs/index.html
+    // (at the site root) and docs/app/index.html (one directory down), and
+    // a page-relative URL here would resolve against whichever document
+    // mounted it. The worker script's own URL — not the page's — is what
+    // its internal importScripts()/fetch() calls resolve against, so this
+    // is the only path in this file that needs to be root-relative for
+    // both mount points to work; everything the worker fetches internally
+    // is already relative to itself.
+    const worker = new Worker("/calc-engine-worker.js");
     workerRef.current = worker;
 
     worker.onmessage = (e) => {
@@ -123,8 +135,13 @@ function PlayCalculator({ scale = 1 }) {
       }
     };
 
-    fetch("wasm/roms/modules.json").then((r) => r.json()).then(setModules).catch(() => {});
-    fetch("presets/manifest.json").then((r) => r.json()).then(setPresets).catch(() => {});
+    // Same root-relative reasoning as the worker URL above. Only needed to
+    // populate the module/preset pickers, so skip it entirely when those
+    // controls aren't rendered (the standalone app).
+    if (controls) {
+      fetch("/wasm/roms/modules.json").then((r) => r.json()).then(setModules).catch(() => {});
+      fetch("/presets/manifest.json").then((r) => r.json()).then(setPresets).catch(() => {});
+    }
 
     const onVisibility = () => {
       worker.postMessage({ type: document.hidden ? "pause" : "resume" });
@@ -171,7 +188,7 @@ function PlayCalculator({ scale = 1 }) {
 
   function handlePresetChange(file) {
     if (!file) return;
-    fetch(`presets/${file}`).then((r) => r.text()).then(loadPresetText);
+    fetch(`/presets/${file}`).then((r) => r.text()).then(loadPresetText);
   }
 
   function handleUpload(e) {
@@ -228,17 +245,19 @@ function PlayCalculator({ scale = 1 }) {
         ))}
       </div>
 
-      <PlayControls
-        scale={scale}
-        modules={modules}
-        presets={presets}
-        currentModuleId={currentModule ? currentModule.id : ""}
-        onModuleChange={handleModuleChange}
-        onPresetChange={handlePresetChange}
-        onUpload={handleUpload}
-        onQueueCard={() => workerRef.current?.postMessage({ type: "queueCard" })}
-        disabled={!ready}
-      />
+      {controls ? (
+        <PlayControls
+          scale={scale}
+          modules={modules}
+          presets={presets}
+          currentModuleId={currentModule ? currentModule.id : ""}
+          onModuleChange={handleModuleChange}
+          onPresetChange={handlePresetChange}
+          onUpload={handleUpload}
+          onQueueCard={() => workerRef.current?.postMessage({ type: "queueCard" })}
+          disabled={!ready}
+        />
+      ) : null}
     </div>
   );
 }

@@ -1,0 +1,29 @@
+/* Standalone Calc-U 59 app shell — calculator face only, no site chrome. */
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: #000;
+  overscroll-behavior: none; /* no rubber-band/pull-to-refresh once installed */
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  touch-action: manipulation; /* removes the ~300ms tap delay on mobile */
+}
+
+#root {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  /* env(safe-area-inset-*) keeps the calculator clear of notches and the
+     home-indicator bar when launched in standalone display mode. */
+  padding: max(16px, env(safe-area-inset-top))
+           max(16px, env(safe-area-inset-right))
+           max(16px, env(safe-area-inset-bottom))
+           max(16px, env(safe-area-inset-left));
+}
