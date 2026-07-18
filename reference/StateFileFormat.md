@@ -77,13 +77,23 @@ after the prefix. Anything after that — including a numeric mnemonic like the
 
 ## REGISTERS
 
-- **Normal registers:** `NN = value`, NN = 00–99, valid for all models.
-- **Hidden registers (TI-58C only):** `HNN = value`, NN = 00–03.
-  - Maps to RAM slots 060–063 (the TI-58C's constant-memory registers: used
-    for partition settings, the ln(10) validation byte, and FIX mode).
-  - `H00`→slot 060, `H01`→061, `H02`→062, `H03`→063.
-  - Using `HNN` in a `.ti59` or `.ti58` file is a parse error.
-- Any register (normal or hidden) not listed defaults to zero on load.
+- **Normal registers:** `NN = value`, NN = 00–99. `NN` is the user-facing
+  `STO`/`RCL` register number (see `reference/CoreArchitecture.md` §
+  "User RAM (TMC0598)" for how it maps to a physical RAM cell). On the
+  TI-58/TI-58C, only 00–59 are physically reachable — an `NN` of 60–99 there
+  silently writes nowhere (guarded by the model's actual RAM size) rather
+  than erroring. **All of 00–99 are ordinary registers on the TI-59** —
+  60–99 there is *not* related to the TI-58C's extra registers below; the two
+  only look similar because both happen to involve the number 60.
+- **Extra registers (TI-58C only): `HNN = value`, NN = 00–03.** These are
+  *not* registers "60"–"63" — they are 4 raw RAM cells the TI-58C has beyond
+  its normal 60-register space, unreachable via `STO`/`RCL`, addressed only
+  by the ROM's `MEMWR`/`MEMRD` instructions. See
+  `reference/CoreArchitecture.md` § "TI-58C Extra (Constant Memory)
+  Registers" for what lives there and why the naming is kept deliberately
+  distinct from normal registers. Using `HNN` in a `.ti59` or `.ti58` file is
+  a parse error.
+- Any register (normal or extra) not listed defaults to zero on load.
 
 ```
 REGISTERS:

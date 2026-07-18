@@ -6,6 +6,9 @@
 - **State Files** New `Trace: name.bin` / `Trace: Off` keywords turn CPU instruction tracing on or off while a state file's KEYSTROKES are executing.
 - **Documentation** Reworked the repository's documentation around a strict split: `reference/` and skill files are developer-only, the `www.calcu59.ch` website is the sole home for end-user content, and README now links to it once instead of duplicating it. Consolidated the `.ti59`/`.ti58`/`.ti58c` state-file and CUECARD format into a new `reference/StateFileFormat.md` (previously scattered across a skill file and a section of `DebugAPI.md`), folded `reference/USERGUIDE.md`'s still-relevant ASM Overlay content into `DebugAPI.md` and retired the rest as redundant with the website, and trimmed several skill files that were restating facts already in `reference/`.
 
+### Fixes
+- **State Files** Fixed `REGISTERS:` lines for register numbers 60–99 being loaded into the wrong RAM cell on the TI-59 (they were mistaken for the TI-58C's unrelated extra `H00`–`H03` registers, which happen to live at raw RAM indices 60–63). Ordinary TI-59 registers now always use the correct top-down `STO`/`RCL` mapping regardless of number; only true TI-58C extra registers use the raw mapping, now selected by an explicit flag instead of a numeric-range guess.
+
 ## [1.5.0] - 2026-07-02
 
 - **Printer** Dot-matrix output now correctly supports printer-interrupt, also known as "High Rez Graphics". This is a hack documented in the 1982 magazine "PPX Exchange". Check the GitHub repository for the example state file `texas-print.ti59`.

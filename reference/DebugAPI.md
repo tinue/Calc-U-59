@@ -886,9 +886,13 @@ live `TI59Machine`:
 2. `machine.stepN(300_000)` — lets the ROM complete its master-clear routine
 3. `machine.partitionProgramRegs = …` — sets partition via SCOM
 4. `machine.writeProgramSteps(…)` — writes zero-padded step array
-5. Per register: normal registers via `machine.writeDataRegister(…)`; hidden registers
-   (H00–H03, TI-58C only) via `machine.setRawRegister(regNum + 60, …)` to bypass the
-   reversed data-register mapping
+5. Per register: normal registers via `machine.writeDataRegister(…)`; the TI-58C's
+   4 extra registers (H00–H03 — not normal registers "60"–"63", see
+   `reference/CoreArchitecture.md` § "TI-58C Extra (Constant Memory) Registers")
+   via `machine.setRawRegister(MachineModel.extraRegisterBase + regNum, …)` to
+   bypass the reversed data-register mapping entirely — the branch is driven by
+   an explicit `isHidden` flag carried alongside each parsed register, never by
+   testing whether `regNum >= 60` (ordinary TI-59 registers legitimately reach 99)
 6. Out-of-range data registers (those that fall inside the program area for the loaded
    partition) are zeroed via `machine.setRawRegister(…)` to prevent stale-state corruption
 7. KEYSTROKES played back asynchronously via `playKeystrokes(_:)` — 0.5 s per key

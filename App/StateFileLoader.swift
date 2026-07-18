@@ -38,10 +38,15 @@ import Foundation
 //
 //   REGISTERS:
 //       Lines of the form "NN = value", where NN is 00–99 and value is any
-//       floating-point literal accepted by Swift's Double initialiser.
-//       TI-58C files only: hidden registers may be loaded with "HNN = value"
-//       syntax, where NN is 00–03. These map to storage areas 060–063 (the
-//       special registers used by the TI-58C ROM for partition and ln(10) info).
+//       floating-point literal accepted by Swift's Double initialiser. NN
+//       addresses a normal data register (reachable via STO/RCL on the real
+//       hardware) — including 60–99 on the TI-59, which are ordinary
+//       registers there, not the TI-58C's extra ones (see next paragraph).
+//       TI-58C files only: its 4 *extra* constant-memory registers — never
+//       reachable via STO/RCL, not normal registers "60"-"63" — may be loaded
+//       with "HNN = value" syntax, where NN is 00–03. See
+//       `reference/CoreArchitecture.md` § "TI-58C Extra (Constant Memory)
+//       Registers" for what lives there and why they're numbered separately.
 //
 //   KEYSTROKES:
 //       Keystrokes to inject after the program and registers have been loaded,
@@ -109,7 +114,11 @@ struct LoadStateResult {
     var partitionWasExplicit: Bool = false
     /// Sparse list of (stepAddress, keycode) pairs. Steps not listed default to 0x00.
     var programSteps: [(stepAddr: Int, keycode: UInt8)] = []
-    var registers: [(regNum: Int, nibbles: [UInt8])] = []
+    /// `regNum` is the user-facing number as written in the file: 00–99 for a
+    /// normal register, 00–03 for an extra (H-prefixed, TI-58C-only) register.
+    /// `isHidden` disambiguates the two — do NOT infer it from `regNum`'s
+    /// range, since normal TI-59 registers legitimately go up to 99.
+    var registers: [(regNum: Int, nibbles: [UInt8], isHidden: Bool)] = []
     var keystrokes: [KeystrokeEvent] = []
     var cueCardContent: CueCardContent? = nil
     var solidStateModuleID: String? = nil
@@ -301,24 +310,30 @@ private func parseProgLine(_ line: String, maxStepAddr: Int = 479) -> (stepAddr:
 
 private func parseRegLine(_ line: String,
                            allowHiddenRegisters: Bool,
-                           into registers: inout [(regNum: Int, nibbles: [UInt8])],
+                           into registers: inout [(regNum: Int, nibbles: [UInt8], isHidden: Bool)],
                            errors: inout [String]) {
-    // Expected format: "NN = <float>" or "HNN = <float>" (H00-H03 for TI-58C hidden regs)
+    // Expected format: "NN = <float>" (normal register, 00-99) or "HNN = <float>"
+    // (TI-58C's 4 extra registers, H00-H03). regNum is kept as the user-facing
+    // number in both cases (never pre-offset into RAM-index space here) —
+    // isHidden is what the caller must branch on, not regNum's range: normal
+    // TI-59 registers legitimately go up to 99, well past H-register range.
     let parts = line.components(separatedBy: "=")
     guard parts.count >= 2 else { return }
     let nnStr  = parts[0].trimmingCharacters(in: .whitespaces)
     let valStr = parts[1...].joined(separator: "=").trimmingCharacters(in: .whitespaces)
 
     var regNum: Int
+    var isHidden = false
     if let n = Int(nnStr), n >= 0, n <= 99 {
         regNum = n
     } else if nnStr.uppercased().hasPrefix("H"),
               let n = Int(nnStr.dropFirst()), n >= 0, n <= 3 {
         if !allowHiddenRegisters {
-            errors.append("Hidden register \(nnStr) is only valid for TI-58C files.")
+            errors.append("Extra register \(nnStr) is only valid for TI-58C files.")
             return
         }
-        regNum = 60 + n  // H00→60, H01→61, H02→62, H03→63
+        regNum = n
+        isHidden = true
     } else {
         return
     }
@@ -327,7 +342,7 @@ private func parseRegLine(_ line: String,
         errors.append("Cannot parse register \(nnStr) value: \"\(valStr)\"")
         return
     }
-    registers.append((regNum: regNum, nibbles: encodeTI59BCD(value)))
+    registers.append((regNum: regNum, nibbles: encodeTI59BCD(value), isHidden: isHidden))
 }
 
 /// Parse one KEYSTROKES line into `KeystrokeEvent`s.

@@ -43,4 +43,19 @@ enum MachineModel: Int, CaseIterable, Identifiable {
 
     /// Only the TI-59 has a magnetic card reader slot.
     var hasCardReader: Bool { self == .ti59 }
+
+    /// TI-58C only: count of *extra* constant-memory registers beyond the normal
+    /// 60 addressable data registers (0 for TI-59/TI-58). These are not normal
+    /// registers "60"–"63" — STO/RCL can never reach them, they can't be program
+    /// steps, and they don't participate in partitioning. Call them E000…E00n
+    /// when referring to them as RAM storage, H00…H0n when referring to them as
+    /// state-file/debugger variables. See `reference/CoreArchitecture.md` §
+    /// "TI-58C Extra (Constant Memory) Registers".
+    var extraRegisterCount: Int { hasConstantMemory ? 4 : 0 }
+
+    /// Raw RAM index where the extra registers begin (TI-58C only). Fixed at 60
+    /// regardless of total RAM size — it sits directly above the 60 registers
+    /// TI-58C shares with the TI-58, addressed there by the ROM's MEMWR/MEMRD
+    /// instructions (not by STO/RCL, which only ever reach 00–59 on this variant).
+    static let extraRegisterBase = 60
 }

@@ -2178,8 +2178,9 @@ class EmulatorViewModel {
     }
 
     /// Dump non-zero data variables within the current partition.
-    /// Displays visible registers as R00–Rnn, hidden ones (beyond 60) as H00–Hnn.
-    /// Sorted by label for consistent output.
+    /// Displays normal registers as R00–Rnn; the TI-58C's extra registers
+    /// (raw RAM beyond the 60-register space, not normal registers "60"+)
+    /// as H00–Hnn. Sorted by label for consistent output.
     func debugDumpVars() {
         guard let m = machine else { return }
         let partitionProgramRegs = Int(m.partitionProgramRegs)
@@ -2444,11 +2445,14 @@ class EmulatorViewModel {
         let programRegs = (parsed.partitionMaxStep + 1) / 8
         m.partitionProgramRegs = programRegs
 
-        // Clear RAM before loading new state, but preserve hidden registers (60-63) on TI-58C
-        // Register 60 contains SCOM reconstruction data; clearing it triggers ROM memory clear
+        // Clear RAM before loading new state, but preserve the TI-58C's extra
+        // registers (raw RAM 60-63, E000-E003 / H00-H03 — not normal registers
+        // "60"-"63"; see reference/CoreArchitecture.md's "TI-58C Extra
+        // (Constant Memory) Registers"). RAM[60] holds SCOM reconstruction
+        // data; clearing it triggers the ROM's memory-clear routine.
         let zeroNibbles = Data(repeating: UInt8(0), count: 16)
-        let preserveHiddenRegs = model.hasConstantMemory
-        let clearUpTo = preserveHiddenRegs ? 60 : 120
+        let preserveExtraRegs = model.hasConstantMemory
+        let clearUpTo = preserveExtraRegs ? MachineModel.extraRegisterBase : 120
         for regNum in 0..<clearUpTo {
             m.setRawRegister(regNum, nibbles: zeroNibbles)
         }
@@ -2460,12 +2464,16 @@ class EmulatorViewModel {
             programArray[addr] = keycode
         }
         m.writeProgramSteps(Data(programArray))
-        for (regNum, nibbles) in parsed.registers {
-            if regNum >= 60 {
-                // Hidden registers (H00-H03): write directly to RAM slots 60-63
-                m.setRawRegister(regNum, nibbles: Data(nibbles))
+        for (regNum, nibbles, isHidden) in parsed.registers {
+            if isHidden {
+                // TI-58C extra registers (H00-H03): write directly to raw RAM
+                // slots 60-63 — these are never normal registers "60"-"99",
+                // which is why this branches on the explicit isHidden flag
+                // rather than regNum's range (a TI-59 file legitimately uses
+                // regNum up to 99 for ordinary registers).
+                m.setRawRegister(MachineModel.extraRegisterBase + regNum, nibbles: Data(nibbles))
             } else {
-                // Normal data registers: use the reversed mapping
+                // Normal data registers: use the reversed (top-down) mapping
                 m.writeDataRegister(regNum, nibbles: Data(nibbles))
             }
         }
@@ -2537,10 +2545,11 @@ class EmulatorViewModel {
             m.writeProgramSteps(Data(programArray))
         }
 
-        // Apply REGISTERS if present.
-        for (regNum, nibbles) in parsed.registers {
-            if regNum >= 60 {
-                m.setRawRegister(regNum, nibbles: Data(nibbles))
+        // Apply REGISTERS if present. See the full-reset path above for why
+        // this branches on isHidden rather than regNum's range.
+        for (regNum, nibbles, isHidden) in parsed.registers {
+            if isHidden {
+                m.setRawRegister(MachineModel.extraRegisterBase + regNum, nibbles: Data(nibbles))
             } else {
                 m.writeDataRegister(regNum, nibbles: Data(nibbles))
             }

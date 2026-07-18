@@ -170,6 +170,24 @@ via `OP 17` (stored in SCOM[9][0] as `n/10`).  The factory default is
   at the other end — data registers live in the upper 60).
 - **TI-59** uses all 120 registers.
 
+**STO/RCL can't reach every register.** `STO`/`RCL` take exactly two decimal
+digits, so a user-addressable register number is always 00–99 — 100 possible
+numbers, not 120. Since data registers descend from the top (`R00 = RAM[119]`
+down to `R99 = RAM[20]`), the 20 lowest physical registers (`RAM[0..19]`) can
+never hold a numbered variable on the TI-59, no matter where the partition
+boundary sits — they're either program steps or unused. (TI-58/58C never hit
+this ceiling: 60 registers total means every one of `R00`–`R59` is reachable.)
+
+**Moving the partition boundary (`2nd Op 17`) is usually non-destructive.**
+Steps and registers occupy the *same* physical `RAM[n]` cell from opposite
+ends, but nothing is erased when `n` changes — a register that held a
+variable simply becomes readable as program steps (typically decoding as
+garbage keycodes) if the boundary moves past it, and moving the boundary back
+restores the original variable value intact. This is why re-partitioning at
+runtime is a normal, safe operation on real hardware, not just an emulator
+convenience — as long as nothing actually *writes* into the reclaimed cell
+while it's on the other side of the boundary, the old value comes back.
+
 **Memory-size autodetection.** The TI-59 and the plain TI-58 load the *same*
 ROM image — the identical three chips `TMC0582` / `TMC0583` / `TMC0571B`,
 including the `0x1400–0x17FF` constant block and the card-reader firmware (the
@@ -189,6 +207,47 @@ reads back its written value while the TI-58 reads `0`, which flips the
 jump (skipping the accumulate, → 60-register partition) while the TI-59 falls
 through (→ 120-register partition).  See the annotated reset listing
 `rom/TI59-commented.asm` at `0x0377`.
+
+### TI-58C Extra (Constant Memory) Registers
+
+The TI-58C has **60 addressable registers, exactly like the TI-58** — plus 4
+more raw RAM cells (`RAM[60]`–`RAM[63]`) that exist *outside* that addressable
+space entirely. Do not think of them as "registers 60–63"; nothing in this
+codebase should call them that. They:
+
+- are never reachable via `STO`/`RCL` — the ROM's register addressing on this
+  variant only ever produces 00–59;
+- can never be program steps and never participate in partitioning — `OP 17`
+  only ever moves the boundary within the 60-register space;
+- are read/written only by the dedicated `MEMWR`/`MEMRD` opcodes (see
+  "Two-Cycle Memory Operations" below), which address raw RAM directly and
+  are TI-58C-only instructions (the TI-59/TI-58 ROM never emits them);
+- persist as constant memory (`serialiseRAM`/`deserialiseRAM`) alongside the
+  60 normal registers, and so must be loadable/saveable through the state
+  file and debug tooling like any other stored value.
+
+**Naming convention used throughout this codebase:** call them **E000–E003**
+when referring to them as RAM storage (e.g. in code comments about raw RAM
+indices), and **H00–H03** when referring to them as state-file or debugger
+*variables* (matching `reference/StateFileFormat.md`'s `HNN =` syntax and the
+debugger's `H##` display labels). `MachineModel.extraRegisterBase` (`= 60`,
+Swift) is the one place the raw-index constant `60` should appear — every
+other call site should go through it or through `isHidden`-style explicit
+tagging, never re-derive "is this an extra register" from a register
+*number* being `>= 60`, since normal TI-59 registers legitimately go up to 99
+(see "STO/RCL can't reach every register" above) and would collide with that
+test.
+
+Despite this separation at the state-file/debugger level, **the ROM's own
+addressing is uniform**: `MEMWR`/`MEMRD` compute a raw RAM index the same way
+for the whole 0–63 range, so a program that inserts steps in a way that
+shifts data upward can "hack" its way into `RAM[60..63]` even though the
+calculator's normal UI (`STO`/`RCL`) never lets a user address them directly.
+The C++ core's RAM model is correct as-is — `RAM::setLimit(64)` for TI-58C,
+guarded only by `RAM_ADDR < ram.size()` — this section is about the
+*vocabulary* higher layers (state-file loader, debugger, tracer) must use
+when talking about that same raw range, not about changing how the hardware
+itself addresses it.
 
 ### SCOM (TMC0571)
 
