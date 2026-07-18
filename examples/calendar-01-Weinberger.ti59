@@ -1,0 +1,87 @@
+# TI-59/PC-100A Program: Calendar Printer, by Jared Weinberger
+#
+# From 52-Notes, V3N5p2. This is a series of calendar programs that started
+# with this issue of 52-Notes. The issue contained three programs, and later
+# editions kept adding faster and more compact programs. Our goal is to collect
+# and preserve them here in the form of preload files.
+#
+# This is the documentation given for this program in the original article:
+#
+# Algorithm:
+# 1. Print month header.
+# 2. Call ML-20 D with 1st day of specified month and year to get day of
+#    week; convert the returned 1,2,...6,0 to 1,2,...7.
+# 3. Determine number of days in month:
+#    For Feb: Call ML-20 A with Feb 28th, and ML-20 B with March 1st to
+#    get the number of days between Feb 28th and March 1st; use this
+#    result to get the number of days in Feb. For other months: Test
+#    for April, June, Sept, Nov to get the number of days.
+# 4. Fill a cleared block of 7 registers with consecutive base ten integers
+#    beginning with 1 in a position determined by the corresponding day
+#    of the week.
+# 5. Convert the stored integers to print code via a translator; pack
+#    print buffers, and print a line of days.
+# 6. Clear the integer block, fill with the next group of integers, and
+#    go to step 5.
+# 7. Repeat steps 5 and 6 until all days have been printed.
+#    For whole year: Increment month, and repeat steps 1-7 until all
+#    months have been printed.
+#
+# User Instructions: For one month: key month, press A; key year, press B;
+# press D. For whole year: Key year, press B; press E.
+
+MODEL: TI-59
+SOLID-STATE-MODULE: ML
+PRINTER: on
+
+CUECARD:
+Template: MagnetCard
+Title: Calendar Printer
+Banks: 1,2
+A: MONTH
+B: YEAR
+D: PRINT MO
+E: PRINT YR
+
+PROGRAM:
+76 11 42 29 92 76 12 42 30 92 29 67 00 36 55 28 59 42 08 69   # 000-019
+28 22 28 85 32 01 00 00 49 21 08 77 00 36 02 85 01 75 59 44   # 020-039
+21 95 65 01 00 97 08 00 23 25 48 21 32 01 67 00 59 32 92 00   # 040-059
+92 43 01 71 00 10 65 01 52 06 95 22 52 42 28 43 02 71 00 10   # 060-079
+85 43 28 95 69 01 43 03 71 00 10 65 01 52 04 95 22 52 42 28   # 080-099
+43 04 55 01 00 95 59 71 00 10 85 43 28 95 69 02 43 04 55 01   # 100-119
+00 95 22 59 65 01 00 95 71 00 10 42 00 43 04 29 67 01 48 43   # 120-139
+00 22 67 01 48 85 01 95 52 08 42 28 43 05 71 00 10 65 01 00   # 140-159
+00 85 43 28 95 69 03 43 06 71 00 10 65 01 52 06 95 22 52 42   # 160-179
+28 43 07 71 00 10 85 43 28 95 69 04 69 05 92 76 14 69 00 43   # 180-199
+29 85 03 04 95 42 28 73 28 69 01 43 30 71 00 10 69 04 69 05   # 200-219
+98 43 31 69 01 43 32 69 02 43 33 69 03 43 34 69 04 69 05 98   # 220-239
+43 29 65 02 22 28 85 43 30 55 04 22 28 85 01 95 36 20 14 29   # 240-259
+22 67 02 65 07 42 10 43 29 32 02 22 67 03 16 43 30 85 04 22   # 260-279
+28 95 42 00 85 02 02 08 95 36 20 11 43 00 85 03 00 01 95 36   # 280-299
+20 12 36 20 13 32 01 67 03 11 85 02 08 61 03 40 43 29 32 04   # 300-319
+67 03 38 06 67 03 38 09 67 03 38 01 01 67 03 38 01 85 03 00   # 320-339
+85 01 95 42 11 36 01 71 25 08 32 01 42 13 43 13 72 10 01 44   # 340-359
+10 44 13 43 10 22 67 03 54 71 00 61 00 42 07 36 01 71 25 01   # 360-379
+42 12 43 11 32 43 13 67 04 13 08 32 43 13 72 12 01 44 12 44   # 380-399
+13 43 12 22 67 03 82 71 00 61 61 03 72 71 00 61 98 98 92 76   # 400-419
+15 00 42 29 01 44 29 71 01 97 01 02 32 43 29 22 67 04 24 98   # 420-439
+98 92                                                         # 440-441
+
+REGISTERS:
+31 = 3641003032
+32 = 37410043
+33 = 1700372300
+34 = 2135003613
+35 = 2513314000
+36 = 2117144000
+37 = 3013351523
+38 = 1333352427
+39 = 3013450000
+40 = 2541311700
+41 = 2541274500
+42 = 1341224000
+43 = 3617333740
+44 = 3215374000
+45 = 3132424000
+46 = 1617154000
