@@ -46,6 +46,7 @@ sections and appendix below).
 | Real-time run-loop pacing | `reference/AppArchitecture.md` → "Emulation Loop and Timing"; `docs/calc-engine-worker.js`'s `tick()` as a second worked implementation | Target 14,218.75 instructions/sec, cycle-weighted (IDLE steps cost 4× an active step), overshoot carried to the next tick rather than reset. Get this wrong and IDLE-heavy periods (e.g. the error blink) run at the wrong relative speed even though busy computation looks fine. |
 | Key input coordinate mapping | `reference/AppArchitecture.md` → "Key Input Coordinate Systems" | Visual grid → matrix code (`row×10 + col`) → K-line bit. The matrix code table itself is also in `reference/StateFileFormat.md`, since state files use the same codes. |
 | `.ti59`/`.ti58`/`.ti58c` state-file format | `reference/StateFileFormat.md` | Full section grammar (PARTITION/PROGRAM/REGISTERS/KEYSTROKES/CUECARD/etc.), including the CUECARD field grammar and math-token table. |
+| LED display rendering | `reference/AppArchitecture.md` → "LED Display Rendering"; `docs/led-display.jsx` as a second worked implementation (SwiftUI `Canvas` → HTML `<canvas>` 2D, same bitmask table and shear/glow technique) | **Don't reach for an off-the-shelf 7-segment font.** The web build originally did, for everything except the "C" annunciator and digit 7 (special-cased as hand-drawn CSS bars because the font's glyphs didn't match) — `docs/led-display.jsx`'s header comment has the specifics: the font's "7" glyph lit a 4th segment real hardware doesn't, and its Latin "C" glyph was ~56% the height of a digit glyph, confirmed by decoding the font's `glyf` table. Every character (digits, minus, degree, blank, the C indicator) should be drawn from the same 7-segment bitmask table instead, exactly as `LEDDisplayView.swift` does — there is no font, general-purpose or otherwise, that reproduces real 7-segment hardware's actual lit-segment patterns for every glyph. |
 | Cue-card look & feel (rendering) | `reference/AppArchitecture.md` → "Cue Card Rendering" | Per-template colors/dividers/layout, the `\blank` column-span-merge algorithm, and the shrink-to-fit font rule — previously existed only as unannotated SwiftUI layout code. |
 | Card reader flow | `reference/AppArchitecture.md` → "Card Reader Flow" | The auto-eject-on-`CRD_OFF` polling pattern; `docs/calc-engine-worker.js`'s card-reader section is a second worked implementation of the same protocol. |
 | ROM / module / constants loading | `reference/AppArchitecture.md` → "ROM Loading"; `tools/pack_roms.py` for the web build's binary-packed variant | Two different source formats for the same underlying ROM data — plaintext `.txt` (app) vs. packed base64 JSON (web) — both re-runnable from the same `roms/*.txt` sources. |
@@ -75,6 +76,13 @@ Swift app and the web build:
   in React (`docs/cuecard.jsx`), again ported by hand — `cuecard.jsx`'s own
   header comment says it was built by reading "`CueCardView.swift`'s actual
   field usage — NOT a re-imagining."
+- The LED 7-segment display renderer exists once in SwiftUI `Canvas`
+  (`LEDDisplayView.swift`) and once in HTML `Canvas` 2D (`docs/led-display.jsx`)
+  — same bitmask table, per-digit shear, and two-pass glow technique,
+  reimplemented by hand in the second API. Notably, the web build's *first*
+  attempt didn't do this — it used a font for the digits and only discovered
+  the bitmask-table approach was necessary after the font mismatched two
+  specific glyphs (see the table above).
 - The key row/col matrix table exists once in `TI59MachineWrapper.mm`
   (`kbits[]`) and once in `docs/matrix-keys.js`.
 
@@ -128,6 +136,7 @@ before needing (1) or (2):
 | Key row/col matrix table | Pure data | (3) — single generated table |
 | Run-loop pacing (target Hz, IDLE weighting, carry-over) | Algorithm, ~10 lines, no UI dependency | (1) or (2) — could live in `Core/` as a `stepRealtime`-style method, since it only touches `step()`'s return value and a clock |
 | `.ti59` state-file parser | Algorithm + format, no UI dependency | (2) — a shared C++ parser would remove an entire hand-ported file per new GUI, at the cost of every GUI needing to embed it |
+| 7-segment bitmask table (digits, minus, degree, blank, "C" annunciator) | Pure data | (3) — single generated table; the shear/glow *drawing* logic underneath it is still platform-specific `Canvas` code either way, same caveat as the cue-card renderer row below |
 | Cue-card renderer (visual layout) | Rendering logic tied to each platform's UI framework | Not a good fit for any of the three — SwiftUI/React/a future native toolkit can't share render code. The fix here is keeping `reference/AppArchitecture.md`'s "Cue Card Rendering" section (added alongside this doc) current as new templates or fields are added, so the *rules* stay documented even though the code can't be shared. |
 
 Whoever builds the third GUI is well positioned to judge this concretely —
