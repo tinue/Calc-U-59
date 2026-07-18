@@ -134,19 +134,20 @@ function ledDrawSegmentsClassic(ctx, rect, segments, segmentOpacity) {
   }
 }
 
-// The decimal point always uses LEDDisplayView.swift's "modernized" glow
-// constants regardless of digit style (drawDecimalPoint takes no
-// fontStyle parameter there either) and is drawn unsheared, in the
-// digit's plain (non-slanted) rect.
+// Smaller, less glowy, and further from the digit than
+// LEDDisplayView.swift's literal "modernized" constants (0.13/1.1/1.4/0.8/
+// 0.6) — those read as an oversized, over-glowing blob at the web
+// display's proportions, sitting almost flush against the digit above it.
+// Still drawn unsheared, in the digit's plain (non-slanted) rect.
 function ledDrawDecimalPoint(ctx, rect) {
-  const dotSize = rect.height * 0.13;
-  const cx = rect.x + rect.width - dotSize * 1.1 + dotSize / 2;
-  const cy = rect.y + rect.height - dotSize * 1.4 + dotSize / 2;
+  const dotSize = rect.height * 0.09;
+  const cx = rect.x + rect.width - dotSize * 1.4 + dotSize / 2;
+  const cy = rect.y + rect.height - dotSize * 1.8 + dotSize / 2;
   const r = dotSize / 2;
 
   ctx.save();
-  ctx.filter = `blur(${dotSize * 0.8}px)`;
-  ctx.fillStyle = "rgba(255,26,26,0.6)";
+  ctx.filter = `blur(${dotSize * 0.45}px)`;
+  ctx.fillStyle = "rgba(255,26,26,0.45)";
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
   ctx.fill();
