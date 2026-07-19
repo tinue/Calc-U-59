@@ -96,8 +96,8 @@ KEYSTROKES:
 83              # 2
 74              # 6
 12              # B — store year
-ZeroElapseTime
+ZeroElapseTime:
 FullSpeed:
 15              # E — print whole year
 RegularSpeed:
-ReportElapseTime
+ReportElapseTime:

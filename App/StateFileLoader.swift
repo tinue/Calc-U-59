@@ -284,9 +284,9 @@ func parseStateFile(_ text: String, maxStepAddr: Int = 479, allowHiddenRegisters
                 result.keystrokes.append(.fullSpeed)
             } else if upper.hasPrefix("REGULARSPEED:") {
                 result.keystrokes.append(.regularSpeed)
-            } else if upper.hasPrefix("ZEROELAPSETIME") {
+            } else if upper.hasPrefix("ZEROELAPSETIME:") {
                 result.keystrokes.append(.zeroElapseTime)
-            } else if upper.hasPrefix("REPORTELAPSETIME") {
+            } else if upper.hasPrefix("REPORTELAPSETIME:") {
                 result.keystrokes.append(.reportElapseTime)
             } else {
                 result.keystrokes.append(contentsOf: parseKeystrokeLine(line))

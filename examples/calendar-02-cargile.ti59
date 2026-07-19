@@ -122,8 +122,8 @@ KEYSTROKES:
 92              # 0
 83              # 2
 74              # 6
-ZeroElapseTime
+ZeroElapseTime:
 FullSpeed:
 11              # A — store MM.YYYY and print balance of year
 RegularSpeed:
-ReportElapseTime
+ReportElapseTime:

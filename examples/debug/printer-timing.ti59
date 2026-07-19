@@ -13,9 +13,9 @@ KEYSTROKES:
 # --- Via program first, regular speed ---
 RegularSpeed:
 25 # CLR
-ZeroElapseTime
+ZeroElapseTime:
 11 # A
-ReportElapseTime
+ReportElapseTime:
 
 # --- Intra-test Adv ---
 FullSpeed:
@@ -26,9 +26,9 @@ FullSpeed:
 63   # 8
 63   # 8
 FullSpeed:
-ZeroElapseTime
+ZeroElapseTime:
 11   # A
-ReportElapseTime
+ReportElapseTime:
 
 # --- Intra-test Adv ---
 FullSpeed:
@@ -37,13 +37,13 @@ FullSpeed:
 # --- Regular speed via keypress ---
 RegularSpeed:
 25 # CLR
-ZeroElapseTime
+ZeroElapseTime:
 21 94           # Prt
 21 93           # Adv
 21 94           # Prt
 21 93           # Adv
 21 94           # Prt
-ReportElapseTime
+ReportElapseTime:
 
 # --- Intra-test Adv ---
 FullSpeed:
@@ -54,7 +54,7 @@ FullSpeed:
 25   # CLR
 63   # 8
 63   # 8
-ZeroElapseTime
+ZeroElapseTime:
 21 94           # Prt
 RegularSpeed:
 21 93           # Adv
@@ -64,4 +64,4 @@ RegularSpeed:
 21 93           # Adv
 FullSpeed:
 21 94           # Prt
-ReportElapseTime
+ReportElapseTime:

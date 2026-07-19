@@ -17,11 +17,11 @@ KEYSTROKES:
 92              # 0
 82              # 1        → Pgm 01 selected
 71              # SBR
-ZeroElapseTime
+ZeroElapseTime:
 95              # =        → run program 01 at regular speed
-ReportElapseTime
+ReportElapseTime:
 FullSpeed:
 71              # SBR      → re-enter program 01 (still selected)
-ZeroElapseTime
+ZeroElapseTime:
 95              # =        → run program 01 again, at full speed
-ReportElapseTime
+ReportElapseTime:

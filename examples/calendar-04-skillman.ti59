@@ -115,8 +115,8 @@ KEYSTROKES:
 11              # A — store start year
 82              # 1
 91              # R/S — confirm start month
-ZeroElapseTime
+ZeroElapseTime:
 FullSpeed:
 13              # C — print balance of year
 RegularSpeed:
-ReportElapseTime
+ReportElapseTime:
