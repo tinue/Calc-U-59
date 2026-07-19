@@ -302,6 +302,50 @@ Wait: 5s
 Trace: Off
 ```
 
+**`FullSpeed:` / `RegularSpeed:` — persistent speed toggle.** Unlike
+`WaitFullSpeed:`, these switch speed with no auto-revert: `FullSpeed:` stays
+in effect (through any `Wait:`s and key presses) until a matching
+`RegularSpeed:`, or until the script ends — speed is always reset to regular
+when the script ends, even if it omitted `RegularSpeed:`. Neither directive
+takes an argument.
+
+- **`Adv` (`21 93`) needs `RegularSpeed:` active first.** Adv is a
+  repeat-while-held key on real hardware, gated by a fixed CPU-step busy
+  countdown rather than a real-time delay — at full speed the same key hold
+  can clear/re-fire that gate far more times than at regular speed, causing
+  a paper-feed runaway. Switch to `RegularSpeed:` before any `21 93`, then
+  back to `FullSpeed:` afterward if needed. `Prt` (`21 94`) is single-shot
+  and unaffected.
+
+```
+FullSpeed:
+71          # SBR
+95          # =    → program runs flat-out
+RegularSpeed:
+21 93       # Adv  → safe to hold-repeat at regular speed
+```
+
+**`ZeroElapseTime:` / `ReportElapseTime:` — scripted elapsed-time
+measurement.** Reads the core's internal weighted step counter (its
+`elapsedTicks()` accessor), which runs continuously from reset and is never
+drained by anything else. Neither directive takes an argument.
+
+- `ZeroElapseTime:` — snapshots the counter as the baseline for the next
+  `ReportElapseTime:`.
+- `ReportElapseTime:` — logs the elapsed time since the last
+  `ZeroElapseTime:` (or since reset, if none) to the debug log, converting
+  the weighted tick count to wall-clock time at the model's instruction
+  rate.
+
+```
+ZeroElapseTime:
+FullSpeed:
+71          # SBR
+95          # =    → run the timed portion
+RegularSpeed:
+ReportElapseTime:
+```
+
 **Special virtual key.** Matrix code `99` is outside the valid key grid
 (rows 1–9, cols 1–5 give max code 95) and is repurposed to toggle the
 emulated printer's TRACE latch (each press flips on→off or off→on) — not

@@ -8,7 +8,8 @@ user-invocable: true
 
 The full format grammar — sections, PARTITION formula and per-model defaults,
 PROGRAM/REGISTERS notation, the matrix-code vs. keycode distinction, the
-2nd-function table, KEYSTROKES syntax (`Wait:`/`WaitFullSpeed:`/`Trace:`),
+2nd-function table, KEYSTROKES syntax (`Wait:`/`WaitFullSpeed:`/`Trace:`/
+`FullSpeed:`/`RegularSpeed:`/`ZeroElapseTime:`/`ReportElapseTime:`),
 `SKIP-RESET:`, and the `CUECARD:` field grammar with its math-token table —
 lives in **`reference/StateFileFormat.md`**. Read that document before
 writing or editing a state file; nothing here duplicates it.
