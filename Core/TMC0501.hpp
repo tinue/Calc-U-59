@@ -379,6 +379,7 @@ private:
     mutable std::atomic<uint32_t> m_cSteps{0};          // Steps (IDLE or non-IDLE) where fA≠0 since last getDisplay().
     mutable std::atomic<uint32_t> m_pollSteps{0};       // Weighted step count since last getDisplay() (non-IDLE=1, IDLE=4).
     mutable std::atomic<uint64_t> m_elapsedTicks{0};    // Weighted step count since last reset(); never drained (see elapsedTicks()).
+    uint64_t m_elapsedTicksLocal{0};    // Non-atomic running total, owned by the stepping thread; mirrored into m_elapsedTicks via store (cheaper than fetch_add on every step()).
 
     // ── Keyboard matrix ───────────────────────────────────────────────
     // key[col] holds a bitmask of which rows are pressed for that digit-counter

@@ -150,6 +150,7 @@ void TMC0501::reset() {
     R5 = digit = RAM_ADDR = RAM_OP = REG_ADDR = 0;
     addr  = 0;
     flags = FLG_COND;  // COND starts true; display active
+    m_elapsedTicksLocal = 0;
     m_elapsedTicks.store(0, std::memory_order_relaxed);
     // Initialize per-digit live buffers
     memset(m_digitSegmentsA, 0, sizeof(m_digitSegmentsA));
@@ -542,7 +543,8 @@ int TMC0501::step() {
         if (tf != TRACE_NONE) [[unlikely]] { tracePostStep(tf, w); }
         if ((flags & FLG_IDLE) ? (fA & 0x4000u) : fA) m_cSteps.fetch_add(1, std::memory_order_relaxed);
         m_pollSteps.fetch_add(static_cast<uint32_t>(w), std::memory_order_relaxed);
-        m_elapsedTicks.fetch_add(static_cast<uint64_t>(w), std::memory_order_relaxed);
+        m_elapsedTicksLocal += static_cast<uint64_t>(w);
+        m_elapsedTicks.store(m_elapsedTicksLocal, std::memory_order_relaxed);
         return w;
     }
 
@@ -964,7 +966,8 @@ int TMC0501::step() {
     if (tf != TRACE_NONE) [[unlikely]] { tracePostStep(tf, w); }
     if ((flags & FLG_IDLE) ? (fA & 0x4000u) : fA) m_cSteps.fetch_add(1, std::memory_order_relaxed);
     m_pollSteps.fetch_add(static_cast<uint32_t>(w), std::memory_order_relaxed);
-    m_elapsedTicks.fetch_add(static_cast<uint64_t>(w), std::memory_order_relaxed);
+    m_elapsedTicksLocal += static_cast<uint64_t>(w);
+    m_elapsedTicks.store(m_elapsedTicksLocal, std::memory_order_relaxed);
 
     // ── PREG latch (after instruction execution) ─────────────────────────
     // When KR bit 1 is set (by SET KR[1] instruction), store the address

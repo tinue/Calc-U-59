@@ -9,7 +9,7 @@
 #
 # Bill Skillman worked out a simpler way to pack print buffers for all
 # cases from a block of consecutive registers, each containing print-code
-# for a single day. His approach is the fastest yet: 73 minutes per year.
+# for a single day. His approach is the fastest yet: 71/2 minutes per year.
 # The program which follows is a revision of Bill's, cutting size and
 # execution time a bit with the substitution of INV Dszs for x-t
 # comparisons, and a bunch of equally spaced GTOs for a double indirect

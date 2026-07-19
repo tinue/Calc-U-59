@@ -99,6 +99,14 @@ struct KeyboardView: View {
     }
 
     @State private var pressedKey: Int? = nil   // physRow * 5 + physCol
+
+    private func releaseHeldKey() {
+        if let prev = pressedKey {
+            viewModel.releaseKey(row: prev / 5, col: prev % 5)
+            pressedKey = nil
+        }
+    }
+
     @AppStorage(SettingsKey.ledFontStyle) private var ledFontStyleRaw: Int = LEDFontStyle.modernized.rawValue
 
     private var fontStyle: LEDFontStyle {
@@ -186,10 +194,7 @@ struct KeyboardView: View {
                                     if !viewModel.isDisplayPressed {
                                         viewModel.isDisplayPressed = true
                                         viewModel.isFullSpeedMode = true
-                                        if let prev = pressedKey {
-                                            viewModel.releaseKey(row: prev / 5, col: prev % 5)
-                                            pressedKey = nil
-                                        }
+                                        releaseHeldKey()
                                     }
                                     return
                                 }
@@ -205,18 +210,13 @@ struct KeyboardView: View {
                                 // Allow margin for vertical expansion (20% of max key height ≈ 0.015)
                                 let verticalMargin: CGFloat = 0.025
                                 guard kbNy >= -verticalMargin && kbNy <= 1 + verticalMargin else {
-                                    if let prev = pressedKey {
-                                        viewModel.releaseKey(row: prev / 5, col: prev % 5)
-                                        pressedKey = nil
-                                    }
+                                    releaseHeldKey()
                                     return
                                 }
                                 guard let (row, col) = Self.keyAt(nx: nx, ny: kbNy) else { return }
                                 let keyID = row * 5 + col
                                 guard pressedKey != keyID else { return }
-                                if let prev = pressedKey {
-                                    viewModel.releaseKey(row: prev / 5, col: prev % 5)
-                                }
+                                releaseHeldKey()
                                 pressedKey = keyID
                                 viewModel.pressKey(row: row, col: col)
                                 triggerFeedback()
@@ -224,10 +224,7 @@ struct KeyboardView: View {
                             .onEnded { _ in
                                 viewModel.isDisplayPressed = false
                                 viewModel.isFullSpeedMode = false
-                                if let prev = pressedKey {
-                                    viewModel.releaseKey(row: prev / 5, col: prev % 5)
-                                }
-                                pressedKey = nil
+                                releaseHeldKey()
                             }
                     )
 
@@ -270,10 +267,7 @@ struct KeyboardView: View {
             // If this view is torn down mid-gesture (e.g. rapid panel switching),
             // the DragGesture's onEnded never fires. Force-release any held key
             // so its matrix bit doesn't stay stuck set in the emulator core.
-            if let prev = pressedKey {
-                viewModel.releaseKey(row: prev / 5, col: prev % 5)
-                pressedKey = nil
-            }
+            releaseHeldKey()
             viewModel.isDisplayPressed = false
             viewModel.isFullSpeedMode = false
         }
