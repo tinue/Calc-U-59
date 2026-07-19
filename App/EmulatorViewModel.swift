@@ -2525,9 +2525,14 @@ class EmulatorViewModel {
         }
 
         // Expand sparse steps into a full zero-padded array so unlisted steps are 00.
-        let totalSteps = parsed.partitionMaxStep + 1
-        var programArray = [UInt8](repeating: 0, count: totalSteps)
-        for (addr, keycode) in parsed.programSteps where addr < totalSteps {
+        // Sized to the model's physical step capacity, not the (possibly rounded, or
+        // simply mismatched) PARTITION boundary — some listings deliberately load
+        // registers as programs and programs as registers (e.g.
+        // examples/calendar-05-vanderburgh.ti59), so PROGRAM:/REGISTERS: are trusted
+        // as written; only the physical capacity is an overflow limit.
+        let physicalMaxStep = model.hasLargeMemory ? 959 : 479
+        var programArray = [UInt8](repeating: 0, count: physicalMaxStep + 1)
+        for (addr, keycode) in parsed.programSteps where addr <= physicalMaxStep {
             programArray[addr] = keycode
         }
         m.writeProgramSteps(Data(programArray))
@@ -2603,10 +2608,12 @@ class EmulatorViewModel {
         }
 
         // Apply PROGRAM if present (zero-padded full write, same as full-reset path).
+        // See the full-reset path above for why this is sized to the model's physical
+        // step capacity rather than the PARTITION boundary.
         if !parsed.programSteps.isEmpty {
-            let totalSteps = parsed.partitionMaxStep + 1
-            var programArray = [UInt8](repeating: 0, count: totalSteps)
-            for (addr, keycode) in parsed.programSteps where addr < totalSteps {
+            let physicalMaxStep = model.hasLargeMemory ? 959 : 479
+            var programArray = [UInt8](repeating: 0, count: physicalMaxStep + 1)
+            for (addr, keycode) in parsed.programSteps where addr <= physicalMaxStep {
                 programArray[addr] = keycode
             }
             m.writeProgramSteps(Data(programArray))
