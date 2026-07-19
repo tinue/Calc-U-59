@@ -105,6 +105,10 @@ typedef struct {
 /// 0xFFFF until a module keycode executes (also after reset / module change).
 @property (readonly) uint16_t libExecPC;
 
+/// Cumulative weighted instruction-step count since the last reset. Divide by the
+/// machine's active-mode instruction rate to get elapsed wall-clock seconds.
+@property (readonly) uint64_t elapsedTicks;
+
 // ── Magnetic card reader ─────────────────────────────────────────────────────
 
 /// Insert a card immediately.  Non-empty data = read card (fed via IN CRD);

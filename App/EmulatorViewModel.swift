@@ -65,6 +65,8 @@ class EmulatorViewModel {
     var isDisplayPressed: Bool = false
     var isFullSpeedMode: Bool = false  // true when user is pressing display; emulation runs unrestricted
     var isKeystrokesPlaying: Bool = false
+    /// Baseline core elapsed-tick count, snapshotted by the KEYSTROKES ".zeroElapseTime" event.
+    private var elapseTimeBaseline: UInt64 = 0
     private var keystrokeTask: Task<Void, Never>?
 
     // ── Printer state ────────────────────────────────────────────────────────
@@ -312,6 +314,11 @@ class EmulatorViewModel {
     private let emulQueue = DispatchQueue(label: "calc-u-59.emulation", qos: .userInteractive)
     private var displayTimer: Timer?
     private var isRunning = false
+    /// Held for the app's lifetime so macOS never App-Naps the background emulation
+    /// queue while the window is unfocused/occluded — App Nap can otherwise stall
+    /// emulQueue's step() loop entirely, freezing currentPC and making any PC-range
+    /// wait (e.g. waitForScanLoopIdle) return immediately instead of actually waiting.
+    private var appNapActivityToken: NSObjectProtocol?
     private var suspendedByLifecycle = false
     private static let constantMemoryFileName = "ti58c.mem"
     private static var constantMemoryURL: URL {
@@ -323,6 +330,10 @@ class EmulatorViewModel {
     private var debugDisplayTimer: Timer?
 
     init() {
+        appNapActivityToken = ProcessInfo.processInfo.beginActivity(
+            options: [.userInitiated, .idleSystemSleepDisabled],
+            reason: "TI-59 CPU emulation must keep running at real-time pace in the background"
+        )
         // Initialize traceWriter with default model
         traceWriter = TraceWriter(model: model)
         configureTraceWriter()
@@ -436,12 +447,9 @@ class EmulatorViewModel {
         emulQueue.async { [weak self, m] in
             guard let self else { return }
             var cyclesDone: Int32 = 0
-            // Hardware clock: 455 kHz crystal ÷ 2 (two-phase) ÷ 16 (digit-serial)
-            // = 14,218.75 instructions/sec in active mode (TI-59).
-            // TI-58/58C: 384 kHz ÷ 2 ÷ 16 = 12,000 instructions/sec.
             // Idle mode runs at ÷4 (step() returns 4 instead of 1, except TI-58C constant speed),
             // so the loop naturally slows down when the calculator is waiting for a keypress.
-            let targetHz: Double = model == .ti59 ? 14218.75 : 12000.0
+            let targetHz: Double = model.instructionHz
             let batchMs: Double = 0.020  // 20 ms batches keep latency low
             let targetBatchCycles = Int32(targetHz * batchMs) // ≈ 284
 
@@ -513,8 +521,18 @@ class EmulatorViewModel {
                     }
                 }
 
-                // Skip timing throttle when in full-speed mode (user pressing display)
-                if !self.isFullSpeedMode {
+                // Skip timing throttle when in full-speed mode (user pressing display, or a
+                // KEYSTROKES FullSpeed:/WaitFullSpeed: window) — EXCEPT while the CPU is
+                // currently sitting in the keyboard-scan idle loop. Full speed always paces
+                // that portion at regular speed instead of racing unthrottled: otherwise the
+                // batch loop below never sleeps, so it can execute an enormous, real-time-
+                // unbounded number of idle-loop iterations before whatever polls currentPC
+                // (e.g. waitForScanLoopIdle) next samples it and notices the CPU is idle —
+                // wildly inflating any elapsed-tick measurement taken across that window.
+                // PC-range based (not FLG_IDLE) because the TI-58C is only partially idle
+                // while in its scan loop.
+                let inScanLoop = self.cpuIdleAndKeyDetectRange?.contains(m.currentPC) ?? false
+                if !self.isFullSpeedMode || inScanLoop {
                     let end = DispatchTime.now()
                     let elapsed = Double(end.uptimeNanoseconds - start.uptimeNanoseconds) / 1e9
                     let remaining = batchMs - elapsed
@@ -1246,6 +1264,55 @@ class EmulatorViewModel {
         case .ti59, .ti58: return 0x063C...0x0658
         case .ti58c:       return 0x063D...0x0A2E
         }
+    }
+
+    /// PC range covering the FULL keyboard scan/detect cycle — release-gate spin
+    /// (0x0627, where a still-held key parks after its press is processed) through
+    /// key acceptance (0x0661: CLR.IDLE, where the CPU returns to full speed and
+    /// decode/dispatch begins). See rom/TI59-commented.asm (0x0620-0x0661) and
+    /// KeypressLatch.md. Wider than `cpuScanLoopRange` above (used only by FREEZE ON
+    /// START, which cares about the steady-state cycle, not the release gates) —
+    /// this one is used anywhere a held key or full-speed racing must not be allowed
+    /// to blow past real "the calculator is still just scanning/debouncing" time.
+    private var cpuIdleAndKeyDetectRange: ClosedRange<UInt16>? {
+        switch model {
+        case .ti59, .ti58: return 0x0627...0x0660
+        case .ti58c:       return 0x0627...0x0A2E
+        }
+    }
+
+    /// Poll until the CPU reaches the keyboard-scan idle loop. Used as the default
+    /// inter-keystroke gap during KEYSTROKES playback so a script never sends its next
+    /// key before the calculator can actually accept it — independent of the "FREEZE ON
+    /// START" armed state (pendingCPUScanLoopFreeze etc.), which it neither reads nor sets.
+    /// No timeout: a scenario that never reaches idle will hang playback indefinitely.
+    ///
+    /// Deliberately uses the NARROW `cpuScanLoopRange`, not `cpuIdleAndKeyDetectRange`:
+    /// the wide range also covers states reached while still debouncing/confirming the
+    /// key just pressed (release gates, arming/confirmation scans before 0x0661 accept).
+    /// Using it here would let this return before that key is actually fully accepted,
+    /// so the NEXT key could fire mid-debounce and get discarded as bounce — the narrow
+    /// range is specifically the steady "nothing pending" cycle, the correct "safe for a
+    /// new keypress" signal.
+    private func waitForScanLoopIdle() async {
+        guard let range = cpuScanLoopRange else { return }
+        while !Task.isCancelled {
+            if let pc = machine?.currentPC, range.contains(pc) { return }
+            try? await Task.sleep(nanoseconds: 1_500_000) // ~1.5ms poll
+        }
+    }
+
+    /// Report elapsed time since the last ".zeroElapseTime" (or since reset, if none), to
+    /// the debug log — unconditionally, regardless of the debug level setting.
+    private func reportElapseTime() {
+        let current = machine?.elapsedTicks ?? 0
+        let deltaTicks = current >= elapseTimeBaseline ? current - elapseTimeBaseline : 0
+        let seconds = Double(deltaTicks) / model.instructionHz
+        let totalMs = Int((seconds * 1000).rounded())
+        let minutes = totalMs / 60_000
+        let secs = (totalMs / 1000) % 60
+        let ms = totalMs % 1000
+        ringWriteAll([String(format: "Elapsed: %d:%02d.%03d", minutes, secs, ms)])
     }
 
     /// Freeze with an explicit panel owner (called by the FREEZE button in each panel).
@@ -2576,14 +2643,19 @@ class EmulatorViewModel {
 
     /// Play back a KEYSTROKES sequence asynchronously after a preset loads.
     ///
-    /// Keys are sent at normal speed (450 ms hold + 50 ms gap) so the emulation loop
-    /// reliably processes each press and release.  Use `.waitFullSpeed(t)` events to run
-    /// the emulator at full speed for a fixed interval between keystrokes (e.g. while a
-    /// program computes).  Full speed is restored to its previous state after each such wait.
+    /// Keys are held 450 ms then released, after which playback waits for the CPU to
+    /// actually reach the keyboard-scan idle loop before the next event — this guarantees
+    /// no keystroke is lost to a still-computing calculator, regardless of how long the
+    /// preceding computation takes.  Use `.waitFullSpeed(t)` events to run the emulator at
+    /// full speed for a fixed interval between keystrokes (e.g. while a program computes);
+    /// full speed is restored to its previous state after each such wait.  `.fullSpeed`/
+    /// `.regularSpeed` toggle full speed persistently instead (no auto-revert) — speed is
+    /// always reset to regular when the script ends, even if it omitted `.regularSpeed`.
     private func playKeystrokes(_ events: [KeystrokeEvent]) async {
         isKeystrokesPlaying = true
         defer {
             isKeystrokesPlaying = false
+            isFullSpeedMode = false  // always end a script at regular speed
             // Auto-stop a scripted trace left running past the end of the script,
             // so no session is ever left dangling without a matching "Trace: Off".
             if scriptedTraceWriter.isOpen, let m = machine {
@@ -2600,7 +2672,7 @@ class EmulatorViewModel {
                 machine?.pressMatrixKey(matrixCode)
                 try? await Task.sleep(nanoseconds: 450_000_000)  // hold 450 ms
                 machine?.releaseMatrixKey(matrixCode)
-                try? await Task.sleep(nanoseconds: 50_000_000)   // 50 ms gap → 500 ms total
+                await waitForScanLoopIdle()
             case .toggleTrace:
                 togglePrinterTrace()
             case .wait(let t):
@@ -2610,6 +2682,14 @@ class EmulatorViewModel {
                 isFullSpeedMode = true
                 try? await Task.sleep(nanoseconds: UInt64(t * 1_000_000_000))
                 isFullSpeedMode = previous
+            case .fullSpeed:
+                isFullSpeedMode = true
+            case .regularSpeed:
+                isFullSpeedMode = false
+            case .zeroElapseTime:
+                elapseTimeBaseline = machine?.elapsedTicks ?? 0
+            case .reportElapseTime:
+                reportElapseTime()
             case .trace(let name):
                 // Switching files (or turning off) first flushes and closes whatever
                 // scripted session is currently open, for a clean SESSION_END.

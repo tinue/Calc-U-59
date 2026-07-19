@@ -54,14 +54,30 @@ import Foundation
 //
 //       Matrix codes use the same numeric format as PROGRAM lines, but no
 //       step-number prefix is supported.  Mnemonic labels are silently ignored.
-//       Each line's codes are pressed one at a time with a default 0.5 s gap
-//       between presses.
+//       Each key is held 450 ms, then released, then playback waits for the
+//       CPU to actually reach the keyboard-scan idle loop before the next
+//       event — this guarantees no keystroke is ever lost to a still-computing
+//       calculator, no matter how long the preceding computation takes.
 //
 //       An explicit wait between lines is specified with:
 //           Wait: 2s        (seconds)
 //           Wait: 500ms     (milliseconds)
-//       The wait is applied after the preceding line completes, before the
-//       next line starts.
+//       This is a fixed pause on top of the above — useful for letting a human
+//       watch the display before the script moves on — not required for
+//       correctness.
+//
+//       FullSpeed: / RegularSpeed: switch the emulator to/from full emulation
+//       speed persistently (no duration, no auto-revert) — useful for racing
+//       through a long computation. Speed always reverts to regular at the
+//       end of the KEYSTROKES sequence even if the script omits RegularSpeed:.
+//       WaitFullSpeed: <time> (below) remains supported for a bounded window.
+//
+//       ZeroElapseTime / ReportElapseTime read the core's elapsed-instruction
+//       counter (zeroed on reset, tracking wall-clock time via the model's
+//       clock speed). ZeroElapseTime snapshots the current count as a baseline;
+//       ReportElapseTime writes the elapsed time since that baseline to the
+//       debug log (regardless of the debug level setting). Both may appear
+//       any number of times, in any order.
 //
 //       A CPU instruction trace can be scripted with:
 //           Trace: name.bin  starts (or restarts) a trace, writing every
@@ -106,6 +122,10 @@ enum KeystrokeEvent {
     case wait(TimeInterval)          // explicit pause; emulator runs at normal speed
     case waitFullSpeed(TimeInterval) // enable full speed, wait, then restore normal speed
     case trace(String?)              // start CPU trace capture to the given filename, or stop it (nil) — unrelated to .toggleTrace
+    case fullSpeed                   // persistent: switch to full speed until a matching .regularSpeed (or end of script)
+    case regularSpeed                // persistent: switch back to normal speed
+    case zeroElapseTime              // snapshot the core's elapsed-tick counter as the report baseline
+    case reportElapseTime            // report elapsed time since the last .zeroElapseTime to the debug log
 }
 
 struct LoadStateResult {
@@ -252,6 +272,14 @@ func parseStateFile(_ text: String, maxStepAddr: Int = 479, allowHiddenRegisters
                 if let event = parseTraceLine(line, errors: &result.errors) {
                     result.keystrokes.append(event)
                 }
+            } else if upper.hasPrefix("FULLSPEED:") {
+                result.keystrokes.append(.fullSpeed)
+            } else if upper.hasPrefix("REGULARSPEED:") {
+                result.keystrokes.append(.regularSpeed)
+            } else if upper.hasPrefix("ZEROELAPSETIME") {
+                result.keystrokes.append(.zeroElapseTime)
+            } else if upper.hasPrefix("REPORTELAPSETIME") {
+                result.keystrokes.append(.reportElapseTime)
             } else {
                 result.keystrokes.append(contentsOf: parseKeystrokeLine(line))
             }

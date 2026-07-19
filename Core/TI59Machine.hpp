@@ -54,6 +54,11 @@ public:
     /// interpreter.  0xFFFF until a module keycode executes.
     uint16_t libExecPC() const;
 
+    /// Cumulative weighted instruction-step count since the last reset() — see
+    /// TMC0501::elapsedTicks(). Divide by the machine's active-mode instruction rate
+    /// to get elapsed wall-clock seconds.
+    uint64_t elapsedTicks() const;
+
     // ── Magnetic card reader ─────────────────────────────────────────────────
     /// Insert a card immediately.  data/count non-zero = read card (feeds IN CRD);
     /// zero = blank write card (OUT CRD captured).

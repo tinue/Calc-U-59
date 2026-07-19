@@ -227,6 +227,12 @@ public:
 
     static constexpr uint16_t kLibExecPCNone = 0xFFFF;
 
+    /// Cumulative weighted step count since the last reset() — never drained (unlike
+    /// m_pollSteps). Weighted the same way as m_pollSteps (non-IDLE=1, IDLE=4, except
+    /// TI-58C which never applies the IDLE weight), so it tracks real elapsed wall-clock
+    /// time when divided by the machine's active-mode instruction rate.
+    uint64_t elapsedTicks() const { return m_elapsedTicks.load(std::memory_order_relaxed); }
+
     /// Capture a snapshot of all CPU registers at the current instant.
     CpuFrame snapshotCPU() const;
 
@@ -372,6 +378,7 @@ private:
 
     mutable std::atomic<uint32_t> m_cSteps{0};          // Steps (IDLE or non-IDLE) where fA≠0 since last getDisplay().
     mutable std::atomic<uint32_t> m_pollSteps{0};       // Weighted step count since last getDisplay() (non-IDLE=1, IDLE=4).
+    mutable std::atomic<uint64_t> m_elapsedTicks{0};    // Weighted step count since last reset(); never drained (see elapsedTicks()).
 
     // ── Keyboard matrix ───────────────────────────────────────────────
     // key[col] holds a bitmask of which rows are pressed for that digit-counter

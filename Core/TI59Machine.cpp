@@ -138,6 +138,10 @@ uint16_t TI59Machine::libExecPC() const {
     return m_cpu.libExecPC();
 }
 
+uint64_t TI59Machine::elapsedTicks() const {
+    return m_cpu.elapsedTicks();
+}
+
 // ── Magnetic card reader ───────────────────────────────────────────────────────
 
 int TI59Machine::cardSwitchCol() const {
