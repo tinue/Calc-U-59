@@ -54,10 +54,18 @@ import Foundation
 //
 //       Matrix codes use the same numeric format as PROGRAM lines, but no
 //       step-number prefix is supported.  Mnemonic labels are silently ignored.
-//       Each key is held 450 ms, then released, then playback waits for the
+//       Each key is held 100 ms, then released, then playback waits for the
 //       CPU to actually reach the keyboard-scan idle loop before the next
 //       event — this guarantees no keystroke is ever lost to a still-computing
 //       calculator, no matter how long the preceding computation takes.
+//
+//       Note: "Adv" (2nd + `.`) is a repeat-while-held key on real hardware —
+//       holding it for 100ms at regular speed typically fires it 2-3 times,
+//       roughly matching a brief real button press. At full speed this can
+//       fire far more times (the busy gate it waits on is a fixed CPU-step
+//       count, not a real-time delay, so full speed can clear/re-fire it many
+//       times within the same 100ms of real hold) — switch to RegularSpeed:
+//       before pressing "Adv" via KEYSTROKES to avoid a paper-feed runaway.
 //
 //       An explicit wait between lines is specified with:
 //           Wait: 2s        (seconds)

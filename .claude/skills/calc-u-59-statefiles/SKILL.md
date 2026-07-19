@@ -30,6 +30,13 @@ just save a round trip for the two mistakes that come up most:
   "KEYSTROKES vs. PROGRAM" table before hand-writing either section.
 - **2nd functions in KEYSTROKES are two presses**, `21` then the key's matrix
   code — never the "2nd keycode" from the PROGRAM section's numbering.
+- **`Adv` (`21 93`) in KEYSTROKES needs `RegularSpeed:` active first.** Adv is
+  a repeat-while-held key on real hardware, gated by a fixed CPU-step busy
+  countdown rather than a real-time delay — at full speed the same 100ms key
+  hold can clear/re-fire that gate far more times than at regular speed,
+  causing a paper-feed runaway. Switch to `RegularSpeed:` before any `21 93`
+  in a script, then back to `FullSpeed:` afterward if needed. `Prt` (`21 94`)
+  is single-shot and unaffected.
 - **CUECARD math tokens** (`\lambda`, `^{2}`, `_{i}`, etc.) are documented in
   `reference/StateFileFormat.md`; the canonical token table itself lives in
   `App/CueCardContent.swift`, not in any markdown file.

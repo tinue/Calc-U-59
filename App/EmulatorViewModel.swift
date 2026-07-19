@@ -2643,7 +2643,7 @@ class EmulatorViewModel {
 
     /// Play back a KEYSTROKES sequence asynchronously after a preset loads.
     ///
-    /// Keys are held 450 ms then released, after which playback waits for the CPU to
+    /// Keys are held 100 ms then released, after which playback waits for the CPU to
     /// actually reach the keyboard-scan idle loop before the next event — this guarantees
     /// no keystroke is lost to a still-computing calculator, regardless of how long the
     /// preceding computation takes.  Use `.waitFullSpeed(t)` events to run the emulator at
@@ -2670,7 +2670,12 @@ class EmulatorViewModel {
             switch event {
             case .key(let matrixCode):
                 machine?.pressMatrixKey(matrixCode)
-                try? await Task.sleep(nanoseconds: 450_000_000)  // hold 450 ms
+                // 100 ms is comfortably longer than the ROM's worst-case debounce window
+                // (~3 sweeps to arm+confirm, see KeypressLatch.md) while short enough that
+                // a "repeat while held" key (e.g. Adv/PRT_FEED, gated by real busy time —
+                // see printer busy-cycle comments in TMC0501.cpp) only fires a couple of
+                // times per keystroke at regular speed, matching real-hardware button feel.
+                try? await Task.sleep(nanoseconds: 100_000_000)  // hold 100 ms
                 machine?.releaseMatrixKey(matrixCode)
                 await waitForScanLoopIdle()
             case .toggleTrace:
