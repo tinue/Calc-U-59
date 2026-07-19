@@ -96,6 +96,38 @@ run_cmd() {
     fi
 }
 
+# ── Unstaged-changes helper ─────────────────────────────────────────────────────
+#
+# Unstaged changes are the one pre-condition failure we recover from instead of
+# aborting: offer to stash them, then restore via the EXIT trap below no matter
+# how the script finishes (success or error). Staged-but-uncommitted changes and
+# unpushed commits still hard-abort — those represent work the user must decide
+# about explicitly, not something safe to shelve automatically.
+
+STASHED=false
+
+restore_stash() {
+    if $STASHED; then
+        echo "Restoring stashed changes…"
+        git stash pop
+    fi
+}
+trap restore_stash EXIT
+
+stash_unstaged_changes() {
+    if ! git diff --quiet; then
+        echo "Unstaged changes present:"
+        git status --short
+        read -p "Stash them and restore after the release finishes? (yes/no) " -r
+        if [[ ! $REPLY =~ ^[Yy][Ee][Ss]$ ]]; then
+            echo "Aborted: please commit or stash unstaged changes before releasing."
+            exit 1
+        fi
+        run_cmd git stash push -m "bin/release autostash"
+        $DRY_RUN || STASHED=true
+    fi
+}
+
 # ── Sanity checks ──────────────────────────────────────────────────────────────
 
 if ! $DO_BUILD_ONLY; then
@@ -148,11 +180,7 @@ if $DO_RELEASE; then
     fi
 
     # Pre-condition: working tree must be clean (heuristic: a pre-release was done)
-    if ! git diff --quiet; then
-        echo "Error: unstaged changes present. Commit or stash them before releasing."
-        git status --short
-        exit 1
-    fi
+    stash_unstaged_changes
     if ! git diff --cached --quiet; then
         echo "Error: staged but uncommitted changes present. Commit them before releasing."
         git status --short
@@ -253,11 +281,7 @@ if ! $DO_BUILD_ONLY; then
     fi
 
     # Branch must be clean
-    if ! git diff --quiet; then
-        echo "Error: unstaged changes present. Commit or stash them before releasing."
-        git status --short
-        exit 1
-    fi
+    stash_unstaged_changes
     if ! git diff --cached --quiet; then
         echo "Error: staged but uncommitted changes present. Commit them before releasing."
         git status --short
