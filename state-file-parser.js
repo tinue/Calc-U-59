@@ -13,7 +13,7 @@
 //     that compresses the artificial keystroke-pacing delays in the worker
 //     playback loop (there's no real CPU-speed throttle to interact with
 //     here, unlike the native app).
-//   - ZeroElapseTime / ReportElapseTime lines are recognized (so they don't
+//   - ZeroElapseTime: / ReportElapseTime: lines are recognized (so they don't
 //     leak into keystroke parsing as garbage) but produce no event — there's
 //     no elapsed-time counter in this build.
 //   - MODEL: lines are recognized and ignored — the web build is TI-59
@@ -251,7 +251,7 @@ function parseStateFile(text, options) {
           result.keystrokes.push({ type: "speed", full: true });
         } else if (upper.startsWith("REGULARSPEED:")) {
           result.keystrokes.push({ type: "speed", full: false });
-        } else if (upper.startsWith("ZEROELAPSETIME") || upper.startsWith("REPORTELAPSETIME")) {
+        } else if (upper.startsWith("ZEROELAPSETIME:") || upper.startsWith("REPORTELAPSETIME:")) {
           // Recognized, intentionally no-op — no elapsed-time tracking in this build.
         } else {
           result.keystrokes.push(...parseKeystrokeLine(line));
