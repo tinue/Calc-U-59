@@ -266,6 +266,17 @@ struct KeyboardView: View {
             }
         }
         .aspectRatio(Self.imageAspect, contentMode: .fit)
+        .onDisappear {
+            // If this view is torn down mid-gesture (e.g. rapid panel switching),
+            // the DragGesture's onEnded never fires. Force-release any held key
+            // so its matrix bit doesn't stay stuck set in the emulator core.
+            if let prev = pressedKey {
+                viewModel.releaseKey(row: prev / 5, col: prev % 5)
+                pressedKey = nil
+            }
+            viewModel.isDisplayPressed = false
+            viewModel.isFullSpeedMode = false
+        }
     }
 }
 
