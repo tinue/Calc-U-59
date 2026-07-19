@@ -101,3 +101,22 @@ REGISTERS:
 74 = 321537
 75 = 313242
 76 = 161715
+
+KEYSTROKES:
+# Whole-year print for 2026 (per the User Instructions above: key start
+# year, A; key start month, R/S; press C for balance of year — starting at
+# month 1 (January) prints the whole year). Data entry (keying year/month)
+# is left at regular speed and outside the elapsed-time measurement; only
+# the print itself (triggered by C) is timed, and run at full speed.
+83              # 2
+92              # 0
+83              # 2
+74              # 6
+11              # A — store start year
+82              # 1
+91              # R/S — confirm start month
+ZeroElapseTime
+FullSpeed:
+13              # C — print balance of year
+RegularSpeed:
+ReportElapseTime
