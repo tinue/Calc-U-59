@@ -1,14 +1,16 @@
 # Calc-U-59
 
-A TI-59 hardware emulator and integrated debugger for macOS, built for researchers and enthusiasts who want to understand the machine rather than merely use it.
+A TI-58, TI-58C, and TI-59 hardware emulator with an integrated debugger for macOS and iOS, running each calculator's original ROM.
 
 ## Purpose
 
-Calc-U-59 is a research tool, not a calculator replacement. While it accurately emulates the TI-59's processor (the TMC0501), its primary audience is people who want to explore how the TI-59 works: stepping through ROM code, inspecting registers, tracing printer output, loading raw machine-state files, and understanding the quirks of the original hardware.
+Calc-U-59 started as a research tool and still has that focus at its core: it accurately emulates the TMC0501 processor shared by the TI-58, TI-58C, and TI-59, and lets you step through ROM code, inspect registers, trace printer output, load raw machine-state files, and study the quirks of the original hardware.
 
-A second audience is people who have found their own old TI-59 programs — whether on magnetic cards, in printed listings, or from memory — and want to revive them: run them again, understand what they actually do at the machine level, or improve them with the benefit of a full debugger.
+It has also grown into a capable calculator in its own right. If you just want a faithful TI-58/58C/59 on your Mac or iPhone and don't care about the debugger, that works fine too — on iPhone the debug panel is disabled by default, so the app presents as a classic calculator out of the box.
 
-If you are looking for a polished calculator app, this is probably not for you. If you want to run programs under a debugger, observe how the ROM handles edge cases, or reproduce behavior from original hardware, you are in the right place.
+A third audience is people who have found their own old TI-58 or TI-59 programs — whether on magnetic cards, in printed listings, or from memory — and want to revive them: run them again, understand what they actually do at the machine level, or improve them with the benefit of a full debugger.
+
+Whether you want a classic calculator that just works, or you want to run programs under a debugger and reproduce behavior from original hardware down to the instruction level, you are in the right place.
 
 ## User Guide
 
