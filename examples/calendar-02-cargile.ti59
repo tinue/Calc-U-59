@@ -29,11 +29,11 @@ PRINTER: on
 
 CUECARD:
 Template: MagnetCard
-Title: Calendar Printer
+Title: Calendar - Lou Cargile - V3N5
 Banks: 1,2
-Row1: Format: MM.YYYY
+Row1: Key MM.YYYY, then press B for one month or A for the rest of the year
 Row1Align: left
-A: YEAR
+A: TO YR END
 B: 1 MONTH
 
 PROGRAM:

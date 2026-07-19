@@ -34,8 +34,10 @@ PRINTER: on
 
 CUECARD:
 Template: MagnetCard
-Title: Calendar Printer
+Title: Calendar - Richard Vanderburgh - V3N6
 Banks: 1,3
+Row1: Key start year, press A; key month, R/S; then B, C, or D
+Row1Align: left
 A: START YEAR
 B: 1 MONTH
 C: TO YR END
@@ -73,7 +75,7 @@ PROGRAM:
 10 10 00 20 01 00 10 01 10 10 00 10 01 00 00 01 10 10 00 00   # 646-665
 01 00 70 00 10 10 00 70 00 00 60 00 10 10 00 60 00 00 50 00   # 666-685
 10 10 00 50 00 00 40 00 10 10 00 40 00 00 30 00 10 10 00 30   # 686-705
-00 00 20 00 10 10 00 25 00 00 00 00 10 10                     # 706-719
+00 00 20 00 10 10 00 20 00 00 00 00 10 10                     # 706-719
 
 REGISTERS:
 62 = 1000

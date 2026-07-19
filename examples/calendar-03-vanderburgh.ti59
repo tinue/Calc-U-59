@@ -40,9 +40,9 @@ PRINTER: on
 
 CUECARD:
 Template: MagnetCard
-Title: Calendar Printer
+Title: Calendar - Richard Vanderburgh - V3N5
 Banks: 1,2
-Row1: A, Year, R/S, Month, R/S, B (or C)
+Row1: Press A to check module; key year/month, R/S; then B, C, or D
 Row1Align: left
 A: CHECK ML
 B: 1 MONTH

@@ -36,8 +36,10 @@ PRINTER: on
 
 CUECARD:
 Template: MagnetCard
-Title: Calendar Printer
+Title: Calendar - Jared Weinberger - V3N5
 Banks: 1,2
+Row1: Key month, A; key year, B; then D (month) or E (year)
+Row1Align: left
 A: MONTH
 B: YEAR
 D: PRINT MO

@@ -28,8 +28,10 @@ PRINTER: on
 
 CUECARD:
 Template: MagnetCard
-Title: Calendar Printer
+Title: Calendar - Bill Skillman - V3N6
 Banks: 1,3
+Row1: Key start year, press A; key month, R/S; then B, C, or D
+Row1Align: left
 A: START YEAR
 B: 1 MONTH
 C: TO YR END
