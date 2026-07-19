@@ -1,0 +1,162 @@
+# TI-59/PC-100A Program: Calendar Printer, by Richard Vanderburgh
+#
+# From 52-Notes. Part of the same calendar-program series as
+# calendar-01-Weinberger.ti59, calendar-02-cargile.ti59,
+# calendar-03-vanderburgh.ti59, and calendar-04-skillman.ti59.
+#
+# After printing V3N6p2 (calendar-04-skillman.ti59), the columnist
+# received a calendar printer program from Panos Galidas (207) which
+# uses Bill Skillman's doubled print-code method, but with a simpler way
+# to handle all the special cases, printing a year in 5.5 minutes. This
+# program is the columnist's own further revision of Galidas' approach --
+# squeezed into 3 memory banks, using H5-8 (HIR, an undocumented keycode)
+# in place of Op1-4 for the print-buffer left-right number shifting --
+# printing a year in just under 5 minutes.
+#
+# The prestored data is unusually large, listed as steps 465-719 "for
+# input convenience": the author suggests writing steps 000-326 and
+# 465-719 under a 1 Op 17 partition, then storing the Reg 62-78 constants
+# under an 8 Op 17 partition (to avoid data shifts from the differing
+# register layout), then recording the magnetic card banks under a 6 Op
+# 17 partition. The effective partition during actual execution is
+# 327.78 -- i.e. steps 000-326 are the real (executable) program, and
+# 465-719 are pure data smuggled into program memory, not real code.
+# This preset uses PARTITION: 319.79 (320 steps / 80 data registers),
+# matching the "1 Op 17" partition the article uses for the listed steps.
+#
+# User Instructions: same as calendar-03-vanderburgh.ti59 (V3N6p2), except
+# there is no CROM module test in this revision.
+# 1. Key start year, press A.
+# 2. Key start month, press R/S.
+#    For 1 Month: Press B; for balance of year, press C; for specified
+#    interval, key end year, press D.
+#
+# Transcribed from a compact magazine/manual listing (OCR'd), same
+# shorthand dialect as the rest of this series (see the
+# calc-u-59-statefiles skill's "52-Notes" section). Notes specific to
+# this listing:
+#   - "H<n>" is HIR (an undocumented keycode, 82) with operand n, e.g.
+#     "H7" = HIR 07 (82, 07). Used here in place of the more common
+#     Op1-4 print-buffer-loading instructions, per the intro text.
+#   - "CLR'" (an apostrophe after a mnemonic, here and elsewhere) is 2nd
+#     CLR -- keycode 20 -- distinct from the bare "CLR" key (keycode 25)
+#     used elsewhere in this same listing; there is no printed 2nd-row
+#     label above the CLR key on the physical keyboard, but the keycode
+#     is real and distinct.
+#   - "/" is divide (55); "+/-" is change-sign (94).
+#   - Steps 465-719 are NOT valid program code -- per the article, this
+#     range is prestored *data* (more print-buffer constants than fit in
+#     the "Prestored Data" section below) that the author had you key in
+#     as if it were a program listing purely so the magazine could print
+#     it compactly. Accordingly this section decodes as a flat sequence
+#     of single-byte values (never multi-step instructions), verified
+#     against every one of its thirteen declared line-address boundaries
+#     (465, 485, 506, 525, 544, 564, 584, 603, 622, 640, 663, 687, 710)
+#     and the final total (720 bytes, i.e. steps 465-719 inclusive,
+#     matching the article's own claim exactly):
+#       - "0"/"O" = 0; "00" = two consecutive zero bytes (not one).
+#       - "E'" = 10; "Ind" = 40 (IND); "Rad"/"Deg" = 70/60 (2nd Rad/Deg);
+#         "Abs" = 50 (2nd |x|); "tan" = 30 (2nd 1/x, whose 2nd function
+#         is tan); "CLR"/"CLR'" = 25/20 as above.
+#       - "p31"/"p21" (lowercase in the source, unlike the real "P"rogram
+#         key) is a single byte holding the literal value 31/21 -- not
+#         "Pgm 31"/"Pgm 21" (which would need 2 bytes: 36 then the
+#         operand). The single-byte reading is what the checksum requires
+#         throughout (a 2-byte reading overshoots every line's declared
+#         length); since this whole range is acknowledged non-code data
+#         anyway, "p" is most likely a marginal annotation rather than a
+#         real keystroke, not unlike the "O" = 0 substitution seen
+#         elsewhere in this series.
+# Program length (steps 000-326) reconstructed step-by-step and
+# cross-checked against the step numbers printed at the start of every
+# listing line (000, 029, 056, 086, 112, 139, 169, 198, 227, 258, 289,
+# 320) -- every line's decoded length matches its declared next-line
+# boundary exactly, ending at step 326 as the article states.
+# Uses Master Library program 20 (day-of-week / days-in-month helpers, via
+# SBR 086), hence SOLID-STATE-MODULE: ML below.
+
+MODEL: TI-59
+PARTITION: 319.79
+SOLID-STATE-MODULE: ML
+PRINTER: on
+
+CUECARD:
+Template: MagnetCard
+Title: Calendar Printer
+Banks: 1,3
+A: START YEAR
+B: 1 MONTH
+C: TO YR END
+D: END YEAR
+
+PROGRAM:
+03 00 42 00 69 27 61 01 15 03 01 42 00 68 68 61 00 61 03 00   # 000-019
+42 00 69 27 61 00 61 03 01 42 00 68 68 61 00 78 03 01 42 00   # 020-039
+68 68 61 00 96 03 00 42 00 69 27 61 00 96 03 01 42 00 61 01   # 040-059
+15 73 00 22 97 07 01 39 82 05 22 97 07 01 72 02 44 00 73 00   # 060-079
+85 09 09 93 09 09 95 22 97 07 01 45 82 06 69 20 73 00 22 59   # 080-099
+22 97 07 01 57 82 07 22 97 07 01 72 02 44 00 73 00 22 97 07   # 100-119
+01 69 82 08 22 97 07 01 72 02 44 00 69 05 69 00 61 00 61 52   # 120-139
+82 05 61 01 72 85 43 62 75 43 62 95 82 06 61 01 72 85 43 62   # 140-159
+75 43 62 95 82 07 61 01 72 52 82 08 69 05 69 00 98 25 92 76   # 160-179
+12 43 01 85 06 06 95 42 08 01 42 02 43 09 42 03 36 20 71 00   # 180-199
+86 42 00 55 32 07 94 95 59 65 07 85 32 95 65 09 95 42 06 69   # 200-219
+21 43 09 42 03 36 20 71 00 86 75 43 00 95 42 07 69 00 08 69   # 220-239
+17 73 08 69 04 43 09 69 06 07 69 17 43 66 69 01 43 65 69 02   # 240-259
+43 64 69 03 43 63 69 04 69 05 69 00 83 06 76 11 42 09 42 03   # 260-279
+91 42 01 92 76 13 01 03 75 43 01 95 42 04 71 01 81 97 04 02   # 280-299
+94 92 76 14 75 43 09 85 01 95 42 05 71 02 86 69 29 01 42 01   # 300-319
+97 05 03 12 98 98 91                                          # 320-326
+...
+465  00              # 465 (format-2 prefix line, sets address)
+00 00 20 40 10 10 00 20 40 00 10 40 10 10 00 10 40 00 20 31   # 466-485
+10 10 00 20 31 00 10 31 10 10 00 10 31 00 00 31 10 10 00 00   # 486-505
+31 00 70 30 10 10 00 70 30 00 60 30 10 10 00 60 30 00 50 30   # 506-525
+10 10 00 50 30 00 40 30 10 10 00 40 30 00 30 30 10 10 00 30   # 526-545
+30 00 20 30 10 10 00 20 30 00 10 30 10 10 00 10 30 00 20 21   # 546-565
+10 10 00 20 21 00 10 21 10 10 00 10 21 00 00 21 10 10 00 00   # 566-585
+21 00 70 20 10 10 00 70 20 00 60 20 10 10 00 60 20 00 50 20   # 586-605
+10 10 00 50 20 00 40 20 10 10 00 40 20 00 30 20 10 10 00 30   # 606-625
+20 00 20 20 10 10 00 20 20 00 10 20 10 10 00 10 20 00 20 01   # 626-645
+10 10 00 20 01 00 10 01 10 10 00 10 01 00 00 01 10 10 00 00   # 646-665
+01 00 70 00 10 10 00 70 00 00 60 00 10 10 00 60 00 00 50 00   # 666-685
+10 10 00 50 00 00 40 00 10 10 00 40 00 00 30 00 10 10 00 30   # 686-705
+00 00 20 00 10 10 00 25 00 00 00 00 10 10                     # 706-719
+
+REGISTERS:
+62 = 1000
+63 = 2135003613
+64 = 1700372300
+65 = 37410043
+66 = 3641003032
+67 = 251331
+68 = 211714
+69 = 301335
+70 = 133335
+71 = 301345
+72 = 25413117
+73 = 25412745
+74 = 134122
+75 = 36173337
+76 = 321537
+77 = 313242
+78 = 161715
+
+KEYSTROKES:
+# Whole-year print for 2026 (per the User Instructions above: key start
+# year, A; key start month, R/S; press C for balance of year — starting at
+# month 1 (January) prints the whole year). Data entry (keying year/month)
+# is left at regular speed and outside the elapsed-time measurement; only
+# the print itself (triggered by C) is timed, and run at full speed.
+83              # 2
+92              # 0
+83              # 2
+74              # 6
+11              # A — store start year
+82              # 1
+91              # R/S — confirm start month
+ZeroElapseTime:
+FullSpeed:
+13              # C — print balance of year
+RegularSpeed:
+ReportElapseTime:
