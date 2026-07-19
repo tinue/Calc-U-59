@@ -1,9 +1,9 @@
-# TI-59/PC-100A Program: Calendar Printer, by Lou Cargile
+# TI-59/PC-100A Program: Calendar Printer, by Lou Cargile, 52-Notes, V3N5p3
 #
-# From 52-Notes, V3N5p3. This is a series of calendar programs that started
-# with this issue of 52-Notes. The issue contained three programs, and later
-# editions kept adding faster and more compact programs. Our goal is to collect
-# and preserve them here in the form of preload files.
+# This is one of a series of calendar programs that appeared in the magazine
+# "52-Notes", starting with issue Volume 3 Number 5 from May 1978. It was
+# a competition to write faster and faster programs to print a calendar.
+# Our goal is to collect and preserve them here in the form of preload files.
 #
 # This is the documentation given for this program in the original article:
 #
@@ -22,39 +22,6 @@
 #
 # User Instructions: For one month: Key MM.YYYY, press B; for balance
 # of year: Key MM.YYYY, press A.
-#
-# Transcribed from a compact magazine/manual program listing (OCR'd), same
-# shorthand dialect as examples/calendar-01-Weinberger.ti59 (see the
-# calc-u-59-statefiles skill's "52-Notes" section) plus flag operations:
-# Stflg<n> = 2nd Stflg (set flag n), Ifflg<n> <dest> = 2nd Ifflg (if flag n,
-# go to dest). "/" in the source is the division key (55) -- a handful of
-# OCR'd "+" signs in this listing were actually "/" and have already been
-# corrected to "/" before this transcription.
-# Program length reconstructed step-by-step and cross-checked against the
-# step numbers printed at the start of every listing line (000, 023, 056,
-# 083, 108, 131, 159, 188, 214, 238, 264, 288, 314, 339, 364) -- every
-# line's decoded length matches its declared next-line boundary exactly.
-# Notable OCR resolutions:
-#   - "xXt" is ambiguous between EQ (x=t) and X<>T (exchange, keycode 32)
-#     the same as in calendar-01; resolved per-occurrence by what's
-#     syntactically possible (EQ needs a valid destination token right
-#     after it; when the next token can't be one -- e.g. "R8", a bare
-#     small digit with no address shape, or nothing before a non-numeric
-#     token -- it must be X<>T instead).
-#   - "S07"/"SO" = STO 07 / STO 0 (same STO/RCL-with-2-digit-operand
-#     convention as calendar-01); a bare "O" is a plain digit 0 throughout,
-#     including the "rtn O S14" around step 331.
-#   - The two "Dsz" instructions around step 289-311 both take a plain
-#     (direct) register operand -- 07 and 13 respectively -- not indirect;
-#     the second one's destination (332) lands entirely within its own
-#     line, with no spillover into the next.
-#   - "...345 rtn O S14 Stflg3 rtn rtn" (around step 331) is exactly as
-#     printed: two separate RTNs at the end, not a duplicate.
-#   - Decimal literals (".01", ".08", ".13", ".02", ".88") all cost 3 steps
-#     each (2nd/./ key, then each digit separately) -- confirmed uniformly
-#     by two lines' checksums, so no digit-omission shortcuts apply here.
-# Uses Master Library program 20 (day-of-week helper), hence
-# SOLID-STATE-MODULE: ML below.
 
 MODEL: TI-59
 SOLID-STATE-MODULE: ML

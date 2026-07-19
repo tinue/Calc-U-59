@@ -1,9 +1,9 @@
-# TI-59/PC-100A Program: Calendar Printer, by Richard Vanderburgh
+# TI-59/PC-100A Program: Calendar Printer, by Richard Vanderburgh, 52-Notes, V3N5p4
 #
-# From 52-Notes, V3N5p4. This is a series of calendar programs that started
-# with this issue of 52-Notes. The issue contained three programs, and later
-# editions kept adding faster and more compact programs. Our goal is to collect
-# and preserve them here in the form of preload files.
+# This is one of a series of calendar programs that appeared in the magazine
+# "52-Notes", starting with issue Volume 3 Number 5 from May 1978. It was
+# a competition to write faster and faster programs to print a calendar.
+# Our goal is to collect and preserve them here in the form of preload files.
 #
 # This is the documentation given for this program in the original article:
 #
@@ -33,30 +33,6 @@
 # 3. For 1 month: Press B;
 #    For balance of year: Press C; for specified period: Key end year,
 #    press D.
-#
-# Transcribed from a compact magazine/manual listing (OCR'd), same
-# shorthand dialect as the other two presets in this series (see the
-# calc-u-59-statefiles skill's "52-Notes" section), plus one convention
-# not seen before in this series:
-#   - A bare A-E/A'-E' key (with no GTO/SBR in front of it) is a direct,
-#     unconditional 1-step jump to that label -- real TI-59 firmware
-#     dispatches any of these ten keycodes to their Lbl unconditionally,
-#     whether pressed interactively or hit as a stored program step. Seen
-#     repeatedly here as "D' rtn", "C'", "A'", "B", "C" standing alone.
-#   - Several branch instructions (GTO/SBR/Dsz/EQ/IFF) use the "arbitrary
-#     keycode as a 1-byte label destination" trick already documented for
-#     calendar-01's "SBR CE" case -- e.g. "SBR Write" is SBR with WRT's
-#     own keycode (96) as the destination byte, "Dsz17 D'" targets D''s
-#     keycode (19), "xXt E'" is EQ targeting E''s keycode (10).
-# Program length reconstructed step-by-step and cross-checked against the
-# step numbers printed at the start of every listing line (000, 028, 053,
-# 080, 107, 133, 156, 189, 214, 244, 273, 301, 321, 351, 383, 414, 443) --
-# every line's decoded length matches its declared next-line boundary
-# exactly. The one OCR-noise fix needed: a stray leading "0" before "Op55"
-# (~step 309) doesn't fit -- dropping it is what makes that line's length
-# match.
-# Uses Master Library program 20 (day-of-week / days-in-month helpers, via
-# SBR 086 and SBR 177), hence SOLID-STATE-MODULE: ML below.
 
 MODEL: TI-59
 SOLID-STATE-MODULE: ML
