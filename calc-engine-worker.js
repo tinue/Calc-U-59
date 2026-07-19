@@ -202,15 +202,18 @@ async function applyStateFile(text) {
   // Printer connection state (result.printerConnected) is intentionally
   // not applied — the printer is out of scope for this build.
 
+  let fullSpeed = false;
   for (const event of result.keystrokes) {
     if (generation !== loadGeneration) return; // superseded by a newer load
     if (event.type === "key") {
       pressMatrixCode(machine, event.matrixCode);
-      await sleep(80);
+      await sleep(fullSpeed ? 0 : 80);
       releaseMatrixCode(machine, event.matrixCode);
-      await sleep(120);
+      await sleep(fullSpeed ? 0 : 120);
     } else if (event.type === "wait") {
-      await sleep(event.seconds * 1000);
+      await sleep(fullSpeed ? 0 : event.seconds * 1000);
+    } else if (event.type === "speed") {
+      fullSpeed = event.full;
     }
   }
 
