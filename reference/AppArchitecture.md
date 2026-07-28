@@ -218,10 +218,13 @@ Keys are only claimed while the calculator has focus, on both platforms.
   calculator is touched, so typing works at launch with nothing to select
   first. `CPUInspectorView` therefore takes focus on click rather than on
   appear — it used to grab first responder in `onAppear`, which would divert
-  every keypress away from the calculator. There is a focus ring
-  (`PhysicalKeyboardModifier`'s overlay) but at `Color.orange.opacity(0.35)`
-  over the black chassis it is effectively invisible; treat the Mac build as
-  having no focus indicator until that is either made visible or removed.
+  every keypress away from the calculator. **There is no focus indicator**, by
+  decision: focus scoping here is a stepping stone, and the Mac is meant to end
+  up with one unified input surface where every key has exactly one meaning and
+  focus stops mattering (the three panels only stay separate because iPhone
+  portrait swipes between them — see `TODO.md` § UI). The live consequence is
+  that clicking into the debug panel silently stops keys reaching the
+  calculator, with nothing on screen to explain it.
 - **Web**: the container is `tabIndex=0` with a golden outline, focused on
   pointer-down (with `preventScroll`, or the calculator scrolls into view
   mid-click and the key moves out from under the pointer). Not auto-focused on

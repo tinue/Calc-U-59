@@ -308,11 +308,19 @@ private extension View {
 #if os(macOS)
 /// Makes the calculator focusable and feeds key-down/key-up to the emulator.
 ///
-/// Focus-scoped on purpose: the Mac window shows the calculator, the printer and
-/// the debug panels side by side, so keys must only reach the calculator while it
-/// is the focused panel — otherwise arrow keys meant for the CPU inspector's
-/// instruction list would also step the program. The calculator takes focus on
-/// appear, so typing works immediately at launch.
+/// Focus-scoped for now, and deliberately without a focus indicator: the Mac
+/// window shows the calculator, the printer and the debug panels side by side,
+/// so keys currently only reach the calculator while it holds focus — otherwise
+/// arrow keys meant for the CPU inspector's instruction list would also step the
+/// program. It takes focus on appear and reclaims it on touch, so typing works at
+/// launch with nothing to select.
+///
+/// This is a stepping stone, not the target design. The Mac is meant to end up
+/// with one unified input surface where every key has exactly one meaning and
+/// focus stops mattering at all (the three panels only stay separate because
+/// iPhone portrait swipes between them). See `TODO.md` § UI. Until then, note
+/// that clicking into the debug panel silently stops keys reaching the
+/// calculator, with nothing on screen to say so.
 private struct PhysicalKeyboardModifier: ViewModifier {
     let viewModel: EmulatorViewModel
     let focus: FocusState<Bool>.Binding
@@ -324,13 +332,6 @@ private struct PhysicalKeyboardModifier: ViewModifier {
             .focusable()
             .focusEffectDisabled()
             .focused(focus)
-            .overlay {
-                // The only cue that keys go here rather than to the debug panel.
-                RoundedRectangle(cornerRadius: 6)
-                    .stroke(Color.orange.opacity(isFocused ? 0.35 : 0), lineWidth: 1.5)
-                    .allowsHitTesting(false)
-                    .animation(.easeInOut(duration: 0.15), value: isFocused)
-            }
             .onAppear { focus.wrappedValue = true }
             .onChange(of: isFocused) { _, focused in
                 // Losing focus mid-press would otherwise leave the matrix bit set.
