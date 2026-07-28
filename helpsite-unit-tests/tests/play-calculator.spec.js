@@ -94,13 +94,37 @@ test('2nd -> Pgm -> 01 shows the Master Library diagnostic cue card', async ({ p
 
 // ── Physical keyboard (docs/keyboard-map.js) ────────────────────────────
 //
-// The cue card is the assertion target rather than the display: the LED is a
-// <canvas>, so there is no DOM text to read, but "2nd, Pgm, 01" puts a cue card
-// in the DOM and only does so if the keys actually reached the emulation core.
+// The LED is a <canvas>, so there is no DOM text to assert on (the same reason
+// readLedText() above no longer works). These tests compare the rendered canvas
+// bitmap before and after typing instead: it changes if and only if the keys
+// reached the emulation core and the display updated. That sidesteps decoding
+// segments while still exercising the whole path.
+//
+// Only 26 of the 45 keys are bound — white keys, yellow keys except 2nd, A-E,
+// and EE/(/) — so the "unbound keys" test below is load-bearing, not padding.
 
 // Focus without clicking — a click would land on a key and press it.
 async function focusCalculator(page) {
   await page.locator('.calcu-device').focus();
+}
+
+async function ledBitmap(page) {
+  return page.locator('canvas').first().evaluate((c) => c.toDataURL());
+}
+
+// The display keeps changing for a while after the worker reports "ready" (the
+// core runs POWER_ON_STEPS to stabilize, and the decimal point has an afterglow
+// animation). Any before/after comparison has to start from a settled frame or
+// it reads that drift as a keypress.
+async function settledLedBitmap(page) {
+  let previous = await ledBitmap(page);
+  for (let i = 0; i < 20; i++) {
+    await page.waitForTimeout(250);
+    const current = await ledBitmap(page);
+    if (current === previous) return current;
+    previous = current;
+  }
+  throw new Error('LED display never settled');
 }
 
 async function typeKey(page, key) {
@@ -108,44 +132,68 @@ async function typeKey(page, key) {
   await page.waitForTimeout(250); // covers the 80 ms hold + 120 ms gap per code
 }
 
-test('typing 2nd Pgm 01 on the keyboard shows the cue card', async ({ page }) => {
+test('typing 2 + 2 = drives the emulation core', async ({ page }) => {
   await gotoPlayReady(page);
   await focusCalculator(page);
 
-  await typeKey(page, "'");  // 2nd
-  await typeKey(page, 'l');  // LRN, whose 2nd-function is Pgm
-  await typeKey(page, '0');
-  await typeKey(page, '1');
+  const before = await settledLedBitmap(page);
+  for (const key of ['2', '+', '2', '=']) await typeKey(page, key);
   await page.waitForTimeout(300);
 
-  await expect(page.locator('.cuecard')).toContainText('MASTER LIBRARY DIAGNOSTIC');
+  expect(await ledBitmap(page)).not.toBe(before);
 });
 
-test('Shift+letter is shorthand for 2nd then that key', async ({ page }) => {
+test('typing matches clicking for the same keys', async ({ page }) => {
+  await gotoPlayReady(page);
+  for (const label of ['2', '+', '2', '=']) await pressKey(page, label);
+  await page.waitForTimeout(300);
+  const clicked = await settledLedBitmap(page);
+
+  await gotoPlayReady(page);
+  await focusCalculator(page);
+  for (const key of ['2', '+', '2', '=']) await typeKey(page, key);
+  await page.waitForTimeout(300);
+
+  expect(await settledLedBitmap(page)).toBe(clicked);
+});
+
+test('unbound keys do nothing', async ({ page }) => {
   await gotoPlayReady(page);
   await focusCalculator(page);
 
-  // Shift+L alone should do what "'" then "l" did above.
-  await page.keyboard.press('Shift+L');
-  await page.waitForTimeout(500);  // two full taps, not one
-  await typeKey(page, '0');
-  await typeKey(page, '1');
+  const before = await settledLedBitmap(page);
+  // STO, LRN, x², R/S, CE, 2nd — all deliberately click-only.
+  for (const key of ['s', 'l', 'q', ' ', 'Backspace', "'"]) await typeKey(page, key);
   await page.waitForTimeout(300);
+  expect(await ledBitmap(page)).toBe(before);
 
-  await expect(page.locator('.cuecard')).toContainText('MASTER LIBRARY DIAGNOSTIC');
+  // ...and the calculator is still listening: a bound key still works.
+  await typeKey(page, '5');
+  await page.waitForTimeout(300);
+  expect(await ledBitmap(page)).not.toBe(before);
+});
+
+test('Shift+A sends 2nd before A', async ({ page }) => {
+  await gotoPlayReady(page);
+  await focusCalculator(page);
+
+  const second = page.getByRole('button', { name: '2nd', exact: true });
+  await page.keyboard.press('Shift+A');
+
+  // The 2nd key lights first, for its own full tap, before A is pressed —
+  // proof the shorthand is played back as two presses and not one.
+  await expect(second).toHaveCSS('transform', /matrix/, { timeout: 200 });
 });
 
 test('keystrokes are ignored until the calculator has focus', async ({ page }) => {
   await gotoPlayReady(page);
 
   // No focusCalculator() here — the page never auto-focuses it.
-  await typeKey(page, "'");
-  await typeKey(page, 'l');
-  await typeKey(page, '0');
-  await typeKey(page, '1');
+  const before = await settledLedBitmap(page);
+  for (const key of ['2', '+', '2', '=']) await typeKey(page, key);
   await page.waitForTimeout(300);
 
-  await expect(page.locator('.cuecard')).toHaveCount(0);
+  expect(await ledBitmap(page)).toBe(before);
 });
 
 test('the standalone app does not capture keystrokes', async ({ page }) => {

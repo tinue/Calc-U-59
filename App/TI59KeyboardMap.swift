@@ -10,19 +10,25 @@ import SwiftUI
 /// documented in `reference/AppArchitecture.md` § "Physical Keyboard Mapping",
 /// which `docs/keyboard-map.js` (the web build's hand-ported twin) also follows.
 ///
-/// Three rules the table below encodes:
+/// **Only 26 of the 45 keys are bound**, deliberately: the white (digit) keys,
+/// the yellow keys except 2nd, the A–E function keys, and EE / `(` / `)`. Every
+/// other key — 2nd, INV, lnx, CE, LRN, x⇄t, x², √x, 1/x, SST, STO, RCL, SUM,
+/// yˣ, BST, GTO, SBR, RST, R/S — is mouse-only on purpose. Don't "complete" this
+/// table without asking.
 ///
-/// 1. **Every one of the 45 keys has an unshifted binding.** 2nd functions are
-///    not bound separately — they are reached the way the hardware reaches them,
-///    by pressing 2nd (matrix 21) and then the key, which is why `matrixCodes`
-///    can return two codes.
+/// Three rules it encodes:
+///
+/// 1. **A binding may resolve to two matrix codes.** 2nd functions are not bound
+///    as codes of their own — they are reached the way the hardware reaches them,
+///    by pressing 2nd (matrix 21) and then the key.
 /// 2. **Shift + letter is shorthand for "2nd, then that letter's key"**, which is
-///    what produces A′–E′ from `Shift+A`…`Shift+E` (and, for free, sin/cos/tan
-///    from `Shift+Q/V/W`, log from `Shift+N`, and so on).
+///    what produces A′–E′ from `Shift+A`…`Shift+E`. Since only `a`–`e` are bound,
+///    that is the only place the rule fires — and the only second function
+///    reachable from the keyboard at all, as 2nd itself has no binding.
 /// 3. **Non-letters resolve on the character the keyboard actually produced**, so
-///    Shift is *not* a 2nd prefix for them: `Shift+.` is `>` → EE, not "2nd `.`".
-///    This is also what makes the shifted symbols work at all — on a US layout
-///    `*`, `(`, `)`, `+` and `^` are all Shift-something.
+///    Shift is *not* a 2nd prefix for them: `Shift+.` is `>` → EE and `Shift+,`
+///    is `<` → +/−. This is also what makes the shifted symbols work at all — on
+///    a US layout `*`, `(`, `)` and `+` are all Shift-something.
 ///
 /// Because lookup is by produced character rather than physical scan code, a
 /// non-US layout works wherever it happens to put these characters.
@@ -61,77 +67,39 @@ enum TI59KeyboardMap {
 
     // MARK: - Bindings
 
-    /// Character → matrix code, covering all 45 keys.
+    /// Character → matrix code, for the 26 bound keys only.
     ///
     /// Letters are stored lowercase; the uppercase form is handled by the Shift
     /// rule in `matrixCodes` above. Numeric-keypad keys need no entries of their
     /// own — they produce the same characters as their main-block counterparts.
     private static let bindings: [Character: UInt8] = [
-        // ── Row 1 — user-defined keys (Shift gives A′–E′) ───────────────────
+        // ── Function keys A–E (Shift gives A′–E′) ───────────────────────────
         "a": 11, "b": 12, "c": 13, "d": 14, "e": 15,
 
-        // ── Row 2 ───────────────────────────────────────────────────────────
-        "'": 21,                                   // 2nd
-        "i": 22,                                   // INV
-        "n": 23,                                   // lnx
-        KeyEquivalent.delete.character:        24,  // CE — Backspace
-        KeyEquivalent.deleteForward.character: 24,  // CE — Delete
-        KeyEquivalent.escape.character:        25,  // CLR
+        // ── Yellow keys, 2nd excluded ───────────────────────────────────────
+        KeyEquivalent.escape.character:  25,  // CLR
+        "/": 55,                              // ÷
+        "*": 65, "x": 65,                     // × — `x` too, so a keyboard without
+                                              // a numpad doesn't need Shift+8 for
+                                              // every multiplication
+        "-": 75,
+        "+": 85,
+        "=": 95,
+        KeyEquivalent.return.character:  95,  // = — Return
+        "\u{3}":                         95,  // = — numeric-keypad Enter
 
-        // ── Row 3 ───────────────────────────────────────────────────────────
-        "l": 31,                                   // LRN
-        "t": 32,                                   // x⇄t
-        "q": 33,                                   // x²
-        "v": 34,                                   // √x
-        "w": 35,                                   // 1/x
+        // ── White keys ──────────────────────────────────────────────────────
+        "7": 62, "8": 63, "9": 64,
+        "4": 72, "5": 73, "6": 74,
+        "1": 82, "2": 83, "3": 84,
+        "0": 92,
+        ".": 93, ",": 93,                     // `,` for layouts with a decimal
+                                              // comma on the keypad
+        "<": 94,                              // +/−
 
-        // ── Row 4 ───────────────────────────────────────────────────────────
-        KeyEquivalent.downArrow.character:     41,  // SST
-        "s": 42,                                   // STO
-        "r": 43,                                   // RCL
-        "u": 44,                                   // SUM
-        "y": 45, "^": 45,                          // yˣ
-
-        // ── Row 5 ───────────────────────────────────────────────────────────
-        KeyEquivalent.upArrow.character:       51,  // BST
-        ">": 52,                                   // EE — `e` belongs to the E user key
+        // ── Exceptions: three dark keys worth typing ────────────────────────
+        ">": 52,                              // EE — `e` belongs to the E user key
         "(": 53,
         ")": 54,
-        "/": 55,                                   // ÷
-
-        // ── Row 6 ───────────────────────────────────────────────────────────
-        "g": 61,                                   // GTO
-        "7": 62, "8": 63, "9": 64,
-        "*": 65, "x": 65,                          // × — `x` too, so a keyboard
-                                                   // without a numpad doesn't
-                                                   // need Shift+8 for every
-                                                   // multiplication
-
-        // ── Row 7 ───────────────────────────────────────────────────────────
-        "j": 71,                                   // SBR
-        "4": 72, "5": 73, "6": 74,
-        "-": 75,
-
-        // ── Row 8 ───────────────────────────────────────────────────────────
-        KeyEquivalent.home.character:          81,  // RST
-        "1": 82, "2": 83, "3": 84,
-        "+": 85,
-
-        // ── Row 9 ───────────────────────────────────────────────────────────
-        KeyEquivalent.space.character:         91,  // R/S
-        "0": 92,
-        ".": 93, ",": 93,                          // `,` for layouts with a
-                                                   // decimal comma on the keypad
-        "_": 94,                                   // +/−
-        "\u{F70C}": 94,                            // +/− on F9 as well, matching
-                                                   // Windows Calculator. AppKit
-                                                   // reports function keys as
-                                                   // private-use scalars, F1 at
-                                                   // U+F704; macOS only, and only
-                                                   // when F9 isn't claimed by the
-                                                   // system's Mission Control map.
-        KeyEquivalent.return.character:        95,  // =
-        "\u{3}": 95,                               // = on the numeric keypad's Enter
-        "=": 95,
     ]
 }

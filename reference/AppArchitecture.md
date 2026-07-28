@@ -144,44 +144,44 @@ This section is the source of truth; the Swift and JS tables are two hand-ported
 copies of it (see `reference/NewGUIGuide.md` § "Known Duplication Traps").
 Values are **matrix codes**, as in the table above.
 
+### What is bound, and what is not
+
+**26 of the 45 keys are bound, deliberately**: the white (digit) keys, the
+yellow keys *except 2nd*, the A–E function keys, and EE / `(` / `)`. Everything
+else — **2nd, INV, lnx, CE, LRN, x⇄t, x², √x, 1/x, SST, STO, RCL, SUM, yˣ, BST,
+GTO, SBR, RST, R/S** — is pointer-only on purpose. Do not "complete" the table
+without asking; the omissions are the design, not an oversight.
+
+A consequence worth knowing: with 2nd unbound, the *only* second function
+reachable from a keyboard is A′–E′, via the Shift rule below.
+
 ### The three rules
 
-1. **All 45 keys of the face have an unshifted binding.** 2nd functions are not
-   bound separately — they are reached as on hardware, by pressing 2nd and then
-   the key, so a binding resolves to *one or two* matrix codes.
-2. **Shift + letter is shorthand for "2nd, then that letter's key."** That is
-   what gives A′–E′ from `Shift+A`…`Shift+E`, and for free sin/cos/tan from
-   `Shift+Q/V/W`, log from `Shift+N`, Pgm from `Shift+L`, and so on.
+1. **A binding may resolve to one or two matrix codes.** 2nd functions are not
+   bound as codes of their own — they are reached as on hardware, by pressing
+   2nd and then the key.
+2. **Shift + letter is shorthand for "2nd, then that letter's key."** Only
+   `a`–`e` are bound, so this fires nowhere else: it gives A′–E′ from
+   `Shift+A`…`Shift+E`.
 3. **Shift is not a 2nd prefix for non-letters**, which resolve on the character
-   the keyboard produced: `Shift+.` is `>` → EE, not "2nd `.`". This is also
-   what makes the shifted symbols work — on a US layout `*`, `(`, `)`, `+` and
-   `^` are all Shift-something.
+   the keyboard produced: `Shift+.` is `>` → EE and `Shift+,` is `<` → +/−.
+   This is also what makes the shifted symbols work — on a US layout `*`, `(`,
+   `)` and `+` are all Shift-something.
 
 Lookup goes through the produced character, never a physical scan code, so a
-non-US layout works wherever it puts these characters. Known gap: on a layout
-where `'` is a dead key the literal 2nd key is unreachable, and only the
-`Shift`+letter shorthand remains.
+non-US layout works wherever it puts these characters.
 
 ### The table
 
 | Keyboard | TI key | Matrix | | Keyboard | TI key | Matrix |
 |---|---|---|---|---|---|---|
-| `0`–`9` | 0–9 | 92 82 83 84 72 73 74 62 63 64 | | `a`–`e` | A–E | 11–15 |
-| `.` `,` | . | 93 | | `A`–`E` (Shift) | A′–E′ | 21 + 11–15 |
-| `_` `F9` | +/− | 94 | | `'` | 2nd | 21 |
-| `+` | + | 85 | | `i` | INV | 22 |
-| `-` | − | 75 | | `n` | lnx | 23 |
-| `*` `x` | × | 65 | | `l` | LRN | 31 |
-| `/` | ÷ | 55 | | `t` | x⇄t | 32 |
-| `=` `Return`/`Enter` | = | 95 | | `q` | x² | 33 |
-| `(` `)` | ( ) | 53 54 | | `v` | √x | 34 |
-| `^` `y` | yˣ | 45 | | `w` | 1/x | 35 |
-| `>` | EE | 52 | | `s` | STO | 42 |
-| `Escape` | CLR | 25 | | `r` | RCL | 43 |
-| `Backspace` `Delete` | CE | 24 | | `u` | SUM | 44 |
-| `Space` | R/S | 91 | | `g` | GTO | 61 |
-| `Home` | RST | 81 | | `j` | SBR | 71 |
-| `↓` `↑` | SST BST | 41 51 | | | | |
+| `0`–`9` | 0–9 | 92 82 83 84 72 73 74 62 63 64 | | `Escape` | CLR | 25 |
+| `.` `,` | . | 93 | | `/` | ÷ | 55 |
+| `<` | +/− | 94 | | `*` `x` | × | 65 |
+| `a`–`e` | A–E | 11–15 | | `-` | − | 75 |
+| `A`–`E` (Shift) | A′–E′ | 21 + 11–15 | | `+` | + | 85 |
+| `>` | EE | 52 | | `=` `Return`/`Enter` | = | 95 |
+| `(` `)` | ( ) | 53 54 | | | | |
 
 Numeric-keypad keys need no entries of their own — they produce the same
 characters as their main-block counterparts. `x` is bound to × as well as `*`
