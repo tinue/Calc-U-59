@@ -22,7 +22,14 @@ const {
 // re-renders don't fan out into 45 key re-renders while a program runs.
 const MemoCalcKey = React.memo(CalcKey);
 
-function PlayCalculator({ scale = 1, controls = true }) {
+// Hold/gap either side of a synthesized press, matching what
+// calc-engine-worker.js already uses to replay a preset's KEYSTROKES section.
+// The ROM only accepts a key seen at two scans one display sweep apart, so a
+// release that lands too early is discarded as bounce — see KeypressLatch.md.
+const PLAY_KEY_HOLD_MS = 80;
+const PLAY_KEY_GAP_MS = 120;
+
+function PlayCalculator({ scale = 1, controls = true, keyboard = false }) {
   const workerRef = usePlayRef(null);
 
   const [ready, setReady] = usePlayState(false);
@@ -96,7 +103,7 @@ function PlayCalculator({ scale = 1, controls = true }) {
     const worker = workerRef.current;
     if (!worker) return;
     worker.postMessage({ type: "press", row, col });
-    setTimeout(() => worker.postMessage({ type: "release", row, col }), 80);
+    setTimeout(() => worker.postMessage({ type: "release", row, col }), PLAY_KEY_HOLD_MS);
   }, []);
 
   // <CalcKey> (from docs/Calculator.jsx) calls onPress(label); resolve the
@@ -108,6 +115,81 @@ function PlayCalculator({ scale = 1, controls = true }) {
       if (ci !== -1) { press(ri, ci); return; }
     }
   }, [press]);
+
+  // ── Physical keyboard ────────────────────────────────────────────────
+  // Only when mounted with keyboard={true}, i.e. from docs/index.html's #play
+  // page. The standalone app (docs/app/) is a phone app and doesn't even load
+  // keyboard-map.js, hence the typeof guard.
+  //
+  // Focus-scoped: the #play page is a long article with module/preset pickers
+  // and a file upload below the calculator, so keys are only claimed while the
+  // calculator itself has focus. That also keeps Tab working as Tab — a page
+  // you can't tab out of is a keyboard trap.
+  const rootRef = usePlayRef(null);
+  const heldRef = usePlayRef(null);   // { row, col, at } while a single key is down
+  const seqRef = usePlayRef(0);       // bumped to supersede an in-flight 2nd sequence
+  const [keyboardFocused, setKeyboardFocused] = usePlayState(false);
+  const [typedKey, setTypedKey] = usePlayState(null);   // "row,col" of the lit key
+
+  const releaseHeld = usePlayCallback(() => {
+    const held = heldRef.current;
+    if (!held) return;
+    heldRef.current = null;
+    setTypedKey(null);
+    const send = () => workerRef.current?.postMessage({ type: "release", row: held.row, col: held.col });
+    // Releasing sooner than the hold window would let the ROM throw the key away
+    // as bounce, which is exactly what fast typing produces.
+    const remaining = PLAY_KEY_HOLD_MS - (Date.now() - held.at);
+    if (remaining > 0) setTimeout(send, remaining); else send();
+  }, []);
+
+  // A 2nd-prefixed binding (Shift+A for A', say) is one logical action played
+  // back as two full taps: the ROM has to see 2nd released and re-scanned before
+  // it will accept the second key, so they cannot be sent together.
+  const playSequence = usePlayCallback(async (codes) => {
+    const generation = ++seqRef.current;
+    for (const code of codes) {
+      if (generation !== seqRef.current) return;   // superseded by a newer key
+      const row = Math.floor(code / 10) - 1;
+      const col = (code % 10) - 1;
+      setTypedKey(`${row},${col}`);
+      workerRef.current?.postMessage({ type: "press", row, col });
+      await new Promise((r) => setTimeout(r, PLAY_KEY_HOLD_MS));
+      // Always paired with its own press, even once superseded — an unmatched
+      // press would leave the matrix bit stuck set in the core.
+      workerRef.current?.postMessage({ type: "release", row, col });
+      await new Promise((r) => setTimeout(r, PLAY_KEY_GAP_MS));
+    }
+    if (generation === seqRef.current) setTypedKey(null);
+  }, []);
+
+  const handleKeyDown = usePlayCallback((e) => {
+    // e.repeat: the matrix bit is a level, not an event — a held key can never
+    // re-trigger, so auto-repeat would only produce spurious releases.
+    if (!keyboard || e.repeat || typeof ti59KeyboardMatrixCodes !== "function") return;
+    const codes = ti59KeyboardMatrixCodes(e);
+    if (!codes) return;
+    // Space would scroll, Backspace could navigate, "/" opens quick-find.
+    e.preventDefault();
+
+    seqRef.current++;   // supersede any running sequence
+    releaseHeld();      // the hardware rejects chords: one key at a time
+
+    if (codes.length > 1) { playSequence(codes); return; }
+
+    const row = Math.floor(codes[0] / 10) - 1;
+    const col = (codes[0] % 10) - 1;
+    heldRef.current = { row, col, at: Date.now() };
+    setTypedKey(`${row},${col}`);
+    workerRef.current?.postMessage({ type: "press", row, col });
+  }, [keyboard, releaseHeld, playSequence]);
+
+  const handleKeyUp = usePlayCallback((e) => {
+    if (!keyboard || typeof ti59KeyboardMatrixCodes !== "function") return;
+    if (!ti59KeyboardMatrixCodes(e)) return;
+    e.preventDefault();
+    releaseHeld();
+  }, [keyboard, releaseHeld]);
 
   function handleModuleChange(id) {
     // No "Loading module…" status: switching modules is a single fast
@@ -149,12 +231,29 @@ function PlayCalculator({ scale = 1, controls = true }) {
   const activeCueCard = programCueCard || presetCueCard;
 
   return (
-    <div className="calcu-device" style={{
+    <div className="calcu-device"
+      ref={rootRef}
+      tabIndex={keyboard ? 0 : undefined}
+      onKeyDown={keyboard ? handleKeyDown : undefined}
+      onKeyUp={keyboard ? handleKeyUp : undefined}
+      // React's onFocus/onBlur are focusin/focusout, so they still fire when the
+      // focus lands on one of the inner key <button>s.
+      onFocus={keyboard ? () => setKeyboardFocused(true) : undefined}
+      onBlur={keyboard ? () => { setKeyboardFocused(false); seqRef.current++; releaseHeld(); } : undefined}
+      // preventScroll matters: without it, focusing on pointer-down scrolls the
+      // calculator into view mid-click, which moves the key out from under the
+      // pointer before the click completes.
+      onPointerDown={keyboard ? () => rootRef.current?.focus({ preventScroll: true }) : undefined}
+      style={{
       width: `${360 * scale}px`,
       background: "#000",
       padding: `${10 * scale}px ${12 * scale}px ${8 * scale}px`,
       fontFamily: "var(--font-keycap)",
       userSelect: "none",
+      // Always reserve the ring's space so focusing doesn't shift the layout.
+      outline: `2px solid ${keyboardFocused ? "rgba(240,192,64,.55)" : "transparent"}`,
+      outlineOffset: 2,
+      borderRadius: 6,
     }}>
       <PlayDisplay
         scale={scale}
@@ -176,10 +275,25 @@ function PlayCalculator({ scale = 1, controls = true }) {
       <div style={{ display: "grid", gap: 10 * scale, marginTop: 6 * scale }}>
         {CALC_ROWS.map((row, ri) => (
           <div key={ri} style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 * scale }}>
-            {row.map((kc, ci) => <MemoCalcKey key={ci} kc={kc} scale={scale} onPress={pressByLabel} />)}
+            {row.map((kc, ci) => (
+              <MemoCalcKey key={ci} kc={kc} scale={scale} onPress={pressByLabel}
+                           forcePressed={typedKey === `${ri},${ci}`} />
+            ))}
           </div>
         ))}
       </div>
+
+      {keyboard && !keyboardFocused ? (
+        <div style={{
+          marginTop: 8 * scale,
+          fontFamily: "var(--font-body)",
+          fontSize: 11 * scale,
+          color: "var(--fg-3)",
+          textAlign: "center",
+        }}>
+          Click the calculator to type on it with your keyboard.
+        </div>
+      ) : null}
 
       {controls ? (
         <PlayControls

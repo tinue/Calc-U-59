@@ -256,8 +256,13 @@ function Token({ scale, children }) {
 /* ============================================================
    Single key (top label + button)
    ============================================================ */
-function CalcKey({ kc, scale, onPress }) {
-  const [pressed, setPressed] = useStateCalc(false);
+// forcePressed lets an outside caller light a key that no pointer is touching —
+// PlayCalculator.jsx uses it so a physical-keyboard press looks exactly like a
+// clicked one. The decorative <Calculator> demo passes nothing and is unaffected.
+function CalcKey({ kc, scale, onPress, forcePressed = false }) {
+  const [pointerPressed, setPointerPressed] = useStateCalc(false);
+  const pressed = pointerPressed || forcePressed;
+  const setPressed = setPointerPressed;
 
   const styleByTone = {
     cream: {

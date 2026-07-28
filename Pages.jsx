@@ -872,7 +872,7 @@ function PlayPage({ onNav }) {
   return (
     <main className="wrap-narrow">
       <div style={{ display: "flex", justifyContent: "center" }}>
-        <PlayCalculator scale={1.4} />
+        <PlayCalculator scale={1.4} keyboard />
       </div>
 
       <h1 className="page-title" style={{ marginTop: 32 }}>Try it right here</h1>
@@ -893,10 +893,58 @@ function PlayPage({ onNav }) {
         </p>
       </div>
 
+      <h2 className="section" style={{ marginTop: 32 }}>Use your keyboard</h2>
+      <div className="prose">
+        <p>
+          Click the calculator once and it takes your keystrokes — a golden outline shows when it
+          has them. Click anywhere else, or press <K>Tab</K>, and the page gets the keyboard back.
+        </p>
+        <p>
+          Every key on the face has a binding. Second functions work the way they do on the real
+          machine: press <K>'</K> for <strong>2nd</strong>, then the key. Holding <K>Shift</K> while
+          you press a letter is a shortcut for the same thing — <K>Shift</K> + <K>A</K> gives you
+          <strong> A'</strong>, <K>Shift</K> + <K>Q</K> gives you <strong>sin</strong>, and so on.
+        </p>
+      </div>
+
+      <KeyboardLegend />
+
       <div style={{ marginTop: 24 }}>
         <BackButton onNav={onNav} />
       </div>
     </main>
+  );
+}
+
+// Rendered straight from keyboard-map.js's own table, so the published legend
+// can't drift away from the bindings that actually run.
+function KeyboardLegend() {
+  if (typeof TI59_KEYBOARD_LEGEND === "undefined") return null;
+  return (
+    <div style={{
+      marginTop: 16,
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))",
+      gap: "10px 20px",
+    }}>
+      {TI59_KEYBOARD_LEGEND.map((entry, i) => (
+        <div key={i} style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+          <span style={{ flex: "0 0 auto" }}>
+            <KSeq steps={entry.keys.map((k) => (k === "…" ? "…" : { label: k }))} />
+          </span>
+          <span style={{
+            fontFamily: "var(--font-keycap)",
+            color: "var(--accent)",
+            fontSize: 14,
+          }}>{entry.label}</span>
+          {entry.note ? (
+            <span style={{ fontFamily: "var(--font-body)", fontSize: 12, color: "var(--fg-3)" }}>
+              {entry.note}
+            </span>
+          ) : null}
+        </div>
+      ))}
+    </div>
   );
 }
 
