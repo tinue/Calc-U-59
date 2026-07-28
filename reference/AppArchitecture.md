@@ -215,10 +215,13 @@ Keys are only claimed while the calculator has focus, on both platforms.
 
 - **macOS**: the Mac window shows calculator, printer and debug panels side by
   side. `KeyboardView` takes focus on appear and reclaims it whenever the
-  calculator is touched; a thin orange ring shows which panel has it.
-  `CPUInspectorView` therefore takes focus on click rather than on appear — it
-  used to grab first responder in `onAppear`, which would divert every keypress
-  away from the calculator.
+  calculator is touched, so typing works at launch with nothing to select
+  first. `CPUInspectorView` therefore takes focus on click rather than on
+  appear — it used to grab first responder in `onAppear`, which would divert
+  every keypress away from the calculator. There is a focus ring
+  (`PhysicalKeyboardModifier`'s overlay) but at `Color.orange.opacity(0.35)`
+  over the black chassis it is effectively invisible; treat the Mac build as
+  having no focus indicator until that is either made visible or removed.
 - **Web**: the container is `tabIndex=0` with a golden outline, focused on
   pointer-down (with `preventScroll`, or the calculator scrolls into view
   mid-click and the key moves out from under the pointer). Not auto-focused on
