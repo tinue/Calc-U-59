@@ -5,8 +5,9 @@
 #   iphone-NN-<name>.png   (APP_IPHONE_67,         1320 × 2868 px)
 #   ipad-NN-<name>.png     (APP_IPAD_PRO_3GEN_129, 2752 × 2064 px)
 #
-# Simulator UDIDs are resolved dynamically — no hardcoding needed after
-# recreating simulators for a new iOS patch release.
+# The two target simulators are the ones marked `screenshots: iphone` and
+# `screenshots: ipad` in bin/simulators.yaml; bin/simulators resolves them to
+# UDIDs, so nothing needs rehardcoding after an iOS patch release.
 #
 # Usage:
 #   bin/run-screenshots [filter]
@@ -21,61 +22,8 @@ set -euo pipefail
 FILTER="${1:-}"
 SRCROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SCREENSHOT_DIR="$SRCROOT/appstore/screenshots"
-CONFIG="$SRCROOT/bin/simulators.yaml"
 echo "$SCREENSHOT_DIR" > /tmp/calc-u-59-screenshot-dir
 trap 'rm -f /tmp/calc-u-59-screenshot-dir /tmp/calc-u-59-screenshot-name' EXIT
-
-# ── Simulator lookup ───────────────────────────────────────────────────────────
-# Returns the name of the simulator with the given screenshots role (iphone|ipad).
-
-_config_sim_name() {
-    local role="$1"
-    python3 -c "
-import re, sys
-devs, cur = [], None
-for line in open(sys.argv[1]):
-    line = line.rstrip()
-    if re.match(r'^- ', line):
-        if cur is not None: devs.append(cur)
-        cur = {}
-    # parse key: value from both '- key: val' and '  key: val' lines
-    m = re.match(r'^[-\s]\s*(\w+):\s*(.*)', line)
-    if m and cur is not None:
-        k, v = m.group(1), m.group(2).strip()
-        cur[k] = v or None
-if cur is not None: devs.append(cur)
-for d in devs:
-    if d.get('screenshots') == sys.argv[2]:
-        print(d['name'])
-        sys.exit(0)
-print('Error: no simulator with screenshots=%s in %s' % (sys.argv[2], sys.argv[1]), file=sys.stderr)
-sys.exit(1)
-" "$CONFIG" "$role"
-}
-
-# Returns the UDID of the latest available iOS simulator matching the given name.
-
-find_simulator() {
-    local name="$1"
-    local udid
-    udid=$(python3 -c "
-import json, subprocess, sys
-out = subprocess.check_output(['xcrun', 'simctl', 'list', 'devices', 'available', '--json'])
-data = json.loads(out)
-for rt in sorted(data['devices'], reverse=True):
-    if 'iOS' not in rt: continue
-    for d in data['devices'][rt]:
-        if d['name'] == sys.argv[1]:
-            print(d['udid'])
-            sys.exit(0)
-" "$name" 2>/dev/null)
-    if [[ -z "$udid" ]]; then
-        print -u2 "Error: no available simulator named '$name'."
-        print -u2 "  Create it in Xcode → Window → Devices and Simulators."
-        return 1
-    fi
-    echo "$udid"
-}
 
 # ── Test runner ────────────────────────────────────────────────────────────────
 
@@ -104,12 +52,10 @@ run_named_test() {
 # ── Resolve simulators ─────────────────────────────────────────────────────────
 
 echo "Resolving simulators…"
-IPHONE_NAME=$(_config_sim_name iphone)
-IPAD_NAME=$(_config_sim_name ipad)
-IPHONE_UDID=$(find_simulator "$IPHONE_NAME")
-IPAD_UDID=$(find_simulator "$IPAD_NAME")
-echo "  $IPHONE_NAME: $IPHONE_UDID"
-echo "  $IPAD_NAME: $IPAD_UDID"
+IPHONE_UDID=$("$SRCROOT/bin/simulators" resolve --role iphone)
+IPAD_UDID=$("$SRCROOT/bin/simulators" resolve --role ipad)
+echo "  iphone: $IPHONE_UDID"
+echo "  ipad:   $IPAD_UDID"
 echo ""
 
 mkdir -p "$SCREENSHOT_DIR"

@@ -105,7 +105,7 @@ override class func tearDown() {
 
 ## State File Prerequisites
 
-Screenshot tests that load `.ti59` files require those files to be present on the simulator's local storage. Run `bin/setup-simulators` once before running tests — it ensures the target simulators exist and installs state files into each one: an explicit list of files from `examples/` goes to the storage root, and everything from `examples/screentest/` goes into a `1-Testfiles/` folder (sorted first by name) in the simulator's "On My iPhone/iPad" storage. Simulators must have opened the Files app or the file picker at least once for the AppGroup storage to be initialised.
+Screenshot tests that load `.ti59` files require those files to be present on the simulator's local storage. Run `bin/simulators setup` once before running tests — it ensures the target simulators from `bin/simulators.yaml` exist and installs state files into each one: an explicit list of files from `examples/` goes to the storage root, and everything from `examples/screentest/` goes into a `1-Testfiles/` folder (sorted first by name) in the simulator's "On My iPhone/iPad" storage. It also boots each new simulator once and launches the Files app, which is what initialises the AppGroup storage in the first place. `bin/simulators status` reports whether a machine is fully provisioned; `bin/simulators` alone prints the full command reference.
 
 ---
 
