@@ -900,10 +900,11 @@ function PlayPage({ onNav }) {
           has them. Click anywhere else, or press <K>Tab</K>, and the page gets the keyboard back.
         </p>
         <p>
-          Every key on the face has a binding. Second functions work the way they do on the real
-          machine: press <K>'</K> for <strong>2nd</strong>, then the key. Holding <K>Shift</K> while
-          you press a letter is a shortcut for the same thing — <K>Shift</K> + <K>A</K> gives you
-          <strong> A'</strong>, <K>Shift</K> + <K>Q</K> gives you <strong>sin</strong>, and so on.
+          The number keys, the yellow operation keys, <strong>A</strong>–<strong>E</strong>, and
+          <strong> EE</strong> <strong>(</strong> <strong>)</strong> are typeable. Everything else —
+          2nd, STO, RCL, LRN and the rest — is click-only, so the keyboard stays out of the way of
+          the page. Holding <K>Shift</K> while you press a letter gives you that key's second
+          function: <K>Shift</K> + <K>A</K> is <strong>A'</strong>.
         </p>
       </div>
 
