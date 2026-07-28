@@ -85,6 +85,11 @@ Swift app and the web build:
   specific glyphs (see the table above).
 - The key row/col matrix table exists once in `TI59MachineWrapper.mm`
   (`kbits[]`) and once in `docs/matrix-keys.js`.
+- The physical-keyboard mapping (computer key → matrix code, the Shift-as-2nd
+  rule, and the press/hold/release timing) exists once in
+  `App/TI59KeyboardMap.swift` and once in `docs/keyboard-map.js`, both
+  hand-following the table in `reference/AppArchitecture.md` §
+  "Physical Keyboard Mapping".
 
 None of this is a defect in either existing GUI — each is a reasonable,
 working implementation. But it means a third GUI faces the same choice the

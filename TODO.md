@@ -11,8 +11,8 @@ Unsorted collection of ideas, bugs, observations etc.
 - **Enable/disable persistency** - For TI-58/59 (TI-58C always is persistent by design)
 
 ## UI
-- **Keyboard support** Number keys, operators, "Enter" to trigger "=" etc.
-- **Keyboard support** for debugging panels
+- **Keyboard support** for debugging panels — the calculator itself is done (macOS app and `docs/#play`, see `reference/AppArchitecture.md` § "Physical Keyboard Mapping"); the debug panels and the printer were deliberately left out. On macOS all three panels are visible at once, so Space (R/S vs. STEP) and ⌘C/⌘X (printer tape vs. selected debugger text) have no unambiguous owner. Needs a panel-ownership decision first, not just bindings.
+- **Keyboard support on iPadOS** — an iPad with a hardware keyboard is a plausible case the current macOS-only gating excludes. The map and the view-model machinery are already platform-neutral; only `KeyboardView`'s `#if os(macOS)` and a focus story for the portrait page navigation would need work.
 
 ## Debugger
 ### CPU Debugger

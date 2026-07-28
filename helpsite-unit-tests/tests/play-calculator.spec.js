@@ -92,6 +92,72 @@ test('2nd -> Pgm -> 01 shows the Master Library diagnostic cue card', async ({ p
   await expect(page.locator('.cuecard')).toContainText('ML-01');
 });
 
+// ── Physical keyboard (docs/keyboard-map.js) ────────────────────────────
+//
+// The cue card is the assertion target rather than the display: the LED is a
+// <canvas>, so there is no DOM text to read, but "2nd, Pgm, 01" puts a cue card
+// in the DOM and only does so if the keys actually reached the emulation core.
+
+// Focus without clicking — a click would land on a key and press it.
+async function focusCalculator(page) {
+  await page.locator('.calcu-device').focus();
+}
+
+async function typeKey(page, key) {
+  await page.keyboard.press(key);
+  await page.waitForTimeout(250); // covers the 80 ms hold + 120 ms gap per code
+}
+
+test('typing 2nd Pgm 01 on the keyboard shows the cue card', async ({ page }) => {
+  await gotoPlayReady(page);
+  await focusCalculator(page);
+
+  await typeKey(page, "'");  // 2nd
+  await typeKey(page, 'l');  // LRN, whose 2nd-function is Pgm
+  await typeKey(page, '0');
+  await typeKey(page, '1');
+  await page.waitForTimeout(300);
+
+  await expect(page.locator('.cuecard')).toContainText('MASTER LIBRARY DIAGNOSTIC');
+});
+
+test('Shift+letter is shorthand for 2nd then that key', async ({ page }) => {
+  await gotoPlayReady(page);
+  await focusCalculator(page);
+
+  // Shift+L alone should do what "'" then "l" did above.
+  await page.keyboard.press('Shift+L');
+  await page.waitForTimeout(500);  // two full taps, not one
+  await typeKey(page, '0');
+  await typeKey(page, '1');
+  await page.waitForTimeout(300);
+
+  await expect(page.locator('.cuecard')).toContainText('MASTER LIBRARY DIAGNOSTIC');
+});
+
+test('keystrokes are ignored until the calculator has focus', async ({ page }) => {
+  await gotoPlayReady(page);
+
+  // No focusCalculator() here — the page never auto-focuses it.
+  await typeKey(page, "'");
+  await typeKey(page, 'l');
+  await typeKey(page, '0');
+  await typeKey(page, '1');
+  await page.waitForTimeout(300);
+
+  await expect(page.locator('.cuecard')).toHaveCount(0);
+});
+
+test('the standalone app does not capture keystrokes', async ({ page }) => {
+  await page.goto('/app/index.html');
+  await expect(page.getByText('Starting the emulator')).toHaveCount(0, { timeout: 15000 });
+
+  // keyboard-map.js is deliberately not loaded there, and PlayCalculator is
+  // mounted without the keyboard prop.
+  expect(await page.evaluate(() => typeof ti59KeyboardMatrixCodes)).toBe('undefined');
+  expect(await page.locator('.calcu-device').getAttribute('tabindex')).toBeNull();
+});
+
 test('loading the Base Conversion preset shows its own cue card', async ({ page }) => {
   await gotoPlayReady(page);
 

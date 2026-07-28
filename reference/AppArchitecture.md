@@ -129,6 +129,104 @@ card-detect line, and bit 0 which is unused — hardware layout).
 
 ---
 
+## Physical Keyboard Mapping
+
+Computer keyboards drive the calculator on the two computer-facing builds: the
+macOS app (`App/TI59KeyboardMap.swift` + `KeyboardView`'s
+`PhysicalKeyboardModifier`) and the embedded web calculator at `docs/#play`
+(`docs/keyboard-map.js` + `docs/PlayCalculator.jsx`). **iOS/iPadOS, and the
+standalone web app at `docs/app/`, deliberately have no keyboard input.** The
+debugger and printer panels have none either — on macOS all panels are visible
+at once, so Space (R/S vs. STEP) and ⌘C/⌘X (printer tape vs. selected debugger
+text) have no unambiguous owner.
+
+This section is the source of truth; the Swift and JS tables are two hand-ported
+copies of it (see `reference/NewGUIGuide.md` § "Known Duplication Traps").
+Values are **matrix codes**, as in the table above.
+
+### The three rules
+
+1. **All 45 keys of the face have an unshifted binding.** 2nd functions are not
+   bound separately — they are reached as on hardware, by pressing 2nd and then
+   the key, so a binding resolves to *one or two* matrix codes.
+2. **Shift + letter is shorthand for "2nd, then that letter's key."** That is
+   what gives A′–E′ from `Shift+A`…`Shift+E`, and for free sin/cos/tan from
+   `Shift+Q/V/W`, log from `Shift+N`, Pgm from `Shift+L`, and so on.
+3. **Shift is not a 2nd prefix for non-letters**, which resolve on the character
+   the keyboard produced: `Shift+.` is `>` → EE, not "2nd `.`". This is also
+   what makes the shifted symbols work — on a US layout `*`, `(`, `)`, `+` and
+   `^` are all Shift-something.
+
+Lookup goes through the produced character, never a physical scan code, so a
+non-US layout works wherever it puts these characters. Known gap: on a layout
+where `'` is a dead key the literal 2nd key is unreachable, and only the
+`Shift`+letter shorthand remains.
+
+### The table
+
+| Keyboard | TI key | Matrix | | Keyboard | TI key | Matrix |
+|---|---|---|---|---|---|---|
+| `0`–`9` | 0–9 | 92 82 83 84 72 73 74 62 63 64 | | `a`–`e` | A–E | 11–15 |
+| `.` `,` | . | 93 | | `A`–`E` (Shift) | A′–E′ | 21 + 11–15 |
+| `_` `F9` | +/− | 94 | | `'` | 2nd | 21 |
+| `+` | + | 85 | | `i` | INV | 22 |
+| `-` | − | 75 | | `n` | lnx | 23 |
+| `*` `x` | × | 65 | | `l` | LRN | 31 |
+| `/` | ÷ | 55 | | `t` | x⇄t | 32 |
+| `=` `Return`/`Enter` | = | 95 | | `q` | x² | 33 |
+| `(` `)` | ( ) | 53 54 | | `v` | √x | 34 |
+| `^` `y` | yˣ | 45 | | `w` | 1/x | 35 |
+| `>` | EE | 52 | | `s` | STO | 42 |
+| `Escape` | CLR | 25 | | `r` | RCL | 43 |
+| `Backspace` `Delete` | CE | 24 | | `u` | SUM | 44 |
+| `Space` | R/S | 91 | | `g` | GTO | 61 |
+| `Home` | RST | 81 | | `j` | SBR | 71 |
+| `↓` `↑` | SST BST | 41 51 | | | | |
+
+Numeric-keypad keys need no entries of their own — they produce the same
+characters as their main-block counterparts. `x` is bound to × as well as `*`
+so a keyboard without a numpad doesn't need `Shift+8` for every
+multiplication; nothing else claims `x`, since EE is on `>` and `e` belongs to
+the E user key.
+
+### Injection timing
+
+Both implementations obey `KeypressLatch.md`: `key[]` is a wire level, not an
+event, and the ROM only accepts a key seen at two scans one display sweep
+apart. A release that lands too early is discarded as bounce.
+
+- A press is held a **minimum** hold time even if key-up arrives sooner — the
+  release is deferred, not dropped. Without this, fast typing loses keys.
+  100 ms in the app (`EmulatorViewModel.tapMatrixKey`, shared with KEYSTROKES
+  script playback); 80 ms hold + 120 ms gap on the web, matching
+  `calc-engine-worker.js`'s KEYSTROKES replay.
+- **One key at a time.** A key-down while another is held releases the previous
+  one first — the hardware rejects chords anyway.
+- **OS auto-repeat is ignored** (SwiftUI `KeyPress.Phases.repeat` is not
+  subscribed; JS checks `event.repeat`). The matrix bit is a level, so a held
+  key can never re-trigger and repeats would only produce spurious releases.
+- A two-code (2nd-prefixed) binding is **one logical action played back as two
+  full taps** — key-up is ignored for it, because the ROM has to see 2nd
+  released and re-scanned before the second key can be accepted.
+
+### Focus scoping
+
+Keys are only claimed while the calculator has focus, on both platforms.
+
+- **macOS**: the Mac window shows calculator, printer and debug panels side by
+  side. `KeyboardView` takes focus on appear and reclaims it whenever the
+  calculator is touched; a thin orange ring shows which panel has it.
+  `CPUInspectorView` therefore takes focus on click rather than on appear — it
+  used to grab first responder in `onAppear`, which would divert every keypress
+  away from the calculator.
+- **Web**: the container is `tabIndex=0` with a golden outline, focused on
+  pointer-down (with `preventScroll`, or the calculator scrolls into view
+  mid-click and the key moves out from under the pointer). Not auto-focused on
+  mount — `#play` is a long article, and Tab must keep working as Tab rather
+  than trapping the reader inside the keypad.
+
+---
+
 ## Card Reader Flow
 
 ```
