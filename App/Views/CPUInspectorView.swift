@@ -285,8 +285,12 @@ struct CPUInspectorView: View {
             }
             .focusable()
             .focused($isFocused)
+            // Focus is taken on click, not on appear: this panel is visible
+            // alongside the calculator on macOS, and grabbing first responder here
+            // would silently divert every physical keypress away from the
+            // calculator's keyboard input (see KeyboardView's PhysicalKeyboardModifier).
+            .onTapGesture { isFocused = true }
             .onAppear {
-                isFocused = true
                 // Gate CPU tracing + snapshot building on panel visibility.
                 // Entering also resets the ROM heatmap (counts start at "visible").
                 vm.cpuDebugEnabled = true

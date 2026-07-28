@@ -769,6 +769,130 @@ class EmulatorViewModel {
         machine?.releaseMatrixKey(UInt8((row + 1) * 10 + (col + 1)))
     }
 
+    /// Matrix code (11–95) → the 0-based (row, col) `pressKey`/`releaseKey` take.
+    private static func rowCol(forMatrix code: UInt8) -> (row: Int, col: Int) {
+        (row: Int(code / 10) - 1, col: Int(code % 10) - 1)
+    }
+
+    private func pressMatrix(_ code: UInt8) {
+        let (row, col) = Self.rowCol(forMatrix: code)
+        pressKey(row: row, col: col)
+    }
+
+    private func releaseMatrix(_ code: UInt8) {
+        let (row, col) = Self.rowCol(forMatrix: code)
+        releaseKey(row: row, col: col)
+    }
+
+    /// Press a key, hold it long enough for the ROM to accept it, release, then
+    /// wait until the keyboard-scan idle loop is reached again.
+    ///
+    /// The 100 ms hold is comfortably longer than the ROM's worst-case debounce
+    /// window (~3 sweeps to arm + confirm, see `KeypressLatch.md`) while short
+    /// enough that a "repeat while held" key (e.g. Adv/PRT_FEED, gated by real
+    /// busy time — see the printer busy-cycle comments in `TMC0501.cpp`) only
+    /// fires a couple of times per keystroke at regular speed, matching
+    /// real-hardware button feel.
+    ///
+    /// Shared by KEYSTROKES script playback and by physical-keyboard input, so
+    /// both feed the core with the same, proven timing.
+    private func tapMatrixKey(_ code: UInt8) async {
+        pressMatrix(code)
+        try? await Task.sleep(nanoseconds: Self.keyHoldNanoseconds)
+        releaseMatrix(code)
+        await waitForScanLoopIdle()
+    }
+
+    /// Minimum time a key stays electrically down. See `tapMatrixKey`.
+    private static let keyHoldNanoseconds: UInt64 = 100_000_000
+
+    // MARK: - Physical keyboard input
+
+    /// The key a physical-keyboard press is currently holding down, as
+    /// `row * 5 + col`, so `KeyboardView` can show it depressed exactly as it
+    /// does for a pointer press. Nil when no keyboard key is down.
+    var keyboardHeldKey: Int? = nil
+
+    private var keyboardHeldCode: UInt8? = nil
+    private var keyboardPressedAt: Date? = nil
+    private var keyboardTask: Task<Void, Never>? = nil
+
+    /// Handle a physical key going down, resolved to one or two matrix codes by
+    /// `TI59KeyboardMap`.
+    ///
+    /// A single code follows the hardware's level semantics: it goes down now and
+    /// comes back up in `keyboardKeyUp()`, subject to the minimum hold. A pair
+    /// (2nd + key, e.g. Shift+A for A′) is one logical action and is played back
+    /// as two full taps instead — key-up is ignored for it, because the ROM needs
+    /// 2nd to be released and re-scanned before the second key can be accepted.
+    func keyboardKeyDown(_ codes: [UInt8]) {
+        guard let last = codes.last else { return }
+        // The hardware rejects chords, and only one key can be held at a time —
+        // mirrors KeyboardView.releaseHeldKey() for pointer input.
+        keyboardKeyUp()
+        keyboardTask?.cancel()
+
+        if codes.count == 1 {
+            keyboardHeldCode = last
+            keyboardPressedAt = Date()
+            keyboardHeldKey = Self.highlightID(forMatrix: last)
+            pressMatrix(last)
+            return
+        }
+
+        keyboardTask = Task { [weak self] in
+            for code in codes {
+                guard !Task.isCancelled, let self else { return }
+                self.keyboardHeldKey = Self.highlightID(forMatrix: code)
+                await self.tapMatrixKey(code)
+            }
+            self?.keyboardHeldKey = nil
+        }
+    }
+
+    /// Handle a physical key going up. No-op unless a single-code press is held.
+    ///
+    /// Releasing earlier than `keyHoldNanoseconds` after the press would let the
+    /// ROM discard the key as bounce (`KeypressLatch.md` constraint 3), which is
+    /// exactly what fast typing produces — so a too-early release is deferred to
+    /// the end of the hold window rather than applied.
+    func keyboardKeyUp() {
+        guard let code = keyboardHeldCode else { return }
+        keyboardHeldCode = nil
+        keyboardHeldKey = nil
+
+        let held = Date().timeIntervalSince(keyboardPressedAt ?? .distantPast)
+        keyboardPressedAt = nil
+        let remaining = Double(Self.keyHoldNanoseconds) / 1_000_000_000 - held
+        guard remaining > 0 else {
+            releaseMatrix(code)
+            return
+        }
+        Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(remaining * 1_000_000_000))
+            self?.releaseMatrix(code)
+        }
+    }
+
+    /// Force-release whatever the keyboard is holding — used when the calculator
+    /// view loses focus or is torn down, so a matrix bit can't stay stuck set.
+    func keyboardRelease() {
+        keyboardTask?.cancel()
+        keyboardTask = nil
+        if let code = keyboardHeldCode {
+            keyboardHeldCode = nil
+            keyboardPressedAt = nil
+            releaseMatrix(code)
+        }
+        keyboardHeldKey = nil
+    }
+
+    /// Matrix code → the `row * 5 + col` identifier `KeyboardView` highlights by.
+    private static func highlightID(forMatrix code: UInt8) -> Int {
+        let (row, col) = rowCol(forMatrix: code)
+        return row * 5 + col
+    }
+
     // MARK: - Printer
 
     func pressPrinterPrint(_ pressed: Bool) { machine?.pressPrinterPrint(pressed) }
@@ -2676,15 +2800,7 @@ class EmulatorViewModel {
             guard !Task.isCancelled else { return }
             switch event {
             case .key(let matrixCode):
-                machine?.pressMatrixKey(matrixCode)
-                // 100 ms is comfortably longer than the ROM's worst-case debounce window
-                // (~3 sweeps to arm+confirm, see KeypressLatch.md) while short enough that
-                // a "repeat while held" key (e.g. Adv/PRT_FEED, gated by real busy time —
-                // see printer busy-cycle comments in TMC0501.cpp) only fires a couple of
-                // times per keystroke at regular speed, matching real-hardware button feel.
-                try? await Task.sleep(nanoseconds: 100_000_000)  // hold 100 ms
-                machine?.releaseMatrixKey(matrixCode)
-                await waitForScanLoopIdle()
+                await tapMatrixKey(matrixCode)
             case .toggleTrace:
                 togglePrinterTrace()
             case .wait(let t):

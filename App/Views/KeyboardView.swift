@@ -100,6 +100,11 @@ struct KeyboardView: View {
 
     @State private var pressedKey: Int? = nil   // physRow * 5 + physCol
 
+    /// Whether physical keypresses go to the calculator. Only consumed on macOS,
+    /// where the calculator shares the window with the printer and debug panels —
+    /// see `PhysicalKeyboardModifier` below.
+    @FocusState private var isKeyboardFocused: Bool
+
     private func releaseHeldKey() {
         if let prev = pressedKey {
             viewModel.releaseKey(row: prev / 5, col: prev % 5)
@@ -184,6 +189,12 @@ struct KeyboardView: View {
                     .gesture(
                         DragGesture(minimumDistance: 0)
                             .onChanged { value in
+                                // Touching the calculator claims physical-keyboard
+                                // focus back from whichever panel had it. The drag
+                                // gesture consumes the click, so relying on
+                                // .focusable()'s own click-to-focus isn't enough.
+                                isKeyboardFocused = true
+
                                 let nx = value.location.x / w
                                 let ny = value.location.y / h
 
@@ -229,8 +240,10 @@ struct KeyboardView: View {
                     )
 
                 // ── Press highlight ─────────────────────────────────────
-                // Simulate key press: shift key down-right and expose black background
-                if let pk = pressedKey {
+                // Simulate key press: shift key down-right and expose black background.
+                // Physical-keyboard presses light the same highlight, so a typed key
+                // looks exactly like a clicked one.
+                if let pk = pressedKey ?? viewModel.keyboardHeldKey {
                     let r = Self.keyRects[pk / 5][pk % 5]
                     let keyW = w * r.width
                     let keyH = h * r.height * Self.kbYScale
@@ -263,16 +276,87 @@ struct KeyboardView: View {
             }
         }
         .aspectRatio(Self.imageAspect, contentMode: .fit)
+        .physicalKeyboard(viewModel: viewModel, focus: $isKeyboardFocused)
         .onDisappear {
             // If this view is torn down mid-gesture (e.g. rapid panel switching),
             // the DragGesture's onEnded never fires. Force-release any held key
             // so its matrix bit doesn't stay stuck set in the emulator core.
             releaseHeldKey()
+            viewModel.keyboardRelease()
             viewModel.isDisplayPressed = false
             viewModel.isFullSpeedMode = false
         }
     }
 }
+
+// MARK: - Physical keyboard (macOS)
+
+private extension View {
+    /// Route physical key presses to the calculator, on the platforms that have a
+    /// keyboard to route. No-op off macOS: iOS/iPadOS is deliberately out of
+    /// scope (see `reference/AppArchitecture.md` § "Physical Keyboard Mapping").
+    @ViewBuilder
+    func physicalKeyboard(viewModel: EmulatorViewModel, focus: FocusState<Bool>.Binding) -> some View {
+        #if os(macOS)
+        modifier(PhysicalKeyboardModifier(viewModel: viewModel, focus: focus))
+        #else
+        self
+        #endif
+    }
+}
+
+#if os(macOS)
+/// Makes the calculator focusable and feeds key-down/key-up to the emulator.
+///
+/// Focus-scoped on purpose: the Mac window shows the calculator, the printer and
+/// the debug panels side by side, so keys must only reach the calculator while it
+/// is the focused panel — otherwise arrow keys meant for the CPU inspector's
+/// instruction list would also step the program. The calculator takes focus on
+/// appear, so typing works immediately at launch.
+private struct PhysicalKeyboardModifier: ViewModifier {
+    let viewModel: EmulatorViewModel
+    let focus: FocusState<Bool>.Binding
+
+    private var isFocused: Bool { focus.wrappedValue }
+
+    func body(content: Content) -> some View {
+        content
+            .focusable()
+            .focusEffectDisabled()
+            .focused(focus)
+            .overlay {
+                // The only cue that keys go here rather than to the debug panel.
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(Color.orange.opacity(isFocused ? 0.35 : 0), lineWidth: 1.5)
+                    .allowsHitTesting(false)
+                    .animation(.easeInOut(duration: 0.15), value: isFocused)
+            }
+            .onAppear { focus.wrappedValue = true }
+            .onChange(of: isFocused) { _, focused in
+                // Losing focus mid-press would otherwise leave the matrix bit set.
+                if !focused { viewModel.keyboardRelease() }
+            }
+            // Subscribing to .down and .up only — auto-repeat arrives as .repeat
+            // and is dropped here, which is what we want: the matrix bit is a
+            // level, so a held key can never re-trigger and repeats would only
+            // produce spurious releases.
+            .onKeyPress(phases: [.down, .up]) { keyPress in
+                switch keyPress.phase {
+                case .down:
+                    guard let codes = TI59KeyboardMap.matrixCodes(for: keyPress) else { return .ignored }
+                    viewModel.keyboardKeyDown(codes)
+                    return .handled
+                case .up:
+                    guard TI59KeyboardMap.matrixCodes(for: keyPress) != nil else { return .ignored }
+                    viewModel.keyboardKeyUp()
+                    return .handled
+                default:
+                    return .ignored
+                }
+            }
+    }
+}
+#endif
 
 #Preview {
     KeyboardView()
