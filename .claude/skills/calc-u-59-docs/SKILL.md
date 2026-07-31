@@ -49,16 +49,16 @@ HTML keeps showing the old text. `node .seo/check.js` verifies the output.
 `.github/workflows/build-site.yml` on the `gh-pages` branch does both on every
 push as a backstop.
 
-Full details — the URL map, where each SEO concern lives, how to add a page —
-are in `docs/.seo/README.md`. Read it before changing anything under `docs/`;
-do not restate it here.
+**Serving the site for manual testing means building it first.** The server
+hands out the last build's output, never the `.jsx` on disk, so an unbuilt
+server shows the user the *previous* version of whatever they asked you to
+change. `node .seo/build.js && python3 -m http.server 8000`, from `docs/`.
 
-**`sitemap.xml`'s `lastmod` is deliberately the build date.** Every URL gets
-today's date on every build, so all pages claim to have changed whenever any
-one did. This is a known, accepted trade-off, not an oversight: the honest
-alternative is per-file dates from `git log`, which would make the build
-depend on git history and would silently produce wrong dates in CI unless the
-workflow also set `fetch-depth: 0`. Leave it alone unless the user asks.
+`docs/.seo/README.md` is the reference for all of this — the URL map, where
+each SEO concern lives, how to add a page, how to serve it locally, and the
+decisions that look like bugs but are deliberate (`sitemap.xml`'s `lastmod`
+is one). **Read it before changing anything under `docs/`, and put new
+build or SEO facts there rather than here.**
 
 **Git setup — worktree:** `docs/` is a separate git worktree tracking the `gh-pages` branch, not the main repo branch. It is listed in `.gitignore` so it is invisible to the main repo's `git status`. Always commit docs changes from inside `docs/`:
 
@@ -69,18 +69,17 @@ git -C /path/to/Calc-U-59/docs commit -m "..."
 
 Do **not** use the root repo's git commands for docs files — they will show nothing staged and the changes will appear lost.
 
-Key files:
+Content and design files, the ones this skill is about (`.seo/README.md`
+covers the build and routing files):
 
 | File | Role |
 |------|------|
 | `docs/Pages.jsx` | Page content: home, install, debugger, … |
 | `docs/Calculator.jsx` | Interactive calculator component |
 | `docs/components.jsx` | Reusable UI components |
-| `docs/routes.js` | The URL map — add a page here |
-| `docs/site.jsx` | Client-side router |
-| `docs/.seo/` | The build, the checker, per-page titles and descriptions |
 | `docs/styles.css` | Main stylesheet |
 | `docs/colors_and_type.css` | Design tokens (colors, typography) — load this first |
+| `docs/fonts/` | Self-hosted WOFF2 + each family's OFL licence |
 | `docs/preview/` | 16 HTML specimen cards for colors, type, spacing, components |
 | `docs/assets/` | App icon, iPad screenshots, device photo |
 | `docs/CNAME` | Custom domain record (`www.calcu59.ch`) |
@@ -106,6 +105,7 @@ These are hard constraints — do not break them.
 | Radii | 6 / 7 / 10 px — no full pills, no sharp squares |
 | Icons | `<K>` keycap pill system only — no emoji, no icon libraries |
 | Copy scope | Explains installing, syncing, modules, settings, file formats, the bottom toolbar — not TI-59 hardware internals or AOS arithmetic. **One exception, below.** |
+| Third parties | **None.** Everything the browser fetches is served from `calcu59.ch`, and the site carries no analytics of any kind. **Details below.** |
 
 All color and typography tokens are in `docs/colors_and_type.css`. Wrap content in `<div class="calcu">`.
 
@@ -120,6 +120,13 @@ footer of all pages, from the home page, and from `/play/`.
 
 Do not delete it as scope creep, and do not treat it as licence to add
 hardware explanation elsewhere — the rule still holds for every other page.
+
+**No third parties, ever.** Fonts, React and the WASM core are all served
+from `calcu59.ch` — never a CDN, never Google Fonts. The site has no
+analytics, tag manager or telemetry and must not acquire any, whoever hosts
+it. Outbound `<a href>` links are fine; anything the browser fetches on its
+own is not. Why: `docs/fonts/README.md`. How it is enforced:
+`docs/.seo/README.md`.
 
 ---
 
