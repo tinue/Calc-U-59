@@ -777,7 +777,7 @@ function DebuggerPage({ onNav }) {
         <div className="panel" style={{ padding: 16 }}>
           <h3 className="sub" style={{ margin: "0 0 10px" }}>CALCULATOR tab — iPhone</h3>
           <img
-            src="assets/iphone-debug.png"
+            src="/assets/iphone-debug.png"
             alt="iPhone screenshot showing the CALCULATOR debug tab with program listing and registers"
             style={{ width: "auto", maxWidth: "60%", height: "auto", display: "block", borderRadius: 8, margin: "0 auto" }}
           />
@@ -785,7 +785,7 @@ function DebuggerPage({ onNav }) {
         <div className="panel" style={{ padding: 16 }}>
           <h3 className="sub" style={{ margin: "0 0 10px" }}>CALCULATOR tab — iPad</h3>
           <img
-            src="assets/ipad-13-2752x2064.png"
+            src="/assets/ipad-13-2752x2064.png"
             alt="iPad screenshot showing the CALCULATOR debug tab"
             style={{ width: "100%", height: "auto", display: "block", borderRadius: 8 }}
           />
@@ -793,7 +793,7 @@ function DebuggerPage({ onNav }) {
         <div className="panel" style={{ padding: 16 }}>
           <h3 className="sub" style={{ margin: "0 0 10px" }}>CPU tab — iPad</h3>
           <img
-            src="assets/ipad-2752x2064-asm.png"
+            src="/assets/ipad-2752x2064-asm.png"
             alt="iPad screenshot showing the CPU debug tab with execution trace"
             style={{ width: "100%", height: "auto", display: "block", borderRadius: 8 }}
           />

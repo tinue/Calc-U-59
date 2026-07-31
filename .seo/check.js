@@ -103,6 +103,31 @@ for (const [p, html] of built) {
   ok(!/href="#(?!\s)/.test(html.slice(html.indexOf('<div id="root">'))), `${p}: still contains a legacy #hash link`);
 }
 
+/* ---- image sources resolve ----------------------------------------- *
+ *
+ * The check above only ever looked at href="...", which <img> doesn't set,
+ * so a broken <img src> was invisible to it — that's exactly how three
+ * screenshots on /debugger/ shipped as src="assets/....png" instead of
+ * "/assets/....png". Relative to a directory route that resolves in a
+ * browser as /debugger/assets/....png, not the real file at
+ * /assets/....png — but a naive existsSync(path.join(DOCS, src)) check
+ * would still find the file (path.join doesn't know a browser resolves
+ * relative URLs against the page's own address) and miss the bug entirely.
+ * Every <img> on this site is meant to be root-relative, so require the
+ * leading "/" rather than just checking the file exists on disk.
+ */
+section("image sources");
+for (const [p, html] of built) {
+  const root = html.slice(html.indexOf('<div id="root">'));
+  const srcs = [...root.matchAll(/<img\b[^>]*\bsrc="([^"]+)"/g)].map((m) => m[1]);
+  for (const src of new Set(srcs)) {
+    ok(src.startsWith("/"), `${p}: <img src="${src}"> is not root-relative`);
+    if (src.startsWith("/")) {
+      ok(fs.existsSync(path.join(DOCS, src.replace(/^\//, ""))), `${p}: <img> asset ${src} missing`);
+    }
+  }
+}
+
 /* ---- crawl files -------------------------------------------------- */
 section("crawl files");
 const sitemap = fs.readFileSync(path.join(DOCS, "sitemap.xml"), "utf8");

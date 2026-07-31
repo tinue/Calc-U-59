@@ -1151,7 +1151,7 @@ function DebuggerPage({
       margin: "0 0 10px"
     }
   }, "CALCULATOR tab \u2014 iPhone"), /*#__PURE__*/React.createElement("img", {
-    src: "assets/iphone-debug.png",
+    src: "/assets/iphone-debug.png",
     alt: "iPhone screenshot showing the CALCULATOR debug tab with program listing and registers",
     style: {
       width: "auto",
@@ -1172,7 +1172,7 @@ function DebuggerPage({
       margin: "0 0 10px"
     }
   }, "CALCULATOR tab \u2014 iPad"), /*#__PURE__*/React.createElement("img", {
-    src: "assets/ipad-13-2752x2064.png",
+    src: "/assets/ipad-13-2752x2064.png",
     alt: "iPad screenshot showing the CALCULATOR debug tab",
     style: {
       width: "100%",
@@ -1191,7 +1191,7 @@ function DebuggerPage({
       margin: "0 0 10px"
     }
   }, "CPU tab \u2014 iPad"), /*#__PURE__*/React.createElement("img", {
-    src: "assets/ipad-2752x2064-asm.png",
+    src: "/assets/ipad-2752x2064-asm.png",
     alt: "iPad screenshot showing the CPU debug tab with execution trace",
     style: {
       width: "100%",
