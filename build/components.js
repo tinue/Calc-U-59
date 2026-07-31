@@ -262,7 +262,12 @@ function DocsSidebar({
     }, it.external ? {
       target: "_blank",
       rel: "noopener"
-    } : {
+    } : it.jump
+    // A real navigation to another page, not an in-page topic
+    // switch: no onClick of our own, so the click falls through
+    // to site.jsx's delegated listener, which already intercepts
+    // any same-site <a href> into an SPA transition.
+    ? {} : {
       onClick: e => {
         e.preventDefault();
         onPick(it.id);

@@ -172,7 +172,13 @@ function DocsSidebar({ current, onPick, sections }) {
                   href={it.href || ("/getting-started/" + it.id + "/")}
                   {...(it.external
                     ? { target: "_blank", rel: "noopener" }
-                    : { onClick: e => { e.preventDefault(); onPick(it.id); } })}
+                    : it.jump
+                      // A real navigation to another page, not an in-page topic
+                      // switch: no onClick of our own, so the click falls through
+                      // to site.jsx's delegated listener, which already intercepts
+                      // any same-site <a href> into an SPA transition.
+                      ? {}
+                      : { onClick: e => { e.preventDefault(); onPick(it.id); } })}
                   style={{
                     display: "block",
                     padding: "5px 10px", marginLeft: -12, paddingLeft: 12,

@@ -40,10 +40,15 @@ const STARTED_SECTIONS = [{
   }]
 }, {
   title: "Help",
-  items: [{
+  items: [
+  // `jump: true` rather than a topic: the FAQ has exactly one copy, on its
+  // own page. This item is a real navigation to it, not an in-page topic
+  // switch that would need its own titles/notes/topicBody entry here.
+  {
     id: "faq",
     label: "FAQ",
-    href: "/getting-started/faq/"
+    href: "/faq/",
+    jump: true
   },
   // Not a page on this site: the README lives on GitHub, so this is an
   // ordinary outbound link rather than a route that would only exist to
@@ -107,20 +112,14 @@ function HomePage({
     }
   }, /*#__PURE__*/React.createElement("a", {
     className: "btn primary",
-    href: "/getting-started/",
-    style: {
-      textDecoration: "none"
-    }
+    href: "/getting-started/"
   }, "Getting started ", /*#__PURE__*/React.createElement("span", {
     style: {
       opacity: .5
     }
   }, "\u2192")), /*#__PURE__*/React.createElement("a", {
     className: "btn secondary",
-    href: "/reference/",
-    style: {
-      textDecoration: "none"
-    }
+    href: "/reference/"
   }, "App reference"))), /*#__PURE__*/React.createElement("div", {
     className: "hero-shot"
   }, /*#__PURE__*/React.createElement("img", {
@@ -480,8 +479,7 @@ function GettingStartedPage({
     "install-mac": "Installing on Mac",
     "state-files": "Loading a state file",
     debugger: "Using the debugger",
-    printer: "Printer and card reader",
-    faq: "FAQ"
+    printer: "Printer and card reader"
   };
   const notes = {
     overview: "Install the app, load a state file, drive the printer and card reader, and find your way around the debugger.",
@@ -489,8 +487,7 @@ function GettingStartedPage({
     "install-mac": "Download the release from GitHub, then drag the app to Applications.",
     "state-files": "What .ti59/.ti58/.ti58c files contain and how the parser treats each section.",
     debugger: "CALCULATOR, CPU, LOG, freeze/step, and binary trace output.",
-    printer: "The PC-100C panel, paper strip, copy/cut, and card file behaviour.",
-    faq: "Concise answers to the questions that usually come up first."
+    printer: "The PC-100C panel, paper strip, copy/cut, and card file behaviour."
   };
   const stateFileExample = `PARTITION: 479
 PROGRAM:
@@ -727,61 +724,7 @@ PRINTER: on`;
         marginTop: 0,
         marginBottom: 0
       }
-    }, "Card files live in the app\u2019s card storage and can be loaded or saved from the card picker. The app filters the visible files to the supported card extensions and hides the iCloud placeholder entries."))),
-    faq: /*#__PURE__*/React.createElement("div", {
-      style: {
-        display: "grid",
-        gap: 8,
-        marginTop: 20
-      }
-    }, [{
-      q: "Where do state files live?",
-      a: "They are regular .ti59, .ti58, or .ti58c text files. On Mac, the preset picker opens them from disk; on iPhone and iPad, use the built-in file picker."
-    }, {
-      q: "What should I check first if a file opens wrong?",
-      a: "Check the partition, then the selected module, then the printer setting. Those three control the most visible parts of a loaded preset."
-    }, {
-      q: "Can I see what the emulator is doing internally?",
-      a: "Yes. Use the debug pane: CALCULATOR for program state and live registers, CPU for the ROM instruction trace, and LOG for text output plus trace controls. For analyzing sequences, TRACE is more useful than the CPU tab."
-    }, {
-      q: "How do I get a trace file?",
-      a: "Open the debug pane, switch to LOG, and turn TRACE on. The app writes a binary session file to the configured trace location. You can then export it and analyze it with read_trace.py."
-    }, {
-      q: "What does the CALCULATOR tab show versus the CPU tab?",
-      a: "CALCULATOR shows the instruction that will execute next, with registers in their current state before it runs. CPU shows instructions that already ran, with registers in the state after each one. STEP and RESUME also work differently per tab and are only enabled in the tab that caused the current freeze — using them in the wrong tab is prevented."
-    }, {
-      q: "My trace file is 190 MB. Is that normal?",
-      a: "Yes, for long sessions. But when you convert it to text with read_trace.py using the --clean and --skip-repeating flags, it compresses to a fraction of that size because the tool deduplicates repetitive loops."
-    }, {
-      q: "Why does the display look different between models?",
-      a: "Calc-U 59 can start in TI-59, TI-58, or TI-58C mode. The model affects the startup state, memory layout, and the available controls."
-    }, {
-      q: "Is there a faster way to read long printer output?",
-      a: "Yes. Switch the printer view to text mode, then copy or cut the strip on any build if you want a plain-text version quickly."
-    }].map((item, i) => /*#__PURE__*/React.createElement("div", {
-      key: i,
-      className: "panel",
-      style: {
-        padding: "16px 20px",
-        display: "grid",
-        gap: 8
-      }
-    }, /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontFamily: "var(--font-key)",
-        fontWeight: 700,
-        fontSize: 16,
-        textTransform: "uppercase",
-        letterSpacing: ".05em",
-        color: "var(--fg)"
-      }
-    }, item.q), /*#__PURE__*/React.createElement("p", {
-      style: {
-        margin: 0,
-        lineHeight: 1.7,
-        color: "var(--fg-2)"
-      }
-    }, item.a))))
+    }, "Card files live in the app\u2019s card storage and can be loaded or saved from the card picker. The app filters the visible files to the supported card extensions and hides the iCloud placeholder entries.")))
   };
   return /*#__PURE__*/React.createElement("main", {
     className: "wrap docs-layout"

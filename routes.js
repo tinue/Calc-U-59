@@ -36,12 +36,15 @@
     // why /getting-started/ itself renders the "overview" topic and not one
     // of these: were it to render a topic, the two URLs would be identical
     // markup claiming different canonicals.
+    //
+    // No /getting-started/faq/ entry: the FAQ sidebar item is a real link to
+    // /faq/ (see Pages.jsx's STARTED_SECTIONS), not an in-page topic, so
+    // there is exactly one URL and one copy of the FAQ content.
     { path: "/getting-started/install-iphone-ipad/", page: "start", topic: "install-mobile", canonical: "/install/iphone-ipad/" },
     { path: "/getting-started/install-mac/",         page: "start", topic: "install-mac",    canonical: "/install/mac/" },
     { path: "/getting-started/state-files/",         page: "start", topic: "state-files",    canonical: "/state-files/" },
     { path: "/getting-started/debugger/",            page: "start", topic: "debugger",       canonical: "/debugger/" },
-    { path: "/getting-started/printer/",             page: "start", topic: "printer" },
-    { path: "/getting-started/faq/",                 page: "start", topic: "faq",            canonical: "/faq/" }
+    { path: "/getting-started/printer/",             page: "start", topic: "printer" }
   ];
 
   // Old #hash URLs → new paths. Anything already shared or linked keeps
@@ -56,7 +59,7 @@
     "start/state-files":      "/getting-started/state-files/",
     "start/debugger":         "/getting-started/debugger/",
     "start/printer":          "/getting-started/printer/",
-    "start/faq":              "/getting-started/faq/",
+    "start/faq":              "/faq/",
     // The README is no longer a page here, only a link out to GitHub.
     "start/readme":           "/getting-started/",
     "install-mobile":         "/install/iphone-ipad/",

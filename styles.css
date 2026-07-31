@@ -280,14 +280,6 @@ h3.sub {
   padding: 20px 22px;
   box-shadow: var(--shadow-card);
 }
-.callout {
-  background: rgba(240,192,64,.06);
-  border-left: 2px solid var(--accent);
-  border-radius: 0 6px 6px 0;
-  padding: 14px 18px; margin: 16px 0;
-}
-.callout .eyebrow { color: var(--accent); margin-bottom: 2px; }
-
 /* ---------- Keystroke pill --------------------------------------------- */
 .k {
   display: inline-flex; align-items: center; justify-content: center;
@@ -340,6 +332,7 @@ h3.sub {
 .site-footer a { color: var(--fg-2); text-decoration: none; }
 .site-footer a:hover { color: var(--fg); }
 .site-footer .credits { margin-left: auto; font-family: var(--font-mono); font-size: 11px; opacity: .7; }
+.site-footer .disclaimer { flex-basis: 100%; font-size: 11px; line-height: 1.5; color: var(--fg-3); opacity: .85; margin-top: 4px; max-width: 80ch; }
 
 /* ---------- Cue card (docs/#play, docs/cuecard.jsx) --------------------- */
 /* Deliberately tight: this sits directly under the LED display, not as a
@@ -369,4 +362,3 @@ h3.sub {
 .align-left { text-align: left; }
 .align-center { text-align: center; }
 .align-right { text-align: right; }
-.site-footer .disclaimer { flex-basis: 100%; font-size: 11px; line-height: 1.5; color: var(--fg-3); opacity: .85; margin-top: 4px; max-width: 80ch; }
