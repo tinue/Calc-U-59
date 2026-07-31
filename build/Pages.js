@@ -84,16 +84,10 @@ function HomePage({
       borderBottom: "1px solid var(--stroke)"
     }
   }, /*#__PURE__*/React.createElement("div", {
-    className: "wrap",
-    style: {
-      display: "grid",
-      gridTemplateColumns: "1.1fr auto",
-      gap: 64,
-      alignItems: "center",
-      paddingTop: 56,
-      paddingBottom: 56
-    }
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
+    className: "wrap hero"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "hero-copy"
+  }, /*#__PURE__*/React.createElement("p", {
     className: "eyebrow"
   }, "TI-59 emulator for Mac, iPhone and iPad"), /*#__PURE__*/React.createElement("h1", {
     className: "page-title"
@@ -108,7 +102,8 @@ function HomePage({
   }, "try it in your browser"), " before you install anything."), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
-      gap: 12
+      gap: 12,
+      flexWrap: "wrap"
     }
   }, /*#__PURE__*/React.createElement("a", {
     className: "btn primary",
@@ -126,13 +121,13 @@ function HomePage({
     style: {
       textDecoration: "none"
     }
-  }, "App reference")), /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginTop: 20,
-      display: "grid",
-      gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-      gap: 12
-    }
+  }, "App reference"))), /*#__PURE__*/React.createElement("div", {
+    className: "hero-shot"
+  }, /*#__PURE__*/React.createElement("img", {
+    src: "/assets/app-screenshot.png",
+    alt: "The Calc-U 59 TI-59 emulator running on an iPhone, showing the red LED display, the cue card and the full key matrix"
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "hero-cards grid-2"
   }, /*#__PURE__*/React.createElement("div", {
     className: "panel",
     style: {
@@ -165,31 +160,12 @@ function HomePage({
       fontSize: 14,
       lineHeight: 1.6
     }
-  }, "Download the release from GitHub, drag the app to Applications, then use right-click ", /*#__PURE__*/React.createElement("strong", null, "Open"), " the first time if macOS blocks it.")))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      justifyContent: "center"
-    }
-  }, /*#__PURE__*/React.createElement("img", {
-    src: "/assets/app-screenshot.png",
-    alt: "The Calc-U 59 TI-59 emulator running on an iPhone, showing the red LED display, the cue card and the full key matrix",
-    style: {
-      height: 620,
-      width: "auto",
-      display: "block",
-      borderRadius: 44,
-      boxShadow: "0 10px 40px rgba(0,0,0,.7), 0 0 0 1px rgba(255,200,100,.06)"
-    }
-  })))), /*#__PURE__*/React.createElement("div", {
+  }, "Download the release from GitHub, drag the app to Applications, then use right-click ", /*#__PURE__*/React.createElement("strong", null, "Open"), " the first time if macOS blocks it."))))), /*#__PURE__*/React.createElement("div", {
     className: "wrap"
   }, /*#__PURE__*/React.createElement("h2", {
     className: "section"
   }, "Where to start"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "grid",
-      gridTemplateColumns: "repeat(3, 1fr)",
-      gap: 16
-    }
+    className: "grid-3"
   }, /*#__PURE__*/React.createElement(TopicCard, {
     num: "01",
     eyebrow: "Setup",
@@ -808,29 +784,17 @@ PRINTER: on`;
     }, item.a))))
   };
   return /*#__PURE__*/React.createElement("main", {
-    className: "wrap",
-    style: {
-      display: "flex",
-      gap: 32,
-      alignItems: "flex-start"
-    }
+    className: "wrap docs-layout"
   }, /*#__PURE__*/React.createElement(DocsSidebar, {
     current: topic,
     onPick: handlePick,
     sections: STARTED_SECTIONS
   }), /*#__PURE__*/React.createElement("article", {
-    style: {
-      flex: 1,
-      minWidth: 0
-    },
-    className: "prose"
+    className: "prose docs-article"
   }, /*#__PURE__*/React.createElement("p", {
     className: "eyebrow"
   }, "Getting started"), /*#__PURE__*/React.createElement("h1", {
-    className: "page-title",
-    style: {
-      fontSize: 40
-    }
+    className: "page-title compact"
   }, titles[topic]), /*#__PURE__*/React.createElement("p", {
     className: "lede"
   }, notes[topic]), topicBody[topic]));
@@ -1308,13 +1272,7 @@ function ReferencePage({
   onNav
 }) {
   return /*#__PURE__*/React.createElement("main", {
-    className: "wrap",
-    style: {
-      display: "grid",
-      gridTemplateColumns: "1fr 380px",
-      gap: 48,
-      alignItems: "flex-start"
-    }
+    className: "wrap docs-split"
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("p", {
     className: "eyebrow"
   }, "App Reference"), /*#__PURE__*/React.createElement("h1", {
@@ -1398,10 +1356,7 @@ function ReferencePage({
   }, /*#__PURE__*/React.createElement(BackButton, {
     onNav: onNav
   }))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      position: "sticky",
-      top: 96
-    }
+    className: "docs-aside"
   }, /*#__PURE__*/React.createElement("div", {
     className: "panel",
     style: {
@@ -1756,10 +1711,8 @@ function ModulesPage({
       marginBottom: 0
     }
   }, "If the cue card or program list looks unexpected, the module selection is the first thing to check.")), /*#__PURE__*/React.createElement("div", {
+    className: "grid-2",
     style: {
-      display: "grid",
-      gridTemplateColumns: "repeat(2, 1fr)",
-      gap: 12,
       marginTop: 24
     }
   }, modules.map(m => /*#__PURE__*/React.createElement("div", {
@@ -1814,18 +1767,47 @@ function ModulesPage({
     onNav: onNav
   })));
 }
+
+// PlayCalculator lays itself out from a fixed 360px grid multiplied by
+// `scale`, so a constant 1.4 is a hard 504px — wider than any iPhone in
+// portrait, which is why the fifth key column used to run off the page.
+// Measure the container instead of the window: .wrap-narrow's gutters change
+// at the 620px breakpoint, and the element already knows what it was given.
+function useFittedScale(max, min) {
+  const ref = React.useRef(null);
+  const [scale, setScale] = React.useState(max);
+  React.useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    function measure() {
+      // 8px: the focus ring PlayCalculator permanently reserves around itself.
+      setScale(Math.max(min, Math.min(max, (el.clientWidth - 8) / 360)));
+    }
+    measure();
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", measure);
+      return () => window.removeEventListener("resize", measure);
+    }
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [max, min]);
+  return [ref, scale];
+}
 function PlayPage({
   onNav
 }) {
+  const [holderRef, scale] = useFittedScale(1.4, 0.7);
   return /*#__PURE__*/React.createElement("main", {
     className: "wrap-narrow"
   }, /*#__PURE__*/React.createElement("div", {
+    ref: holderRef,
     style: {
       display: "flex",
       justifyContent: "center"
     }
   }, /*#__PURE__*/React.createElement(PlayCalculator, {
-    scale: 1.4,
+    scale: scale,
     keyboard: true
   })), /*#__PURE__*/React.createElement("h1", {
     className: "page-title",

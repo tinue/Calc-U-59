@@ -17,6 +17,15 @@ function SiteHeader({ page }) {
     { id: "modules",  label: "Modules",         href: "/modules/" },
     { id: "faq",      label: "FAQ",             href: "/faq/" },
   ];
+  // Under 1060px the links collapse behind a disclosure button (styles.css).
+  // They are hidden with CSS rather than unmounted, so the markup a crawler
+  // gets from .seo/build.js is identical on both layouts.
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  // site.jsx navigates without a reload, so nothing else would ever close
+  // the panel — it would sit open on top of the page it just opened.
+  useEffect(() => { setMenuOpen(false); }, [page]);
+
   return (
     <header className="site-header">
       <div className="inner">
@@ -27,17 +36,33 @@ function SiteHeader({ page }) {
             <span className="sub">User Guide</span>
           </div>
         </a>
-        <nav className="nav">
-          {items.map(i => (
-            <a key={i.id}
-               href={i.href}
-               className={page === i.id ? "active" : ""}>
-              {i.label}
-            </a>
-          ))}
-          <a href="https://github.com/tinue/Calc-U-59">Github</a>
-        </nav>
-        <a className="nav-cta" href="https://apps.apple.com/us/app/calc-u-59/id6761413142" title="Calc-U 59 TI-59 emulator on the App Store">App Store</a>
+        <button
+          type="button"
+          className="nav-toggle"
+          aria-expanded={menuOpen}
+          aria-controls="site-nav"
+          aria-label={menuOpen ? "Close menu" : "Open menu"}
+          onClick={() => setMenuOpen(open => !open)}>
+          {/* Three bars drawn in CSS. No icon library, per the design rules. */}
+          <span className="nav-toggle-bars" aria-hidden="true"><i /><i /><i /></span>
+        </button>
+        {/* Closes on any click inside: an in-site link is intercepted into an
+            SPA transition, and an external one leaves anyway. */}
+        <div id="site-nav"
+             className={menuOpen ? "nav-panel open" : "nav-panel"}
+             onClick={() => setMenuOpen(false)}>
+          <nav className="nav">
+            {items.map(i => (
+              <a key={i.id}
+                 href={i.href}
+                 className={page === i.id ? "active" : ""}>
+                {i.label}
+              </a>
+            ))}
+            <a href="https://github.com/tinue/Calc-U-59">Github</a>
+          </nav>
+          <a className="nav-cta" href="https://apps.apple.com/us/app/calc-u-59/id6761413142" title="Calc-U 59 TI-59 emulator on the App Store">App Store</a>
+        </div>
       </div>
     </header>
   );
@@ -134,11 +159,9 @@ function TopicCard({ num, eyebrow, title, children, href, onClick }) {
    ============================================================= */
 function DocsSidebar({ current, onPick, sections }) {
   return (
-    <aside style={{
-      width: 240, flex: "0 0 240px",
-      borderRight: "1px solid var(--stroke)",
-      paddingRight: 20,
-    }}>
+    // Sizing lives in styles.css (.docs-sidebar) so the 900px breakpoint can
+    // turn the rail into a full-width block above the article.
+    <aside className="docs-sidebar">
       {sections.map(sec => (
         <div key={sec.title} style={{ marginBottom: 24 }}>
           <div className="eyebrow" style={{ marginBottom: 6, color: "var(--fg-3)" }}>{sec.title}</div>

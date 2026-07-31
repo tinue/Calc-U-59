@@ -42,6 +42,16 @@ function SiteHeader({
     label: "FAQ",
     href: "/faq/"
   }];
+  // Under 1060px the links collapse behind a disclosure button (styles.css).
+  // They are hidden with CSS rather than unmounted, so the markup a crawler
+  // gets from .seo/build.js is identical on both layouts.
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  // site.jsx navigates without a reload, so nothing else would ever close
+  // the panel — it would sit open on top of the page it just opened.
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [page]);
   return /*#__PURE__*/React.createElement("header", {
     className: "site-header"
   }, /*#__PURE__*/React.createElement("div", {
@@ -59,7 +69,21 @@ function SiteHeader({
     className: "top"
   }, "Calc-U ", /*#__PURE__*/React.createElement("em", null, "59")), /*#__PURE__*/React.createElement("span", {
     className: "sub"
-  }, "User Guide"))), /*#__PURE__*/React.createElement("nav", {
+  }, "User Guide"))), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "nav-toggle",
+    "aria-expanded": menuOpen,
+    "aria-controls": "site-nav",
+    "aria-label": menuOpen ? "Close menu" : "Open menu",
+    onClick: () => setMenuOpen(open => !open)
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "nav-toggle-bars",
+    "aria-hidden": "true"
+  }, /*#__PURE__*/React.createElement("i", null), /*#__PURE__*/React.createElement("i", null), /*#__PURE__*/React.createElement("i", null))), /*#__PURE__*/React.createElement("div", {
+    id: "site-nav",
+    className: menuOpen ? "nav-panel open" : "nav-panel",
+    onClick: () => setMenuOpen(false)
+  }, /*#__PURE__*/React.createElement("nav", {
     className: "nav"
   }, items.map(i => /*#__PURE__*/React.createElement("a", {
     key: i.id,
@@ -71,7 +95,7 @@ function SiteHeader({
     className: "nav-cta",
     href: "https://apps.apple.com/us/app/calc-u-59/id6761413142",
     title: "Calc-U 59 TI-59 emulator on the App Store"
-  }, "App Store")));
+  }, "App Store"))));
 }
 
 /* =============================================================
@@ -208,57 +232,57 @@ function DocsSidebar({
   onPick,
   sections
 }) {
-  return /*#__PURE__*/React.createElement("aside", {
-    style: {
-      width: 240,
-      flex: "0 0 240px",
-      borderRight: "1px solid var(--stroke)",
-      paddingRight: 20
-    }
-  }, sections.map(sec => /*#__PURE__*/React.createElement("div", {
-    key: sec.title,
-    style: {
-      marginBottom: 24
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "eyebrow",
-    style: {
-      marginBottom: 6,
-      color: "var(--fg-3)"
-    }
-  }, sec.title), /*#__PURE__*/React.createElement("ul", {
-    style: {
-      listStyle: "none",
-      padding: 0,
-      margin: 0
-    }
-  }, sec.items.map(it => /*#__PURE__*/React.createElement("li", {
-    key: it.id
-  }, /*#__PURE__*/React.createElement("a", _extends({
-    href: it.href || "/getting-started/" + it.id + "/"
-  }, it.external ? {
-    target: "_blank",
-    rel: "noopener"
-  } : {
-    onClick: e => {
-      e.preventDefault();
-      onPick(it.id);
-    }
-  }, {
-    style: {
-      display: "block",
-      padding: "5px 10px",
-      marginLeft: -12,
-      paddingLeft: 12,
-      fontFamily: "var(--font-body)",
-      fontSize: 14,
-      color: current === it.id ? "var(--fg)" : "var(--fg-2)",
-      background: current === it.id ? "rgba(240,192,64,.06)" : "transparent",
-      borderLeft: current === it.id ? "2px solid var(--accent)" : "2px solid transparent",
-      cursor: "pointer",
-      textDecoration: "none"
-    }
-  }), it.label)))))));
+  return (
+    /*#__PURE__*/
+    // Sizing lives in styles.css (.docs-sidebar) so the 900px breakpoint can
+    // turn the rail into a full-width block above the article.
+    React.createElement("aside", {
+      className: "docs-sidebar"
+    }, sections.map(sec => /*#__PURE__*/React.createElement("div", {
+      key: sec.title,
+      style: {
+        marginBottom: 24
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "eyebrow",
+      style: {
+        marginBottom: 6,
+        color: "var(--fg-3)"
+      }
+    }, sec.title), /*#__PURE__*/React.createElement("ul", {
+      style: {
+        listStyle: "none",
+        padding: 0,
+        margin: 0
+      }
+    }, sec.items.map(it => /*#__PURE__*/React.createElement("li", {
+      key: it.id
+    }, /*#__PURE__*/React.createElement("a", _extends({
+      href: it.href || "/getting-started/" + it.id + "/"
+    }, it.external ? {
+      target: "_blank",
+      rel: "noopener"
+    } : {
+      onClick: e => {
+        e.preventDefault();
+        onPick(it.id);
+      }
+    }, {
+      style: {
+        display: "block",
+        padding: "5px 10px",
+        marginLeft: -12,
+        paddingLeft: 12,
+        fontFamily: "var(--font-body)",
+        fontSize: 14,
+        color: current === it.id ? "var(--fg)" : "var(--fg-2)",
+        background: current === it.id ? "rgba(240,192,64,.06)" : "transparent",
+        borderLeft: current === it.id ? "2px solid var(--accent)" : "2px solid transparent",
+        cursor: "pointer",
+        textDecoration: "none"
+      }
+    }), it.label)))))))
+  );
 }
 
 /* =============================================================

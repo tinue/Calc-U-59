@@ -42,50 +42,37 @@ function HomePage({ onNav }) {
     <main>
       {/* Hero */}
       <section style={{ borderBottom: "1px solid var(--stroke)" }}>
-        <div className="wrap" style={{
-          display: "grid", gridTemplateColumns: "1.1fr auto", gap: 64,
-          alignItems: "center", paddingTop: 56, paddingBottom: 56,
-        }}>
-          <div>
+        <div className="wrap hero">
+          <div className="hero-copy">
             <p className="eyebrow">TI-59 emulator for Mac, iPhone and iPad</p>
             <h1 className="page-title">Calc-U <em>59</em></h1>
             <p className="lede">Calc-U 59 is a <strong style={{ color: "var(--fg)" }}>TI-59, TI-58 and TI-58C emulator</strong> for macOS, iPhone and iPad. It runs the original Texas Instruments ROM, reads and writes virtual magnetic cards, emulates the PC-100C printer and all fourteen Solid State Software modules, and includes a CPU-level debugger. You can <a href="/play/">try it in your browser</a> before you install anything.</p>
-            <div style={{ display: "flex", gap: 12 }}>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
               <a className="btn primary" href="/getting-started/" style={{ textDecoration: "none" }}>Getting started <span style={{opacity:.5}}>→</span></a>
               <a className="btn secondary" href="/reference/" style={{ textDecoration: "none" }}>App reference</a>
             </div>
-            <div style={{
-              marginTop: 20,
-              display: "grid",
-              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-              gap: 12,
-            }}>
-              <div className="panel" style={{ padding: 16 }}>
-                <h3 className="sub" style={{ margin: "0 0 6px" }}>iPhone and iPad</h3>
-                <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6 }}>
-                  Install from the App Store, then open the app and pick a model. State files load from the file picker inside the app.
-                </p>
-              </div>
-              <div className="panel" style={{ padding: 16 }}>
-                <h3 className="sub" style={{ margin: "0 0 6px" }}>Mac</h3>
-                <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6 }}>
-                  Download the release from GitHub, drag the app to Applications, then use right-click <strong>Open</strong> the first time if macOS blocks it.
-                </p>
-              </div>
-            </div>
           </div>
-          <div style={{ display: "flex", justifyContent: "center" }}>
+          {/* Placed by .hero into the right-hand column on a wide screen and
+              directly under the pitch once the hero stacks. */}
+          <div className="hero-shot">
             <img
               src="/assets/app-screenshot.png"
               alt="The Calc-U 59 TI-59 emulator running on an iPhone, showing the red LED display, the cue card and the full key matrix"
-              style={{
-                height: 620,
-                width: "auto",
-                display: "block",
-                borderRadius: 44,
-                boxShadow: "0 10px 40px rgba(0,0,0,.7), 0 0 0 1px rgba(255,200,100,.06)",
-              }}
             />
+          </div>
+          <div className="hero-cards grid-2">
+            <div className="panel" style={{ padding: 16 }}>
+              <h3 className="sub" style={{ margin: "0 0 6px" }}>iPhone and iPad</h3>
+              <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6 }}>
+                Install from the App Store, then open the app and pick a model. State files load from the file picker inside the app.
+              </p>
+            </div>
+            <div className="panel" style={{ padding: 16 }}>
+              <h3 className="sub" style={{ margin: "0 0 6px" }}>Mac</h3>
+              <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6 }}>
+                Download the release from GitHub, drag the app to Applications, then use right-click <strong>Open</strong> the first time if macOS blocks it.
+              </p>
+            </div>
           </div>
         </div>
       </section>
@@ -93,7 +80,7 @@ function HomePage({ onNav }) {
       {/* Topic cards */}
       <div className="wrap">
         <h2 className="section">Where to start</h2>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+        <div className="grid-3">
           <TopicCard num="01" eyebrow="Setup" title="Installing on iPhone and iPad" href="/install/iphone-ipad/">
             The App Store install path, plus what happens on first launch.
           </TopicCard>
@@ -535,11 +522,11 @@ PRINTER: on`;
   };
 
   return (
-    <main className="wrap" style={{ display: "flex", gap: 32, alignItems: "flex-start" }}>
+    <main className="wrap docs-layout">
       <DocsSidebar current={topic} onPick={handlePick} sections={STARTED_SECTIONS} />
-      <article style={{ flex: 1, minWidth: 0 }} className="prose">
+      <article className="prose docs-article">
         <p className="eyebrow">Getting started</p>
-        <h1 className="page-title" style={{ fontSize: 40 }}>{titles[topic]}</h1>
+        <h1 className="page-title compact">{titles[topic]}</h1>
         <p className="lede">{notes[topic]}</p>
         {topicBody[topic]}
       </article>
@@ -843,7 +830,7 @@ function DebuggerPage({ onNav }) {
    ============================================================= */
 function ReferencePage({ onNav }) {
   return (
-    <main className="wrap" style={{ display: "grid", gridTemplateColumns: "1fr 380px", gap: 48, alignItems: "flex-start" }}>
+    <main className="wrap docs-split">
       <div>
         <p className="eyebrow">App Reference</p>
         <h1 className="page-title">Every control,<br/>annotated.</h1>
@@ -902,7 +889,7 @@ function ReferencePage({ onNav }) {
         </div>
       </div>
 
-      <div style={{ position: "sticky", top: 96 }}>
+      <div className="docs-aside">
         <div className="panel" style={{ padding: 14 }}>
           <div style={{ position: "relative" }}>
             <img
@@ -1061,7 +1048,7 @@ function ModulesPage({ onNav }) {
         </p>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12, marginTop: 24 }}>
+      <div className="grid-2" style={{ marginTop: 24 }}>
         {modules.map(m => (
           <div key={m.code} className="panel"
                style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: 16, alignItems: "center" }}>
@@ -1098,11 +1085,39 @@ function ModulesPage({ onNav }) {
   );
 }
 
+// PlayCalculator lays itself out from a fixed 360px grid multiplied by
+// `scale`, so a constant 1.4 is a hard 504px — wider than any iPhone in
+// portrait, which is why the fifth key column used to run off the page.
+// Measure the container instead of the window: .wrap-narrow's gutters change
+// at the 620px breakpoint, and the element already knows what it was given.
+function useFittedScale(max, min) {
+  const ref = React.useRef(null);
+  const [scale, setScale] = React.useState(max);
+  React.useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    function measure() {
+      // 8px: the focus ring PlayCalculator permanently reserves around itself.
+      setScale(Math.max(min, Math.min(max, (el.clientWidth - 8) / 360)));
+    }
+    measure();
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", measure);
+      return () => window.removeEventListener("resize", measure);
+    }
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [max, min]);
+  return [ref, scale];
+}
+
 function PlayPage({ onNav }) {
+  const [holderRef, scale] = useFittedScale(1.4, 0.7);
   return (
     <main className="wrap-narrow">
-      <div style={{ display: "flex", justifyContent: "center" }}>
-        <PlayCalculator scale={1.4} keyboard />
+      <div ref={holderRef} style={{ display: "flex", justifyContent: "center" }}>
+        <PlayCalculator scale={scale} keyboard />
       </div>
 
       <h1 className="page-title" style={{ marginTop: 32 }}>TI-59 emulator, online</h1>

@@ -2,6 +2,11 @@
 
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
+/* `clip`, not `hidden`: clip doesn't create a scroll container, so the sticky
+   header keeps sticking. A backstop only — every layout below is meant to fit
+   on its own, and a sideways scrollbar on a phone means one of them doesn't. */
+html { overflow-x: clip; }
+img, svg { max-width: 100%; }
 body {
   font-family: var(--font-body);
   background: var(--bg);                 /* #000 */
@@ -90,6 +95,16 @@ a:visited { color: var(--link-visited); }
 }
 .nav-cta:hover { filter: brightness(1.06); }
 
+/* The disclosure button and its panel. On a wide screen the panel is
+   `display: contents`, so .nav and .nav-cta stay direct flex children of
+   .inner and the desktop header is byte-for-byte the layout it always was;
+   the button is simply not rendered. The narrow-screen rules are in the
+   1060px block at the bottom of this file. */
+.nav-panel { display: contents; }
+.nav-toggle { display: none; }
+.nav-toggle-bars { display: grid; gap: 4px; width: 18px; }
+.nav-toggle-bars i { display: block; height: 2px; border-radius: 1px; background: var(--fg-2); }
+
 /* ---------- Layout ----------------------------------------------------- */
 .wrap { max-width: 1120px; margin: 0 auto; padding: 32px 24px 80px; }
 .wrap-narrow { max-width: 820px; margin: 0 auto; padding: 32px 24px 80px; }
@@ -98,20 +113,26 @@ a:visited { color: var(--link-visited); }
   font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase;
   color: var(--accent); margin: 0 0 8px;
 }
+/* Headings are clamped rather than stepped at a breakpoint: 52px of
+   condensed uppercase is wider than a phone, and a hard switch at one width
+   leaves the sizes in between still overflowing. The upper bound of each
+   clamp is the original desktop value, so nothing above ~640px moves. */
 h1.page-title {
   font-family: var(--font-key); font-weight: 700;
-  font-size: 52px; line-height: 1.02;
+  font-size: clamp(34px, 8.2vw, 52px); line-height: 1.02;
   letter-spacing: 0.04em; text-transform: uppercase;
   margin: 0 0 16px; color: var(--fg);
 }
 h1.page-title em { font-style: normal; color: var(--accent); }
+/* Used where a page wants a smaller title than the hero (Getting Started). */
+h1.page-title.compact { font-size: clamp(30px, 7vw, 40px); }
 .lede {
-  font-size: 19px; line-height: 1.5;
+  font-size: clamp(17px, 4.3vw, 19px); line-height: 1.5;
   color: var(--fg-2); margin: 0 0 32px; max-width: 62ch;
 }
 h2.section {
   font-family: var(--font-key); font-weight: 700;
-  font-size: 28px; letter-spacing: 0.06em; text-transform: uppercase;
+  font-size: clamp(22px, 5.4vw, 28px); letter-spacing: 0.06em; text-transform: uppercase;
   margin: 48px 0 16px; color: var(--fg);
 }
 h3.sub {
@@ -123,6 +144,133 @@ h3.sub {
 .prose ul, .prose ol { padding-left: 22px; margin: 0 0 14px; max-width: 68ch; color: var(--fg-2); }
 .prose li { margin: 4px 0; }
 .prose a:hover { text-decoration: underline; text-underline-offset: 2px; }
+
+/* ---------- Page layouts ------------------------------------------------
+   These were inline style={{}} objects on the JSX until the site got a
+   responsive pass. A media query cannot reach an inline style, so anything
+   that has to change shape on a phone lives here as a class instead.
+   `minmax(0, 1fr)` rather than `1fr` throughout: a bare 1fr track refuses to
+   shrink below its content's min-content width, which is how a long word in
+   a card used to push the whole grid past the viewport.                  */
+
+/* Home hero: prose beside the app screenshot.
+   Three children, explicitly placed, so that collapsing to one column puts
+   the screenshot straight after the pitch instead of below the install
+   cards — auto-flow alone would bury it. */
+.hero {
+  display: grid;
+  grid-template-columns: 1.1fr auto;
+  /* The screenshot spans both rows, and a spanning item hands its height to
+     the tracks it covers. Pinning row 1 to min-content and letting row 2
+     take the slack keeps the install cards tucked under the buttons instead
+     of drifting halfway down the column. */
+  grid-template-rows: min-content 1fr;
+  gap: 0 64px;
+  align-items: center; padding-top: 56px; padding-bottom: 56px;
+}
+.hero-copy  { grid-column: 1; grid-row: 1; }
+.hero-cards { grid-column: 1; grid-row: 2; align-self: start; margin-top: 20px; }
+.hero-shot  { grid-column: 2; grid-row: 1 / span 2; display: flex; justify-content: center; }
+.hero-shot img {
+  height: 620px; width: auto; display: block; border-radius: 44px;
+  box-shadow: 0 10px 40px rgba(0,0,0,.7), 0 0 0 1px rgba(255,200,100,.06);
+}
+
+/* Card grids. */
+.grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+
+/* Getting Started: nav rail beside the article. */
+.docs-layout { display: flex; gap: 32px; align-items: flex-start; }
+.docs-sidebar {
+  width: 240px; flex: 0 0 240px;
+  border-right: 1px solid var(--stroke); padding-right: 20px;
+}
+.docs-article { flex: 1; min-width: 0; }
+
+/* App Reference: article beside the sticky annotated screenshot. */
+.docs-split { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 48px; align-items: flex-start; }
+.docs-aside { position: sticky; top: 96px; }
+
+/* ---------- Narrow screens ---------------------------------------------
+   Three breakpoints, each earning its place:
+     1060px — where the seven nav links plus the App Store button stop
+              fitting next to the wordmark. Well above phone width, but the
+              header is the widest thing on the page by a long way.
+      900px — where the two-column page shells (hero, docs rail, reference
+              screenshot) stop leaving a usable measure for the prose.
+      620px — phone. Everything is one column and the gutters come in.    */
+
+@media (max-width: 1060px) {
+  .site-header .inner { gap: 12px; padding: 12px 16px; }
+  .nav-toggle {
+    display: inline-flex; align-items: center; justify-content: center;
+    margin-left: auto;
+    width: 44px; height: 44px;            /* full-size tap target */
+    padding: 0; cursor: pointer;
+    background: var(--bg-elevated);
+    border: 1px solid var(--stroke-2);
+    border-radius: 6px;
+  }
+  /* Open state reads as colour rather than a bars-to-X animation — the
+     brand has no icon set to morph into and does not want one. */
+  .nav-toggle[aria-expanded="true"] { background: rgba(240,192,64,.10); border-color: var(--accent-deep); }
+  .nav-toggle[aria-expanded="true"] .nav-toggle-bars i { background: var(--accent); }
+
+  /* Hidden with CSS, never unmounted: the links stay in the prerendered
+     markup that .seo/build.js writes, so collapsing the nav costs nothing
+     in crawlability. */
+  .nav-panel {
+    display: none;
+    position: absolute; top: 100%; left: 0; right: 0;
+    background: #000;
+    border-bottom: 1px solid var(--stroke);
+    box-shadow: 0 12px 24px rgba(0,0,0,.6);
+    padding: 8px 16px 16px;
+    max-height: 70vh; overflow-y: auto;
+  }
+  .nav-panel.open { display: block; }
+  .nav { flex-direction: column; gap: 2px; margin-left: 0; font-size: 14px; }
+  .nav a { padding: 12px; border-radius: 6px; }
+  .nav a.active { box-shadow: inset 2px 0 0 var(--accent); }
+  .nav-panel .nav-cta { display: flex; justify-content: center; margin-top: 12px; }
+}
+
+@media (max-width: 900px) {
+  .hero {
+    grid-template-columns: minmax(0, 1fr); grid-template-rows: auto;
+    gap: 28px 0; padding-top: 32px; padding-bottom: 40px;
+  }
+  .hero-copy, .hero-shot, .hero-cards { grid-column: 1; grid-row: auto; }
+  .hero-cards { margin-top: 0; }
+  .hero-shot img { height: auto; width: 100%; max-width: 280px; border-radius: 32px; }
+  .grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  .docs-layout { flex-direction: column; gap: 20px; }
+  .docs-sidebar {
+    width: 100%; flex: none;
+    border-right: 0; padding-right: 0;
+    border-bottom: 1px solid var(--stroke); padding-bottom: 12px;
+  }
+  .docs-article { width: 100%; }
+
+  .docs-split { grid-template-columns: minmax(0, 1fr); gap: 32px; }
+  /* Sticky is pointless once it is the last thing on the page, and on iOS a
+     sticky element inside a stacked column can trap the scroll. */
+  .docs-aside { position: static; top: auto; }
+}
+
+@media (max-width: 620px) {
+  .wrap, .wrap-narrow { padding: 24px 16px 56px; }
+  /* Restated because the .wrap shorthand above resets the vertical padding
+     the 900px block set on .hero. */
+  .hero { padding: 28px 16px 36px; }
+  .grid-2, .grid-3 { grid-template-columns: minmax(0, 1fr); }
+  .site-footer { padding: 24px 16px; }
+  .site-footer .credits { margin-left: 0; }
+  .brand img.app-icon { width: 34px; height: 34px; }
+  .brand .wm .top { font-size: 17px; }
+}
 
 /* ---------- Cards / panels --------------------------------------------- */
 .panel {
