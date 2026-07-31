@@ -13,13 +13,13 @@ The system is built around the **Calc-U 59 emulator app** for Mac, iPhone, and i
 Key files:
 - `colors_and_type.css` — all color and typography tokens. Load this first; wrap your content in `<div class="calcu">`.
 - `assets/app-screenshot.png` — canonical app screenshot; `assets/app-icon.png` — brand mark.
-- `index.html` + `Pages.jsx` / `Calculator.jsx` / `components.jsx` — the help website (loads at the project root for GitHub Pages). Copy components from here rather than reinventing.
+- `Pages.jsx` / `Calculator.jsx` / `components.jsx` — the help website's sources. Copy components from here rather than reinventing. The `index.html` files are generated from them; see `.seo/README.md`.
 - `CREDITS.md` — every asset + its license. `fonts/` — self-hosting setup.
 - `preview/` — small specimen cards demonstrating colors, type, spacing, components, brand.
 
 If creating visual artifacts (slides, mocks, throwaway prototypes, etc), copy assets out and create static HTML files for the user to view. If working on production code, you can copy assets and read the rules here to become an expert in designing with this brand.
 
-If the user invokes this skill without any other guidance, ask them what they want to build or design, ask some questions (target page? help topic? availability strip? release notes?), and act as an expert designer who outputs HTML artifacts _or_ production code, depending on the need. Default to plain HTML (no Jekyll, no build step) — this brand is GitHub Pages bound.
+If the user invokes this skill without any other guidance, ask them what they want to build or design, ask some questions (target page? help topic? availability strip? release notes?), and act as an expert designer who outputs HTML artifacts _or_ production code, depending on the need. For throwaway artifacts, default to a single plain HTML file with no build step. The help site itself is different — it is prerendered from the `.jsx` sources by `node .seo/build.js`, so a `.jsx` edit is not finished until that has run.
 
 Hard rules, do not break:
 - No emoji.
@@ -29,4 +29,5 @@ Hard rules, do not break:
 - Accent is golden yellow `#F0C040` — not orange.
 - Soft radii (6 / 7 / 10 px). No pills, no harsh squares.
 - No bluish-purple gradients, no glassmorphism, no playful copy.
-- Plain static HTML for the help site (GitHub Pages target). No Jekyll, no build step.
+- Static HTML output, no Jekyll. The help site is prerendered by `node .seo/build.js`; run it after any `.jsx` edit.
+- Nothing is fetched from a third party — fonts, React and the WASM core are all served from `calcu59.ch`. No CDN, no Google Fonts, and no analytics or telemetry, ever. `fonts/README.md` has the reasoning; `.seo/check.js` fails the build if it is broken.

@@ -9,6 +9,28 @@ node .seo/build.js     # compile + prerender. No dependencies.
 node .seo/check.js     # verify. Optional: npm i --no-save jsdom for the boot check.
 ```
 
+## Serving it locally
+
+`docs/` is not viewable from the filesystem — every page references its
+scripts and styles as `/build/…` and `/assets/…`, and the routes are
+directories. It needs an HTTP server at the document root:
+
+```bash
+cd docs
+node .seo/build.js && python3 -m http.server 8000
+```
+
+**Build first, every time.** What a server hands out is the last build's
+output, never the `.jsx` on disk. Serving without rebuilding shows the
+previous version of any page you just edited — the failure this whole file
+exists to prevent, except now it is happening in front of someone who is
+trying to review the change.
+
+Two differences from production to keep in mind: `python3 -m http.server`
+answers an unknown path with its own plain 404 rather than `404.html`, and
+it does not apply `robots.txt`. Everything else — routes, canonicals, the
+WASM calculator — behaves as it will on GitHub Pages.
+
 ## How the site is built
 
 The site is authored as React components but published as plain static HTML.
@@ -54,6 +76,32 @@ Two rules are easy to break by accident:
   real equivalent elsewhere, either let it stand on its own — as
   `/getting-started/printer/` does — or make it an outbound link instead of a
   route, as the GitHub README is.
+
+One deliberate imprecision: **`lastmod` is the build date**, so every URL
+claims to have changed whenever any one of them did. Per-file dates from
+`git log` would be more honest, but they would make the build depend on git
+history and would silently emit wrong dates in CI, where `actions/checkout`
+clones with `fetch-depth: 1` and every file looks like it changed in the most
+recent commit. Left as it is on purpose; changing it means fixing the checkout
+depth too.
+
+## Self-hosted, and no analytics
+
+Every byte the browser fetches comes from `calcu59.ch`: the fonts in `fonts/`,
+React in `vendor/`, the WASM core in `wasm/`. Nothing is loaded from a CDN, and
+the site carries no analytics, tag manager or telemetry of any kind — not
+Google's, not a self-hosted Matomo, none.
+
+`fonts/README.md` has the reasoning. It is written about fonts but applies to
+every fetched resource, and it is the reason this is a rule rather than a
+preference.
+
+`check.js` enforces it structurally rather than by keyword. An off-origin URL
+is legal only as an `<a href>` — somewhere a visitor chooses to go. Every URL
+the browser fetches on its own (`script`, `link`, `img`, `iframe`) must point
+at this site. A tracker needs a host, so it cannot be added without tripping
+that rule; a named-tracker pattern scan backs it up. Same-origin absolute URLs
+stay legal, because `rel=canonical` and `og:url` have to be absolute.
 
 ## Files
 

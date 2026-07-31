@@ -108,6 +108,61 @@ ok(fs.existsSync(path.join(DOCS, "404.html")), "404.html missing");
 ok(fs.existsSync(path.join(DOCS, ".nojekyll")), ".nojekyll missing");
 ok(/noindex/.test(fs.readFileSync(path.join(DOCS, "404.html"), "utf8")), "404.html is not noindex");
 
+/* ---- nothing is fetched from a third party ------------------------ *
+ *
+ * The site must serve every byte a browser fetches from its own origin,
+ * and must never carry analytics. See docs/fonts/README.md for the
+ * reasoning behind the fonts, which generalises to everything else: a
+ * request to another host hands that host the visitor's IP address.
+ *
+ * The structural rule is the strong one. An *off-origin* URL is allowed
+ * only as an <a href> — somewhere the visitor chooses to go. Anywhere a
+ * URL is fetched without the visitor deciding to (script, link, img,
+ * iframe), it must point at this site. A tracker needs a host, so it
+ * cannot pass this without also breaking it.
+ *
+ * Same-origin absolute URLs are fine and in places required: rel=canonical
+ * and og:url have to be absolute.
+ */
+section("self-hosted");
+const offOrigin = (url) => /^(https?:)?\/\//.test(url) && !url.startsWith(ORIGIN + "/") && url !== ORIGIN;
+for (const [p, html] of built) {
+  for (const m of html.matchAll(/<(\w+)\b[^>]*?\b(?:src|href)="([^"]+)"/g)) {
+    const [, tag, url] = m;
+    if (!offOrigin(url)) continue;
+    ok(tag.toLowerCase() === "a", `${p}: <${tag}> fetches ${url} from another origin`);
+  }
+}
+
+const AUTHORED_CSS = ["styles.css", "colors_and_type.css", "fonts/self-hosted.css"];
+for (const name of AUTHORED_CSS) {
+  const file = path.join(DOCS, name);
+  if (!fs.existsSync(file)) { ok(false, `${name}: missing`); continue; }
+  const css = fs.readFileSync(file, "utf8");
+  for (const m of css.matchAll(/url\(\s*["']?([^"')]+)/g)) {
+    ok(!/^(https?:)?\/\//.test(m[1]), `${name}: url(${m[1]}) is off-origin`);
+  }
+  for (const m of css.matchAll(/@import\s+["']([^"']+)/g)) {
+    ok(!/^(https?:)?\/\//.test(m[1]), `${name}: @import ${m[1]} is off-origin`);
+  }
+}
+
+// Belt and braces: a named tracker, even self-hosted, is still a tracker.
+// Patterns are anchored to a host or a call so React's onDoubleClick and
+// friends do not trip them.
+const TRACKERS = /google-analytics\.com|googletagmanager|gtag\s*\(|doubleclick\.net|plausible\.io|matomo|piwik|fathom\.|hotjar|mixpanel|segment\.(io|com)|clarity\.ms|sentry\.io|facebook\.net/i;
+const scanned = [
+  ...[...built.keys()].map((p) => [p, built.get(p)]),
+  ...fs.readdirSync(path.join(DOCS, "build"))
+    .filter((f) => f.endsWith(".js"))
+    .map((f) => ["build/" + f, fs.readFileSync(path.join(DOCS, "build", f), "utf8")]),
+  ...AUTHORED_CSS.map((f) => [f, fs.readFileSync(path.join(DOCS, f), "utf8")]),
+];
+for (const [name, body] of scanned) {
+  const hit = body.match(TRACKERS);
+  ok(!hit, `${name}: analytics/tracker signature "${hit && hit[0]}"`);
+}
+
 /* ---- the bundle actually boots ------------------------------------ */
 async function bootChecks() {
 section("client boot");
