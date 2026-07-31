@@ -87,8 +87,11 @@
   --accent-deep:          var(--accent-yellow-deep);
   --accent-soft:          var(--accent-yellow-soft);
 
-  /* iOS toolbar */
-  --link:                 var(--ios-blue);
+  /* Links — brighter than --ios-blue, which is a UI tint meant for light
+     chrome and drops to ~5.8:1 against OLED black. Visited keeps the same
+     luminance so a read link never becomes the hard-to-read one.         */
+  --link:                 #5aa9ff;   /* 9.3:1 on #000                      */
+  --link-visited:         #b9a8e8;   /* 8.6:1 on #000                      */
 
   /* =====================================================================
      TYPOGRAPHY
@@ -207,6 +210,7 @@
   color: var(--link);
   text-decoration: none;
 }
+.calcu a:visited { color: var(--link-visited); }
 .calcu a:hover { text-decoration: underline; text-underline-offset: 2px; }
 .calcu code, .calcu .mono {
   font-family: var(--font-mono);

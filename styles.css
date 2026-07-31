@@ -10,6 +10,15 @@ body {
   line-height: var(--leading-body);
 }
 
+/* ---------- Links ------------------------------------------------------
+   Zero-specificity base, so every link is readable even where no component
+   rule reaches it — a bare <a> inside a .panel used to fall through to the
+   browser's own #0000EE / #551A8B, which is close to invisible on black.
+   :where() keeps specificity at 0, so .nav a, .nav-cta, .brand and
+   .site-footer a still win without needing !important.                   */
+:where(a) { color: var(--link); }
+:where(a:visited) { color: var(--link-visited); }
+
 /* ---------- Header / nav ----------------------------------------------- */
 .site-header {
   background: #000;
@@ -108,7 +117,6 @@ h3.sub {
 .prose p { margin: 0 0 14px; max-width: 68ch; color: var(--fg-2); }
 .prose ul, .prose ol { padding-left: 22px; margin: 0 0 14px; max-width: 68ch; color: var(--fg-2); }
 .prose li { margin: 4px 0; }
-.prose a { color: var(--link); }
 .prose a:hover { text-decoration: underline; text-underline-offset: 2px; }
 
 /* ---------- Cards / panels --------------------------------------------- */
