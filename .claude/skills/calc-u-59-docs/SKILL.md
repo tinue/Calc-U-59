@@ -40,7 +40,25 @@ This skill covers the help website (`docs/`), reference architecture docs (`refe
 ## Help Website (`docs/`)
 
 **Hosting:** GitHub Pages at `www.calcu59.ch`  
-**Stack:** Static HTML + client-side React 18 loaded from CDN with Babel browser transpiler. No build step, no npm, no Jekyll.
+**Stack:** React 18, self-hosted in `docs/vendor/`, precompiled and prerendered to static HTML. No npm dependencies, no Jekyll.
+
+**There is a build step.** `node .seo/build.js` compiles every `.jsx` to
+`docs/build/*.js` and prerenders every route to a real static HTML file.
+**Any `.jsx` edit is incomplete until it is re-run** — otherwise the published
+HTML keeps showing the old text. `node .seo/check.js` verifies the output.
+`.github/workflows/build-site.yml` on the `gh-pages` branch does both on every
+push as a backstop.
+
+Full details — the URL map, where each SEO concern lives, how to add a page —
+are in `docs/.seo/README.md`. Read it before changing anything under `docs/`;
+do not restate it here.
+
+**`sitemap.xml`'s `lastmod` is deliberately the build date.** Every URL gets
+today's date on every build, so all pages claim to have changed whenever any
+one did. This is a known, accepted trade-off, not an oversight: the honest
+alternative is per-file dates from `git log`, which would make the build
+depend on git history and would silently produce wrong dates in CI unless the
+workflow also set `fetch-depth: 0`. Leave it alone unless the user asks.
 
 **Git setup — worktree:** `docs/` is a separate git worktree tracking the `gh-pages` branch, not the main repo branch. It is listed in `.gitignore` so it is invisible to the main repo's `git status`. Always commit docs changes from inside `docs/`:
 
@@ -55,19 +73,24 @@ Key files:
 
 | File | Role |
 |------|------|
-| `docs/index.html` | Entry point; loads React and Babel from CDN |
 | `docs/Pages.jsx` | Page content: home, install, debugger, … |
 | `docs/Calculator.jsx` | Interactive calculator component |
 | `docs/components.jsx` | Reusable UI components |
+| `docs/routes.js` | The URL map — add a page here |
+| `docs/site.jsx` | Client-side router |
+| `docs/.seo/` | The build, the checker, per-page titles and descriptions |
 | `docs/styles.css` | Main stylesheet |
 | `docs/colors_and_type.css` | Design tokens (colors, typography) — load this first |
 | `docs/preview/` | 16 HTML specimen cards for colors, type, spacing, components |
 | `docs/assets/` | App icon, iPad screenshots, device photo |
 | `docs/CNAME` | Custom domain record (`www.calcu59.ch`) |
 
+Generated — never edit by hand, always regenerate: `docs/build/`, every
+`index.html` (including the root one), `404.html`, `robots.txt`, `sitemap.xml`.
+
 There is also a dedicated design skill at `docs/SKILL.md` that covers generating branded interfaces and visual assets. Do not duplicate its content here — use it when the task is primarily visual or brand-driven.
 
-**The playable web calculator (`docs/#play`)** is a real, WASM-compiled build of the emulation core, not a mock — see `docs/PlayCalculator.jsx`, `docs/calc-engine-worker.js`, `docs/wasm/`. It's built from `tools/pack_roms.py` and `tools/build_wasm.sh` in the main repo; see the Release Documentation Update Workflow below for when to re-run them.
+**The playable web calculator (`docs/play/`)** is a real, WASM-compiled build of the emulation core, not a mock — see `docs/PlayCalculator.jsx`, `docs/calc-engine-worker.js`, `docs/wasm/`. It's built from `tools/pack_roms.py` and `tools/build_wasm.sh` in the main repo; see the Release Documentation Update Workflow below for when to re-run them.
 
 ---
 
@@ -82,9 +105,21 @@ These are hard constraints — do not break them.
 | Headings | Uppercase Barlow Condensed, `0.06em` letter-spacing |
 | Radii | 6 / 7 / 10 px — no full pills, no sharp squares |
 | Icons | `<K>` keycap pill system only — no emoji, no icon libraries |
-| Copy scope | Explains installing, syncing, modules, settings, file formats, the bottom toolbar — not TI-59 hardware internals or AOS arithmetic |
+| Copy scope | Explains installing, syncing, modules, settings, file formats, the bottom toolbar — not TI-59 hardware internals or AOS arithmetic. **One exception, below.** |
 
 All color and typography tokens are in `docs/colors_and_type.css`. Wrap content in `<div class="calcu">`.
+
+**The copy-scope exception: `/what-is-a-ti-59/`.** That page
+(`AboutTi59Page` in `docs/Pages.jsx`) is deliberately about the hardware —
+the three models, AOS, magnetic cards, Solid State Software, the PC-100C.
+It exists because nobody searches for "Calc-U 59"; they search "what is a
+TI-59" or "TI-58C programmable calculator". Every other page answers a
+question you only have *after* finding the app, so this page and `/play/`
+are the site's only two cold-search entry points. It is linked from the
+footer of all pages, from the home page, and from `/play/`.
+
+Do not delete it as scope creep, and do not treat it as licence to add
+hardware explanation elsewhere — the rule still holds for every other page.
 
 ---
 
@@ -145,7 +180,7 @@ Triggered by the user saying **"update documentation"** (or similar) after finis
 
 5. **Update the help website** (`docs/Pages.jsx`, `docs/PlayCalculator.jsx`, etc.) if the change is user-facing — new settings, module behavior, install steps, state-file directives (mention the directive exists and link back to `reference/StateFileFormat.md` for the grammar, don't restate it). `docs/` is a separate git worktree with its own versioning (i.e. none) — a change only needing a website update, with nothing in `Core/`/`App/`/`roms/`, does not need a `CHANGELOG.md` entry. Commit `docs/` changes from inside `docs/`, not from the main repo (see above).
 
-6. **Rebuild the WASM calculator (`docs/#play`) only if it's actually affected.** Check whether the diff from step 2 touched:
+6. **Rebuild the WASM calculator (`docs/play/`) only if it's actually affected.** Check whether the diff from step 2 touched:
    - `Core/*.cpp` / `Core/*.hpp` — specifically anything reachable from `docs/wasm/bindings.cpp`'s bound surface (ROM/library/constants loading, key press/release, display snapshot, program/register writes, `stepN`/`stepCycles`, `insertedModuleNumber`). If `TI59Machine`'s public API itself changed, check `bindings.cpp`'s bound-method list against `Core/TI59Machine.hpp` before assuming a plain rebuild covers it — a new or changed method may need a matching binding.
    - `roms/calculator/*.txt`, `roms/solid-state/*.txt` (including `roms/solid-state/cuecards.txt`) — any of these changing means `tools/pack_roms.py` must be re-run to regenerate `docs/wasm/roms/*.json`.
 
