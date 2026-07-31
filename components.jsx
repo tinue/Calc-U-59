@@ -6,19 +6,22 @@ const { useState, useEffect, useRef, useMemo } = React;
    Header / nav
    ============================================================= */
 function SiteHeader({ page }) {
+  // Real paths, not #hashes: every one of these is a static HTML file on
+  // disk, so they are crawlable links first and SPA transitions second
+  // (site.jsx intercepts the click).
   const items = [
-    { id: "home",     label: "Overview",        href: "#home" },
-    { id: "start",    label: "Getting Started", href: "#start" },
-    { id: "play",     label: "Play",            href: "#play" },
-    { id: "ref",      label: "App Reference",   href: "#ref" },
-    { id: "modules",  label: "Modules",         href: "#modules" },
-    { id: "faq",      label: "FAQ",             href: "#faq" },
+    { id: "home",     label: "Overview",        href: "/" },
+    { id: "start",    label: "Getting Started", href: "/getting-started/" },
+    { id: "play",     label: "Play",            href: "/play/" },
+    { id: "ref",      label: "App Reference",   href: "/reference/" },
+    { id: "modules",  label: "Modules",         href: "/modules/" },
+    { id: "faq",      label: "FAQ",             href: "/faq/" },
   ];
   return (
     <header className="site-header">
       <div className="inner">
-        <a className="brand" href="#home">
-          <img className="app-icon" src="assets/app-icon.png" alt="Calc-U 59 app icon" />
+        <a className="brand" href="/">
+          <img className="app-icon" src="/assets/app-icon.png" alt="Calc-U 59 — TI-59 emulator app icon" />
           <div className="wm">
             <span className="top">Calc-U <em>59</em></span>
             <span className="sub">User Guide</span>
@@ -34,7 +37,7 @@ function SiteHeader({ page }) {
           ))}
           <a href="https://github.com/tinue/Calc-U-59">Github</a>
         </nav>
-        <a className="nav-cta" href="https://apps.apple.com/us/app/calc-u-59/id6761413142">App Store</a>
+        <a className="nav-cta" href="https://apps.apple.com/us/app/calc-u-59/id6761413142" title="Calc-U 59 TI-59 emulator on the App Store">App Store</a>
       </div>
     </header>
   );
@@ -53,10 +56,12 @@ function SiteFooter() {
           textTransform: "uppercase",
           color: "var(--fg-2)",
         }}>Calc-U 59</strong>
+        <a href="/what-is-a-ti-59/">What is a TI-59?</a>
+        <a href="/play/">Online emulator</a>
         <a href="https://github.com/tinue/Calc-U-59">GitHub</a>
         <a href="https://github.com/tinue/Calc-U-59/blob/main/CHANGELOG.md">Release notes</a>
         <a href="https://github.com/tinue/Calc-U-59/blob/main/PRIVACY.md">Privacy</a>
-        <span className="credits">© 2026 · TI-59 emulator for Mac, iPhone, iPad</span>
+        <span className="credits">© 2026 · TI-59, TI-58 and TI-58C emulator for Mac, iPhone and iPad</span>
         <p className="disclaimer">
           Calc-U 59 is an independent project and is not affiliated with, authorized,
           or endorsed by Texas Instruments. “TI-59”, “TI-58”, “TI-58C”, “Texas
@@ -89,13 +94,18 @@ function KSeq({ steps }) {
 /* =============================================================
    Topic card
    ============================================================= */
-function TopicCard({ num, eyebrow, title, children, onClick }) {
+// Renders as a real <a href> when given one — same chrome as before, but
+// the card becomes a crawlable internal link instead of a click handler
+// that only exists once JavaScript has run.
+function TopicCard({ num, eyebrow, title, children, href, onClick }) {
+  const Tag = href ? "a" : "div";
   return (
-    <div className="panel" onClick={onClick}
+    <Tag className="panel" href={href} onClick={onClick}
          style={{
-           cursor: onClick ? "pointer" : "default",
+           cursor: (href || onClick) ? "pointer" : "default",
            display: "flex", flexDirection: "column", gap: 10,
            transition: "border-color .15s, transform .15s",
+           textDecoration: "none", color: "inherit",
          }}
          onMouseEnter={e => e.currentTarget.style.borderColor = "var(--accent-deep)"}
          onMouseLeave={e => e.currentTarget.style.borderColor = "var(--stroke)"}>
@@ -115,7 +125,7 @@ function TopicCard({ num, eyebrow, title, children, onClick }) {
         margin: 0, color: "var(--fg)",
       }}>{title}</h3>
       <div style={{ color: "var(--fg-2)", fontSize: 14, lineHeight: 1.55 }}>{children}</div>
-    </div>
+    </Tag>
   );
 }
 
@@ -136,8 +146,10 @@ function DocsSidebar({ current, onPick, sections }) {
             {sec.items.map(it => (
               <li key={it.id}>
                 <a
-                  href={"#start/" + it.id}
-                  onClick={e => { e.preventDefault(); onPick(it.id); }}
+                  href={it.href || ("/getting-started/" + it.id + "/")}
+                  {...(it.external
+                    ? { target: "_blank", rel: "noopener" }
+                    : { onClick: e => { e.preventDefault(); onPick(it.id); } })}
                   style={{
                     display: "block",
                     padding: "5px 10px", marginLeft: -12, paddingLeft: 12,

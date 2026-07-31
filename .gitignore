@@ -1,6 +1,12 @@
 # Uploads
 uploads/
 
+# Only present when running .seo/check.js, which needs jsdom.
+# The build itself has no dependencies.
+node_modules/
+package.json
+package-lock.json
+
 # macOS
 .DS_Store
 .AppleDouble

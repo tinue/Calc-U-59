@@ -1,0 +1,15 @@
+# https://www.calcu59.ch/
+User-agent: *
+Allow: /
+
+# The design preview and the installable PWA shell: no useful text to
+# index, and /app/ would compete with /play/.
+#
+# /build/ and /vendor/ are deliberately NOT disallowed. They hold every
+# script the pages load, and a crawler that cannot fetch them renders a
+# page without its JavaScript — which reports as a blocked resource and
+# leaves /play/'s calculator invisible.
+Disallow: /app/
+Disallow: /preview/
+
+Sitemap: https://www.calcu59.ch/sitemap.xml

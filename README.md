@@ -1,10 +1,19 @@
 # Calc-U 59 — Design System
 
-A design system for the **Calc-U 59 help website** — the user guide for a TI Programmable 59 emulator app available on Mac, iPhone, and iPad. This system is built to be served as **plain HTML on GitHub Pages** (no Jekyll, no build step).
+A design system for the **Calc-U 59 help website** — the user guide for a TI Programmable 59 emulator app available on Mac, iPhone, and iPad. It is served as **plain HTML on GitHub Pages** (no Jekyll, no framework, no package manager).
 
 The visual language is sampled directly from the running application (see `assets/app-screenshot.png`) and the app icon (`assets/app-icon.png`).
 
+> **Build step.** There is one, and it is not optional: run `node .seo/build.js`
+> after editing any `.jsx` file, then commit the generated output alongside your
+> change. It compiles the JSX and prerenders one static HTML file per route so
+> the site is indexable. It has no dependencies. See [`.seo/README.md`](.seo/README.md).
+
 > **Important scope note:** This guide explains the **emulator app** — installing it, navigating its UI, switching modules, syncing programs — **not** how to operate a real TI-59 calculator. Keep that in mind when writing new pages: assume the reader is learning the app, not the 1977 hardware.
+>
+> One deliberate exception: `/what-is-a-ti-59/` gives background on the 1977
+> hardware. It exists because people search for the machine, not the app, and
+> needed a page to land on. Keep new hardware writing on that page.
 
 ---
 

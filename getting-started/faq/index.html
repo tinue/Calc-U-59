@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Calc-U 59 FAQ — TI-59 emulator questions answered</title>
+<meta name="description" content="Where state files and virtual magnetic cards live, how to capture and read a trace file, what F.START does, and the other questions that come up first.">
+<link rel="canonical" href="https://www.calcu59.ch/faq/">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Calc-U 59">
+<meta property="og:url" content="https://www.calcu59.ch/faq/">
+<meta property="og:title" content="Calc-U 59 FAQ — TI-59 emulator questions answered">
+<meta property="og:description" content="Where state files and virtual magnetic cards live, how to capture and read a trace file, what F.START does, and the other questions that come up first.">
+<meta property="og:image" content="https://www.calcu59.ch/assets/app-icon.png">
+<meta property="og:image:alt" content="Calc-U 59 app icon">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Calc-U 59 FAQ — TI-59 emulator questions answered">
+<meta name="twitter:description" content="Where state files and virtual magnetic cards live, how to capture and read a trace file, what F.START does, and the other questions that come up first.">
+<meta name="twitter:image" content="https://www.calcu59.ch/assets/app-icon.png">
+
+<link rel="icon" type="image/png" href="/assets/app-icon.png">
+<link rel="apple-touch-icon" href="/assets/app-icon.png">
+<meta name="theme-color" content="#000000">
+<meta name="apple-itunes-app" content="app-id=6761413142">
+<link rel="stylesheet" href="/colors_and_type.css">
+<link rel="stylesheet" href="/styles.css">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Calc-U 59",
+      "item": "https://www.calcu59.ch/"
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "getting started",
+      "item": "https://www.calcu59.ch/getting-started/"
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "name": "FAQ",
+      "item": "https://www.calcu59.ch/getting-started/faq/"
+    }
+  ]
+}
+</script>
+</head>
+<body>
+<div id="root"><header class="site-header"><div class="inner"><a class="brand" href="/"><img class="app-icon" src="/assets/app-icon.png" alt="Calc-U 59 — TI-59 emulator app icon"/><div class="wm"><span class="top">Calc-U <em>59</em></span><span class="sub">User Guide</span></div></a><nav class="nav"><a href="/" class="">Overview</a><a href="/getting-started/" class="active">Getting Started</a><a href="/play/" class="">Play</a><a href="/reference/" class="">App Reference</a><a href="/modules/" class="">Modules</a><a href="/faq/" class="">FAQ</a><a href="https://github.com/tinue/Calc-U-59">Github</a></nav><a class="nav-cta" href="https://apps.apple.com/us/app/calc-u-59/id6761413142" title="Calc-U 59 TI-59 emulator on the App Store">App Store</a></div></header><main class="wrap" style="display:flex;gap:32px;align-items:flex-start"><aside style="width:240px;flex:0 0 240px;border-right:1px solid var(--stroke);padding-right:20px"><div style="margin-bottom:24px"><div class="eyebrow" style="margin-bottom:6px;color:var(--fg-3)">Start here</div><ul style="list-style:none;padding:0;margin:0"><li><a href="/getting-started/" style="display:block;padding:5px 10px;margin-left:-12px;padding-left:12px;font-family:var(--font-body);font-size:14px;color:var(--fg-2);background:transparent;border-left:2px solid transparent;cursor:pointer;text-decoration:none">Overview</a></li></ul></div><div style="margin-bottom:24px"><div class="eyebrow" style="margin-bottom:6px;color:var(--fg-3)">Setup</div><ul style="list-style:none;padding:0;margin:0"><li><a href="/getting-started/install-iphone-ipad/" style="display:block;padding:5px 10px;margin-left:-12px;padding-left:12px;font-family:var(--font-body);font-size:14px;color:var(--fg-2);background:transparent;border-left:2px solid transparent;cursor:pointer;text-decoration:none">Installing on iPhone and iPad</a></li><li><a href="/getting-started/install-mac/" style="display:block;padding:5px 10px;margin-left:-12px;padding-left:12px;font-family:var(--font-body);font-size:14px;color:var(--fg-2);background:transparent;border-left:2px solid transparent;cursor:pointer;text-decoration:none">Installing on Mac</a></li></ul></div><div style="margin-bottom:24px"><div class="eyebrow" style="margin-bottom:6px;color:var(--fg-3)">Using the emulator</div><ul style="list-style:none;padding:0;margin:0"><li><a href="/getting-started/state-files/" style="display:block;padding:5px 10px;margin-left:-12px;padding-left:12px;font-family:var(--font-body);font-size:14px;color:var(--fg-2);background:transparent;border-left:2px solid transparent;cursor:pointer;text-decoration:none">Loading a state file</a></li><li><a href="/getting-started/debugger/" style="display:block;padding:5px 10px;margin-left:-12px;padding-left:12px;font-family:var(--font-body);font-size:14px;color:var(--fg-2);background:transparent;border-left:2px solid transparent;cursor:pointer;text-decoration:none">Using the debugger</a></li><li><a href="/getting-started/printer/" style="display:block;padding:5px 10px;margin-left:-12px;padding-left:12px;font-family:var(--font-body);font-size:14px;color:var(--fg-2);background:transparent;border-left:2px solid transparent;cursor:pointer;text-decoration:none">Printer and card reader</a></li></ul></div><div style="margin-bottom:24px"><div class="eyebrow" style="margin-bottom:6px;color:var(--fg-3)">Help</div><ul style="list-style:none;padding:0;margin:0"><li><a href="/getting-started/faq/" style="display:block;padding:5px 10px;margin-left:-12px;padding-left:12px;font-family:var(--font-body);font-size:14px;color:var(--fg);background:rgba(240,192,64,.06);border-left:2px solid var(--accent);cursor:pointer;text-decoration:none">FAQ</a></li><li><a href="https://github.com/tinue/Calc-U-59/blob/main/README.md" target="_blank" rel="noopener" style="display:block;padding:5px 10px;margin-left:-12px;padding-left:12px;font-family:var(--font-body);font-size:14px;color:var(--fg-2);background:transparent;border-left:2px solid transparent;cursor:pointer;text-decoration:none">Main README</a></li></ul></div></aside><article style="flex:1;min-width:0" class="prose"><p class="eyebrow">Getting started</p><h1 class="page-title" style="font-size:40px">FAQ</h1><p class="lede">Concise answers to the questions that usually come up first.</p><div style="display:grid;gap:8px;margin-top:20px"><div class="panel" style="padding:16px 20px;display:grid;gap:8px"><span style="font-family:var(--font-key);font-weight:700;font-size:16px;text-transform:uppercase;letter-spacing:.05em;color:var(--fg)">Where do state files live?</span><p style="margin:0;line-height:1.7;color:var(--fg-2)">They are regular .ti59, .ti58, or .ti58c text files. On Mac, the preset picker opens them from disk; on iPhone and iPad, use the built-in file picker.</p></div><div class="panel" style="padding:16px 20px;display:grid;gap:8px"><span style="font-family:var(--font-key);font-weight:700;font-size:16px;text-transform:uppercase;letter-spacing:.05em;color:var(--fg)">What should I check first if a file opens wrong?</span><p style="margin:0;line-height:1.7;color:var(--fg-2)">Check the partition, then the selected module, then the printer setting. Those three control the most visible parts of a loaded preset.</p></div><div class="panel" style="padding:16px 20px;display:grid;gap:8px"><span style="font-family:var(--font-key);font-weight:700;font-size:16px;text-transform:uppercase;letter-spacing:.05em;color:var(--fg)">Can I see what the emulator is doing internally?</span><p style="margin:0;line-height:1.7;color:var(--fg-2)">Yes. Use the debug pane: CALCULATOR for program state and live registers, CPU for the ROM instruction trace, and LOG for text output plus trace controls. For analyzing sequences, TRACE is more useful than the CPU tab.</p></div><div class="panel" style="padding:16px 20px;display:grid;gap:8px"><span style="font-family:var(--font-key);font-weight:700;font-size:16px;text-transform:uppercase;letter-spacing:.05em;color:var(--fg)">How do I get a trace file?</span><p style="margin:0;line-height:1.7;color:var(--fg-2)">Open the debug pane, switch to LOG, and turn TRACE on. The app writes a binary session file to the configured trace location. You can then export it and analyze it with read_trace.py.</p></div><div class="panel" style="padding:16px 20px;display:grid;gap:8px"><span style="font-family:var(--font-key);font-weight:700;font-size:16px;text-transform:uppercase;letter-spacing:.05em;color:var(--fg)">What does the CALCULATOR tab show versus the CPU tab?</span><p style="margin:0;line-height:1.7;color:var(--fg-2)">CALCULATOR shows the instruction that will execute next, with registers in their current state before it runs. CPU shows instructions that already ran, with registers in the state after each one. STEP and RESUME also work differently per tab and are only enabled in the tab that caused the current freeze — using them in the wrong tab is prevented.</p></div><div class="panel" style="padding:16px 20px;display:grid;gap:8px"><span style="font-family:var(--font-key);font-weight:700;font-size:16px;text-transform:uppercase;letter-spacing:.05em;color:var(--fg)">My trace file is 190 MB. Is that normal?</span><p style="margin:0;line-height:1.7;color:var(--fg-2)">Yes, for long sessions. But when you convert it to text with read_trace.py using the --clean and --skip-repeating flags, it compresses to a fraction of that size because the tool deduplicates repetitive loops.</p></div><div class="panel" style="padding:16px 20px;display:grid;gap:8px"><span style="font-family:var(--font-key);font-weight:700;font-size:16px;text-transform:uppercase;letter-spacing:.05em;color:var(--fg)">Why does the display look different between models?</span><p style="margin:0;line-height:1.7;color:var(--fg-2)">Calc-U 59 can start in TI-59, TI-58, or TI-58C mode. The model affects the startup state, memory layout, and the available controls.</p></div><div class="panel" style="padding:16px 20px;display:grid;gap:8px"><span style="font-family:var(--font-key);font-weight:700;font-size:16px;text-transform:uppercase;letter-spacing:.05em;color:var(--fg)">Is there a faster way to read long printer output?</span><p style="margin:0;line-height:1.7;color:var(--fg-2)">Yes. Switch the printer view to text mode, then copy or cut the strip on any build if you want a plain-text version quickly.</p></div></div></article></main><footer class="site-footer"><div class="inner"><strong style="font-family:var(--font-key);letter-spacing:.06em;text-transform:uppercase;color:var(--fg-2)">Calc-U 59</strong><a href="/what-is-a-ti-59/">What is a TI-59?</a><a href="/play/">Online emulator</a><a href="https://github.com/tinue/Calc-U-59">GitHub</a><a href="https://github.com/tinue/Calc-U-59/blob/main/CHANGELOG.md">Release notes</a><a href="https://github.com/tinue/Calc-U-59/blob/main/PRIVACY.md">Privacy</a><span class="credits">© 2026 · TI-59, TI-58 and TI-58C emulator for Mac, iPhone and iPad</span><p class="disclaimer">Calc-U 59 is an independent project and is not affiliated with, authorized, or endorsed by Texas Instruments. “TI-59”, “TI-58”, “TI-58C”, “Texas Instruments”, “Solid State Software”, and “Master Library” are trademarks of their respective owners, used here for descriptive purposes only.</p></div></footer></div>
+<script src="/vendor/react.production.min.js" defer></script>
+<script src="/vendor/react-dom.production.min.js" defer></script>
+<script src="/build/routes.js" defer></script>
+<script src="/build/cuecard-data.js" defer></script>
+<script src="/build/keyboard-map.js" defer></script>
+<script src="/build/components.js" defer></script>
+<script src="/build/Calculator.js" defer></script>
+<script src="/build/cuecard.js" defer></script>
+<script src="/build/led-display.js" defer></script>
+<script src="/build/PlayCalculator.js" defer></script>
+<script src="/build/Pages.js" defer></script>
+<script src="/build/site.js" defer></script>
+</body>
+</html>

@@ -5,18 +5,24 @@
 const { useState: useStateApp } = React;
 
 const STARTED_SECTIONS = [
+  { title: "Start here", items: [
+    { id: "overview", label: "Overview", href: "/getting-started/" },
+  ]},
   { title: "Setup", items: [
-    { id: "install-mobile", label: "Installing on iPhone and iPad" },
-    { id: "install-mac", label: "Installing on Mac" },
+    { id: "install-mobile", label: "Installing on iPhone and iPad", href: "/getting-started/install-iphone-ipad/" },
+    { id: "install-mac", label: "Installing on Mac", href: "/getting-started/install-mac/" },
   ]},
   { title: "Using the emulator", items: [
-    { id: "state-files", label: "Loading a state file" },
-    { id: "debugger", label: "Using the debugger" },
-    { id: "printer", label: "Printer and card reader" },
+    { id: "state-files", label: "Loading a state file", href: "/getting-started/state-files/" },
+    { id: "debugger", label: "Using the debugger", href: "/getting-started/debugger/" },
+    { id: "printer", label: "Printer and card reader", href: "/getting-started/printer/" },
   ]},
   { title: "Help", items: [
-    { id: "faq", label: "FAQ" },
-    { id: "readme", label: "Main README" },
+    { id: "faq", label: "FAQ", href: "/getting-started/faq/" },
+    // Not a page on this site: the README lives on GitHub, so this is an
+    // ordinary outbound link rather than a route that would only exist to
+    // point somewhere else.
+    { id: "readme", label: "Main README", href: "https://github.com/tinue/Calc-U-59/blob/main/README.md", external: true },
   ]},
 ];
 
@@ -41,12 +47,12 @@ function HomePage({ onNav }) {
           alignItems: "center", paddingTop: 56, paddingBottom: 56,
         }}>
           <div>
-            <p className="eyebrow">User guide</p>
+            <p className="eyebrow">TI-59 emulator for Mac, iPhone and iPad</p>
             <h1 className="page-title">Calc-U <em>59</em></h1>
-            <p className="lede">This guide is for the <strong style={{ color: "var(--fg)" }}>emulator app</strong>: installing it, loading state files, using the printer and debug tools, and understanding the settings that affect a session. It deliberately avoids the original TI-59 operating manual.</p>
+            <p className="lede">Calc-U 59 is a <strong style={{ color: "var(--fg)" }}>TI-59, TI-58 and TI-58C emulator</strong> for macOS, iPhone and iPad. It runs the original Texas Instruments ROM, reads and writes virtual magnetic cards, emulates the PC-100C printer and all fourteen Solid State Software modules, and includes a CPU-level debugger. You can <a href="/play/">try it in your browser</a> before you install anything.</p>
             <div style={{ display: "flex", gap: 12 }}>
-              <button className="btn primary" onClick={() => onNav("start")}>Getting started <span style={{opacity:.5}}>→</span></button>
-              <button className="btn secondary" onClick={() => onNav("ref")}>App reference</button>
+              <a className="btn primary" href="/getting-started/" style={{ textDecoration: "none" }}>Getting started <span style={{opacity:.5}}>→</span></a>
+              <a className="btn secondary" href="/reference/" style={{ textDecoration: "none" }}>App reference</a>
             </div>
             <div style={{
               marginTop: 20,
@@ -70,8 +76,8 @@ function HomePage({ onNav }) {
           </div>
           <div style={{ display: "flex", justifyContent: "center" }}>
             <img
-              src="assets/app-screenshot.png"
-              alt="Calc-U 59 running on iPhone"
+              src="/assets/app-screenshot.png"
+              alt="The Calc-U 59 TI-59 emulator running on an iPhone, showing the red LED display, the cue card and the full key matrix"
               style={{
                 height: 620,
                 width: "auto",
@@ -88,36 +94,65 @@ function HomePage({ onNav }) {
       <div className="wrap">
         <h2 className="section">Where to start</h2>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
-          <TopicCard num="01" eyebrow="Setup" title="Installing on iPhone and iPad" onClick={() => onNav("install-mobile")}>
+          <TopicCard num="01" eyebrow="Setup" title="Installing on iPhone and iPad" href="/install/iphone-ipad/">
             The App Store install path, plus what happens on first launch.
           </TopicCard>
-          <TopicCard num="02" eyebrow="Setup" title="Installing on Mac" onClick={() => onNav("install-mac")}>
+          <TopicCard num="02" eyebrow="Setup" title="Installing on Mac" href="/install/mac/">
             GitHub Releases, the DMG, and Gatekeeper the first time you open the app.
           </TopicCard>
-          <TopicCard num="03" eyebrow="Files" title="Loading a state file" onClick={() => onNav("state-files")}>
+          <TopicCard num="03" eyebrow="Files" title="Loading a state file" href="/state-files/">
             What a .ti59 file contains and how the parser treats each section.
           </TopicCard>
-          <TopicCard num="04" eyebrow="Debug" title="Using the debugger" onClick={() => onNav("debugger") }>
+          <TopicCard num="04" eyebrow="Debug" title="Using the debugger" href="/debugger/">
             CALCULATOR, CPU, LOG, freeze/step, and the binary trace file.
           </TopicCard>
-          <TopicCard num="05" eyebrow="Hardware" title="Printer and card reader" onClick={() => onNav("ref")}>
+          <TopicCard num="05" eyebrow="Hardware" title="Printer and card reader" href="/getting-started/printer/">
             What the PC-100C panel does and how card files are managed.
           </TopicCard>
-          <TopicCard num="06" eyebrow="Help" title="FAQ" onClick={() => onNav("faq")}>
+          <TopicCard num="06" eyebrow="Help" title="FAQ" href="/faq/">
             Answers to the questions users actually hit first.
           </TopicCard>
+        </div>
+
+        {/* What the emulator actually reproduces. Written for someone who
+            arrived from a search engine and has not yet decided whether
+            this is the TI-59 emulator they were looking for. */}
+        <h2 className="section">What Calc-U 59 emulates</h2>
+        <div className="prose panel" style={{ padding: 20, lineHeight: 1.7 }}>
+          <p style={{ marginTop: 0 }}>
+            Calc-U 59 emulates the <strong>TI Programmable 59</strong> that Texas Instruments
+            introduced in 1977, along with its two smaller siblings, the <strong>TI-58</strong> and
+            the constant-memory <strong>TI-58C</strong>. It is not a reimplementation of the maths in
+            Swift: the app runs the calculators' original ROM through an emulated TMC0501 processor,
+            so AOS precedence, the 13-digit internal precision, the flashing overflow display and the
+            documented quirks all behave the way the hardware did.
+          </p>
+          <ul style={{ margin: "0 0 12px", paddingLeft: 20 }}>
+            <li>Switchable <strong>TI-59 / TI-58 / TI-58C</strong> models, with the correct memory partition and startup state for each.</li>
+            <li>All fourteen <strong>Solid State Software</strong> library modules, from the Master Library to the RPN Simulator — <a href="/modules/">see the full list</a>.</li>
+            <li><strong>Magnetic cards</strong> read and written as files, synced between your devices over iCloud.</li>
+            <li>The <strong>PC-100C thermal printer</strong>, in both a dot-matrix view and a copyable text view.</li>
+            <li>A <a href="/debugger/">CPU-level debugger</a> with a live program listing, a ROM instruction trace, and binary trace capture for offline analysis.</li>
+            <li>Plain-text <a href="/state-files/">.ti59 state files</a> that carry a program, the registers, a cue card and a module selection in one readable file.</li>
+          </ul>
+          <p style={{ marginBottom: 0 }}>
+            New to these machines, or trying to work out which model you owned?{" "}
+            <a href="/what-is-a-ti-59/">Start with the background on the TI-59 and TI-58 →</a>
+          </p>
         </div>
 
         {/* App-icon strip */}
         <div className="panel" style={{
           marginTop: 48, display: "flex", alignItems: "center", gap: 24,
         }}>
-          <img src="assets/app-icon.png" alt=""
+          <img src="/assets/app-icon.png" alt=""
                style={{ width: 80, height: 80, borderRadius: 18, flex: "0 0 auto" }}/>
           <div>
             <h3 className="sub" style={{ margin: "0 0 4px" }}>Available now</h3>
             <p style={{ margin: 0, fontSize: 14 }}>
-              The Mac build ships from GitHub Releases. The mobile build is installed from the App Store.
+              The Mac build ships free from <a href="https://github.com/tinue/Calc-U-59/releases/latest">GitHub Releases</a>.
+              The iPhone and iPad build is on the <a href="https://apps.apple.com/us/app/calc-u-59/id6761413142">App Store</a>.
+              The source code is on <a href="https://github.com/tinue/Calc-U-59">GitHub</a>.
             </p>
           </div>
         </div>
@@ -127,9 +162,176 @@ function HomePage({ onNav }) {
 }
 
 /* =============================================================
+   WHAT IS A TI-59 — background page.
+
+   Scope exception, and a deliberate one. The rest of this site documents
+   the app and stays away from the 1977 hardware. This page exists because
+   the people looking for the app search for the machine — "TI-59
+   emulator", "TI-58C simulator", "TI-59 magnetic card" — and had nothing
+   here to land on. It orients a newcomer and hands them to the app; it is
+   not a substitute for the TI Personal Programming manual.
+   ============================================================= */
+function AboutTi59Page({ onNav }) {
+  const models = [
+    {
+      code: "TI-59",
+      name: "TI Programmable 59",
+      year: "May 1977",
+      body: "The top of the range. Up to 960 program steps or 100 data registers, traded against each other in steps of 80 and 10, plus a magnetic card reader in the side for saving programs. Memory was volatile: switch it off and the program was gone unless it was on a card.",
+    },
+    {
+      code: "TI-58",
+      name: "TI Programmable 58",
+      year: "May 1977",
+      body: "The same calculator with half the memory — up to 480 steps or 60 registers — and no card reader. Library modules still worked, so it lost storage rather than capability.",
+    },
+    {
+      code: "TI-58C",
+      name: "TI Programmable 58C",
+      year: "1979",
+      body: "A TI-58 with constant memory. The C is the whole point: programs and registers survived being switched off, which removed most of the reason to want a card reader in the first place.",
+    },
+  ];
+
+  return (
+    <main className="wrap-narrow">
+      <p className="eyebrow">Background</p>
+      <h1 className="page-title">What is a TI-59?</h1>
+      <p className="lede">
+        A short orientation to the Texas Instruments TI-59, TI-58 and TI-58C — the machines
+        Calc-U 59 emulates — for anyone who arrived here looking for one and wants to know
+        what they are dealing with.
+      </p>
+
+      <div className="prose" style={{ marginTop: 24 }}>
+        <p>
+          The <strong>TI Programmable 59</strong> was Texas Instruments' flagship programmable
+          calculator, introduced on 24 May 1977 at a list price of around $300. It succeeded
+          the SR-52, and for the rest of the decade it was the machine engineers, surveyors,
+          navigators and financial analysts actually carried. Its rival was the Hewlett-Packard
+          HP-67; the TI had roughly twice the memory, the HP had RPN and better build quality,
+          and people argued about it for years.
+        </p>
+        <p>
+          You programmed it by recording keystrokes. In learn mode every key you pressed became
+          a program step, and the ten user-defined keys — <K tone="dark">A</K> through{" "}
+          <K tone="dark">E</K> and their primed second functions — were the entry points. That
+          sounds primitive, and it is, but the instruction set includes conditionals, loops,
+          subroutines and indirect register addressing, which makes the TI-59 Turing-complete.
+          People wrote games for it.
+        </p>
+      </div>
+
+      <h2 className="section">The three models</h2>
+      <div style={{ display: "grid", gap: 12 }}>
+        {models.map(m => (
+          <div key={m.code} className="panel" style={{ padding: 20, lineHeight: 1.7 }}>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 6 }}>
+              <h3 className="sub" style={{ margin: 0 }}>{m.code}</h3>
+              <span style={{ color: "var(--fg-3)", fontSize: 13 }}>{m.name} · {m.year}</span>
+            </div>
+            <p style={{ margin: 0, color: "var(--fg-2)" }}>{m.body}</p>
+          </div>
+        ))}
+      </div>
+      <p style={{ marginTop: 12, color: "var(--fg-2)", lineHeight: 1.7 }}>
+        Calc-U 59 emulates all three. The model selector in the bottom toolbar switches between
+        them, and each starts with the memory partition and power-on state that model really had.
+      </p>
+
+      <h2 className="section">Algebraic Operating System</h2>
+      <div className="prose panel" style={{ padding: 20, lineHeight: 1.7 }}>
+        <p style={{ marginTop: 0 }}>
+          These calculators use <strong>AOS</strong> — Algebraic Operating System — rather than the
+          RPN found on contemporary Hewlett-Packard machines. You enter an expression roughly as it
+          is written on paper, with up to nine levels of parentheses, and the calculator applies
+          operator precedence when you press <K tone="yellow">=</K>. Emulating AOS convincingly is
+          the part that catches out reimplementations: the pending-operation stack has observable
+          edge cases that only fall out correctly if you run the original ROM, which is what
+          Calc-U 59 does.
+        </p>
+        <p style={{ marginBottom: 0 }}>
+          One of the library modules, <strong>RP</strong>, is an RPN Simulator — Texas Instruments
+          shipped a way to make its algebraic calculator behave like an HP.
+        </p>
+      </div>
+
+      <h2 className="section">Magnetic cards</h2>
+      <div className="prose panel" style={{ padding: 20, lineHeight: 1.7 }}>
+        <p style={{ marginTop: 0 }}>
+          The TI-59's card reader took small magnetic strips, one quarter of the machine's memory
+          per side. The card did double duty: once read, it slid into a slot above the keyboard so
+          the labels written along its top edge sat directly beneath the{" "}
+          <K tone="dark">A</K>–<K tone="dark">E</K> keys and told you what each one did in the
+          program you had just loaded. That is what the cue card on screen in Calc-U 59 is
+          reproducing.
+        </p>
+        <p style={{ marginBottom: 0 }}>
+          In the emulator, cards are files. They live in iCloud storage, so a program written on a
+          Mac is on the iPhone by the time you pick it up. The card reader mechanism was also the
+          most failure-prone part of the original hardware, which is a reasonable argument for
+          emulating one instead of restoring one.
+        </p>
+      </div>
+
+      <h2 className="section">Solid State Software modules</h2>
+      <div className="prose panel" style={{ padding: 20, lineHeight: 1.7 }}>
+        <p style={{ marginTop: 0 }}>
+          The TI-58 and TI-59 were the first handheld calculators with removable ROM program
+          modules. A module held up to 5,000 program steps and ran straight from ROM, leaving user
+          memory free. The Master Library came in the box; Applied Statistics, Surveying, Aviation,
+          Marine Navigation, Securities Analysis and the rest were sold separately, and the
+          complete set is now hard to find and expensive.
+        </p>
+        <p style={{ marginBottom: 0 }}>
+          Calc-U 59 includes all fourteen. <a href="/modules/">See the module list →</a>
+        </p>
+      </div>
+
+      <h2 className="section">The PC-100C printer</h2>
+      <div className="prose panel" style={{ padding: 20, lineHeight: 1.7 }}>
+        <p style={{ margin: 0 }}>
+          The calculator docked into a thermal printer — the PC-100A, B or C — and locked in place
+          with a key. Beyond printing results, it was how you got a readable listing of a program
+          with mnemonics instead of raw numeric key codes, dumped the data registers, or traced
+          execution. It is emulated in Calc-U 59, including the paper strip, which you can copy as
+          plain text rather than squinting at dot-matrix output.{" "}
+          <a href="/getting-started/printer/">Printer and card reader →</a>
+        </p>
+      </div>
+
+      <h2 className="section">Try one</h2>
+      <div className="prose panel" style={{ padding: 20, lineHeight: 1.7 }}>
+        <p style={{ marginTop: 0 }}>
+          The quickest way to see whether this is the machine you remember is to use one. The{" "}
+          <a href="/play/">browser emulator</a> runs the same emulation core compiled to
+          WebAssembly, with the Master Library loaded, and needs no installation. The full app,
+          with the printer, the card reader and the debugger, is{" "}
+          <a href="/install/mac/">free on the Mac</a> and{" "}
+          <a href="/install/iphone-ipad/">on the App Store</a> for iPhone and iPad.
+        </p>
+        <p style={{ marginBottom: 0, color: "var(--fg-3)", fontSize: 13 }}>
+          For the original operating manuals, program libraries and the wider TI-59 community,
+          start at <a href="https://www.ti59.com/">ti59.com</a> and{" "}
+          <a href="http://www.datamath.org/SCI/WEDGE/TI-59.htm">datamath.org</a>. This site only
+          documents the emulator.
+        </p>
+      </div>
+
+      <div style={{ marginTop: 24 }}>
+        <BackButton onNav={onNav} />
+      </div>
+    </main>
+  );
+}
+
+/* =============================================================
    GETTING STARTED — practical install, file, and debug guidance.
    ============================================================= */
-function GettingStartedPage({ initialTopic = "install-mobile", onNav }) {
+// "overview" is the default because /getting-started/ is a hub: it is the
+// most-linked page on the site and sits in the header nav. Defaulting to a
+// topic would make it a byte-identical twin of that topic's own URL.
+function GettingStartedPage({ initialTopic = "overview", onNav }) {
   const [topic, setTopic] = useStateApp(initialTopic);
 
   function handlePick(id) {
@@ -137,22 +339,22 @@ function GettingStartedPage({ initialTopic = "install-mobile", onNav }) {
     if (onNav) onNav({ page: "start", topic: id });
   }
   const titles = {
+    overview: "Getting started with Calc-U 59",
     "install-mobile": "Installing on iPhone and iPad",
     "install-mac": "Installing on Mac",
     "state-files": "Loading a state file",
     debugger: "Using the debugger",
     printer: "Printer and card reader",
     faq: "FAQ",
-    readme: "Main README",
   };
   const notes = {
+    overview: "Install the app, load a state file, drive the printer and card reader, and find your way around the debugger.",
     "install-mobile": "Use the App Store build, then configure the model and load presets from inside the app.",
     "install-mac": "Download the release from GitHub, then drag the app to Applications.",
     "state-files": "What .ti59/.ti58/.ti58c files contain and how the parser treats each section.",
     debugger: "CALCULATOR, CPU, LOG, freeze/step, and binary trace output.",
     printer: "The PC-100C panel, paper strip, copy/cut, and card file behaviour.",
     faq: "Concise answers to the questions that usually come up first.",
-    readme: "Complete project overview, build instructions, and technical documentation.",
   };
 
   const stateFileExample = `PARTITION: 479
@@ -170,6 +372,39 @@ SOLID-STATE-MODULE: ML
 PRINTER: on`;
 
   const topicBody = {
+    overview: (
+      <div style={{ display: "grid", gap: 16, marginTop: 20 }}>
+        <div className="panel" style={{ padding: 20, lineHeight: 1.7 }}>
+          <p style={{ marginTop: 0 }}>
+            Calc-U 59 runs the original Texas Instruments ROM, so the calculator in front of you behaves the way a TI-59, TI-58 or TI-58C did in 1977 — the same AOS arithmetic, the same 480 program steps traded against 60 data registers, the same Solid State Software modules.
+          </p>
+          <p style={{ marginBottom: 0 }}>
+            Most people need three things: get the app installed, open a state file, and know where the printer and the debugger live. Each is a short page.
+          </p>
+        </div>
+
+        <div style={{ display: "grid", gap: 12 }}>
+          <TopicCard num="01" eyebrow="Setup" title="Installing on iPhone and iPad" href="/install/iphone-ipad/">
+            Install from the App Store, pick the calculator model, and open .ti59 files from the file picker.
+          </TopicCard>
+          <TopicCard num="02" eyebrow="Setup" title="Installing on Mac" href="/install/mac/">
+            Download the release from GitHub, drag it to Applications, and get past the first-launch Gatekeeper prompt.
+          </TopicCard>
+          <TopicCard num="03" eyebrow="Files" title="Loading a state file" href="/state-files/">
+            What .ti59, .ti58 and .ti58c files contain, and how each section — partition, program, registers, keystrokes — is applied.
+          </TopicCard>
+          <TopicCard num="04" eyebrow="Hardware" title="Printer and card reader" href="/getting-started/printer/">
+            The PC-100C panel in dot and text view, printing and advancing paper, copying the strip, and where card files are kept.
+          </TopicCard>
+          <TopicCard num="05" eyebrow="Debug" title="Using the debugger" href="/debugger/">
+            The CALCULATOR, CPU and LOG tabs, freeze and step, F.START, and binary trace files for offline analysis.
+          </TopicCard>
+          <TopicCard num="06" eyebrow="Help" title="FAQ" href="/faq/">
+            Where files live, how to capture a trace, and the other questions that come up first.
+          </TopicCard>
+        </div>
+      </div>
+    ),
     "install-mobile": (
       <div style={{ display: "grid", gap: 16, marginTop: 20 }}>
         <div className="panel" style={{ padding: 20 }}>
@@ -288,18 +523,6 @@ PRINTER: on`;
             <p style={{ margin: 0, lineHeight: 1.7, color: "var(--fg-2)" }}>{item.a}</p>
           </div>
         ))}
-      </div>
-    ),
-    readme: (
-      <div style={{ display: "grid", gap: 16, marginTop: 20 }}>
-        <div className="panel" style={{ padding: 20, lineHeight: 1.7 }}>
-          <p style={{ marginTop: 0 }}>
-            The main README on GitHub contains the complete project overview, build instructions, technical architecture, and development guidelines.
-          </p>
-          <p style={{ marginBottom: 0 }}>
-            <a href="https://github.com/tinue/Calc-U-59/blob/main/README.md" style={{ color: "var(--accent)", textDecoration: "none", borderBottom: "1px solid var(--accent)" }}>View the README on GitHub →</a>
-          </p>
-        </div>
       </div>
     ),
   };
@@ -676,7 +899,7 @@ function ReferencePage({ onNav }) {
         <div className="panel" style={{ padding: 14 }}>
           <div style={{ position: "relative" }}>
             <img
-              src="assets/app-screenshot.png"
+              src="/assets/app-screenshot.png"
               alt="Calc-U 59 main app screenshot with annotated interface regions and toolbar buttons"
               style={{ width: "100%", height: "auto", display: "block", borderRadius: 10 }}
             />
@@ -875,11 +1098,13 @@ function PlayPage({ onNav }) {
         <PlayCalculator scale={1.4} keyboard />
       </div>
 
-      <h1 className="page-title" style={{ marginTop: 32 }}>Try it right here</h1>
+      <h1 className="page-title" style={{ marginTop: 32 }}>TI-59 emulator, online</h1>
       <div className="prose">
         <p>
-          This is the real emulation core — compiled to WebAssembly and running entirely in your
-          browser — not a screenshot. Debugger, printer, and card reader are not part of this build;
+          The calculator above is a working <strong>Texas Instruments TI-59 emulator running in
+          your browser</strong> — no install, no account, nothing to download. It is the real
+          emulation core from the Calc-U 59 app, compiled to WebAssembly, executing the original
+          TI-59 ROM. Debugger, printer, and card reader are not part of this build;
           everything else works.
         </p>
         <p>
@@ -890,6 +1115,12 @@ function PlayPage({ onNav }) {
         <p>
           Press <strong>2nd</strong> then <strong>Pgm</strong> then a two-digit program number to
           bring up that program's cue card, the same way it works on the module itself.
+        </p>
+        <p>
+          For the TI-58 and TI-58C models, the PC-100C printer, magnetic cards and the CPU
+          debugger, use the full app: <a href="/install/mac/">free on the Mac</a>, or{" "}
+          <a href="/install/iphone-ipad/">on the App Store</a> for iPhone and iPad. If you are
+          not sure what any of this is, <a href="/what-is-a-ti-59/">start here</a>.
         </p>
       </div>
 
@@ -951,6 +1182,7 @@ function KeyboardLegend() {
 
 Object.assign(window, {
   HomePage,
+  AboutTi59Page,
   GettingStartedPage,
   InstallMobilePage,
   InstallMacPage,
