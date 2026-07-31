@@ -1101,6 +1101,9 @@ function PlayPage({ onNav }) {
       <div ref={holderRef} style={{ display: "flex", justifyContent: "center" }}>
         <PlayCalculator scale={scale} keyboard />
       </div>
+      <div style={{ textAlign: "center", marginTop: 12 }}>
+        <a className="btn secondary" href="/app/">Open as a standalone app <span style={{opacity:.5}}>→</span></a>
+      </div>
 
       <h1 className="page-title" style={{ marginTop: 32 }}>TI-59 emulator, online</h1>
       <div className="prose">
@@ -1125,6 +1128,11 @@ function PlayPage({ onNav }) {
           debugger, use the full app: <a href="/install/mac/">free on the Mac</a>, or{" "}
           <a href="/install/iphone-ipad/">on the App Store</a> for iPhone and iPad. If you are
           not sure what any of this is, <a href="/what-is-a-ti-59/">start here</a>.
+        </p>
+        <p>
+          Prefer this without the browser chrome? <a href="/app/">Open the standalone app</a> — the
+          same calculator alone at its own address, installable to your phone's home screen for a
+          one-tap, full-screen launch.
         </p>
       </div>
 

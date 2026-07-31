@@ -83,6 +83,12 @@ function SiteFooter() {
         }}>Calc-U 59</strong>
         <a href="/what-is-a-ti-59/">What is a TI-59?</a>
         <a href="/play/">Online emulator</a>
+        {/* /app/ is the calculator alone, installable to a phone's home
+            screen — deliberately not a route (see routes.js) or a nav item,
+            so this is its only link from inside the site. Kept out of
+            robots.txt's crawl on purpose (see the Disallow comment there):
+            it would otherwise compete with /play/ for the same searches. */}
+        <a href="/app/">Install the web app</a>
         <a href="https://github.com/tinue/Calc-U-59">GitHub</a>
         <a href="https://github.com/tinue/Calc-U-59/blob/main/CHANGELOG.md">Release notes</a>
         <a href="https://github.com/tinue/Calc-U-59/blob/main/PRIVACY.md">Privacy</a>

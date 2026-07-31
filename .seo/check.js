@@ -83,11 +83,19 @@ for (const route of ROUTES.filter((r) => !r.canonical)) {
 
 /* ---- internal links resolve -------------------------------------- */
 section("internal links");
+// Static pages that live outside routes.js entirely — not React pages, so
+// never prerendered into `built` — but that are real, deliberately-linked
+// targets on disk. /app/ is the installable standalone calculator; it is
+// left out of routes.js (and out of robots.txt's crawl) on purpose so it
+// never competes with /play/, but SiteFooter and PlayPage both link to it.
+const STATIC_TARGETS = { "/app/": path.join(DOCS, "app", "index.html") };
 for (const [p, html] of built) {
   const hrefs = [...html.matchAll(/href="(\/[^"]*)"/g)].map((m) => m[1]);
   for (const href of new Set(hrefs)) {
     if (/\.(css|png|js|xml|txt|json|woff2?)$/.test(href)) {
       ok(fs.existsSync(path.join(DOCS, href.replace(/^\//, ""))), `${p}: asset ${href} missing`);
+    } else if (STATIC_TARGETS[href]) {
+      ok(fs.existsSync(STATIC_TARGETS[href]), `${p}: static page ${href} missing`);
     } else {
       ok(built.has(normalizePath(href)), `${p}: link ${href} has no built page`);
     }

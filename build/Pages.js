@@ -1752,7 +1752,19 @@ function PlayPage({
   }, /*#__PURE__*/React.createElement(PlayCalculator, {
     scale: scale,
     keyboard: true
-  })), /*#__PURE__*/React.createElement("h1", {
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      textAlign: "center",
+      marginTop: 12
+    }
+  }, /*#__PURE__*/React.createElement("a", {
+    className: "btn secondary",
+    href: "/app/"
+  }, "Open as a standalone app ", /*#__PURE__*/React.createElement("span", {
+    style: {
+      opacity: .5
+    }
+  }, "\u2192"))), /*#__PURE__*/React.createElement("h1", {
     className: "page-title",
     style: {
       marginTop: 32
@@ -1765,7 +1777,9 @@ function PlayPage({
     href: "/install/iphone-ipad/"
   }, "on the App Store"), " for iPhone and iPad. If you are not sure what any of this is, ", /*#__PURE__*/React.createElement("a", {
     href: "/what-is-a-ti-59/"
-  }, "start here"), ".")), /*#__PURE__*/React.createElement("h2", {
+  }, "start here"), "."), /*#__PURE__*/React.createElement("p", null, "Prefer this without the browser chrome? ", /*#__PURE__*/React.createElement("a", {
+    href: "/app/"
+  }, "Open the standalone app"), " \u2014 the same calculator alone at its own address, installable to your phone's home screen for a one-tap, full-screen launch.")), /*#__PURE__*/React.createElement("h2", {
     className: "section",
     style: {
       marginTop: 32
