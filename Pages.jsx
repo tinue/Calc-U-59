@@ -313,6 +313,13 @@ function AboutTi59Page({ onNav }) {
         <p style={{ marginBottom: 0, color: "var(--fg-3)", fontSize: 13 }}>
           For the original operating manuals, program libraries and the wider TI-59 community,
           start at <a href="https://www.ti59.com/">ti59.com</a> and{" "}
+          {/*
+            http:// is deliberate and must stay: datamath.org serves no TLS at
+            all — https:// fails the handshake outright ("tlsv1 alert internal
+            error"), it does not merely warn. Promoting this to https breaks
+            the link. Re-test before changing it; if they ever add a
+            certificate, this is safe to flip.
+          */}
           <a href="http://www.datamath.org/SCI/WEDGE/TI-59.htm">datamath.org</a>. This site only
           documents the emulator.
         </p>
