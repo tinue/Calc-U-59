@@ -1,12 +1,13 @@
 # Card Recovery
 
 *Status: idea / feasibility analysis, not implemented. Goal: build a
-standalone, Raspberry Pi Pico–based reader that reuses a donor TI-59's
-magnetic-card transport (head, motor, pinch roller, pressure pad,
-card-sense switches) to image cards more reliably than the original 1970s
-electronics, without routing anything through the TI-59's own logic board.
-Captured data is stored/transmitted from the Pico to a host PC for
-decoding — it never needs to reach the TI-59's ROM at all.*
+Raspberry Pi Pico–based capture rig that listens in parallel, non-invasively,
+to an intact, working TI-59's own card reads — via 4 (or optionally 6) wires
+soldered to the existing main board — and decodes the raw waveform with
+modern methods to recover cards the calculator's own fixed-threshold 1970s
+electronics fail to read cleanly. There is no donor/spare unit for this
+project: the only TI-59 involved is the working one, so the tap has to be
+planned and verified before any soldering happens.*
 
 Source for the hardware facts below: *TI Programmable 58/59 Service Manual*
 (local copy: `~/SynologyDrive/Dokumente/PDF/Vintage/TI/manuals/TI 59-service-manual.pdf`),
@@ -71,220 +72,360 @@ Two conclusions follow:
    This matches the symptom (partial reads, all-or-nothing checksum
    failure) exactly.
 
-## 3. What's still unknown, and what the ferrofluid image adds
+## 3. What the ferrofluid image adds
 
-The exact self-clocking encoding scheme (bit-cell length, FM/single-frequency
-doubling vs. F2F/Aiken-biphase vs. something TI-proprietary) lives entirely
-inside the `TMC0594` and isn't recoverable from ROM disassembly. Given the
-era (mid-1970s) and the manual's "frequency varies with data" description,
-an F2F/biphase-style scheme (à la ISO magstripe tracks) is a reasonable
-working hypothesis, not a confirmed fact.
+![Ferrofluid-developed diagnostic card, both banks visible](diag-card-ferrofluid.png)
 
-The ferrofluid-developed card photo is genuinely useful evidence here — it's
-the first look at the *actual recorded pattern* rather than an inference
-from documentation:
+*The card imaged above is [`examples/diag.ti59`](../examples/diag.ti59)
+loaded into a real TI-59, developed with ferrofluid to make the recorded
+flux pattern visible.*
 
-- The image shows roughly 7-8 distinct horizontal band-like regions with
-  vertical tick marks (individual flux transitions). Since the hardware
-  documents exactly 4 tracks (Fig.5: `TRACK1`–`TRACK4`, 4 independent R/W
-  channels), the most likely reading is **4 tracks × 2 visible sub-lines
-  each** — ferrofluid/magnetic-viewer images commonly show both edges of a
-  recorded domain boundary as separate fine lines, not 8 independent
-  tracks. Treat this as an inference, not a pixel-measured fact.
-- Adjacent bands alternate between **densely, regularly ticked** regions
-  and **sparser, irregularly spaced** regions. The most likely explanation
-  is not "clock track vs. data track" (the hardware has no such split — all
-  4 channels are symmetric data tracks) but rather that this *is* the
-  self-clocking encoding directly: a run of repetitive content (headers,
-  sync fields, or program data that happens to repeat) produces a highly
-  regular transition pattern, while general program data produces the
-  irregular spacing visible elsewhere. This is consistent with — though not
-  proof of — the frequency-varies-with-data description in the manual.
-- There's a heavily stained, blotchy dark region in the upper-left of the
-  card, concentrated near the start of the tracks. This looks like
-  localized oxide damage, contamination, or accumulated debris rather than
-  recorded data, and is a plausible independent cause of read failures on
-  *this specific card* regardless of what reader is used.
+### Two banks, two physical passes, eight real tracks
+
+A TI-59 card holds one or two 240-step banks. Per the `CUECARD` block in
+`examples/diag.ti59` (`Banks: 1,2`), the diagnostic card uses both: bank 1
+is `PROGRAM` steps 000-239 (the actual diagnostic routine), bank 2 is steps
+240-479 — which, per the same file, is **every single step set to nibble
+`77`** (opcode `GE`), 240 times over. The two banks are written (and read)
+as two separate physical passes: the card is inserted once for bank 1, then
+flipped 180° (both end-to-end and top-to-bottom) and re-inserted for bank
+2. The 4-track head only ever accesses 4 tracks per pass, occupying one
+half of the card's width; flipping the card presents its *other* half-width
+to the same 4 heads for the second pass. The image confirms this directly:
+**there are 8 real, physical tracks visible — 4 per bank, mirrored across
+the card** — not 4 tracks with a ferrofluid-doubling artifact, as an earlier
+draft of this document guessed. This is a real, useful structural fact:
+each bank genuinely only uses 4 parallel tracks, matching the schematic
+(Fig.5: `TRACK1`–`TRACK4`).
+
+This also explains the picture's dense/sparse contrast cleanly:
+
+- **The dense, uniform, tightly-ticked region (top half of the image) is
+  bank 2** — 240 identical `77` nibbles in a row. Every nibble is the same
+  nonzero value, so (per the finding below) every bit-cell produces a
+  transition, giving the regular comb pattern visible in the photo.
+- **The sparser, irregular region (bottom half) is bank 1** — the actual
+  diagnostic program. `examples/diag.ti59`'s own comment on the `PROGRAM`
+  block ("The programs contains many zeroes, which are skipped below")
+  confirms most of bank 1's steps are `00`. The irregular gaps in that half
+  of the image are real program content interspersed with long stretches
+  of near-silence — not sync fields, not noise, just zero-valued data.
+
+### Byte-encoding hypothesis: 4 tracks × 2 card-length positions = 8 bits
+
+Since the 4 tracks are read/written in parallel across the card's width,
+the natural way to record an 8-bit value (each program step's opcode byte,
+e.g. `77`) is as 2 sequential positions along the card's length, each
+contributing 4 bits (one per track) — giving exactly 8 bits per step, e.g.
+`77` as `01110111`. This is a sound physical model, but **it can't be
+confirmed by eye from the photo** — counting tick marks doesn't
+unambiguously reconstruct bit values without knowing the exact per-bit
+encoding rule, and that requires real captured, calibrated data from the
+Pico rather than visual inspection. Actually reading the card is the only
+way to settle this.
+
+One thing worth reasoning through now, though, because it sharpens what to
+look for once real data exists: it argues *against* a simple
+change-on-value (NRZ-L) per-track encoding, and *for* the "pulse-per-1-bit"
+hypothesis below. Under NRZ-L, a track only transitions when its bit value
+*changes* from the previous cycle — so 240 repetitions of the *same* byte
+(`77`, bank 2) would produce almost no transitions (nothing changes cycle
+to cycle), while bank 1's varying program data would produce comparatively
+more. That's the opposite of what the image shows: bank 2 (constant,
+repeated `77`) is the dense region, bank 1 (varying, mostly-zero) is the
+sparse one. That's consistent instead with each bit cell being marked
+independently of the previous one — a transition (or pulse) written
+whenever a bit is `1`, nothing written when it's `0` — which is also
+exactly what's needed to explain the next finding.
+
+### The critical finding: `00` nibbles produce no flux transitions at all
+
+This is the single most important empirical fact for the whole project, and
+it rules out the F2F/Aiken-biphase hypothesis from the first draft of this
+document outright. Biphase/F2F-style self-clocking schemes exist
+specifically to *guarantee* a transition at every bit-cell boundary
+regardless of data value — that's the entire point of the "phase" in
+biphase. If a `0000` nibble genuinely produces zero transitions (not just
+fewer), the TI-59's format cannot be true biphase/F2F. It's closer to a
+simple two-level scheme where a "1" bit writes a pulse and a "0" bit writes
+nothing (unipolar RZ) or an NRZI-style "transition = 1, no transition = 0"
+mapping, applied per bit — either way, a `0000` nibble (4 zero bits) is
+consistent with producing a true silent gap, and this matches bank 1's
+sparse regions in the photo, which correspond to exactly the zero-heavy
+program content described in the source file.
+
+**This makes clock recovery materially harder than an ordinary
+self-clocking-format problem**, and changes the software design in §5.6:
+a pure PLL that only adapts by tracking observed transitions has nothing to
+track during a run of zero nibbles — it can only coast on its last known
+rate estimate and hope the motor speed (already known to wobble audibly)
+hasn't drifted much during the gap. The real design constraint isn't "track
+the data rate," it's "survive multi-bit-cell silence without losing the
+clock," which is a different and harder problem.
+
+### Header region, and azimuth
+
+- The heavily stained, blotchy dark region at the start of each bank's
+  tracks is most likely the **card header** — a structurally distinct
+  preamble/metadata region at the start of a bank, separate from the pure
+  program-step data, that would naturally look different from the uniform
+  `77` fill under ferrofluid simply because its bit content differs. This
+  is a better-grounded explanation than "physical damage," though the
+  header region — being scanned on every single read attempt, including
+  failed/partial ones — could plausibly also show more accumulated wear on
+  top of that; the two aren't mutually exclusive.
 - **Worth checking specifically for the azimuth question:** pick a moment
   in time during writing (a vertical line at some horizontal position on
-  the card) and check whether the flux transitions across all 4 tracks line
-  up in a straight vertical line, or are diagonally offset from track to
-  track. A consistent diagonal offset is the direct visual signature of a
-  head that was tilted (non-zero azimuth) relative to the track direction
-  at write time — worth a careful pixel-level cross-track alignment check
-  on a high-resolution version of the image, which a casual visual read
-  can't fully confirm.
+  the card) and check whether the flux transitions across all 4 tracks of
+  a given bank line up in a straight vertical line, or are diagonally
+  offset from track to track. A consistent diagonal offset is the direct
+  visual signature of a head that was tilted (non-zero azimuth) relative
+  to the track direction at write time — worth a careful pixel-level
+  cross-track alignment check on a high-resolution version of the image,
+  which a casual visual read can't fully confirm.
+- Because bank 1 and bank 2 are written/read in two physically reversed
+  passes (above), an azimuth mismatch would show up *differently* on the
+  two halves of the same card — worth comparing tick sharpness/amplitude
+  between the top and bottom halves of the image as a cheap first check,
+  before doing the more rigorous cross-track alignment measurement.
 
-Two independent, additive problems are therefore in play: **azimuth
+Three independent, additive problems are therefore in play: **azimuth
 mismatch** between the head that originally wrote most of your cards and
-the head in your current donor unit, and **motor speed variance** (audible,
-per your report) during reads. Both degrade signal quality/timing in ways a
-fixed 1970s comparator threshold and fixed-rate assumption can't compensate
-for — which is exactly the opening for a Pico-based rebuild.
+your current unit's head (it wasn't the machine most of these cards were
+written on), **motor speed variance** (audible, per your report) during
+reads, and a **recording format with true silent gaps** that removes the
+usual self-clocking safety net during exactly the periods where speed
+variance matters most. All three point at the same fix: don't rely on the
+recorded signal alone for timing (§5.6, "flywheel" clock).
 
-## 4. Design implication: read-only, standalone, bypass the TI-59 electronics entirely
+## 4. Design implication: a parallel, non-invasive tap on your intact TI-59
 
-Since the goal is imaging cards to a host PC — not feeding data back into
-the TI-59's ROM — there's no need to interface with the `TMC0594`, the
-MOS-domain voltage rails (`Vdd`/`Vgg`), or any calculator logic at all. The
-only parts worth keeping from the donor unit are the **mechanical/electrical
-transport**: magnetic head (`A1`), drive roller/motor (`B1`), pinch roller,
-pressure pad, and the card-sense/card-position switches (Fig.6 — simple
-mechanical NC switches, no silicon). Everything downstream of the head is
-new, breadboard-built electronics under the Pico's control. This also
-sidesteps a real risk: the *original* 40-year-old LM324/passives may
-themselves have drifted and be contributing to the marginal reads — a fresh
-build removes that variable rather than trying to characterize it.
+There's no donor unit for this project — the plan is to tap 4 (or
+optionally 6) signals directly off your only working TI-59's main board
+while it performs a completely normal card read, and have the Pico capture
+and independently decode the same raw signal in parallel. The TI-59's own
+motor, transport, and power supply do all the mechanical and electrical
+work exactly as they always have; nothing about the calculator's own read
+attempt is disturbed except by the tap itself. Given that, the whole design
+should be judged first on how little it disturbs the original circuit, and
+only second on decode quality — you can iterate on decode software
+indefinitely once you have clean captured data, but a bad tap can degrade
+or damage the one TI-59 you have.
+
+Two concrete risks that shape the circuit design in §5:
+
+1. **Loading.** Any wire soldered onto the `READ1`–`READ4` nodes (LM324
+   output, U10) adds capacitance and draws some current from that node. A
+   healthy op-amp output shrugs this off if the added load is high
+   impedance, but a low-impedance or poorly-designed tap could measurably
+   change the very signal you're trying to observe — worst case, making
+   the TI-59's *own* reads worse than before the tap existed. The
+   conditioning circuit in §5.3 is designed around a high-impedance,
+   AC-coupled first stage specifically to avoid this.
+2. **Voltage domain.** `READ1`–`READ4` swing in the TI-59's negative MOS
+   domain (roughly 0 to −10V relative to system ground `Vss`, per §1 /
+   manual p.3), while the Pico's ADC/GPIO pins are only rated for
+   0–3.3V. Connecting a tap wire straight to a Pico pin without protection
+   risks destroying it instantly on power-up or a wiring mistake — with no
+   spare unit, that failure mode is worth designing out entirely rather
+   than working around after the fact (§5.3 covers the AC-coupling +
+   clamp-diode approach).
+
+Write capability is intentionally out of scope — this is a listen-only tap,
+so nothing about the `TMC0594`'s write path is touched.
 
 ---
 
-## 5. Breadboard circuit design
+## 5. Circuit design
 
 ### 5.1 Block diagram
 
 ```
-                     ┌─────────────────────────────────────────┐
-   Magnetic head     │   Per-track preamp (×4, on breadboard)   │
-   (donor A1, 4      │   AC-couple → gain stage 1 → gain stage 2│
-   tracks) ──────────┤   → AC-couple → bias to Vref             │
-                      └─────────────┬─────────────────────────┘
-                                    │  4 analog channels, ~0-3.3V,
-                                    │  biased around Vref (~1.65V)
-                                    ▼
-                     ┌─────────────────────────────────────────┐
-                     │  External 4/8-ch 12-bit ADC (SPI)         │
-                     │  e.g. MCP3208                             │
-                     └─────────────┬─────────────────────────┘
-                                    │ SPI
-                                    ▼
-                     ┌─────────────────────────────────────────┐
-                     │  Raspberry Pi Pico / Pico 2                │
-                     │  - reads all 4 channels each pass          │
-                     │  - PLL-style clock recovery                │
-                     │  - adaptive threshold per track             │
-                     │  - checksum-guided multi-pass reconstruction│
-                     │  - drives motor on/off via MOSFET            │
-                     │  - reads card-sense switches (GPIO+pull-up) │
-                     └─────────────┬─────────────────────────┘
-                                    │ USB CDC (serial)
-                                    ▼
-                              Host PC (decode, storage, tooling)
-
-   Motor power:  adjustable buck module → Pico-switched N-MOSFET → donor motor (B1)
-   Card sense:   donor NC switches → Pico GPIO (internal pull-up)
+   TI-59 main board                    ┌───────────────────────────────┐
+   (unmodified, reading a card         │  Per-channel signal            │
+   exactly as normal) ─── 4 solder ────┤  conditioning (×4, breadboard) │
+   points: LM324 (U10) pins            │  AC-couple → bias → clamp →     │
+   1, 7, 8, 14 ("READ1"-"READ4")       │  gain → anti-alias filter       │
+                                        └──────────────┬──────────────┘
+   optional: 2 more tap points                          │ 4 analog channels,
+   at the card-sense/position                           │ 0-3.3V, biased ~1.65V
+   switches (Fig.6) ── digital,                          ▼
+   already 0/Vdd-swinging ──┐          ┌───────────────────────────────┐
+                              │         │  External 4/8-ch 12-bit ADC     │
+                              ├────────▶│  (SPI), e.g. MCP3208             │
+                              │         └──────────────┬──────────────┘
+                     (through the same                  │ SPI
+                      clamp/level-shift                  ▼
+                      protection as the           ┌───────────────────────┐
+                      analog channels)             │ Raspberry Pi Pico/Pico 2 │
+                                                    │ - captures all channels  │
+                                                    │ - flywheel clock recovery│
+                                                    │ - adaptive thresholding  │
+                                                    │ - checksum-guided repair │
+                                                    │ - optional record-window │
+                                                    │   trigger from card-sense│
+                                                    └──────────────┬────────┘
+                                                                    │ USB CDC
+                                                                    ▼
+                                                              Host PC
 ```
 
-Write capability is intentionally out of scope — this is a read/imaging
-rig, so the `TMC0594`'s TRI-state write buffers and the original ±1.5V
-square-wave write drive aren't needed at all.
+The TI-59's own motor, power supply, and logic are completely untouched —
+this diagram only adds a passive tap and the Pico-side capture chain.
 
-### 5.2 Per-track preamp (×4 identical channels)
+### 5.2 Identifying and making the tap points
 
-Reuse the classic topology from the service manual, but on fresh,
-modern-manufactured parts and a conventional positive supply — the
-`LM324` is still in production today and was originally designed for
-single-supply operation, so there's no need to reproduce the calculator's
-`Vss`/`Vdd`/`Vgg` negative-rail domain at all.
+This is the step to get right before any soldering, given there's no
+spare board to practice mistakes on.
+
+- **Primary taps — `READ1`–`READ4`:** LM324 (`U10`) pins **1, 7, 8, 14**
+  per the schematic (Fig.5) — the amplified, post-preamp, pre-`TMC0594`
+  signal for each track. If soldering directly to a 40-year-old DIP IC pin
+  feels too risky (fine pitch, risk of bridging adjacent pins, risk of
+  lifting a pad on old FR4), an electrically identical alternative is the
+  nearby passive component legs on the same net: the 1210Ω resistors
+  `R11`/`R13`/`R10`/`R8` sit directly between each op-amp output and the
+  head (Fig.5) and are a lower-density, more solder-friendly target for a
+  tack-soldered wire.
+- **Optional taps — card-sense/position switches:** per Fig.6, the card
+  sense switch sits between node `D10` (via diode `CR6`, TI-59 only) and
+  the `KR` node (into `U1` pin 10); the card position switch sits between
+  `C.S.I.` (from `U9` pin 10) and `-Vdd`. Both are simple mechanical
+  normally-closed switches — the easiest, least invasive tap is directly
+  across the physical switch terminals near the card slot, rather than at
+  the IC pins.
+- **Board revision caveat:** the manual documents at least 7 different
+  board "dash number" revisions with component differences (p.23-24,
+  "Modifications" — e.g. `-1`/`-2` boards needing full PCB replacement for
+  some faults, `-3` through `-6` needing added components). The manual's
+  physical board-layout diagrams (referenced on p.47-49 as "Dash 1,2,3
+  boards" / "Dash 4,5,6 boards" / "Dash 7 boards") would show exactly where
+  `U9`/`U10` and the associated passives sit on each revision, but this
+  session wasn't able to reliably extract those specific pages from the
+  PDF (repeated attempts returned earlier pages instead — worth trying
+  again directly, or opening the PDF manually). Identify your board's dash
+  number and locate `U9`/`U10` by their silkscreen designators before
+  relying on any pin-numbering assumption from the schematic alone, and
+  verify every intended tap point with a multimeter in continuity/diode
+  mode against the schematic's documented signal names before soldering
+  anything.
+- **Mechanical practice:** use the thinnest wire that's practical (e.g.
+  30 AWG wire-wrap wire), tack-solder rather than trying to route a
+  permanent PCB modification, and consider a small dab of hot glue or
+  RTV over each joint for strain relief once verified working — the goal
+  is a tap that can be removed cleanly later if needed, not a permanent
+  rework.
+
+### 5.3 Per-channel signal conditioning
+
+The key design choice, given §4's risks: **AC-couple right at the tap
+point, before anything else.** This does two things at once — it removes
+the negative DC bias immediately (so nothing downstream needs to tolerate
+or generate negative voltages), and it presents a very high impedance to
+the LM324 output at DC (a coupling capacitor draws no steady current),
+minimizing loading on the original circuit.
 
 ```
- Head track (2 wires, one per track, common return to head ground)
+ Tap point (READ1..4, swinging ~0 to -10V with AC pulses riding on it)
    │
-   ├── C1 (2.2-10 µF, non-polarized/film) ── AC-couples out any DC bias
+   ├── C1 (1-10 µF, non-polarized/film) ── blocks the DC bias entirely;
+   │                                        only the small AC pulse content
+   │                                        passes through
    │
-   │         ┌── R2 (fixed) ──┐
-   │         │                │
-   Vbias ─ R1 ─┤+  op-amp A ├── out1 ── C2 ── Vbias ─ R3 ─┤+  op-amp B ├── out2 (to ADC ch. N)
-              │-              │                          │-           │
-              └──── R2 ────────┘ (gain stage 1,           └──── R4 ─────┘ (gain stage 2,
-                                   gain ≈ 1+R2/R1 ≈ 20-30×)              gain ≈ 1+R4/R3 ≈ 20×)
-
- Vbias = Vcc/2, generated once by an R-R divider (e.g. 10K/10K from
-         Vcc to GND) + 10 µF decoupling cap, shared across all 4 channels.
+   ├── R1 (≈1 MΩ) to GND, R2 (≈1 MΩ) to +3.3V ── soft bias network,
+   │     high impedance (negligible additional loading on the tap),
+   │     centers the AC signal around ~1.65V referenced to shared ground
+   │
+   ├── clamp diodes (e.g. BAT54 or 1N4148) from this node to GND and to
+   │     +3.3V ── protects everything downstream against an unexpectedly
+   │     large excursion or a wiring mistake, since this node is now
+   │     "just" a small 0-3.3V-ish signal, not the calculator's own
+   │     negative rail
+   │
+   ▼
+ single-supply op-amp gain stage (non-inverting, gain ≈ 5-20×, tunable)
+   │        — LM324/TL074/MCP6004, powered from 3.3V or 5V referenced to
+   │           the SAME ground as the TI-59's Vss (share ground only —
+   │           do not borrow the TI-59's own Vdd/Vgg/battery supply for
+   │           this circuit)
+   ▼
+ anti-alias RC filter (a few kΩ + a few nF, cutoff a few 10s of kHz —
+   card speed is only ~2.3 IPS so this is a low-frequency signal; refine
+   once real capture data exists)
+   ▼
+ to ADC channel N
 ```
 
-- **Op-amp:** one quad package per instrument (`LM324`, `TL074`, or
-  `MCP6004` all work) powered from a single 3.3V or 5V rail relative to
-  Pico ground. Using 5V for the analog stage gives more headroom, then a
-  final resistor divider (or the ADC's own reference) brings the signal
-  into range.
-- **Total gain:** ~500-1000× across both stages — comparable to or
-  exceeding the original circuit's ~500×, which gives useful margin for
-  weak signal from worn cards or a still-imperfect azimuth.
-- **AC-coupling twice** (`C1` at the input, `C2` between stages) keeps any
-  DC drift/offset from railing the second stage — the same principle the
-  original circuit uses (its 33µF caps "decouple common mode voltage
-  caused by the DC bias supplied to the magnetic heads," p.11).
-- **Anti-alias filter:** a simple single-pole RC (a few kΩ + a few nF) after
-  the second stage, cutoff set comfortably above the expected transition
-  frequency (unknown precisely until the encoding is characterized, but
-  card speed is only ~2.3 IPS, so this is a low-frequency signal — start
-  around 10-20 kHz cutoff and adjust after capturing real data).
-- Build 4 of these (one quad-op-amp IC covers all 4 tracks, 2 sections
-  per channel).
+- **Gain is now much more modest than a from-scratch preamp would need**
+  (5-20× rather than 500-1000×), because the TI-59's own `LM324` has
+  already done the bulk of the amplification — this tap only needs to
+  bring an already-substantial signal (up to ~1-2V p-p per the manual's
+  numbers) into the ADC's usable range, plus a bit of headroom for
+  marginal/weak cards.
+- One quad op-amp package covers all 4 (or up to 4 of 6, if also
+  conditioning the digital card-sense taps through the same clamp
+  network) channels.
+- The optional card-sense/position taps can go through an identical
+  clamp+bias front end even though they're simpler digital signals — same
+  protection logic applies, since they're also referenced to the
+  calculator's negative-domain logic levels, not 0-3.3V.
 
-### 5.3 ADC
+### 5.4 ADC
 
 The Pico's own onboard ADC only exposes 3 external channels (`GPIO26-28`)
 and they share a single physical SAR converter anyway — no true
 simultaneous sampling either way. Cleaner to use an external SPI ADC:
 
 - **`MCP3208`** (8-channel, 12-bit, SPI) — cheap, breadboard-friendly,
-  well-documented, leaves 4 channels spare for later (e.g. a tachometer
-  signal, see below). `MCP3204` (4-channel) is the minimal equivalent.
+  well-documented, leaves channels spare for the optional card-sense taps
+  and a possible speed sensor (below). `MCP3204` (4-channel) is the
+  minimal equivalent if only the 4 read channels are wired up.
 - Wire `SCK`/`MOSI`/`MISO`/`CS` to any 4 Pico GPIOs, `Vref`/`Vdd` to the
   Pico's 3.3V rail so ADC codes map directly to 0-3.3V.
-- Round-robin all 4 channels every capture cycle. Given card speed is
-  slow and the signal bandwidth is low (§5.2), the achievable channel rate
-  from even a modest SPI clock is enormous overkill relative to what's
-  needed — no risk of missing transitions from multiplexing overhead.
+- Round-robin all channels every capture cycle. Given card speed is slow
+  and the signal bandwidth is low, the achievable channel rate from even a
+  modest SPI clock is enormous overkill relative to what's needed — no
+  risk of missing transitions from multiplexing overhead.
 
-### 5.4 Motor drive
+### 5.5 Optional: card-sense trigger and speed sensing
 
-Simpler than the original: no need to reproduce the 1970s constant-voltage
-transistor regulator (manual p.13, `Q1`/`Q2`/`R2`/`R4`), because the plan
-is to compensate for residual speed variation in software (§5.6), not
-eliminate it mechanically.
-
-```
- 5-12V supply ── adjustable buck module (e.g. LM2596-based) ── set to
-     approx. the donor motor's rated voltage ── N-channel MOSFET
-     (gate driven by a Pico GPIO through a series resistor, source to
-     GND, drain to motor -) ── donor motor (B1)
-```
-
-- Trim the buck module's output while watching captured waveform quality
-  live on the host PC — treat "motor voltage" as a tunable parameter, same
-  as the original's `R2` trim pot (p.13: adjusted "until the X in Texas on
-  the card is split by the left edge of the calculator case").
-- A flyback diode across the motor is standard practice with any brushed
-  DC motor driven by a MOSFET switch.
-- Optional but valuable: add a simple photo-interrupter or magnetic
-  tachometer on the drive roller/pinch roller shaft, feeding a spare ADC
-  channel or a GPIO interrupt. This gives the Pico a direct, independent
+- **Card-sense/position as a recording trigger.** Tapped per §5.2 and
+  conditioned per §5.3, these let the Pico start/stop its own waveform
+  capture automatically around when a card is actually present and
+  moving, rather than free-running continuously. Purely a convenience —
+  the Pico could just as well sample continuously and let the host-side
+  software find the interesting region by signal presence, which is
+  simpler to wire (2 fewer tap points) at the cost of more data to sift
+  through per session. Given the goal here is decode quality, not wiring
+  minimalism, wiring the trigger is worth it if the extra 2 tap points are
+  acceptable.
+- **Optional speed sensor.** A simple photo-interrupter or magnetic
+  tachometer, physically mounted to observe the existing drive
+  roller/pinch roller shaft (no electrical connection into the TI-59's own
+  circuit at all — purely an added external sensor), feeding a spare ADC
+  channel or GPIO interrupt. This gives the Pico a direct, independent
   measurement of instantaneous card speed — useful both as a diagnostic
-  (confirms and quantifies the audible speed wobble) and as an optional
-  input to the clock-recovery algorithm (§5.6), rather than relying purely
-  on inferring speed from the transition pattern itself.
-
-### 5.5 Card-sense switches
-
-The donor's card-sense and card-position switches (manual Fig.6 — both
-normally-closed mechanical switches) wire directly to two Pico GPIOs with
-internal pull-ups enabled, exactly like a push-button: switch to GND,
-GPIO reads high when open (card present/positioned) and low when closed.
-No level-shifting needed — these are pure mechanical contacts, same as the
-keyboard matrix discussed in `ideas/Pico.md`.
+  (quantifies the audible speed wobble directly) and as an input to the
+  flywheel clock recovery in §5.6, rather than inferring speed purely from
+  the transition pattern itself.
 
 ### 5.6 Software: what "modern methods" concretely means here
 
-- **PLL-style / data-separator clock recovery**, not a fixed nominal bit
-  rate. Standard technique from floppy/tape data separators: track the
-  actual observed transition spacing continuously and adapt the expected
-  bit-cell window, rather than assuming constant 2.3 IPS. This directly
-  addresses the audible motor speed variance — as long as the wobble is
-  slow relative to the bit rate (very likely, given it's mechanically
-  driven low-frequency wobble, not per-transition jitter), a software PLL
-  tracks it without needing the mechanical transport to be perfect.
+- **Flywheel clock recovery, not a plain PLL.** A standard data-separator
+  PLL that only adjusts on observed transitions is not sufficient here —
+  §3 confirms `00` nibbles produce genuine multi-bit-cell silence (this
+  isn't F2F/biphase, which would guarantee a transition every cell), so
+  there are real stretches with nothing to lock onto. The clock needs to
+  **coast through silent gaps** on its last-known rate estimate (ideally
+  informed by the optional speed sensor in §5.5, since motor speed is the
+  only independent timing reference available during a gap) and reacquire
+  precisely the instant transitions resume. This is a well-known technique
+  in weak/non-self-clocking tape and magcard formats — a "flywheel" or
+  "coasting" data separator — but it needs to be designed in from the
+  start rather than bolted onto a naive PLL, since coasting accuracy over
+  a *known maximum* silent-gap length (worst case: the longest run of `00`
+  nibbles expected in real program data) is the actual design target, not
+  just average-case tracking.
 - **Adaptive, per-track amplitude thresholding** instead of a fixed
   hardware comparator level — likely the single biggest win against a
   weakened/uneven signal from head wear, tape wear, or the azimuth
@@ -310,48 +451,60 @@ keyboard matrix discussed in `ideas/Pico.md`.
   hardware's binary decision, and try local corrections against the
   checksum across the small set of marginal nibbles. This can recover
   banks that would fail outright on stock hardware, at the cost of being
-  probabilistic rather than certain — worth flagging to the user when a
-  reconstructed bank relied on checksum-guided correction rather than a
-  clean, unambiguous read.
+  probabilistic rather than certain — worth flagging when a reconstructed
+  bank relied on checksum-guided correction rather than a clean,
+  unambiguous read.
 - **Log raw waveforms, not just decoded bits**, at least during
-  development. Until the actual self-clocking scheme is empirically
-  confirmed (§3), having full raw capture (ideally from a card with known,
-  simple, repetitive content written specifically as a calibration
-  reference) is what makes reverse-engineering the encoding tractable in
-  the first place.
+  development. Until the actual bit-level encoding is empirically
+  confirmed (§3), having full raw capture from a card with known content is
+  what makes reverse-engineering the encoding tractable. `examples/diag.ti59`
+  is a ready-made calibration reference for exactly this: its bank 2 is 240
+  identical known-nonzero nibbles (characterizes the dense, guaranteed-
+  transition case) and its bank 1 is real program data with documented
+  zero-heavy content (characterizes the silent-gap case from §3) — both
+  halves of the encoding's behavior, in one physical card, with the exact
+  expected bit content already known from the source file.
 
 ### 5.7 Rough bill of materials
 
 | Part | Qty | Notes |
 |---|---|---|
 | Raspberry Pi Pico / Pico 2 | 1 | brain + USB link to host |
-| Quad op-amp (`LM324`/`TL074`/`MCP6004`) | 1 | new part, not the donor's aged chip |
+| Quad op-amp (`LM324`/`TL074`/`MCP6004`) | 1 | new part; conditions all 4 read channels |
 | `MCP3208` (or `MCP3204`) SPI ADC | 1 | true multi-channel capture |
-| N-channel MOSFET (logic-level) | 1 | motor switch |
-| Flyback diode | 1 | across motor |
-| Adjustable buck regulator module | 1 | motor supply |
-| Resistors/capacitors for preamp stages | ~20-30 | values per §5.2, tune empirically |
-| Donor transport: head, motor, pinch roller, pressure pad, card-sense switches | 1 set | salvaged from the broken TI-59 |
+| Small-signal clamp diodes (e.g. `BAT54`/`1N4148`) | ~12-16 | 2 per channel, both analog and optional digital taps |
+| Resistors/capacitors for bias, gain, anti-alias | ~20-30 | values per §5.3, tune empirically |
+| 30 AWG wire-wrap wire | a few feet | for the tap points themselves |
 | Breadboard + jumper wires | — | |
-| Optional: photo-interrupter/tachometer | 1 | speed diagnostics + optional PLL input |
+| Optional: photo-interrupter/tachometer | 1 | speed diagnostics + flywheel-clock input |
+
+No motor, motor driver, or transport hardware — the TI-59's own is used
+untouched.
 
 ---
 
 ## Suggested order of attack
 
-1. Salvage and mechanically verify the transport (motor spins, pinch
-   roller grips, pressure pad seats correctly) independent of any
-   electronics.
-2. Build one preamp channel first, feed it into an oscilloscope or the
-   Pico's ADC with simple logging, and pull a known/simple test card
-   through by hand (not motorized yet) to sanity-check signal shape and
-   amplitude against the manual's numbers (3-4mV at the head × ~500-1000×
-   gain).
-3. Add the motor drive and card-sense switches; get a full automated pass
-   capturing raw waveforms for all 4 tracks.
-4. Do the azimuth cross-track alignment check (§3) on captured data (not
+1. Identify your board's dash-number revision and locate `U9`/`U10` and
+   the card-sense switches by their silkscreen designators (§5.2), then
+   verify every intended tap point with a multimeter against the schematic
+   before touching a soldering iron.
+2. Build the signal-conditioning circuit (§5.3) on the bench first, driven
+   by a bench signal generator or a simple RC-decayed pulse source
+   standing in for the expected AC signal — confirm the AC-coupling,
+   clamp, and gain stages behave as expected *before* connecting anything
+   to the live TI-59.
+3. Do the actual taps — minimal, reversible, verified one at a time — and
+   confirm the TI-59 still reads cards exactly as well as before the tap
+   (a regression here means the tap is loading the circuit and the
+   conditioning design needs revisiting).
+4. Capture raw waveforms from `examples/diag.ti59`'s physical card first —
+   its known content (§5.6) makes it the ideal first calibration target —
+   then from a range of your other cards spanning "reads fine" to "fails
+   checksum."
+5. Do the azimuth cross-track alignment check (§3) on captured data (not
    just the photo) and, if confirmed, do a physical azimuth adjustment
    pass using live waveform quality as feedback.
-5. Only then invest in the software decode pipeline (§5.6) — there's
-   limited point tuning clock recovery and adaptive thresholds against a
-   transport that still has a known, fixable mechanical problem.
+6. Only then invest in the full software decode pipeline (§5.6) — there's
+   limited point tuning flywheel clock recovery and adaptive thresholds
+   against a transport that still has a known, fixable mechanical problem.
