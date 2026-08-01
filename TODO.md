@@ -17,12 +17,12 @@ Unsorted collection of ideas, bugs, observations etc.
 
 ## Debugger
 ### CPU Debugger
-- **Break points** PC-based breakpoints are fully implemented end to end (`TI59Machine`/`EmulatorViewModel`/`reference/DebugAPI.md` § "Breakpoints") with a working UI already written in `CPUDebugView.swift` — it just isn't wired into the app's navigation (see `Redesign.md` item 9). Remaining work here is narrower than it sounds: wire up (or rebuild) that UI, then extend to conditional triggers (register content, IDLE-RUN change, and more) which genuinely don't exist yet.
-- **Latch keyboard entries** Support catching a keypress in single step mode — see `KeypressLatch.md` for the existing design proposal.
+- **Break points** PC-based breakpoints are fully implemented end to end (`TI59Machine`/`EmulatorViewModel`/`reference/DebugAPI.md` § "Breakpoints") with a working UI already written in `CPUDebugView.swift` — it just isn't wired into the app's navigation (see `ideas/Redesign.md` item 9). Remaining work here is narrower than it sounds: wire up (or rebuild) that UI, then extend to conditional triggers (register content, IDLE-RUN change, and more) which genuinely don't exist yet.
+- **Latch keyboard entries** Support catching a keypress in single step mode — see `ideas/KeypressLatch.md` for the existing design proposal.
 
 ### Calculator Debugger
 - **Break points** Support break points (e.g. STO content, t content, PGM step) — unlike the CPU Debugger, nothing exists here yet, not even PC-level.
-- **Latch keyboard entries** Support catching a keypress in single step mode — see `KeypressLatch.md`.
+- **Latch keyboard entries** Support catching a keypress in single step mode — see `ideas/KeypressLatch.md`.
 
 ## Various
 - **Event callbacks** — push notifications for display updates and register changes, replacing the current polling model.

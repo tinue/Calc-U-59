@@ -788,7 +788,7 @@ class EmulatorViewModel {
     /// wait until the keyboard-scan idle loop is reached again.
     ///
     /// The 100 ms hold is comfortably longer than the ROM's worst-case debounce
-    /// window (~3 sweeps to arm + confirm, see `KeypressLatch.md`) while short
+    /// window (~3 sweeps to arm + confirm, see `ideas/KeypressLatch.md`) while short
     /// enough that a "repeat while held" key (e.g. Adv/PRT_FEED, gated by real
     /// busy time — see the printer busy-cycle comments in `TMC0501.cpp`) only
     /// fires a couple of times per keystroke at regular speed, matching
@@ -853,7 +853,7 @@ class EmulatorViewModel {
     /// Handle a physical key going up. No-op unless a single-code press is held.
     ///
     /// Releasing earlier than `keyHoldNanoseconds` after the press would let the
-    /// ROM discard the key as bounce (`KeypressLatch.md` constraint 3), which is
+    /// ROM discard the key as bounce (`ideas/KeypressLatch.md` constraint 3), which is
     /// exactly what fast typing produces — so a too-early release is deferred to
     /// the end of the hold window rather than applied.
     func keyboardKeyUp() {
@@ -1394,7 +1394,7 @@ class EmulatorViewModel {
     /// (0x0627, where a still-held key parks after its press is processed) through
     /// key acceptance (0x0661: CLR.IDLE, where the CPU returns to full speed and
     /// decode/dispatch begins). See rom/TI59-commented.asm (0x0620-0x0661) and
-    /// KeypressLatch.md. Wider than `cpuScanLoopRange` above (used only by FREEZE ON
+    /// ideas/KeypressLatch.md. Wider than `cpuScanLoopRange` above (used only by FREEZE ON
     /// START, which cares about the steady-state cycle, not the release gates) —
     /// this one is used anywhere a held key or full-speed racing must not be allowed
     /// to blow past real "the calculator is still just scanning/debouncing" time.

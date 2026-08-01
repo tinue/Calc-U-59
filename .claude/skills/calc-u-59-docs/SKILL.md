@@ -157,6 +157,7 @@ When updating these files, keep the provenance notice at the top intact — it s
 | `CHANGELOG.md` | Version history (keep entries under the correct version heading) |
 | `TODO.md` | Development task list |
 | `PRIVACY.md` | App Store privacy policy |
+| `ideas/*.md` | Unimplemented design proposals and feasibility analyses (e.g. `Redesign.md`, `KeypressLatch.md`, `Pico.md`) — not current behavior, don't treat as authoritative |
 
 ---
 

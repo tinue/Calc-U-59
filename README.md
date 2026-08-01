@@ -39,8 +39,8 @@ Pre-built macOS DMGs are available from this repository's [Releases page](../../
 **Debug API:** Despite being a research tool, the debug API is still in its infancy. Live view and inspection, step by step
 operation of both calculator-level and CPU-level instructions work, and the underlying breakpoint API is fully implemented
 (`reference/DebugAPI.md` § "Breakpoints") — but there is currently no in-app UI to set one interactively; the one that
-exists in source (`CPUDebugView.swift`) isn't wired into the app (see `Redesign.md` item 9). Also still missing: keypress
-latch while single stepping (`KeypressLatch.md`), or any sort of dynamic freeze (e.g. on register change). The API surface
+exists in source (`CPUDebugView.swift`) isn't wired into the app (see `ideas/Redesign.md` item 9). Also still missing: keypress
+latch while single stepping (`ideas/KeypressLatch.md`), or any sort of dynamic freeze (e.g. on register change). The API surface
 will change as it matures.
 
 **Library module:** The Master Library module is hardcoded in the native Mac/iOS app. Switching to a different Solid State Library module is not yet supported there (the separate web build at calcu59.ch/#play does support switching modules).
@@ -100,8 +100,9 @@ isn't duplicated in this repository.
 | [`CHANGELOG.md`](CHANGELOG.md) | Version history, one heading per release. |
 | [`TODO.md`](TODO.md) | Unsorted backlog of ideas, bugs, and observations across the core, settings, and UI. |
 | [`PRIVACY.md`](PRIVACY.md) | App Store privacy policy — Calc-U-59 collects no data and makes no network connections. |
-| [`Redesign.md`](Redesign.md) | Findings from a full-codebase review flagging items that need a design decision or coordinated refactor rather than a spot fix (e.g. `EmulatorViewModel`'s threading model). |
-| [`KeypressLatch.md`](KeypressLatch.md) | Unimplemented design proposal for latching keypresses while the debugger is frozen. |
+| [`ideas/Redesign.md`](ideas/Redesign.md) | Findings from a full-codebase review flagging items that need a design decision or coordinated refactor rather than a spot fix (e.g. `EmulatorViewModel`'s threading model). |
+| [`ideas/KeypressLatch.md`](ideas/KeypressLatch.md) | Unimplemented design proposal for latching keypresses while the debugger is frozen. |
+| [`ideas/Pico.md`](ideas/Pico.md) | Feasibility analysis for running the core on a Raspberry Pi Pico wired to a real TI-59's keyboard, display, and card reader. |
 | [`LICENSE`](LICENSE) | Polyform Noncommercial License 1.0.0 — free for noncommercial use and for building ports to other platforms; commercial use needs the author's written permission. |
 
 ### `reference/` — architecture reference

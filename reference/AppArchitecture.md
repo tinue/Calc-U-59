@@ -191,7 +191,7 @@ the E user key.
 
 ### Injection timing
 
-Both implementations obey `KeypressLatch.md`: `key[]` is a wire level, not an
+Both implementations obey `ideas/KeypressLatch.md`: `key[]` is a wire level, not an
 event, and the ROM only accepts a key seen at two scans one display sweep
 apart. A release that lands too early is discarded as bounce.
 
