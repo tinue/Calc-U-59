@@ -103,6 +103,7 @@ isn't duplicated in this repository.
 | [`ideas/Redesign.md`](ideas/Redesign.md) | Findings from a full-codebase review flagging items that need a design decision or coordinated refactor rather than a spot fix (e.g. `EmulatorViewModel`'s threading model). |
 | [`ideas/KeypressLatch.md`](ideas/KeypressLatch.md) | Unimplemented design proposal for latching keypresses while the debugger is frozen. |
 | [`ideas/Pico.md`](ideas/Pico.md) | Feasibility analysis for running the core on a Raspberry Pi Pico wired to a real TI-59's keyboard, display, and card reader. |
+| [`ideas/CardRecovery.md`](ideas/CardRecovery.md) | Signal-chain analysis and breadboard circuit design for a standalone Pico-based magnetic-card reader, aimed at recovering cards a stock TI-59 fails to read. |
 | [`LICENSE`](LICENSE) | Polyform Noncommercial License 1.0.0 — free for noncommercial use and for building ports to other platforms; commercial use needs the author's written permission. |
 
 ### `reference/` — architecture reference
