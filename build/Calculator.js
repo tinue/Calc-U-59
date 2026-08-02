@@ -477,10 +477,18 @@ function Token({
 // forcePressed lets an outside caller light a key that no pointer is touching —
 // PlayCalculator.jsx uses it so a physical-keyboard press looks exactly like a
 // clicked one. The decorative <Calculator> demo passes nothing and is unaffected.
+//
+// onDown/onUp (PlayCalculator.jsx) drive the real emulator press/release from
+// actual pointer down/up, instead of a synthetic fixed hold measured from
+// onClick — see PlayCalculator.jsx's pointerDown/pointerUp for why. The
+// decorative <Calculator> demo doesn't pass these; it keeps using onPress via
+// onClick exactly as before.
 function CalcKey({
   kc,
   scale,
   onPress,
+  onDown,
+  onUp,
   forcePressed = false
 }) {
   const [pointerPressed, setPointerPressed] = useStateCalc(false);
@@ -534,12 +542,42 @@ function CalcKey({
       lineHeight: 1
     }
   }, kc.top || "\u00A0"), /*#__PURE__*/React.createElement("button", {
-    onMouseDown: () => setPressed(true),
-    onMouseUp: () => setPressed(false),
-    onMouseLeave: () => setPressed(false),
-    onTouchStart: () => setPressed(true),
-    onTouchEnd: () => setPressed(false),
-    onClick: () => onPress(kc.label),
+    onMouseDown: () => {
+      setPressed(true);
+      onDown && onDown(kc.label);
+    },
+    onMouseUp: () => {
+      setPressed(false);
+      onUp && onUp(kc.label);
+    },
+    onMouseLeave: () => {
+      setPressed(false);
+      onUp && onUp(kc.label);
+    },
+    onTouchStart: () => {
+      setPressed(true);
+      onDown && onDown(kc.label);
+    },
+    onTouchEnd: () => {
+      setPressed(false);
+      onUp && onUp(kc.label);
+    },
+    onClick: e => {
+      if (onDown) {
+        // Keyboard/assistive-tech activation (Tab, then Enter/Space)
+        // dispatches only a synthetic click — no mousedown/touchstart —
+        // and that synthetic click's detail is 0. A real mouse click's
+        // detail is >=1 and is already fully handled by the
+        // mousedown/mouseup pair above; treating it here too would
+        // press-and-release the key twice per click.
+        if (e.detail === 0) {
+          onDown(kc.label);
+          onUp && onUp(kc.label);
+        }
+      } else if (onPress) {
+        onPress(kc.label);
+      }
+    },
     style: {
       width: keyWidth,
       height: keyHeight,

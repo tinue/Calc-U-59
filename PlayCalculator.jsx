@@ -22,10 +22,13 @@ const {
 // re-renders don't fan out into 45 key re-renders while a program runs.
 const MemoCalcKey = React.memo(CalcKey);
 
-// Hold/gap either side of a synthesized press, matching what
-// calc-engine-worker.js already uses to replay a preset's KEYSTROKES section.
-// The ROM only accepts a key seen at two scans one display sweep apart, so a
-// release that lands too early is discarded as bounce — see KeypressLatch.md.
+// PLAY_KEY_HOLD_MS: the *minimum* a key stays down, not a fixed synthetic
+// hold — real on-screen/keyboard presses release on the real pointer-up/
+// key-up, extended to this floor if they were shorter. PLAY_KEY_GAP_MS is
+// the gap between taps in a fully synthesized sequence (2nd-prefixed
+// bindings, and calc-engine-worker.js's own KEYSTROKES replay). The ROM only
+// accepts a key seen at two scans one display sweep apart, so a release
+// that lands too early is discarded as bounce — see KeypressLatch.md.
 const PLAY_KEY_HOLD_MS = 80;
 const PLAY_KEY_GAP_MS = 120;
 
@@ -99,23 +102,6 @@ function PlayCalculator({ scale = 1, controls = true, keyboard = false }) {
     };
   }, []);
 
-  const press = usePlayCallback((row, col) => {
-    const worker = workerRef.current;
-    if (!worker) return;
-    worker.postMessage({ type: "press", row, col });
-    setTimeout(() => worker.postMessage({ type: "release", row, col }), PLAY_KEY_HOLD_MS);
-  }, []);
-
-  // <CalcKey> (from docs/Calculator.jsx) calls onPress(label); resolve the
-  // label back to its grid position via CALC_ROWS. Every label is unique.
-  // Stable identity (useCallback) so MemoCalcKey's memoization holds.
-  const pressByLabel = usePlayCallback((label) => {
-    for (let ri = 0; ri < CALC_ROWS.length; ri++) {
-      const ci = CALC_ROWS[ri].findIndex((kc) => kc.label === label);
-      if (ci !== -1) { press(ri, ci); return; }
-    }
-  }, [press]);
-
   // ── Physical keyboard ────────────────────────────────────────────────
   // Only when mounted with keyboard={true}, i.e. from docs/index.html's #play
   // page. The standalone app (docs/app/) is a phone app and doesn't even load
@@ -142,6 +128,51 @@ function PlayCalculator({ scale = 1, controls = true, keyboard = false }) {
     const remaining = PLAY_KEY_HOLD_MS - (Date.now() - held.at);
     if (remaining > 0) setTimeout(send, remaining); else send();
   }, []);
+
+  // ── On-screen key clicks/taps ────────────────────────────────────────
+  // Tied to the real pointer down/up (via <CalcKey>'s onDown/onUp), sharing
+  // heldRef/releaseHeld with the physical keyboard above, instead of a fixed
+  // synthetic hold measured from onClick. The previous approach sent an
+  // independent, uncoordinated release timer per click; mashing a key — what
+  // a user does exactly when a press seems to not register (e.g. R/S during
+  // a slow "2nd List" output) — queued overlapping stale releases that could
+  // clip a later click's hold short before the ROM's debounce window
+  // elapsed. Tying release to the real pointer-up removes that race; the
+  // minimum hold in releaseHeld() still applies if the real press was
+  // shorter than the ROM needs.
+  const pointerDown = usePlayCallback((row, col) => {
+    const held = heldRef.current;
+    if (held && held.row === row && held.col === col) return; // already down
+    seqRef.current++;   // supersede any running 2nd-prefixed keyboard sequence
+    releaseHeld();       // one key at a time — release whatever else was held
+    heldRef.current = { row, col, at: Date.now() };
+    setTypedKey(`${row},${col}`);
+    workerRef.current?.postMessage({ type: "press", row, col });
+  }, [releaseHeld]);
+
+  const pointerUp = usePlayCallback((row, col) => {
+    const held = heldRef.current;
+    if (!held || held.row !== row || held.col !== col) return; // not the held key
+    releaseHeld();
+  }, [releaseHeld]);
+
+  // <CalcKey> (from docs/Calculator.jsx) calls onDown(label)/onUp(label);
+  // resolve the label back to its grid position via CALC_ROWS. Every label
+  // is unique. Stable identity (useCallback) so MemoCalcKey's memoization
+  // holds.
+  const pointerDownByLabel = usePlayCallback((label) => {
+    for (let ri = 0; ri < CALC_ROWS.length; ri++) {
+      const ci = CALC_ROWS[ri].findIndex((kc) => kc.label === label);
+      if (ci !== -1) { pointerDown(ri, ci); return; }
+    }
+  }, [pointerDown]);
+
+  const pointerUpByLabel = usePlayCallback((label) => {
+    for (let ri = 0; ri < CALC_ROWS.length; ri++) {
+      const ci = CALC_ROWS[ri].findIndex((kc) => kc.label === label);
+      if (ci !== -1) { pointerUp(ri, ci); return; }
+    }
+  }, [pointerUp]);
 
   // A 2nd-prefixed binding (Shift+A for A', say) is one logical action played
   // back as two full taps: the ROM has to see 2nd released and re-scanned before
@@ -276,7 +307,8 @@ function PlayCalculator({ scale = 1, controls = true, keyboard = false }) {
         {CALC_ROWS.map((row, ri) => (
           <div key={ri} style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 * scale }}>
             {row.map((kc, ci) => (
-              <MemoCalcKey key={ci} kc={kc} scale={scale} onPress={pressByLabel}
+              <MemoCalcKey key={ci} kc={kc} scale={scale}
+                           onDown={pointerDownByLabel} onUp={pointerUpByLabel}
                            forcePressed={typedKey === `${ri},${ci}`} />
             ))}
           </div>
