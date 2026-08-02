@@ -558,8 +558,23 @@ function CalcKey({
     onTouchStart: () => {
       setPressed(true);
       onDown && onDown(kc.label);
-    },
-    onTouchEnd: () => {
+    }
+    // preventDefault here suppresses the mousedown/mouseup/click "compatibility"
+    // cascade Safari synthesizes after a touch it still classifies as a tap.
+    // Without it, a touch held past PlayCalculator.jsx's PLAY_KEY_HOLD_MS floor
+    // (so its own release already fired synchronously, right at touch-up) gets
+    // a second, independent press/release cycle from that synthetic cascade —
+    // a real second digit landing right when the finger lifts. Brief taps and
+    // genuine long presses were never affected (the synthetic release either
+    // lands before the real one, or Safari suppresses the whole cascade for a
+    // long hold); this only happens in between. Real mouse/trackpad clicks are
+    // immune by construction — a click there isn't a translation of a touch,
+    // so there's no separate cascade to suppress. (preventDefault is skipped
+    // on touchstart/touchmove: React marks the delegated root listener for
+    // those passive by default, so it would just warn and do nothing there.)
+    ,
+    onTouchEnd: e => {
+      e.preventDefault();
       setPressed(false);
       onUp && onUp(kc.label);
     },
