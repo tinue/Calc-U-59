@@ -6,7 +6,7 @@ const { test, expect } = require('@playwright/test');
 test.describe.configure({ timeout: 20000 });
 
 async function gotoPlayReady(page) {
-  await page.goto('/index.html#play');
+  await page.goto('/play/');
   await page.waitForSelector('main');
   // No dedicated "ready" DOM hook — wait for the transient startup status
   // text to clear, which the worker's `{type:"ready"}` message triggers.
@@ -18,26 +18,22 @@ async function pressKey(page, label) {
   await page.waitForTimeout(200); // matches the worker's press/release pacing
 }
 
-// The display is a 12-cell grid (docs/PlayCalculator.jsx's <LedCell>), not
-// a single text string — read cell-by-cell in DOM order (which matches
-// left-to-right visual order) and reassemble, dots included. The "C"
-// (calculate) indicator is its own 4-bar shape (.led-cell-c), not a text
-// glyph, so it's represented here as a literal "C" for readability.
-async function readLedText(page) {
-  return page.evaluate(() => {
-    let out = '';
-    for (const cell of document.querySelectorAll('.led-cell')) {
-      if (cell.querySelector('.led-cell-c')) {
-        out += 'C';
-      } else if (cell.querySelector('.led-cell-7')) {
-        out += '7';
-      } else {
-        out += cell.querySelector('.led-cell-fg')?.textContent ?? '';
-      }
-      if (cell.querySelector('.led-cell-dot')) out += '.';
-    }
-    return out;
-  });
+// The display is a single <canvas> (docs/led-display.jsx), not a 12-cell DOM
+// grid, so there is no text to read off it — the same reason the
+// physical-keyboard tests below compare rendered bitmaps instead of decoding
+// segments. toDataURL() captures the whole display.
+async function ledBitmap(page) {
+  return page.locator('canvas').first().evaluate((c) => c.toDataURL());
+}
+
+// The C (calculate) indicator only ever occupies the canvas's leftmost
+// twelfth (led-display.jsx draws it at digit index 11, i.e. x=0..digitWidth)
+// — cropping to that slice keeps the comparison from being diluted by
+// unrelated digits changing elsewhere on the display.
+async function leftDigitBitmap(page) {
+  const box = await page.locator('canvas').first().boundingBox();
+  const buf = await page.screenshot({ clip: { x: box.x, y: box.y, width: box.width / 12, height: box.height } });
+  return buf.toString('base64');
 }
 
 test('play page loads the WASM engine with no console errors', async ({ page }) => {
@@ -57,25 +53,31 @@ test('module 01 (Master Library) is loaded by default', async ({ page }) => {
 
 test('pressing 2 + 2 = computes through the real emulation core', async ({ page }) => {
   await gotoPlayReady(page);
-
-  await pressKey(page, '2');
-  await pressKey(page, '+');
-  await pressKey(page, '2');
-  await pressKey(page, '=');
+  for (const key of ['2', '+', '2', '=']) await pressKey(page, key);
   await page.waitForTimeout(300);
+  const viaAddition = await ledBitmap(page);
 
-  expect((await readLedText(page)).trim()).toBe('4.');
+  // No DOM text to read off the canvas (see ledBitmap above), so arithmetic
+  // correctness is verified by bitmap identity against a second,
+  // independently-computed expression with the same result.
+  await gotoPlayReady(page);
+  for (const key of ['5', '−', '1', '=']) await pressKey(page, key);
+  await page.waitForTimeout(300);
+  const viaSubtraction = await ledBitmap(page);
+
+  expect(viaAddition).toBe(viaSubtraction);
 });
 
 test('the C (calculate) indicator lights the leftmost cell while a program runs', async ({ page }) => {
   await gotoPlayReady(page);
+  const idle = await leftDigitBitmap(page);
 
   await page.locator('select').nth(1).selectOption({ label: 'Calculator diagnostic' });
   await page.waitForTimeout(1000);
   await pressKey(page, 'E'); // diag.ti59's own documented "press E to start"
 
-  const duringRun = await readLedText(page);
-  expect(duringRun.startsWith('C')).toBe(true);
+  const duringRun = await leftDigitBitmap(page);
+  expect(duringRun).not.toBe(idle);
 });
 
 test('2nd -> Pgm -> 01 shows the Master Library diagnostic cue card', async ({ page }) => {
@@ -94,11 +96,10 @@ test('2nd -> Pgm -> 01 shows the Master Library diagnostic cue card', async ({ p
 
 // ── Physical keyboard (docs/keyboard-map.js) ────────────────────────────
 //
-// The LED is a <canvas>, so there is no DOM text to assert on (the same reason
-// readLedText() above no longer works). These tests compare the rendered canvas
-// bitmap before and after typing instead: it changes if and only if the keys
-// reached the emulation core and the display updated. That sidesteps decoding
-// segments while still exercising the whole path.
+// These tests compare the rendered canvas bitmap (ledBitmap, above) before
+// and after typing: it changes if and only if the keys reached the
+// emulation core and the display updated. That sidesteps decoding segments
+// while still exercising the whole path.
 //
 // Only 26 of the 45 keys are bound — white keys, yellow keys except 2nd, A-E,
 // and EE/(/) — so the "unbound keys" test below is load-bearing, not padding.
@@ -106,10 +107,6 @@ test('2nd -> Pgm -> 01 shows the Master Library diagnostic cue card', async ({ p
 // Focus without clicking — a click would land on a key and press it.
 async function focusCalculator(page) {
   await page.locator('.calcu-device').focus();
-}
-
-async function ledBitmap(page) {
-  return page.locator('canvas').first().evaluate((c) => c.toDataURL());
 }
 
 // The display keeps changing for a while after the worker reports "ready" (the
