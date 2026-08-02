@@ -7,6 +7,10 @@ const { useState: useStateCalc } = React;
 // ---- Key bank (module scope: shared with PlayCalculator.jsx) ----
 // tone: cream | dark | yellow
 // top labels: their color hints (silk-cream / silk-yellow / silk-mahogany)
+// mathVar: the six keys whose face names a variable (x, t, y), not an
+// abbreviation — real hardware sets these in lowercase italic math notation
+// (confirmed against ti59_base.png: "ln" upright + italic "x", "x⇄t" fully
+// italic, etc.), unlike every other key's plain uppercase legend.
 // Row/col positions here are also the UI grid coordinates the emulation
 // worker's pressUIKey() expects, so there is exactly one copy to keep true.
 const CALC_D = "dark", CALC_C = "cream", CALC_Y = "yellow";
@@ -17,15 +21,15 @@ const CALC_ROWS = [
   ],
   [
     {top:"",label:"2nd",tone:CALC_Y}, {top:"",label:"INV",tone:CALC_D},
-    {top:"log",label:"lnx",tone:CALC_D}, {top:"CP",label:"CE",tone:CALC_D}, {top:"",label:"CLR",tone:CALC_Y}
+    {top:"log",label:"lnx",tone:CALC_D,mathVar:true}, {top:"CP",label:"CE",tone:CALC_D}, {top:"",label:"CLR",tone:CALC_Y}
   ],
   [
-    {top:"Pgm",label:"LRN",tone:CALC_D}, {top:"P→R",label:"x⇄t",tone:CALC_D},
-    {top:"sin",label:"x²",tone:CALC_D}, {top:"cos",label:"√x",tone:CALC_D}, {top:"tan",label:"1/x",tone:CALC_D}
+    {top:"Pgm",label:"LRN",tone:CALC_D}, {top:"P→R",label:"x⇄t",tone:CALC_D,mathVar:true},
+    {top:"sin",label:"x²",tone:CALC_D,mathVar:true}, {top:"cos",label:"√x",tone:CALC_D,mathVar:true}, {top:"tan",label:"1/x",tone:CALC_D,mathVar:true}
   ],
   [
     {top:"Ins",label:"SST",tone:CALC_D}, {top:"CMs",label:"STO",tone:CALC_D},
-    {top:"Exc",label:"RCL",tone:CALC_D}, {top:"Prd",label:"SUM",tone:CALC_D}, {top:"Ind",label:"yˣ",tone:CALC_D}
+    {top:"Exc",label:"RCL",tone:CALC_D}, {top:"Prd",label:"SUM",tone:CALC_D}, {top:"Ind",label:"yˣ",tone:CALC_D,mathVar:true}
   ],
   [
     {top:"Del",label:"BST",tone:CALC_D}, {top:"Eng",label:"EE",tone:CALC_D},
@@ -317,13 +321,15 @@ function CalcKey({ kc, scale, onPress, onDown, onUp, forcePressed = false }) {
 
   return (
     <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap: 2*scale }}>
+      {/* Upright, same family as the keycap below \u2014 real hardware's 2nd-function
+          legends (log, sin, P\u2192R, x=t, \u2026) are plain, not italicized; confirmed
+          against App/Assets.xcassets/ti59_base.imageset/ti59_base.png. */}
       <span style={{
-        fontFamily: kc.top && /[a-z]/.test(kc.top) ? "var(--font-body)" : "var(--font-keycap)",
-        fontStyle: kc.top && /[a-z]/.test(kc.top) ? "italic" : "normal",
+        fontFamily: "var(--font-keycap)",
         fontWeight: 500,
         fontSize: 11 * scale,
         height: 14 * scale,
-        letterSpacing: kc.top && /[a-z]/.test(kc.top) ? ".02em" : ".04em",
+        letterSpacing: ".04em",
         color: topColor,
         lineHeight: 1,
       }}>{kc.top || "\u00A0"}</span>
@@ -353,11 +359,14 @@ function CalcKey({ kc, scale, onPress, onDown, onUp, forcePressed = false }) {
           color: styleByTone.color,
           border: 0,
           borderRadius: keyRadius,
+          // No blanket text-transform: CALC_ROWS' label strings are already
+          // cased the way real hardware sets them ("2nd", not "2ND"; the six
+          // mathVar keys lowercase). Forcing uppercase here fought that.
           fontFamily: "var(--font-keycap)",
+          fontStyle: kc.mathVar ? "italic" : "normal",
           fontWeight: 700,
           fontSize: kc.label.length > 3 ? 14 * scale : 16 * scale,
           letterSpacing: ".04em",
-          textTransform: "uppercase",
           boxShadow: styleByTone.shadow,
           cursor: "pointer",
           transform: pressed ? "translateY(1px)" : "none",

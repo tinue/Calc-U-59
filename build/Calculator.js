@@ -9,6 +9,10 @@ const {
 // ---- Key bank (module scope: shared with PlayCalculator.jsx) ----
 // tone: cream | dark | yellow
 // top labels: their color hints (silk-cream / silk-yellow / silk-mahogany)
+// mathVar: the six keys whose face names a variable (x, t, y), not an
+// abbreviation — real hardware sets these in lowercase italic math notation
+// (confirmed against ti59_base.png: "ln" upright + italic "x", "x⇄t" fully
+// italic, etc.), unlike every other key's plain uppercase legend.
 // Row/col positions here are also the UI grid coordinates the emulation
 // worker's pressUIKey() expects, so there is exactly one copy to keep true.
 const CALC_D = "dark",
@@ -45,7 +49,8 @@ const CALC_ROWS = [[{
 }, {
   top: "log",
   label: "lnx",
-  tone: CALC_D
+  tone: CALC_D,
+  mathVar: true
 }, {
   top: "CP",
   label: "CE",
@@ -61,19 +66,23 @@ const CALC_ROWS = [[{
 }, {
   top: "P→R",
   label: "x⇄t",
-  tone: CALC_D
+  tone: CALC_D,
+  mathVar: true
 }, {
   top: "sin",
   label: "x²",
-  tone: CALC_D
+  tone: CALC_D,
+  mathVar: true
 }, {
   top: "cos",
   label: "√x",
-  tone: CALC_D
+  tone: CALC_D,
+  mathVar: true
 }, {
   top: "tan",
   label: "1/x",
-  tone: CALC_D
+  tone: CALC_D,
+  mathVar: true
 }], [{
   top: "Ins",
   label: "SST",
@@ -93,7 +102,8 @@ const CALC_ROWS = [[{
 }, {
   top: "Ind",
   label: "yˣ",
-  tone: CALC_D
+  tone: CALC_D,
+  mathVar: true
 }], [{
   top: "Del",
   label: "BST",
@@ -532,12 +542,11 @@ function CalcKey({
     }
   }, /*#__PURE__*/React.createElement("span", {
     style: {
-      fontFamily: kc.top && /[a-z]/.test(kc.top) ? "var(--font-body)" : "var(--font-keycap)",
-      fontStyle: kc.top && /[a-z]/.test(kc.top) ? "italic" : "normal",
+      fontFamily: "var(--font-keycap)",
       fontWeight: 500,
       fontSize: 11 * scale,
       height: 14 * scale,
-      letterSpacing: kc.top && /[a-z]/.test(kc.top) ? ".02em" : ".04em",
+      letterSpacing: ".04em",
       color: topColor,
       lineHeight: 1
     }
@@ -585,11 +594,14 @@ function CalcKey({
       color: styleByTone.color,
       border: 0,
       borderRadius: keyRadius,
+      // No blanket text-transform: CALC_ROWS' label strings are already
+      // cased the way real hardware sets them ("2nd", not "2ND"; the six
+      // mathVar keys lowercase). Forcing uppercase here fought that.
       fontFamily: "var(--font-keycap)",
+      fontStyle: kc.mathVar ? "italic" : "normal",
       fontWeight: 700,
       fontSize: kc.label.length > 3 ? 14 * scale : 16 * scale,
       letterSpacing: ".04em",
-      textTransform: "uppercase",
       boxShadow: styleByTone.shadow,
       cursor: "pointer",
       transform: pressed ? "translateY(1px)" : "none",
