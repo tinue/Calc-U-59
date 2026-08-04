@@ -1067,6 +1067,159 @@ function ModulesPage({ onNav }) {
   );
 }
 
+/* =============================================================
+   EXAMPLES — downloadable .ti59/.ti58/.ti58c programs and raw CPU
+   assembly, sourced from examples/ in the main repository. This is one
+   of the copy-scope exceptions (with AboutTi59Page): most of these
+   programs predate Calc-U 59 by decades, so the copy leans on the
+   original TI-59/TI-58 hardware and the magazines that published them —
+   that's what someone who owned one, or is restoring one, actually
+   searches for.
+   ============================================================= */
+function ExamplesPage({ onNav }) {
+  const categories = [
+    {
+      heading: "The 1978 calendar printer competition",
+      intro: "“52-Notes,” the TI programmable-calculator newsletter, ran a running competition through 1978 to write the fastest TI-59 program that prints a full year calendar on the PC-100 printer, using the Master Library module's date routines. Each entry improved on the last — all seven surviving programs are collected here, PC-100/PC-100C printer required.",
+      items: [
+        { file: "calendar-01-Weinberger.ti59", title: "Calendar Printer — Jared Weinberger", description: "The opening entry in the competition (52-Notes V3N5).", printer: true },
+        { file: "calendar-02-cargile.ti59", title: "Calendar Printer — Lou Cargile", description: "A second V3N5 entry, Lou Cargile's first attempt at the calendar problem.", printer: true },
+        { file: "calendar-03-vanderburgh.ti59", title: "Calendar Printer — Richard Vanderburgh", description: "A third V3N5 entry, checking for the ML module and warning the user if it's missing.", printer: true },
+        { file: "calendar-04-skillman.ti59", title: "Calendar Printer — Bill Skillman", description: "V3N6: a faster print-buffer packing approach, down to about 7½ minutes per year.", printer: true },
+        { file: "calendar-05-vanderburgh.ti59", title: "Calendar Printer — Richard Vanderburgh (revised)", description: "V3N6: Vanderburgh folds in Panos Galidas' doubled print-code method and further tightens it, to about 5½ minutes per year.", printer: true },
+        { file: "calendar-06-cargile.ti59", title: "Calendar Printer — Lou Cargile (bugfix)", description: "V3N6: a correction to an earlier entry — a missing CLR' meant the 1st of a month could fail to print if it fell on a Thursday.", printer: true },
+        { file: "calendar-07-calidas.ti59", title: "Calendar Printer — Panos Galidas", description: "V3N7: the fastest of the series, averaging 2 minutes 38.6 seconds per year over a five-year test span.", printer: true },
+      ],
+    },
+    {
+      heading: "PC-100 printer graphics and tricks",
+      intro: "The PC-100/PC-100C thermal printer had an undocumented quirk: interrupting it mid-character exposes partial print heads, which the TI PPC user community turned into a small genre of printer-graphics demos through the early 1980s.",
+      items: [
+        { file: "characters.ti59", title: "Print character table", description: "Prints the full TI-59 print-code table with row and column headers." },
+        { file: "characters-fastmode.ti59", title: "Print characters in Fast Mode", description: "K-J Meusch's version of the character table, using Fast Mode to print far faster than normal execution (TI PPC Notes V5N9-10, 1980).", printer: true },
+        { file: "fast-grafik-3d-plot-part1.ti59", title: "Fast-Grafik 3-D Plot — Part 1", description: "Peter Poloczek's 3-D surface plotter for the PC-100, built on the printer-interrupt trick (TI PPC Notes V8N2, 1983). Load Part 2 after this one finishes, without resetting.", printer: true },
+        { file: "fast-grafik-3d-plot-part2.ti59", title: "Fast-Grafik 3-D Plot — Part 2", description: "The second half of Poloczek's 3-D plotter. Requires Part 1 to have already run in the same session.", printer: true },
+        { file: "printer-quirks.ti59", title: "Printer interrupt character table", description: "Dave Leising's print-code table showing each character both normally and interrupted mid-print (PPX Exchange, March/April 1982).", printer: true },
+        { file: "stars-and-stripes.ti59", title: "Stars & Stripes", description: "Richard Snow's demonstration of PC-100 graphics capability, drawing a flag using the printer-interrupt technique (TI PPC Notes V6N4-5, 1981).", printer: true },
+        { file: "texas-print.ti59", title: "“TI” logo — high-resolution printer graphics", description: "Frank Dever's high-resolution “TI” logo (PPX Exchange, March/April 1982). The program corrupts a program-step keycode on purpose to redirect the ROM's dispatcher mid-instruction — the file's header traces exactly which ROM address that lands on.", printer: true },
+        { file: "trace-quirk.ti59", title: "Printer trace-mode quirk", description: "A keystroke sequence, found by a TI PPC club member, that puts a TI-58 or TI-59 into an undocumented trace mode once a printer is attached (TI PPC Notes V6N4-5, 1981).", printer: true },
+      ],
+    },
+    {
+      heading: "Diagnostics and self-tests",
+      intro: "Factory-style diagnostics for checking whether a TI-59 or TI-58 is healthy — useful background if you're troubleshooting real hardware, and a good stress test for the emulation core.",
+      items: [
+        { file: "diag.ti59", title: "TI-59 calculator diagnostic", description: "The magnetic-card diagnostic Texas Instruments documented in the owner's manual, both card sides. Prints and displays “−.8888888888” when everything checks out.", printer: true },
+        { file: "diag.ti58", title: "TI-58 calculator diagnostic", description: "The same diagnostic, resized to fit the TI-58's smaller memory partition.", printer: true },
+        { file: "ram_test.ti59", title: "RAM test", description: "A roughly three-minute test of all data registers that prints “598-TEST-1” and reports the default memory partition; faulty registers are called out by address." },
+        { file: "ram_test_full_fast.ti59", title: "Full RAM test (Fast Mode)", description: "George Thomson's test of all 100 data registers using indirect addressing and the STF fast-mode trick, printing any mismatch on the PC-100A/PC-100C (TI PPC Notes V9N5, 1985).", printer: true },
+        { file: "repartition.ti58c", title: "TI-58C repartitioning reference", description: "Keystroke notes on how the TI-58C's constant-memory feature stores the partition setting, and how to reach the extra 32 steps (480–511) that are otherwise keyboard-only (TI PPC Notes V5N7, 1980)." },
+      ],
+    },
+    {
+      heading: "Fast Mode, keycodes and firmware curiosities",
+      intro: "Fast Mode is an undocumented TI-58/TI-58C/TI-59 execution mode, discovered and written up by the TI PPC club over several years — these programs demonstrate it, along with a couple of other undocumented corners of the ROM.",
+      items: [
+        { file: "fastmode.ti59", title: "Fast Mode factorial demo (TI-59)", description: "Computes factorials in both normal and Fast Mode so the roughly 70% speed difference is directly comparable — 10! in about 4.6 seconds, 69! in about 31." },
+        { file: "fastmode.ti58", title: "Fast Mode factorial demo (TI-58)", description: "The same Fast Mode factorial comparison, for the TI-58/TI-58C." },
+        { file: "FastMode_Zero4.ti59", title: "Fast Mode zero-padding bug", description: "A mistyped Fast Mode program — one leading zero short of the documented five — that puts a real TI-59 into an unusual, reproducible misbehaving state. Kept as a regression case; it also uncovered a display-refresh bug in the emulator, fixed before v1.0.0." },
+        { file: "firmware.ti59", title: "Firmware listing keystroke sequence", description: "An unusual keyboard sequence, originally described by TI PPC Notes editor Maurice Swinnen, that puts the TI-59 into a mode where the ROM firmware itself can be listed." },
+        { file: "keycodes.ti59", title: "Print all keycodes", description: "Jared Weinberger's routine for generating and printing every TI-59 key code, using dynamic program-code modification (TI PPC Notes V5N4-5, 1980)." },
+      ],
+    },
+    {
+      heading: "Utilities",
+      intro: "Small, self-contained programs that aren't tied to a particular magazine series.",
+      items: [
+        { file: "Integer-Base-Conversion.ti59", title: "Integer base conversion", description: "Converts an integer between arbitrary number bases — hex to binary to decimal and back — originally published in Computer Design magazine, 1980." },
+        { file: "Frequency-Transformation.ti59", title: "Frequency transformation", description: "A filter-design program that transforms a normalized low-pass filter's cutoff frequencies, from the Artech House discrete-time filter design tables." },
+        { file: "sum.ti59", title: "Sum of N numbers", description: "A deliberately simple program — sums N down to 1 — useful as a stopwatch for comparing execution speed across devices running the emulator." },
+      ],
+    },
+    {
+      heading: "CPU-level assembly examples",
+      intro: "These target the TMC0501 CPU inside the calculator directly, as raw opcodes rather than a keystroke program, loaded through the app's Debug panel ASM Overlay. They only run in the native Mac/iPhone/iPad app, not the browser emulator below.",
+      items: [
+        { file: "assembly/simple_count.asm", title: "Simple counter", description: "The smallest useful ASM overlay example: increments a counter on the display in a tight loop, about 1185 times a second." },
+        { file: "assembly/stopwatch.asm", title: "Stopwatch", description: "A precisely timed stopwatch built on the WAIT Dn instruction rather than counting cycles — 222 increments per second, 4.5011 ms each." },
+        { file: "assembly/DPT.asm", title: "Decimal-point / LED afterglow test", description: "Cycles the decimal-point-and-comma nibble across every digit position, demonstrating the emulator's simulated LED afterglow." },
+        { file: "assembly/Decoder.asm", title: "7-segment decoder edge case (known non-working)", description: "A real-hardware timing edge case — a phase-shifted WAIT before SET IDLE exposes all 16 hex segment patterns on real silicon. Documented here for the CPU-emulation detail, but it does not reproduce on Calc-U 59: the emulator's display is a phase-independent snapshot, so the timing quirk this program depends on has nothing to act on." },
+      ],
+    },
+  ];
+
+  return (
+    <main className="wrap-narrow">
+      <p className="eyebrow">Examples</p>
+      <h1 className="page-title">TI-59 and TI-58 example programs</h1>
+      <p className="lede">
+        Programs written for real TI-58, TI-58C and TI-59 hardware, from the 1978 <em>52-Notes</em> calendar
+        competition to TI PPC club printer-graphics tricks and factory diagnostics — collected here as
+        loadable state files, whether or not you have Calc-U 59 installed yet.
+      </p>
+
+      <div className="panel" style={{ padding: 20, marginTop: 24, lineHeight: 1.7 }}>
+        <p style={{ marginTop: 0 }}>
+          Each entry below is a <strong>.ti59</strong>, <strong>.ti58</strong> or <strong>.ti58c</strong>{" "}
+          <a href="/state-files/">state file</a> — the calculator's program, registers and (where the
+          original used one) magnetic-card cue card, ready to load. Programs marked <strong>Requires printer</strong>{" "}
+          need the emulated PC-100/PC-100C — available in the full app, not the browser emulator below.
+        </p>
+        <p style={{ marginBottom: 0 }}>
+          Get <a href="/install/mac/">Calc-U 59 for Mac</a> or{" "}
+          <a href="/install/iphone-ipad/">for iPhone and iPad</a>, then open a downloaded file, or try the{" "}
+          <a href="/play/">browser emulator</a> first — it has no printer, but the utilities below that don't
+          need one will run.
+        </p>
+      </div>
+
+      {categories.map((cat) => (
+        <React.Fragment key={cat.heading}>
+          <h2 className="section">{cat.heading}</h2>
+          <p style={{ color: "var(--fg-2)", lineHeight: 1.7, marginTop: -8 }}>{cat.intro}</p>
+          <div style={{ display: "grid", gap: 12 }}>
+            {cat.items.map((it) => (
+              <div key={it.file} className="panel" style={{ padding: 20, lineHeight: 1.7 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: "4px 16px" }}>
+                  <h3 className="sub" style={{ margin: 0 }}>{it.title}</h3>
+                  <a className="btn secondary" href={`/example-files/${it.file}`} download>
+                    Download {it.file.replace(/^assembly\//, "")}
+                  </a>
+                </div>
+                <p style={{ margin: "8px 0 0", color: "var(--fg-2)" }}>{it.description}</p>
+                {it.printer ? (
+                  <p style={{ margin: "8px 0 0", fontSize: 13, color: "var(--fg-3)" }}>Requires the PC-100/PC-100C printer.</p>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </React.Fragment>
+      ))}
+
+      <h2 className="section">Source and format</h2>
+      <div className="prose panel" style={{ padding: 20, lineHeight: 1.7 }}>
+        <p style={{ marginTop: 0 }}>
+          These files are maintained in the <a href="https://github.com/tinue/Calc-U-59/tree/main/examples">
+          examples/ directory</a> of the Calc-U 59 repository, together with a few internal debugging and
+          screenshot-test files not listed here. The <a href="/state-files/">state file format</a> and the
+          debugger's ASM Overlay are both documented if you want to write your own.
+        </p>
+        <p style={{ marginBottom: 0, color: "var(--fg-3)", fontSize: 13 }}>
+          Most of these programs were originally published in <em>52-Notes</em>, <em>TI PPC Notes</em> and{" "}
+          <em>PPX Exchange</em> — the newsletters of the TI Programmable Calculator user community in the
+          late 1970s and early 1980s — or on the{" "}
+          <a href="https://www.hpmuseum.org/forum/">HP Museum forum</a>, where TI material is also archived and
+          discussed.
+        </p>
+      </div>
+
+      <div style={{ marginTop: 24 }}>
+        <BackButton onNav={onNav} />
+      </div>
+    </main>
+  );
+}
+
 // PlayCalculator lays itself out from a fixed 360px grid multiplied by
 // `scale`, so a constant 1.4 is a hard 504px — wider than any iPhone in
 // portrait, which is why the fifth key column used to run off the page.
@@ -1117,7 +1270,9 @@ function PlayPage({ onNav }) {
         <p>
           Module 01 (Master Library) is loaded by default. Switch modules, load one of the curated
           presets, or upload your own <strong>.ti59</strong> file below the keyboard — uploads are
-          read entirely in your browser and never leave your machine.
+          read entirely in your browser and never leave your machine. For more programs to try,
+          including several that need the full app's PC-100 printer, see the{" "}
+          <a href="/examples/">example programs</a>.
         </p>
         <p>
           Press <strong>2nd</strong> then <strong>Pgm</strong> then a two-digit program number to
@@ -1204,4 +1359,5 @@ Object.assign(window, {
   ModulesPage,
   FaqPage,
   PlayPage,
+  ExamplesPage,
 });

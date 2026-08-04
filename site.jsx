@@ -110,6 +110,7 @@ function App() {
       {page === "debugger"       && <DebuggerPage onNav={onNav} />}
       {page === "ref"            && <ReferencePage onNav={onNav} />}
       {page === "modules"        && <ModulesPage onNav={onNav} />}
+      {page === "examples"       && <ExamplesPage onNav={onNav} />}
       {page === "faq"            && <FaqPage onNav={onNav} />}
       <SiteFooter />
     </>

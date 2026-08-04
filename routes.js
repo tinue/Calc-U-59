@@ -26,6 +26,7 @@
     { path: "/debugger/",                            page: "debugger" },
     { path: "/reference/",                           page: "ref" },
     { path: "/modules/",                             page: "modules" },
+    { path: "/examples/",                            page: "examples" },
     { path: "/faq/",                                 page: "faq" },
 
     // Sidebar deep links inside Getting Started. Most restate a standalone

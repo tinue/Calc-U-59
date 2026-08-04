@@ -80,6 +80,13 @@ const PAGES = {
       "Every Solid State Software library module included in Calc-U 59, from the Master Library and Applied Statistics to Aviation, Surveying and the RPN Simulator.",
     heading: "Library modules",
   },
+  "/examples/": {
+    title: "TI-59 Example Programs — Calendar Printer, RAM Test, Fast Mode",
+    description:
+      "Downloadable TI-59 and TI-58 programs: the 1978 calendar printer competition, PC-100 printer graphics tricks, RAM and diagnostic self-tests, and Fast Mode demos.",
+    heading: "Example programs",
+  },
+
   "/faq/": {
     title: "Calc-U 59 FAQ — TI-59 emulator questions answered",
     description:

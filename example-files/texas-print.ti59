@@ -1,0 +1,373 @@
+# texas-print.ti59 - High Rez Graphics by Frank Dever
+# From Magazine "PPX Exchange", March/April 1982, front page.
+#
+# Another program that demonstrates interrupting the printer while printing a row.
+#
+# How the "printer interrupt" actually works (confirmed against a CPU trace of this file):
+#
+# The insertion procedure below corrupts the keycode at program step 008 into 1F -- a value
+# whose second BCD digit (F) is outside the legal 0-9 range. The RAM-program keycode dispatcher
+# in ROM (rom/TI59-commented.asm, 0x0F53-0x0F6D) fetches both digits of a step's keycode and
+# packs them into a 16-bit computed-jump vector without ever range-checking either digit against
+# 0-9; a digit of F packs in just like a legal digit would. For keycode 1F this produces a jump
+# to ROM address 0x0EF1, which is not a legitimate dispatch target at all -- it is an ordinary
+# instruction sitting three instructions upstream of 0x0EFC PRT.GO, the normal "character
+# finished, advance paper" signal that firmware sends to the printer. Execution falls straight
+# through into PRT.GO without ever running the actual per-row print sequence (PRT.STEP / PRT.CLR
+# / PRT.OUT). Because the printhead runs asynchronously off its own timing, firing PRT.GO out of
+# band while the *previous* legitimate print job is still mid-character truncates that character
+# to whatever rows have physically printed so far. So the "printer interrupt" is not a real
+# command Texas Instruments built in -- it is a garbage keycode that happens to mis-dispatch into
+# the tail end of an unrelated routine which happens to end in the print-complete signal. See the
+# annotations at 0x0EF1 and 0x0F53 in rom/TI59-commented.asm for the full trace-verified mechanism.
+#
+# How the key sequence below produces the invalid 1F keycode (confirmed against CPU traces:
+# CALCU59_TRACE.txt, plus dedicated SBR-444 and R/S traces for quirk 1 and P/R-after-halt
+# traces for quirk 2; ROM annotations at
+# 0x08B2, 0x0A4B, 0x0B0A, 0x0B9D, 0x0C10, 0x0DA7, 0x11E1, 0x1213, 0x1286 in
+# rom/TI59-commented.asm) — a chain of four quirks, in one line each:
+#
+#   1. SBR 444 → rejected as out of range, but leaves the CROM pointer in the module header;
+#      R/S then executes two header bytes as keycodes (29=CP, 52=EE) and halts again.
+#   2. P/R → Prg Src Flag := 8 is written first, the launch then abandoned by a mis-routed
+#      range check: the flag LEAKS.
+#   3. LRN → honours the leaked flag, caches a ROM constant-table row as step 008's register
+#      content.
+#   4. Ins → subtracts that wrong cache; hexadecimal digit arithmetic turns step 008 into
+#      keycode 1F.
+#
+# In detail:
+#
+# 1. [Pgm] [1] [2] [SBR] [4] [4] [4] never executes a single step of library code. The library
+#    transfer resolver (ROM 0x1286) reads TWO consecutive module-header entries — Pgm 12's
+#    start address (2609) and Pgm 13's (2764, i.e. Pgm 12's end bound; the program is 155
+#    steps) — computes the target 2609+444 = 3053 and range-checks it at 0x12AE: 3053 >= 2764,
+#    so the transfer is rejected before a single keycode is fetched. Nothing is special about
+#    444: any offset >= 155 (past Pgm 12's end) fails the same check and leaves identical state
+#    (333 confirmed empirically); offsets 000-154 are valid and would actually run Pgm 12 code. The error halt (0x11E1)
+#    sets fB[9] (239.89 blinking, step counter still at 008 from the earlier GTO) and resets
+#    the Prg Src Flag the launch prologue had written — but the cleanup is incomplete: the
+#    CROM chip's internal PC is left in the module HEADER (at address 28, auto-incremented
+#    past the two entries just read) and the SCOM[9] run descriptor still names library
+#    program 12.
+#    [R/S] does NOT stop anything — it does its normal job and RESUMES the "interrupted"
+#    library run: Prg Src Flag := 1 again (from the SCOM[9] descriptor), display zeroed, no
+#    validity check of any kind. The interpreter fetches from the leftover header address and
+#    executes the two BCD bytes of Pgm 14's start-address entry (2952) as keycodes: 29 = CP
+#    (harmless), then 52 = EE, whose handler exits through the keyboard epilogue and ends the
+#    run. The machine halts a second time — not a new error, fB[9] still blinks from the
+#    first one — showing an EE-mode zero ("0. 00"). This second halt is the state quirk 2
+#    needs: SCOM[0]'s Prg Src Flag is left at 1, and that leftover is exactly what the next
+#    launch dispatches on. (Trace-verified both ways with dedicated P/R traces: pressed after
+#    the second halt, P/R's launch reads caller source 1, takes the library-caller path —
+#    which saves the CROM pointer as a return address and leaves fB[0] clear — and leaks;
+#    pressed after the first halt alone it reads source 0 (the error halt had reset it),
+#    takes the keyboard-caller path that sets fB[0], launches normally, restores PC 008 /
+#    flag 0, and LRN shows the correctly entered step — the hack fails.)
+# 2. [2nd] [P/R]: P->R is implemented as a ROM-resident keycode sub-program whose entry point is
+#    step 284 of the calculator-PC address space. Normally its launch is partition-independent:
+#    the shared transfer routine (ROM 0x086F) sees fB[0] SET, skips the RAM range check, writes
+#    SCOM[0] := PC 284 / Prg Src Flag 8, and the sub-program executes from constant rows 51+
+#    (trace-verified with a plain P->R press under 239.89: three row fetches, PC advancing
+#    284 -> 301). fB[0] is not persisted state: the launcher derives it fresh on every launch
+#    from the CALLER's Prg Src Flag (dispatch at 0x0A57) — caller 0 (keyboard/RAM) sets it,
+#    a library caller leaves it clear and saves the CROM pointer as the return address
+#    instead. Pressed after the R/S-resumed garbage run's second halt (quirk 1), SCOM[0]
+#    still says source 1, so the launcher treats P->R's launch as a call from a LIBRARY
+#    program: after 0x0A4B-0x0A53 have already written Prg Src Flag := 8, fB[0] stays clear,
+#    the transfer is treated as a RAM-program branch, and step 284's register (35) is
+#    range-checked against the program-partition register count in SCOM[13] (0x0887/0888).
+#    Under 239.89 there are only 30 program registers, so the check fails and the launch is
+#    ABANDONED at 0x0B0A — with the flag already written. It LEAKS, and the step counter
+#    stays at 008. (Two more leftovers, harmless to the hack: the stashed caller source 1 in
+#    SCOM[0] nibble 1, and a never-popped return-stack level naming the garbage CROM
+#    position — 0x0B0A, unlike the 0x11E1 error halt, does not reset the stack.)
+#    (With >= 320 steps — 8 Op 17 and below — the mis-routed check passes instead: SCOM[0] is
+#    rewritten with PC=284 and the hack fizzles; LRN then shows step 284, matching real-hardware
+#    observations and the 6 Op 17 emulator trace.)
+# 3. [LRN] must display step 008's keycode. The program-register fetch (ROM 0x08B2) honours the
+#    leaked flag and reads constant-table row 17 (= 16 + step/8) — a slice of the ROM's
+#    keycode-program area, 5403435501436504 — instead of RAM, and caches it in SCOM[10] as
+#    "current register content".
+# 4. [2nd] [Ins] shifts program memory one step up. Per register it computes
+#    new := (RAM content − SCOM[10] cache) + (cache << 1 keycode) — an identity when the cache
+#    is honest, but here RAM holds 23 53 00... ([lnx] [(] keyed in beforehand) while the cache
+#    holds the P->R slice. The TMC0501's digit-serial ALU applies no BCD correction to digit 0
+#    (it is hexadecimal in hardware), so step 008 becomes 23−04 = 1F — tens 2−0−borrow = 1,
+#    units 3−4 = F — and step 009 becomes 53−65 → 88, +04 shifted in → 92 = RTN, exactly the
+#    RTN the article says follows the pseudo-code. Steps 010–015 receive the "meaningless"
+#    garbage 21 42 46 11 40 49. In the trace: C−B = 459656449856881F, +(B<<2) →
+#    494011464221921F, committed as the single write to RAM[001] at ROM 0x0F85–0x0F88.
+#
+# Why the temporary [9] [Op] [1] [7] partition (239.89)? The hard requirement is the P->R
+# entry-step range check described in quirk 2: the flag only leaks if step 284 lies OUTSIDE the
+# program partition, i.e. fewer than 285 program steps — nn Op 17 with nn >= 9. On the other
+# side, the insertion location plus its register must lie INSIDE the partition (the table's
+# largest location, 104, needs >= 112 steps), which caps nn at 10 (159.99). So exactly 9 and 10
+# work — confirmed empirically on real hardware: 9 and 10 leave the PC at 008, while 8 and lower
+# end with the PC moved to 284 (P->R's entry step) and the hack fails. A side benefit of the
+# small program partition: the Ins shift loop stops at the program/data boundary (trace: it
+# rewrites registers 001-029 and no further, so steps 240+ survive and only step 239 is lost —
+# article note 4). (An earlier revision claimed the SBR 444 garbage run needs valid data
+# registers for RCL 02 / RCL 01 — wrong: the run never reaches program code, and neither trace
+# contains a single data-register access.)
+#
+# The per-location key-in table below now makes sense: each location's Ins subtracts the
+# constant-table row covering it (row 16 + step/8), so the two pre-keyed codes must be tuned to
+# that row's content for the arithmetic to land on 1F + RTN. Verified computationally for all
+# 13 table entries against the TMC0582/83 constant-ROM dumps: with the TI-59's merged indirect
+# keycodes (STO Ind = 72, RCL Ind = 73, SUM Ind = 74, Pgm Ind = 62, Op Ind = 84; two address
+# digits fuse into one step) every listed sequence records exactly the two keycodes the
+# arithmetic requires — e.g. 016 needs "74 90" = [SUM] [Ind] [9] [0]. The odd
+# [STO] [5] [1] [Bst] [Bst] [Del] [Sst] [D] dance at 064 manufactures "51 14", which no direct
+# key sequence can record (a bare 51 only exists merged after STO; Del then removes the 42, and
+# [D] records 14). Locations 048/096 and 072/080 share sequences because their constant rows
+# happen to begin with identical keycode pairs. Register-aligned steps beyond 104 would mostly
+# work too (a few, e.g. 280/320/376, have no digit-legal pre-key at all); the article's table
+# simply stops where its authors did. This tuning is also why the code can only be planted at
+# register-aligned steps (divisible by eight), where Ins uses the plain whole-register shift.
+#
+# These are the original notes from the article:
+#
+# Editors Note: Through experimenting with unusual key sequences, some TI-59 owners have found that
+# their calculators will respond to certain illegal key sequences not intended by the designers. By-
+# products of these key sequences include fractured displays, access to hard-wired functions, a fast
+# mode and the subject of this article - printer interrupt.
+#
+# The sequence described in this article is a command which tells the printer its job is over before
+# a complete character is printed. Known results outlined in this article are the discoveries of
+# avid TI-59 fans. This is not a Texas Instruments designed feature, but rather a machine 'quirk';
+# therefore, there may be unpredictable results which have yet to be discovered.
+#
+# The user should exercise caution in observing the limitations outlined below. The failure to do so
+# can cause a 'system crash' from which control can only be regained by turning the calculator off
+# and on. Use of the printer interrupt may have unexpected consequences. The number of dots printed
+# is affected by timing differences on each TI-59/PC-100A(C) combination. Texas Instruments cannot
+# endorse the use of the printer interrupt nor will Texas Instruments be responsible for software
+# damage caused thereby. This item is presented solely as an item of interest to TI-59 owners.
+#
+# One of the most recent and interesting of the 'quirk' variety discoveries is the 'print interrupt'
+# pseudo-code. Insertion of this code in the learn mode will, when executed by a program, instruct
+# the printer to halt. The result of this printer interrupt is that the character being printed is
+# restricted to as few as two rows of dots. The discovery was made by the dilligent efforts of
+# Michael Sperber, Gerald Schuetzer, and Johan Berger. Also contributing to the development of the
+# technique is Maurice Swinnen, Editor TI PPC NOTES and Dave Leising. No doubt it has already
+# occurred to the more avid fan of the TI-59 that this discovery is a fantastic opportunity to
+# experiment with high resolution graphics. And so it is. Included in this article is all the
+# information you need to get started printing high resolution graphs of functions, pictures of your
+# favorite comic book character, or whatever. Your imagination is the limit.
+#
+# However, be forewarned that the function outlined in this article was not designed by Texas
+# Instruments and therefore you may have unexpected difficulties in the use of the printer
+# interrupt. It has been the author's experience that endless loops are a frequent malady.
+#
+# How does it work? On command, the thermal printhead will print 20 characters (blanks are also
+# considered characters), each one as a matrix of dots, 7 rows by 5 columns. The characters are
+# printed one row at a time. After each row, the printer advances the paper for the next row of
+# dots. After printing the entire matrix for each of the 20 characters, the printer will advance the
+# paper for the next set of characters to be printed. The calculator is designed to continue to
+# execute program instructions while the printer is carrying out a print instruction. It is this
+# feature that makes the printer interrupt work. A command to print is sent to the printer and very
+# shortly afterwards a special printer interrupt described below is relayed to the printer. This
+# causes the printer to stop, leaving the characters vertically incomplete.
+#
+# The printer-interrupt command is created by placing a special 'pseudo-code' in program memory. But
+# before attempting to use this instruction, the user should make note of the following limitations
+# and restrictions when using the printer interrupt. Failure to do so may result in an endless loop
+# from which keyboard control can only be regained by turning the calculator off and on again. Keep
+# in mind that the list given below may not be complete; there may still be much to learn about the
+# printer-interrupt instruction.
+#
+# 1) The Master Library module should be installed when sequences in this article are used.
+# 2) The pseudo-code must be inserted in a location evenly divisible by eight.
+# 3) The sequences given for the insertion of the pseudo-code will leave a [RTN] instruction in the
+#    step following the code. This is essential for the operation of the printer-interrupt. The next
+#    7 steps following the [RTN] will contain meaningless code.
+# 4) Since 9 [OP] 17 is used in the initialization sequence, the insertion of the printer-interrupt
+#    moves the eighth step following the pseudo-code through step 239 over one step. This results in
+#    the loss of step 239. It is suggested that if your program is longer than 238 steps, a [NOP] is
+#    inserted in step 239. Be sure to repartition the calculator to the partitioning required by the
+#    program after initialization.
+# 5) All labels must preceed the pseudo-code.
+# 6) The display must contain a zero when the printer-interrupt is executed.
+# 7) Error conditions or EE display modes must not be present when the printer-interrupt is
+#    executed.
+# 8) Location 000 must contain an [INV] [SBR] instruction. Execution is transferred to this location
+#    after the printer interrupt is encountered in a program.
+# 9) On some printers, a complete line of interrupted characters will arrest the paper advance.
+# 10) Magnetic cards recorded after initialization will not contain the appropriate pseudo-code. To
+#     avoid this, record your program before initialization.
+# 11) The differences in timing on various calculator-printer combinations may affect the number of
+#     rows of dots that are printed. This may make a program using the printer-interrupt run
+#     differently on different machines.
+#
+# To Insert The Pseudo-Code:
+#
+# 1) Turn the calculator on.
+# 2) Position the program counter to one of the locations given in the initialization table by
+#    pressing [GTO] followed by the three digit location number.
+# 3) Press [LRN].
+# 4) Find the key strokes corresponding to the location you have chosen in the pseudo-code
+#    initialization table, and key them in.
+# 5) Press [LRN].
+# 6) Reposition the program counter to the location in which you intend to insert the pseudo-code by
+#    pressing [GTO] followed by the three digit location number.
+# 7) Initialize the pseudo-code by pressing the sequence: [9] [2nd] [OP] [1] [7] [2nd] [Pgm] [1] [2]
+#    [SBR] [4] [4] [4] [R/S] [2nd] [P/R] [LRN] [2nd] [Ins] [LRN] [CLR] [RST]. The display will begin
+#    flashing when [SBR] [4] [4] [4] is pressed. Press [A] and the print code table with full and
+#    interrupted characters will be printed.
+#
+# Pseudo-Code Initialization Table
+#
+# TO INSERT  STARTING
+# AT STEP    AT STEP    KEY IN THE FOLLOWING
+# 008        008        [lnx] [(]
+# 016        016        [SUM] [2nd] [Ind] [9] [0]
+# 024        024        [SUM] [2nd] [Ind] [8] [0]
+# 032        032        [2nd] [OP] [2nd] [Ind] [5] [9]
+# 040        040        [RCL] [2nd] [Ind] [.]
+# 048        048        [STO] [2nd] [Ind] [x²]
+# 056        056        [RCL] [2nd] [Ind] [3] [0]
+# 064        064        [STO] [5] [1] [Bst] [Bst] [2nd]
+#                       [Del] [Sst] [D]
+# 072        072        [INV] [RCL]
+# 080        080        [INV] [RCL]
+# 088        088        [2nd] [PGM] [2nd] [Ind] [5] [1]
+# 096        096        [STO] [2nd] [Ind] [x²]
+# 104        104        [RCL] [2nd] [Ind] [7] [0]
+#
+# Each data register is associated with eight program locations. This grouping of eight appears to
+# be important in determining the locations in which the pseudo-code may be inserted. To our
+# knowledge, only in a location which is evenly divisible by eight has the pseudo-code been
+# successfully inserted.
+#
+# RESOLUTION IS AFFECTED BY:
+#
+# 1) The timing of the calculator-printer combination. Some calculator-printer combinations will
+#    print a different number of rows of dots than others given the same amount of time to do so.
+# 2) The number and type of instructions executed between the print instruction and the execution of
+#    the printer-interrupt. For example, [OP] [05] [CLR] "[pseudo-code]" will print fewer rows of
+#    dots than [OP] [05] [DMS] "[pseudo-code]" because of the differing amounts of time required to
+#    execute [CLR] and [DMS]. Also, the insertion of [NOP]s between the print instruction and the
+#    pseudo-code will slightly affect the number of rows of dots printed.
+# 3) The location at which the pseudo-code is inserted. On our printers, two rows of dots are
+#    printed using the printer-interrupt in location 008 and [OP] 05 beginning in location 006.
+#    However, the entire character is printed normally (without paper advance afterwards) using the
+#    printer-interrupt in location 140 and with [OP] 05 beginning in location 138.
+#
+# Here is a program written by Don O'Grady which prints out the TI Logo as shown on the front page.
+# You may find the techniques used in this program useful in your own printer-interrupt programs.
+# Notice that [lnx] and [(] are in steps 008 and 009 respectively. These codes must be present
+# during insertion of the pseudo-code.
+#
+# 1) Set partitioning by pressing [0] [2nd] [OP] [1] [7].
+# 2) Key in program exactly as listed.
+# 3) Record on magnetic cards, if desired.
+# 4) Enter the pseudo-code at location 008 using the method outlined in the pseudo-code
+#    initialization table.
+# 5) Execute the program by pressing [GTO] [0] [1] [7] [R/S].
+
+
+MODEL: TI-59
+PARTITION: 959.0
+SOLID-STATE-MODULE: ML
+PRINTER: on
+
+# Prepare the magnet card inlay
+CUECARD:
+Template: MagnetCard
+Title: TI Logo
+Banks: 1,2
+Row1: See PPX Exchange March/April 1982
+Row1Align: center
+Row2: for instructions to run
+Row2Align: center
+
+
+# For compactness, the program is only here as keycodes. If you need the listing, load the program and LIST it on the printer.
+PROGRAM:
+92 00 00 76 11 00 69 05 23 53  00 00 00 00 00 00 00 69 17 58   # 000-019
+09 25 69 00 06 06 07 06 07 06  07 01 00 69 02 11 02 07 00 00   # 020-039
+00 00 00 00 02 05 69 02 11 11  01 00 00 69 03 11 00 69 03 11   # 040-059
+02 05 00 00 02 07 69 03 11 00  69 03 11 06 06 00 00 69 03 11   # 060-079
+00 69 03 11 02 07 58 08 69 02  11 07 00 69 03 11 05 06 58 06   # 080-099
+69 03 11 05 01 58 08 69 04 58  04 07 05 01 69 03 11 06 07 04   # 100-119
+07 69 04 58 09 07 04 07 04 07  04 06 07 69 03 11 04 07 58 04   # 120-139
+69 04 58 02 07 04 07 04 07 04  69 03 11 11 05 07 04 06 07 07   # 140-159
+04 69 03 11 07 02 04 00 00 00  07 69 03 11 07 04 05 06 00 00   # 160-179
+02 04 07 04 69 03 32 58 04 02  07 00 00 04 07 69 04 02 07 00   # 180-199
+00 00 00 05 05 07 04 69 02 75  11 05 00 00 00 95 69 02 32 85   # 200-219
+05 00 00 00 95 69 03 11 32 85  06 00 00 00 95 69 02 75 11 59   # 220-239
+05 00 00 95 69 02 85 07 04 02  07 00 00 07 04 07 04 69 03 11   # 240-259
+85 01 04 00 00 95 69 02 06 02  69 04 11 07 04 00 00 05 03 07   # 260-279
+04 07 04 69 03 02 05 69 04 58  09 07 04 07 04 69 02 07 06 07   # 280-299
+06 07 06 07 06 07 69 01 11 00  69 04 04 07 58 08 69 01 07 04   # 300-319
+00 00 02 05 07 04 07 04 69 03  75 11 05 03 69 01 02 07 58 02   # 320-339
+69 04 11 07 04 07 04 95 58 04  69 03 85 00 69 02 05 06 58 06   # 340-359
+69 01 11 05 06 00 00 95 69 03  04 07 69 01 11 05 03 69 01 07   # 360-379
+00 00 00 05 02 07 58 02 69 03  11 02 00 00 06 05 02 07 69 03   # 380-399
+05 06 58 04 69 01 11 04 07 69  01 05 06 00 00 06 05 69 03 75   # 400-419
+04 01 03 95 69 03 05 03 69 01  58 09 69 02 11 00 69 01 02 05   # 420-439
+69 02 02 07 00 00 07 04 00 00  00 00 69 03 11 05 69 02 11 69   # 440-459
+00 05 06 00 00 69 01 06 05 69  02 07 04 07 04 07 04 58 04 69   # 460-479
+03 95 58 02 04 07 69 01 58 04  05 05 69 04 11 58 02 02 05 69   # 480-499
+01 05 03 06 07 07 00 00 00 06  05 69 02 58 06 05 03 69 04 11   # 500-519
+07 04 07 04 07 04 07 04 69 03  75 04 07 69 04 58 09 00 69 01   # 520-539
+06 05 69 02 11 02 07 69 01 07  00 00 00 00 02 07 06 05 69 02   # 540-559
+05 03 02 07 58 06 69 04 11 07  02 95 69 03 85 58 09 05 06 69   # 560-579
+01 02 07 00 00 00 00 02 07 02  05 69 02 04 07 58 08 69 04 11   # 580-599
+02 07 69 04 58 09 05 03 69 01  58 02 05 06 69 02 05 04 95 69   # 600-619
+03 11 69 00 04 07 69 02 07 04  07 04 07 04 02 07 05 03 69 03   # 620-639
+11 06 00 07 04 07 04 00 00 00  07 69 03 11 06 02 69 02 05 03   # 640-659
+07 04 07 07 00 00 02 07 69 03  11 05 03 69 02 69 03 11 04 07   # 660-679
+69 03 11 69 02 11 58 09 69 00  05 06 69 02 11 02 07 00 00 69   # 680-699
+03 04 07 69 02 11 05 03 69 02  11 69 02 58 02 05 06 69 03 11   # 700-719
+05 06 00 00 00 00 04 07 69 03  11 05 03 00 00 00 00 04 07 69   # 720-739
+03 11 05 06 00 00 06 03 69 03  11 05 03 00 00 05 03 69 03 11   # 740-759
+06 07 06 07 69 03 11 58 09 98  98 98 98 92 61 00 17 00 00 00   # 760-779
+
+
+# To simplify things, the keystrokes outlined in the article are automated. When the Preset has finished loading, the invalid
+# key code will be in memory. The program would run for a long time, the preset speeds through quickly, and the result
+# is visible on the printer tape immediately.
+KEYSTROKES:
+61  GTO
+92  0
+92  0
+63  8
+64  9
+21  2nd
+64  OP
+82  1
+62  7
+21  2nd
+31  Pgm
+82  1
+83  2
+71  SBR
+72  4
+72  4
+72  4
+Wait: 1s
+91  R/S
+WaitFullSpeed: 1s
+21  2nd
+32  P/R
+31  LRN
+21  2nd
+41  Ins
+31  LRN
+25  CLR
+81  RST
+92  0
+21  2nd
+64  OP
+82  1
+62  7
+Wait: 1s
+61  GTO
+92  0
+82  1
+62  7
+91  R/S
+WaitFullSpeed: 2s

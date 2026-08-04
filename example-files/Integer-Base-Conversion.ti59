@@ -1,0 +1,129 @@
+# Integer-Base-Conversion.ti59 — Converts from one base to another
+# From: https://www.hpmuseum.org/forum/thread-25085.html
+# Original from: Computer Design, v19 i5 1980, pages 202, 205, 207
+#
+# For example, convert 0x2A0 to Binary:
+# - 21000 A
+# - 16 B
+# -  2 C
+# -> Result: 1010100000
+# - Press R/S to get the decimal value
+# -> Result: 672
+
+
+# Prepare the magnet card inlay
+CUECARD:
+Template: MagnetCard
+Title: Base Conversion
+Banks: 1
+A: From
+B: From: Base
+C: To: Base
+
+PROGRAM:
+000  76 LBL   
+001  11  A    
+002  32 X⇄T   
+003  91 R/S   
+004  76 LBL   
+005  12  B    
+006  42 STO   
+007  01  01   
+008  10 E'    
+009  42 STO   
+010  02  02   
+011  91 R/S   
+012  76 LBL   
+013  13  C    
+014  42 STO   
+015  03  03   
+016  10 E'    
+017  42 STO   
+018  04  04   
+019  02  2    
+020  42 STO   
+021  06  06   
+022  76 LBL   
+023  19 D'    
+024  00  0    
+025  42 STO   
+026  07  07   
+027  42 STO   
+028  09  09   
+029  32 X⇄T   
+030  76 LBL   
+031  90 LST   
+032  55  ÷    
+033  43 RCL   
+034  02  02   
+035  95  =    
+036  53  (    
+037  29 CP    
+038  85  +    
+039  32 X⇄T   
+040  54  )    
+041  59 INT   
+042  32 X⇄T   
+043  22 INV   
+044  59 INT   
+045  65  x    
+046  43 RCL   
+047  02  02   
+048  65  x    
+049  53  (    
+050  43 RCL   
+051  01  01   
+052  45 Yˣ    
+053  43 RCL   
+054  09  09   
+055  95  =    
+056  44 SUM   
+057  07  07   
+058  69 OP    
+059  29  29   
+060  00  0    
+061  32 X⇄T   
+062  22 INV   
+063  67  EQ   
+064  90 LST   
+065  97 DSZ   
+066  06  06   
+067  98 ADV   
+068  17 B'    
+069  76 LBL   
+070  98 ADV   
+071  43 RCL   
+072  07  07   
+073  42 STO   
+074  08  08   
+075  32 X⇄T   
+076  43 RCL   
+077  03  03   
+078  42 STO   
+079  02  02   
+080  43 RCL   
+081  04  04   
+082  42 STO   
+083  01  01   
+084  19 D'    
+085  76 LBL   
+086  17 B'    
+087  43 RCL   
+088  07  07   
+089  91 R/S   
+090  43 RCL   
+091  08  08   
+092  91 R/S   
+093  76 LBL   
+094  10 E'    
+095  75  -    
+096  01  1    
+097  95  =    
+098  28 LOG   
+099  59 INT   
+100  85  +    
+101  01  1    
+102  95  =    
+103  22 INV   
+104  28 LOG   
+105  92 RTN   

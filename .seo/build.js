@@ -198,6 +198,7 @@ const COMPONENTS = {
   debugger: "DebuggerPage",
   ref: "ReferencePage",
   modules: "ModulesPage",
+  examples: "ExamplesPage",
   faq: "FaqPage",
 };
 

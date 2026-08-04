@@ -1,0 +1,55 @@
+# Fastmode.ti59
+#
+# This program illustrates the TI-58, TI-58C and TI-59 Fast Mode as discovered
+# and documented over the years in the TI PPC club.
+# Timing is about 4.6 seconds for 10! and 31 seconds for 69! in fast mode.
+# Normal mode program execution of this code takes 70% longer than fast mode.
+# In normal mode, 69! takes about 52 seconds.
+
+#
+# Start the program with "A". A blinking "1" appears. Then press 7 and EE -> Calculation starts
+# The result is in register 00
+
+PARTITION: 319.79
+
+PROGRAM:
+000  91 R/S     # R/S Program will stop here after computing factorial
+001  25 CLR     # CLR Fast mode will begin executing here from step 319
+002  06  6
+003  09  9
+004  42 STO     # STO Program example will compute 69!
+005  00  00
+006  42 STO
+007  01  01     # Value to compute factorial stored in 01. Result in 00.
+008  43 RCL     # Begin loop to compute factorial. DSZ looping is not
+009  01  01     # allowed in fast mode, so the subtract 1 and test for
+010  75  -      # zero approach is used instead
+011  01  1
+012  95  =
+013  42 STO
+014  01  01
+015  67  EQ     # The "T" register is compared against value in display.
+016  00  00     # If X = 0 (T register was cleared at step 313) then goto
+017  23  23     # step 023
+018  49 PRD     # If X is not equal to T, multiply value in register 00 by
+019  00  00     # value in the display (accumulating the factorial)
+020  61 GTO     # Then branch back to step 008 and continue loop
+021  00  00
+022  08  08
+023  25 CLR     # This step is reached when the factorial has been computed.
+024  94 +/-     # Display is cleared and a negative 0 is displayed to alert
+025  81 RST     # user program is done. RST resets execution to step 000.
+026  91 R/S     # This step is not strictly needed.
+...
+311  76 LBL     # Program begins by pressing user defined function A
+312  11  A
+313  29 CP      # Clears the T register
+314  04  4      # 45 tan in degree mode is 1 but with guard digits. Actual
+315  05  5      # value computed is 1.000000000001. When this is squared, the
+316  60 DEG     # value in the display is 1.000000000002. When fast mode is
+317  30 TAN     # initiated, a 2 in the 12th decimal position begins fast
+318  33 X²      # mode execution at step 001 per TI PPC Notes V9N3P5 table.
+319  86 STF     # Strangely enough, a Set Flag instruction at the end of the
+                # current memory partition will end program execution with a
+                # flashing display. If you then press 7 and EE, the fast mode
+                # will begin executing code at step 001 in this case.

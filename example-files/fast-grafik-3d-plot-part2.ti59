@@ -1,0 +1,165 @@
+# fast-grafik-3d-plot.ti59 Program that demonstrates interrupting the printer while printing a row.
+# From Magatzine "TI PPC NOTES", V8N2P11ff, 1983
+#
+# The article itself is in the 1st part of the program.
+
+# Part 1 has run, the machine must not be reset!
+SKIP-RESET: true
+PARTITION: 639.39
+
+# Prepare the magnet card inlay
+CUECARD:
+Template: MagnetCard
+Title: Fast Grafik 3D Plot - Part 2
+Banks: 1,2
+
+# For compactness, the program is only here as key codes. If you need the listing,
+# load the program and LIST it on the printer.
+PROGRAM:
+83 33 76 11 43 00 42 37 25 42  09 61 00 35 86 40 51 00 00 00  # 000 - 019
+00 00 00 74 80 02 68 68 68 68  68 00 92 43 22 42 36 00 42 07  # 020 - 039
+43 27 44 07 43 11 42 29 42 31  43 13 42 28 43 07 32 43 14 77  # 040 - 059
+00 70 04 69 17 61 05 60 43 07  44 28 55 43 18 54 59 65 32 43  # 060 - 079
+18 85 43 13 95 42 30 43 07 55  43 06 75 32 65 43 20 95 44 31  # 080 - 099
+05 69 17 86 01 43 07 32 43 16  77 01 21 43 07 75 43 16 85 43  # 100 - 119
+13 95 42 32 43 28 75 43 32 54  55 43 21 54 52 22 52 59 85 01  # 120 - 139
+54 42 05 43 30 75 43 32 54 55  43 18 54 52 22 52 59 85 68 68  # 140 - 159
+01 54 44 05 43 31 32 43 29 77  02 00 43 28 42 40 43 29 42 41  # 160 - 179
+01 08 08 42 33 61 04 73 43 21  22 44 28 43 19 44 29 61 02 23  # 180 - 199
+43 30 42 40 43 31 42 41 02 01  04 61 01 83 43 18 22 44 30 43  # 200 - 219
+20 44 31 97 05 01 64 04 42 38  00 63 38 84 38 97 38 02 30 02  # 220 - 239
+04 06 42 33 25 81 03 04 42 33  71 00 21 60 02 52 01 02 94 85  # 240 - 259
+08 95 61 00 14 22 58 25 42 38  42 39 97 36 00 42 98 69 29 43  # 260 - 279
+09 99 97 26 00 35 25 91 29 69  19 87 07 04 67 85 43 41 65 43  # 280 - 299
+17 95 55 43 25 75 43 23 95 59  82 06 43 37 67 03 46 43 38 32  # 300 - 319
+82 16 77 03 38 32 43 39 22 77  04 64 32 42 39 61 03 46 82 16  # 320 - 339
+42 38 87 01 03 33 82 16 55 06  00 95 59 32 43 09 22 67 04 64  # 340 - 359
+82 16 75 43 09 65 06 00 54 42  00 55 03 54 59 75 32 53 43 00  # 360 - 379
+55 01 05 54 59 42 08 69 28 65  05 95 42 34 43 00 75 03 65 32  # 380 - 399
+75 01 95 42 00 50 65 02 05 75  69 30 43 00 69 10 65 02 95 42  # 400 - 419
+35 29 73 08 55 53 05 75 43 34  54 22 28 33 52 22 52 82 07 95  # 420 - 439
+22 59 65 01 00 00 95 59 22 67  04 70 82 17 55 01 00 00 65 43  # 440 - 459
+35 95 74 08 22 86 01 22 86 07  25 83 33                       # 460 - 472
+# Enter the function to plot here
+473  53  (
+474  01  1
+475  02  2
+476  55  ÷
+477  53  (
+478  01  1
+479  85  +
+480  43 RCL
+481  40  40
+482  33 X²
+483  85  +
+484  43 RCL
+485  41  41
+486  33 X²
+487  54  )
+488  54  )
+489  61 GTO
+490  02  02
+491  88  88
+492  00  0
+...
+559  00  0
+43 12 42 30 43 07 75 43 14 54  55 32 43 06 95 44 31 32 55 43  # 560 - 579
+21 54 52 22 52 59 85 01 54 65  32 43 21 94 85 43 07 95 44 28  # 580 - 599
+32 65 43 19 95 44 29 61 01 02                                 # 600 - 609
+
+
+# The keystrokes are those that part 1 of the program dumps
+# onto the printer. They are automated here; If you prefer
+# the original manual entry then comment this section
+KEYSTROKES:
+61          # GTO
+92          # 0
+82          # 1
+74          # 6
+82          # 1
+92          # 0
+21          # 2nd
+64          # Op
+82          # 1
+62          # 7
+25          # CLR
+21          # 2nd
+31          # Pgm
+82          # 1
+64          # 9
+71          # SBR
+92          # 0
+72          # 4
+73          # 5
+21          # 2nd
+32          # P->R
+31          # LRN
+21          # 2nd
+41          # Ins
+31          # LRN
+81          # RST
+25          # CLR
+61          # GTO
+92          # 0
+83          # 2
+72          # 4
+21          # 2nd
+31          # Pgm
+82          # 1
+64          # 9
+71          # SBR
+92          # 0
+72          # 4
+73          # 5
+21          # 2nd
+32          # P->R
+31          # LRN
+21          # 2nd
+41          # Ins
+31          # LRN
+81          # RST
+25          # CLR
+73          # 5
+21          # 2nd
+64          # Op
+82          # 1
+62          # 7
+61          # GTO
+92          # 0
+82          # 1
+62          # 7
+31          # LRN
+21          # 2nd
+63          # Nop
+61          # GTO
+83          # 2
+74          # 6
+73          # 5
+25          # CLR
+21          # 2nd
+64          # Op
+92          # 0
+73          # 5
+31          # LRN
+61          # GTO
+72          # 4
+62          # 7
+84          # 3
+# The article wants you to key in the function to be plotted here. Keep the parantheses,
+# and replace the zeroes with the function. Note that this statefile already contains a
+# ready made function, the therefore these lines are commented here.
+# The pre-coded function is z = 12/(1 + x² + y²)
+#31          # LRN
+#53          # (
+#92          # 0
+#92          # 0
+#92          # 0
+#54          # )
+#61          # GTO
+#83          # 2
+#63          # 8
+#63          # 8
+#31          # LRN
+# Program entry finished, now launch the plot.
+11           # A
+WaitFullSpeed: 10s

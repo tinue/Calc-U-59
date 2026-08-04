@@ -1,0 +1,69 @@
+# Keycodes.ti59
+
+# From TI PPC Notes v5n4/5 1980, https://airy.rskey.org/CALCDOCS//TI/PPC/V5N4-5.pdf
+
+# Jared Weinberger, in Bologna, Italy, contributes this routine
+# which permits the generation of all the key codes on the T1-59.
+# The program takes advantage of dynamic code modification to accomplish this feat.
+#
+# Press A to start.
+#
+# O0O: LBL A 7 OP 17 100 STO 00 9.200760869 STO 60 LBL A' 6 OP 17
+# 028: SBR 475 7 OP 17 .001 SUM 60 DSZ O A' R/S
+# All key codes are listed at step 478. Needless to say, you need the PC1O0A.
+
+# Prepare the magnet card inlay
+CUECARD:
+Template: MagnetCard
+Title: Print all keycodes
+Banks: 1
+A: PRINT
+
+# Print output requires the printer to be active
+PRINTER: on
+
+PROGRAM:
+000  76 LBL
+001  11  A
+002  07  7
+003  69 OP
+004  17  17
+005  01  1
+006  00  0
+007  00  0
+008  42 STO
+009  00  00
+010  09  9
+011  93  .
+012  02  2
+013  00  0
+014  00  0
+015  07  7
+016  06  6
+017  00  0
+018  08  8
+019  06  6
+020  09  9
+021  42 STO
+022  60  60
+023  76 LBL
+024  16 A'
+025  06  6
+026  69 OP
+027  17  17
+028  71 SBR
+029  04  04
+030  75  75
+031  07  7
+032  69 OP
+033  17  17
+034  93  .
+035  00  0
+036  00  0
+037  01  1
+038  44 SUM
+039  60  60
+040  97 DSZ
+041  00  00
+042  16 A'
+043  91 R/S

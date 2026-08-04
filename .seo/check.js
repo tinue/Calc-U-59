@@ -92,7 +92,7 @@ const STATIC_TARGETS = { "/app/": path.join(DOCS, "app", "index.html") };
 for (const [p, html] of built) {
   const hrefs = [...html.matchAll(/href="(\/[^"]*)"/g)].map((m) => m[1]);
   for (const href of new Set(hrefs)) {
-    if (/\.(css|png|js|xml|txt|json|woff2?)$/.test(href)) {
+    if (/\.(css|png|js|xml|txt|json|woff2?|ti59|ti58|ti58c|asm)$/.test(href)) {
       ok(fs.existsSync(path.join(DOCS, href.replace(/^\//, ""))), `${p}: asset ${href} missing`);
     } else if (STATIC_TARGETS[href]) {
       ok(fs.existsSync(STATIC_TARGETS[href]), `${p}: static page ${href} missing`);
