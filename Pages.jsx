@@ -1068,15 +1068,17 @@ function ModulesPage({ onNav }) {
 }
 
 /* =============================================================
-   EXAMPLES — downloadable .ti59/.ti58/.ti58c programs and raw CPU
-   assembly, sourced from examples/ in the main repository. This is one
+   SOFTWARE — downloadable .ti59/.ti58/.ti58c programs and raw CPU
+   assembly, sourced from examples/ in the main repository (that
+   directory's own name is unrelated — these outgrew "examples" into a
+   real software collection, hence the different name here). This is one
    of the copy-scope exceptions (with AboutTi59Page): most of these
    programs predate Calc-U 59 by decades, so the copy leans on the
-   original TI-59/TI-58 hardware and the magazines that published them —
-   that's what someone who owned one, or is restoring one, actually
-   searches for.
+   original TI-59/TI-58/TI-58C hardware and the magazines that published
+   them — that's what someone who owned one, or is restoring one,
+   actually searches for.
    ============================================================= */
-function ExamplesPage({ onNav }) {
+function SoftwarePage({ onNav }) {
   const categories = [
     {
       heading: "The 1978 calendar printer competition",
@@ -1150,10 +1152,10 @@ function ExamplesPage({ onNav }) {
 
   return (
     <main className="wrap-narrow">
-      <p className="eyebrow">Examples</p>
-      <h1 className="page-title">TI-59 and TI-58 example programs</h1>
+      <p className="eyebrow">Software</p>
+      <h1 className="page-title">TI-59 Software Collection</h1>
       <p className="lede">
-        Programs written for real TI-58, TI-58C and TI-59 hardware, from the 1978 <em>52-Notes</em> calendar
+        Programs written for real TI-59, TI-58 and TI-58C hardware, from the 1978 <em>52-Notes</em> calendar
         competition to TI PPC club printer-graphics tricks and factory diagnostics — collected here as
         loadable state files, whether or not you have Calc-U 59 installed yet.
       </p>
@@ -1182,7 +1184,7 @@ function ExamplesPage({ onNav }) {
               <div key={it.file} className="panel" style={{ padding: 20, lineHeight: 1.7 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: "4px 16px" }}>
                   <h3 className="sub" style={{ margin: 0 }}>{it.title}</h3>
-                  <a className="btn secondary" href={`/example-files/${it.file}`} download>
+                  <a className="btn secondary" href={`/software-files/${it.file}`} download>
                     Download {it.file.replace(/^assembly\//, "")}
                   </a>
                 </div>
@@ -1200,9 +1202,10 @@ function ExamplesPage({ onNav }) {
       <div className="prose panel" style={{ padding: 20, lineHeight: 1.7 }}>
         <p style={{ marginTop: 0 }}>
           These files are maintained in the <a href="https://github.com/tinue/Calc-U-59/tree/main/examples">
-          examples/ directory</a> of the Calc-U 59 repository, together with a few internal debugging and
-          screenshot-test files not listed here. The <a href="/state-files/">state file format</a> and the
-          debugger's ASM Overlay are both documented if you want to write your own.
+          examples/ directory</a> of the Calc-U 59 repository — its name predates this collection outgrowing
+          "examples" — together with a few internal debugging and screenshot-test files not listed here. The{" "}
+          <a href="/state-files/">state file format</a> and the debugger's ASM Overlay are both documented if
+          you want to write your own.
         </p>
         <p style={{ marginBottom: 0, color: "var(--fg-3)", fontSize: 13 }}>
           Most of these programs were originally published in <em>52-Notes</em>, <em>TI PPC Notes</em> and{" "}
@@ -1272,7 +1275,7 @@ function PlayPage({ onNav }) {
           presets, or upload your own <strong>.ti59</strong> file below the keyboard — uploads are
           read entirely in your browser and never leave your machine. For more programs to try,
           including several that need the full app's PC-100 printer, see the{" "}
-          <a href="/examples/">example programs</a>.
+          <a href="/software/">TI-59 Software Collection</a>.
         </p>
         <p>
           Press <strong>2nd</strong> then <strong>Pgm</strong> then a two-digit program number to
@@ -1359,5 +1362,5 @@ Object.assign(window, {
   ModulesPage,
   FaqPage,
   PlayPage,
-  ExamplesPage,
+  SoftwarePage,
 });

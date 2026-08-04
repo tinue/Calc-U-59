@@ -38,9 +38,9 @@ function SiteHeader({
     label: "Modules",
     href: "/modules/"
   }, {
-    id: "examples",
-    label: "Examples",
-    href: "/examples/"
+    id: "software",
+    label: "Software",
+    href: "/software/"
   }, {
     id: "faq",
     label: "FAQ",
@@ -122,8 +122,8 @@ function SiteFooter() {
   }, "What is a TI-59?"), /*#__PURE__*/React.createElement("a", {
     href: "/play/"
   }, "Online emulator"), /*#__PURE__*/React.createElement("a", {
-    href: "/examples/"
-  }, "Example programs"), /*#__PURE__*/React.createElement("a", {
+    href: "/software/"
+  }, "TI-59 Software Collection"), /*#__PURE__*/React.createElement("a", {
     href: "/app/"
   }, "Install the web app"), /*#__PURE__*/React.createElement("a", {
     href: "https://github.com/tinue/Calc-U-59"

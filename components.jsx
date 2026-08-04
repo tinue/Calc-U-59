@@ -15,7 +15,7 @@ function SiteHeader({ page }) {
     { id: "play",     label: "Play",            href: "/play/" },
     { id: "ref",      label: "App Reference",   href: "/reference/" },
     { id: "modules",  label: "Modules",         href: "/modules/" },
-    { id: "examples", label: "Examples",        href: "/examples/" },
+    { id: "software", label: "Software",        href: "/software/" },
     { id: "faq",      label: "FAQ",             href: "/faq/" },
   ];
   // Under 1060px the links collapse behind a disclosure button (styles.css).
@@ -84,7 +84,7 @@ function SiteFooter() {
         }}>Calc-U 59</strong>
         <a href="/what-is-a-ti-59/">What is a TI-59?</a>
         <a href="/play/">Online emulator</a>
-        <a href="/examples/">Example programs</a>
+        <a href="/software/">TI-59 Software Collection</a>
         {/* /app/ is the calculator alone, installable to a phone's home
             screen — deliberately not a route (see routes.js) or a nav item,
             so this is its only link from inside the site. Kept out of

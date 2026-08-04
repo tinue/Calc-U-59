@@ -123,7 +123,7 @@ function App() {
     onNav: onNav
   }), page === "modules" && /*#__PURE__*/React.createElement(ModulesPage, {
     onNav: onNav
-  }), page === "examples" && /*#__PURE__*/React.createElement(ExamplesPage, {
+  }), page === "software" && /*#__PURE__*/React.createElement(SoftwarePage, {
     onNav: onNav
   }), page === "faq" && /*#__PURE__*/React.createElement(FaqPage, {
     onNav: onNav

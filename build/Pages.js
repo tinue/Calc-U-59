@@ -1712,15 +1712,17 @@ function ModulesPage({
 }
 
 /* =============================================================
-   EXAMPLES — downloadable .ti59/.ti58/.ti58c programs and raw CPU
-   assembly, sourced from examples/ in the main repository. This is one
+   SOFTWARE — downloadable .ti59/.ti58/.ti58c programs and raw CPU
+   assembly, sourced from examples/ in the main repository (that
+   directory's own name is unrelated — these outgrew "examples" into a
+   real software collection, hence the different name here). This is one
    of the copy-scope exceptions (with AboutTi59Page): most of these
    programs predate Calc-U 59 by decades, so the copy leans on the
-   original TI-59/TI-58 hardware and the magazines that published them —
-   that's what someone who owned one, or is restoring one, actually
-   searches for.
+   original TI-59/TI-58/TI-58C hardware and the magazines that published
+   them — that's what someone who owned one, or is restoring one,
+   actually searches for.
    ============================================================= */
-function ExamplesPage({
+function SoftwarePage({
   onNav
 }) {
   const categories = [{
@@ -1897,11 +1899,11 @@ function ExamplesPage({
     className: "wrap-narrow"
   }, /*#__PURE__*/React.createElement("p", {
     className: "eyebrow"
-  }, "Examples"), /*#__PURE__*/React.createElement("h1", {
+  }, "Software"), /*#__PURE__*/React.createElement("h1", {
     className: "page-title"
-  }, "TI-59 and TI-58 example programs"), /*#__PURE__*/React.createElement("p", {
+  }, "TI-59 Software Collection"), /*#__PURE__*/React.createElement("p", {
     className: "lede"
-  }, "Programs written for real TI-58, TI-58C and TI-59 hardware, from the 1978 ", /*#__PURE__*/React.createElement("em", null, "52-Notes"), " calendar competition to TI PPC club printer-graphics tricks and factory diagnostics \u2014 collected here as loadable state files, whether or not you have Calc-U 59 installed yet."), /*#__PURE__*/React.createElement("div", {
+  }, "Programs written for real TI-59, TI-58 and TI-58C hardware, from the 1978 ", /*#__PURE__*/React.createElement("em", null, "52-Notes"), " calendar competition to TI PPC club printer-graphics tricks and factory diagnostics \u2014 collected here as loadable state files, whether or not you have Calc-U 59 installed yet."), /*#__PURE__*/React.createElement("div", {
     className: "panel",
     style: {
       padding: 20,
@@ -1961,7 +1963,7 @@ function ExamplesPage({
     }
   }, it.title), /*#__PURE__*/React.createElement("a", {
     className: "btn secondary",
-    href: `/example-files/${it.file}`,
+    href: `/software-files/${it.file}`,
     download: true
   }, "Download ", it.file.replace(/^assembly\//, ""))), /*#__PURE__*/React.createElement("p", {
     style: {
@@ -1988,7 +1990,7 @@ function ExamplesPage({
     }
   }, "These files are maintained in the ", /*#__PURE__*/React.createElement("a", {
     href: "https://github.com/tinue/Calc-U-59/tree/main/examples"
-  }, "examples/ directory"), " of the Calc-U 59 repository, together with a few internal debugging and screenshot-test files not listed here. The ", /*#__PURE__*/React.createElement("a", {
+  }, "examples/ directory"), " of the Calc-U 59 repository \u2014 its name predates this collection outgrowing \"examples\" \u2014 together with a few internal debugging and screenshot-test files not listed here. The", " ", /*#__PURE__*/React.createElement("a", {
     href: "/state-files/"
   }, "state file format"), " and the debugger's ASM Overlay are both documented if you want to write your own."), /*#__PURE__*/React.createElement("p", {
     style: {
@@ -2068,8 +2070,8 @@ function PlayPage({
   }, "TI-59 emulator, online"), /*#__PURE__*/React.createElement("div", {
     className: "prose"
   }, /*#__PURE__*/React.createElement("p", null, "The calculator above is a working ", /*#__PURE__*/React.createElement("strong", null, "Texas Instruments TI-59 emulator running in your browser"), " \u2014 no install, no account, nothing to download. It is the real emulation core from the Calc-U 59 app, compiled to WebAssembly, executing the original TI-59 ROM. Debugger, printer, and card reader are not part of this build; everything else works."), /*#__PURE__*/React.createElement("p", null, "Module 01 (Master Library) is loaded by default. Switch modules, load one of the curated presets, or upload your own ", /*#__PURE__*/React.createElement("strong", null, ".ti59"), " file below the keyboard \u2014 uploads are read entirely in your browser and never leave your machine. For more programs to try, including several that need the full app's PC-100 printer, see the", " ", /*#__PURE__*/React.createElement("a", {
-    href: "/examples/"
-  }, "example programs"), "."), /*#__PURE__*/React.createElement("p", null, "Press ", /*#__PURE__*/React.createElement("strong", null, "2nd"), " then ", /*#__PURE__*/React.createElement("strong", null, "Pgm"), " then a two-digit program number to bring up that program's cue card, the same way it works on the module itself."), /*#__PURE__*/React.createElement("p", null, "For the TI-58 and TI-58C models, the PC-100C printer, magnetic cards and the CPU debugger, use the full app: ", /*#__PURE__*/React.createElement("a", {
+    href: "/software/"
+  }, "TI-59 Software Collection"), "."), /*#__PURE__*/React.createElement("p", null, "Press ", /*#__PURE__*/React.createElement("strong", null, "2nd"), " then ", /*#__PURE__*/React.createElement("strong", null, "Pgm"), " then a two-digit program number to bring up that program's cue card, the same way it works on the module itself."), /*#__PURE__*/React.createElement("p", null, "For the TI-58 and TI-58C models, the PC-100C printer, magnetic cards and the CPU debugger, use the full app: ", /*#__PURE__*/React.createElement("a", {
     href: "/install/mac/"
   }, "free on the Mac"), ", or", " ", /*#__PURE__*/React.createElement("a", {
     href: "/install/iphone-ipad/"
@@ -2145,5 +2147,5 @@ Object.assign(window, {
   ModulesPage,
   FaqPage,
   PlayPage,
-  ExamplesPage
+  SoftwarePage
 });
