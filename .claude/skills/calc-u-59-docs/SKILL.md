@@ -82,6 +82,7 @@ covers the build and routing files):
 | `docs/fonts/` | Self-hosted WOFF2 + each family's OFL licence |
 | `docs/preview/` | 16 HTML specimen cards for colors, type, spacing, components |
 | `docs/assets/` | App icon, iPad screenshots, device photo |
+| `docs/example-files/` | Self-hosted copies of `examples/*.ti59`/`.ti58`/`.ti58c` and `examples/assembly/*.asm`, linked from `/examples/` (`ExamplesPage` in `Pages.jsx`) via `download`-attribute links — see sync note below |
 | `docs/CNAME` | Custom domain record (`www.calcu59.ch`) |
 
 Generated — never edit by hand, always regenerate: `docs/build/`, every
@@ -90,6 +91,13 @@ Generated — never edit by hand, always regenerate: `docs/build/`, every
 There is also a dedicated design skill at `docs/SKILL.md` that covers generating branded interfaces and visual assets. Do not duplicate its content here — use it when the task is primarily visual or brand-driven.
 
 **The playable web calculator (`docs/play/`)** is a real, WASM-compiled build of the emulation core, not a mock — see `docs/PlayCalculator.jsx`, `docs/calc-engine-worker.js`, `docs/wasm/`. It's built from `tools/pack_roms.py` and `tools/build_wasm.sh` in the main repo; see the Release Documentation Update Workflow below for when to re-run them.
+
+**`/examples/` (`docs/example-files/`) needs a manual sync check.** These files are deliberately hand-copied from the main repo's `examples/` — self-hosted (not linked out to GitHub) so the `download` attribute works and visitors never leave `calcu59.ch`, and files stay small enough (~200K total) that duplication is cheap. Nothing wires the two directories together automatically, unlike the `pack_roms.py`/`build_wasm.sh` scripts that regenerate `docs/wasm/`. Whenever you're in this skill for an unrelated reason, or a session adds files to the main repo's `examples/`, diff the two:
+```bash
+comm -23 <(cd examples && find . -maxdepth 2 \( -name '*.ti59' -o -name '*.ti58' -o -name '*.ti58c' -o -name '*.asm' \) ! -path './debug/*' ! -path './screentest/*' | sed 's|^\./||' | sort) \
+         <(cd docs/example-files && find . -type f | sed 's|^\./||' | sort)
+```
+Anything listed is new in `examples/` and missing from `docs/example-files/` — copy it over, add an entry to the matching category in `ExamplesPage` (`docs/Pages.jsx`), and rebuild. `examples/debug/` and `examples/screentest/` are internal test fixtures and are deliberately excluded from this page.
 
 ---
 
