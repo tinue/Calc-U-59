@@ -293,6 +293,7 @@ struct CalculatorView: View {
                     viewModel.resetMachine()
                 }
             }
+            .buttonStyle(ChromeButtonStyle())
             .foregroundStyle(isCommandPressed ? .red : .orange)
             .labelStyle(showLabel: showLabels)
             .accessibilityIdentifier("btn-reset")
@@ -303,6 +304,7 @@ struct CalculatorView: View {
                     viewModel.resetMachine()
                 }
             }
+            .buttonStyle(ChromeButtonStyle())
             .foregroundStyle(.orange)
             .labelStyle(showLabel: showLabels)
             .accessibilityIdentifier("btn-reset")
@@ -332,17 +334,20 @@ struct CalculatorView: View {
                     Button("Crd", systemImage: "square.and.arrow.down") {
                         viewModel.cardPickerMode = .load
                     }
+                    .buttonStyle(ChromeButtonStyle())
                     .labelStyle(showLabel: showLabels)
                     .controlSize(.regular)
                     Button("Crd", systemImage: "plus.rectangle") {
                         viewModel.cardPickerMode = .save
                     }
+                    .buttonStyle(ChromeButtonStyle())
                     .labelStyle(showLabel: showLabels)
                     .controlSize(.regular)
                 } else {
                     Button("Eject Card", systemImage: "eject") {
                         viewModel.ejectIfSwiping()
                     }
+                    .buttonStyle(ChromeButtonStyle())
                     .labelStyle(showLabel: showLabels)
                 }
             }
@@ -357,11 +362,13 @@ struct CalculatorView: View {
                     viewModel.loadStateFile(url)
                 }
             }
+            .buttonStyle(ChromeButtonStyle())
             #else
             Divider().frame(height: 20)
             Button("Preset", systemImage: "doc.badge.arrow.up") {
                 filePickerModeBinding.wrappedValue = .stateFile
             }
+            .buttonStyle(ChromeButtonStyle())
             .labelStyle(showLabel: showLabels)
             .controlSize(.large)
             .accessibilityIdentifier("btn-preset")
@@ -369,6 +376,7 @@ struct CalculatorView: View {
             Button("Settings", systemImage: "gear") {
                 showingSettings = true
             }
+            .buttonStyle(ChromeButtonStyle())
             .labelStyle(.iconOnly)
             .controlSize(.large)
             .accessibilityIdentifier("btn-settings")
@@ -393,6 +401,7 @@ struct CalculatorView: View {
             }
         }
         .pickerStyle(.menu)
+        .menuStyle(ChromeMenuStyle())
         .fixedSize()
     }
 
@@ -441,6 +450,7 @@ struct CalculatorView: View {
                 .padding(8)
                 .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
         }
+        .buttonStyle(ChromeButtonStyle())
         .accessibilityIdentifier(id)
         .padding(.top, 2)
         .padding(.horizontal, 8)
@@ -459,6 +469,10 @@ private extension View {
         else { self.labelStyle(.iconOnly) }
     }
 }
+
+// ChromeButtonStyle / ChromeMenuStyle live in ChromeControlStyles.swift and
+// are shared across every view with chrome buttons on top of the
+// photorealistic calculator skin.
 
 #Preview {
     CalculatorView()
