@@ -188,7 +188,6 @@ struct PrinterView: View {
                         .font(.system(size: 13))
                         .foregroundStyle(.white)
                 }
-                .buttonStyle(ChromeButtonStyle())
                 .disabled(viewModel.printerLines.isEmpty)
 
                 Button { copyBoth(); viewModel.cutPaper() } label: {
@@ -196,9 +195,9 @@ struct PrinterView: View {
                         .font(.system(size: 13))
                         .foregroundStyle(.white)
                 }
-                .buttonStyle(ChromeButtonStyle())
                 .disabled(viewModel.printerLines.isEmpty)
             }
+            .buttonStyle(ChromeButtonStyle())
             .padding(.horizontal, 12)
             .frame(maxWidth: .infinity)
             .frame(height: 50)
