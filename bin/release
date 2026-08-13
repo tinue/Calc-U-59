@@ -362,7 +362,7 @@ if ! $DO_BUILD_ONLY; then
         next
       }
       length($0) > 0 { gsub(/\*\*/, ""); print }
-    ' | sed 's/`\([^`]*\)`/"\1"/g')
+    ' | sed 's/`\([^`]*\)`/"\1"/g' | sed 's/</‹/g; s/>/›/g')
 fi
 
 if $DRY_RUN; then
