@@ -1409,7 +1409,10 @@ class EmulatorViewModel {
     /// inter-keystroke gap during KEYSTROKES playback so a script never sends its next
     /// key before the calculator can actually accept it — independent of the "FREEZE ON
     /// START" armed state (pendingCPUScanLoopFreeze etc.), which it neither reads nor sets.
-    /// No timeout: a scenario that never reaches idle will hang playback indefinitely.
+    /// No timeout: a scenario that never reaches idle will hang playback indefinitely —
+    /// except that a freeze (e.g. FREEZE ON START firing on the keypress just sent) stops
+    /// the CPU outright, so PC will never enter the scan loop again; return immediately
+    /// once frozen instead of spinning forever.
     ///
     /// Deliberately uses the NARROW `cpuScanLoopRange`, not `cpuIdleAndKeyDetectRange`:
     /// the wide range also covers states reached while still debouncing/confirming the
@@ -1421,6 +1424,7 @@ class EmulatorViewModel {
     private func waitForScanLoopIdle() async {
         guard let range = cpuScanLoopRange else { return }
         while !Task.isCancelled {
+            if isFrozen { return }
             if let pc = machine?.currentPC, range.contains(pc) { return }
             try? await Task.sleep(nanoseconds: 1_500_000) // ~1.5ms poll
         }
