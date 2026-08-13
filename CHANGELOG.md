@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.6.0] - work in progress
+## [1.6.0] - 2026-08-13
 
 - **Keyboard** The Mac app now takes input from a physical keyboard: the number keys, the yellow operation keys (`Esc` for CLR, `Enter` for `=`, `<` for +/−), the A–E function keys via `a`–`e`, and EE `(` `)` on `>` `(` `)`. `Shift`+`A`…`E` gives A′–E′. Everything else — 2nd, STO, RCL, LRN, R/S and the rest — stays mouse-only by design. The full map is in `reference/AppArchitecture.md` § "Physical Keyboard Mapping". Typing works as soon as the app opens — the calculator does not have to be selected first. Clicking into the debug panel hands the keyboard over to it until you click back on the calculator. The printer and debug panels have no keyboard bindings of their own. iOS and iPadOS are unaffected.
 - **App Icon** Rebuilt as a layered Icon Composer `.icon` document, adding Liquid Glass depth and Light/Dark/Tinted/Clear appearance variants on iOS/macOS 26.
@@ -12,6 +12,7 @@
 ### Fixes
 - **State Files** Fixed `REGISTERS:` lines for register numbers 60–99 being loaded into the wrong RAM cell on the TI-59 (they were mistaken for the TI-58C's unrelated extra `H00`–`H03` registers, which happen to live at raw RAM indices 60–63). Ordinary TI-59 registers now always use the correct top-down `STO`/`RCL` mapping regardless of number; only true TI-58C extra registers use the raw mapping, now selected by an explicit flag instead of a numeric-range guess.
 - **Keyboard** Fixed a held key's matrix bit staying stuck set in the emulator core if the keyboard/R\/S automation button view was torn down (e.g. rapid panel switching) mid-press, instead of releasing normally.
+- **UI** Fixed toolbar, printer, and debug panel buttons shifting position on iOS when the Button Shapes accessibility setting is enabled.
 
 ## [1.5.0] - 2026-07-02
 
