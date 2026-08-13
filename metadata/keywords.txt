@@ -1,1 +1,1 @@
-59,58,58c,calculator,emulator,programmable,vintage,Texas Instruments,scientific,retro,math
+59,58,58c,calculator,emulator,programmable,vintage,scientific,retro,math

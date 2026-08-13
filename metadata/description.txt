@@ -1,4 +1,4 @@
-Calc-U-59 is a research tool for classic calculators TI-59, TI-58, and TI-58C — built for anyone who wants to understand these machines, not just use them. Step through ROM code, inspect internal registers, trace printer output, and explore the architecture of one of the most capable handheld computers of the late 1970s.
+Calc-U-59 is a TI-59, TI-58, and TI-58C emulator for iPhone, iPad, and Mac. It runs the original ROM, so every program, module, and quirk works exactly as it did on the real hardware — with virtual magnetic cards, a PC-100C printer, all fourteen Solid State Software modules, and a CPU-level debugger for anyone who wants to look under the hood.
 
 CYCLE-ACCURATE EMULATION
 The TMC0501 processor is emulated at the cycle level, reproducing the exact behaviour of the original hardware — including the TI-58C's constant memory, preserved across restarts. The Master Library ROM is included.
@@ -18,4 +18,4 @@ Load .ti59 and .ti58(c) state files to instantly configure the machine with a pr
 SOLID STATE MODULES
 Select a Solid State Module and run programs from there.
 
-Whether you are reconstructing programs from memory, tracing ROM internals, or studying how AOS operator precedence actually works at the instruction level, Calc-U-59 gives you the tools to go deep.
+Whether you're bringing an old program back to life, running the Master Library modules, or exploring how these machines actually worked under the hood, Calc-U-59 gives you a faithful TI-59 in your pocket.
