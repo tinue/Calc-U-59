@@ -64,9 +64,9 @@ KEYSTROKES:
 72  4
 72  4
 72  4
-Wait: 1s
+FullSpeed:
 91  R/S
-WaitFullSpeed: 1s
+RegularSpeed:
 21  2nd
 32  P/R
 31  LRN
@@ -80,10 +80,9 @@ WaitFullSpeed: 1s
 64  OP
 82  1
 62  7
-Wait: 1s
 61  GTO
 92  0
 82  1
 62  7
+FullSpeed:
 91  R/S
-WaitFullSpeed: 2s

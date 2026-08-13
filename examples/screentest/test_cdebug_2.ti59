@@ -21,5 +21,7 @@ SKIP-RESET: true
 
 KEYSTROKES:
 71      # SBR
-95      # =    → re-enter program; FREEZE ON START fires immediately
-WaitFullSpeed: 2s   # keep isKeystrokesPlaying=true long enough for XCUITest to detect it
+95      # =    → re-enter program; FREEZE ON START fires immediately, halting playback
+Wait: 1.5s      # not for the calculator — freeze is instant — but XCUITest polls
+                # keystroke-playback-status roughly once per second, so give it a
+                # window to observe "playing" before this flips back to "idle"
