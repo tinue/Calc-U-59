@@ -1,17 +1,17 @@
-# Simulators managed by bin/setup-simulators and bin/trim-simulators.
+# The set of simulators this project tests and takes screenshots on.
+# This file is the single source of truth; bin/simulators realises it.
 #
-# ios: iOS major version — the latest available patch is resolved automatically.
+# ios: iOS major version — the latest installed patch is resolved automatically.
 # screenshots: iphone | ipad  — role in bin/run-screenshots; omit to skip screenshots.
 #
-# To add a device: append an entry.
-# To remove: delete the entry, then run bin/trim-simulators --delete.
+# To add a device: append an entry, then run  bin/simulators setup.
+# To remove: delete the entry, then run       bin/simulators cleanup --delete.
+# To see where things stand:                  bin/simulators status
+# Full help (commands, flags, workflows):     bin/simulators
 #
-# Useful commands:
-#   List available device types:
-#     xcrun simctl list devicetypes
-#
-#   List available runtimes (installed iOS versions):
-#     xcrun simctl list runtimes available
+# Device names must match `xcrun simctl list devicetypes` exactly, and the
+# device type must be supported by the runtime — bin/simulators says so if not
+# (e.g. iPhone 17e does not exist on iOS 18.x).
 
 - name: iPhone 17 Pro Max
   ios: 26

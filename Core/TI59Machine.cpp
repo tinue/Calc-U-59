@@ -11,8 +11,11 @@ TI59Machine::TI59Machine(MachineVariant variant)
         m_ram.setLimit(60);   // TI-58: 60 regs
     }
     m_cpu.setMachineVariant(variant);
-    // Card-reader switch: pressed = card absent (normal startup state).
-    // TI-59 uses digit-counter slot 10; TI-58/58C uses slot 7; bit 4 in both.
+    // Card switch (bit 4): pressed = card absent (normal startup state).
+    // TI-59: digit-counter slot 10, the real card-detect switch. TI-58/58C
+    // have no card reader; asserting slot 7 — the line the ROM re-polls at
+    // 0x0459 before entering card handling — keeps the firmware out of the
+    // card path. Whether real TI-58 hardware straps that line is unverified.
     int col = cardSwitchCol();
     m_cpu.setCardSwitchCol(static_cast<uint8_t>(col));
     m_cpu.pressKey(4, col);
@@ -133,6 +136,10 @@ int TI59Machine::insertedModuleNumber() const {
 uint16_t TI59Machine::libExecPC() const {
     std::lock_guard<std::mutex> lock(m_keyMutex);
     return m_cpu.libExecPC();
+}
+
+uint64_t TI59Machine::elapsedTicks() const {
+    return m_cpu.elapsedTicks();
 }
 
 // ── Magnetic card reader ───────────────────────────────────────────────────────

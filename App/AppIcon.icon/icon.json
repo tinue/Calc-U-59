@@ -1,0 +1,39 @@
+{
+  "fill" : {
+    "solid" : "display-p3:0.17253,0.15300,0.12548,1.00000"
+  },
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "image-name" : "layer3-digits-bright.svg",
+          "name" : "layer3-digits-bright"
+        },
+        {
+          "glass" : false,
+          "image-name" : "layer2-digits-dim.svg",
+          "name" : "layer2-digits-dim"
+        },
+        {
+          "blend-mode" : "normal",
+          "image-name" : "layer1-case.svg",
+          "name" : "layer1-case"
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "circles" : [
+      "watchOS"
+    ],
+    "squares" : "shared"
+  }
+}

@@ -1,0 +1,201 @@
+# TI-59/PC-100A Program: Calendar Printer, by Lou Cargile, 52-Notes
+#
+# This is one of a series of calendar programs that appeared in the magazine
+# "52-Notes", starting with issue Volume 3 Number 5 from May 1978. It was
+# a competition to write faster and faster programs to print a calendar.
+# Our goal is to collect and preserve them here in the form of preload files.
+#
+# This is the documentation given for this program in the original article:
+#
+# CALENDAR PRINTER COMPETITION (continued)
+#
+# Tom Ferguson (421) noted that I had omitted the prime symbol for the
+# CLR' at step 713 of the V3N6p3 program. I tried running the program as
+# printed, and it appeared to work. However, as Robert Petrie (632) found,
+# if the first day of a month falls on Thursday, the 1 won't print. It
+# turns out that the 5 of the CLR's code 25 multiplies the print code in
+# Reg 30 by 1059, leaving it with no fractional part for the INV Int
+# shift at steps 098-099.
+#
+# It has been interesting to watch the calendar printer programs get
+# faster and faster, and rather amazing that the best current programs
+# run in less than a tenth the time required by the first. But perhaps
+# even more interesting is the trend of programmer motivation during this
+# time. The 26-minute V3N5p4 challenger was fairly easy to beat, and quite
+# a few members were quick to respond. But as the time got down to 10
+# minutes and less, what is sometimes called the Existence Theorem began
+# to become an influence: If you doubt that a faster program can be
+# written, you won't bother trying to write it. And I expect some of us
+# may have been influenced by a sense of lily-gilding: Why bother
+# trimming a second or two if the program is already (or presumed to be)
+# far in the lead. Well, fortunately at least 2 members have ignored (or
+# successfully overcome) these deterrents, and have continued to press on
+# with faster programs. As late as the last week in June, Lou Cargile and
+# Panos Galidas were just about even, with Lou barely edging out Panos
+# 3 min 15 sec to 3 min 17 sec. At this point, both were using just about
+# all the available memory, putting as much code in-line (which is
+# faster than subroutine calls, or looping) as they could, and devising a
+# few new special-case processing tricks. HIR print-code processing is
+# still de rigueur, but now (Lou's and Panos' latest both arrived in the
+# 5 July mail) Lou has taken a significant lead by combining carefully
+# chosen integer/fractions, which help to speed things up sufficiently to
+# get a year (1978) printed in 2 min 57 sec! Panos hasn't slackened off
+# in his efforts, but his latest gained him only 2 seconds, matching
+# Lou's earlier 3 min 15 sec program.
+#
+# Intense as the competition has been, all concerned have so far
+# conducted themselves as gentlepersons, and at least one has managed to
+# maintain a good sense of humor: Maurice Swinnen sent in a
+# tongue-in-cheek "winner" which tells the user in 8 seconds which of 14
+# preprinted year-sets to use for a given year: It's actually quite
+# practical to use, and might be an interesting challenge to 56/57 users.
+# Here's the algorithm: From an input year, calculate the day of the week
+# for Jan 1st, and use this to identify one of 7 pre-printed year-sets
+# for non-leap years. For leap years, add 7 to the calculated year day
+# to identify one of 7 additional year-sets, each having a 29-day
+# February.
+#
+# I'm listing Lou's 2 min 57 sec program with all prestored data as data
+# to make it easier to see how it works. 13-digit numbers may be
+# synthesized by first storing the 9 or 10 LSDs appropriately scaled such
+# that when the remaining MSDs are summed, the LSD occupies the 13th
+# mantissa position. For example, to store: 2.000311000312, key
+# 311000312 + 1 EE 12 = STO n 2 SUM n; to store: .2800021171400, key
+# 21171400 + 1 EE 13 = STO n .28 SUM n.
+#
+# User Instructions: Key month, press A; key year press R/S. For one
+# month, press B; for balance of year press C; for specified interval,
+# key end year, press D.
+
+MODEL: TI-59
+PARTITION: 319.79
+SOLID-STATE-MODULE: ML
+PRINTER: on
+
+CUECARD:
+Template: MagnetCard
+Title: Calendar - Lou Cargile - V3N6
+Banks: 1,3
+Row1: Key month, press A; key year, R/S; then B, C, or D
+Row1Align: left
+A: MONTH
+B: 1 MONTH
+C: TO YR END
+D: END YEAR
+
+PROGRAM:
+76 11 42 01 42 04 42 05 75 01 03 95 94 42 47 08 69 17 06 07   # 000-019
+44 04 02 42 45 43 05 91 82 04 91 76 12 00 42 47 76 13 82 14   # 020-039
+42 03 36 20 71 00 86 36 20 71 01 77 61 00 66 07 32 43 01 22   # 040-059
+77 00 66 75 07 95 42 01 94 42 00 01 02 44 00 29 73 04 82 08   # 060-079
+59 22 67 01 25 03 42 45 82 14 55 04 95 22 59 22 67 01 24 82   # 080-099
+14 55 04 00 00 95 22 59 67 01 23 82 14 55 01 00 00 95 22 59   # 100-119
+67 01 24 01 93 44 01 75 01 05 95 94 42 03 04 49 03 42 44 82   # 120-139
+14 69 06 73 03 42 42 69 23 73 03 42 41 43 64 69 01 43 65 69   # 140-159
+02 43 66 69 03 43 67 69 04 69 05 22 97 45 01 88 69 23 73 03   # 160-179
+42 40 69 23 73 03 42 39 73 00 44 00 82 05 73 00 85 09 09 95   # 180-199
+82 06 69 20 73 00 44 00 75 01 93 09 09 95 82 07 73 00 44 00   # 200-219
+82 08 69 05 97 44 01 88 69 00 73 00 44 00 82 05 73 00 85 09   # 220-239
+09 95 82 06 69 20 73 00 67 02 78 44 00 75 01 93 09 09 95 82   # 240-259
+07 73 00 44 00 82 08 69 05 69 00 73 00 67 02 80 82 05 69 05   # 260-279
+98 69 25 69 24 97 47 00 55 25 92 76 14 42 46 13 98 01 02 22   # 280-299
+44 04 42 47 01 82 34 42 05 42 01 82 14 32 43 46 77 02 95 91   # 300-319
+
+REGISTERS:
+02 = 7
+03 = 0
+04 = 0
+05 = 0
+06 = 2
+07 = 2
+08 = 2
+09 = 2
+10 = 2
+11 = 2.000000000002
+12 = 2.000002000003
+13 = 2.000003000004
+14 = 2.000004000005
+15 = 2.000005000006
+16 = 2.000006000007
+17 = 2.000007000010
+18 = 2.000010000011
+19 = 2.000011000012
+20 = 2.000012000201
+21 = 2.000201000202
+22 = 2.000202000203
+23 = 2.000203000204
+24 = 2.000204000205
+25 = 2.000205000206
+26 = 2.000206000207
+27 = 2.000207000210
+28 = 2.000210000211
+29 = 2.000211000212
+30 = 2.000212000301
+31 = 2.000301000302
+32 = 2.000302000303
+33 = 2.000303000304
+34 = 2.000304000305
+35 = 2.000305000306
+36 = 2.000306000307
+37 = 2.000307000310
+38 = 2.000310000311
+39 = 0
+40 = 0
+41 = 0
+42 = 0
+43 = 0
+44 = 0
+45 = 0
+46 = 0
+47 = 0
+48 = 2.000402
+49 = 2.000401000402
+50 = 2.000312000401
+51 = 2.000311000312
+52 = 0
+53 = 2.000401
+54 = 2.000312000401
+55 = 2.000311000312
+56 = 0
+57 = 0
+58 = 2.000312
+59 = 2.000311000312
+60 = 0
+61 = 0
+62 = 0
+63 = 2.000311
+64 = 3641003032
+65 = 37410043
+66 = 1700372300
+67 = 2135003613
+68 = 3.0000251331
+69 = .28000211714
+70 = 3.0000301335
+71 = 2.0000133335
+72 = 3.0000301345
+73 = 2.000025413117
+74 = 3.000025412745
+75 = 3.0000134122
+76 = 2.000036173337
+77 = 3.0000321537
+78 = 2.0000313242
+79 = 3.0000161715
+
+KEYSTROKES:
+# Whole-year print for 2026 (per the User Instructions above: key month,
+# A; key year, R/S; press C for balance of year — starting at month 1
+# (January) prints the whole year). Data entry (keying month/year) is
+# left at regular speed and outside the elapsed-time measurement; only
+# the print itself (triggered by C) is timed, and run at full speed.
+82              # 1 — month = January
+11              # A — store month
+83              # 2
+92              # 0
+83              # 2
+74              # 6
+91              # R/S — confirm year
+ZeroElapseTime:
+FullSpeed:
+13              # C — print balance of year
+RegularSpeed:
+ReportElapseTime:

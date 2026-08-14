@@ -1,0 +1,27 @@
+# Self-test speed check.
+#
+# Runs the TI-59 ROM self-test (ML solid-state module, program 01 — the
+# "2nd Pgm 01 SBR =" sequence) twice: once at regular speed, once at full
+# speed, reporting the elapsed hardware-equivalent time for each via the
+# ZeroElapseTime/ReportElapseTime KEYSTROKES directives.
+#
+# Real hardware takes ~15s for SBR = on this self-test. Load this file and
+# check the LOG tab (DEBUG panel) for the two "Elapsed:" lines — both should
+# be close to each other and to that ~15s figure.
+
+MODEL: TI-59
+SOLID-STATE-MODULE: ML
+
+KEYSTROKES:
+21 31           # 2nd Pgm
+92              # 0
+82              # 1        → Pgm 01 selected
+71              # SBR
+ZeroElapseTime:
+95              # =        → run program 01 at regular speed
+ReportElapseTime:
+FullSpeed:
+71              # SBR      → re-enter program 01 (still selected)
+ZeroElapseTime:
+95              # =        → run program 01 again, at full speed
+ReportElapseTime:

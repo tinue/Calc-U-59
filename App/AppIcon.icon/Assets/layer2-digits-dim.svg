@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <g id="digit-1" fill="#4b211b">
+    <rect x="279.12" y="169.03" width="45.78" height="8.96" rx="4.38"/>
+    <rect x="270.04" y="178.11" width="8.94"  height="31.78" rx="4.34"/>
+    <rect x="325.04" y="178.11" width="8.94"  height="31.78" rx="4.34"/>
+    <rect x="279.12" y="210.02" width="45.78" height="8.96" rx="4.38"/>
+    <rect x="270.03" y="219.11" width="8.96"  height="31.78" rx="4.34"/>
+    <rect x="325.04" y="219.12" width="8.94"  height="31.76" rx="4.34"/>
+    <rect x="279.11" y="251.03" width="45.80" height="8.96" rx="4.38"/>
+  </g>
+  <g id="digit-2" fill="#4b211b">
+    <rect x="354.11" y="169.03" width="45.80" height="8.96" rx="4.38"/>
+    <rect x="345.05" y="178.12" width="8.92"  height="31.76" rx="4.33"/>
+    <rect x="400.05" y="178.11" width="8.94"  height="31.78" rx="4.33"/>
+    <rect x="354.14" y="210.03" width="45.76" height="8.96" rx="4.38"/>
+    <rect x="345.05" y="219.13" width="8.92"  height="31.76" rx="4.33"/>
+    <rect x="400.06" y="219.12" width="8.92"  height="31.76" rx="4.33"/>
+    <rect x="354.10" y="251.03" width="45.80" height="8.96" rx="4.38"/>
+  </g>
+  <g id="digit-3" fill="#4b211b">
+    <rect x="429.12" y="169.03" width="45.78" height="8.96" rx="4.38"/>
+    <rect x="420.05" y="178.11" width="8.92"  height="31.78" rx="4.33"/>
+    <rect x="475.04" y="178.11" width="8.94"  height="31.78" rx="4.34"/>
+    <rect x="429.13" y="210.03" width="45.76" height="8.96" rx="4.38"/>
+    <rect x="420.05" y="219.12" width="8.92"  height="31.78" rx="4.33"/>
+    <rect x="475.04" y="219.12" width="8.94"  height="31.78" rx="4.34"/>
+    <rect x="429.11" y="251.03" width="45.78" height="8.96" rx="4.38"/>
+  </g>
+  <g id="digit-4" fill="#4b211b">
+    <rect x="504.12" y="169.03" width="45.78" height="8.96" rx="4.38"/>
+    <rect x="495.04" y="178.11" width="8.94"  height="31.78" rx="4.34"/>
+    <rect x="550.04" y="178.11" width="8.94"  height="31.78" rx="4.33"/>
+    <rect x="504.13" y="210.03" width="45.78" height="8.96" rx="4.38"/>
+    <rect x="495.04" y="219.12" width="8.94"  height="31.78" rx="4.34"/>
+    <rect x="550.05" y="219.10" width="8.92"  height="31.80" rx="4.33"/>
+    <rect x="504.11" y="251.03" width="45.80" height="8.96" rx="4.38"/>
+  </g>
+</svg>

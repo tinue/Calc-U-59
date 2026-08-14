@@ -1,0 +1,114 @@
+# TI-59/PC-100A Program: Calendar Printer, by Richard Vanderburgh, 52-Notes, V3N5p4
+#
+# This is one of a series of calendar programs that appeared in the magazine
+# "52-Notes", starting with issue Volume 3 Number 5 from May 1978. It was
+# a competition to write faster and faster programs to print a calendar.
+# Our goal is to collect and preserve them here in the form of preload files.
+#
+# This is the documentation given for this program in the original article:
+#
+# Algorithm:
+# 1. Check for ML module presence; alert user with flashing display if
+#    absent.
+# 2. Determine user's choice: 1 month, balance of start year, or print
+#    from start month and year until end of specified year.
+# 3. Call ML-20 SBR 086 with 1st day of specified month and year to get
+#    corresponding absolute day, and ML-20 SBR 177 to get corresponding
+#    day of week. Call ML-20 SBR 086 with 1st day of next month and
+#    calculate difference between returned absolute day value, and first
+#    one to get number of days in specified month.
+# 4. Print month headers.
+# 5. Use calculated day of week to initialize a general purpose print-
+#    buffer-packer routine to print first line of days, followed by
+#    successive lines until all days have been printed. Use a quasi base
+#    seven counter to supply the print-buffer-packer routine with code
+#    for successive integers.
+# 6. For more months, as determined by step 2, cycle months, and increment
+#    years as required; repeat steps 3-5 until done.
+#
+# User Instructions:
+# 1. Initialize: Press A, see module confirmation printed; flashed
+#    display indicates wrong module.
+# 2. Key start year, press R/S; key start month, press R/S.
+# 3. For 1 month: Press B;
+#    For balance of year: Press C; for specified period: Key end year,
+#    press D.
+
+MODEL: TI-59
+SOLID-STATE-MODULE: ML
+PRINTER: on
+
+CUECARD:
+Template: MagnetCard
+Title: Calendar - Richard Vanderburgh - V3N5
+Banks: 1,2
+Row1: Press A to check module; key year/month, R/S; then B, C, or D
+Row1Align: left
+A: CHECK ML
+B: 1 MONTH
+C: TO YR END
+D: END YEAR
+
+PROGRAM:
+76 18 05 42 17 01 52 08 42 19 25 43 21 84 20 00 42 21 01 44   # 000-019
+20 97 18 00 37 01 42 20 69 05 69 00 86 00 04 42 18 92 76 10   # 020-039
+69 28 22 97 11 00 53 22 97 12 00 66 92 01 42 08 69 29 01 00   # 040-059
+42 11 08 42 12 92 02 44 08 09 42 12 92 76 19 22 86 00 25 01   # 060-079
+32 10 43 09 67 00 93 65 43 19 95 44 21 01 00 00 22 49 19 22   # 080-099
+97 17 01 45 43 08 65 43 19 95 44 21 01 00 00 22 49 19 97 15   # 100-119
+01 28 00 42 18 18 98 92 22 97 17 01 49 01 00 00 22 49 19 97   # 120-139
+17 19 18 61 19 18 61 01 04 18 87 00 19 61 01 33 76 16 69 00   # 140-159
+01 42 08 42 09 01 00 42 11 08 42 12 05 42 17 04 42 18 01 52   # 160-179
+08 42 19 01 42 20 00 42 21 43 16 32 01 67 02 32 02 67 02 34   # 180-199
+03 67 02 44 04 67 02 60 05 67 02 82 06 67 02 74 02 42 17 01   # 200-219
+42 18 01 00 00 42 19 04 42 20 19 92 19 92 02 42 17 01 00 00   # 220-239
+42 19 19 92 04 42 17 03 42 18 01 52 06 42 19 02 42 20 19 92   # 240-259
+01 42 17 03 42 18 01 42 19 02 42 20 19 92 01 42 18 04 42 20   # 260-279
+19 92 03 42 17 02 42 18 01 52 04 42 19 03 42 20 19 92 76 11   # 280-299
+01 32 36 01 71 96 67 03 12 69 55 91 98 98 98 91 42 13 91 42   # 300-319
+14 91 76 12 43 14 42 01 01 42 02 43 13 42 03 36 20 71 00 86   # 320-339
+42 10 36 20 71 01 77 42 16 43 14 85 01 95 42 01 43 13 42 03   # 340-359
+36 20 71 00 86 75 43 10 95 42 15 69 00 43 14 85 04 07 95 42   # 360-379
+20 73 20 69 04 43 13 69 06 43 47 69 01 43 46 69 02 43 45 69   # 380-399
+03 43 44 69 04 69 05 16 92 76 13 01 03 75 43 14 95 42 22 12   # 400-419
+01 44 14 97 22 04 19 25 92 76 14 75 43 13 85 01 95 42 23 13   # 420-439
+01 44 13 42 14 97 23 04 39 98 98 91                            # 440-451
+
+REGISTERS:
+44 = 2135003613
+45 = 1700372300
+46 = 37410043
+47 = 3641003032
+48 = 251331
+49 = 211714
+50 = 301335
+51 = 133335
+52 = 301345
+53 = 25413117
+54 = 25412745
+55 = 134122
+56 = 36173337
+57 = 321537
+58 = 313242
+59 = 161715
+
+KEYSTROKES:
+# Whole-year print for 2026 (per the User Instructions above: press A to
+# initialize; key start year, R/S; key start month, R/S; press C for balance
+# of year — starting at month 1 (January) prints the whole year). Steps 1-2
+# (init, keying year/month) are left at regular speed and outside the
+# elapsed-time measurement; only the print itself (triggered by C) is timed,
+# and run at full speed.
+11              # A — initialize (module confirmation)
+83              # 2
+92              # 0
+83              # 2
+74              # 6
+91              # R/S — confirm start year
+82              # 1
+91              # R/S — confirm start month
+ZeroElapseTime:
+FullSpeed:
+13              # C — print balance of year
+RegularSpeed:
+ReportElapseTime:

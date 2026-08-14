@@ -21,8 +21,111 @@
 # the tail end of an unrelated routine which happens to end in the print-complete signal. See the
 # annotations at 0x0EF1 and 0x0F53 in rom/TI59-commented.asm for the full trace-verified mechanism.
 #
-# How the key sequence below produces the invalid 1F keycode in the first place remains
-# unconfirmed/speculative and is not documented here.
+# How the key sequence below produces the invalid 1F keycode (confirmed against CPU traces:
+# CALCU59_TRACE.txt, plus dedicated SBR-444 and R/S traces for quirk 1 and P/R-after-halt
+# traces for quirk 2; ROM annotations at
+# 0x08B2, 0x0A4B, 0x0B0A, 0x0B9D, 0x0C10, 0x0DA7, 0x11E1, 0x1213, 0x1286 in
+# rom/TI59-commented.asm) — a chain of four quirks, in one line each:
+#
+#   1. SBR 444 → rejected as out of range, but leaves the CROM pointer in the module header;
+#      R/S then executes two header bytes as keycodes (29=CP, 52=EE) and halts again.
+#   2. P/R → Prg Src Flag := 8 is written first, the launch then abandoned by a mis-routed
+#      range check: the flag LEAKS.
+#   3. LRN → honours the leaked flag, caches a ROM constant-table row as step 008's register
+#      content.
+#   4. Ins → subtracts that wrong cache; hexadecimal digit arithmetic turns step 008 into
+#      keycode 1F.
+#
+# In detail:
+#
+# 1. [Pgm] [1] [2] [SBR] [4] [4] [4] never executes a single step of library code. The library
+#    transfer resolver (ROM 0x1286) reads TWO consecutive module-header entries — Pgm 12's
+#    start address (2609) and Pgm 13's (2764, i.e. Pgm 12's end bound; the program is 155
+#    steps) — computes the target 2609+444 = 3053 and range-checks it at 0x12AE: 3053 >= 2764,
+#    so the transfer is rejected before a single keycode is fetched. Nothing is special about
+#    444: any offset >= 155 (past Pgm 12's end) fails the same check and leaves identical state
+#    (333 confirmed empirically); offsets 000-154 are valid and would actually run Pgm 12 code. The error halt (0x11E1)
+#    sets fB[9] (239.89 blinking, step counter still at 008 from the earlier GTO) and resets
+#    the Prg Src Flag the launch prologue had written — but the cleanup is incomplete: the
+#    CROM chip's internal PC is left in the module HEADER (at address 28, auto-incremented
+#    past the two entries just read) and the SCOM[9] run descriptor still names library
+#    program 12.
+#    [R/S] does NOT stop anything — it does its normal job and RESUMES the "interrupted"
+#    library run: Prg Src Flag := 1 again (from the SCOM[9] descriptor), display zeroed, no
+#    validity check of any kind. The interpreter fetches from the leftover header address and
+#    executes the two BCD bytes of Pgm 14's start-address entry (2952) as keycodes: 29 = CP
+#    (harmless), then 52 = EE, whose handler exits through the keyboard epilogue and ends the
+#    run. The machine halts a second time — not a new error, fB[9] still blinks from the
+#    first one — showing an EE-mode zero ("0. 00"). This second halt is the state quirk 2
+#    needs: SCOM[0]'s Prg Src Flag is left at 1, and that leftover is exactly what the next
+#    launch dispatches on. (Trace-verified both ways with dedicated P/R traces: pressed after
+#    the second halt, P/R's launch reads caller source 1, takes the library-caller path —
+#    which saves the CROM pointer as a return address and leaves fB[0] clear — and leaks;
+#    pressed after the first halt alone it reads source 0 (the error halt had reset it),
+#    takes the keyboard-caller path that sets fB[0], launches normally, restores PC 008 /
+#    flag 0, and LRN shows the correctly entered step — the hack fails.)
+# 2. [2nd] [P/R]: P->R is implemented as a ROM-resident keycode sub-program whose entry point is
+#    step 284 of the calculator-PC address space. Normally its launch is partition-independent:
+#    the shared transfer routine (ROM 0x086F) sees fB[0] SET, skips the RAM range check, writes
+#    SCOM[0] := PC 284 / Prg Src Flag 8, and the sub-program executes from constant rows 51+
+#    (trace-verified with a plain P->R press under 239.89: three row fetches, PC advancing
+#    284 -> 301). fB[0] is not persisted state: the launcher derives it fresh on every launch
+#    from the CALLER's Prg Src Flag (dispatch at 0x0A57) — caller 0 (keyboard/RAM) sets it,
+#    a library caller leaves it clear and saves the CROM pointer as the return address
+#    instead. Pressed after the R/S-resumed garbage run's second halt (quirk 1), SCOM[0]
+#    still says source 1, so the launcher treats P->R's launch as a call from a LIBRARY
+#    program: after 0x0A4B-0x0A53 have already written Prg Src Flag := 8, fB[0] stays clear,
+#    the transfer is treated as a RAM-program branch, and step 284's register (35) is
+#    range-checked against the program-partition register count in SCOM[13] (0x0887/0888).
+#    Under 239.89 there are only 30 program registers, so the check fails and the launch is
+#    ABANDONED at 0x0B0A — with the flag already written. It LEAKS, and the step counter
+#    stays at 008. (Two more leftovers, harmless to the hack: the stashed caller source 1 in
+#    SCOM[0] nibble 1, and a never-popped return-stack level naming the garbage CROM
+#    position — 0x0B0A, unlike the 0x11E1 error halt, does not reset the stack.)
+#    (With >= 320 steps — 8 Op 17 and below — the mis-routed check passes instead: SCOM[0] is
+#    rewritten with PC=284 and the hack fizzles; LRN then shows step 284, matching real-hardware
+#    observations and the 6 Op 17 emulator trace.)
+# 3. [LRN] must display step 008's keycode. The program-register fetch (ROM 0x08B2) honours the
+#    leaked flag and reads constant-table row 17 (= 16 + step/8) — a slice of the ROM's
+#    keycode-program area, 5403435501436504 — instead of RAM, and caches it in SCOM[10] as
+#    "current register content".
+# 4. [2nd] [Ins] shifts program memory one step up. Per register it computes
+#    new := (RAM content − SCOM[10] cache) + (cache << 1 keycode) — an identity when the cache
+#    is honest, but here RAM holds 23 53 00... ([lnx] [(] keyed in beforehand) while the cache
+#    holds the P->R slice. The TMC0501's digit-serial ALU applies no BCD correction to digit 0
+#    (it is hexadecimal in hardware), so step 008 becomes 23−04 = 1F — tens 2−0−borrow = 1,
+#    units 3−4 = F — and step 009 becomes 53−65 → 88, +04 shifted in → 92 = RTN, exactly the
+#    RTN the article says follows the pseudo-code. Steps 010–015 receive the "meaningless"
+#    garbage 21 42 46 11 40 49. In the trace: C−B = 459656449856881F, +(B<<2) →
+#    494011464221921F, committed as the single write to RAM[001] at ROM 0x0F85–0x0F88.
+#
+# Why the temporary [9] [Op] [1] [7] partition (239.89)? The hard requirement is the P->R
+# entry-step range check described in quirk 2: the flag only leaks if step 284 lies OUTSIDE the
+# program partition, i.e. fewer than 285 program steps — nn Op 17 with nn >= 9. On the other
+# side, the insertion location plus its register must lie INSIDE the partition (the table's
+# largest location, 104, needs >= 112 steps), which caps nn at 10 (159.99). So exactly 9 and 10
+# work — confirmed empirically on real hardware: 9 and 10 leave the PC at 008, while 8 and lower
+# end with the PC moved to 284 (P->R's entry step) and the hack fails. A side benefit of the
+# small program partition: the Ins shift loop stops at the program/data boundary (trace: it
+# rewrites registers 001-029 and no further, so steps 240+ survive and only step 239 is lost —
+# article note 4). (An earlier revision claimed the SBR 444 garbage run needs valid data
+# registers for RCL 02 / RCL 01 — wrong: the run never reaches program code, and neither trace
+# contains a single data-register access.)
+#
+# The per-location key-in table below now makes sense: each location's Ins subtracts the
+# constant-table row covering it (row 16 + step/8), so the two pre-keyed codes must be tuned to
+# that row's content for the arithmetic to land on 1F + RTN. Verified computationally for all
+# 13 table entries against the TMC0582/83 constant-ROM dumps: with the TI-59's merged indirect
+# keycodes (STO Ind = 72, RCL Ind = 73, SUM Ind = 74, Pgm Ind = 62, Op Ind = 84; two address
+# digits fuse into one step) every listed sequence records exactly the two keycodes the
+# arithmetic requires — e.g. 016 needs "74 90" = [SUM] [Ind] [9] [0]. The odd
+# [STO] [5] [1] [Bst] [Bst] [Del] [Sst] [D] dance at 064 manufactures "51 14", which no direct
+# key sequence can record (a bare 51 only exists merged after STO; Del then removes the 42, and
+# [D] records 14). Locations 048/096 and 072/080 share sequences because their constant rows
+# happen to begin with identical keycode pairs. Register-aligned steps beyond 104 would mostly
+# work too (a few, e.g. 280/320/376, have no digit-legal pre-key at all); the article's table
+# simply stops where its authors did. This tuning is also why the code can only be planted at
+# register-aligned steps (divisible by eight), where Ins uses the plain whole-register shift.
 #
 # These are the original notes from the article:
 #
@@ -169,6 +272,17 @@ MODEL: TI-59
 PARTITION: 959.0
 SOLID-STATE-MODULE: ML
 PRINTER: on
+
+# Prepare the magnet card inlay
+CUECARD:
+Template: MagnetCard
+Title: TI Logo
+Banks: 1,2
+Row1: See PPX Exchange March/April 1982
+Row1Align: center
+Row2: for instructions to run
+Row2Align: center
+
 
 # For compactness, the program is only here as keycodes. If you need the listing, load the program and LIST it on the printer.
 PROGRAM:

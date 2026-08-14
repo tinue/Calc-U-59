@@ -81,27 +81,63 @@ struct CalculatorView: View {
         #endif
     }
 
+    /// True only when launched by XCUITest on iOS/iPadOS (see `--UITesting`
+    /// launch argument). Gates automation-only UI (below) out of every real
+    /// user's build entirely, so it can never be mistapped by a human and
+    /// never ships surface area real users can't reach. Always false on
+    /// macOS — this automation exists only for the iPhone/iPad screenshot
+    /// and regression test plans, never for the Mac target.
+    private static let isUITesting: Bool = {
+        #if os(macOS)
+        return false
+        #else
+        return ProcessInfo.processInfo.arguments.contains("--UITesting")
+        #endif
+    }()
+
     var body: some View {
         layout
         .overlay(alignment: .topLeading) {
-            // Zero-size accessibility element that exposes keystroke-playback state to XCUITest.
-            Color.clear
-                .frame(width: 1, height: 1)
-                .allowsHitTesting(false)
-                .accessibilityElement(children: .ignore)
-                .accessibilityIdentifier("keystroke-playback-status")
-                .accessibilityValue(viewModel.isKeystrokesPlaying ? "playing" : "idle")
+            if Self.isUITesting {
+                // Zero-size accessibility element that exposes keystroke-playback state to XCUITest.
+                Color.clear
+                    .frame(width: 1, height: 1)
+                    .allowsHitTesting(false)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityIdentifier("keystroke-playback-status")
+                    .accessibilityValue(viewModel.isKeystrokesPlaying ? "playing" : "idle")
+            }
         }
         .overlay(alignment: .topLeading) {
-            // 10×10 pt automation-only button for XCUITest — presses R/S (row 9, col 1).
-            // Tucked in the top-left corner behind UI chrome; too small for a human finger
-            // (minimum tap target is ~44 pt) but large enough for XCUITest to compute a
-            // valid hit point (1×1 produced {-1,-1} and the event never reached the app).
-            Button { viewModel.pressKey(row: 8, col: 0) } label: {
-                Color.clear.frame(width: 10, height: 10)
+            if Self.isUITesting {
+                // 10×10 pt automation-only button for XCUITest — presses R/S (row 9, col 1).
+                // Tucked in the top-left corner behind UI chrome; too small for a human finger
+                // (minimum tap target is ~44 pt) but large enough for XCUITest to compute a
+                // valid hit point (1×1 produced {-1,-1} and the event never reached the app).
+                // Gated to UI-testing builds only (see isUITesting above): it overlaps the
+                // page-arrow chevron at this same corner, and while a stray touch there is no
+                // longer harmful (see the DragGesture below), a real user's touch reaching this
+                // element instead of the real R/S key would silently skip that key's own press
+                // highlight and haptic feedback — acceptable for a scripted test, not for a user.
+                //
+                // Uses a DragGesture (not a plain Button) so a full press-and-hold — as
+                // XCTest's press(forDuration:) performs — presses R/S on touch-down and
+                // releases it on touch-up. A plain Button's action only fires once, which
+                // pressed R/S but never released it; a stuck-down R/S key left the ROM
+                // spinning forever in its wait-for-key-release idle loop (0x07EA).
+                Color.clear
+                    .frame(width: 10, height: 10)
+                    .contentShape(Rectangle())
+                    .accessibilityAddTraits(.isButton)
+                    .gesture(
+                        DragGesture(minimumDistance: 0)
+                            .onChanged { _ in viewModel.pressKey(row: 8, col: 0) }
+                            .onEnded { _ in viewModel.releaseKey(row: 8, col: 0) }
+                    )
+                    .onDisappear { viewModel.releaseKey(row: 8, col: 0) }
+                    .accessibilityIdentifier("btn-key-rs")
+                    .accessibilityLabel("R/S")
             }
-            .accessibilityIdentifier("btn-key-rs")
-            .accessibilityLabel("R/S")
         }
         .dynamicTypeSize(.small ... .large)
         .sheet(item: .init(
@@ -338,6 +374,7 @@ struct CalculatorView: View {
             .accessibilityIdentifier("btn-settings")
             #endif
         }
+        .buttonStyle(ChromeButtonStyle())
         .padding(.horizontal, 12)
         .frame(maxWidth: .infinity)
         .frame(height: 50)
@@ -357,6 +394,7 @@ struct CalculatorView: View {
             }
         }
         .pickerStyle(.menu)
+        .menuStyle(ChromeMenuStyle())
         .fixedSize()
     }
 
@@ -405,6 +443,7 @@ struct CalculatorView: View {
                 .padding(8)
                 .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
         }
+        .buttonStyle(ChromeButtonStyle())
         .accessibilityIdentifier(id)
         .padding(.top, 2)
         .padding(.horizontal, 8)

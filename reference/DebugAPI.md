@@ -600,6 +600,65 @@ TI59MachineWrapper.disassemblePC(_ pc: UInt16, opcode: UInt16) → String
 Pure function — requires no machine state. Returns a mnemonic string for any
 13-bit opcode, e.g. `"ADD A, C [MANT]"` or `"BR 0x03A2"`.
 
+### ASM Overlay
+
+Injects raw TMC0501 machine code into a debug-only ROM region and executes it
+in a single synchronous burst — intended for ROM-level experimentation:
+testing small snippets, probing CPU behavior, or exercising the emulator with
+precisely crafted instruction sequences. Bridge entry points:
+`loadDebugOverlayWords:` / `clearDebugOverlay` / `runDebugOverlayAt:maxSteps:steps:`
+(see `Bridge/TI59MachineWrapper.h`).
+
+**Address range.** The overlay occupies ROM addresses `0x1800–0x1FFF` (2048
+words), outside the TI-59's normal ROM and reserved for debug use. 16-bit
+file words are masked to 13 bits (`& 0x1FFF`) before being written.
+
+**File format.** `.asm` files with two sections; example programs derived
+from Hynek Sladký's *Calculators TI-58/59 HW Programming Guide* live in
+`examples/assembly/` (see that directory's own `README.md` for the loader's
+exact tokenizing rules).
+
+```
+PROGRAM:
+; human-readable assembly listing, ignored entirely by the loader
+1800:   01D8    MOV     A.ALL,#0
+        ...
+
+HEX:
+01D8 01DB 0D00 0A37 1805 1007
+```
+
+The `HEX:` marker line is where the loader starts parsing; everything before
+it (including the whole `PROGRAM:` section) is free-form and ignored. Within
+`HEX:`, both `0xHHHH` (explicit prefix) and bare 4-hex-digit runs are
+accepted; all other characters are skipped. Max 2048 words; no `HEX:` section
+is a load error.
+
+**Run semantics.** Run hijacks the ROM's HOLD mechanism rather than jumping
+to `0x1800` directly: the emulator forces `PREG = 0x1800` on every step and
+waits for the ROM's *currently executing* instruction to assert HOLD (raised
+naturally by the keyscan scan-all instruction on digit ticks 1–15, and by
+`WAIT Dn` instructions). The moment HOLD fires, `addr` snaps to `0x1800` and
+normal emulation resumes from there, running the overlay sequentially in real
+time. A run that finds no HOLD within 8,192 steps times out with no state
+change — the two common causes are the calculator not being in the IDLE
+keyscan loop when Run is pressed, or landing on digit-counter tick 0 (the one
+scan-all tick that doesn't assert HOLD). Reset then Run again resolves both,
+since the ROM's startup routine always lands in the IDLE loop where HOLD
+fires on nearly every step.
+
+Endless-loop overlay programs (stopwatches, counters, animators) don't need a
+HOLD instruction at all — they run forever until the calculator is reset.
+`0x0C00` (HOLD) is only needed when an overlay program wants to hand control
+back to normal ROM execution on completion.
+
+**Persistence.** The loaded overlay survives calculator reset and model
+switch (re-injected into the new machine's ROM on switch, discarded only if
+too large for that variant's overlay area) — one loaded file shared across
+all models, not one per model. This makes "load once, reset, type an input,
+Run" a stable workflow for overlay programs that read the current display
+state.
+
 ---
 
 ## Trace File Format (CALCU59_TRACE.bin, CALCU58_TRACE.bin, CALCU58C_TRACE.bin)
@@ -816,67 +875,24 @@ instruction count across gaps.
 
 ## .ti59 State File Format
 
-State files load programs and data registers in a single operation.
-See `App/StateFileLoader.swift` for the full format description; summary:
+The file format grammar (sections, PARTITION formula and per-model defaults,
+PROGRAM/REGISTERS notation, matrix codes, CUECARD fields) is documented in
+`reference/StateFileFormat.md` — that document, not this one, is the format
+reference. What's unique to this API doc is the exact bridge/Swift call
+sequence `EmulatorViewModel.loadStateFile` uses to apply a parsed file to a
+live `TI59Machine`:
 
-```
-# comment
-
-PARTITION: 479.59        # last step number.last register (sets program/data split)
-
-PROGRAM:
-76 11                    # Format 1: bare keycodes
-002  42 00               # Format 2: step-number prefix
-003  RCL  00             # Format 3: printer listing (mnemonics ignored)
-...                      # gap marker: steps in between remain 00
-110  42 05               # resumes at step 110
-
-REGISTERS:
-00 = 3.141592653589793
-05 = -1.5e-3
-H01 = 7.77E22           # TI-58C only: hidden register (loads into RAM slot 061)
-
-KEYSTROKES:
-21 84 65 83 95           # [2nd][π] × 2 =  (0.5 s between each key)
-Wait: 1s                 # pause 1 s before next line
-42 92 92                 # STO 0 0
-```
-
-**PARTITION section:**
-
-- The number before the dot is the last visible step number; total steps = that number + 1.
-- Total steps must be a multiple of 80; the parser rounds up to the nearest valid boundary.
-- The `.xx` suffix (e.g. `.59`) is accepted for documentation purposes and ignored by the parser.
-- **Default when omitted:**
-  - TI-59: 479 (480 steps, 60 program-RAM registers)
-  - TI-58 / TI-58C: 239 (240 steps, 30 program-RAM registers)
-- **TI-58 / TI-58C cap:** if an explicit `PARTITION:` value exceeds 479, the load is aborted with an error.
-
-**REGISTERS section:**
-
-- **Normal registers:** `NN = value` where NN is 00–99 (valid for all models)
-- **Hidden registers (TI-58C only):** `HNN = value` where NN is 00–03
-  - Maps to RAM slots 060–063 (the TI-58C's special constant-memory registers)
-  - `H00` → slot 060, `H01` → slot 061, `H02` → slot 062, `H03` → slot 063
-  - Used to store partition settings, ln(10) validation byte, and FIX mode
-  - Using H00–H03 in `.ti59` or `.ti58` files generates a parse error
-
-Any register (normal or hidden) not listed defaults to zero on load.
-
-**Matrix code format:** `row*10 + col`, row 1–9 (top→bottom), col 1–5 (left→right).
-Valid range: 11–95.  These are **physical key positions**, not TI manual keycodes
-(which are program-memory values like π=89, STO=42).  Mnemonic labels are silently
-ignored (e.g. `21 2nd` presses the 2nd key; `21` alone is sufficient).
-`Wait:` accepts `s` or `ms` units.
-
-Loading sequence (in `EmulatorViewModel.loadStateFile`):
 1. `machine.reset()` — clears CPU state
 2. `machine.stepN(300_000)` — lets the ROM complete its master-clear routine
 3. `machine.partitionProgramRegs = …` — sets partition via SCOM
 4. `machine.writeProgramSteps(…)` — writes zero-padded step array
-5. Per register: normal registers via `machine.writeDataRegister(…)`; hidden registers
-   (H00–H03, TI-58C only) via `machine.setRawRegister(regNum + 60, …)` to bypass the
-   reversed data-register mapping
+5. Per register: normal registers via `machine.writeDataRegister(…)`; the TI-58C's
+   4 extra registers (H00–H03 — not normal registers "60"–"63", see
+   `reference/CoreArchitecture.md` § "TI-58C Extra (Constant Memory) Registers")
+   via `machine.setRawRegister(MachineModel.extraRegisterBase + regNum, …)` to
+   bypass the reversed data-register mapping entirely — the branch is driven by
+   an explicit `isHidden` flag carried alongside each parsed register, never by
+   testing whether `regNum >= 60` (ordinary TI-59 registers legitimately reach 99)
 6. Out-of-range data registers (those that fall inside the program area for the loaded
    partition) are zeroed via `machine.setRawRegister(…)` to prevent stale-state corruption
 7. KEYSTROKES played back asynchronously via `playKeystrokes(_:)` — 0.5 s per key

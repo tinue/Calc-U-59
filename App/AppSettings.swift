@@ -139,11 +139,16 @@ enum AppSettings {
                 do {
                     let url = try URL(resolvingBookmarkData: bookmarkData, options: .withSecurityScope, relativeTo: nil, bookmarkDataIsStale: &isStale)
                     if !isStale {
-                        _ = url.startAccessingSecurityScopedResource()
+                        let granted = url.startAccessingSecurityScopedResource()
+                        if !granted {
+                            print("[AppSettings] startAccessingSecurityScopedResource() returned false for \(url.path) — sandbox extension not granted, trace writes to this folder will fail")
+                        }
                         return url
+                    } else {
+                        print("[AppSettings] Security-scoped bookmark for custom trace path is stale — falling back to plain path")
                     }
                 } catch {
-                    // silently fall through to fallback
+                    print("[AppSettings] Failed to resolve security-scoped bookmark for custom trace path: \(error)")
                 }
             }
             #endif
@@ -151,6 +156,7 @@ enum AppSettings {
             // Fallback to stored path
             let path = UserDefaults.standard.string(forKey: SettingsKey.traceCustomPath) ?? ""
             if !path.isEmpty {
+                print("[AppSettings] Using plain (non-bookmarked) custom trace path: \(path) — this will fail to write under App Sandbox without an active security scope")
                 return URL(fileURLWithPath: path, isDirectory: true)
             }
 

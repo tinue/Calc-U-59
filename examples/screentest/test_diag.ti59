@@ -348,5 +348,9 @@ PROGRAM:
 479  77  GE
 
 KEYSTROKES:
+FullSpeed:      # E below runs the diagnostic, which takes a while — race through it
 15              # E — start diagnostic
-WaitFullSpeed: 3s   # let the diagnostic run to completion; also keeps isKeystrokesPlaying=true long enough for XCUITest to detect it
+Wait: 1.5s      # not for the calculator — full speed finishes almost instantly —
+                # but XCUITest polls keystroke-playback-status roughly once per
+                # second, so give it a window to observe "playing" before this
+                # flips back to "idle"

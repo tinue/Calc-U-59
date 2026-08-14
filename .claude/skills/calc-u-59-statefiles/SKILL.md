@@ -6,239 +6,112 @@ user-invocable: true
 
 # Calc-U-59 State File Format
 
-State files are plain UTF-8 text (`.ti59`, `.ti58`, `.ti58c`). The authoritative parser is `App/StateFileLoader.swift`; this skill is a human-friendly reference.
+The full format grammar — sections, PARTITION formula and per-model defaults,
+PROGRAM/REGISTERS notation, the matrix-code vs. keycode distinction, the
+2nd-function table, KEYSTROKES syntax (`Wait:`/`WaitFullSpeed:`/`Trace:`/
+`FullSpeed:`/`RegularSpeed:`/`ZeroElapseTime:`/`ReportElapseTime:`),
+`SKIP-RESET:`, and the `CUECARD:` field grammar with its math-token table —
+lives in **`reference/StateFileFormat.md`**. Read that document before
+writing or editing a state file; nothing here duplicates it.
+
+The authoritative parser is `App/StateFileLoader.swift`; that file's own
+header comment is the ground truth if this skill or the reference doc ever
+disagree with it.
 
 ---
 
-## Sections
+## Quick facts worth keeping in working memory while editing a file
 
-| Keyword | Purpose |
-|---------|---------|
-| `PARTITION: nnn` | Last visible step (display shows nnn). Total steps = nnn+1, rounded up to multiple of 80. Default: 479 (480 steps). |
-| `PROGRAM:` | Program listing. Accepts bare keycodes, step-prefixed keycodes, or printer-trace format (mnemonics ignored). |
-| `REGISTERS:` | `NN = value` lines. NN = 00–99; TI-58C only: `HNN` for hidden regs 00–03. |
-| `KEYSTROKES:` | Physical key presses to inject after load. Uses **matrix codes**, not keycodes (see below). |
-| `SOLID-STATE-MODULE: ID` | Load a module. IDs: ML ST RE SY NG AV **LE** SA BD MU EE SE AG RP |
-| `PRINTER: on` | Connect the printer. Values: `on` / `off` / `true` / `false` / `1` / `0` |
-| `SKIP-RESET: on` | Skip machine reset; apply only non-destructive sections (see below). |
-| `CUECARD:` | Custom cue-card content (template + fields). |
+These are navigation aids, not a substitute for the reference doc — they
+just save a round trip for the two mistakes that come up most:
 
-Lines starting with `#` are comments. Inline `#` comments are also stripped.
+- **KEYSTROKES uses matrix codes (11–95, row×10+col); PROGRAM uses keycodes
+  (0–99, the ROM's internal encoding).** These are different numbering
+  systems for the same physical keys — see `reference/StateFileFormat.md`'s
+  "KEYSTROKES vs. PROGRAM" table before hand-writing either section.
+- **2nd functions in KEYSTROKES are two presses**, `21` then the key's matrix
+  code — never the "2nd keycode" from the PROGRAM section's numbering.
+- **`Adv` (`21 93`) in KEYSTROKES needs `RegularSpeed:` active first.** Adv is
+  a repeat-while-held key on real hardware, gated by a fixed CPU-step busy
+  countdown rather than a real-time delay — at full speed the same 100ms key
+  hold can clear/re-fire that gate far more times than at regular speed,
+  causing a paper-feed runaway. Switch to `RegularSpeed:` before any `21 93`
+  in a script, then back to `FullSpeed:` afterward if needed. `Prt` (`21 94`)
+  is single-shot and unaffected.
+- **CUECARD math tokens** (`\lambda`, `^{2}`, `_{i}`, etc.) are documented in
+  `reference/StateFileFormat.md`; the canonical token table itself lives in
+  `App/CueCardContent.swift`, not in any markdown file.
 
----
+## PC-100/PC-100A printer character-code table
 
-## KEYSTROKES vs. PROGRAM: two different numbering systems
+Some `REGISTERS:` values aren't numbers at all — they're print-buffer data:
+a register packs up to five 2-digit character codes (up to 10 decimal digits)
+that the ROM's print routine feeds to the PC-100/PC-100A thermal printer.
+You'll hit this when transcribing a magazine/manual program listing whose
+"Prestored Data" holds strings (weekday/month names, labels) rather than
+arithmetic constants. **Don't force every chunk to a uniform width** — see
+"52-Notes" below.
 
-This is the most important distinction when writing state files.
-
-| | PROGRAM section | KEYSTROKES section |
-|-|----------------|--------------------|
-| What it is | Keycodes stored in program RAM | Physical key-matrix scan codes |
-| Number format | 0–99 (the ROM's internal encoding) | 11–95 (row × 10 + col) |
-| Example: digit 0 | keycode `00` | matrix code `92` |
-| Example: digit 1 | keycode `01` | matrix code `82` |
-| Example: SBR | keycode `71` | matrix code `71` (same for this key) |
-| Example: 2nd Pgm | keycode `36` (PGM, stored as one step) | matrix codes `21 31` (two physical presses) |
-
-**Rule:** the KEYSTROKES section simulates a user's fingers. Always use matrix codes there, never keycodes.
-
----
-
-## Matrix Code Table — KEYSTROKES
-
-Matrix code = **row × 10 + col**, row 1–9 top to bottom, col 1–5 left to right.
+**Each 2-digit code is a `row col` pair, not a base-10 number** — the digits
+address an 8×8 grid, so the character index is `row*8 + col`, not
+`row*10 + col`. E.g. code `36` means row 3, col 6 → `S`, not index 36 of a
+flat 0–63 array read in base 10.
 
 ```
-         Col 1   Col 2   Col 3   Col 4   Col 5
-Row 1:   A(11)   B(12)   C(13)   D(14)   E(15)
-Row 2:   2nd(21) INV(22) lnx(23) CE(24)  CLR(25)
-Row 3:   LRN(31) x⇔t(32) x²(33)  √x(34)  1/x(35)
-Row 4:   SST(41) STO(42) RCL(43) SUM(44) yˣ(45)
-Row 5:   BST(51) EE(52)  ((53)   )(54)   ÷(55)
-Row 6:   GTO(61) 7(62)   8(63)   9(64)   ×(65)
-Row 7:   SBR(71) 4(72)   5(73)   6(74)   -(75)
-Row 8:   RST(81) 1(82)   2(83)   3(84)   +(85)
-Row 9:   R/S(91) 0(92)   .(93)   +/-(94) =(95)
+     col 0  1  2  3  4  5  6  7
+row0    (sp) 0  1  2  3  4  5  6
+row1     7  8  9  A  B  C  D  E
+row2     -  F  G  H  I  J  K  L
+row3     M  N  O  P  Q  R  S  T
+row4     .  U  V  W  X  Y  Z  +
+row5     x  *  √  π  e  (  )  ,
+row6     ↑  %  ⇄  /  =  '  ˣ  x̄
+row7     ²  ?  ÷  !  Ⅱ  ▴  ∏  ∑
 ```
 
----
+Source of truth: `PRN_CODE[64]` in `Core/TMC0501.cpp` (consumed by the
+`OUT PRT` opcode handler) — that array's declaration order is exactly this
+grid, row-major, 8 entries per row. Decode a register value by splitting it
+into 2-digit groups and looking up `table[row*8+col]` for each; e.g. register
+value `3013351523` → groups `30,13,35,15,23` → row/col lookups → `MARCH`.
 
-## 2nd Function Table
+There's a second, unrelated table in the same file, `PRN_STR[]` — a sparse
+7-bit function-code → 3-letter-mnemonic lookup (`STO`, `RUN`, `SIN`, …) used
+for printing keystroke/function names during LIST/trace printing, not for
+decoding dense character data out of a register.
 
-Pressing **2nd (21)** then a key activates that key's 2nd (upper-label) function. In KEYSTROKES, always send **two** matrix codes: `21` then the key's matrix code. The resulting program keycode is listed for reference.
+## 52-Notes
 
-The rule: **2nd keycode = matrix\_code + 5** for cols 1–4; **matrix\_code − 5** for col 5. This applies to every row, using the *matrix code* (not the primary keycode — these differ for digit and operator keys).
+Rules learned transcribing a specific magazine-listing notation style (the
+Jared Weinberger "Calendar Printer" PC-100A program, `examples/calendar.ti59`)
+into a state file. This shorthand — `S29`/`R13` for STO/RCL, `rtn` for
+merged RTN, `CP`/`x=t`/`xGEt`/`Op`/`Adv`/`Pgm` for their 2nd-function keys —
+appears to be specific to this magazine's compact print style, not a
+general TI convention, so treat it as a source-specific dialect rather than
+assuming it transfers to other listings unchanged. Two lessons worth
+carrying forward to the *next* listing in this same dialect:
 
-| 2nd press sequence | 2nd function | Prog keycode |
-|--------------------|--------------|-------------|
-| `21 11` | A' | 16 |
-| `21 12` | B' | 17 |
-| `21 13` | C' | 18 |
-| `21 14` | D' | 19 |
-| `21 15` | E' | 10 |
-| `21 23` | log | 28 |
-| `21 24` | CP (clear pending) | 29 |
-| `21 25` | CLR | 20 |
-| `21 31` | **Pgm** (program select) | 36 |
-| `21 32` | P→R (polar to rectangular) | 37 |
-| `21 33` | sin | 38 |
-| `21 34` | cos | 39 |
-| `21 35` | tan | 30 |
-| `21 41` | Ins (insert step) | 46 |
-| `21 42` | CMs (clear memories) | 47 |
-| `21 43` | Exc (exchange) | 48 |
-| `21 44` | Prd (product) | 49 |
-| `21 45` | IND (indirect) | 40 |
-| `21 51` | Del (delete step) | 56 |
-| `21 52` | Eng (engineering notation) | 57 |
-| `21 53` | Fix | 58 |
-| `21 54` | Int (integer part) | 59 |
-| `21 55` | \|x\| (absolute value) | 50 |
-| `21 61` | Pause | 66 |
-| `21 62` | x=t (equality test) | 67 |
-| `21 63` | Nop | 68 |
-| `21 64` | Op | 69 |
-| `21 65` | Deg | 60 |
-| `21 71` | Lbl | 76 |
-| `21 72` | GE (≥) | 77 |
-| `21 73` | Σ+ | 78 |
-| `21 74` | x̄ (mean) | 79 |
-| `21 75` | Rad | 70 |
-| `21 81` | St flg (set flag) | 86 |
-| `21 82` | If flg (if flag) | 87 |
-| `21 83` | D.MS (deg/min/sec) | 88 |
-| `21 84` | **π** | 89 |
-| `21 85` | Grad | 80 |
-| `21 91` | Write | 96 |
-| `21 92` | Dsz | 97 |
-| `21 93` | Adv (printer advance) | 98 |
-| `21 94` | Prt (printer print) | 99 |
-| `21 95` | List (print program listing) | 90 |
+- **Don't pad a short packed-string register out to a "standard" width.**
+  `REGISTERS:` values that hold packed PC-100 print codes (see the table
+  above) don't all need to be the same number of digits — a register that
+  only needs 4 characters legitimately has an 8-digit value, not a
+  10-digit one with a fabricated trailing `00`. Transcribe the digits
+  exactly as printed; don't round a short chunk up to match its neighbors.
+- **"xXt"-style OCR garble is genuinely ambiguous between EQ (`x=t`) and
+  X⇄T (exchange, keycode 32), and the step-count checksum does not always
+  resolve it.** Both readings can cost the same number of program steps —
+  X⇄T alone is 1 step, and EQ's destination-byte encoding sometimes needs
+  only 1 byte too (the "arbitrary keycode as a 1-byte label" case; see the
+  `PROGRAM` section's compact-keycode notes) — so a checksum match is not
+  proof the reading is right. Verify each occurrence against what's
+  semantically plausible at that point in the program (does a branch make
+  sense here, or a register/display exchange?) rather than assuming every
+  instance in a listing resolves the same way.
 
----
+## Where to look for related work
 
-## Compact / Shortcut Keycodes (PROGRAM section only)
-
-Digit keys store their face value in program memory (pressing "2" stores keycode `2`, not `83`). This frees up the matrix-code-like slots (62–64, 72–74, 82–84, 92) for the ROM to use as compact single-step encodings of multi-key operations.
-
-These are **only relevant in the PROGRAM section**. In KEYSTROKES you must always use the physical multi-key press sequence.
-
-| Keycode | Mnemonic | Physical keypress sequence (KEYSTROKES) | Notes |
-|---------|----------|-----------------------------------------|-------|
-| `62` | PG\* (Pgm Ind) | `21 31` `21 45` | Pgm with indirect register |
-| `63` | EX\* (Exc Ind) | `21 43` `21 45` | Exc with indirect register |
-| `64` | PD\* (Prd Ind) | `21 44` `21 45` | Prd with indirect register |
-| `72` | ST\* (STO Ind) | `42` `21 45` | STO with indirect register |
-| `73` | RC\* (RCL Ind) | `43` `21 45` | RCL with indirect register |
-| `74` | SM\* (SUM Ind) | `44` `21 45` | SUM with indirect register |
-| `82` | HIR | — | Undocumented; cannot be entered via keypresses |
-| `83` | GO\* (GTO Ind) | `61` `21 45` | GTO with indirect register |
-| `84` | OP\* (Op Ind) | `21 64` `21 45` | Op (2nd+9) with indirect register |
-| `92` | RTN | `22 71` | INV SBR; saves one program step vs storing INV + SBR separately |
-
-All indirect codes (`62–64`, `72–74`, `83–84`) take one additional operand byte (the register number) — see `stepsAfterTable` in `TI59KeyNames.swift`.
-
-The IND key itself is entered as **`21 45`** (2nd + y^x).
-
----
-
-## KEYSTROKES Syntax
-
-```
-# One matrix code per token. Text tokens (mnemonics) are silently ignored.
-# Each line is one key press (press + release). 500 ms gap between presses.
-
-21 31       # 2nd Pgm  (select program mode)
-92          # 0
-82          # 1        → Pgm 01 selected
-71          # SBR
-95          # =        → run program 01
-
-# Explicit wait:
-Wait: 2s
-Wait: 500ms
-```
-
----
-
-## Common Sequences (ready to paste)
-
-```
-# 2nd Pgm 01 SBR =   (select and run program 01)
-21 31
-92
-82
-71
-95
-
-# π × 4 =
-21 84
-65
-72
-95
-
-# SBR =   (continue/re-enter a program)
-71
-95
-
-# CLR
-25
-
-# 2nd P/R  (toggle program/run mode)
-21 32
-```
-
----
-
-## `Wait:` and `WaitFullSpeed:` Timing
-
-- Default gap between presses: 500 ms (450 ms hold + 50 ms gap, hardcoded in `EmulatorViewModel.playKeystrokes`)
-- `Wait: Xs` / `Wait: Xms` — pause for the given interval; emulator runs at its configured speed
-- `WaitFullSpeed: Xs` / `WaitFullSpeed: Xms` — enable full speed (`isFullSpeedMode = true`) for the given interval, then restore the previous speed; use this after a key that starts a computation so the program finishes quickly without affecting key-press timing
-
-```
-71          # SBR
-95          # =    → program starts
-WaitFullSpeed: 5s   # run flat-out until program reaches input prompt
-21 84       # π    → next key sent at normal speed
-```
-
----
-
-## Special Virtual Keys in KEYSTROKES
-
-Matrix code `99` is outside the valid key grid (rows 1–9, cols 1–5 give max code 95) and is repurposed as a virtual button:
-
-| Code | Action |
-|------|--------|
-| `99` | Toggle printer TRACE latch (each press flips on→off or off→on) |
-
----
-
-## SKIP-RESET
-
-`SKIP-RESET: on` skips the machine reset that normally occurs when a state file is loaded. Use it for files that only inject keystrokes into a running machine (e.g. the second step of a multi-file screenshot sequence).
-
-**Applied sections** (work without a reset):
-
-| Section | Behaviour |
-|---------|-----------|
-| `PARTITION:` | Updated in SCOM only if explicitly specified; otherwise left as-is |
-| `PROGRAM:` | Full zero-padded write (replaces existing program) |
-| `REGISTERS:` | Listed registers are written individually |
-| `CUECARD:` | Cue card is replaced if present |
-| `KEYSTROKES:` | Played normally |
-
-**Silently dropped sections** (require a reset — a `[WARN]` is printed to the console):
-
-| Section | Why dropped |
-|---------|------------|
-| `MODEL:` | Model switch requires full machine reset |
-| `SOLID-STATE-MODULE:` | Module load requires full machine reset |
-| `PRINTER:` | Printer connection change requires full machine reset |
-
----
-
-## KEYSTROKES Does Not Support
-
-- FREEZE / FREEZE ON START (debug panel — must be driven by XCUITest)
+- Writing test/regression scenario files for XCUITest: see the
+  `calc-u-59-uitesting` skill for file-picker navigation and verifying a
+  loaded state.
+- Building a new (non-Swift, non-Web) GUI that needs to parse this format:
+  see `reference/NewGUIGuide.md`.

@@ -1,0 +1,1009 @@
+#!/usr/bin/env python3
+"""Manage the iOS simulators this project tests and takes screenshots on.
+
+bin/simulators.yaml is the single source of truth for which devices exist and
+which iOS major version each one runs. This script realises that file: it
+creates the devices, provisions them with example state files, reports drift,
+and cleans up everything that is not in the config.
+
+Python 3 stdlib only — no PyYAML, no third-party packages.
+"""
+
+import argparse
+import json
+import os
+import platform
+import plistlib
+import re
+import shutil
+import subprocess
+import sys
+import time
+import urllib.request
+from pathlib import Path
+
+SRCROOT = Path(__file__).resolve().parent.parent
+CONFIG = SRCROOT / "bin" / "simulators.yaml"
+DEVICES_DIR = Path.home() / "Library/Developer/CoreSimulator/Devices"
+CACHE_DIR = Path.home() / "Library/Caches/calc-u-59"
+CACHE_FILE = CACHE_DIR / "runtime-index.plist"
+
+# The downloadable-runtime index Xcode itself uses. Public, unauthenticated.
+INDEX_URL = "https://devimages-cdn.apple.com/downloads/xcode/simulators/index2.dvtdownloadableindex"
+NETWORK_TIMEOUT = 10
+DEFAULT_INDEX_TTL = 86400
+
+FILES_APP = "com.apple.DocumentsApp"
+LOCAL_STORAGE_GROUP = "group.com.apple.FileProvider.LocalStorage"
+BOOTSTRAP_TIMEOUT = 60
+
+UUID_RE = re.compile(r"^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$", re.I)
+PRERELEASE_RE = re.compile(r"\b(beta|release candidate|seed|preview|rc)\b", re.I)
+
+# Example files copied into each simulator's local storage. Everything in
+# examples/screentest/ goes to 1-Testfiles/ (so it sorts first in the picker);
+# these go to the storage root.
+REGULAR_PATTERNS = [
+    "assembly/stopwatch.asm",
+    "characters-fastmode.ti59",
+    "characters.ti59",
+    "diag.ti58",
+    "diag.ti59",
+]
+SCREENTEST_DIR = SRCROOT / "examples" / "screentest"
+
+VERBOSE = False
+
+
+# ── Output ─────────────────────────────────────────────────────────────────────
+
+_COLOR = sys.stdout.isatty() and os.environ.get("TERM") not in (None, "dumb")
+
+
+def _c(code, text):
+    return f"\033[{code}m{text}\033[0m" if _COLOR else text
+
+
+def green(t):  return _c("32", t)
+def red(t):    return _c("31", t)
+def yellow(t): return _c("33", t)
+def dim(t):    return _c("2", t)
+
+
+def note(msg):
+    if VERBOSE:
+        print(dim(f"  · {msg}"))
+
+
+def die(msg):
+    print(red(f"Error: {msg}"), file=sys.stderr)
+    sys.exit(1)
+
+
+def human_size(n):
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if n < 1024 or unit == "TB":
+            return f"{n:.1f} {unit}" if unit not in ("B", "KB") else f"{n:.0f} {unit}"
+        n /= 1024
+
+
+# ── Config ─────────────────────────────────────────────────────────────────────
+
+def load_config(path):
+    """Parse the small subset of YAML used by simulators.yaml.
+
+    Recognised keys per entry: name (str), ios (int major), screenshots (str).
+    """
+    if not path.exists():
+        die(f"config not found: {path}")
+    devs, cur = [], None
+    for line in path.read_text().splitlines():
+        if re.match(r"^- ", line):
+            if cur is not None:
+                devs.append(cur)
+            cur = {}
+        m = re.match(r"^[-\s]\s*(\w+):\s*(.*)", line)
+        if m and cur is not None:
+            k, v = m.group(1), m.group(2).strip()
+            cur[k] = int(v) if v.isdigit() else (v or None)
+    if cur is not None:
+        devs.append(cur)
+    for d in devs:
+        if "name" not in d or "ios" not in d:
+            die(f"config entry missing name or ios: {d}")
+    if not devs:
+        die(f"no devices configured in {path}")
+    return devs
+
+
+def select(devices, only):
+    if not only:
+        return devices
+    picked = [d for d in devices if only.lower() in d["name"].lower()]
+    if not picked:
+        die(f"--only {only!r} matched none of: " + ", ".join(d["name"] for d in devices))
+    return picked
+
+
+# ── simctl ─────────────────────────────────────────────────────────────────────
+
+def run(cmd, check=True, capture=True):
+    note(" ".join(cmd))
+    r = subprocess.run(cmd, capture_output=capture, text=True)
+    if check and r.returncode != 0:
+        detail = (r.stderr or r.stdout or "").strip() if capture else ""
+        die(f"command failed: {' '.join(cmd)}\n{detail}")
+    return r
+
+
+def simctl_json(*args):
+    r = run(["xcrun", "simctl", *args, "--json"])
+    return json.loads(r.stdout)
+
+
+def installed_runtimes():
+    """Available iOS runtimes, newest first."""
+    rts = [
+        r for r in simctl_json("list", "runtimes")["runtimes"]
+        if r.get("isAvailable") and r.get("platform") == "iOS"
+    ]
+    rts.sort(key=lambda r: version_key(r["version"]), reverse=True)
+    return rts
+
+
+def runtime_sizes():
+    """runtimeIdentifier → sizeBytes for downloaded runtime disk images."""
+    r = run(["xcrun", "simctl", "runtime", "list", "-j"], check=False)
+    if r.returncode != 0:
+        return {}
+    try:
+        return {
+            v["runtimeIdentifier"]: v.get("sizeBytes", 0)
+            for v in json.loads(r.stdout).values()
+            if "runtimeIdentifier" in v
+        }
+    except (ValueError, AttributeError):
+        return {}
+
+
+def version_key(v):
+    return tuple(int(p) for p in re.findall(r"\d+", v))
+
+
+def build_key(b):
+    """Sort key for an Apple build string, e.g. 23F77 → (23, 'F', 77)."""
+    return tuple(int(p) if p.isdigit() else p for p in re.findall(r"\d+|[A-Za-z]+", b))
+
+
+def latest_runtime_for_major(major, runtimes):
+    """Newest installed runtime for an iOS major version, or None."""
+    for r in runtimes:
+        if version_key(r["version"])[0] == int(major):
+            return r
+    return None
+
+
+def runtime_display(runtime_id):
+    """com.apple.CoreSimulator.SimRuntime.iOS-18-6 → iOS 18.6"""
+    name = runtime_id.replace("com.apple.CoreSimulator.SimRuntime.", "")
+    parts = name.split("-")
+    for i, part in enumerate(parts):
+        if part.isdigit():
+            return f"{'-'.join(parts[:i])} {'.'.join(parts[i:])}"
+    return name
+
+
+def find_device(name, runtime_id, devices_by_runtime):
+    for d in devices_by_runtime.get(runtime_id, []):
+        if d["name"] == name and d.get("isAvailable"):
+            return d
+    return None
+
+
+def device_type_for(name, runtime):
+    """Device type identifier, validated against what the runtime supports."""
+    supported = runtime.get("supportedDeviceTypes", [])
+    for dt in supported:
+        if dt["name"] == name:
+            return dt["identifier"]
+    family = name.split()[0]
+    similar = [dt["name"] for dt in supported if dt["name"].startswith(family)]
+    if len(similar) > 8:
+        similar = similar[:8] + [f"… and {len(similar) - 8} more"]
+    hint = ("\n  supported on this runtime: " + ", ".join(similar)) if similar else ""
+    die(f"{name!r} is not supported by {runtime['name']}.{hint}")
+
+
+# ── Apple's downloadable runtime index ────────────────────────────────────────
+
+def fetch_index(offline=False, refresh=False):
+    """Parsed downloadable index, or None when it cannot be obtained.
+
+    Cached under ~/Library/Caches/calc-u-59 with the TTL the index itself
+    declares. Network failures fall back to a stale cache, then to None —
+    callers must treat None as "unknown", never as "up to date".
+    """
+    if offline:
+        note("offline: skipping runtime index")
+        return None
+
+    cached = None
+    if CACHE_FILE.exists():
+        try:
+            cached = plistlib.loads(CACHE_FILE.read_bytes())
+        except (plistlib.InvalidFileException, ValueError):
+            cached = None
+    if cached and not refresh:
+        age = time.time() - CACHE_FILE.stat().st_mtime
+        if age < cached.get("refreshInterval", DEFAULT_INDEX_TTL):
+            note(f"runtime index: cache hit ({age / 3600:.1f} h old)")
+            return cached
+
+    try:
+        note(f"fetching {INDEX_URL}")
+        req = urllib.request.Request(INDEX_URL, headers={"User-Agent": "calc-u-59/simulators"})
+        with urllib.request.urlopen(req, timeout=NETWORK_TIMEOUT) as resp:
+            raw = resp.read()
+        index = plistlib.loads(raw)
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        CACHE_FILE.write_bytes(raw)
+        return index
+    except Exception as e:                                   # noqa: BLE001 — any failure is non-fatal
+        note(f"runtime index fetch failed: {e}")
+        if cached:
+            note("falling back to stale cached index")
+        return cached
+
+
+def downloadable_runtimes(index, include_prereleases=False):
+    """iOS simulator runtimes offered by Apple, newest first, deduped."""
+    if not index:
+        return []
+    out = {}
+    prefer_arm64 = platform.machine() == "arm64"
+    for entry in index.get("downloadables", []):
+        if entry.get("platform") != "com.apple.platform.iphoneos":
+            continue
+        sim = entry.get("simulatorVersion") or {}
+        version, build = sim.get("version"), sim.get("buildUpdate")
+        if not version or not build:
+            continue
+        prerelease = bool(PRERELEASE_RE.search(entry.get("name", "")))
+        if prerelease and not include_prereleases:
+            continue
+        ident = entry.get("identifier", "")
+        arm64_only = ident.endswith("_arm64")
+        cand = {
+            "version": version,
+            "build": build,
+            "name": entry.get("name", f"iOS {version}"),
+            "size": entry.get("fileSize", 0),
+            "prerelease": prerelease,
+        }
+        key = (version, build)
+        # Two variants ship per release: a universal image and a smaller
+        # arm64-only one. Keep whichever this Mac would actually download.
+        if key not in out or arm64_only == prefer_arm64:
+            out[key] = cand
+    # Newest version first; within a version a released build always outranks a
+    # seed, because Apple's seed builds (23F5043g) sort above releases (23F77).
+    return sorted(
+        out.values(),
+        key=lambda c: (version_key(c["version"]), not c["prerelease"], build_key(c["build"])),
+        reverse=True,
+    )
+
+
+def newest_offered(major, offered):
+    for c in offered:
+        if version_key(c["version"])[0] == int(major):
+            return c
+    return None
+
+
+def runtime_state(major, runtimes, offered, index_ok):
+    """(installed, newest_offered, verdict) for one configured iOS major."""
+    installed = latest_runtime_for_major(major, runtimes)
+    newest = newest_offered(major, offered)
+    if not index_ok:
+        verdict = "unknown"
+    elif not newest:
+        verdict = "unknown"
+    elif not installed:
+        verdict = "missing"
+    elif version_key(newest["version"]) > version_key(installed["version"]):
+        verdict = "outdated"
+    elif newest["build"] != installed["buildversion"] and not newest["prerelease"]:
+        # Same version, different build — Apple reissued it.
+        verdict = "rebuilt"
+    else:
+        verdict = "current"
+    return installed, newest, verdict
+
+
+def download_runtime(cand, assume_yes, dry_run):
+    """Download a runtime with xcodebuild. Returns True when it ran."""
+    cmd = ["xcodebuild", "-downloadPlatform", "iOS", "-buildVersion", cand["version"]]
+    if platform.machine() == "arm64":
+        cmd += ["-architectureVariant", "arm64"]
+    label = f"iOS {cand['version']} ({cand['build']}) — {human_size(cand['size'])}"
+    if dry_run:
+        print(f"  would download {label}")
+        print(f"    {' '.join(cmd)}")
+        return False
+    print(f"  downloading {label}")
+    if not assume_yes:
+        try:
+            if input("  proceed? [y/N] ").strip().lower() not in ("y", "yes"):
+                print("  skipped.")
+                return False
+        except EOFError:
+            print("  skipped (not a terminal; pass --yes).")
+            return False
+    # Streamed, not captured: xcodebuild reports download progress live.
+    r = subprocess.run(cmd)
+    if r.returncode != 0:
+        die(f"xcodebuild failed to download iOS {cand['version']}")
+    return True
+
+
+def sync_runtimes(config, args):
+    """Download any configured major that is behind. Returns True if anything changed.
+
+    Only reached via an explicit --download, so an unreachable index is fatal
+    here — unlike the advisory check status() makes.
+    """
+    index = fetch_index(offline=args.offline, refresh=args.refresh)
+    if index is None:
+        die("cannot check for runtimes: Apple's index is unreachable "
+            "(drop --download to continue without it)")
+    offered = downloadable_runtimes(index, args.include_prereleases)
+    runtimes = installed_runtimes()
+    changed = False
+    for major in sorted({d["ios"] for d in config}):
+        installed, newest, verdict = runtime_state(major, runtimes, offered, True)
+        if verdict in ("outdated", "missing", "rebuilt") and newest:
+            have = f"{installed['version']} ({installed['buildversion']})" if installed else "none"
+            print(f"  iOS {major}: installed {have} → offered {newest['version']} ({newest['build']})")
+            if download_runtime(newest, args.yes, args.dry_run):
+                changed = True
+        else:
+            print(f"  iOS {major}: up to date")
+    return changed
+
+
+# ── File Provider storage ──────────────────────────────────────────────────────
+
+def app_group_dir(udid):
+    """Path of the Files app's local-storage AppGroup container, or None."""
+    r = run(["xcrun", "simctl", "get_app_container", udid, FILES_APP, LOCAL_STORAGE_GROUP],
+            check=False)
+    if r.returncode == 0 and r.stdout.strip():
+        p = Path(r.stdout.strip())
+        if p.is_dir():
+            return p
+    return _scan_app_group(udid)
+
+
+def _scan_app_group(udid):
+    """Fallback: locate the container by its metadata plist."""
+    root = DEVICES_DIR / udid / "data/Containers/Shared/AppGroup"
+    if not root.is_dir():
+        return None
+    for meta in root.glob("*/.com.apple.mobile_container_manager.metadata.plist"):
+        try:
+            data = plistlib.loads(meta.read_bytes())
+        except (plistlib.InvalidFileException, ValueError):
+            continue
+        if LOCAL_STORAGE_GROUP in str(data):
+            return meta.parent
+    return None
+
+
+def storage_dir(udid):
+    group = app_group_dir(udid)
+    return group / "File Provider Storage" if group else None
+
+
+def bootstrap_storage(udid, name, keep_booted=False):
+    """Ensure the Files app has created its local-storage container.
+
+    A freshly created simulator has no such container until something touches
+    it, which is why this used to be a manual "open the Files app once" step.
+    Booting the device and launching Files.app does it unattended.
+    """
+    existing = storage_dir(udid)
+    if existing:
+        return existing
+
+    was_booted = device_state(udid) == "Booted"
+    print(f"  bootstrapping storage on {name} (first boot, ~30 s)…")
+    run(["xcrun", "simctl", "bootstatus", udid, "-b"], capture=not VERBOSE)
+    run(["xcrun", "simctl", "launch", udid, FILES_APP], check=False)
+
+    deadline = time.time() + BOOTSTRAP_TIMEOUT
+    found = None
+    while time.time() < deadline:
+        found = storage_dir(udid)
+        if found:
+            break
+        time.sleep(2)
+
+    if not was_booted and not keep_booted:
+        run(["xcrun", "simctl", "shutdown", udid], check=False)
+
+    if not found:
+        print(red(f"  {name}: storage did not appear within {BOOTSTRAP_TIMEOUT} s."))
+    return found
+
+
+def device_state(udid):
+    for devs in simctl_json("list", "devices")["devices"].values():
+        for d in devs:
+            if d["udid"] == udid:
+                return d.get("state")
+    return None
+
+
+# ── Example files ──────────────────────────────────────────────────────────────
+
+def expected_files():
+    """[(source path, destination path relative to storage root)]"""
+    out = []
+    for f in sorted(SCREENTEST_DIR.glob("*")):
+        if f.is_file():
+            out.append((f, Path("1-Testfiles") / f.name))
+    for pattern in REGULAR_PATTERNS:
+        for f in sorted((SRCROOT / "examples").glob(pattern)):
+            if f.is_file():
+                out.append((f, Path(f.name)))
+    return out
+
+
+def files_installed(dest):
+    if not dest or not dest.is_dir():
+        return False
+    return all((dest / rel).is_file() for _, rel in expected_files())
+
+
+def install_files(dest, dry_run=False):
+    """Replace the contents of the storage root with the example files."""
+    wanted = expected_files()
+    if dry_run:
+        print(f"  would install {len(wanted)} file(s) → {dest}")
+        return len(wanted)
+    # Wipe first: a reproducible starting state matters for the UI tests.
+    for child in dest.iterdir():
+        if child.is_dir() and not child.is_symlink():
+            shutil.rmtree(child)
+        else:
+            child.unlink()
+    for src, rel in wanted:
+        target = dest / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(src, target)
+    return len(wanted)
+
+
+# ── Cleanup planning ───────────────────────────────────────────────────────────
+
+def plan_cleanup(config, runtimes):
+    """(devices_to_delete, unneeded_runtimes, orphan_dirs, keep_udids)"""
+    keep_pairs, needed = set(), set()
+    for d in config:
+        rt = latest_runtime_for_major(d["ios"], runtimes)
+        if rt:
+            keep_pairs.add((rt["identifier"], d["name"]))
+            needed.add(rt["identifier"])
+        else:
+            # Without its runtime there is nothing to pin the device to, so any
+            # copy of it on another runtime would be swept up. Say so loudly.
+            print(yellow(f"Warning: no iOS {d['ios']}.x runtime installed — "
+                         f"{d['name']} is not protected from deletion."), file=sys.stderr)
+
+    unneeded = [r for r in runtimes if r["identifier"] not in needed]
+
+    devices_by_runtime = simctl_json("list", "devices")["devices"]
+    to_delete, keep_udids = [], set()
+    for runtime_id, devs in devices_by_runtime.items():
+        for d in devs:
+            if (runtime_id, d["name"]) in keep_pairs:
+                keep_udids.add(d["udid"])
+            else:
+                to_delete.append((runtime_display(runtime_id), d["name"], d["udid"]))
+
+    known = {d["udid"] for devs in devices_by_runtime.values() for d in devs}
+    orphans = [p for p in DEVICES_DIR.iterdir()
+               if UUID_RE.match(p.name) and p.name not in known] if DEVICES_DIR.is_dir() else []
+    return to_delete, unneeded, orphans, keep_udids
+
+
+def apply_cleanup(to_delete, unneeded, orphans, with_runtimes):
+    if to_delete:
+        run(["xcrun", "simctl", "delete", *[u for _, _, u in to_delete]], check=False)
+        print(f"Deleted {len(to_delete)} device(s).")
+
+    if with_runtimes:
+        bundled = []
+        for r in unneeded:
+            res = run(["xcrun", "simctl", "runtime", "delete", r["identifier"]], check=False)
+            if res.returncode == 0:
+                print(f"Deleted runtime: {r['name']}")
+            else:
+                bundled.append(r["name"])
+        if bundled:
+            print("\nBundled inside Xcode, not deletable by simctl:")
+            for name in bundled:
+                print(f"  {name}")
+            print("Remove them via Xcode → Settings → Platforms.")
+
+    run(["xcrun", "simctl", "delete", "unavailable"], check=False)
+    print("Purged unavailable device records.")
+
+    if orphans:
+        # bird (iCloud) holds dataless stubs inside simulator dirs open.
+        run(["killall", "bird"], check=False)
+        time.sleep(1)
+        failed = []
+        for p in orphans:
+            try:
+                shutil.rmtree(p)
+                print(f"Removed orphaned directory: {p.name}")
+            except OSError:
+                failed.append(p)
+        if failed:
+            print("\nCould not remove (iCloud dataless stubs block rm even as you):")
+            for p in failed:
+                print(f"  sudo rm -rf '{p}'")
+
+
+# ── Commands ───────────────────────────────────────────────────────────────────
+
+def resolve_all(config):
+    """[(entry, runtime or None, device or None)] for the configured devices."""
+    runtimes = installed_runtimes()
+    devices_by_runtime = simctl_json("list", "devices")["devices"]
+    out = []
+    for d in config:
+        rt = latest_runtime_for_major(d["ios"], runtimes)
+        dev = find_device(d["name"], rt["identifier"], devices_by_runtime) if rt else None
+        out.append((d, rt, dev))
+    return out
+
+
+def cmd_status(args):
+    config = select(load_config(args.config), args.only)
+    runtimes = installed_runtimes()
+    index = fetch_index(offline=args.offline, refresh=args.refresh)
+    offered = downloadable_runtimes(index, args.include_prereleases)
+    problems = 0
+
+    print("Devices")
+    for entry, rt, dev in resolve_all(config):
+        name = entry["name"]
+        if not rt:
+            print(f"  {red('✗')} {name:<24} no iOS {entry['ios']}.x runtime installed")
+            problems += 1
+            continue
+        if not dev:
+            print(f"  {red('✗')} {name:<24} {rt['name']:<9} not created")
+            problems += 1
+            continue
+        dest = storage_dir(dev["udid"])
+        has_files = files_installed(dest)
+        if dest and has_files:
+            mark, state = green("✓"), "ready"
+        elif dest:
+            mark, state = yellow("·"), "storage ready, files missing"
+            problems += 1
+        else:
+            mark, state = yellow("·"), "not provisioned"
+            problems += 1
+        print(f"  {mark} {name:<24} {rt['name']:<9} {dim(dev['udid'])}  {state}")
+
+    print("\nRuntimes")
+    sizes = runtime_sizes()
+    stale_runtimes = False
+    for major in sorted({d["ios"] for d in config}, reverse=True):
+        installed, newest, verdict = runtime_state(major, runtimes, offered, index is not None)
+        have = (f"{installed['version']} ({installed['buildversion']})"
+                f"  {dim(human_size(sizes.get(installed['identifier'], 0)))}"
+                if installed else red("not installed"))
+        if verdict == "current":
+            tail = green("up to date")
+        elif verdict == "unknown":
+            tail = dim("update check skipped" if args.offline else "update check unavailable")
+        elif verdict == "rebuilt":
+            tail = yellow(f"newer build offered: {newest['build']}")
+            problems, stale_runtimes = problems + 1, True
+        else:
+            lead = "offered" if verdict == "missing" else "newer offered"
+            tail = yellow(f"{lead}: iOS {newest['version']} ({newest['build']}, "
+                          f"{human_size(newest['size'])})")
+            problems, stale_runtimes = problems + 1, True
+        print(f"  iOS {major}: {have}  {tail}")
+
+    if args.include_prereleases and offered:
+        pre = next((c for c in offered if c["prerelease"]), None)
+        if pre:
+            print(f"  {dim('prerelease offered: ' + pre['name'])}")
+
+    to_delete, unneeded, orphans, _ = plan_cleanup(load_config(args.config), runtimes)
+    print("\nHousekeeping")
+    print(f"  {len(to_delete)} device(s) not in the config")
+    print(f"  {len(unneeded)} installed runtime(s) no configured device needs")
+    print(f"  {len(orphans)} orphaned director{'y' if len(orphans) == 1 else 'ies'}")
+    if DEVICES_DIR.is_dir():
+        du = run(["du", "-sk", str(DEVICES_DIR)], check=False)
+        if du.returncode == 0:
+            print(f"  {human_size(int(du.stdout.split()[0]) * 1024)} in {DEVICES_DIR}")
+    if to_delete or orphans:
+        print(dim("  → bin/simulators cleanup"))
+
+    if problems:
+        fix = "bin/simulators update --download" if stale_runtimes else "bin/simulators setup"
+        print(f"\n{yellow(str(problems))} item(s) need attention — {fix}")
+    else:
+        print(f"\n{green('Everything is set up.')}")
+    return 1 if (problems and args.strict) else 0
+
+
+def cmd_runtimes(args):
+    config = load_config(args.config)
+    runtimes = installed_runtimes()
+    sizes = runtime_sizes()
+
+    print("Installed")
+    for r in runtimes:
+        size = sizes.get(r["identifier"], 0)
+        print(f"  {r['name']:<10} {r['buildversion']:<10} {human_size(size) if size else ''}")
+    if not runtimes:
+        print("  (none)")
+
+    if args.download:
+        print("\nChecking Apple for newer runtimes…")
+        if sync_runtimes(config, args):
+            print("\nRuntimes updated — run bin/simulators setup to place devices on them.")
+        return 0
+
+    index = fetch_index(offline=args.offline, refresh=args.refresh)
+    if index is None:
+        print(dim("\nUpdate check skipped (offline or index unreachable)."))
+        return 0
+    offered = downloadable_runtimes(index, args.include_prereleases)
+
+    print("\nOffered by Apple, for the configured iOS majors")
+    for major in sorted({d["ios"] for d in config}, reverse=True):
+        installed, newest, verdict = runtime_state(major, runtimes, offered, True)
+        if not newest:
+            print(f"  iOS {major}: nothing offered")
+            continue
+        state = green("installed") if verdict == "current" else yellow(verdict)
+        print(f"  iOS {major}: {newest['version']} ({newest['build']}, "
+              f"{human_size(newest['size'])})  {state}")
+    newest_overall = offered[0] if offered else None
+    if newest_overall:
+        print(dim(f"  newest offered overall: {newest_overall['name']} "
+                  f"({newest_overall['build']})"))
+    if any(runtime_state(m, runtimes, offered, True)[2] in ("outdated", "missing", "rebuilt")
+           for m in {d["ios"] for d in config}):
+        print(dim("\n  → bin/simulators runtimes --download"))
+    return 0
+
+
+def cmd_setup(args):
+    config = select(load_config(args.config), args.only)
+
+    if args.download:
+        print("Checking Apple for newer runtimes…")
+        sync_runtimes(config, args)
+        print("")
+
+    runtimes = installed_runtimes()
+    devices_by_runtime = simctl_json("list", "devices")["devices"]
+
+    print("Devices")
+    resolved = []
+    for entry in config:
+        name, major = entry["name"], entry["ios"]
+        rt = latest_runtime_for_major(major, runtimes)
+        if not rt:
+            die(f"no iOS {major}.x runtime installed — try bin/simulators setup --download")
+        dev = find_device(name, rt["identifier"], devices_by_runtime)
+        if dev:
+            print(f"  exists   {name:<24} {rt['name']:<9} {dim(dev['udid'])}")
+            udid = dev["udid"]
+        elif args.dry_run:
+            print(f"  would create {name} on {rt['name']}")
+            continue
+        else:
+            device_type = device_type_for(name, rt)
+            udid = run(["xcrun", "simctl", "create", name, device_type,
+                        rt["identifier"]]).stdout.strip()
+            print(f"  created  {name:<24} {rt['name']:<9} {dim(udid)}")
+        resolved.append((name, udid))
+
+    print("\nFiles")
+    for name, udid in resolved:
+        dest = storage_dir(udid)
+        if not dest and not args.no_boot and not args.dry_run:
+            dest = bootstrap_storage(udid, name, args.keep_booted)
+        if not dest:
+            print(f"  {yellow('·')} {name}: local storage not initialised"
+                  f"{' (--no-boot)' if args.no_boot else ''}")
+            continue
+        if files_installed(dest) and not args.force:
+            print(f"  {green('✓')} {name}: already provisioned")
+            continue
+        if not args.dry_run:
+            dest.mkdir(parents=True, exist_ok=True)
+        n = install_files(dest, args.dry_run)
+        print(f"  {green('✓')} {name}: {n} file(s) installed")
+
+    print(f"\n{green('Done.')} bin/simulators status to verify.")
+    return 0
+
+
+def cmd_files(args):
+    config = select(load_config(args.config), args.only)
+    for entry, rt, dev in resolve_all(config):
+        name = entry["name"]
+        if not dev:
+            print(f"  {yellow('·')} {name}: not created — run bin/simulators setup")
+            continue
+        dest = storage_dir(dev["udid"])
+        if not dest:
+            print(f"  {yellow('·')} {name}: no local storage — run bin/simulators setup")
+            continue
+        n = install_files(dest, args.dry_run)
+        print(f"  {green('✓')} {name}: {n} file(s) installed")
+    return 0
+
+
+def cmd_cleanup(args):
+    config = load_config(args.config)
+    runtimes = installed_runtimes()
+    to_delete, unneeded, orphans, _ = plan_cleanup(config, runtimes)
+    label = "" if args.delete else "DRY RUN — "
+
+    if to_delete:
+        print(f"{label}{len(to_delete)} device(s) to delete:\n")
+        current = None
+        for runtime, name, udid in sorted(to_delete):
+            if runtime != current:
+                print(f"  {runtime}")
+                current = runtime
+            print(f"    {name}  ({udid})")
+    else:
+        print("No devices to delete.")
+
+    if args.runtimes:
+        if unneeded:
+            sizes = runtime_sizes()
+            print(f"\n{label}{len(unneeded)} runtime(s) to delete:\n")
+            for r in unneeded:
+                print(f"  {r['name']}  {human_size(sizes.get(r['identifier'], 0))}")
+        else:
+            print("\nNo runtimes to delete.")
+    elif unneeded:
+        print(f"\n{len(unneeded)} installed runtime(s) are unused by the config "
+              f"({', '.join(r['name'] for r in unneeded)}).")
+        print(dim("  Keeping them — pass --runtimes to delete (re-download is multi-GB)."))
+
+    if orphans:
+        print(f"\n{label}{len(orphans)} orphaned director{'y' if len(orphans) == 1 else 'ies'}:")
+        for p in sorted(orphans):
+            print(f"  {p.name}")
+
+    if not args.delete:
+        total = len(to_delete) + len(orphans) + (len(unneeded) if args.runtimes else 0)
+        print(f"\nRun with --delete to remove {total} item(s), plus stale device records.")
+        return 0
+
+    if not args.yes:
+        try:
+            if input("\nProceed with deletion? [y/N] ").strip().lower() not in ("y", "yes"):
+                print("Aborted.")
+                return 1
+        except EOFError:
+            die("not a terminal — pass --yes")
+
+    apply_cleanup(to_delete, unneeded, orphans, args.runtimes)
+    print("Done.")
+    return 0
+
+
+def cmd_update(args):
+    print("Runtimes")
+    config = load_config(args.config)
+    if args.download:
+        sync_runtimes(config, args)
+    else:
+        index = fetch_index(offline=args.offline, refresh=args.refresh)
+        offered = downloadable_runtimes(index, args.include_prereleases)
+        runtimes = installed_runtimes()
+        for major in sorted({d["ios"] for d in config}):
+            _, newest, verdict = runtime_state(major, runtimes, offered, index is not None)
+            if verdict in ("outdated", "missing", "rebuilt"):
+                print(f"  iOS {major}: newer offered ({newest['version']}) "
+                      f"— re-run with --download to fetch it")
+            else:
+                print(f"  iOS {major}: {verdict}")
+    print("")
+    cmd_setup(args)
+    print("")
+    cmd_cleanup(args)
+    return 0
+
+
+def cmd_resolve(args):
+    config = load_config(args.config)
+    if args.role:
+        matches = [d for d in config if d.get("screenshots") == args.role]
+        if not matches:
+            die(f"no device with screenshots: {args.role} in {args.config}")
+        entry = matches[0]
+    else:
+        matches = [d for d in config if d["name"] == args.name]
+        if not matches:
+            die(f"no device named {args.name!r} in {args.config}")
+        entry = matches[0]
+
+    runtimes = installed_runtimes()
+    rt = latest_runtime_for_major(entry["ios"], runtimes)
+    if not rt:
+        die(f"no iOS {entry['ios']}.x runtime installed for {entry['name']}")
+    dev = find_device(entry["name"], rt["identifier"], simctl_json("list", "devices")["devices"])
+    if not dev:
+        die(f"{entry['name']} does not exist on {rt['name']} — run bin/simulators setup")
+    # Only the UDID goes to stdout, so callers can capture it directly.
+    print(f"{entry['name']} ({rt['name']})", file=sys.stderr)
+    print(dev["udid"])
+    return 0
+
+
+def cmd_boot(args):
+    for entry, rt, dev in resolve_all(select(load_config(args.config), args.only)):
+        if not dev:
+            print(f"  {yellow('·')} {entry['name']}: not created")
+            continue
+        run(["xcrun", "simctl", "bootstatus", dev["udid"], "-b"], capture=not VERBOSE)
+        print(f"  {green('✓')} {entry['name']} booted")
+    return 0
+
+
+def cmd_shutdown(args):
+    for entry, rt, dev in resolve_all(select(load_config(args.config), args.only)):
+        if dev:
+            run(["xcrun", "simctl", "shutdown", dev["udid"]], check=False)
+            print(f"  {green('✓')} {entry['name']} shut down")
+    return 0
+
+
+# ── CLI ────────────────────────────────────────────────────────────────────────
+
+EPILOG = """\
+typical workflows
+  fresh Mac                 bin/simulators setup --download
+  Apple shipped a new iOS   bin/simulators update --download --delete
+  check what's going on     bin/simulators status
+  after editing examples/   bin/simulators files
+  reclaim disk space        bin/simulators cleanup   →   cleanup --delete
+  before screenshots        bin/simulators status --strict
+
+configuration — bin/simulators.yaml is the single source of truth
+  - name: iPhone 17 Pro Max     exact simulator name (xcrun simctl list devicetypes)
+    ios: 26                     iOS major; the newest installed patch is used
+    screenshots: iphone         iphone | ipad — role for bin/run-screenshots; omit to skip
+
+  Devices are only ever kept on the newest installed patch of their major, so a
+  new iOS patch means: download it, recreate the devices, delete the old ones.
+  That whole sequence is `bin/simulators update --download --delete`.
+
+notes
+  · Nothing is downloaded unless you pass --download, and nothing is deleted
+    unless you pass --delete. Both prompt first unless you pass --yes.
+  · The update check reads Apple's public runtime index (the one Xcode uses)
+    and caches it for a day. It never blocks: if the network is down, status
+    still works and simply reports the check as unavailable. --offline skips it.
+  · Provisioning boots each new simulator once and launches the Files app, which
+    is what creates the local storage the UI tests load .ti59 files from.
+"""
+
+
+def build_parser():
+    p = argparse.ArgumentParser(
+        prog="bin/simulators",
+        description="Set up, update and clean up the iOS simulators this project tests on.",
+        epilog=EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    p.add_argument("--config", type=Path, default=CONFIG, help="path to simulators.yaml")
+    p.add_argument("--verbose", action="store_true", help="show every command run")
+    sub = p.add_subparsers(dest="command", metavar="<command>")
+
+    def add(name, func, help_text, *, only=False, net=False, download=False,
+            setup_flags=False, cleanup_flags=False, dry=False, yes=False):
+        sp = sub.add_parser(name, help=help_text, description=help_text,
+                            formatter_class=argparse.RawDescriptionHelpFormatter)
+        sp.set_defaults(func=func)
+        if only:
+            sp.add_argument("--only", metavar="TEXT", help="limit to devices matching TEXT")
+        if net:
+            sp.add_argument("--offline", action="store_true", help="skip the online update check")
+            sp.add_argument("--refresh", action="store_true", help="ignore the cached index")
+            sp.add_argument("--include-prereleases", action="store_true",
+                            help="count betas and RCs as newer")
+        if download:
+            sp.add_argument("--download", action="store_true",
+                            help="download newer runtimes for the configured iOS majors")
+        if setup_flags:
+            sp.add_argument("--no-boot", action="store_true",
+                            help="do not boot simulators to create their local storage")
+            sp.add_argument("--keep-booted", action="store_true",
+                            help="leave simulators running afterwards")
+            sp.add_argument("--force", action="store_true",
+                            help="reinstall example files even if already present")
+        if cleanup_flags:
+            sp.add_argument("--delete", action="store_true", help="actually delete (default: dry run)")
+            sp.add_argument("--runtimes", action="store_true",
+                            help="also delete installed runtimes no configured device needs")
+        if dry:
+            sp.add_argument("--dry-run", action="store_true", help="show what would happen")
+        if yes:
+            sp.add_argument("--yes", "-y", action="store_true", help="do not prompt")
+        return sp
+
+    sp = add("status", cmd_status, "Report what exists, what is provisioned, and what is stale.",
+             only=True, net=True)
+    sp.add_argument("--strict", action="store_true", help="exit non-zero if anything needs attention")
+
+    add("runtimes", cmd_runtimes, "List installed runtimes and what Apple offers.",
+        net=True, download=True, dry=True, yes=True)
+    add("setup", cmd_setup, "Create missing simulators and provision them with example files.",
+        only=True, net=True, download=True, setup_flags=True, dry=True, yes=True)
+    add("files", cmd_files, "Reinstall the example state files only.", only=True, dry=True)
+    add("cleanup", cmd_cleanup, "Delete simulators, stale records and orphans not in the config.",
+        cleanup_flags=True, yes=True)
+    add("update", cmd_update, "Refresh runtimes, recreate devices on them, then clean up.",
+        only=True, net=True, download=True, setup_flags=True, cleanup_flags=True, dry=True, yes=True)
+
+    sp = add("resolve", cmd_resolve, "Print the UDID of a configured simulator.")
+    g = sp.add_mutually_exclusive_group(required=True)
+    g.add_argument("--role", choices=["iphone", "ipad"], help="screenshots role from the config")
+    g.add_argument("--name", help="exact device name from the config")
+
+    add("boot", cmd_boot, "Boot the configured simulators.", only=True)
+    add("shutdown", cmd_shutdown, "Shut down the configured simulators.", only=True)
+    return p
+
+
+def main():
+    global VERBOSE
+    # Keep our output interleaved correctly with any subprocess we let stream.
+    sys.stdout.reconfigure(line_buffering=True)
+    parser = build_parser()
+    if len(sys.argv) == 1:
+        parser.print_help()
+        return 0
+    args = parser.parse_args()
+    if not getattr(args, "func", None):
+        parser.print_help()
+        return 0
+    VERBOSE = args.verbose
+    # Fill in flags a command does not define so shared helpers can read them.
+    for flag, default in (("only", None), ("offline", False), ("refresh", False),
+                          ("include_prereleases", False), ("download", False),
+                          ("dry_run", False), ("yes", False), ("no_boot", False),
+                          ("keep_booted", False), ("force", False), ("delete", False),
+                          ("runtimes", False), ("strict", False)):
+        if not hasattr(args, flag):
+            setattr(args, flag, default)
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        sys.exit(130)

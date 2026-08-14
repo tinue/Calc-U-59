@@ -90,8 +90,30 @@ Bit 1 of nibble 0 = mantissa sign; bit 2 = exponent sign.
 
 - The AOS (algebraic operating system) operator-precedence stack
 - Display state, pending operations, and intermediate results
-- The RAM/program partition pointer (SCOM[9][0])
+- Library/partition bookkeeping in SCOM[9]: nibble 15 = list-data flag,
+  nibbles 6–5 = current library program ("current page"), 4–3 = pending
+  `Pgm nn` selection ("new page"), 2 = module security code, 1 = number of
+  RAM chips (4 on the TI-59), 0 = the RAM/program partition pointer
+  (program-partition register count / 10, set by `OP 17`)
 - ALU addressing during STO/RCL sequences
+- The 6-level subroutine return stack: SCOM[15] holds levels 1–3, SCOM[14]
+  levels 4–6, and SCOM[15] nibble 0 the number of pushed levels (F after the
+  error-halt reset at ROM 0x11E1 = "empty"; the next push restarts at
+  depth 1).  Each level is a 5-nibble entry, from its lowest nibble upward:
+  the caller's Prg Src Flag, then a 4-digit BCD position LSD-first — RAM
+  register number · 10 + byte number for RAM-program and keyboard callers,
+  or the 4-digit "second ROM" (CROM) address for library callers.
+  Pushed on every calculator-level call: `SBR` into a RAM or library
+  program, and launches of keycode-ROM sub-programs such as P→R (push
+  routine at ROM 0x0D50).  Examples: a keyboard caller at step 008 pushes
+  source 0 · position 0010 (register 001, byte 0), giving SCOM[15] =
+  `…001001`; a library caller at CROM address 0040 pushes source 1 ·
+  position 0040, giving level nibbles `…00401`
+
+The SCOM[9] and SCOM[14]/[15] layouts follow the SCOM register table in
+"Calculators TI-58/59 HW programming guide" by Hynek Sladký
+(`TI_58_59-HW-manual.pdf`, not in this repository), trace-verified in
+`memory/sbr444-quirk-analysis.md`.
 
 SCOM also contains a **64-entry constant table** (entries 0–15 = mathematical
 constants for transcendental functions; entries 16–63 = keystroke display codes
@@ -148,6 +170,24 @@ via `OP 17` (stored in SCOM[9][0] as `n/10`).  The factory default is
   at the other end — data registers live in the upper 60).
 - **TI-59** uses all 120 registers.
 
+**STO/RCL can't reach every register.** `STO`/`RCL` take exactly two decimal
+digits, so a user-addressable register number is always 00–99 — 100 possible
+numbers, not 120. Since data registers descend from the top (`R00 = RAM[119]`
+down to `R99 = RAM[20]`), the 20 lowest physical registers (`RAM[0..19]`) can
+never hold a numbered variable on the TI-59, no matter where the partition
+boundary sits — they're either program steps or unused. (TI-58/58C never hit
+this ceiling: 60 registers total means every one of `R00`–`R59` is reachable.)
+
+**Moving the partition boundary (`2nd Op 17`) is usually non-destructive.**
+Steps and registers occupy the *same* physical `RAM[n]` cell from opposite
+ends, but nothing is erased when `n` changes — a register that held a
+variable simply becomes readable as program steps (typically decoding as
+garbage keycodes) if the boundary moves past it, and moving the boundary back
+restores the original variable value intact. This is why re-partitioning at
+runtime is a normal, safe operation on real hardware, not just an emulator
+convenience — as long as nothing actually *writes* into the reclaimed cell
+while it's on the other side of the boundary, the old value comes back.
+
 **Memory-size autodetection.** The TI-59 and the plain TI-58 load the *same*
 ROM image — the identical three chips `TMC0582` / `TMC0583` / `TMC0571B`,
 including the `0x1400–0x17FF` constant block and the card-reader firmware (the
@@ -167,6 +207,47 @@ reads back its written value while the TI-58 reads `0`, which flips the
 jump (skipping the accumulate, → 60-register partition) while the TI-59 falls
 through (→ 120-register partition).  See the annotated reset listing
 `rom/TI59-commented.asm` at `0x0377`.
+
+### TI-58C Extra (Constant Memory) Registers
+
+The TI-58C has **60 addressable registers, exactly like the TI-58** — plus 4
+more raw RAM cells (`RAM[60]`–`RAM[63]`) that exist *outside* that addressable
+space entirely. Do not think of them as "registers 60–63"; nothing in this
+codebase should call them that. They:
+
+- are never reachable via `STO`/`RCL` — the ROM's register addressing on this
+  variant only ever produces 00–59;
+- can never be program steps and never participate in partitioning — `OP 17`
+  only ever moves the boundary within the 60-register space;
+- are read/written only by the dedicated `MEMWR`/`MEMRD` opcodes (see
+  "Two-Cycle Memory Operations" below), which address raw RAM directly and
+  are TI-58C-only instructions (the TI-59/TI-58 ROM never emits them);
+- persist as constant memory (`serialiseRAM`/`deserialiseRAM`) alongside the
+  60 normal registers, and so must be loadable/saveable through the state
+  file and debug tooling like any other stored value.
+
+**Naming convention used throughout this codebase:** call them **E000–E003**
+when referring to them as RAM storage (e.g. in code comments about raw RAM
+indices), and **H00–H03** when referring to them as state-file or debugger
+*variables* (matching `reference/StateFileFormat.md`'s `HNN =` syntax and the
+debugger's `H##` display labels). `MachineModel.extraRegisterBase` (`= 60`,
+Swift) is the one place the raw-index constant `60` should appear — every
+other call site should go through it or through `isHidden`-style explicit
+tagging, never re-derive "is this an extra register" from a register
+*number* being `>= 60`, since normal TI-59 registers legitimately go up to 99
+(see "STO/RCL can't reach every register" above) and would collide with that
+test.
+
+Despite this separation at the state-file/debugger level, **the ROM's own
+addressing is uniform**: `MEMWR`/`MEMRD` compute a raw RAM index the same way
+for the whole 0–63 range, so a program that inserts steps in a way that
+shifts data upward can "hack" its way into `RAM[60..63]` even though the
+calculator's normal UI (`STO`/`RCL`) never lets a user address them directly.
+The C++ core's RAM model is correct as-is — `RAM::setLimit(64)` for TI-58C,
+guarded only by `RAM_ADDR < ram.size()` — this section is about the
+*vocabulary* higher layers (state-file loader, debugger, tracer) must use
+when talking about that same raw range, not about changing how the hardware
+itself addresses it.
 
 ### SCOM (TMC0571)
 
@@ -301,7 +382,7 @@ heavy computation.
 
 ---
 
-## Keyboard Matrix
+## Keyboard Matrix and Scanning
 
 ```cpp
 key[col]  // bitmask; col = digit-counter slot (0–15)
@@ -310,15 +391,88 @@ key[col]  // bitmask; col = digit-counter slot (0–15)
 Keyboard rows connect at digit-counter slots 1–9 (D1–D9).  Each slot's bitmask
 encodes which K-lines are pressed (KN=bit 0 … KT=bit 6).
 
-Special keys assigned outside the main matrix:
+### Scanning model: the digit counter is the only scanner
 
-| col | bit | Signal |
+There is exactly one scanner in the machine: the free-running 4-bit digit
+counter (15→14→…→1→0→15, one step per instruction cycle — see the step
+pipeline above).  It simultaneously drives the LED display multiplex and the
+keyboard row strobe; display refresh *is* the keyboard strobe.  No instruction
+scans anything by itself — instructions only *sample* the matrix at whatever
+row the counter happens to be strobing, or stall until the counter reaches a
+chosen row.
+
+The matrix is digit lines × K-lines:
+
+- **Digit lines** — the strobed side.  Exactly one is active per cycle (the
+  one matching the counter); it selects the row.
+- **K-lines KN…KT** — 7 sense lines, all readable **in parallel**.  A pressed
+  key in the strobed row pulls its K-line active.
+
+So time-scanning happens only across digits (rows); the K-line dimension is
+sampled all at once.  In the emulator this collapses to reading `key[digit]`.
+
+### Instructions that attend to the scan lines
+
+These are the only opcodes that read the K-lines or synchronize with the digit
+counter (`TMC0501.cpp`, opcode groups `0x0800` and `0x0A00`):
+
+| Mnemonic | Cycles | What it does |
 |---|---|---|
-| 10 (TI-59) or 7 (TI-58/58C) | 4 | Card-switch (high = card absent) |
-| 0 | 2 | PRN_CONNECTED (printer present — KP.D0; checked by test-row ?KEY at digit=0; **invisible to scan-all**) |
-| 12 | 2 | Printer PRINT button |
-| 12 | 0 | Printer ADV button |
-| 15 | 2 | Printer TRACE mode |
+| `KEY […] ALL` (scan-all) | HOLDs | Re-executes every cycle, riding the counter down one row per cycle. Stops when a masked-in K-line is active at the current row (→ COND cleared, `KR` register loaded) or when the counter reaches digit 0 (→ no key, COND stays 1). Digit 0 is a termination sentinel and is **not** sampled. |
+| `KEY […]` (test-row) | 1 | Samples only the currently strobed row against the mask; clears COND on a hit. **Never writes the `KR` register.** |
+| `TST.BUSY` | 1 | Clears COND if bit 4 (the KR *line*) is active at the current row, **or** if the printer-busy flip-flop is set. Effectively a test-row probe for the one K-line that `KEY` masks always exclude. |
+| `WAIT Dn` | HOLDs | Pure synchronizer: stalls until the counter equals *n*. Reads no K-lines itself — its job is to make the *next* instruction execute at a known row. |
+| `WAIT.BUSY` | 1 | Undocumented; treated as a no-op by the emulator. |
+
+The bracket list in a `KEY` mnemonic is the K-line mask — which sense lines
+participate.  The idle-loop scan `KEY [N,O,P,Q,S,T] ALL` deliberately omits
+the KR line, because that line carries peripheral signals (card switch), not
+keys.
+
+**`WAIT` off-by-one:** the counter decrements *before* each instruction
+executes, so the instruction after `WAIT Dn` runs at digit **n−1**.  ROM code
+therefore always encodes target+1: `WAIT D11` + `TST.BUSY` samples digit 10;
+`WAIT D1` + `KEY [P]` samples digit 0.
+
+**`KR` register load format** (scan-all hit only):
+
+```
+KR = (digit << 4) | (K-line index << 8)
+      bits 7:4 = row (digit 1–9)     bits 10:8 = column (0=KN … 6=KT)
+```
+
+The ROM decodes the row with `TST KR[4]`…`TST KR[7]` after a hit.  If no key
+is found, `KR` keeps its previous content.  If two masked-in K-lines are
+active in the same row at once, the hit is discarded (multi-key rejection,
+mirroring the hardware limitation).
+
+### The two ROM idioms
+
+| Goal | Idiom | Why |
+|---|---|---|
+| Scan the whole keyboard | `WAIT D14` + `KEY […] ALL` | Align to the top of the sweep, then let the scan ride the counter down through rows 13…1 |
+| Probe one specific signal | `WAIT Dn+1` + single-cycle probe (`KEY […]` test-row, or `TST.BUSY`) | Random access to one matrix cell: park until the right row is strobed, sample once |
+
+A `WAIT` before a scan-all is not needed for correctness (the scan always
+terminates at digit 0) but guarantees full row coverage; a `WAIT` before a
+test-row probe is essential, since the probe samples whatever row is strobed
+at that instant.
+
+### Non-keyboard digits of importance
+
+Peripheral signals piggyback on matrix positions outside rows 1–9 (or on the
+excluded KR line).  Whether the idle scan can see them depends on where they
+sit relative to the scan window (rows 13…1) and the scan's K-line mask:
+
+| col | bit (K-line) | Signal | How the ROM samples it |
+|---|---|---|---|
+| 10 (TI-59) | 4 (KR) | Card switch (high = card absent) | `WAIT D11` + `TST.BUSY` in the idle loop (ROM `0x063E`); on the KR line, so invisible to scan-all |
+| 7 (TI-58/58C) | 4 (KR) | Held high by the emulator so the firmware's second card poll (ROM `0x0459`, `WAIT D8` + `TST.BUSY`) always vetoes the card path — the TI-58/58C have no card reader. Real-hardware wiring of this line is unverified. | `WAIT D8` + `TST.BUSY` |
+| 0 (TI-59/58) | 2 (KP) | PRN_CONNECTED (printer present) | `WAIT D1` + test-row `KEY [P]` at digit 0 — the scan-all sentinel digit, so **invisible to scan-all** by design |
+| 10 (TI-58C) | 2 (KP) | PRN_CONNECTED — the TI-58C PCB routes the detect pin to a different digit line | `WAIT D11` + test-row `KEY [P]` |
+| 12 | 2 (KP) | Printer PRINT button | Inside the scan window and on a masked-in line → the idle scan-all reports it like an ordinary key at row 12 |
+| 12 | 0 (KN) | Printer ADV button | Same — ordinary scan-all hit at row 12 |
+| 15 | 2 (KP) | Printer TRACE mode (physical latch) | Above the scan window (rows 15/14 are never strobed by the idle scan) → dedicated targeted poll in the keystroke/print path |
 
 ---
 
@@ -414,6 +568,7 @@ since solid-state programs never move the SCOM[0] step counter.
 | 0 | Keyboard / RAM program |
 | 1 | Library program executing — CROM counter is live |
 | 2 | Transitional "suspended library" return: the RTN handler popped a saved level `[2][4-digit CROM addr]` into SCOM[0]; the next dispatch reloads the CROM PC via OUT LIB_PC ×4 and sets source back to 1 |
+| 4 | Fast mode |
 | 8 | Keycode-ROM sub-program (e.g. P→R) called from a library program; SCOM PC is used, `m_libExecPC` holds |
 
 Source 2 exists because a library caller cannot be pushed as source 1: source 1
@@ -489,7 +644,11 @@ the write path in `step()` is unsynchronised (emulation-thread-only).
 |---|---|---|---|
 | ROM words | 6144 | 5120 | 5120 |
 | RAM registers | 120 | 60 | 60 |
-| Card reader | Yes (slot 10) | No (slot 7, unused) | No (slot 7, unused) |
+| Card reader | Yes (switch on slot 10) | No (slot 7 held high to veto the card path) | No (slot 7 held high to veto the card path) |
 | Library module | Yes | Yes | Yes |
 | Persistent RAM | No | No | Yes (`serialiseRAM`) |
 | Magnetic card slot | digit 10 | — | — |
+
+**TI-58C memory instructions**: uses dedicated opcodes `0xA76` (MEMWR) and
+`0xA86` (MEMRD) instead of TI-59/TI-58's generic `RAM_OP` (`0xAF8`).
+`TMC0501.cpp` checks the machine variant to distinguish these.

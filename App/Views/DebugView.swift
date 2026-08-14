@@ -40,6 +40,10 @@ struct DebugView: View {
         .onChange(of: vm.asmOverlayActive) { _, active in
             if active { vm.debugTab = .cpu }
         }
+        // Applies to every default-style Button in this subtree (tab bar,
+        // CPUInspectorView, LiveDebugView, ASMDebugContent, StaticDebugContent) —
+        // see ChromeButtonStyle in ChromeControlStyles.swift.
+        .buttonStyle(ChromeButtonStyle())
     }
 
     private func tabButton(_ label: String, _ tab_: DebugTab) -> some View {

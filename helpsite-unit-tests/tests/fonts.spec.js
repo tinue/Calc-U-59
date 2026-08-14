@@ -50,10 +50,10 @@ test('no Google Fonts requests on any page', async ({ page }) => {
     }
   });
 
-  // Check every page that has a distinct hash route
-  const hashes = ['', '#home', '#start', '#ref', '#faq', '#modules', '#debugger'];
-  for (const hash of hashes) {
-    await page.goto('/index.html' + hash);
+  // Check every page that has a distinct real route (routes.js).
+  const paths = ['/', '/getting-started/', '/reference/', '/faq/', '/modules/', '/debugger/'];
+  for (const path of paths) {
+    await page.goto(path);
     await page.waitForSelector('main');
   }
 

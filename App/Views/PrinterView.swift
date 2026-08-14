@@ -197,6 +197,7 @@ struct PrinterView: View {
                 }
                 .disabled(viewModel.printerLines.isEmpty)
             }
+            .buttonStyle(ChromeButtonStyle())
             .padding(.horizontal, 12)
             .frame(maxWidth: .infinity)
             .frame(height: 50)

@@ -10,6 +10,14 @@ Goal: run a controlled calculator lifecycle (turn on → press key → capture t
 
 **How to apply:** Use this as the blueprint when implementing the headless runner or any scripted/automated emulator control.
 
+**Related:** `TODO.md`'s "CMake build" and "Headless / REST API" items are this
+same goal from the wishlist side. `reference/NewGUIGuide.md` documents a
+second, already-implemented precedent for building `Core/` standalone and
+cross-platform — `tools/build_wasm.sh` compiles `Core/` unmodified to
+WebAssembly via Emscripten, no CMake involved — worth reading before
+committing to the CMake approach below, since it demonstrates the core is
+already portable without it.
+
 ---
 
 ## New Files (zero changes to existing files)

@@ -1,0 +1,67 @@
+# Printer timing issues
+#
+
+MODEL: TI-59
+PRINTER: on
+
+PROGRAM:
+
+76 11 99 98 99 98 99 98 99 98 99 98 99 98 99 98 99 98 99 98 99 98 99 98 99 98 91
+76 12 98 98 98 91
+
+KEYSTROKES:
+# --- Via program first, regular speed ---
+RegularSpeed:
+25 # CLR
+ZeroElapseTime:
+11 # A
+ReportElapseTime:
+
+# --- Intra-test Adv ---
+FullSpeed:
+12
+
+# --- Via program, full speed ---
+25   # CLR
+63   # 8
+63   # 8
+FullSpeed:
+ZeroElapseTime:
+11   # A
+ReportElapseTime:
+
+# --- Intra-test Adv ---
+FullSpeed:
+12
+
+# --- Regular speed via keypress ---
+RegularSpeed:
+25 # CLR
+ZeroElapseTime:
+21 94           # Prt
+21 93           # Adv
+21 94           # Prt
+21 93           # Adv
+21 94           # Prt
+ReportElapseTime:
+
+# --- Intra-test Adv ---
+FullSpeed:
+12
+
+# --- Full speed via keypress ---
+FullSpeed:
+25   # CLR
+63   # 8
+63   # 8
+ZeroElapseTime:
+21 94           # Prt
+RegularSpeed:
+21 93           # Adv
+FullSpeed:
+21 94           # Prt
+RegularSpeed:
+21 93           # Adv
+FullSpeed:
+21 94           # Prt
+ReportElapseTime:

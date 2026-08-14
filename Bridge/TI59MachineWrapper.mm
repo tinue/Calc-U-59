@@ -117,6 +117,10 @@ static const int kbits[] = {0, 1, 2, 3, 5, 6};  // index 0 unused; index col
     return _machine->libExecPC();
 }
 
+- (uint64_t)elapsedTicks {
+    return _machine->elapsedTicks();
+}
+
 - (void)insertCard:(NSData*)data {
     if (data.length > 0)
         _machine->insertCard((const uint8_t*)data.bytes, data.length);

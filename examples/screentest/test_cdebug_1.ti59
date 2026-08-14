@@ -26,9 +26,9 @@ KEYSTROKES:
 92      # 0
 82      # 1    → Pgm 01 selected
 71      # SBR
+FullSpeed:  # = below runs the diagnostic, which takes a while — race through it
 95      # =    → run Leisure Library diagnostic program
-
-WaitFullSpeed: 1s   # run emulator at full speed; Diagnostic would run for a while otherwise
+RegularSpeed:
 
 99      # TRACE on  (virtual button press — toggles printer trace latch)
 21      # 2nd

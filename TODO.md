@@ -11,23 +11,24 @@ Unsorted collection of ideas, bugs, observations etc.
 - **Enable/disable persistency** - For TI-58/59 (TI-58C always is persistent by design)
 
 ## UI
-- **Keyboard support** Number keys, operators, "Enter" to trigger "=" etc.
-- **Keyboard support** for debugging panels
+- **Unified Mac input surface** — the target design: on macOS the whole window is one keyboard surface, every key has exactly one meaning, and focus stops being a concept. The three panels only remain separate because iPhone portrait swipes between them, which is a layout concern, not an input one. Today's `KeyboardView` focus scoping (`PhysicalKeyboardModifier`) is a stepping stone toward this, and it has a live rough edge in the meantime: clicking the debug panel silently stops keys reaching the calculator, with no indicator — the focus ring was removed rather than made visible, because indicating focus is not where this is heading.
+- **Keyboard support** for debugging panels — the calculator itself is done (macOS app and `docs/#play`, see `reference/AppArchitecture.md` § "Physical Keyboard Mapping"); the debug panels and the printer were deliberately left out. On macOS all three panels are visible at once, so Space (R/S vs. STEP) and ⌘C/⌘X (printer tape vs. selected debugger text) have no unambiguous owner. Resolved by the unified surface above: one meaning per key settles the ownership question instead of arbitrating it per panel.
+- **Keyboard support on iPadOS** — an iPad with a hardware keyboard is a plausible case the current macOS-only gating excludes. The map and the view-model machinery are already platform-neutral; only `KeyboardView`'s `#if os(macOS)` and a focus story for the portrait page navigation would need work.
 
 ## Debugger
 ### CPU Debugger
-- **Break points** Support break points (e.g. register content, IDLE-RUN change, PGM counter, and more)
-- **Latch keyboard entries** Support catching a keypress in single step mode
+- **Break points** PC-based breakpoints are fully implemented end to end (`TI59Machine`/`EmulatorViewModel`/`reference/DebugAPI.md` § "Breakpoints") with a working UI already written in `CPUDebugView.swift` — it just isn't wired into the app's navigation (see `ideas/Redesign.md` item 9). Remaining work here is narrower than it sounds: wire up (or rebuild) that UI, then extend to conditional triggers (register content, IDLE-RUN change, and more) which genuinely don't exist yet.
+- **Latch keyboard entries** Support catching a keypress in single step mode — see `ideas/KeypressLatch.md` for the existing design proposal.
 
 ### Calculator Debugger
-- **Break points** Support break points (e.g. STO content, t content, PGM step)
-- **Latch keyboard entries** Support catching a keypress in single step mode
+- **Break points** Support break points (e.g. STO content, t content, PGM step) — unlike the CPU Debugger, nothing exists here yet, not even PC-level.
+- **Latch keyboard entries** Support catching a keypress in single step mode — see `ideas/KeypressLatch.md`.
 
 ## Various
 - **Event callbacks** — push notifications for display updates and register changes, replacing the current polling model.
 - **Card stacking** — a queue of cards fed automatically on successive read/write requests, for programs that use multiple cards.
-- **CMake build** — standalone build targeting the C++ core, enabling headless use and non-macOS platforms.
-- **Headless / REST API** — full GUI decoupling to enable scripted research workflows and alternative frontends.
+- **CMake build** — standalone build targeting the C++ core, enabling headless use and non-macOS platforms. See `memory/headless.md` for a Python/CMake-based plan, and `reference/NewGUIGuide.md` for the WASM build's already-working precedent of building `Core/` standalone without CMake.
+- **Headless / REST API** — full GUI decoupling to enable scripted research workflows and alternative frontends. See `memory/headless.md` and `reference/NewGUIGuide.md`.
 - **Frozen** - Visually indicate when the calculator is frozen in one of the debuggers (mostly useful on iPhone, where only one panel is visible at a time)
 
 ## Far out (if ever)
