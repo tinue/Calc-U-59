@@ -612,6 +612,32 @@ Wait: 2s
 92   0
 92   0`;
 
+  const cueCardLabelExample = `CUECARD:
+Template: MagnetCard
+Title: Roots & Powers
+Banks: 1, 2
+A: \\sqrt x
+B: x^{2}
+C: 1/x
+D: x \\to y
+E: \\blank
+A': \\sum x_{i}
+B': \\xbar
+C': n
+D': \\blank
+E': \\blank`;
+
+  const cueCardRowExample = `CUECARD:
+Template: CueCard
+Title: Compound Interest
+Row1: Enter n, i, PV — press B for FV
+Row1Align: center
+Row2: RPN 5.1
+Row2R: p. 3
+Row2Align: left
+Row2RAlign: right
+Style: button`;
+
   return (
     <main className="wrap-narrow">
       <p className="eyebrow">Files</p>
@@ -647,6 +673,112 @@ Wait: 2s
             reference/StateFileFormat.md →
           </a>
         </p>
+      </div>
+
+      <h2 id="labeling-keys" className="section" style={{ marginTop: 24 }}>Labeling the A–E and A′–E′ keys</h2>
+      <div className="panel" style={{ padding: 20, lineHeight: 1.7 }}>
+        <p style={{ marginTop: 0 }}>
+          The five plain keys (<strong>A–E</strong>) and their 2nd-function row
+          (<strong>A′–E′</strong>) are exactly what real TI-59/58/58C cards
+          label. A <strong>CUECARD:</strong> section can do the same thing
+          on-screen — either as its own row of short per-key labels, or as one
+          line of running text across the whole row.
+        </p>
+        <p>
+          <strong>Template</strong> picks the background art and layout, and
+          matches the real card it stands in for. On the real hardware,
+          magnetic cards have a writable label area on the front and a
+          magnetic coating on the back for the program; use{" "}
+          <strong>MagnetCard</strong> if the state file is meant to end up
+          written onto one (it also shows the <strong>Banks</strong> page
+          badges). The TI-58 and TI-58C have no card reader, so their owners
+          documented manually re-entered programs on cards with the same kind
+          of writable front but no magnetic back — use{" "}
+          <strong>CueCard</strong> for that case, or for any file that just
+          wants an on-screen label without card art. Which of the two you pick
+          for a given state file is mostly personal preference, except when
+          the file is a step toward an actual magnetic card — then use{" "}
+          <strong>MagnetCard</strong> to match. <strong>SolidStateCard</strong>{" "}
+          reproduces the pre-printed cards that shipped with a Solid State
+          Software module; real ones can't be edited by the module's user, and
+          in the emulator they're normally only touched by the project's
+          developer to document a built-in module — reach for it yourself
+          only if you're prototyping your own module (it shows an{" "}
+          <strong>ID</strong> like <code>ML-01</code> instead of Banks).
+        </p>
+        <p>
+          Set fields <strong>A</strong> through <strong>E</strong> for the
+          plain-key row, and <strong>A′</strong> through <strong>E′</strong>{" "}
+          (a straight apostrophe also works: <code>A'</code>) for the
+          2nd-function row. Leaving <strong>Row1</strong> or <strong>Row2</strong>{" "}
+          out entirely is what makes that row show the label grid instead of a
+          line of text — if you fill in Row1/Row2, the individual A–E labels for
+          that row are not shown.
+        </p>
+        <p style={{ marginBottom: 0 }}>
+          <strong>Row1</strong> replaces the A′–E′ grid with one line of
+          running text, and <strong>Row2</strong> does the same for the A–E
+          grid. <strong>Row2R</strong> is a second piece of text placed on the
+          same line as Row2, right-aligned against it — handy for something
+          like a page number or units note that shouldn't compete with the
+          main label for space. Each of the three has its own alignment
+          field — <strong>Row1Align</strong>, <strong>Row2Align</strong>,{" "}
+          <strong>Row2RAlign</strong> — set to <code>left</code> (the
+          default), <code>center</code>, or <code>right</code>.{" "}
+          <strong>Style</strong> is <code>none</code> by default, or{" "}
+          <code>button</code> to draw a border around the Row1/Row2/Row2R
+          text, mimicking the boxed instruction labels real cards use.
+        </p>
+      </div>
+
+      <div className="panel" style={{ padding: 20, marginTop: 12 }}>
+        <pre style={{
+          margin: 0,
+          padding: 16,
+          borderRadius: 8,
+          background: "var(--bg-inset)",
+          color: "var(--fg)",
+          overflowX: "auto",
+          lineHeight: 1.5,
+          fontSize: 13,
+        }}>{cueCardLabelExample}</pre>
+      </div>
+
+      <div className="panel" style={{ padding: 20, marginTop: 12 }}>
+        <pre style={{
+          margin: 0,
+          padding: 16,
+          borderRadius: 8,
+          background: "var(--bg-inset)",
+          color: "var(--fg)",
+          overflowX: "auto",
+          lineHeight: 1.5,
+          fontSize: 13,
+        }}>{cueCardRowExample}</pre>
+      </div>
+
+      <div className="panel" style={{ padding: 20, lineHeight: 1.7, marginTop: 12 }}>
+        <p style={{ marginTop: 0 }}>
+          A short set of LaTeX-style shortcuts expand to the Unicode symbols
+          real TI-59 cards use in labels, so you don't need a Unicode picker —
+          for example <code>\to</code> becomes an arrow, <code>\sqrt</code>{" "}
+          becomes a root sign, <code>\sum</code> becomes Σ, and{" "}
+          <code>{"x^{2}"}</code> becomes <code>x²</code>. The full token table
+          is in <strong>reference/StateFileFormat.md</strong>.
+        </p>
+        <p style={{ marginBottom: 0 }}>
+          To make one label visually span more than one key position, set the
+          following cell(s) to <code>\blank</code> — for example{" "}
+          <code>{"D: \\blank"}</code> right after a filled-in <strong>C</strong>{" "}
+          merges D into C's column so the C label reads across both keys.
+        </p>
+      </div>
+
+      <h2 className="section" style={{ marginTop: 24 }}>Loading a labeled card</h2>
+      <div className="panel" style={{ padding: 20, lineHeight: 1.7 }}>
+        <p style={{ marginTop: 0 }}><strong>From a state file</strong> — Load State File on a <code>.ti59</code>/<code>.ti58</code>/<code>.ti58c</code> file with a CUECARD section; it's applied immediately and stays until you load something else or reset.</p>
+        <p><strong>Onto a virtual magnetic card</strong> — load a state file with the CUECARD you want active, then <strong>Write Magnetic Card</strong>: whatever cue card is on screen at that moment is saved into the card file along with the program or data. Reading that card back with <strong>Read Magnetic Card</strong> restores the label along with the contents.</p>
+        <p style={{ marginBottom: 0 }}><strong>By editing the card file directly</strong> — virtual card files are plain text too (see the FAQ entry on where they live), with the same <code>CUECARD:</code> syntax as a state file. Add or edit that section in a text editor and the label shows the next time the card is read.</p>
       </div>
 
       <div style={{ marginTop: 24 }}>
@@ -968,6 +1100,24 @@ function FaqPage({ onNav }) {
     {
       question: "Is there a faster way to read long printer output?",
       answer: "Yes. Copy or cut the output, and paste it into a text editor.",
+    },
+    {
+      question: "How do I create the cards that label the A-E and A'-E' keys?",
+      answer: (
+        <>
+          Add a <strong>CUECARD:</strong> section to a state file: set{" "}
+          <strong>Template</strong> to <code>MagnetCard</code> or{" "}
+          <code>CueCard</code>, then fill in fields <strong>A</strong>{" "}
+          through <strong>E</strong> and <strong>A′</strong> through{" "}
+          <strong>E′</strong> for the two key rows. Load that file (or write it
+          onto a virtual magnetic card to keep the label with the card) and it
+          appears on screen. See{" "}
+          <a href="/state-files/#labeling-keys" style={{ color: "var(--accent)", textDecoration: "none", borderBottom: "1px solid var(--accent)" }}>
+            Loading a state file → Labeling the A–E and A′–E′ keys
+          </a>{" "}
+          for the format, the math shortcuts, and the loading options.
+        </>
+      ),
     },
   ];
   return (
