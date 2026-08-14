@@ -657,6 +657,14 @@ Style: button`;
         }}>{stateFileExample}</pre>
       </div>
 
+      <div className="panel" style={{ padding: 16, marginTop: 12 }}>
+        <img
+          src="/assets/cuecard-single-label.png"
+          alt="MagnetCard cue card titled Example, with the Start label in the A key position and blank A′–E′ and B–E cells"
+          style={{ width: "100%", height: "auto", display: "block", borderRadius: 8 }}
+        />
+      </div>
+
       <div className="panel" style={{ padding: 20, lineHeight: 1.7, marginTop: 12 }}>
         <p style={{ marginTop: 0 }}><strong>PARTITION:</strong> sets the step split between program memory and data registers.</p>
         <p><strong>PROGRAM:</strong> accepts sparse step listings, numeric keycodes, and the <strong>...</strong> gap marker.</p>
@@ -744,6 +752,14 @@ Style: button`;
         }}>{cueCardLabelExample}</pre>
       </div>
 
+      <div className="panel" style={{ padding: 16, marginTop: 12 }}>
+        <img
+          src="/assets/cuecard-key-grid.png"
+          alt="MagnetCard cue card titled Roots and Powers, with per-key labels on both the A′–E′ and A–E rows, including a merged x → y span"
+          style={{ width: "100%", height: "auto", display: "block", borderRadius: 8 }}
+        />
+      </div>
+
       <div className="panel" style={{ padding: 20, marginTop: 12 }}>
         <pre style={{
           margin: 0,
@@ -755,6 +771,14 @@ Style: button`;
           lineHeight: 1.5,
           fontSize: 13,
         }}>{cueCardRowExample}</pre>
+      </div>
+
+      <div className="panel" style={{ padding: 16, marginTop: 12 }}>
+        <img
+          src="/assets/cuecard-row-text.png"
+          alt="CueCard titled Compound Interest, with a centered, boxed Row1 instruction line and left-aligned Row2 / right-aligned Row2R text below it"
+          style={{ width: "100%", height: "auto", display: "block", borderRadius: 8 }}
+        />
       </div>
 
       <div className="panel" style={{ padding: 20, lineHeight: 1.7, marginTop: 12 }}>

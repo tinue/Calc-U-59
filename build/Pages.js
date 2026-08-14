@@ -933,6 +933,21 @@ Style: button`;
   }, stateFileExample)), /*#__PURE__*/React.createElement("div", {
     className: "panel",
     style: {
+      padding: 16,
+      marginTop: 12
+    }
+  }, /*#__PURE__*/React.createElement("img", {
+    src: "/assets/cuecard-single-label.png",
+    alt: "MagnetCard cue card titled Example, with the Start label in the A key position and blank A\u2032\u2013E\u2032 and B\u2013E cells",
+    style: {
+      width: "100%",
+      height: "auto",
+      display: "block",
+      borderRadius: 8
+    }
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "panel",
+    style: {
       padding: 20,
       lineHeight: 1.7,
       marginTop: 12
@@ -992,6 +1007,21 @@ Style: button`;
   }, cueCardLabelExample)), /*#__PURE__*/React.createElement("div", {
     className: "panel",
     style: {
+      padding: 16,
+      marginTop: 12
+    }
+  }, /*#__PURE__*/React.createElement("img", {
+    src: "/assets/cuecard-key-grid.png",
+    alt: "MagnetCard cue card titled Roots and Powers, with per-key labels on both the A\u2032\u2013E\u2032 and A\u2013E rows, including a merged x \u2192 y span",
+    style: {
+      width: "100%",
+      height: "auto",
+      display: "block",
+      borderRadius: 8
+    }
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "panel",
+    style: {
       padding: 20,
       marginTop: 12
     }
@@ -1007,6 +1037,21 @@ Style: button`;
       fontSize: 13
     }
   }, cueCardRowExample)), /*#__PURE__*/React.createElement("div", {
+    className: "panel",
+    style: {
+      padding: 16,
+      marginTop: 12
+    }
+  }, /*#__PURE__*/React.createElement("img", {
+    src: "/assets/cuecard-row-text.png",
+    alt: "CueCard titled Compound Interest, with a centered, boxed Row1 instruction line and left-aligned Row2 / right-aligned Row2R text below it",
+    style: {
+      width: "100%",
+      height: "auto",
+      display: "block",
+      borderRadius: 8
+    }
+  })), /*#__PURE__*/React.createElement("div", {
     className: "panel",
     style: {
       padding: 20,
