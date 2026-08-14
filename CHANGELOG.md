@@ -1,5 +1,8 @@
 # Changelog
 
+## [1.7.0] - work in progress
+- **Error messages** File-load error alerts now show a title that matches what actually failed (state file, card, or ASM load/save) instead of always saying "ROM load error". A state file that isn't valid UTF-8 (e.g. saved with a curly quote or em dash in a non-UTF-8 encoding) now gets a specific explanation instead of a generic "Cannot read file."
+
 ## [1.6.0] - 2026-08-13
 
 - **Keyboard** The Mac app now takes input from a physical keyboard: the number keys, the yellow operation keys (`Esc` for CLR, `Enter` for `=`, `<` for +/−), the A–E function keys via `a`–`e`, and EE `(` `)` on `>` `(` `)`. `Shift`+`A`…`E` gives A′–E′. Everything else — 2nd, STO, RCL, LRN, R/S and the rest — stays mouse-only by design. The full map is in `reference/AppArchitecture.md` § "Physical Keyboard Mapping". Typing works as soon as the app opens — the calculator does not have to be selected first. Clicking into the debug panel hands the keyboard over to it until you click back on the calculator. The printer and debug panels have no keyboard bindings of their own. iOS and iPadOS are unaffected.

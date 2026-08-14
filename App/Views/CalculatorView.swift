@@ -165,7 +165,7 @@ struct CalculatorView: View {
                 modelPicker
             }
         }
-        .alert("ROM load error", isPresented: .init(
+        .alert(viewModel.errorTitle, isPresented: .init(
             get: { viewModel.errorMessage != nil },
             set: { if !$0 { viewModel.errorMessage = nil } }
         )) {
