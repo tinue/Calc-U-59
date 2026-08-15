@@ -14,6 +14,20 @@ struct CueCardView: View, Equatable {
     private static let goldColor = Color(red: 0xC4/255, green: 0x92/255, blue: 0x23/255)
     private static let dividerColor = Color(red: 188/255.0, green: 157/255.0, blue: 96/255.0)
 
+    // Alternate inks for CueCard/MagnetCard, selectable via the CUECARD "PencilColor:" field.
+    // Chosen to read as a distinct hue against the template's near-black divider lines,
+    // rather than a flat black-on-black merge, where labels cross those dividers.
+    private static let sharpieColor = Color(red: 112/255.0, green: 42/255.0, blue: 72/255.0)
+    private static let pencilColor = Color(red: 0x4A/255, green: 0x47/255, blue: 0x44/255)
+
+    private static func inkColor(for color: CueCardInkColor) -> Color {
+        switch color {
+        case .black: return .black
+        case .pencil: return pencilColor
+        case .sharpie: return sharpieColor
+        }
+    }
+
     // MARK: - Layout constants
 
     private struct GridCardLayout {
@@ -244,13 +258,17 @@ struct CueCardView: View, Equatable {
         let gridWidth  = gridRightX - gridLeftX
         let gridCenterX = (gridLeftX + gridRightX) / 2
 
+        // Ink color: SolidState cards are printed (fixed gold); CueCard/MagnetCard are
+        // user-labeled, so their ink follows the CUECARD "PencilColor:" field (default black).
+        let inkColor = layout.drawsDividers ? layout.textColor : Self.inkColor(for: card.color)
+
         // TITLE ROW: Title (and ID if present)
         if layout.hasId {
-            titleAndIdRow(title: card.title, id: card.id, fontSize: titleFS, x: gridCenterX, y: titleY, width: gridWidth, color: layout.textColor)
+            titleAndIdRow(title: card.title, id: card.id, fontSize: titleFS, x: gridCenterX, y: titleY, width: gridWidth, color: inkColor)
         } else {
             Text(card.title)
                 .font(.system(size: titleFS, weight: .bold))
-                .foregroundColor(layout.textColor)
+                .foregroundColor(inkColor)
                 .lineLimit(1)
                 .frame(width: titleAvailW)
                 .position(x: w / 2, y: titleY)
@@ -279,7 +297,7 @@ struct CueCardView: View, Equatable {
         // TOP ROW (gridY0): Row1 text OR label grid (A'-E')
         if !card.row1.isEmpty {
             alignedText(card.row1, fontSize: scaledGridFS, align: card.row1Align,
-                        x: gridCenterX, y: gridY0, width: gridWidth, color: layout.textColor)
+                        x: gridCenterX, y: gridY0, width: gridWidth, color: inkColor)
         } else {
             let row0Spans = getColumnSpans(row: 0)
             if !row0Spans.isEmpty {
@@ -288,7 +306,7 @@ struct CueCardView: View, Equatable {
                     let row0Dividers = dividersToDraw(for: row0Spans)
                     dividerLine(dividerIndices: row0Dividers, yPosition: gridY0, dividerColor: Self.dividerColor, dividerWidth: 1, dividerHeight: h * 0.202, layout: layout, w: w)
                 }
-                gridRowLabels(spans: row0Spans, fontSize: fontSize0, yPosition: gridY0, layout: layout, w: w, color: layout.textColor)
+                gridRowLabels(spans: row0Spans, fontSize: fontSize0, yPosition: gridY0, layout: layout, w: w, color: inkColor)
             }
         }
 
@@ -296,16 +314,16 @@ struct CueCardView: View, Equatable {
         if !card.row2.isEmpty || !card.row2R.isEmpty {
             if card.row2R.isEmpty {
                 alignedText(card.row2, fontSize: scaledGridFS, align: card.row2Align,
-                            x: gridCenterX, y: gridY1, width: gridWidth, color: layout.textColor)
+                            x: gridCenterX, y: gridY1, width: gridWidth, color: inkColor)
             } else {
                 let leftWidth = gridWidth * 0.70
                 let rightWidth = gridWidth * 0.30
                 let leftCenterX = gridLeftX + leftWidth / 2
                 let rightCenterX = gridRightX - rightWidth / 2
                 alignedText(card.row2, fontSize: scaledGridFS, align: card.row2Align,
-                            x: leftCenterX, y: gridY1, width: leftWidth, color: layout.textColor)
+                            x: leftCenterX, y: gridY1, width: leftWidth, color: inkColor)
                 alignedText(card.row2R, fontSize: scaledGridFS, align: card.row2RAlign,
-                            x: rightCenterX, y: gridY1, width: rightWidth, color: layout.textColor)
+                            x: rightCenterX, y: gridY1, width: rightWidth, color: inkColor)
             }
         } else {
             let row1Spans = getColumnSpans(row: 1)
@@ -315,7 +333,7 @@ struct CueCardView: View, Equatable {
                     let row1Dividers = dividersToDraw(for: row1Spans)
                     dividerLine(dividerIndices: row1Dividers, yPosition: gridY1, dividerColor: Self.dividerColor, dividerWidth: 1, dividerHeight: h * 0.202, layout: layout, w: w)
                 }
-                gridRowLabels(spans: row1Spans, fontSize: fontSize1, yPosition: gridY1, layout: layout, w: w, color: layout.textColor)
+                gridRowLabels(spans: row1Spans, fontSize: fontSize1, yPosition: gridY1, layout: layout, w: w, color: inkColor)
             }
         }
     }

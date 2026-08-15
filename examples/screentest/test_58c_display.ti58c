@@ -9,6 +9,7 @@ MODEL: TI-58C
 
 CUECARD:
 Template: CueCard
+PencilColor: sharpie
 Title: TI-58C Preset File Tutorial Cue Card
 Row1: Calculates the sum of 1..N the slow way
 Row1Align: left

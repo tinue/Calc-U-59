@@ -133,6 +133,12 @@ enum CardButtonStyle: String {
     case button  // draw rectangle border around text
 }
 
+enum CueCardInkColor: String {
+    case black
+    case pencil
+    case sharpie
+}
+
 struct CueCardContent: Equatable {
     var template: CueCardTemplate = .cueCard
     var title: String = ""
@@ -146,6 +152,7 @@ struct CueCardContent: Equatable {
     var row2R: String = ""
     var row2RAlign: TextAlign = .left
     var style: CardButtonStyle = .none
+    var color: CueCardInkColor = .black
 
     static let ml01Default: CueCardContent = CueCardContent(
         template: .solidState,
@@ -202,6 +209,10 @@ struct CueCardContent: Equatable {
             self.row2Align = Self.parseAlignment(value)
         case "row2ralign":
             self.row2RAlign = Self.parseAlignment(value)
+        case "pencilcolor":
+            if let color = CueCardInkColor(rawValue: value.lowercased()) {
+                self.color = color
+            }
         default:
             // Map label keys to indices: A′–E′ → [0–4], A–E → [5–9]
             let labelMap: [String: Int] = [
@@ -258,6 +269,7 @@ struct CueCardContent: Equatable {
         if row2RAlign != .left { lines.append("Row2RAlign: \(row2RAlign.rawValue)") }
 
         if style != .none { lines.append("Style: \(style.rawValue)") }
+        if color != .black { lines.append("PencilColor: \(color.rawValue)") }
 
         return lines
     }
@@ -285,6 +297,7 @@ struct CueCardContent: Equatable {
         lhs.row2Align == rhs.row2Align &&
         lhs.row2R == rhs.row2R &&
         lhs.row2RAlign == rhs.row2RAlign &&
-        lhs.style == rhs.style
+        lhs.style == rhs.style &&
+        lhs.color == rhs.color
     }
 }
