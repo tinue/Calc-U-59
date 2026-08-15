@@ -115,7 +115,9 @@ function App() {
     onNav: onNav
   }), page === "install-mac" && /*#__PURE__*/React.createElement(InstallMacPage, {
     onNav: onNav
-  }), page === "state-files" && /*#__PURE__*/React.createElement(StateFilesPage, {
+  }), page === "presets" && /*#__PURE__*/React.createElement(PresetsPage, {
+    onNav: onNav
+  }), page === "preset-tutorial" && /*#__PURE__*/React.createElement(PresetTutorialPage, {
     onNav: onNav
   }), page === "debugger" && /*#__PURE__*/React.createElement(DebuggerPage, {
     onNav: onNav

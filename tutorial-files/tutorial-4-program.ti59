@@ -1,0 +1,34 @@
+# TI-59 Preset File Tutorial — Step 4: program
+#
+# Adds a PROGRAM section: the calculator's program memory, entered as key
+# codes. This particular program sums the numbers from 1 down to whatever
+# you enter — press a number, then A.
+
+# Setup the system: Choose the model, solid state module and printer on/off
+MODEL: TI-59
+SOLID-STATE-MODULE: ML
+PRINTER: on
+
+# Change the partition layout of the calculator
+PARTITION: 719.29   # 720 steps, 30 data registers (3 2nd Op 17)
+
+# Setup the cue card that is shown after loading the preset.
+# For the template, either use "MagnetCard" for the TI-59 cards, or "CueCard"
+#  for the blank cards without a magnetic coating.
+CUECARD:
+Template: MagnetCard
+Title: TI-59 Preset File Tutorial Magnetic Card
+Banks: 1,2
+Row1: Calculates the sum of 1..N the slow way
+Row1Align: left
+A: Sum 1..N
+C: Enter number, then A
+D: \blank
+E: \blank
+
+# Setup the program memory. The format is very flexible, here we use 10 steps per line
+# and add a comment for the line numbers. The loader simply takes the key codes and ignores the rest.
+PROGRAM:
+43 00 44 01 97  00 00 00 43 01  # 000-009
+91 76 11 42 00  25 42 01 61 00  # 010-019
+00                              # 020

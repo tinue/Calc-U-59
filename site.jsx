@@ -106,7 +106,8 @@ function App() {
       {page === "play"           && <PlayPage onNav={onNav} />}
       {page === "install-mobile" && <InstallMobilePage onNav={onNav} />}
       {page === "install-mac"    && <InstallMacPage onNav={onNav} />}
-      {page === "state-files"    && <StateFilesPage onNav={onNav} />}
+      {page === "presets"        && <PresetsPage onNav={onNav} />}
+      {page === "preset-tutorial" && <PresetTutorialPage onNav={onNav} />}
       {page === "debugger"       && <DebuggerPage onNav={onNav} />}
       {page === "ref"            && <ReferencePage onNav={onNav} />}
       {page === "modules"        && <ModulesPage onNav={onNav} />}

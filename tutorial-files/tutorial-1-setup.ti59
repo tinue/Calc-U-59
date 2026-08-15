@@ -1,0 +1,11 @@
+# TI-59 Preset File Tutorial — Step 1: setup
+#
+# This is the smallest possible preset file: it only picks the calculator
+# model and a couple of options. Load it in Calc-U 59 right now and you get
+# a TI-59 with the Master Library module and the printer switched on —
+# nothing else has been set up yet.
+
+# Setup the system: Choose the model, solid state module and printer on/off
+MODEL: TI-59
+SOLID-STATE-MODULE: ML
+PRINTER: on

@@ -1,0 +1,12 @@
+# TI-59 Preset File Tutorial — Step 2: partition
+#
+# Same as Step 1, with one addition: PARTITION changes the split between
+# program memory and data registers.
+
+# Setup the system: Choose the model, solid state module and printer on/off
+MODEL: TI-59
+SOLID-STATE-MODULE: ML
+PRINTER: on
+
+# Change the partition layout of the calculator
+PARTITION: 719.29   # 720 steps, 30 data registers (3 2nd Op 17)

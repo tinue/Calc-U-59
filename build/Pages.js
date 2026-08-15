@@ -26,9 +26,9 @@ const STARTED_SECTIONS = [{
 }, {
   title: "Using the emulator",
   items: [{
-    id: "state-files",
-    label: "Loading a state file",
-    href: "/getting-started/state-files/"
+    id: "presets",
+    label: "Loading a preset",
+    href: "/getting-started/presets/"
   }, {
     id: "debugger",
     label: "Using the debugger",
@@ -143,7 +143,7 @@ function HomePage({
       fontSize: 14,
       lineHeight: 1.6
     }
-  }, "Install from the App Store, then open the app and pick a model. State files load from the file picker inside the app.")), /*#__PURE__*/React.createElement("div", {
+  }, "Install from the App Store, then open the app and pick a model. Presets load from the file picker inside the app.")), /*#__PURE__*/React.createElement("div", {
     className: "panel",
     style: {
       padding: 16
@@ -178,9 +178,9 @@ function HomePage({
   }, "GitHub Releases, the DMG, and Gatekeeper the first time you open the app."), /*#__PURE__*/React.createElement(TopicCard, {
     num: "03",
     eyebrow: "Files",
-    title: "Loading a state file",
-    href: "/state-files/"
-  }, "What a .ti59 file contains and how the parser treats each section."), /*#__PURE__*/React.createElement(TopicCard, {
+    title: "Loading a preset",
+    href: "/presets/"
+  }, "What a .ti59 preset contains and how the parser treats each section."), /*#__PURE__*/React.createElement(TopicCard, {
     num: "04",
     eyebrow: "Debug",
     title: "Using the debugger",
@@ -217,8 +217,8 @@ function HomePage({
   }, "see the full list"), "."), /*#__PURE__*/React.createElement("li", null, /*#__PURE__*/React.createElement("strong", null, "Magnetic cards"), " read and written as files, synced between your devices over iCloud."), /*#__PURE__*/React.createElement("li", null, "The ", /*#__PURE__*/React.createElement("strong", null, "PC-100C thermal printer"), ", in both a dot-matrix view and a copyable text view."), /*#__PURE__*/React.createElement("li", null, "A ", /*#__PURE__*/React.createElement("a", {
     href: "/debugger/"
   }, "CPU-level debugger"), " with a live program listing, a ROM instruction trace, and binary trace capture for offline analysis."), /*#__PURE__*/React.createElement("li", null, "Plain-text ", /*#__PURE__*/React.createElement("a", {
-    href: "/state-files/"
-  }, ".ti59 state files"), " that carry a program, the registers, a cue card and a module selection in one readable file.")), /*#__PURE__*/React.createElement("p", {
+    href: "/presets/"
+  }, ".ti59 preset files"), " that carry a program, the registers, a cue card and a module selection in one readable file.")), /*#__PURE__*/React.createElement("p", {
     style: {
       marginBottom: 0
     }
@@ -477,15 +477,15 @@ function GettingStartedPage({
     overview: "Getting started with Calc-U 59",
     "install-mobile": "Installing on iPhone and iPad",
     "install-mac": "Installing on Mac",
-    "state-files": "Loading a state file",
+    presets: "Loading a preset",
     debugger: "Using the debugger",
     printer: "Printer and card reader"
   };
   const notes = {
-    overview: "Install the app, load a state file, drive the printer and card reader, and find your way around the debugger.",
+    overview: "Install the app, load a preset, drive the printer and card reader, and find your way around the debugger.",
     "install-mobile": "Use the App Store build, then configure the model and load presets from inside the app.",
     "install-mac": "Download the release from GitHub, then drag the app to Applications.",
-    "state-files": "What .ti59/.ti58/.ti58c files contain and how the parser treats each section.",
+    presets: "What .ti59/.ti58/.ti58c files contain and how the parser treats each section.",
     debugger: "CALCULATOR, CPU, LOG, freeze/step, and binary trace output.",
     printer: "The PC-100C panel, paper strip, copy/cut, and card file behaviour."
   };
@@ -523,7 +523,7 @@ PRINTER: on`;
       style: {
         marginBottom: 0
       }
-    }, "Most people need three things: get the app installed, open a state file, and know where the printer and the debugger live. Each is a short page.")), /*#__PURE__*/React.createElement("div", {
+    }, "Most people need three things: get the app installed, load a preset, and know where the printer and the debugger live. Each is a short page.")), /*#__PURE__*/React.createElement("div", {
       style: {
         display: "grid",
         gap: 12
@@ -541,8 +541,8 @@ PRINTER: on`;
     }, "Download the release from GitHub, drag it to Applications, and get past the first-launch Gatekeeper prompt."), /*#__PURE__*/React.createElement(TopicCard, {
       num: "03",
       eyebrow: "Files",
-      title: "Loading a state file",
-      href: "/state-files/"
+      title: "Loading a preset",
+      href: "/presets/"
     }, "What .ti59, .ti58 and .ti58c files contain, and how each section \u2014 partition, program, registers, keystrokes \u2014 is applied."), /*#__PURE__*/React.createElement(TopicCard, {
       num: "04",
       eyebrow: "Hardware",
@@ -615,7 +615,7 @@ PRINTER: on`;
         lineHeight: 1.65
       }
     }, "After that, macOS treats the app like any other notarized application."))),
-    "state-files": /*#__PURE__*/React.createElement("div", {
+    presets: /*#__PURE__*/React.createElement("div", {
       style: {
         display: "grid",
         gap: 16,
@@ -631,7 +631,9 @@ PRINTER: on`;
         marginTop: 0,
         lineHeight: 1.7
       }
-    }, "State files are plain UTF-8 text. The parser understands a small set of section headers and ignores comments after ", /*#__PURE__*/React.createElement("strong", null, "#"), ". You can include only the sections you need."), /*#__PURE__*/React.createElement("pre", {
+    }, "Preset files are plain UTF-8 text. The parser understands a small set of section headers and ignores comments after ", /*#__PURE__*/React.createElement("strong", null, "#"), ". You can include only the sections you need. New to writing one? Follow the ", /*#__PURE__*/React.createElement("a", {
+      href: "/presets/tutorial/"
+    }, "step-by-step tutorial"), "."), /*#__PURE__*/React.createElement("pre", {
       style: {
         margin: 0,
         padding: 16,
@@ -848,7 +850,7 @@ function InstallMacPage({
     onNav: onNav
   })));
 }
-function StateFilesPage({
+function PresetsPage({
   onNav
 }) {
   const stateFileExample = `# 800 steps, 19 data registers (R00–R19) — "2 OP 17"
@@ -911,13 +913,36 @@ Style: button`;
     className: "eyebrow"
   }, "Files"), /*#__PURE__*/React.createElement("h1", {
     className: "page-title"
-  }, "Loading a state file"), /*#__PURE__*/React.createElement("p", {
+  }, "Loading a preset"), /*#__PURE__*/React.createElement("p", {
     className: "lede"
-  }, "State files are plain UTF-8 text with named sections. You can include only the sections you need."), /*#__PURE__*/React.createElement("div", {
+  }, "Presets are plain UTF-8 text files with named sections. You can include only the sections you need."), /*#__PURE__*/React.createElement("div", {
+    className: "panel",
+    style: {
+      padding: 16,
+      marginTop: 24,
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      flexWrap: "wrap",
+      gap: 12
+    }
+  }, /*#__PURE__*/React.createElement("p", {
+    style: {
+      margin: 0,
+      lineHeight: 1.6
+    }
+  }, "New to writing a preset from scratch? The tutorial builds one up section by section, with a downloadable file at every step."), /*#__PURE__*/React.createElement("a", {
+    className: "btn secondary",
+    href: "/presets/tutorial/"
+  }, "Preset tutorial ", /*#__PURE__*/React.createElement("span", {
+    style: {
+      opacity: .5
+    }
+  }, "\u2192"))), /*#__PURE__*/React.createElement("div", {
     className: "panel",
     style: {
       padding: 20,
-      marginTop: 24
+      marginTop: 12
     }
   }, /*#__PURE__*/React.createElement("pre", {
     style: {
@@ -983,7 +1008,7 @@ Style: button`;
     style: {
       marginTop: 0
     }
-  }, "The five plain keys (", /*#__PURE__*/React.createElement("strong", null, "A\u2013E"), ") and their 2nd-function row (", /*#__PURE__*/React.createElement("strong", null, "A\u2032\u2013E\u2032"), ") are exactly what real TI-59/58/58C cards label. A ", /*#__PURE__*/React.createElement("strong", null, "CUECARD:"), " section can do the same thing on-screen \u2014 either as its own row of short per-key labels, or as one line of running text across the whole row."), /*#__PURE__*/React.createElement("p", null, /*#__PURE__*/React.createElement("strong", null, "Template"), " picks the background art and layout, and matches the real card it stands in for. On the real hardware, magnetic cards have a writable label area on the front and a magnetic coating on the back for the program; use", " ", /*#__PURE__*/React.createElement("strong", null, "MagnetCard"), " if the state file is meant to end up written onto one (it also shows the ", /*#__PURE__*/React.createElement("strong", null, "Banks"), " page badges). The TI-58 and TI-58C have no card reader, so their owners documented manually re-entered programs on cards with the same kind of writable front but no magnetic back \u2014 use", " ", /*#__PURE__*/React.createElement("strong", null, "CueCard"), " for that case, or for any file that just wants an on-screen label without card art. Which of the two you pick for a given state file is mostly personal preference, except when the file is a step toward an actual magnetic card \u2014 then use", " ", /*#__PURE__*/React.createElement("strong", null, "MagnetCard"), " to match. ", /*#__PURE__*/React.createElement("strong", null, "SolidStateCard"), " ", "reproduces the pre-printed cards that shipped with a Solid State Software module; real ones can't be edited by the module's user, and in the emulator they're normally only touched by the project's developer to document a built-in module \u2014 reach for it yourself only if you're prototyping your own module (it shows an", " ", /*#__PURE__*/React.createElement("strong", null, "ID"), " like ", /*#__PURE__*/React.createElement("code", null, "ML-01"), " instead of Banks)."), /*#__PURE__*/React.createElement("p", null, "Set fields ", /*#__PURE__*/React.createElement("strong", null, "A"), " through ", /*#__PURE__*/React.createElement("strong", null, "E"), " for the plain-key row, and ", /*#__PURE__*/React.createElement("strong", null, "A\u2032"), " through ", /*#__PURE__*/React.createElement("strong", null, "E\u2032"), " ", "(a straight apostrophe also works: ", /*#__PURE__*/React.createElement("code", null, "A'"), ") for the 2nd-function row. Leaving ", /*#__PURE__*/React.createElement("strong", null, "Row1"), " or ", /*#__PURE__*/React.createElement("strong", null, "Row2"), " ", "out entirely is what makes that row show the label grid instead of a line of text \u2014 if you fill in Row1/Row2, the individual A\u2013E labels for that row are not shown."), /*#__PURE__*/React.createElement("p", {
+  }, "The five plain keys (", /*#__PURE__*/React.createElement("strong", null, "A\u2013E"), ") and their 2nd-function row (", /*#__PURE__*/React.createElement("strong", null, "A\u2032\u2013E\u2032"), ") are exactly what real TI-59/58/58C cards label. A ", /*#__PURE__*/React.createElement("strong", null, "CUECARD:"), " section can do the same thing on-screen \u2014 either as its own row of short per-key labels, or as one line of running text across the whole row."), /*#__PURE__*/React.createElement("p", null, /*#__PURE__*/React.createElement("strong", null, "Template"), " picks the card artwork and layout, and matches the real card it stands in for \u2014 ", /*#__PURE__*/React.createElement("strong", null, "MagnetCard"), " ", "and ", /*#__PURE__*/React.createElement("strong", null, "CueCard"), " look almost identical on screen, since both were the same front-side label design. The difference is on the back: a real magnetic card has a magnetic coating that stores the program; a cue card doesn't. Use ", /*#__PURE__*/React.createElement("strong", null, "MagnetCard"), " if the preset is meant to end up written onto a magnetic card (it also shows the ", /*#__PURE__*/React.createElement("strong", null, "Banks"), " page badges). Cue cards shipped for TI-58, TI-58C ", /*#__PURE__*/React.createElement("em", null, "and"), " TI-59 owners, but TI-59 owners tended to skip them and just label whichever magnetic card already held the program instead; TI-58 and TI-58C, having no card reader at all, relied on cue cards since there was no magnetic card to label in the first place \u2014 use", " ", /*#__PURE__*/React.createElement("strong", null, "CueCard"), " for that case, or for any file that just wants an on-screen label without a magnetic-card connotation. Which of the two you pick for a given preset is mostly personal preference, except when the file is a step toward an actual magnetic card \u2014 then use ", /*#__PURE__*/React.createElement("strong", null, "MagnetCard"), " to match.", " ", /*#__PURE__*/React.createElement("strong", null, "SolidStateCard"), " ", "reproduces the pre-printed cards that shipped with a Solid State Software module; real ones can't be edited by the module's user, and in the emulator they're normally only touched by the project's developer to document a built-in module \u2014 reach for it yourself only if you're prototyping your own module (it shows an", " ", /*#__PURE__*/React.createElement("strong", null, "ID"), " like ", /*#__PURE__*/React.createElement("code", null, "ML-01"), " instead of Banks)."), /*#__PURE__*/React.createElement("p", null, "Set fields ", /*#__PURE__*/React.createElement("strong", null, "A"), " through ", /*#__PURE__*/React.createElement("strong", null, "E"), " for the plain-key row, and ", /*#__PURE__*/React.createElement("strong", null, "A\u2032"), " through ", /*#__PURE__*/React.createElement("strong", null, "E\u2032"), " ", "(a straight apostrophe also works: ", /*#__PURE__*/React.createElement("code", null, "A'"), ") for the 2nd-function row. Leaving ", /*#__PURE__*/React.createElement("strong", null, "Row1"), " or ", /*#__PURE__*/React.createElement("strong", null, "Row2"), " ", "out entirely is what makes that row show the label grid instead of a line of text \u2014 if you fill in Row1/Row2, the individual A\u2013E labels for that row are not shown."), /*#__PURE__*/React.createElement("p", {
     style: {
       marginBottom: 0
     }
@@ -1081,11 +1106,391 @@ Style: button`;
     style: {
       marginTop: 0
     }
-  }, /*#__PURE__*/React.createElement("strong", null, "From a state file"), " \u2014 Load State File on a ", /*#__PURE__*/React.createElement("code", null, ".ti59"), "/", /*#__PURE__*/React.createElement("code", null, ".ti58"), "/", /*#__PURE__*/React.createElement("code", null, ".ti58c"), " file with a CUECARD section; it's applied immediately and stays until you load something else or reset."), /*#__PURE__*/React.createElement("p", null, /*#__PURE__*/React.createElement("strong", null, "Onto a virtual magnetic card"), " \u2014 load a state file with the CUECARD you want active, then ", /*#__PURE__*/React.createElement("strong", null, "Write Magnetic Card"), ": whatever cue card is on screen at that moment is saved into the card file along with the program or data. Reading that card back with ", /*#__PURE__*/React.createElement("strong", null, "Read Magnetic Card"), " restores the label along with the contents."), /*#__PURE__*/React.createElement("p", {
+  }, /*#__PURE__*/React.createElement("strong", null, "From a preset"), " \u2014 tap ", /*#__PURE__*/React.createElement("strong", null, "Preset"), " and pick a ", /*#__PURE__*/React.createElement("code", null, ".ti59"), "/", /*#__PURE__*/React.createElement("code", null, ".ti58"), "/", /*#__PURE__*/React.createElement("code", null, ".ti58c"), " file with a CUECARD section; it's applied immediately and stays until you load something else or reset."), /*#__PURE__*/React.createElement("p", null, /*#__PURE__*/React.createElement("strong", null, "Onto a virtual magnetic card"), " \u2014 load a preset with the CUECARD you want active, then ", /*#__PURE__*/React.createElement("strong", null, "Write Magnetic Card"), ": whatever cue card is on screen at that moment is saved into the card file along with the program or data. Reading that card back with ", /*#__PURE__*/React.createElement("strong", null, "Read Magnetic Card"), " restores the label along with the contents."), /*#__PURE__*/React.createElement("p", {
     style: {
       marginBottom: 0
     }
-  }, /*#__PURE__*/React.createElement("strong", null, "By editing the card file directly"), " \u2014 virtual card files are plain text too (see the FAQ entry on where they live), with the same ", /*#__PURE__*/React.createElement("code", null, "CUECARD:"), " syntax as a state file. Add or edit that section in a text editor and the label shows the next time the card is read.")), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("strong", null, "By editing the card file directly"), " \u2014 virtual card files are plain text too (see the FAQ entry on where they live), with the same ", /*#__PURE__*/React.createElement("code", null, "CUECARD:"), " syntax as a preset. Add or edit that section in a text editor and the label shows the next time the card is read.")), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 24
+    }
+  }, /*#__PURE__*/React.createElement(BackButton, {
+    onNav: onNav
+  })));
+}
+
+/* =============================================================
+   PRESET TUTORIAL — builds one .ti59 preset file up from nothing,
+   one section at a time, with a real downloadable file at every step.
+   The finished file is docs/tutorial-files/tutorial.ti59, also linked
+   from /presets/ and the FAQ.
+   ============================================================= */
+function TutorialStep({
+  num,
+  title,
+  children,
+  code,
+  file,
+  filename
+}) {
+  return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("h2", {
+    className: "section",
+    style: {
+      marginTop: 32
+    }
+  }, "Step ", num, ": ", title), /*#__PURE__*/React.createElement("div", {
+    className: "panel",
+    style: {
+      padding: 20,
+      lineHeight: 1.7
+    }
+  }, children), /*#__PURE__*/React.createElement("div", {
+    className: "panel",
+    style: {
+      padding: 20,
+      marginTop: 12
+    }
+  }, /*#__PURE__*/React.createElement("pre", {
+    style: {
+      margin: 0,
+      padding: 16,
+      borderRadius: 8,
+      background: "var(--bg-inset)",
+      color: "var(--fg)",
+      overflowX: "auto",
+      lineHeight: 1.5,
+      fontSize: 13
+    }
+  }, code)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: 12,
+      textAlign: "right"
+    }
+  }, /*#__PURE__*/React.createElement("a", {
+    className: "btn secondary",
+    href: `/tutorial-files/${file}`,
+    download: true
+  }, "Download ", filename || file)));
+}
+function PresetTutorialPage({
+  onNav
+}) {
+  const step1 = `# TI-59 Preset File Tutorial — Step 1: setup
+#
+# This is the smallest possible preset file: it only picks the calculator
+# model and a couple of options. Load it in Calc-U 59 right now and you get
+# a TI-59 with the Master Library module and the printer switched on —
+# nothing else has been set up yet.
+
+# Setup the system: Choose the model, solid state module and printer on/off
+MODEL: TI-59
+SOLID-STATE-MODULE: ML
+PRINTER: on`;
+  const step2 = `# TI-59 Preset File Tutorial — Step 2: partition
+#
+# Same as Step 1, with one addition: PARTITION changes the split between
+# program memory and data registers.
+
+# Setup the system: Choose the model, solid state module and printer on/off
+MODEL: TI-59
+SOLID-STATE-MODULE: ML
+PRINTER: on
+
+# Change the partition layout of the calculator
+PARTITION: 719.29   # 720 steps, 30 data registers (3 2nd Op 17)`;
+  const step3 = `# TI-59 Preset File Tutorial — Step 3: cue card
+#
+# Adds a CUECARD section: the on-screen card shown once the preset loads,
+# labeling the A-E keys the way a real magnetic card would.
+
+# Setup the system: Choose the model, solid state module and printer on/off
+MODEL: TI-59
+SOLID-STATE-MODULE: ML
+PRINTER: on
+
+# Change the partition layout of the calculator
+PARTITION: 719.29   # 720 steps, 30 data registers (3 2nd Op 17)
+
+# Setup the cue card that is shown after loading the preset.
+# For the template, either use "MagnetCard" for the TI-59 cards, or "CueCard"
+#  for the blank cards without a magnetic coating.
+CUECARD:
+Template: MagnetCard
+Title: TI-59 Preset File Tutorial Magnetic Card
+Banks: 1,2
+Row1: Calculates the sum of 1..N the slow way
+Row1Align: left
+A: Sum 1..N
+C: Enter number, then A
+D: \\blank
+E: \\blank`;
+  const step4 = `# TI-59 Preset File Tutorial — Step 4: program
+#
+# Adds a PROGRAM section: the calculator's program memory, entered as key
+# codes. This particular program sums the numbers from 1 down to whatever
+# you enter — press a number, then A.
+
+# Setup the system: Choose the model, solid state module and printer on/off
+MODEL: TI-59
+SOLID-STATE-MODULE: ML
+PRINTER: on
+
+# Change the partition layout of the calculator
+PARTITION: 719.29   # 720 steps, 30 data registers (3 2nd Op 17)
+
+# Setup the cue card that is shown after loading the preset.
+# For the template, either use "MagnetCard" for the TI-59 cards, or "CueCard"
+#  for the blank cards without a magnetic coating.
+CUECARD:
+Template: MagnetCard
+Title: TI-59 Preset File Tutorial Magnetic Card
+Banks: 1,2
+Row1: Calculates the sum of 1..N the slow way
+Row1Align: left
+A: Sum 1..N
+C: Enter number, then A
+D: \\blank
+E: \\blank
+
+# Setup the program memory. The format is very flexible, here we use 10 steps per line
+# and add a comment for the line numbers. The loader simply takes the key codes and ignores the rest.
+PROGRAM:
+43 00 44 01 97  00 00 00 43 01  # 000-009
+91 76 11 42 00  25 42 01 61 00  # 010-019
+00                              # 020`;
+  const step5 = `# TI-59 Preset File Tutorial — Step 5: registers
+#
+# Adds a REGISTERS section: preloaded data register content, entered as
+# plain decimal numbers, at the full TI-59 precision.
+
+# Setup the system: Choose the model, solid state module and printer on/off
+MODEL: TI-59
+SOLID-STATE-MODULE: ML
+PRINTER: on
+
+# Change the partition layout of the calculator
+PARTITION: 719.29   # 720 steps, 30 data registers (3 2nd Op 17)
+
+# Setup the cue card that is shown after loading the preset.
+# For the template, either use "MagnetCard" for the TI-59 cards, or "CueCard"
+#  for the blank cards without a magnetic coating.
+CUECARD:
+Template: MagnetCard
+Title: TI-59 Preset File Tutorial Magnetic Card
+Banks: 1,2
+Row1: Calculates the sum of 1..N the slow way
+Row1Align: left
+A: Sum 1..N
+C: Enter number, then A
+D: \\blank
+E: \\blank
+
+# Setup the program memory. The format is very flexible, here we use 10 steps per line
+# and add a comment for the line numbers. The loader simply takes the key codes and ignores the rest.
+PROGRAM:
+43 00 44 01 97  00 00 00 43 01  # 000-009
+91 76 11 42 00  25 42 01 61 00  # 010-019
+00                              # 020
+
+# Setup register content. The full TI-59 precision is supported. On the real hardware, the number below
+# can't be entered directly, one would need SUM and division to set this up.
+REGISTERS:
+29 = 3.000000000004`;
+  const step6 = `# TI-59 Preset File Tutorial — complete
+#
+# This file is used to explain how preset files are constructed. See
+# https://www.calcu59.ch/presets/tutorial/ for the step-by-step walkthrough.
+
+# Setup the system: Choose the model, solid state module and printer on/off
+MODEL: TI-59
+SOLID-STATE-MODULE: ML
+PRINTER: on
+
+# Change the partition layout of the calculator
+PARTITION: 719.29   # 720 steps, 30 data registers (3 2nd Op 17)
+
+# Setup the cue card that is shown after loading the preset.
+# For the template, either use "MagnetCard" for the TI-59 cards, or "CueCard"
+#  for the blank cards without a magnetic coating.
+CUECARD:
+Template: MagnetCard
+Title: TI-59 Preset File Tutorial Magnetic Card
+Banks: 1,2
+Row1: Calculates the sum of 1..N the slow way
+Row1Align: left
+A: Sum 1..N
+C: Enter number, then A
+D: \\blank
+E: \\blank
+
+# Setup the program memory. The format is very flexible, here we use 10 steps per line
+# and add a comment for the line numbers. The loader simply takes the key codes and ignores the rest.
+PROGRAM:
+43 00 44 01 97  00 00 00 43 01  # 000-009
+91 76 11 42 00  25 42 01 61 00  # 010-019
+00                              # 020
+
+# Setup register content. The full TI-59 precision is supported. On the real hardware, the number below
+# can't be entered directly, one would need SUM and division to set this up.
+REGISTERS:
+29 = 3.000000000004
+
+KEYSTROKES:
+# Automate keystrokes, sent after everything above has been set up. As a sample here, we calculate
+# the sum from 1..5 using the program above. Keystrokes use the matrix coordinates, not the program
+# memory keycodes. Hence, the key "5" is 73, and not 05.
+73              # 5
+11              # A
+Wait: 2s        # Wait for 2 Seconds in order to see the result
+43              # RCL
+83              # 2
+64              # 9
+Wait: 2s        # The display only shows "3.", because there are not enough digits for the fraction.
+75              # -
+84              # 3
+95              # =
+# After subtracting 3 we see the fraction.`;
+  return /*#__PURE__*/React.createElement("main", {
+    className: "wrap-narrow"
+  }, /*#__PURE__*/React.createElement("p", {
+    className: "eyebrow"
+  }, "Files"), /*#__PURE__*/React.createElement("h1", {
+    className: "page-title"
+  }, "Writing a preset file, step by step"), /*#__PURE__*/React.createElement("p", {
+    className: "lede"
+  }, "A preset file is nothing more than plain text. This tutorial builds one up from nothing, one section at a time, so you can see exactly what each line changes. Every step below is also a real, downloadable ", /*#__PURE__*/React.createElement("code", null, ".ti59"), " file you can load in Calc-U 59 as you go \u2014 try each one before moving to the next."), /*#__PURE__*/React.createElement("div", {
+    id: "txt-extension",
+    className: "panel",
+    style: {
+      padding: 20,
+      marginTop: 24,
+      lineHeight: 1.7,
+      border: "1px solid var(--accent-deep)",
+      background: "rgba(240,192,64,.04)"
+    }
+  }, /*#__PURE__*/React.createElement("p", {
+    style: {
+      marginTop: 0
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "eyebrow",
+    style: {
+      color: "var(--accent)"
+    }
+  }, "Before you start")), /*#__PURE__*/React.createElement("p", {
+    style: {
+      marginBottom: 0
+    }
+  }, "When you save a preset with a plain text editor, it's easy to end up with ", /*#__PURE__*/React.createElement("code", null, "my-preset.ti59.txt"), " instead of", " ", /*#__PURE__*/React.createElement("code", null, "my-preset.ti59"), " \u2014 Windows and macOS both hide known file extensions by default, so the file still looks like", " ", /*#__PURE__*/React.createElement("code", null, "my-preset.ti59"), " in Finder, Explorer, or the iPhone file picker. Calc-U 59's preset picker only accepts", " ", /*#__PURE__*/React.createElement("code", null, ".ti59"), ", ", /*#__PURE__*/React.createElement("code", null, ".ti58"), " and ", /*#__PURE__*/React.createElement("code", null, ".ti58c"), ", so a file with a hidden ", /*#__PURE__*/React.createElement("code", null, ".txt"), " tail shows up", " ", /*#__PURE__*/React.createElement("strong", null, "grayed out and can't be selected"), ". If that happens, turn on \"Show file extensions\" (Windows Explorer) or \"Show all filename extensions\" (macOS Finder \u2014 Finder \u25B8 Settings \u25B8 Advanced) and rename the file, or rename it from a terminal with", " ", /*#__PURE__*/React.createElement("code", null, "mv my-preset.ti59.txt my-preset.ti59"), ".")), /*#__PURE__*/React.createElement(TutorialStep, {
+    num: 1,
+    title: "Setup",
+    code: step1,
+    file: "tutorial-1-setup.ti59"
+  }, /*#__PURE__*/React.createElement("p", {
+    style: {
+      marginTop: 0
+    }
+  }, "Start with the three lines every preset can begin with:", " ", /*#__PURE__*/React.createElement("strong", null, "MODEL"), " picks which calculator you get (TI-59, TI-58 or TI-58C), ", /*#__PURE__*/React.createElement("strong", null, "SOLID-STATE-MODULE"), " loads one of the fourteen library modules by its two-letter code \u2014 here", " ", /*#__PURE__*/React.createElement("strong", null, "ML"), " for the Master Library \u2014 and", " ", /*#__PURE__*/React.createElement("strong", null, "PRINTER"), " switches the emulated PC-100C on or off."), /*#__PURE__*/React.createElement("p", {
+    style: {
+      marginBottom: 0
+    }
+  }, "Load this file and you already have a working calculator: nothing else in a preset is required. Everything from here on is optional, added only because this particular preset needs it.")), /*#__PURE__*/React.createElement(TutorialStep, {
+    num: 2,
+    title: "Partition",
+    code: step2,
+    file: "tutorial-2-partition.ti59"
+  }, /*#__PURE__*/React.createElement("p", {
+    style: {
+      marginTop: 0
+    }
+  }, /*#__PURE__*/React.createElement("strong", null, "PARTITION"), " sets the split between program memory and data registers \u2014 the same trade-off the real TI-59 keyboard sequence ", /*#__PURE__*/React.createElement("strong", null, "2nd Op 17"), " controls. The value is written as ", /*#__PURE__*/React.createElement("code", null, "steps.registers"), ": ", /*#__PURE__*/React.createElement("code", null, "719.29"), " means step 719 is the last program step, so 720 steps remain for the program and the other 79 slots become 30 (numbered 00\u201329) usable data registers on a TI-59. Leave this line out and the emulator uses the model's default partition instead."), /*#__PURE__*/React.createElement("p", {
+    style: {
+      marginBottom: 0
+    }
+  }, "This step doesn't change what you see when you load the file \u2014 there's no program or cue card yet \u2014 but it matters once Step 4 writes a program past the default partition boundary.")), /*#__PURE__*/React.createElement(TutorialStep, {
+    num: 3,
+    title: "Cue card",
+    code: step3,
+    file: "tutorial-3-cuecard.ti59"
+  }, /*#__PURE__*/React.createElement("p", {
+    style: {
+      marginTop: 0
+    }
+  }, /*#__PURE__*/React.createElement("strong", null, "CUECARD"), " is what turns a blank calculator into a labeled one. ", /*#__PURE__*/React.createElement("strong", null, "Template: MagnetCard"), " and", " ", /*#__PURE__*/React.createElement("strong", null, "CueCard"), " draw almost identical card art \u2014 real magnetic cards and cue cards used the same front-side label design. The difference is the back: a magnetic card stores the program, a cue card doesn't, so ", /*#__PURE__*/React.createElement("strong", null, "MagnetCard"), " is the right choice here since this file is building toward one.", " ", /*#__PURE__*/React.createElement("strong", null, "Title"), " and ", /*#__PURE__*/React.createElement("strong", null, "Banks"), " are the card's header text and bank badges."), /*#__PURE__*/React.createElement("p", null, /*#__PURE__*/React.createElement("strong", null, "Row1"), " replaces the entire A\u2032\u2013E\u2032 label row with one line of running text instead of five separate key labels \u2014 handy for a one-line instruction like this tutorial's \"Calculates the sum of 1..N the slow way\". ", /*#__PURE__*/React.createElement("strong", null, "A"), " through", " ", /*#__PURE__*/React.createElement("strong", null, "E"), " label the plain key row individually;", " ", /*#__PURE__*/React.createElement("code", null, "\\blank"), " on ", /*#__PURE__*/React.createElement("strong", null, "D"), " and ", /*#__PURE__*/React.createElement("strong", null, "E"), " ", "merges those key positions into C's label so \"Enter number, then A\" reads across all three keys."), /*#__PURE__*/React.createElement("p", {
+    style: {
+      marginBottom: 0
+    }
+  }, "Load this file now and the card appears immediately \u2014 nothing on it does anything yet, because there's still no program behind the", " ", /*#__PURE__*/React.createElement("strong", null, "A"), " key. The full", " ", /*#__PURE__*/React.createElement("a", {
+    href: "/presets/#labeling-keys"
+  }, "CUECARD field reference"), " ", "covers every field, the math-notation shortcuts, and both templates in more depth.")), /*#__PURE__*/React.createElement(TutorialStep, {
+    num: 4,
+    title: "Program",
+    code: step4,
+    file: "tutorial-4-program.ti59"
+  }, /*#__PURE__*/React.createElement("p", {
+    style: {
+      marginTop: 0
+    }
+  }, /*#__PURE__*/React.createElement("strong", null, "PROGRAM"), " loads program memory as key codes \u2014 the same codes the calculator itself displays while you record a program by hand, not the physical key positions. Whitespace and line breaks are cosmetic; the loader reads a flat stream of two-digit codes and ignores anything after ", /*#__PURE__*/React.createElement("strong", null, "#"), ", so the step-number comments above are for the reader, not the parser. This particular listing sums a number down to 1: it stores the entered value, loops subtracting and adding into a running total, and stops with ", /*#__PURE__*/React.createElement("strong", null, "R/S"), " when done."), /*#__PURE__*/React.createElement("p", {
+    style: {
+      marginBottom: 0
+    }
+  }, "Load this file and press a digit, then ", /*#__PURE__*/React.createElement("strong", null, "A"), " \u2014 the cue card told you to \u2014 and the program actually runs now.")), /*#__PURE__*/React.createElement(TutorialStep, {
+    num: 5,
+    title: "Registers",
+    code: step5,
+    file: "tutorial-5-registers.ti59"
+  }, /*#__PURE__*/React.createElement("p", {
+    style: {
+      marginTop: 0
+    }
+  }, /*#__PURE__*/React.createElement("strong", null, "REGISTERS"), " preloads data register contents as plain decimal numbers, at the calculator's full internal precision \u2014 13 significant digits. The value here,", " ", /*#__PURE__*/React.createElement("code", null, "3.000000000004"), " in register 29, is deliberately one that's awkward to key in by hand on real hardware (you'd need", " ", /*#__PURE__*/React.createElement("strong", null, "SUM"), " and a division to land on it exactly); a preset just states the final value directly."), /*#__PURE__*/React.createElement("p", null, "This step doesn't change what the program does \u2014 register 29 isn't part of the sum routine above \u2014 it's here so the next step has something worth recalling with ", /*#__PURE__*/React.createElement("strong", null, "RCL"), "."), /*#__PURE__*/React.createElement("p", {
+    style: {
+      marginBottom: 0
+    }
+  }, "To check that a value actually loaded, open the ", /*#__PURE__*/React.createElement("a", {
+    href: "/debugger/"
+  }, "debugger"), " ", "and look at the register list \u2014 on Mac and on iPad in landscape it's visible right alongside the calculator; on iPhone (and iPad in portrait) swipe to it. The debugger has to be turned on first on iPhone/portrait iPad: enable ", /*#__PURE__*/React.createElement("strong", null, "Debug Page in Portrait"), " ", "under ", /*#__PURE__*/React.createElement("strong", null, "Settings"), ", or it won't be there to swipe to.")), /*#__PURE__*/React.createElement(TutorialStep, {
+    num: 6,
+    title: "Keystrokes",
+    code: step6,
+    filename: "tutorial.ti59",
+    file: "tutorial.ti59"
+  }, /*#__PURE__*/React.createElement("p", {
+    style: {
+      marginTop: 0
+    }
+  }, /*#__PURE__*/React.createElement("strong", null, "KEYSTROKES"), " is the odd one out: everything above describes the calculator's state, but this section acts, sending real key presses after everything else has loaded \u2014", " ", /*#__PURE__*/React.createElement("strong", null, "Wait: 2s"), " pauses between groups so you can watch the display change. Keystrokes use ", /*#__PURE__*/React.createElement("em", null, "matrix coordinates"), ", not the program-memory key codes from Step 4 \u2014 the digit", " ", /*#__PURE__*/React.createElement("strong", null, "5"), " is program key code ", /*#__PURE__*/React.createElement("code", null, "05"), " but matrix code ", /*#__PURE__*/React.createElement("code", null, "73"), ". The two tables are documented separately in the format reference precisely because mixing them up is the most common preset-writing mistake."), /*#__PURE__*/React.createElement("p", {
+    style: {
+      marginBottom: 0
+    }
+  }, "This is the finished tutorial file. Loading it types", " ", /*#__PURE__*/React.createElement("strong", null, "5"), ", ", /*#__PURE__*/React.createElement("strong", null, "A"), " to run the sum program from Step 4, waits, then recalls register 29 from Step 5 and subtracts 3 from it \u2014 demonstrating, in order, every section this tutorial added.")), /*#__PURE__*/React.createElement("div", {
+    className: "panel",
+    style: {
+      padding: 20,
+      marginTop: 32,
+      lineHeight: 1.7
+    }
+  }, /*#__PURE__*/React.createElement("p", {
+    style: {
+      marginTop: 0
+    }
+  }, "That covers enough to write your own preset from scratch. The", " ", /*#__PURE__*/React.createElement("a", {
+    href: "/presets/"
+  }, "preset reference page"), " documents every section in one place, and the complete grammar \u2014 the full matrix code table, 2nd-function key codes, and the CUECARD field list \u2014 is developer documentation in the GitHub repository:", " ", /*#__PURE__*/React.createElement("a", {
+    href: "https://github.com/tinue/Calc-U-59/blob/main/reference/StateFileFormat.md",
+    style: {
+      color: "var(--accent)",
+      textDecoration: "none",
+      borderBottom: "1px solid var(--accent)"
+    }
+  }, "reference/StateFileFormat.md \u2192")), /*#__PURE__*/React.createElement("p", {
+    style: {
+      marginBottom: 0
+    }
+  }, "For more preset files to read and load, including much longer real-world programs, see the", " ", /*#__PURE__*/React.createElement("a", {
+    href: "/software/"
+  }, "TI-59 Software Collection"), ".")), /*#__PURE__*/React.createElement("div", {
     style: {
       marginTop: 24
     }
@@ -1395,7 +1800,7 @@ function ReferencePage({
     style: {
       marginBottom: 0
     }
-  }, "Bottom toolbar (left to right): ", /*#__PURE__*/React.createElement("strong", null, "Reset"), " (long press: ", /*#__PURE__*/React.createElement("strong", null, "Reset + Memory wipe"), "), ", /*#__PURE__*/React.createElement("strong", null, "Model selector"), " (TI-59/TI-58/TI-58C), ", /*#__PURE__*/React.createElement("strong", null, "Read Magnetic Card"), ", ", /*#__PURE__*/React.createElement("strong", null, "Write Magnetic Card"), ", ", /*#__PURE__*/React.createElement("strong", null, "Load State File"), ", ", /*#__PURE__*/React.createElement("strong", null, "Settings"), ".")), /*#__PURE__*/React.createElement("h2", {
+  }, "Bottom toolbar (left to right): ", /*#__PURE__*/React.createElement("strong", null, "Reset"), " (long press: ", /*#__PURE__*/React.createElement("strong", null, "Reset + Memory wipe"), "), ", /*#__PURE__*/React.createElement("strong", null, "Model selector"), " (TI-59/TI-58/TI-58C), ", /*#__PURE__*/React.createElement("strong", null, "Read Magnetic Card"), ", ", /*#__PURE__*/React.createElement("strong", null, "Write Magnetic Card"), ", ", /*#__PURE__*/React.createElement("strong", null, "Preset"), ", ", /*#__PURE__*/React.createElement("strong", null, "Settings"), ".")), /*#__PURE__*/React.createElement("h2", {
     className: "section"
   }, "The printer"), /*#__PURE__*/React.createElement("div", {
     className: "panel",
@@ -1643,7 +2048,7 @@ function ReferencePage({
       color: "var(--fg-2)",
       fontSize: 14
     }
-  }, /*#__PURE__*/React.createElement("li", null, /*#__PURE__*/React.createElement("strong", null, "Reset"), " (long press: Reset + Memory wipe)"), /*#__PURE__*/React.createElement("li", null, /*#__PURE__*/React.createElement("strong", null, "Model selector"), " (TI-59 / TI-58 / TI-58C)"), /*#__PURE__*/React.createElement("li", null, /*#__PURE__*/React.createElement("strong", null, "Read Magnetic Card")), /*#__PURE__*/React.createElement("li", null, /*#__PURE__*/React.createElement("strong", null, "Write Magnetic Card")), /*#__PURE__*/React.createElement("li", null, /*#__PURE__*/React.createElement("strong", null, "Load State File")), /*#__PURE__*/React.createElement("li", null, /*#__PURE__*/React.createElement("strong", null, "Settings")), /*#__PURE__*/React.createElement("li", null, /*#__PURE__*/React.createElement("strong", null, "Swipe to printer"))))));
+  }, /*#__PURE__*/React.createElement("li", null, /*#__PURE__*/React.createElement("strong", null, "Reset"), " (long press: Reset + Memory wipe)"), /*#__PURE__*/React.createElement("li", null, /*#__PURE__*/React.createElement("strong", null, "Model selector"), " (TI-59 / TI-58 / TI-58C)"), /*#__PURE__*/React.createElement("li", null, /*#__PURE__*/React.createElement("strong", null, "Read Magnetic Card")), /*#__PURE__*/React.createElement("li", null, /*#__PURE__*/React.createElement("strong", null, "Write Magnetic Card")), /*#__PURE__*/React.createElement("li", null, /*#__PURE__*/React.createElement("strong", null, "Preset")), /*#__PURE__*/React.createElement("li", null, /*#__PURE__*/React.createElement("strong", null, "Settings")), /*#__PURE__*/React.createElement("li", null, /*#__PURE__*/React.createElement("strong", null, "Swipe to printer"))))));
 }
 
 /* =============================================================
@@ -1653,11 +2058,11 @@ function FaqPage({
   onNav
 }) {
   const faqs = [{
-    question: "Where do state files live?",
+    question: "Where do preset files live?",
     answer: "They are regular .ti59, .ti58, or .ti58c text files that can be anywhere on the file system. On Mac, the preset picker opens them from disk; on iPhone and iPad, use the built-in file picker."
   }, {
-    question: "Are there examples of state files?",
-    answer: "Yes. The GitHub repository includes an 'examples' folder with a selection of .ti59, .ti58, and .ti58c files."
+    question: "Are there examples of preset files?",
+    answer: "Yes. The GitHub repository includes an 'examples' folder with a selection of .ti59, .ti58, and .ti58c files, and the 'TI-59 Software Collection' page has downloadable copies. There's also a step-by-step tutorial that builds one from scratch."
   }, {
     question: "What are the 'assembly' examples here for?",
     answer: "This feature is still a bit experimental. You can load these examples on the 'CPU' tab of the debugger. Use the buttons at the bottom to select a file, and run it."
@@ -1669,7 +2074,7 @@ function FaqPage({
     answer: "The virtual cards are stored in the app's iCloud storage. On iOS and iPadOS, use the card picker to load or save them. On Mac, they are also available in the file picker under the 'iCloud Drive/Calc-U-59' folder."
   }, {
     question: "Where is the TI-58C state file?",
-    answer: "The TI-58C state file is stored in the app's iCloud storage (ti58c.mem). The file is written and loaded automatically when you switch to the TI-58C model."
+    answer: "The TI-58C state file is stored in the app's iCloud storage (ti58c.mem). Unlike a preset, which you load on demand, this file is the TI-58C's persistent state — it's written and loaded automatically whenever you switch to the TI-58C model, standing in for the battery-backed static RAM the real hardware used to keep memory alive between sessions."
   }, {
     question: "Can I see what the emulator is doing internally?",
     answer: "Yes. Use the debug pane: CALCULATOR for program state and registers, CPU for the ROM instruction trace, and LOG for text output plus trace controls."
@@ -1696,14 +2101,24 @@ function FaqPage({
     answer: "Yes. Copy or cut the output, and paste it into a text editor."
   }, {
     question: "How do I create the cards that label the A-E and A'-E' keys?",
-    answer: /*#__PURE__*/React.createElement(React.Fragment, null, "Add a ", /*#__PURE__*/React.createElement("strong", null, "CUECARD:"), " section to a state file: set", " ", /*#__PURE__*/React.createElement("strong", null, "Template"), " to ", /*#__PURE__*/React.createElement("code", null, "MagnetCard"), " or", " ", /*#__PURE__*/React.createElement("code", null, "CueCard"), ", then fill in fields ", /*#__PURE__*/React.createElement("strong", null, "A"), " ", "through ", /*#__PURE__*/React.createElement("strong", null, "E"), " and ", /*#__PURE__*/React.createElement("strong", null, "A\u2032"), " through", " ", /*#__PURE__*/React.createElement("strong", null, "E\u2032"), " for the two key rows. Load that file (or write it onto a virtual magnetic card to keep the label with the card) and it appears on screen. See", " ", /*#__PURE__*/React.createElement("a", {
-      href: "/state-files/#labeling-keys",
+    answer: /*#__PURE__*/React.createElement(React.Fragment, null, "Add a ", /*#__PURE__*/React.createElement("strong", null, "CUECARD:"), " section to a preset: set", " ", /*#__PURE__*/React.createElement("strong", null, "Template"), " to ", /*#__PURE__*/React.createElement("code", null, "MagnetCard"), " or", " ", /*#__PURE__*/React.createElement("code", null, "CueCard"), ", then fill in fields ", /*#__PURE__*/React.createElement("strong", null, "A"), " ", "through ", /*#__PURE__*/React.createElement("strong", null, "E"), " and ", /*#__PURE__*/React.createElement("strong", null, "A\u2032"), " through", " ", /*#__PURE__*/React.createElement("strong", null, "E\u2032"), " for the two key rows. Load that file (or write it onto a virtual magnetic card to keep the label with the card) and it appears on screen. See", " ", /*#__PURE__*/React.createElement("a", {
+      href: "/presets/#labeling-keys",
       style: {
         color: "var(--accent)",
         textDecoration: "none",
         borderBottom: "1px solid var(--accent)"
       }
-    }, "Loading a state file \u2192 Labeling the A\u2013E and A\u2032\u2013E\u2032 keys"), " ", "for the format, the math shortcuts, and the loading options.")
+    }, "Loading a preset \u2192 Labeling the A\u2013E and A\u2032\u2013E\u2032 keys"), " ", "for the format, the math shortcuts, and the loading options.")
+  }, {
+    question: "I wrote a preset file myself, but the app shows it grayed out and won't load it. Why?",
+    answer: /*#__PURE__*/React.createElement(React.Fragment, null, "Almost always a hidden ", /*#__PURE__*/React.createElement("strong", null, ".txt"), " extension. Some text editors, and Finder/Explorer with extensions hidden, save", " ", /*#__PURE__*/React.createElement("code", null, "my-preset.ti59"), " as ", /*#__PURE__*/React.createElement("code", null, "my-preset.ti59.txt"), " ", "without showing it \u2014 the file looks right in the file browser, but the preset picker only accepts ", /*#__PURE__*/React.createElement("code", null, ".ti59"), ", ", /*#__PURE__*/React.createElement("code", null, ".ti58"), " ", "and ", /*#__PURE__*/React.createElement("code", null, ".ti58c"), ", so it's shown grayed out and can't be selected. Turn on \"Show file extensions\" (Explorer) or \"Show all filename extensions\" (Finder), or rename the file from a terminal, and it should load normally. See", " ", /*#__PURE__*/React.createElement("a", {
+      href: "/presets/tutorial/#txt-extension",
+      style: {
+        color: "var(--accent)",
+        textDecoration: "none",
+        borderBottom: "1px solid var(--accent)"
+      }
+    }, "the preset tutorial"), " ", "for more on avoiding this.")
   }];
   return /*#__PURE__*/React.createElement("main", {
     className: "wrap-narrow"
@@ -1816,7 +2231,7 @@ function ModulesPage({
     style: {
       marginTop: 0
     }
-  }, "Keep the selected module aligned with the file you are loading. If a state file includes a ", /*#__PURE__*/React.createElement("strong", null, "SOLID-STATE-MODULE:"), " line, the emulator can switch to that module automatically."), /*#__PURE__*/React.createElement("p", {
+  }, "Keep the selected module aligned with the file you are loading. If a preset includes a ", /*#__PURE__*/React.createElement("strong", null, "SOLID-STATE-MODULE:"), " line, the emulator can switch to that module automatically."), /*#__PURE__*/React.createElement("p", {
     style: {
       marginBottom: 0
     }
@@ -2070,7 +2485,7 @@ function SoftwarePage({
     className: "page-title"
   }, "TI-59 Software Collection"), /*#__PURE__*/React.createElement("p", {
     className: "lede"
-  }, "Programs written for real TI-59, TI-58 and TI-58C hardware, from the 1978 ", /*#__PURE__*/React.createElement("em", null, "52-Notes"), " calendar competition to TI PPC club printer-graphics tricks and factory diagnostics \u2014 collected here as loadable state files, whether or not you have Calc-U 59 installed yet."), /*#__PURE__*/React.createElement("div", {
+  }, "Programs written for real TI-59, TI-58 and TI-58C hardware, from the 1978 ", /*#__PURE__*/React.createElement("em", null, "52-Notes"), " calendar competition to TI PPC club printer-graphics tricks and factory diagnostics \u2014 collected here as loadable preset files, whether or not you have Calc-U 59 installed yet."), /*#__PURE__*/React.createElement("div", {
     className: "panel",
     style: {
       padding: 20,
@@ -2082,8 +2497,8 @@ function SoftwarePage({
       marginTop: 0
     }
   }, "Each entry below is a ", /*#__PURE__*/React.createElement("strong", null, ".ti59"), ", ", /*#__PURE__*/React.createElement("strong", null, ".ti58"), " or ", /*#__PURE__*/React.createElement("strong", null, ".ti58c"), " ", /*#__PURE__*/React.createElement("a", {
-    href: "/state-files/"
-  }, "state file"), " \u2014 the calculator's program, registers and (where the original used one) magnetic-card cue card, ready to load. Programs marked ", /*#__PURE__*/React.createElement("strong", null, "Requires printer"), " ", "need the emulated PC-100/PC-100C \u2014 available in the full app, not the browser emulator below."), /*#__PURE__*/React.createElement("p", {
+    href: "/presets/"
+  }, "preset file"), " \u2014 the calculator's program, registers and (where the original used one) magnetic-card cue card, ready to load. Programs marked ", /*#__PURE__*/React.createElement("strong", null, "Requires printer"), " ", "need the emulated PC-100/PC-100C \u2014 available in the full app, not the browser emulator below."), /*#__PURE__*/React.createElement("p", {
     style: {
       marginBottom: 0
     }
@@ -2158,8 +2573,10 @@ function SoftwarePage({
   }, "These files are maintained in the ", /*#__PURE__*/React.createElement("a", {
     href: "https://github.com/tinue/Calc-U-59/tree/main/examples"
   }, "examples/ directory"), " of the Calc-U 59 repository \u2014 its name predates this collection outgrowing \"examples\" \u2014 together with a few internal debugging and screenshot-test files not listed here. The", " ", /*#__PURE__*/React.createElement("a", {
-    href: "/state-files/"
-  }, "state file format"), " and the debugger's ASM Overlay are both documented if you want to write your own."), /*#__PURE__*/React.createElement("p", {
+    href: "/presets/"
+  }, "preset file format"), " is documented if you want to write your own \u2014 the", " ", /*#__PURE__*/React.createElement("a", {
+    href: "/presets/tutorial/"
+  }, "tutorial"), " walks through building one from scratch \u2014 and the debugger's ASM Overlay is documented for the assembly examples above."), /*#__PURE__*/React.createElement("p", {
     style: {
       marginBottom: 0,
       color: "var(--fg-3)",
@@ -2308,7 +2725,8 @@ Object.assign(window, {
   GettingStartedPage,
   InstallMobilePage,
   InstallMacPage,
-  StateFilesPage,
+  PresetsPage,
+  PresetTutorialPage,
   DebuggerPage,
   ReferencePage,
   ModulesPage,

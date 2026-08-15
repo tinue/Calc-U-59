@@ -22,12 +22,19 @@
     { path: "/getting-started/",                     page: "start", topic: "overview" },
     { path: "/install/iphone-ipad/",                 page: "install-mobile" },
     { path: "/install/mac/",                         page: "install-mac" },
-    { path: "/state-files/",                         page: "state-files" },
+    { path: "/presets/",                             page: "presets" },
+    { path: "/presets/tutorial/",                    page: "preset-tutorial" },
     { path: "/debugger/",                            page: "debugger" },
     { path: "/reference/",                           page: "ref" },
     { path: "/modules/",                             page: "modules" },
     { path: "/software/",                            page: "software" },
     { path: "/faq/",                                 page: "faq" },
+
+    // "State files" was the old name for what the app UI (and now the
+    // site) calls a "preset". Both real URLs below still resolve — old
+    // links and bookmarks keep working — but their canonical points at
+    // the current name so search engines consolidate onto it.
+    { path: "/state-files/",                         page: "presets", canonical: "/presets/" },
 
     // Sidebar deep links inside Getting Started. Most restate a standalone
     // page, so they point their canonical at it; "printer" is the one topic
@@ -43,9 +50,12 @@
     // there is exactly one URL and one copy of the FAQ content.
     { path: "/getting-started/install-iphone-ipad/", page: "start", topic: "install-mobile", canonical: "/install/iphone-ipad/" },
     { path: "/getting-started/install-mac/",         page: "start", topic: "install-mac",    canonical: "/install/mac/" },
-    { path: "/getting-started/state-files/",         page: "start", topic: "state-files",    canonical: "/state-files/" },
+    { path: "/getting-started/presets/",             page: "start", topic: "presets",        canonical: "/presets/" },
     { path: "/getting-started/debugger/",            page: "start", topic: "debugger",       canonical: "/debugger/" },
-    { path: "/getting-started/printer/",             page: "start", topic: "printer" }
+    { path: "/getting-started/printer/",             page: "start", topic: "printer" },
+
+    // Old sidebar deep link, kept reachable — see the /state-files/ note above.
+    { path: "/getting-started/state-files/",         page: "start", topic: "presets",        canonical: "/presets/" }
   ];
 
   // Old #hash URLs → new paths. Anything already shared or linked keeps

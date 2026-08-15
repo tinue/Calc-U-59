@@ -1,0 +1,26 @@
+# TI-59 Preset File Tutorial — Step 3: cue card
+#
+# Adds a CUECARD section: the on-screen card shown once the preset loads,
+# labeling the A-E keys the way a real magnetic card would.
+
+# Setup the system: Choose the model, solid state module and printer on/off
+MODEL: TI-59
+SOLID-STATE-MODULE: ML
+PRINTER: on
+
+# Change the partition layout of the calculator
+PARTITION: 719.29   # 720 steps, 30 data registers (3 2nd Op 17)
+
+# Setup the cue card that is shown after loading the preset.
+# For the template, either use "MagnetCard" for the TI-59 cards, or "CueCard"
+#  for the blank cards without a magnetic coating.
+CUECARD:
+Template: MagnetCard
+Title: TI-59 Preset File Tutorial Magnetic Card
+Banks: 1,2
+Row1: Calculates the sum of 1..N the slow way
+Row1Align: left
+A: Sum 1..N
+C: Enter number, then A
+D: \blank
+E: \blank

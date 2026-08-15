@@ -13,7 +13,7 @@ const STARTED_SECTIONS = [
     { id: "install-mac", label: "Installing on Mac", href: "/getting-started/install-mac/" },
   ]},
   { title: "Using the emulator", items: [
-    { id: "state-files", label: "Loading a state file", href: "/getting-started/state-files/" },
+    { id: "presets", label: "Loading a preset", href: "/getting-started/presets/" },
     { id: "debugger", label: "Using the debugger", href: "/getting-started/debugger/" },
     { id: "printer", label: "Printer and card reader", href: "/getting-started/printer/" },
   ]},
@@ -67,7 +67,7 @@ function HomePage({ onNav }) {
             <div className="panel" style={{ padding: 16 }}>
               <h3 className="sub" style={{ margin: "0 0 6px" }}>iPhone and iPad</h3>
               <p style={{ margin: 0, fontSize: 14, lineHeight: 1.6 }}>
-                Install from the App Store, then open the app and pick a model. State files load from the file picker inside the app.
+                Install from the App Store, then open the app and pick a model. Presets load from the file picker inside the app.
               </p>
             </div>
             <div className="panel" style={{ padding: 16 }}>
@@ -90,8 +90,8 @@ function HomePage({ onNav }) {
           <TopicCard num="02" eyebrow="Setup" title="Installing on Mac" href="/install/mac/">
             GitHub Releases, the DMG, and Gatekeeper the first time you open the app.
           </TopicCard>
-          <TopicCard num="03" eyebrow="Files" title="Loading a state file" href="/state-files/">
-            What a .ti59 file contains and how the parser treats each section.
+          <TopicCard num="03" eyebrow="Files" title="Loading a preset" href="/presets/">
+            What a .ti59 preset contains and how the parser treats each section.
           </TopicCard>
           <TopicCard num="04" eyebrow="Debug" title="Using the debugger" href="/debugger/">
             CALCULATOR, CPU, LOG, freeze/step, and the binary trace file.
@@ -123,7 +123,7 @@ function HomePage({ onNav }) {
             <li><strong>Magnetic cards</strong> read and written as files, synced between your devices over iCloud.</li>
             <li>The <strong>PC-100C thermal printer</strong>, in both a dot-matrix view and a copyable text view.</li>
             <li>A <a href="/debugger/">CPU-level debugger</a> with a live program listing, a ROM instruction trace, and binary trace capture for offline analysis.</li>
-            <li>Plain-text <a href="/state-files/">.ti59 state files</a> that carry a program, the registers, a cue card and a module selection in one readable file.</li>
+            <li>Plain-text <a href="/presets/">.ti59 preset files</a> that carry a program, the registers, a cue card and a module selection in one readable file.</li>
           </ul>
           <p style={{ marginBottom: 0 }}>
             New to these machines, or trying to work out which model you owned?{" "}
@@ -339,15 +339,15 @@ function GettingStartedPage({ initialTopic = "overview", onNav }) {
     overview: "Getting started with Calc-U 59",
     "install-mobile": "Installing on iPhone and iPad",
     "install-mac": "Installing on Mac",
-    "state-files": "Loading a state file",
+    presets: "Loading a preset",
     debugger: "Using the debugger",
     printer: "Printer and card reader",
   };
   const notes = {
-    overview: "Install the app, load a state file, drive the printer and card reader, and find your way around the debugger.",
+    overview: "Install the app, load a preset, drive the printer and card reader, and find your way around the debugger.",
     "install-mobile": "Use the App Store build, then configure the model and load presets from inside the app.",
     "install-mac": "Download the release from GitHub, then drag the app to Applications.",
-    "state-files": "What .ti59/.ti58/.ti58c files contain and how the parser treats each section.",
+    presets: "What .ti59/.ti58/.ti58c files contain and how the parser treats each section.",
     debugger: "CALCULATOR, CPU, LOG, freeze/step, and binary trace output.",
     printer: "The PC-100C panel, paper strip, copy/cut, and card file behaviour.",
   };
@@ -374,7 +374,7 @@ PRINTER: on`;
             Calc-U 59 runs the original Texas Instruments ROM, so the calculator in front of you behaves the way a TI-59, TI-58 or TI-58C did in 1977 — the same AOS arithmetic, the same 480 program steps traded against 60 data registers, the same Solid State Software modules.
           </p>
           <p style={{ marginBottom: 0 }}>
-            Most people need three things: get the app installed, open a state file, and know where the printer and the debugger live. Each is a short page.
+            Most people need three things: get the app installed, load a preset, and know where the printer and the debugger live. Each is a short page.
           </p>
         </div>
 
@@ -385,7 +385,7 @@ PRINTER: on`;
           <TopicCard num="02" eyebrow="Setup" title="Installing on Mac" href="/install/mac/">
             Download the release from GitHub, drag it to Applications, and get past the first-launch Gatekeeper prompt.
           </TopicCard>
-          <TopicCard num="03" eyebrow="Files" title="Loading a state file" href="/state-files/">
+          <TopicCard num="03" eyebrow="Files" title="Loading a preset" href="/presets/">
             What .ti59, .ti58 and .ti58c files contain, and how each section — partition, program, registers, keystrokes — is applied.
           </TopicCard>
           <TopicCard num="04" eyebrow="Hardware" title="Printer and card reader" href="/getting-started/printer/">
@@ -430,12 +430,12 @@ PRINTER: on`;
         </div>
       </div>
     ),
-    "state-files": (
+    presets: (
       <div style={{ display: "grid", gap: 16, marginTop: 20 }}>
         <div className="panel" style={{ padding: 20 }}>
           <p style={{ marginTop: 0, lineHeight: 1.7 }}>
-            State files are plain UTF-8 text. The parser understands a small set of section headers and ignores comments after <strong>#</strong>.
-            You can include only the sections you need.
+            Preset files are plain UTF-8 text. The parser understands a small set of section headers and ignores comments after <strong>#</strong>.
+            You can include only the sections you need. New to writing one? Follow the <a href="/presets/tutorial/">step-by-step tutorial</a>.
           </p>
           <pre style={{
             margin: 0,
@@ -580,7 +580,7 @@ function InstallMacPage({ onNav }) {
   );
 }
 
-function StateFilesPage({ onNav }) {
+function PresetsPage({ onNav }) {
   const stateFileExample = `# 800 steps, 19 data registers (R00–R19) — "2 OP 17"
 PARTITION: 799.19
 # Magnetic card with one Label
@@ -641,10 +641,15 @@ Style: button`;
   return (
     <main className="wrap-narrow">
       <p className="eyebrow">Files</p>
-      <h1 className="page-title">Loading a state file</h1>
-      <p className="lede">State files are plain UTF-8 text with named sections. You can include only the sections you need.</p>
+      <h1 className="page-title">Loading a preset</h1>
+      <p className="lede">Presets are plain UTF-8 text files with named sections. You can include only the sections you need.</p>
 
-      <div className="panel" style={{ padding: 20, marginTop: 24 }}>
+      <div className="panel" style={{ padding: 16, marginTop: 24, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+        <p style={{ margin: 0, lineHeight: 1.6 }}>New to writing a preset from scratch? The tutorial builds one up section by section, with a downloadable file at every step.</p>
+        <a className="btn secondary" href="/presets/tutorial/">Preset tutorial <span style={{opacity:.5}}>→</span></a>
+      </div>
+
+      <div className="panel" style={{ padding: 20, marginTop: 12 }}>
         <pre style={{
           margin: 0,
           padding: 16,
@@ -693,20 +698,25 @@ Style: button`;
           line of running text across the whole row.
         </p>
         <p>
-          <strong>Template</strong> picks the background art and layout, and
-          matches the real card it stands in for. On the real hardware,
-          magnetic cards have a writable label area on the front and a
-          magnetic coating on the back for the program; use{" "}
-          <strong>MagnetCard</strong> if the state file is meant to end up
-          written onto one (it also shows the <strong>Banks</strong> page
-          badges). The TI-58 and TI-58C have no card reader, so their owners
-          documented manually re-entered programs on cards with the same kind
-          of writable front but no magnetic back — use{" "}
+          <strong>Template</strong> picks the card artwork and layout, and
+          matches the real card it stands in for — <strong>MagnetCard</strong>{" "}
+          and <strong>CueCard</strong> look almost identical on screen, since
+          both were the same front-side label design. The difference is on
+          the back: a real magnetic card has a magnetic coating that stores
+          the program; a cue card doesn't. Use <strong>MagnetCard</strong> if
+          the preset is meant to end up written onto a magnetic card (it also
+          shows the <strong>Banks</strong> page badges). Cue cards shipped
+          for TI-58, TI-58C <em>and</em> TI-59 owners, but TI-59 owners
+          tended to skip them and just label whichever magnetic card already
+          held the program instead; TI-58 and TI-58C, having no card reader
+          at all, relied on cue cards since there was no magnetic card to
+          label in the first place — use{" "}
           <strong>CueCard</strong> for that case, or for any file that just
-          wants an on-screen label without card art. Which of the two you pick
-          for a given state file is mostly personal preference, except when
-          the file is a step toward an actual magnetic card — then use{" "}
-          <strong>MagnetCard</strong> to match. <strong>SolidStateCard</strong>{" "}
+          wants an on-screen label without a magnetic-card connotation. Which
+          of the two you pick for a given preset is mostly personal
+          preference, except when the file is a step toward an actual
+          magnetic card — then use <strong>MagnetCard</strong> to match.{" "}
+          <strong>SolidStateCard</strong>{" "}
           reproduces the pre-printed cards that shipped with a Solid State
           Software module; real ones can't be edited by the module's user, and
           in the emulator they're normally only touched by the project's
@@ -800,9 +810,418 @@ Style: button`;
 
       <h2 className="section" style={{ marginTop: 24 }}>Loading a labeled card</h2>
       <div className="panel" style={{ padding: 20, lineHeight: 1.7 }}>
-        <p style={{ marginTop: 0 }}><strong>From a state file</strong> — Load State File on a <code>.ti59</code>/<code>.ti58</code>/<code>.ti58c</code> file with a CUECARD section; it's applied immediately and stays until you load something else or reset.</p>
-        <p><strong>Onto a virtual magnetic card</strong> — load a state file with the CUECARD you want active, then <strong>Write Magnetic Card</strong>: whatever cue card is on screen at that moment is saved into the card file along with the program or data. Reading that card back with <strong>Read Magnetic Card</strong> restores the label along with the contents.</p>
-        <p style={{ marginBottom: 0 }}><strong>By editing the card file directly</strong> — virtual card files are plain text too (see the FAQ entry on where they live), with the same <code>CUECARD:</code> syntax as a state file. Add or edit that section in a text editor and the label shows the next time the card is read.</p>
+        <p style={{ marginTop: 0 }}><strong>From a preset</strong> — tap <strong>Preset</strong> and pick a <code>.ti59</code>/<code>.ti58</code>/<code>.ti58c</code> file with a CUECARD section; it's applied immediately and stays until you load something else or reset.</p>
+        <p><strong>Onto a virtual magnetic card</strong> — load a preset with the CUECARD you want active, then <strong>Write Magnetic Card</strong>: whatever cue card is on screen at that moment is saved into the card file along with the program or data. Reading that card back with <strong>Read Magnetic Card</strong> restores the label along with the contents.</p>
+        <p style={{ marginBottom: 0 }}><strong>By editing the card file directly</strong> — virtual card files are plain text too (see the FAQ entry on where they live), with the same <code>CUECARD:</code> syntax as a preset. Add or edit that section in a text editor and the label shows the next time the card is read.</p>
+      </div>
+
+      <div style={{ marginTop: 24 }}>
+        <BackButton onNav={onNav} />
+      </div>
+    </main>
+  );
+}
+
+/* =============================================================
+   PRESET TUTORIAL — builds one .ti59 preset file up from nothing,
+   one section at a time, with a real downloadable file at every step.
+   The finished file is docs/tutorial-files/tutorial.ti59, also linked
+   from /presets/ and the FAQ.
+   ============================================================= */
+function TutorialStep({ num, title, children, code, file, filename }) {
+  return (
+    <>
+      <h2 className="section" style={{ marginTop: 32 }}>Step {num}: {title}</h2>
+      <div className="panel" style={{ padding: 20, lineHeight: 1.7 }}>
+        {children}
+      </div>
+      <div className="panel" style={{ padding: 20, marginTop: 12 }}>
+        <pre style={{
+          margin: 0,
+          padding: 16,
+          borderRadius: 8,
+          background: "var(--bg-inset)",
+          color: "var(--fg)",
+          overflowX: "auto",
+          lineHeight: 1.5,
+          fontSize: 13,
+        }}>{code}</pre>
+      </div>
+      <div style={{ marginTop: 12, textAlign: "right" }}>
+        <a className="btn secondary" href={`/tutorial-files/${file}`} download>
+          Download {filename || file}
+        </a>
+      </div>
+    </>
+  );
+}
+
+function PresetTutorialPage({ onNav }) {
+  const step1 = `# TI-59 Preset File Tutorial — Step 1: setup
+#
+# This is the smallest possible preset file: it only picks the calculator
+# model and a couple of options. Load it in Calc-U 59 right now and you get
+# a TI-59 with the Master Library module and the printer switched on —
+# nothing else has been set up yet.
+
+# Setup the system: Choose the model, solid state module and printer on/off
+MODEL: TI-59
+SOLID-STATE-MODULE: ML
+PRINTER: on`;
+
+  const step2 = `# TI-59 Preset File Tutorial — Step 2: partition
+#
+# Same as Step 1, with one addition: PARTITION changes the split between
+# program memory and data registers.
+
+# Setup the system: Choose the model, solid state module and printer on/off
+MODEL: TI-59
+SOLID-STATE-MODULE: ML
+PRINTER: on
+
+# Change the partition layout of the calculator
+PARTITION: 719.29   # 720 steps, 30 data registers (3 2nd Op 17)`;
+
+  const step3 = `# TI-59 Preset File Tutorial — Step 3: cue card
+#
+# Adds a CUECARD section: the on-screen card shown once the preset loads,
+# labeling the A-E keys the way a real magnetic card would.
+
+# Setup the system: Choose the model, solid state module and printer on/off
+MODEL: TI-59
+SOLID-STATE-MODULE: ML
+PRINTER: on
+
+# Change the partition layout of the calculator
+PARTITION: 719.29   # 720 steps, 30 data registers (3 2nd Op 17)
+
+# Setup the cue card that is shown after loading the preset.
+# For the template, either use "MagnetCard" for the TI-59 cards, or "CueCard"
+#  for the blank cards without a magnetic coating.
+CUECARD:
+Template: MagnetCard
+Title: TI-59 Preset File Tutorial Magnetic Card
+Banks: 1,2
+Row1: Calculates the sum of 1..N the slow way
+Row1Align: left
+A: Sum 1..N
+C: Enter number, then A
+D: \\blank
+E: \\blank`;
+
+  const step4 = `# TI-59 Preset File Tutorial — Step 4: program
+#
+# Adds a PROGRAM section: the calculator's program memory, entered as key
+# codes. This particular program sums the numbers from 1 down to whatever
+# you enter — press a number, then A.
+
+# Setup the system: Choose the model, solid state module and printer on/off
+MODEL: TI-59
+SOLID-STATE-MODULE: ML
+PRINTER: on
+
+# Change the partition layout of the calculator
+PARTITION: 719.29   # 720 steps, 30 data registers (3 2nd Op 17)
+
+# Setup the cue card that is shown after loading the preset.
+# For the template, either use "MagnetCard" for the TI-59 cards, or "CueCard"
+#  for the blank cards without a magnetic coating.
+CUECARD:
+Template: MagnetCard
+Title: TI-59 Preset File Tutorial Magnetic Card
+Banks: 1,2
+Row1: Calculates the sum of 1..N the slow way
+Row1Align: left
+A: Sum 1..N
+C: Enter number, then A
+D: \\blank
+E: \\blank
+
+# Setup the program memory. The format is very flexible, here we use 10 steps per line
+# and add a comment for the line numbers. The loader simply takes the key codes and ignores the rest.
+PROGRAM:
+43 00 44 01 97  00 00 00 43 01  # 000-009
+91 76 11 42 00  25 42 01 61 00  # 010-019
+00                              # 020`;
+
+  const step5 = `# TI-59 Preset File Tutorial — Step 5: registers
+#
+# Adds a REGISTERS section: preloaded data register content, entered as
+# plain decimal numbers, at the full TI-59 precision.
+
+# Setup the system: Choose the model, solid state module and printer on/off
+MODEL: TI-59
+SOLID-STATE-MODULE: ML
+PRINTER: on
+
+# Change the partition layout of the calculator
+PARTITION: 719.29   # 720 steps, 30 data registers (3 2nd Op 17)
+
+# Setup the cue card that is shown after loading the preset.
+# For the template, either use "MagnetCard" for the TI-59 cards, or "CueCard"
+#  for the blank cards without a magnetic coating.
+CUECARD:
+Template: MagnetCard
+Title: TI-59 Preset File Tutorial Magnetic Card
+Banks: 1,2
+Row1: Calculates the sum of 1..N the slow way
+Row1Align: left
+A: Sum 1..N
+C: Enter number, then A
+D: \\blank
+E: \\blank
+
+# Setup the program memory. The format is very flexible, here we use 10 steps per line
+# and add a comment for the line numbers. The loader simply takes the key codes and ignores the rest.
+PROGRAM:
+43 00 44 01 97  00 00 00 43 01  # 000-009
+91 76 11 42 00  25 42 01 61 00  # 010-019
+00                              # 020
+
+# Setup register content. The full TI-59 precision is supported. On the real hardware, the number below
+# can't be entered directly, one would need SUM and division to set this up.
+REGISTERS:
+29 = 3.000000000004`;
+
+  const step6 = `# TI-59 Preset File Tutorial — complete
+#
+# This file is used to explain how preset files are constructed. See
+# https://www.calcu59.ch/presets/tutorial/ for the step-by-step walkthrough.
+
+# Setup the system: Choose the model, solid state module and printer on/off
+MODEL: TI-59
+SOLID-STATE-MODULE: ML
+PRINTER: on
+
+# Change the partition layout of the calculator
+PARTITION: 719.29   # 720 steps, 30 data registers (3 2nd Op 17)
+
+# Setup the cue card that is shown after loading the preset.
+# For the template, either use "MagnetCard" for the TI-59 cards, or "CueCard"
+#  for the blank cards without a magnetic coating.
+CUECARD:
+Template: MagnetCard
+Title: TI-59 Preset File Tutorial Magnetic Card
+Banks: 1,2
+Row1: Calculates the sum of 1..N the slow way
+Row1Align: left
+A: Sum 1..N
+C: Enter number, then A
+D: \\blank
+E: \\blank
+
+# Setup the program memory. The format is very flexible, here we use 10 steps per line
+# and add a comment for the line numbers. The loader simply takes the key codes and ignores the rest.
+PROGRAM:
+43 00 44 01 97  00 00 00 43 01  # 000-009
+91 76 11 42 00  25 42 01 61 00  # 010-019
+00                              # 020
+
+# Setup register content. The full TI-59 precision is supported. On the real hardware, the number below
+# can't be entered directly, one would need SUM and division to set this up.
+REGISTERS:
+29 = 3.000000000004
+
+KEYSTROKES:
+# Automate keystrokes, sent after everything above has been set up. As a sample here, we calculate
+# the sum from 1..5 using the program above. Keystrokes use the matrix coordinates, not the program
+# memory keycodes. Hence, the key "5" is 73, and not 05.
+73              # 5
+11              # A
+Wait: 2s        # Wait for 2 Seconds in order to see the result
+43              # RCL
+83              # 2
+64              # 9
+Wait: 2s        # The display only shows "3.", because there are not enough digits for the fraction.
+75              # -
+84              # 3
+95              # =
+# After subtracting 3 we see the fraction.`;
+
+  return (
+    <main className="wrap-narrow">
+      <p className="eyebrow">Files</p>
+      <h1 className="page-title">Writing a preset file, step by step</h1>
+      <p className="lede">
+        A preset file is nothing more than plain text. This tutorial builds
+        one up from nothing, one section at a time, so you can see exactly
+        what each line changes. Every step below is also a real,
+        downloadable <code>.ti59</code> file you can load in Calc-U 59 as
+        you go — try each one before moving to the next.
+      </p>
+
+      <div id="txt-extension" className="panel" style={{
+        padding: 20, marginTop: 24, lineHeight: 1.7,
+        border: "1px solid var(--accent-deep)",
+        background: "rgba(240,192,64,.04)",
+      }}>
+        <p style={{ marginTop: 0 }}>
+          <span className="eyebrow" style={{ color: "var(--accent)" }}>Before you start</span>
+        </p>
+        <p style={{ marginBottom: 0 }}>
+          When you save a preset with a plain text editor, it's easy to end
+          up with <code>my-preset.ti59.txt</code> instead of{" "}
+          <code>my-preset.ti59</code> — Windows and macOS both hide known
+          file extensions by default, so the file still looks like{" "}
+          <code>my-preset.ti59</code> in Finder, Explorer, or the iPhone
+          file picker. Calc-U 59's preset picker only accepts{" "}
+          <code>.ti59</code>, <code>.ti58</code> and <code>.ti58c</code>, so
+          a file with a hidden <code>.txt</code> tail shows up{" "}
+          <strong>grayed out and can't be selected</strong>. If that
+          happens, turn on "Show file extensions" (Windows Explorer) or
+          "Show all filename extensions" (macOS Finder — Finder ▸ Settings ▸
+          Advanced) and rename the file, or rename it from a terminal with{" "}
+          <code>mv my-preset.ti59.txt my-preset.ti59</code>.
+        </p>
+      </div>
+
+      <TutorialStep num={1} title="Setup" code={step1} file="tutorial-1-setup.ti59">
+        <p style={{ marginTop: 0 }}>
+          Start with the three lines every preset can begin with:{" "}
+          <strong>MODEL</strong> picks which calculator you get (TI-59,
+          TI-58 or TI-58C), <strong>SOLID-STATE-MODULE</strong> loads one of
+          the fourteen library modules by its two-letter code — here{" "}
+          <strong>ML</strong> for the Master Library — and{" "}
+          <strong>PRINTER</strong> switches the emulated PC-100C on or off.
+        </p>
+        <p style={{ marginBottom: 0 }}>
+          Load this file and you already have a working calculator: nothing
+          else in a preset is required. Everything from here on is
+          optional, added only because this particular preset needs it.
+        </p>
+      </TutorialStep>
+
+      <TutorialStep num={2} title="Partition" code={step2} file="tutorial-2-partition.ti59">
+        <p style={{ marginTop: 0 }}>
+          <strong>PARTITION</strong> sets the split between program memory
+          and data registers — the same trade-off the real TI-59 keyboard
+          sequence <strong>2nd Op 17</strong> controls. The value is written
+          as <code>steps.registers</code>: <code>719.29</code> means step
+          719 is the last program step, so 720 steps remain for the program
+          and the other 79 slots become 30 (numbered 00–29) usable data
+          registers on a TI-59. Leave this line out and the emulator uses
+          the model's default partition instead.
+        </p>
+        <p style={{ marginBottom: 0 }}>
+          This step doesn't change what you see when you load the file —
+          there's no program or cue card yet — but it matters once Step 4
+          writes a program past the default partition boundary.
+        </p>
+      </TutorialStep>
+
+      <TutorialStep num={3} title="Cue card" code={step3} file="tutorial-3-cuecard.ti59">
+        <p style={{ marginTop: 0 }}>
+          <strong>CUECARD</strong> is what turns a blank calculator into a
+          labeled one. <strong>Template: MagnetCard</strong> and{" "}
+          <strong>CueCard</strong> draw almost identical card art — real
+          magnetic cards and cue cards used the same front-side label design.
+          The difference is the back: a magnetic card stores the program, a
+          cue card doesn't, so <strong>MagnetCard</strong> is the right
+          choice here since this file is building toward one.{" "}
+          <strong>Title</strong> and <strong>Banks</strong> are the card's
+          header text and bank badges.
+        </p>
+        <p>
+          <strong>Row1</strong> replaces the entire A′–E′ label row with one
+          line of running text instead of five separate key labels — handy
+          for a one-line instruction like this tutorial's "Calculates the
+          sum of 1..N the slow way". <strong>A</strong> through{" "}
+          <strong>E</strong> label the plain key row individually;{" "}
+          <code>\blank</code> on <strong>D</strong> and <strong>E</strong>{" "}
+          merges those key positions into C's label so "Enter number, then
+          A" reads across all three keys.
+        </p>
+        <p style={{ marginBottom: 0 }}>
+          Load this file now and the card appears immediately — nothing on
+          it does anything yet, because there's still no program behind the{" "}
+          <strong>A</strong> key. The full{" "}
+          <a href="/presets/#labeling-keys">CUECARD field reference</a>{" "}
+          covers every field, the math-notation shortcuts, and both
+          templates in more depth.
+        </p>
+      </TutorialStep>
+
+      <TutorialStep num={4} title="Program" code={step4} file="tutorial-4-program.ti59">
+        <p style={{ marginTop: 0 }}>
+          <strong>PROGRAM</strong> loads program memory as key codes — the
+          same codes the calculator itself displays while you record a
+          program by hand, not the physical key positions. Whitespace and
+          line breaks are cosmetic; the loader reads a flat stream of
+          two-digit codes and ignores anything after <strong>#</strong>, so
+          the step-number comments above are for the reader, not the
+          parser. This particular listing sums a number down to 1: it
+          stores the entered value, loops subtracting and adding into a
+          running total, and stops with <strong>R/S</strong> when done.
+        </p>
+        <p style={{ marginBottom: 0 }}>
+          Load this file and press a digit, then <strong>A</strong> — the
+          cue card told you to — and the program actually runs now.
+        </p>
+      </TutorialStep>
+
+      <TutorialStep num={5} title="Registers" code={step5} file="tutorial-5-registers.ti59">
+        <p style={{ marginTop: 0 }}>
+          <strong>REGISTERS</strong> preloads data register contents as
+          plain decimal numbers, at the calculator's full internal
+          precision — 13 significant digits. The value here,{" "}
+          <code>3.000000000004</code> in register 29, is deliberately one
+          that's awkward to key in by hand on real hardware (you'd need{" "}
+          <strong>SUM</strong> and a division to land on it exactly); a
+          preset just states the final value directly.
+        </p>
+        <p>
+          This step doesn't change what the program does — register 29
+          isn't part of the sum routine above — it's here so the next step
+          has something worth recalling with <strong>RCL</strong>.
+        </p>
+        <p style={{ marginBottom: 0 }}>
+          To check that a value actually loaded, open the <a href="/debugger/">debugger</a>{" "}
+          and look at the register list — on Mac and on iPad in landscape
+          it's visible right alongside the calculator; on iPhone (and iPad in
+          portrait) swipe to it. The debugger has to be turned on first on
+          iPhone/portrait iPad: enable <strong>Debug Page in Portrait</strong>{" "}
+          under <strong>Settings</strong>, or it won't be there to swipe to.
+        </p>
+      </TutorialStep>
+
+      <TutorialStep num={6} title="Keystrokes" code={step6} filename="tutorial.ti59" file="tutorial.ti59">
+        <p style={{ marginTop: 0 }}>
+          <strong>KEYSTROKES</strong> is the odd one out: everything above
+          describes the calculator's state, but this section acts, sending
+          real key presses after everything else has loaded —{" "}
+          <strong>Wait: 2s</strong> pauses between groups so you can watch
+          the display change. Keystrokes use <em>matrix coordinates</em>,
+          not the program-memory key codes from Step 4 — the digit{" "}
+          <strong>5</strong> is program key code <code>05</code> but matrix
+          code <code>73</code>. The two tables are documented separately in
+          the format reference precisely because mixing them up is the most
+          common preset-writing mistake.
+        </p>
+        <p style={{ marginBottom: 0 }}>
+          This is the finished tutorial file. Loading it types{" "}
+          <strong>5</strong>, <strong>A</strong> to run the sum program from
+          Step 4, waits, then recalls register 29 from Step 5 and subtracts
+          3 from it — demonstrating, in order, every section this tutorial
+          added.
+        </p>
+      </TutorialStep>
+
+      <div className="panel" style={{ padding: 20, marginTop: 32, lineHeight: 1.7 }}>
+        <p style={{ marginTop: 0 }}>
+          That covers enough to write your own preset from scratch. The{" "}
+          <a href="/presets/">preset reference page</a> documents every
+          section in one place, and the complete grammar — the full matrix
+          code table, 2nd-function key codes, and the CUECARD field list —
+          is developer documentation in the GitHub repository:{" "}
+          <a href="https://github.com/tinue/Calc-U-59/blob/main/reference/StateFileFormat.md" style={{ color: "var(--accent)", textDecoration: "none", borderBottom: "1px solid var(--accent)" }}>
+            reference/StateFileFormat.md →
+          </a>
+        </p>
+        <p style={{ marginBottom: 0 }}>
+          For more preset files to read and load, including much longer
+          real-world programs, see the{" "}
+          <a href="/software/">TI-59 Software Collection</a>.
+        </p>
       </div>
 
       <div style={{ marginTop: 24 }}>
@@ -983,7 +1402,7 @@ function ReferencePage({ onNav }) {
             The top display area shows the current number and status indicators, the cue card area directly beneath it shows module/context notes, and the keyboard area contains the full key matrix for normal operation.
           </p>
           <p style={{ marginBottom: 0 }}>
-            Bottom toolbar (left to right): <strong>Reset</strong> (long press: <strong>Reset + Memory wipe</strong>), <strong>Model selector</strong> (TI-59/TI-58/TI-58C), <strong>Read Magnetic Card</strong>, <strong>Write Magnetic Card</strong>, <strong>Load State File</strong>, <strong>Settings</strong>.
+            Bottom toolbar (left to right): <strong>Reset</strong> (long press: <strong>Reset + Memory wipe</strong>), <strong>Model selector</strong> (TI-59/TI-58/TI-58C), <strong>Read Magnetic Card</strong>, <strong>Write Magnetic Card</strong>, <strong>Preset</strong>, <strong>Settings</strong>.
           </p>
         </div>
 
@@ -1054,7 +1473,7 @@ function ReferencePage({ onNav }) {
             <li><strong>Model selector</strong> (TI-59 / TI-58 / TI-58C)</li>
             <li><strong>Read Magnetic Card</strong></li>
             <li><strong>Write Magnetic Card</strong></li>
-            <li><strong>Load State File</strong></li>
+            <li><strong>Preset</strong></li>
             <li><strong>Settings</strong></li>
             <li><strong>Swipe to printer</strong></li>
           </ol>
@@ -1070,12 +1489,12 @@ function ReferencePage({ onNav }) {
 function FaqPage({ onNav }) {
   const faqs = [
     {
-      question: "Where do state files live?",
+      question: "Where do preset files live?",
       answer: "They are regular .ti59, .ti58, or .ti58c text files that can be anywhere on the file system. On Mac, the preset picker opens them from disk; on iPhone and iPad, use the built-in file picker.",
     },
     {
-      question: "Are there examples of state files?",
-      answer: "Yes. The GitHub repository includes an 'examples' folder with a selection of .ti59, .ti58, and .ti58c files.",
+      question: "Are there examples of preset files?",
+      answer: "Yes. The GitHub repository includes an 'examples' folder with a selection of .ti59, .ti58, and .ti58c files, and the 'TI-59 Software Collection' page has downloadable copies. There's also a step-by-step tutorial that builds one from scratch.",
     },
     {
       question: "What are the 'assembly' examples here for?",
@@ -1091,7 +1510,7 @@ function FaqPage({ onNav }) {
     },
     {
       question: "Where is the TI-58C state file?",
-      answer: "The TI-58C state file is stored in the app's iCloud storage (ti58c.mem). The file is written and loaded automatically when you switch to the TI-58C model.",
+      answer: "The TI-58C state file is stored in the app's iCloud storage (ti58c.mem). Unlike a preset, which you load on demand, this file is the TI-58C's persistent state — it's written and loaded automatically whenever you switch to the TI-58C model, standing in for the battery-backed static RAM the real hardware used to keep memory alive between sessions.",
     },
     {
       question: "Can I see what the emulator is doing internally?",
@@ -1129,17 +1548,37 @@ function FaqPage({ onNav }) {
       question: "How do I create the cards that label the A-E and A'-E' keys?",
       answer: (
         <>
-          Add a <strong>CUECARD:</strong> section to a state file: set{" "}
+          Add a <strong>CUECARD:</strong> section to a preset: set{" "}
           <strong>Template</strong> to <code>MagnetCard</code> or{" "}
           <code>CueCard</code>, then fill in fields <strong>A</strong>{" "}
           through <strong>E</strong> and <strong>A′</strong> through{" "}
           <strong>E′</strong> for the two key rows. Load that file (or write it
           onto a virtual magnetic card to keep the label with the card) and it
           appears on screen. See{" "}
-          <a href="/state-files/#labeling-keys" style={{ color: "var(--accent)", textDecoration: "none", borderBottom: "1px solid var(--accent)" }}>
-            Loading a state file → Labeling the A–E and A′–E′ keys
+          <a href="/presets/#labeling-keys" style={{ color: "var(--accent)", textDecoration: "none", borderBottom: "1px solid var(--accent)" }}>
+            Loading a preset → Labeling the A–E and A′–E′ keys
           </a>{" "}
           for the format, the math shortcuts, and the loading options.
+        </>
+      ),
+    },
+    {
+      question: "I wrote a preset file myself, but the app shows it grayed out and won't load it. Why?",
+      answer: (
+        <>
+          Almost always a hidden <strong>.txt</strong> extension. Some text
+          editors, and Finder/Explorer with extensions hidden, save{" "}
+          <code>my-preset.ti59</code> as <code>my-preset.ti59.txt</code>{" "}
+          without showing it — the file looks right in the file browser, but
+          the preset picker only accepts <code>.ti59</code>, <code>.ti58</code>{" "}
+          and <code>.ti58c</code>, so it's shown grayed out and can't be
+          selected. Turn on "Show file extensions" (Explorer) or "Show all
+          filename extensions" (Finder), or rename the file from a terminal,
+          and it should load normally. See{" "}
+          <a href="/presets/tutorial/#txt-extension" style={{ color: "var(--accent)", textDecoration: "none", borderBottom: "1px solid var(--accent)" }}>
+            the preset tutorial
+          </a>{" "}
+          for more on avoiding this.
         </>
       ),
     },
@@ -1197,7 +1636,7 @@ function ModulesPage({ onNav }) {
 
       <div className="panel" style={{ padding: 20, marginTop: 24, lineHeight: 1.7 }}>
         <p style={{ marginTop: 0 }}>
-          Keep the selected module aligned with the file you are loading. If a state file includes a <strong>SOLID-STATE-MODULE:</strong> line, the emulator can switch to that module automatically.
+          Keep the selected module aligned with the file you are loading. If a preset includes a <strong>SOLID-STATE-MODULE:</strong> line, the emulator can switch to that module automatically.
         </p>
         <p style={{ marginBottom: 0 }}>
           If the cue card or program list looks unexpected, the module selection is the first thing to check.
@@ -1331,13 +1770,13 @@ function SoftwarePage({ onNav }) {
       <p className="lede">
         Programs written for real TI-59, TI-58 and TI-58C hardware, from the 1978 <em>52-Notes</em> calendar
         competition to TI PPC club printer-graphics tricks and factory diagnostics — collected here as
-        loadable state files, whether or not you have Calc-U 59 installed yet.
+        loadable preset files, whether or not you have Calc-U 59 installed yet.
       </p>
 
       <div className="panel" style={{ padding: 20, marginTop: 24, lineHeight: 1.7 }}>
         <p style={{ marginTop: 0 }}>
           Each entry below is a <strong>.ti59</strong>, <strong>.ti58</strong> or <strong>.ti58c</strong>{" "}
-          <a href="/state-files/">state file</a> — the calculator's program, registers and (where the
+          <a href="/presets/">preset file</a> — the calculator's program, registers and (where the
           original used one) magnetic-card cue card, ready to load. Programs marked <strong>Requires printer</strong>{" "}
           need the emulated PC-100/PC-100C — available in the full app, not the browser emulator below.
         </p>
@@ -1378,8 +1817,9 @@ function SoftwarePage({ onNav }) {
           These files are maintained in the <a href="https://github.com/tinue/Calc-U-59/tree/main/examples">
           examples/ directory</a> of the Calc-U 59 repository — its name predates this collection outgrowing
           "examples" — together with a few internal debugging and screenshot-test files not listed here. The{" "}
-          <a href="/state-files/">state file format</a> and the debugger's ASM Overlay are both documented if
-          you want to write your own.
+          <a href="/presets/">preset file format</a> is documented if you want to write your own — the{" "}
+          <a href="/presets/tutorial/">tutorial</a> walks through building one from scratch — and the
+          debugger's ASM Overlay is documented for the assembly examples above.
         </p>
         <p style={{ marginBottom: 0, color: "var(--fg-3)", fontSize: 13 }}>
           Most of these programs were originally published in <em>52-Notes</em>, <em>TI PPC Notes</em> and{" "}
@@ -1530,7 +1970,8 @@ Object.assign(window, {
   GettingStartedPage,
   InstallMobilePage,
   InstallMacPage,
-  StateFilesPage,
+  PresetsPage,
+  PresetTutorialPage,
   DebuggerPage,
   ReferencePage,
   ModulesPage,

@@ -1,0 +1,54 @@
+# TI-59 Preset File Tutorial — complete
+#
+# This file is used to explain how preset files are constructed. See
+# https://www.calcu59.ch/presets/tutorial/ for the step-by-step walkthrough.
+
+# Setup the system: Choose the model, solid state module and printer on/off
+MODEL: TI-59
+SOLID-STATE-MODULE: ML
+PRINTER: on
+
+# Change the partition layout of the calculator
+PARTITION: 719.29   # 720 steps, 30 data registers (3 2nd Op 17)
+
+# Setup the cue card that is shown after loading the preset.
+# For the template, either use "MagnetCard" for the TI-59 cards, or "CueCard"
+#  for the blank cards without a magnetic coating.
+CUECARD:
+Template: MagnetCard
+Title: TI-59 Preset File Tutorial Magnetic Card
+Banks: 1,2
+Row1: Calculates the sum of 1..N the slow way
+Row1Align: left
+A: Sum 1..N
+C: Enter number, then A
+D: \blank
+E: \blank
+
+# Setup the program memory. The format is very flexible, here we use 10 steps per line
+# and add a comment for the line numbers. The loader simply takes the key codes and ignores the rest.
+PROGRAM:
+43 00 44 01 97  00 00 00 43 01  # 000-009
+91 76 11 42 00  25 42 01 61 00  # 010-019
+00                              # 020
+
+# Setup register content. The full TI-59 precision is supported. On the real hardware, the number below
+# can't be entered directly, one would need SUM and division to set this up.
+REGISTERS:
+29 = 3.000000000004
+
+KEYSTROKES:
+# Automate keystrokes, sent after everything above has been set up. As a sample here, we calculate
+# the sum from 1..5 using the program above. Keystrokes use the matrix coordinates, not the program
+# memory keycodes. Hence, the key "5" is 73, and not 05.
+73              # 5
+11              # A
+Wait: 2s        # Wait for 2 Seconds in order to see the result
+43              # RCL
+83              # 2
+64              # 9
+Wait: 2s        # The display only shows "3.", because there are not enough digits for the fraction.
+75              # -
+84              # 3
+95              # =
+# After subtracting 3 we see the fraction.

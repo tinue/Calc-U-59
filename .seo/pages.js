@@ -33,7 +33,7 @@ const PAGES = {
   "/getting-started/": {
     title: "Getting Started with the Calc-U 59 TI-59 Emulator",
     description:
-      "Install Calc-U 59 on iPhone, iPad or Mac, load a .ti59 state file, use the PC-100C printer and card reader, and find your way around the debugger.",
+      "Install Calc-U 59 on iPhone, iPad or Mac, load a .ti59 preset, use the PC-100C printer and card reader, and find your way around the debugger.",
     heading: "Getting started",
   },
   "/getting-started/printer/": {
@@ -56,11 +56,17 @@ const PAGES = {
     heading: "Installing on Mac",
   },
 
-  "/state-files/": {
-    title: ".ti59 State Files — format and how to load one",
+  "/presets/": {
+    title: ".ti59 Presets — format and how to load one",
     description:
-      "The plain-text .ti59, .ti58 and .ti58c state file format: PARTITION, PROGRAM, REGISTERS, KEYSTROKES, CUECARD, SOLID-STATE-MODULE and PRINTER sections explained.",
-    heading: "Loading a state file",
+      "The plain-text .ti59, .ti58 and .ti58c preset file format: PARTITION, PROGRAM, REGISTERS, KEYSTROKES, CUECARD, SOLID-STATE-MODULE and PRINTER sections explained.",
+    heading: "Loading a preset",
+  },
+  "/presets/tutorial/": {
+    title: "Write a TI-59 Preset File — step-by-step tutorial",
+    description:
+      "Build a .ti59 preset file from scratch: model, PARTITION, CUECARD, PROGRAM, REGISTERS and KEYSTROKES, one section at a time, with a downloadable file at every step.",
+    heading: "Writing a preset file, step by step",
   },
   "/debugger/": {
     title: "TI-59 CPU Debugger — program listing, ROM trace, TRACE capture",
@@ -90,7 +96,7 @@ const PAGES = {
   "/faq/": {
     title: "Calc-U 59 FAQ — TI-59 emulator questions answered",
     description:
-      "Where state files and virtual magnetic cards live, how to capture and read a trace file, what F.START does, and the other questions that come up first.",
+      "Where preset files and virtual magnetic cards live, how to capture and read a trace file, what F.START does, and the other questions that come up first.",
     heading: "FAQ",
   },
 };
