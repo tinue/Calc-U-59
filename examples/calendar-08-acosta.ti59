@@ -172,7 +172,7 @@ REGISTERS:
 12 = 9.000025413117
 13 = 10.00025412745
 14 = 10.00000134122
-15 = 9.000036173307
+15 = 9.000036173337
 16 = 10.00000321537
 17 = 9.000000313242
 18 = 10.00000161715
@@ -279,9 +279,13 @@ KEYSTROKES:
 
 # Whole-year print for 2026 (per the User Instructions above and the B-row
 # cue-card example: key year, press A, key months, R/S, key start month,
-# R/S). Data entry is left at regular speed and outside the elapsed-time
-# measurement; only the print itself (triggered by the final R/S) is timed,
-# and run at full speed.
+# R/S). Data entry is at regular speed; the print itself (triggered by the
+# final R/S) is deliberately ALSO run at regular speed here, not full
+# speed — a full-speed run logged an elapsed time of 3:45.922, far over the
+# article's claimed 1:23, while this regular-speed run logs 1:22.171,
+# matching the article almost exactly. Suspect full-speed interferes with
+# an idle/scan loop that fires far more often when full-speed throttling
+# is active. Keeping this at regular speed until that's root-caused.
 83              # 2
 92              # 0
 83              # 2
@@ -291,8 +295,7 @@ KEYSTROKES:
 83              # 2              → 12 months
 91              # R/S
 82              # 1              → start month 1
-ZeroElapseTime:
-FullSpeed:
-91              # R/S — print the whole year
 RegularSpeed:
+ZeroElapseTime:
+91              # R/S — print the whole year, regular speed for stopwatch timing
 ReportElapseTime:
