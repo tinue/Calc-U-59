@@ -1,5 +1,10 @@
 import Foundation
 
+/// Zero-width space marking a grid cell as merged into the preceding label's span.
+/// Written to `\blank` on disk (see `mathTokens`/`encodeToLines`) since the raw
+/// character does not survive whitespace-trimming on a round trip through a file.
+let cueCardInvisibleMarker = "\u{200B}"
+
 // MARK: - Math token expansion
 
 private let mathTokens: [(String, String)] = [
@@ -49,7 +54,7 @@ private let mathTokens: [(String, String)] = [
         ("\\geq", "≥"),      // U+2265
 
         // Grid markers
-        ("\\blank", "\u{200B}"),  // Zero-width space for invisible columns
+        ("\\blank", cueCardInvisibleMarker),  // Zero-width space for invisible columns
 
         // Superscript: multi-char first
         ("^{-1}", "⁻¹"),     // U+207B + U+00B9
@@ -246,10 +251,17 @@ struct CueCardContent: Equatable {
 
         if !id.isEmpty { lines.append("ID: \(id)") }
 
+        // Round-trip the invisible-column marker as literal "\blank" text: the raw
+        // zero-width space does not survive whitespace-trimming on reload (see
+        // cueCardInvisibleMarker's doc comment).
+        func encodedLabel(_ label: String) -> String {
+            label == cueCardInvisibleMarker ? "\\blank" : label
+        }
+
         let primeKeys = ["A'", "B'", "C'", "D'", "E'"]
         for (i, key) in primeKeys.enumerated() {
             if i < labels.count && !labels[i].isEmpty {
-                lines.append("\(key): \(labels[i])")
+                lines.append("\(key): \(encodedLabel(labels[i]))")
             }
         }
 
@@ -257,7 +269,7 @@ struct CueCardContent: Equatable {
         for (i, key) in plainKeys.enumerated() {
             let idx = i + 5
             if idx < labels.count && !labels[idx].isEmpty {
-                lines.append("\(key): \(labels[idx])")
+                lines.append("\(key): \(encodedLabel(labels[idx]))")
             }
         }
 

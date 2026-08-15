@@ -153,7 +153,7 @@ struct CueCardView: View, Equatable {
         }
     }
 
-    private let invisibleMarker = "\u{200B}"  // Zero-width space marks columns as invisible/combined
+    private let invisibleMarker = cueCardInvisibleMarker
 
     // Helper: detect column spans (combined columns)
     private func getColumnSpans(row: Int) -> [(startCol: Int, endCol: Int, label: String)] {
