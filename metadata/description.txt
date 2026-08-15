@@ -1,7 +1,7 @@
 Calc-U-59 is a TI-59, TI-58, and TI-58C emulator for iPhone, iPad, and Mac. It runs the original ROM, so every program, module, and quirk works exactly as it did on the real hardware — with virtual magnetic cards, a PC-100C printer, all fourteen Solid State Software modules, and a CPU-level debugger for anyone who wants to look under the hood.
 
 CYCLE-ACCURATE EMULATION
-The TMC0501 processor is emulated at the cycle level, reproducing the exact behaviour of the original hardware — including the TI-58C's constant memory, preserved across restarts. The Master Library ROM is included.
+The TMC0501 processor is emulated at the cycle level, reproducing the exact behaviour of the original hardware — including the TI-58C's constant memory, preserved across restarts. The Master Library ROM and many more modules are included.
 
 INTEGRATED DEBUGGER
 Inspect program memory, data registers, CPU state, and internal SCOM registers live as the machine runs. Step through instructions one at a time, or let the emulator run and freeze it at any point. You can even run your own assembly programs! Available on iPad (landscape) and Mac.
