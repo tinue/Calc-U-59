@@ -629,6 +629,9 @@ int TMC0501::step() {
             // Test-row mode: check only the current row
             if (key[digit] & kmask) flags &= ~FLG_COND;
         }
+        // Arm "this was a hardware poll" for the *next* step() to consume — see
+        // step()'s doc comment in TMC0501.hpp.
+        m_lastStepWasHWPoll = true;
         break;
     }
 
@@ -878,6 +881,9 @@ int TMC0501::step() {
             // m_prnBusyCycles is the sole mechanism that drops FLG_BUSY after the delay.
             if ((key[digit] & (1u << 4)) || (flags & FLG_BUSY))
                 flags &= ~FLG_COND;
+            // Arm "this was a hardware poll" for the *next* step() to consume — see
+            // step()'s doc comment in TMC0501.hpp.
+            m_lastStepWasHWPoll = true;
             break;
 
         case 0xC:  // MOV KR,EXT[4..15] — load KR upper bits from card/library read
@@ -988,17 +994,6 @@ int TMC0501::step() {
     if (KR & 0x2) {
         PREG = (KR >> 4) | ((KR & 0x1) << 12);  // Store address
         KR  &= ~static_cast<uint16_t>(0x2);
-    }
-
-    // Arm "this was a hardware poll" for the *next* step() to consume — see
-    // step()'s doc comment in TMC0501.hpp. Checked by opcode, not PC, because the
-    // ROM re-implements these polling idioms at multiple addresses (fast mode's
-    // print dispatcher has its own copy outside the normal keyboard-scan idle
-    // loop). Only flagging a subsequent backward branch (not this instruction
-    // itself) avoids over-triggering on a poll that succeeds and falls through
-    // to genuinely productive code.
-    if (((opcode & 0x0F00) == 0x0800) || ((opcode & 0x0F0F) == 0x0A0B)) {
-        m_lastStepWasHWPoll = true;
     }
 
     return w;
