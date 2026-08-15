@@ -1359,7 +1359,7 @@ Wait: 2s        # The display only shows "3.", because there are not enough digi
   }, "Writing a preset file, step by step"), /*#__PURE__*/React.createElement("p", {
     className: "lede"
   }, "A preset file is nothing more than plain text. This tutorial builds one up from nothing, one section at a time, so you can see exactly what each line changes. Every step below is also a real, downloadable ", /*#__PURE__*/React.createElement("code", null, ".ti59"), " file you can load in Calc-U 59 as you go \u2014 try each one before moving to the next."), /*#__PURE__*/React.createElement("div", {
-    id: "txt-extension",
+    id: "editing-workflow",
     className: "panel",
     style: {
       padding: 20,
@@ -1377,7 +1377,32 @@ Wait: 2s        # The display only shows "3.", because there are not enough digi
     style: {
       color: "var(--accent)"
     }
-  }, "Before you start")), /*#__PURE__*/React.createElement("p", {
+  }, "Before you start")), /*#__PURE__*/React.createElement("p", null, "A preset is just a text file, so it's usually easiest to write and edit it on a computer with a proper text editor, then get the finished file onto whichever device runs Calc-U 59. In the Apple ecosystem, the simplest way is to keep your presets in the", " ", /*#__PURE__*/React.createElement("strong", null, "Calc-U-59"), " folder under iCloud Drive on your Mac \u2014 the same folder the app uses for virtual magnetic cards \u2014 and let iCloud sync it to your iPhone or iPad automatically; open it there from the Files app or the preset picker. (There's no equivalent recommendation here for Windows \u2014 any folder that syncs to your phone works.)"), /*#__PURE__*/React.createElement("p", {
+    style: {
+      marginBottom: 0
+    }
+  }, "None of that is required, though: you can write and edit a preset directly on an iPhone or iPad in any text editor that saves plain text, with no computer involved at all. That also means you can read this tutorial on the device itself and download each step's file straight to it \u2014 the same goes for every other preset on the", " ", /*#__PURE__*/React.createElement("a", {
+    href: "/software/"
+  }, "TI-59 Software Collection"), " page.")), /*#__PURE__*/React.createElement("div", {
+    id: "txt-extension",
+    className: "panel",
+    style: {
+      padding: 20,
+      marginTop: 12,
+      lineHeight: 1.7,
+      border: "1px solid var(--accent-deep)",
+      background: "rgba(240,192,64,.04)"
+    }
+  }, /*#__PURE__*/React.createElement("p", {
+    style: {
+      marginTop: 0
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "eyebrow",
+    style: {
+      color: "var(--accent)"
+    }
+  }, "Watch out for .txt")), /*#__PURE__*/React.createElement("p", {
     style: {
       marginBottom: 0
     }

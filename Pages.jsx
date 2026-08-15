@@ -1050,13 +1050,43 @@ Wait: 2s        # The display only shows "3.", because there are not enough digi
         you go — try each one before moving to the next.
       </p>
 
-      <div id="txt-extension" className="panel" style={{
+      <div id="editing-workflow" className="panel" style={{
         padding: 20, marginTop: 24, lineHeight: 1.7,
         border: "1px solid var(--accent-deep)",
         background: "rgba(240,192,64,.04)",
       }}>
         <p style={{ marginTop: 0 }}>
           <span className="eyebrow" style={{ color: "var(--accent)" }}>Before you start</span>
+        </p>
+        <p>
+          A preset is just a text file, so it's usually easiest to write and
+          edit it on a computer with a proper text editor, then get the
+          finished file onto whichever device runs Calc-U 59. In the Apple
+          ecosystem, the simplest way is to keep your presets in the{" "}
+          <strong>Calc-U-59</strong> folder under iCloud Drive on your Mac —
+          the same folder the app uses for virtual magnetic cards — and let
+          iCloud sync it to your iPhone or iPad automatically; open it there
+          from the Files app or the preset picker. (There's no equivalent
+          recommendation here for Windows — any folder that syncs to your
+          phone works.)
+        </p>
+        <p style={{ marginBottom: 0 }}>
+          None of that is required, though: you can write and edit a preset
+          directly on an iPhone or iPad in any text editor that saves plain
+          text, with no computer involved at all. That also means you can
+          read this tutorial on the device itself and download each step's
+          file straight to it — the same goes for every other preset on the{" "}
+          <a href="/software/">TI-59 Software Collection</a> page.
+        </p>
+      </div>
+
+      <div id="txt-extension" className="panel" style={{
+        padding: 20, marginTop: 12, lineHeight: 1.7,
+        border: "1px solid var(--accent-deep)",
+        background: "rgba(240,192,64,.04)",
+      }}>
+        <p style={{ marginTop: 0 }}>
+          <span className="eyebrow" style={{ color: "var(--accent)" }}>Watch out for .txt</span>
         </p>
         <p style={{ marginBottom: 0 }}>
           When you save a preset with a plain text editor, it's easy to end
