@@ -279,13 +279,17 @@ KEYSTROKES:
 
 # Whole-year print for 2026 (per the User Instructions above and the B-row
 # cue-card example: key year, press A, key months, R/S, key start month,
-# R/S). Data entry is at regular speed; the print itself (triggered by the
-# final R/S) is deliberately ALSO run at regular speed here, not full
-# speed — a full-speed run logged an elapsed time of 3:45.922, far over the
-# article's claimed 1:23, while this regular-speed run logs 1:22.171,
-# matching the article almost exactly. Suspect full-speed interferes with
-# an idle/scan loop that fires far more often when full-speed throttling
-# is active. Keeping this at regular speed until that's root-caused.
+# R/S). Data entry and the print itself all run at full speed — this used to
+# run far slower than real time at full speed (the ROM's fast-mode print
+# dispatcher retries its own key/printer-busy poll in a tight spin outside
+# the normal keyboard-scan idle loop, and the full-speed throttle didn't
+# recognize it), inflating the reported elapsed time 9x over the
+# regular-speed figure. Fixed by having TMC0501::step() flag a confirmed
+# poll-retry spin by opcode pattern rather than by ROM address (see
+# TMC0501.hpp's step() doc comment and EmulatorViewModel.swift's
+# startEmulationLoop()) — full speed now reports the same elapsed time as
+# regular speed for this print job.
+FullSpeed:
 83              # 2
 92              # 0
 83              # 2
@@ -295,7 +299,7 @@ KEYSTROKES:
 83              # 2              → 12 months
 91              # R/S
 82              # 1              → start month 1
-RegularSpeed:
 ZeroElapseTime:
-91              # R/S — print the whole year, regular speed for stopwatch timing
+91              # R/S — print the whole year, full speed
 ReportElapseTime:
+RegularSpeed:

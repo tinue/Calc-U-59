@@ -498,6 +498,12 @@ int TMC0501::step() {
     beginNextStep();
     uint16_t opcode = m_pendingOpcode;
 
+    // Consume "did the *previous* instruction poll hardware state" — see step()'s
+    // doc comment. Reset for this step by default; re-armed below if this
+    // instruction is itself a KEY-scan/TST.BUSY poll, for the *next* step to consume.
+    const bool wasHWPollLastStep = m_lastStepWasHWPoll;
+    m_lastStepWasHWPoll = false;
+
     // ── Digit counter ─────────────────────────────────────────────────
     // 4-bit counter cycling 15→14→…→1→0→15.  One step per instruction.
     // Drives display multiplexing and keyboard row selection:
@@ -530,10 +536,12 @@ int TMC0501::step() {
         // The XOR trick: if (flags ^ opcode) bit 11 == 0, both agree → branch taken.
         // Offset is 10 bits (bits 10:1); bit 0 selects backward (1) or forward (0).
         flags |= FLG_JUMP;  // triggers COND auto-restore on the next non-branch
-        if (!((flags ^ opcode) & FLG_COND)) {
+        const bool taken = !((flags ^ opcode) & FLG_COND);
+        const bool backward = (opcode & 0x0001) != 0;
+        if (taken) {
             uint16_t offs = (opcode >> 1) & 0x3FFu;
-            if (opcode & 0x0001) addr = static_cast<uint16_t>(addr - offs);
-            else                 addr = static_cast<uint16_t>(addr + offs);
+            if (backward) addr = static_cast<uint16_t>(addr - offs);
+            else          addr = static_cast<uint16_t>(addr + offs);
         } else {
             addr++;
         }
@@ -545,6 +553,10 @@ int TMC0501::step() {
         m_pollSteps.fetch_add(static_cast<uint32_t>(w), std::memory_order_relaxed);
         m_elapsedTicksLocal += static_cast<uint64_t>(w);
         m_elapsedTicks.store(m_elapsedTicksLocal, std::memory_order_relaxed);
+        // A backward branch immediately after a KEY-scan/TST.BUSY poll means the ROM
+        // is looping back to retry it — a genuine spin-wait, not just an incidental
+        // poll on the way through otherwise-productive code. See step()'s doc comment.
+        if (wasHWPollLastStep && taken && backward) w |= 0x4000'0000;
         return w;
     }
 
@@ -976,6 +988,17 @@ int TMC0501::step() {
     if (KR & 0x2) {
         PREG = (KR >> 4) | ((KR & 0x1) << 12);  // Store address
         KR  &= ~static_cast<uint16_t>(0x2);
+    }
+
+    // Arm "this was a hardware poll" for the *next* step() to consume — see
+    // step()'s doc comment in TMC0501.hpp. Checked by opcode, not PC, because the
+    // ROM re-implements these polling idioms at multiple addresses (fast mode's
+    // print dispatcher has its own copy outside the normal keyboard-scan idle
+    // loop). Only flagging a subsequent backward branch (not this instruction
+    // itself) avoids over-triggering on a poll that succeeds and falls through
+    // to genuinely productive code.
+    if (((opcode & 0x0F00) == 0x0800) || ((opcode & 0x0F0F) == 0x0A0B)) {
+        m_lastStepWasHWPoll = true;
     }
 
     return w;

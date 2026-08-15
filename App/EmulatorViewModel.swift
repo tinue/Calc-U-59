@@ -459,6 +459,17 @@ class EmulatorViewModel {
 
             while self.isRunning {
                 let start = DispatchTime.now()
+                // Set when any step this batch was a *confirmed* spin-wait retrying a
+                // keyboard-matrix scan or printer/peripheral BUSY test — real-world state
+                // whose completion doesn't depend on CPU speed (see TMC0501::step()'s
+                // 0x4000_0000 return bit doc: only a backward branch that retries such a
+                // poll sets it, not every occurrence, so an incidental check on the way
+                // through productive code doesn't force throttling). Forces the throttle
+                // below regardless of PC, since the ROM re-implements this spin idiom at
+                // multiple addresses (e.g. fast mode's print dispatcher has its own copy
+                // outside the normal keyboard-scan idle loop that cpuIdleAndKeyDetectRange
+                // covers) — see calendar-08-acosta.ti59.
+                var polledHardwareState = false
                 while cyclesDone < targetBatchCycles {
                     let result = m.step()
                     if result & 0x8000_0000 != 0 {
@@ -468,7 +479,8 @@ class EmulatorViewModel {
                         DispatchQueue.main.async { self.onBreakpointHit(pc: hitPC) }
                         return
                     }
-                    cyclesDone += Int32(result & 0x7FFF_FFFF)
+                    if result & 0x4000_0000 != 0 { polledHardwareState = true }
+                    cyclesDone += Int32(result & 0x3FFF_FFFF)
 
                     // Per-step scan loop exit check (must be inside the step loop for
                     // exact PC precision — a post-batch check lands hundreds of
@@ -527,15 +539,18 @@ class EmulatorViewModel {
 
                 // Skip timing throttle when in full-speed mode (user pressing display, or a
                 // KEYSTROKES FullSpeed:/WaitFullSpeed: window) — EXCEPT while the CPU is
-                // currently sitting in the keyboard-scan idle loop. Full speed always paces
-                // that portion at regular speed instead of racing unthrottled: otherwise the
+                // currently sitting in the keyboard-scan idle loop, or this batch polled
+                // hardware state (polledHardwareState, set above). Full speed always paces
+                // those portions at regular speed instead of racing unthrottled: otherwise the
                 // batch loop below never sleeps, so it can execute an enormous, real-time-
-                // unbounded number of idle-loop iterations before whatever polls currentPC
-                // (e.g. waitForScanLoopIdle) next samples it and notices the CPU is idle —
-                // wildly inflating any elapsed-tick measurement taken across that window.
-                // PC-range based (not FLG_IDLE) because the TI-58C is only partially idle
-                // while in its scan loop.
-                let inScanLoop = self.cpuIdleAndKeyDetectRange?.contains(m.currentPC) ?? false
+                // unbounded number of idle-loop/poll iterations before whatever polls
+                // currentPC (e.g. waitForScanLoopIdle) next samples it and notices the CPU is
+                // idle — wildly inflating any elapsed-tick measurement taken across that
+                // window. cpuIdleAndKeyDetectRange is PC-range based (not FLG_IDLE) because
+                // the TI-58C is only partially idle while in its scan loop; polledHardwareState
+                // catches the same class of spin at ROM addresses outside that range (e.g.
+                // fast mode's own print-dispatch key/BUSY wait — see calendar-08-acosta.ti59).
+                let inScanLoop = (self.cpuIdleAndKeyDetectRange?.contains(m.currentPC) ?? false) || polledHardwareState
                 if !self.isFullSpeedMode || inScanLoop {
                     let end = DispatchTime.now()
                     let elapsed = Double(end.uptimeNanoseconds - start.uptimeNanoseconds) / 1e9
