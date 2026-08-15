@@ -1,0 +1,298 @@
+# TI-59/PC-100A Program: Calendar Printer, by Patrick Acosta, PPC Notes, V9N2
+#
+# This is one of a series of calendar programs that appeared in the magazine
+# "52-Notes", starting with issue Volume 3 Number 5 from May 1978. It was
+# a competition to write faster and faster programs to print a calendar.
+# Our goal is to collect and preserve them here in the form of preload files.
+#
+# This is the documentation given for this program in the original article:
+#
+# THE GREAT CALENDAR RACE -- Palmer Hanson
+#
+# Several of the newer members have asked for some historical notes. For
+# this issue I will discuss the calendar printing competition which started
+# in the May 1978 issue of 52 Notes. The earliest TI-59 calendar program ran
+# at about thirty minutes per year. But with such TI-59 giants as Lou
+# Cargile, Jared Weinberger, Maurice Swinnen, Bill Skillman, and Richard
+# Vanderburgh participating the time to print a full year was rapidly
+# reduced. A 2 minutes 38 second program by Panos Galidas was published in
+# the September 1976 issue of 52 Notes.
+#
+# In early 1980 Maurice Swinnen for TI PPC Notes and Richard Nelson for the
+# PPC Calculator Journal agreed on a set of competitions to demonstrate the
+# relative capabilities of the TI and HP machines, as Maurice put it in
+# V5N4/5P1, “now that the RPN programmers have a more seaworthy machine in
+# the HP-41C." The calendar contest was resurrected. The TI-59 execution
+# time for a full year still stood at 2 minutes 38 seconds. The best HP-41
+# time was reported to be in the six minute range. The competition was about
+# to heat up. Roger Hill responded with an HP-41 program which would print a
+# one year calendar in 2 minutes 18 seconds. The July/August 1980 issue of
+# the PPC Calculator Journal published Roger’s program and claimed the lead.
+# But in mid-summer I had adapted Panos Galidas’ program for use with the
+# Martin Neef fast mode technique, yielding a one year printout in 1 minute
+# 32 seconds. V5N7P7 of TI PPC Notes published those results in the first
+# week of September, reclaiming the lead for the TI-59. Roger Hill responded
+# quickly with another chapter of what he called the "a̸l̸l̸ ̸o̸u̸t̸ ̸w̸a̸r̸ friendly
+# competition". The October 1980 issue of the PPC Calculator Journal.
+# (V7N5P15) published his new HP-41 program with a printing time of only 1
+# minute 14 seconds -- very close to the theoretical limit for that device.
+# Using ideas from Richard Snow the TI-59 execution time was reduced to 1
+# minute 26 seconds (V5N8P4), but the TI users had run into a version of the
+# existence theorem: “If you doubt that a faster program can be written, you
+# won’t try to write it."
+#
+# The emphasis on speed for the TI-59 switched to the speedy factor finder
+# problem, and there has been no more calendar effort reported in TI PPC
+# Notes. A fresh attack on the calendar problem came from Patrick Acosta,
+# who had already developed the fastest TI-59 Speedy Factor Finder using the
+# Pgm--02-SBR-239 method of fast mode entry (V6N4/5P13). In July 1981 I
+# received a calendar printing program which used the hi2 method of fast mode
+# entry. This was several months before publication of the landmark article
+# on other methods of entering fast mode in V6éNGP3/4. The use of the hi2
+# technique permitted use of the ML-20 program for some of the preliminary
+# calculations, releasing additional memory for program enhancement. The
+# result was a program which will print the worst case calendar year (2000)
+# in 1 minute 23 seconds, the best TI-59 time to date.
+#
+# Of course some readers will wonder at all this discussion of calendars. As
+# Maurice Swinnen observed in V7N7P7:
+#  “One of the members once admonished me not to run ‘silly’ calendar
+#  contests. ‘I can get all the calendars I want at the bank’ he
+#  wrote me. He obviously missed the point by more than a mile! The
+#  calendar is only the vehicle by which we try to get more out of
+#  our calculators.”
+#
+# A similar comment applies to the running of other programming problems.
+# Elsewhere in this issue you will find the results of the calendar printing
+# problem applied to other calculators and computers.
+#
+#
+# A ONE MINUTE 23 SECOND CALENDAR -- Patrick Acosta
+#
+# Editor’s Note: Patrick’s original program included
+# a demonstration of the RTN technique for leaving
+# fast mode. Our common failure to remember the
+# effect of setting flag 9 resulted in our deleting
+# of the RTN technique to avoid the TRACE effect.
+# Those problems led to the comment about returning
+# in trace mode in V6N8P4. The program presented here
+# has used a revised fast mode entry constant to
+# re-establish the RTN technique.
+#
+#
+# User Instructions:
+#
+# 1. Store the program using the program listing
+# from page 8 and the constants from the table at the
+# right side of this page. Be sure to enter all
+# thirteen digits of the constants where indicated.
+# Record the four card sides.
+#
+# 2. To initialize the program enter all four card
+# sides. Then generate the hi2 at location 136 with
+# the following keyboard sequence. Do not clear the
+# flashing displays as they occur.
+#
+# Keystrokes      Display
+# 10-Op-17        159.99
+# GTO-136-CLR     0
+# Pgm-12-SBR-999  Flashing 0.
+# R/S             Flashing 0.00
+# DMS             Flashing 0
+# LRN             136 43
+# Ins             136 43
+# Ins             136 43
+# LRN-RST-CLR     0
+#
+# Note that two inserts were required since the ones
+# digit of the command at location 134 of the firmware
+# was less than 4. You do not need to return the
+# partitioning. The program will do that for you.
+#
+# 3. Enter the starting year (YYYY) and press A. See
+# “YYYY." returned in the display.
+#
+# 4. Enter the number of months to be printed. For
+# a two year printout you enter 24. Press R/S. See
+# a "0." in the display.
+#
+# 5. Enter the starting month (1 to 12) and press R/S.
+# After a few seconds the printout will begin. When
+# the printout is complete the calculator will stop with
+# a "0." in the display. Since the printout occurs
+# in "fast mode" operation cannot be interrupted, even
+# with R/S or RST.
+#
+# 6. For other calendars iterate steps 3 through 5.
+
+MODEL: TI-59
+SOLID-STATE-MODULE: ML
+PRINTER: on
+
+CUECARD:
+Template: MagnetCard
+Title: Calendar - Patrick Acosta - V9N2
+Banks: 1,2
+Row1: Key year, e.g. 2026, Press A, Num Months, R/S, Start Month, R/S
+Row1Align: left
+A: Starting Year
+B: e.g. 2026 A 12 R/S 1 R/S (Full 2026)
+C: \blank
+D: \blank
+E: \blank
+
+PROGRAM:
+61 03 24 68 68 44 00 61 03 18 61 03 18 68 68 44 00 61 03 07   # 000-019
+44 00 61 02 96 61 02 96 68 68 44 00 61 02 89 76 11 42 03 42   # 020-039
+05 91 42 06 07 69 17 25 42 02 91 42 01 36 20 71 00 91 32 12   # 040-059
+98 91 32 75 53 24 55 07 54 59 65 07 95 42 02 06 44 01 29 43   # 060-079
+64 42 08 43 05 55 04 55 22 59 22 67 03 91 69 28 02 05 55 22   # 080-099
+59 22 67 03 91 04 95 22 59 67 03 92 69 38 61 03 92 69 25 07   # 100-119
+42 01 61 00 78 98 25 92 76 12 58 00 60 43 59 86 92 84 24 45   # 120-139
+38 88 69 71 73 00 82 05 44 00 73 00 82 06 43 22 82 36 68 68   # 140-159
+69 20 73 00 44 00 22 59 82 07 73 00 82 08 69 05 44 00 73 00   # 160-179
+82 05 44 00 73 00 82 06 43 22 82 36 69 20 73 00 44 00 22 59   # 180-199
+82 07 73 00 82 08 69 05 44 00 73 00 82 05 44 00 73 00 82 06   # 200-219
+43 22 82 36 69 20 73 00 44 00 22 59 82 07 73 00 82 08 69 05   # 220-239
+44 00 73 00 82 05 44 00 73 00 82 06 43 22 82 36 69 20 73 00   # 240-259
+44 00 22 59 82 07 73 00 82 08 69 05 97 04 02 40 43 02 44 00   # 260-279
+42 65 05 49 65 69 00 83 65 73 00 22 44 00 82 08 73 00 22 44   # 280-299
+00 22 59 82 07 69 20 73 00 22 44 00 82 06 43 22 82 36 73 00   # 300-319
+82 05 69 05 22 97 06 01 25 43 01 67 01 17 69 21 02 09 42 00   # 320-339
+98 43 02 22 44 00 85 73 01 82 08 59 75 53 24 55 07 54 59 42   # 340-359
+04 65 07 95 42 02 43 05 69 06 43 19 82 05 43 20 82 07 22 59   # 360-379
+82 06 43 21 82 08 69 05 61 01 46 25 01 08 32 61 03 36 00 00   # 380-399
+
+REGISTERS:
+07 = 10.00000251331
+08 = 8.000000211714
+09 = 10.00000301335
+10 = 9.000000133335
+11 = 10.00000301345
+12 = 9.000025413117
+13 = 10.00025412745
+14 = 10.00000134122
+15 = 9.000036173307
+16 = 10.00000321537
+17 = 9.000000313242
+18 = 10.00000161715
+19 = 1.000036000030
+20 = 1.014300003700
+21 = 1.000021000036
+22 = 98.99000000000
+23 = 2.010000000000
+24 = 2.010000000000
+25 = 2.010000000000
+26 = 2.010000000000
+27 = 2.010000000000
+28 = 2.010000000002
+29 = 2.010002000003
+30 = 2.010003000004
+31 = 2.010004000005
+32 = 2.010005000006
+33 = 2.010006000007
+34 = 2.010007000010
+35 = 2.010010000011
+36 = 2.010011000012
+37 = 2.010012000201
+38 = 2.010201000202
+39 = 2.010202000203
+40 = 2.010203000204
+41 = 2.010204000205
+42 = 2.010205000206
+43 = 2.010206000207
+44 = 2.010207000210
+45 = 2.010210000211
+46 = 2.010211000212
+47 = 2.010212000301
+48 = 2.010301000302
+49 = 2.010302000303
+50 = 2.010303000304
+51 = 2.010304000305
+52 = 2.010305000306
+53 = 2.010306000307
+54 = 2.010307000310
+55 = 2.010310000311
+56 = 2.010311000312
+57 = 2.010312000401
+58 = 2.010401000402
+59 = 1.000000000002
+60 = 6.010311000000
+61 = 6.010312000000
+62 = 6.010401000000
+63 = 6.010402000000
+64 = 7.000000211714
+
+
+KEYSTROKES:
+# Step 2 of the User Instructions above: after all four card sides (program
+# + registers) have been entered, generate the hi2 fast-mode constant at
+# location 136. Do not clear the flashing displays as they occur.
+
+# 10-Op-17        -> 159.99
+82              # 1
+92              # 0
+21              # 2nd
+64              # Op (2nd+9)
+82              # 1
+62              # 7
+
+# GTO-136-CLR     -> 0
+61              # GTO
+82              # 1
+84              # 3
+74              # 6
+25              # CLR
+
+# Pgm-12-SBR-999  -> Flashing 0.
+21              # 2nd
+31              # Pgm
+82              # 1
+83              # 2
+71              # SBR
+64              # 9
+64              # 9
+64              # 9
+
+# R/S             -> Flashing 0.00
+91              # R/S
+
+# DMS             -> Flashing 0
+21              # 2nd
+83              # D.MS (2nd+2)
+
+# LRN             -> 136 43
+31              # LRN
+
+# Ins             -> 136 43
+21              # 2nd
+41              # Ins (2nd+SST)
+
+# Ins             -> 136 43
+21              # 2nd
+41              # Ins (2nd+SST)
+
+# LRN-RST-CLR     -> 0
+31              # LRN
+81              # RST
+25              # CLR
+
+# Whole-year print for 2026 (per the User Instructions above and the B-row
+# cue-card example: key year, press A, key months, R/S, key start month,
+# R/S). Data entry is left at regular speed and outside the elapsed-time
+# measurement; only the print itself (triggered by the final R/S) is timed,
+# and run at full speed.
+83              # 2
+92              # 0
+83              # 2
+74              # 6
+11              # A — store starting year 2026
+82              # 1
+83              # 2              → 12 months
+91              # R/S
+82              # 1              → start month 1
+ZeroElapseTime:
+FullSpeed:
+91              # R/S — print the whole year
+RegularSpeed:
+ReportElapseTime:
