@@ -55,7 +55,7 @@ SCREENTEST_DIR = SRCROOT / "examples" / "screentest"
 # Hack: also seed each simulator with Sharp PC-1500/1600 example files from the
 # sibling Calc-U-1600 project, dropped into a "pocket/" subdirectory.
 POCKET_DIR = SRCROOT.parent.parent / "sharp" / "Calc-U-1600" / "examples"
-POCKET_PATTERNS = ["*.pc1500*", "*.bin", "*.bas"]
+POCKET_PATTERNS = ["*.pc1?00*", "*.bin", "*.bas"]
 
 VERBOSE = False
 
