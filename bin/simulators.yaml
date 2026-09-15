@@ -13,7 +13,7 @@
 # device type must be supported by the runtime — bin/simulators says so if not
 # (e.g. iPhone 17e does not exist on iOS 18.x).
 
-- name: iPhone 17 Pro Max
+- name: iPhone 18 Pro Max
   ios: 27
   screenshots: iphone
 

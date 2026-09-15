@@ -184,60 +184,73 @@ struct KeyboardView: View {
                           y: h * Self.displayRect.midY)
 
                 // ── Key hit-testing ─────────────────────────────────────
+                // iOS 27 regressed DragGesture(minimumDistance: 0)'s reliability for
+                // continuous press-and-hold (onEnded firing ~1ms after onChanged
+                // regardless of real touch duration — see UIKitTouchTracker's doc
+                // comment). Track touches via raw UIKit there instead; macOS mouse
+                // input is unaffected and keeps the DragGesture it always used.
+                let handleChanged: (CGPoint) -> Void = { location in
+                    // Touching the calculator claims physical-keyboard
+                    // focus back from whichever panel had it. The drag
+                    // gesture consumes the click, so relying on
+                    // .focusable()'s own click-to-focus isn't enough.
+                    isKeyboardFocused = true
+
+                    let nx = location.x / w
+                    let ny = location.y / h
+
+                    // Check if press is on display area
+                    let isOnDisplay = nx >= Self.displayRect.minX && nx <= Self.displayRect.maxX &&
+                                    ny >= Self.displayRect.minY && ny <= Self.displayRect.maxY
+                    if isOnDisplay {
+                        if !viewModel.isDisplayPressed {
+                            viewModel.isDisplayPressed = true
+                            viewModel.isFullSpeedMode = true
+                            releaseHeldKey()
+                        }
+                        return
+                    }
+
+                    // Release display press if moving to keyboard
+                    if viewModel.isDisplayPressed {
+                        viewModel.isDisplayPressed = false
+                        viewModel.isFullSpeedMode = false
+                    }
+
+                    // Convert canvas coords → keyboard-image coords
+                    let kbNy = (ny - Self.kbYStart) / Self.kbYScale
+                    // Allow margin for vertical expansion (20% of max key height ≈ 0.015)
+                    let verticalMargin: CGFloat = 0.025
+                    guard kbNy >= -verticalMargin && kbNy <= 1 + verticalMargin else {
+                        releaseHeldKey()
+                        return
+                    }
+                    guard let (row, col) = Self.keyAt(nx: nx, ny: kbNy) else { return }
+                    let keyID = row * 5 + col
+                    guard pressedKey != keyID else { return }
+                    releaseHeldKey()
+                    pressedKey = keyID
+                    viewModel.pressKey(row: row, col: col)
+                    triggerFeedback()
+                }
+                let handleEnded: () -> Void = {
+                    viewModel.isDisplayPressed = false
+                    viewModel.isFullSpeedMode = false
+                    releaseHeldKey()
+                }
+
+                #if os(macOS)
                 Color.clear
                     .contentShape(Rectangle())
                     .gesture(
                         DragGesture(minimumDistance: 0)
-                            .onChanged { value in
-                                // Touching the calculator claims physical-keyboard
-                                // focus back from whichever panel had it. The drag
-                                // gesture consumes the click, so relying on
-                                // .focusable()'s own click-to-focus isn't enough.
-                                isKeyboardFocused = true
-
-                                let nx = value.location.x / w
-                                let ny = value.location.y / h
-
-                                // Check if press is on display area
-                                let isOnDisplay = nx >= Self.displayRect.minX && nx <= Self.displayRect.maxX &&
-                                                ny >= Self.displayRect.minY && ny <= Self.displayRect.maxY
-                                if isOnDisplay {
-                                    if !viewModel.isDisplayPressed {
-                                        viewModel.isDisplayPressed = true
-                                        viewModel.isFullSpeedMode = true
-                                        releaseHeldKey()
-                                    }
-                                    return
-                                }
-
-                                // Release display press if moving to keyboard
-                                if viewModel.isDisplayPressed {
-                                    viewModel.isDisplayPressed = false
-                                    viewModel.isFullSpeedMode = false
-                                }
-
-                                // Convert canvas coords → keyboard-image coords
-                                let kbNy = (ny - Self.kbYStart) / Self.kbYScale
-                                // Allow margin for vertical expansion (20% of max key height ≈ 0.015)
-                                let verticalMargin: CGFloat = 0.025
-                                guard kbNy >= -verticalMargin && kbNy <= 1 + verticalMargin else {
-                                    releaseHeldKey()
-                                    return
-                                }
-                                guard let (row, col) = Self.keyAt(nx: nx, ny: kbNy) else { return }
-                                let keyID = row * 5 + col
-                                guard pressedKey != keyID else { return }
-                                releaseHeldKey()
-                                pressedKey = keyID
-                                viewModel.pressKey(row: row, col: col)
-                                triggerFeedback()
-                            }
-                            .onEnded { _ in
-                                viewModel.isDisplayPressed = false
-                                viewModel.isFullSpeedMode = false
-                                releaseHeldKey()
-                            }
+                            .onChanged { handleChanged($0.location) }
+                            .onEnded { _ in handleEnded() }
                     )
+                #else
+                UIKitTouchTracker(onChanged: handleChanged, onEnded: handleEnded)
+                    .frame(width: w, height: h)
+                #endif
 
                 // ── Press highlight ─────────────────────────────────────
                 // Simulate key press: shift key down-right and expose black background.

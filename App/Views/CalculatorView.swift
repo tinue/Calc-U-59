@@ -120,20 +120,22 @@ struct CalculatorView: View {
                 // element instead of the real R/S key would silently skip that key's own press
                 // highlight and haptic feedback — acceptable for a scripted test, not for a user.
                 //
-                // Uses a DragGesture (not a plain Button) so a full press-and-hold — as
-                // XCTest's press(forDuration:) performs — presses R/S on touch-down and
-                // releases it on touch-up. A plain Button's action only fires once, which
-                // pressed R/S but never released it; a stuck-down R/S key left the ROM
-                // spinning forever in its wait-for-key-release idle loop (0x07EA).
-                Color.clear
+                // Tracks a full press-and-hold — as XCTest's press(forDuration:)
+                // performs — presses R/S on touch-down and releases it on touch-up.
+                // A plain Button's action only fires once, which pressed R/S but
+                // never released it; a stuck-down R/S key left the ROM spinning
+                // forever in its wait-for-key-release idle loop (0x07EA). Uses
+                // UIKitTouchTracker, not a DragGesture, for the same iOS 27
+                // reliability reason as KeyboardView's key hit-testing (see that
+                // type's doc comment) — this button exists purely so XCUITest can
+                // drive it, so it must itself be immune to the regression it's
+                // working around everywhere else.
+                UIKitTouchTracker(
+                    onChanged: { _ in viewModel.pressKey(row: 8, col: 0) },
+                    onEnded: { viewModel.releaseKey(row: 8, col: 0) }
+                )
                     .frame(width: 10, height: 10)
-                    .contentShape(Rectangle())
                     .accessibilityAddTraits(.isButton)
-                    .gesture(
-                        DragGesture(minimumDistance: 0)
-                            .onChanged { _ in viewModel.pressKey(row: 8, col: 0) }
-                            .onEnded { _ in viewModel.releaseKey(row: 8, col: 0) }
-                    )
                     .onDisappear { viewModel.releaseKey(row: 8, col: 0) }
                     .accessibilityIdentifier("btn-key-rs")
                     .accessibilityLabel("R/S")
@@ -178,8 +180,7 @@ struct CalculatorView: View {
             allowedContentTypes: {
                 switch filePickerMode {
                 case .asm:       return Self.asmTypes
-                case .stateFile: return Self.stateFileTypes
-                case .none:      return []
+                case .stateFile, .none: return Self.stateFileTypes
                 }
             }(),
             allowsMultipleSelection: false
@@ -451,6 +452,39 @@ struct CalculatorView: View {
     }
     #endif
 }
+
+// MARK: - TEMPORARY DIAGNOSTIC (remove after iOS 27 touch-tracking validation)
+
+#if !os(macOS)
+/// Raw UIKit touch tracking, bypassing SwiftUI's DragGesture, to test whether
+/// that avoids the iOS 27 unreliable-press-and-hold regression.
+private struct DiagUIKitTouchButton: UIViewRepresentable {
+    let onPress: () -> Void
+    let onRelease: () -> Void
+
+    final class TouchView: UIView {
+        var onPress: (() -> Void)?
+        var onRelease: (() -> Void)?
+        override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) { onPress?() }
+        override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) { onRelease?() }
+        override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) { onRelease?() }
+    }
+
+    func makeUIView(context: Context) -> TouchView {
+        let v = TouchView()
+        v.onPress = onPress
+        v.onRelease = onRelease
+        v.backgroundColor = .clear
+        v.isAccessibilityElement = true
+        return v
+    }
+
+    func updateUIView(_ uiView: TouchView, context: Context) {
+        uiView.onPress = onPress
+        uiView.onRelease = onRelease
+    }
+}
+#endif
 
 // MARK: - Helpers
 
