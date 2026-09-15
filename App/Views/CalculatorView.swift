@@ -108,6 +108,7 @@ struct CalculatorView: View {
                     .accessibilityValue(viewModel.isKeystrokesPlaying ? "playing" : "idle")
             }
         }
+        #if !os(macOS)
         .overlay(alignment: .topLeading) {
             if Self.isUITesting {
                 // 10×10 pt automation-only button for XCUITest — presses R/S (row 9, col 1).
@@ -116,9 +117,11 @@ struct CalculatorView: View {
                 // valid hit point (1×1 produced {-1,-1} and the event never reached the app).
                 // Gated to UI-testing builds only (see isUITesting above): it overlaps the
                 // page-arrow chevron at this same corner, and while a stray touch there is no
-                // longer harmful (see the DragGesture below), a real user's touch reaching this
-                // element instead of the real R/S key would silently skip that key's own press
-                // highlight and haptic feedback — acceptable for a scripted test, not for a user.
+                // longer harmful, a real user's touch reaching this element instead of the
+                // real R/S key would silently skip that key's own press highlight and haptic
+                // feedback — acceptable for a scripted test, not for a user. iOS/iPadOS only:
+                // this automation exists only for the iPhone/iPad screenshot and regression
+                // test plans, never for the Mac target (isUITesting is always false there).
                 //
                 // Tracks a full press-and-hold — as XCTest's press(forDuration:)
                 // performs — presses R/S on touch-down and releases it on touch-up.
@@ -141,6 +144,7 @@ struct CalculatorView: View {
                     .accessibilityLabel("R/S")
             }
         }
+        #endif
         .dynamicTypeSize(.small ... .large)
         .sheet(item: .init(
             get: { viewModel.cardPickerMode.map { PickerItem(mode: $0) } },
