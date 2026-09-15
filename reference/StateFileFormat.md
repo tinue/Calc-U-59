@@ -372,6 +372,7 @@ document because rendering is per-GUI-framework code, not file-format data).
 | `Row1`, `Row2`, `Row2R` | all | Free-text rows; `Row2R` is a second field right-aligned against `Row2` on the same line. If `Row1` (or `Row2`/`Row2R`) is empty, that row instead renders the `A'–E'` (row 1) or `A–E` (row 2) label grid below. |
 | `Row1Align`, `Row2Align`, `Row2RAlign` | all | `left` (default) / `center` / `right` |
 | `Style` | all | `none` (default) or `button` (draws a border around `Row1`/`Row2`/`Row2R` text) |
+| `PencilColor` | CueCard, MagnetCard | `black` (default), `pencil`, or `sharpie` — ink color for title/row/label text. Ignored on SolidStateCard, which always renders in its fixed printed gold. Must be set explicitly; a card never gets a non-black ink implicitly. Applies to the whole card regardless of where in the `CUECARD:` block it appears (order-independent, like `Template`/`Title`/`Style`). |
 | `A`…`E` | all | Labels for the plain A–E key row (grid row 2) |
 | `A'`…`E'` (or `A′`…`E′`) | all | Labels for the 2nd-function A′–E′ row (grid row 1) |
 

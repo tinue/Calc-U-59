@@ -466,6 +466,15 @@ def files_installed(dest):
     return all((dest / rel).is_file() for _, rel in expected_files())
 
 
+def extra_files(dest):
+    """Files under dest that expected_files() would not put there."""
+    if not dest or not dest.is_dir():
+        return []
+    wanted = {rel for _, rel in expected_files()}
+    return [p.relative_to(dest) for p in dest.rglob("*")
+            if p.is_file() and p.relative_to(dest) not in wanted]
+
+
 def install_files(dest, dry_run=False):
     """Replace the contents of the storage root with the example files."""
     wanted = expected_files()
@@ -704,6 +713,7 @@ def cmd_setup(args):
 
     print("Devices")
     resolved = []
+    newly_created = []
     for entry in config:
         name, major = entry["name"], entry["ios"]
         rt = latest_runtime_for_major(major, runtimes)
@@ -721,6 +731,7 @@ def cmd_setup(args):
             udid = run(["xcrun", "simctl", "create", name, device_type,
                         rt["identifier"]]).stdout.strip()
             print(f"  created  {name:<24} {rt['name']:<9} {dim(udid)}")
+            newly_created.append(name)
         resolved.append((name, udid))
 
     print("\nFiles")
@@ -739,6 +750,13 @@ def cmd_setup(args):
             dest.mkdir(parents=True, exist_ok=True)
         n = install_files(dest, args.dry_run)
         print(f"  {green('✓')} {name}: {n} file(s) installed")
+
+    if newly_created:
+        print(f"\n{yellow('Note:')} {', '.join(newly_created)} {'is' if len(newly_created) == 1 else 'are'} "
+              "brand new — installing the app there resets its Settings.")
+        print(dim("  The iphone-02-cpu-inspector and iphone-03-calc-debugger screenshot tests need "
+                  "\"Debug Page in Portrait\" (Settings) turned on to find btn-page-left."))
+        print(dim("  Launch the app once and enable it by hand before running bin/run-screenshots."))
 
     print(f"\n{green('Done.')} bin/simulators status to verify.")
     return 0
@@ -763,8 +781,20 @@ def cmd_files(args):
 def cmd_cleanup(args):
     config = load_config(args.config)
     runtimes = installed_runtimes()
-    to_delete, unneeded, orphans, _ = plan_cleanup(config, runtimes)
+    to_delete, unneeded, orphans, keep_udids = plan_cleanup(config, runtimes)
     label = "" if args.delete else "DRY RUN — "
+
+    stray = {udid: extra_files(storage_dir(udid)) for udid in keep_udids}
+    stray = {udid: fs for udid, fs in stray.items() if fs}
+    if stray:
+        udid_name = {d["udid"]: d["name"]
+                     for devs in simctl_json("list", "devices")["devices"].values() for d in devs}
+        n_files = sum(len(fs) for fs in stray.values())
+        print(f"\n{label}{n_files} stray file(s) in {len(stray)} kept device(s)' storage:\n")
+        for udid, fs in stray.items():
+            print(f"  {udid_name.get(udid, udid)}")
+            for rel in fs:
+                print(f"    {rel}")
 
     if to_delete:
         print(f"{label}{len(to_delete)} device(s) to delete:\n")
@@ -796,7 +826,8 @@ def cmd_cleanup(args):
             print(f"  {p.name}")
 
     if not args.delete:
-        total = len(to_delete) + len(orphans) + (len(unneeded) if args.runtimes else 0)
+        total = (len(to_delete) + len(orphans) + len(stray)
+                 + (len(unneeded) if args.runtimes else 0))
         print(f"\nRun with --delete to remove {total} item(s), plus stale device records.")
         return 0
 
@@ -809,6 +840,13 @@ def cmd_cleanup(args):
             die("not a terminal — pass --yes")
 
     apply_cleanup(to_delete, unneeded, orphans, args.runtimes)
+    if stray:
+        udid_name = {d["udid"]: d["name"]
+                     for devs in simctl_json("list", "devices")["devices"].values() for d in devs}
+        print()
+        for udid in stray:
+            n = install_files(storage_dir(udid))
+            print(f"  {green('✓')} {udid_name.get(udid, udid)}: resynced to {n} file(s)")
     print("Done.")
     return 0
 

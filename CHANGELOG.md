@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.7.0] - 2026-09-15
+- **Error messages** File-load error alerts now show a title that matches what actually failed (state file, card, or ASM load/save) instead of always saying "ROM load error". A state file that isn't valid UTF-8 (e.g. saved with a curly quote or em dash in a non-UTF-8 encoding) now gets a specific explanation instead of a generic "Cannot read file."
+- **State Files** New `PencilColor:` CUECARD keyword (`black` default, or `pencil`/`sharpie`) lets a CueCard or MagnetCard's title/row/label text use an ink color that contrasts against the template's printed divider lines instead of blending into them. SolidStateCard is unaffected — it always renders in its fixed printed gold.
+
+### Fixes
+- **Keyboard** Fixed key presses on iOS/iPadOS being dropped intermittently (most presses not registering) under iOS 27's revised touch-gesture timing. Key tracking now reads touches directly instead of through the higher-level gesture API, restoring the same reliable, immediate response as before. macOS input is unaffected.
+- **State Files** Fixed `\blank` CUECARD labels (used to merge grid cells into a spanning label) silently turning into empty labels after a save/reload round trip through `ti58c.mem` — the invisible marker is now written back out as literal `\blank` text instead of a raw zero-width space, which whitespace-trimming was stripping on reload.
+
 ## [1.6.0] - 2026-08-13
 
 - **Keyboard** The Mac app now takes input from a physical keyboard: the number keys, the yellow operation keys (`Esc` for CLR, `Enter` for `=`, `<` for +/−), the A–E function keys via `a`–`e`, and EE `(` `)` on `>` `(` `)`. `Shift`+`A`…`E` gives A′–E′. Everything else — 2nd, STO, RCL, LRN, R/S and the rest — stays mouse-only by design. The full map is in `reference/AppArchitecture.md` § "Physical Keyboard Mapping". Typing works as soon as the app opens — the calculator does not have to be selected first. Clicking into the debug panel hands the keyboard over to it until you click back on the calculator. The printer and debug panels have no keyboard bindings of their own. iOS and iPadOS are unaffected.

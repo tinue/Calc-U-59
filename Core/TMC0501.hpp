@@ -110,10 +110,27 @@ public:
 
     /// Execute one instruction at the current program counter.
     ///
-    /// Returns the cycle weight of this instruction for emulation pacing:
+    /// Returns the cycle weight of this instruction for emulation pacing in the
+    /// low bits:
     ///   1 — normal instruction (active / computing mode)
     ///   4 — normal instruction while FLG_IDLE is set (idle/display mode runs
     ///       at 1/4 clock speed, matching the hardware's power-saving divider)
+    ///
+    /// Bit 0x4000'0000 is set on a backward branch that retries a KEY-scan or
+    /// TST.BUSY hardware poll (opcode 0x08xx, or TST BUSY: opcode & 0x0F0F ==
+    /// 0x0A0B) executed the instruction immediately before it — i.e. a genuine
+    /// ROM spin-wait on state whose real-world completion time doesn't depend on
+    /// CPU speed (a key release, a fixed-duration print step). Deliberately NOT
+    /// set on every occurrence of these opcodes — most executions fall through
+    /// (poll succeeded) as part of otherwise-productive code and don't need
+    /// throttling; only a confirmed retry does. The ROM re-implements this
+    /// spin idiom at multiple addresses, not only inside its main keyboard-scan
+    /// idle loop (e.g. fast-mode print dispatch has its own copy elsewhere in
+    /// ROM) — callers pacing "full speed" emulation should throttle on this bit
+    /// regardless of PC, or an unthrottled batch can spin through hundreds of
+    /// thousands of iterations waiting for an event a real CPU would only need
+    /// a handful of polls to observe.
+    /// TI59Machine::step() ORs in a separate bit, 0x8000'0000, for "breakpoint hit".
     int step();
 
     /// Press / release a key by hardware matrix coordinates.
@@ -396,6 +413,11 @@ private:
     std::atomic<uint32_t> m_traceFlags{TRACE_NONE};
     uint32_t m_traceSeqno{0};
     uint16_t m_pendingOpcode{};  // opcode cached by beginNextStep, consumed by step()
+
+    // Set by step() when the just-executed instruction was a KEY-scan or TST.BUSY
+    // hardware poll; consumed (and cleared) by the very next step() to detect a
+    // backward branch retrying it — see step()'s 0x4000'0000 return-bit doc comment.
+    bool m_lastStepWasHWPoll{false};
 
     static constexpr uint32_t kFrameRingSize = 1024u;
     static constexpr uint32_t kFrameRingMask = kFrameRingSize - 1u;

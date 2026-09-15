@@ -60,6 +60,9 @@ class EmulatorViewModel {
     var calcIndicatorOpacity: Double = 0.0
     var model: MachineModel     = .ti59
     var errorMessage: String?
+    /// Title shown alongside `errorMessage` in the alert. Defaults to the ROM-loading
+    /// case since that's the only path that doesn't set it explicitly.
+    var errorTitle: String = "ROM load error"
 
     // ── Display interaction state ────────────────────────────────────────────────
     var isDisplayPressed: Bool = false
@@ -437,6 +440,7 @@ class EmulatorViewModel {
             startEmulationLoop()
             startDisplayRefresh()
         } catch {
+            self.errorTitle = "ROM load error"
             self.errorMessage = error.localizedDescription
         }
     }
@@ -455,6 +459,17 @@ class EmulatorViewModel {
 
             while self.isRunning {
                 let start = DispatchTime.now()
+                // Set when any step this batch was a *confirmed* spin-wait retrying a
+                // keyboard-matrix scan or printer/peripheral BUSY test — real-world state
+                // whose completion doesn't depend on CPU speed (see TMC0501::step()'s
+                // 0x4000_0000 return bit doc: only a backward branch that retries such a
+                // poll sets it, not every occurrence, so an incidental check on the way
+                // through productive code doesn't force throttling). Forces the throttle
+                // below regardless of PC, since the ROM re-implements this spin idiom at
+                // multiple addresses (e.g. fast mode's print dispatcher has its own copy
+                // outside the normal keyboard-scan idle loop that cpuIdleAndKeyDetectRange
+                // covers) — see calendar-08-acosta.ti59.
+                var polledHardwareState = false
                 while cyclesDone < targetBatchCycles {
                     let result = m.step()
                     if result & 0x8000_0000 != 0 {
@@ -464,7 +479,8 @@ class EmulatorViewModel {
                         DispatchQueue.main.async { self.onBreakpointHit(pc: hitPC) }
                         return
                     }
-                    cyclesDone += Int32(result & 0x7FFF_FFFF)
+                    if result & 0x4000_0000 != 0 { polledHardwareState = true }
+                    cyclesDone += Int32(result & 0x3FFF_FFFF)
 
                     // Per-step scan loop exit check (must be inside the step loop for
                     // exact PC precision — a post-batch check lands hundreds of
@@ -523,15 +539,18 @@ class EmulatorViewModel {
 
                 // Skip timing throttle when in full-speed mode (user pressing display, or a
                 // KEYSTROKES FullSpeed:/WaitFullSpeed: window) — EXCEPT while the CPU is
-                // currently sitting in the keyboard-scan idle loop. Full speed always paces
-                // that portion at regular speed instead of racing unthrottled: otherwise the
+                // currently sitting in the keyboard-scan idle loop, or this batch polled
+                // hardware state (polledHardwareState, set above). Full speed always paces
+                // those portions at regular speed instead of racing unthrottled: otherwise the
                 // batch loop below never sleeps, so it can execute an enormous, real-time-
-                // unbounded number of idle-loop iterations before whatever polls currentPC
-                // (e.g. waitForScanLoopIdle) next samples it and notices the CPU is idle —
-                // wildly inflating any elapsed-tick measurement taken across that window.
-                // PC-range based (not FLG_IDLE) because the TI-58C is only partially idle
-                // while in its scan loop.
-                let inScanLoop = self.cpuIdleAndKeyDetectRange?.contains(m.currentPC) ?? false
+                // unbounded number of idle-loop/poll iterations before whatever polls
+                // currentPC (e.g. waitForScanLoopIdle) next samples it and notices the CPU is
+                // idle — wildly inflating any elapsed-tick measurement taken across that
+                // window. cpuIdleAndKeyDetectRange is PC-range based (not FLG_IDLE) because
+                // the TI-58C is only partially idle while in its scan loop; polledHardwareState
+                // catches the same class of spin at ROM addresses outside that range (e.g.
+                // fast mode's own print-dispatch key/BUSY wait — see calendar-08-acosta.ti59).
+                let inScanLoop = (self.cpuIdleAndKeyDetectRange?.contains(m.currentPC) ?? false) || polledHardwareState
                 if !self.isFullSpeedMode || inScanLoop {
                     let end = DispatchTime.now()
                     let elapsed = Double(end.uptimeNanoseconds - start.uptimeNanoseconds) / 1e9
@@ -1022,12 +1041,14 @@ class EmulatorViewModel {
         let scoped = url.startAccessingSecurityScopedResource()
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
         guard let raw = try? Data(contentsOf: url) else {
+            errorTitle = "Card load error"
             errorMessage = "Could not read card file."
             return
         }
         let data: Data
         if let text = String(data: raw, encoding: .utf8), text.hasPrefix("Calc-U-59 Card ") {
             guard let result = parseCardFile(text) else {
+                errorTitle = "Card load error"
                 errorMessage = "Card file \"\(url.lastPathComponent)\" could not be parsed."
                 return
             }
@@ -1043,6 +1064,7 @@ class EmulatorViewModel {
             // New format: strip header, then expect exactly 246 bytes of card data.
             let payload = raw.dropFirst(hdr.count)
             guard payload.count == 246 else {
+                errorTitle = "Card load error"
                 errorMessage = "Card file \"\(url.lastPathComponent)\" has wrong size (\(payload.count) bytes after header; expected 246)."
                 return
             }
@@ -1050,6 +1072,7 @@ class EmulatorViewModel {
         } else {
             // Legacy format: accept 246-byte (single bank) or 984-byte (four banks).
             guard raw.count == 246 || raw.count == 984 else {
+                errorTitle = "Card load error"
                 errorMessage = "Card file \"\(url.lastPathComponent)\" has unrecognised size (\(raw.count) bytes)."
                 return
             }
@@ -1074,6 +1097,7 @@ class EmulatorViewModel {
     func saveCard(_ data: Data, to url: URL) {
         let text = encodeCardFileToText(data, cueCard: cueCardContent)
         guard let fileData = text.data(using: .utf8) else {
+            errorTitle = "Card save error"
             errorMessage = "Card save failed: UTF-8 encoding error."
             return
         }
@@ -1088,6 +1112,7 @@ class EmulatorViewModel {
             }
         }
         if let err = coordinatorError ?? writeError {
+            errorTitle = "Card save error"
             errorMessage = "Card save failed: \(err.localizedDescription)"
         } else {
             cardFileName = url.lastPathComponent
@@ -2153,6 +2178,7 @@ class EmulatorViewModel {
         guard let text = try? String(contentsOf: url, encoding: .utf8) else {
             print("[WARN FileImporter] loadASMOverlayFile: failed to read file contents as UTF-8 from \(url.path)")
             asmStatusMessage = "Could not read ASM file."
+            errorTitle = "ASM load error"
             errorMessage = "Could not read ASM file."
             return
         }
@@ -2171,6 +2197,7 @@ class EmulatorViewModel {
             guard loaded else {
                 print("[WARN FileImporter] loadASMOverlayFile: overlay range exceeded (0x1800-0x1FFF) for \(words.count) word(s)")
                 asmStatusMessage = "ASM program exceeds overlay range 0x1800-0x1FFF."
+                errorTitle = "ASM load error"
                 errorMessage = asmStatusMessage
                 return
             }
@@ -2183,6 +2210,7 @@ class EmulatorViewModel {
             let msg = error.localizedDescription
             print("[WARN FileImporter] loadASMOverlayFile: parseASMWords threw: \(msg)")
             asmStatusMessage = msg
+            errorTitle = "ASM load error"
             errorMessage = msg
         }
     }
@@ -2242,6 +2270,7 @@ class EmulatorViewModel {
 
         if !loaded {
             asmStatusMessage = "ASM program exceeds overlay range 0x1800-0x1FFF."
+            errorTitle = "ASM load error"
             errorMessage = asmStatusMessage
         } else if ok {
             asmStatusMessage = "ASM entered at 0x1800 (\(steps) step(s))."
@@ -2262,6 +2291,7 @@ class EmulatorViewModel {
             startDisplayRefresh()
         } else {
             asmStatusMessage = "ASM entry failed after \(steps) step(s)."
+            errorTitle = "ASM load error"
             errorMessage = asmStatusMessage
         }
     }
@@ -2556,8 +2586,14 @@ class EmulatorViewModel {
     func loadStateFile(_ url: URL) {
         let scoped = url.startAccessingSecurityScopedResource()
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-        guard let text = try? String(contentsOf: url, encoding: .utf8) else {
+        guard let raw = try? Data(contentsOf: url) else {
+            errorTitle = "State file load error"
             errorMessage = "Cannot read file."
+            return
+        }
+        guard let text = String(data: raw, encoding: .utf8) else {
+            errorTitle = "State file load error"
+            errorMessage = "File is not valid UTF-8 text — re-save it with UTF-8 encoding (a non-UTF-8 character, e.g. a curly quote or em dash from a word processor, is the usual cause)."
             return
         }
 
@@ -2579,7 +2615,10 @@ class EmulatorViewModel {
 
         let maxStepAddr = targetModel.hasLargeMemory ? 959 : 479
         let parsed = parseStateFile(text, maxStepAddr: maxStepAddr, allowHiddenRegisters: targetModel.hasConstantMemory)
-        if !parsed.errors.isEmpty { errorMessage = parsed.errors.joined(separator: "\n") }
+        if !parsed.errors.isEmpty {
+            errorTitle = "State file load error"
+            errorMessage = parsed.errors.joined(separator: "\n")
+        }
 
         // If the file targets a different model (and SKIP-RESET is not set), switch first
         // (async) then apply state. Partition validation runs inside applyParsedState after
@@ -2605,6 +2644,7 @@ class EmulatorViewModel {
         var parsed = parsed
         if !model.hasLargeMemory {
             if parsed.partitionWasExplicit && parsed.partitionMaxStep > 479 {
+                errorTitle = "State file load error"
                 errorMessage = "State file partition (\(parsed.partitionMaxStep)) exceeds \(model.displayName) maximum (479) — load aborted."
                 return
             }

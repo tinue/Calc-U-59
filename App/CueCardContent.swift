@@ -1,5 +1,10 @@
 import Foundation
 
+/// Zero-width space marking a grid cell as merged into the preceding label's span.
+/// Written to `\blank` on disk (see `mathTokens`/`encodeToLines`) since the raw
+/// character does not survive whitespace-trimming on a round trip through a file.
+let cueCardInvisibleMarker = "\u{200B}"
+
 // MARK: - Math token expansion
 
 private let mathTokens: [(String, String)] = [
@@ -49,7 +54,7 @@ private let mathTokens: [(String, String)] = [
         ("\\geq", "≥"),      // U+2265
 
         // Grid markers
-        ("\\blank", "\u{200B}"),  // Zero-width space for invisible columns
+        ("\\blank", cueCardInvisibleMarker),  // Zero-width space for invisible columns
 
         // Superscript: multi-char first
         ("^{-1}", "⁻¹"),     // U+207B + U+00B9
@@ -133,6 +138,12 @@ enum CardButtonStyle: String {
     case button  // draw rectangle border around text
 }
 
+enum CueCardInkColor: String {
+    case black
+    case pencil
+    case sharpie
+}
+
 struct CueCardContent: Equatable {
     var template: CueCardTemplate = .cueCard
     var title: String = ""
@@ -146,6 +157,7 @@ struct CueCardContent: Equatable {
     var row2R: String = ""
     var row2RAlign: TextAlign = .left
     var style: CardButtonStyle = .none
+    var color: CueCardInkColor = .black
 
     static let ml01Default: CueCardContent = CueCardContent(
         template: .solidState,
@@ -202,6 +214,10 @@ struct CueCardContent: Equatable {
             self.row2Align = Self.parseAlignment(value)
         case "row2ralign":
             self.row2RAlign = Self.parseAlignment(value)
+        case "pencilcolor":
+            if let color = CueCardInkColor(rawValue: value.lowercased()) {
+                self.color = color
+            }
         default:
             // Map label keys to indices: A′–E′ → [0–4], A–E → [5–9]
             let labelMap: [String: Int] = [
@@ -235,10 +251,17 @@ struct CueCardContent: Equatable {
 
         if !id.isEmpty { lines.append("ID: \(id)") }
 
+        // Round-trip the invisible-column marker as literal "\blank" text: the raw
+        // zero-width space does not survive whitespace-trimming on reload (see
+        // cueCardInvisibleMarker's doc comment).
+        func encodedLabel(_ label: String) -> String {
+            label == cueCardInvisibleMarker ? "\\blank" : label
+        }
+
         let primeKeys = ["A'", "B'", "C'", "D'", "E'"]
         for (i, key) in primeKeys.enumerated() {
             if i < labels.count && !labels[i].isEmpty {
-                lines.append("\(key): \(labels[i])")
+                lines.append("\(key): \(encodedLabel(labels[i]))")
             }
         }
 
@@ -246,7 +269,7 @@ struct CueCardContent: Equatable {
         for (i, key) in plainKeys.enumerated() {
             let idx = i + 5
             if idx < labels.count && !labels[idx].isEmpty {
-                lines.append("\(key): \(labels[idx])")
+                lines.append("\(key): \(encodedLabel(labels[idx]))")
             }
         }
 
@@ -258,6 +281,7 @@ struct CueCardContent: Equatable {
         if row2RAlign != .left { lines.append("Row2RAlign: \(row2RAlign.rawValue)") }
 
         if style != .none { lines.append("Style: \(style.rawValue)") }
+        if color != .black { lines.append("PencilColor: \(color.rawValue)") }
 
         return lines
     }
@@ -285,6 +309,7 @@ struct CueCardContent: Equatable {
         lhs.row2Align == rhs.row2Align &&
         lhs.row2R == rhs.row2R &&
         lhs.row2RAlign == rhs.row2RAlign &&
-        lhs.style == rhs.style
+        lhs.style == rhs.style &&
+        lhs.color == rhs.color
     }
 }
