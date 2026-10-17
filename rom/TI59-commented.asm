@@ -822,8 +822,8 @@
 026F: 1AA9  JC 011B           ; entry in progress → redisplay the entry (via the EE room check)
 0270: 0A67  MOV R5,#6
 0271: 19E5  JC 017F
-0272: 0081  SET fA[8]
-0273: 0A17  MOV R5,#1
+0272: 0081  SET fA[8]         ; Del: fA[8] = delete, falls into Ins …
+0273: 0A17  MOV R5,#1         ; Ins / Del: code 1 in the 0x0B10 bank → slot 0B11 → INS_DEL 0E5A
 0274: 00A8  TST fB[10]
 0275: 186A  JC 02AA
 0276: 0085  SET KR[8]         ; KR := 0xB1x0 (0276–0279 + 0211) → slot 0x0B10 + code
@@ -4588,13 +4588,24 @@
 0E57: 1884  JC 0E99           ; keycode 75 −: no operand
 0E58: 1882  JC 0E99           ; keycode 85 +: no operand
 0E59: 1880  JC 0E99           ; keycode 95 =: no operand
-0E5A: 00B9  SET fB[11]
-0E5B: 0A1F  RCLF
+; ═══════════════════════════════════════════════════════════════════════════
+; INS_DEL  (0x0E5A, loop 0B99 / 11FA–123D / 0F84) — Ins (fA[8] clear) and Del
+; (fA[8] set) in LRN mode. Trace-confirmed (LRN 5 + 3 BST Ins / Del: 62
+; register passes under 479.59). Starting with the register that holds the
+; current step and running to the end of the program partition, every
+; program register is read (0EDB), shifted by one keycode — up for Ins
+; (00 inserted at the current step), down for Del (the next register's first
+; keycode carried in at the top) — and written back (0F84). The current
+; step's register is combined with its SCOM[10] cache copy (1213; see the
+; missing-safeguard note there). Steps beyond the partition are lost / 00.
+; ═══════════════════════════════════════════════════════════════════════════
+0E5A: 00B9  SET fB[11]        ; cache must be reloaded afterwards
+0E5B: 0A1F  RCLF              ; SCOM[0]: start at the current step's register …
 0E5C: 09D0  A=LOAD MANT
 0E5D: 0A0C  MOV KR,EXT[4..15]
 0E5E: 0075  SET KR[7]
 0E5F: 0148  A=SRA ALL
-0E60: 1D8F  JC 0B99
+0E60: 1D8F  JC 0B99           ; … read loop via PRGREG_FETCH's RAM branch
 0E61: 1870  JC 0E99           ; keycode 16 A': no operand
 0E62: 186E  JC 0E99           ; keycode 26 2nd': no operand
 0E63: 1EAA  JC 11B8           ; keycode 36 Pgm: one operand byte (register / Op / Pgm number) —
