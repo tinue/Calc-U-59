@@ -1177,20 +1177,25 @@
 0384: 0CF6  D=R5 MAEX
 0385: 0AF8  RAM.OP
 0386: 0101  IO=A ALL           ; clear register 90 again now the probe is done
-; Assemble the expected value (digit-shift R5 into C, four SLC = slide up four
-; BCD places) and compare it against B — the value just read back from register
-; 90. A match means the high register held the write, i.e. TI-59 memory; the
-; result feeds the partition descriptor built below.
-0387: 0A67  MOV R5,#6
+; Build the memory descriptors for the small (TI-58) configuration, then
+; double them if the probe found RAM at register 90 (trace-confirmed, TI-59
+; and TI-58 headless runs):
+;   D → SCOM[9]:  nibble 1 = RAM chips, nibble 0 = partition (program
+;                 registers ÷ 10): TI-58 0x23 (2 chips, 30 registers →
+;                 239.29), TI-59 0x46 (4 chips, 60 → 479.59)
+;   C → SCOM[13]: nibbles 8–9 = partition, nibbles 3–5 = top RAM register:
+;                 TI-58 03 / 059, TI-59 06 / 119 (built as 060 / 120, − 1 at 039B)
+0387: 0A67  MOV R5,#6         ; C := partition 3 in nibble 8 and register count 060 in nibbles
+                              ;   4–6 …
 0388: 01F4  C=R5 ALL
-0389: 0306  D=A+1 DPT1
+0389: 0306  D=A+1 DPT1        ; D := 0x23: 2 RAM chips, partition 3
 038A: 09F4  C=R5 MANT
 038B: 0964  C=SLC MANT
-038C: 0164  C=SLC ALL         ; shift-left-digit ×4 → slide the value up four BCD places
+038C: 0164  C=SLC ALL         ; … (shifted into place)
 038D: 0164  C=SLC ALL
 038E: 0164  C=SLC ALL
 038F: 0164  C=SLC ALL
-0390: 0C19  IO=-B MAEX        ; compare assembled value against the read-back from reg 90
+0390: 0C19  IO=-B MAEX        ; probe read-back (B) non-zero?
 0391: 0923  B=C MANT
 0392: 0130  A=D ALL
 ; *** MODEL-DIVERGENCE POINT ***
@@ -1198,17 +1203,17 @@
 ;          → 60-register partition.
 ;   TI-59: read-back matched → COND activated (0) → falls through, runs the
 ;          accumulate below → 120-register partition.
-0393: 1806  JC 0396
-0394: 01B6  D=A+D ALL         ; (TI-59 only) extend the partition across the upper 60 registers
-0395: 0994  C=C+B MANT
-0396: 0111  IO=B ALL
+0393: 1806  JC 0396           ; zero (TI-58: no RAM at register 90) → keep the small values
+0394: 01B6  D=A+D ALL         ; TI-59: 0x46 = 4 RAM chips, partition 6
+0395: 0994  C=C+B MANT        ; TI-59: partition 06, 120 registers
+0396: 0111  IO=B ALL          ; STOF SCOM[9] := D (B[0] = 9 selects the row)
 0397: 0A0F  STOF              ; store the assembled value into its SCOM status row
 0398: 0131  IO=D ALL
 0399: 0AD7  MOV R5,#13
 039A: 02F0  A=R5 DPT
-039B: 0D2C  C=C-1 MLSD1
+039B: 0D2C  C=C-1 MLSD1       ; register count − 1 = index of the top register (119 / 059)
 039C: 0101  IO=A ALL
-039D: 0A0F  STOF
+039D: 0A0F  STOF              ; SCOM[13] := C
 039E: 0121  IO=C ALL
 ; KEY_CLR: "CLR" handler (slot 0052); note it checks the pending
 ; trace-record flag fA[10] right at entry (see the 0689 gate).
