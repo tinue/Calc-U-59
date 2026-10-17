@@ -307,7 +307,9 @@ n + 2 (0 = floating); fB[15] = sci, fB[7] = eng.
 
 - `Pgm nn` (`PGM_SELECT` `12E1`) reads the program count from module header
   byte 0 and rejects nn beyond it; from the keyboard nn becomes the current
-  page in SCOM[9], inside a program it applies to the next call only.
+  page in SCOM[9]. Inside a program it only marks SCOM[13] nibble 15. The
+  next step must be a label key or SBR for the call to go to the module, and
+  R/S is an error; any other step clears the mark and runs normally (`0976`).
 - Labels in a module program are found by `LIB_LABEL_SEARCH` (`1364`): the
   program's start/end come from the header (2 BCD bytes per program), and
   the bytes are walked through the same scanner as RAM programs.
