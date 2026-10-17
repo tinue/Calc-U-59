@@ -352,15 +352,16 @@
 0100: 1FCA  JC 04E5           ; … store back
 ; ── Sequence bank 0x0100 (entered through 0211 with only KR[12] set):
 ; 0101 Op (028D), 0108 EE on a result (0112), 010A Eng (027C), 010C D.MS
-; (0174), 010E Pause from the keyboard (0288). 0104–0107 (register read,
-; add, write back) has no caller found and never ran in any scenario.
+; (0174), 010E Pause from the keyboard (0288). 0104–0107 continue the Op
+; sequence for Op 20–39 (from 0CBC): read the register, ±1, write it back
+; (trace-checked: 5 STO 03, Op 23 → R03 = 6).
 0101: 1E36  JC 041C           ; Op nn: normalize …
 0102: 1F94  JC 04CC           ; … collect the 2-digit Op number
 0103: 1FF8  JC 04FF           ; … dispatch on nn (04FF → 08E4 OP_DISPATCH)
-0104: 1BA2  JC 02D5           ; (no caller found; never executed)
+0104: 1BA2  JC 02D5           ; Op 2x/3x: read the register …
 0105: 1CD6  JC 0370
-0106: 1DD8  JC 03F2
-0107: 1A2A  JC 021C
+0106: 1DD8  JC 03F2           ; … write it back (075D)
+0107: 1A2A  JC 021C           ; … and finish
 0108: 1F4E  JC 04AF           ; EE on a result: flush trace, normalize …
 0109: 1814  JC 0113           ; … then KEY_EE's result branch (sci format / INV EE)
 010A: 1F4A  JC 04AF           ; Eng
