@@ -2405,10 +2405,11 @@
 06DE: 0A1F  RCLF
 06DF: 01D6  D=LOAD ALL        ; D := SCOM[13]
 06E0: 01D5  C<>D ALL
-06E1: 0E2C  C=C-1 MMSD1
+06E1: 0E2C  C=C-1 MMSD1       ; Pgm mark (SCOM[13] nibble 15, 13D5) set?
 06E2: 01D5  C<>D ALL
 06E3: 1249  JNC 05BF          ; → classify
-06E4: 0AB5  TST KR[11]
+06E4: 0AB5  TST KR[11]        ; yes (only while single-stepping after a Pgm nn step): sort the
+                              ;   key —
 06E5: 0AA5  TST KR[10]
 06E6: 0A95  TST KR[9]
 06E7: 0A55  TST KR[5]
@@ -2419,7 +2420,8 @@
 06EC: 1006  JNC 06EF
 06ED: 0A45  TST KR[4]
 06EE: 108B  JNC 06A9
-06EF: 0111  IO=B ALL
+06EF: 0111  IO=B ALL          ; … other keys: SCOM[13] written back with the mark cleared, the
+                              ;   pending operation dropped (076D)
 06F0: 0A0F  STOF
 06F1: 0131  IO=D ALL
 06F2: 18F6  JC 076D
@@ -3572,7 +3574,7 @@
 0A6E: 01D7  A<>E ALL
 0A6F: 0091  SET fA[9]
 0A70: 1A57  JC 0945           ; → display X
-0A71: 0A65  TST KR[6]
+0A71: 0A65  TST KR[6]         ; SST keeps stepping (→ 06A9 normal dispatch, trace-checked) …
 0A72: 1F07  JC 06EF
 0A73: 0A45  TST KR[4]
 0A74: 170B  JNC 06EF
