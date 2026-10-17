@@ -230,10 +230,14 @@
 00A6: 1C12  JC 02AF
 00A7: 1FF4  JC 04A1
 00A8: 1FF6  JC 04A3
-00A9: 0A10  WAIT D1
+; List (2nd =, slot 00A9): only with a printer (KEY [P] at D0); fB[10] =
+; listing (borrowed, as in LRN, so the step fetch builds the LRN display),
+; fn 7 in the KR[8]+KR[9] bank → slots 0537 (flush a pending trace line) and
+; 0538 (092C → 0D28 → LIST loop).
+00A9: 0A10  WAIT D1           ; printer present?
 00AA: 08FB  KEY [P]
-00AB: 1B14  JC 0235
-00AC: 00A9  SET fB[10]
+00AB: 1B14  JC 0235           ; no → nothing
+00AC: 00A9  SET fB[10]        ; listing: steps are fetched as in LRN
 00AD: 0051  SET fA[5]
 00AE: 0A77  MOV R5,#7
 00AF: 1E7A  JC 03EC
@@ -4271,16 +4275,24 @@
 0D25: 1DF2  JC 101E
 0D26: 162F  JNC 0A0F
 0D27: 1E70  JC 105F
+; LIST loop: for each step from the current one — fetch it (0BF9 → 08B2 → LRN
+; display 13E6), poll R/S (141F: held → stop, 11EF), wait for the printer and
+; clear its buffer (1425–1428), let the scanner (10BF → 0F4B) classify the
+; keycode (operand bytes print as plain numbers), print the mnemonic through
+; the table at 0x1000 (1432–1462: computed jump to 0x1000 + 32·tens +
+; 3·units), the keycode and step-number digits (12D0–12E0), PRT.GO (1315),
+; next (111E → 0D32). Ends at the partition boundary. Trace-confirmed (List
+; of LBL A STO 12 …: "000  76 LBL", "001  11  A", "002  42 STO", "003  12  12").
 0D28: 0A97  MOV R5,#9
 0D29: 02F3  B=R5 DPT
 0D2A: 0111  IO=B ALL
 0D2B: 0A1F  RCLF
 0D2C: 06D3  B=LOAD EXP
 0D2D: 065B  B=SRB EXP
-0D2E: 0619  IO=-B EXP
-0D2F: 1216  JNC 0E3A
+0D2E: 0619  IO=-B EXP         ; module security code set?
+0D2F: 1216  JNC 0E3A          ; yes → no listing of a protected program
 0D30: 00A9  SET fB[10]
-0D31: 0041  SET fA[4]
+0D31: 0041  SET fA[4]         ; printing mode for the step fetch
 0D32: 1A73  JC 0BF9
 ; ═══════════════════════════════════════════════════════════════════════════
 ; REG_ADDR  (0x0D33–0x0D4A) — data register number → RAM register, with the
@@ -5463,7 +5475,7 @@
 111C: 1D4A  JC 13C1           ; keycode 89 " π ": middle char 'π' (code 43)
 111D: 1D16  JC 13A8           ; keycode 89 " π ": left char ' ' (code 0)
 111E: 0100  A=A ALL
-111F: 1FDB  JC 0D32
+111F: 1FDB  JC 0D32           ; next step
 1120: 1D16  JC 13AB           ; keycode 90 "LST": right char 'T' (code 31)
 1121: 1D16  JC 13AC           ; keycode 90 "LST": middle char 'S' (code 30)
 1122: 1D22  JC 13B3           ; keycode 90 "LST": left char 'L' (code 23)
@@ -5958,19 +5970,19 @@
 12CD: 0A98  PRT.STEP
 12CE: 00A0  TST fA[10]        ; trace-queue call (fA[10] set)? → return to the
 12CF: 13E3  JNC 10DE          ;   0689 gate via 10DE→0D4F→098F→083F…0855
-12D0: 07D0  A=LOAD EXP1
+12D0: 07D0  A=LOAD EXP1       ; digits: keycode (2) and step number (3), right to left …
 12D1: 03D0  A=LOAD DPT1
 12D2: 0A0C  MOV KR,EXT[4..15]
 12D3: 0631  IO=D EXP
 12D4: 0A18  MOV KR[4..7],R5
-12D5: 0A04  INC KR
+12D5: 0A04  INC KR            ; … code = digit + 1
 12D6: 0C7E  D=SRD MAEX
 12D7: 0A68  PRT.OUT
 12D8: 0308  A=A-1 DPT1
 12D9: 180F  JC 12D2
 12DA: 0708  A=A-1 EXP1
 12DB: 1074  JNC 1315
-12DC: 0A98  PRT.STEP
+12DC: 0A98  PRT.STEP          ; two blank columns between the fields
 12DD: 0A98  PRT.STEP
 12DE: 0A27  MOV R5,#2
 12DF: 02F0  A=R5 DPT
@@ -6033,7 +6045,7 @@
 1312: 0A0F  STOF              ; SCOM[9] := new library page
 1313: 0131  IO=D ALL
 1314: 18B9  JC 12B8
-1315: 0AA8  PRT.GO
+1315: 0AA8  PRT.GO            ; print the line
 1316: 0040  TST fA[4]
 1317: 0116  D=B ALL
 1318: 19E4  JC 140A
@@ -6323,9 +6335,9 @@
 141C: 0099  SET fB[9]         ; ERROR
 141D: 000A  CLR fB[0]         ; program stops
 141E: 1ACD  JC 12B8
-141F: 0AA0  WAIT D10
+141F: 0AA0  WAIT D10          ; R/S held? (row 9 / column 1)
 1420: 08FD  KEY [O]
-1421: 1465  JNC 11EF
+1421: 1465  JNC 11EF          ; yes → stop listing
 ; ── Keystroke trace-symbol QUEUE routine (trace-confirmed: KEYPRESS_TRC_59.txt).
 ; Reached from the 0689 gate's first pass (0A6B/0788, fA[4] set) via 0B16→
 ; 0EA4→1278. Re-checks printer-present (1423), waits until not BUSY (1425–
@@ -6341,10 +6353,10 @@
 1422: 0A10  WAIT D1
 1423: 08FB  KEY [P]           ; printer still present?
 1424: 1835  JC 140A
-1425: 0A98  PRT.STEP
+1425: 0A98  PRT.STEP          ; wait until the printer is idle …
 1426: 0A0B  TST.BUSY          ; wait for any running print to finish
 1427: 1005  JNC 1425
-1428: 0A88  PRT.CLR           ; clear line buffer (wipes a discarded record)
+1428: 0A88  PRT.CLR           ; … new line
 1429: 0A0C  MOV KR,EXT[4..15]
 142A: 0133  B=D ALL
 142B: 00A0  TST fA[10]
@@ -6354,13 +6366,13 @@
 142F: 16E3  JNC 10BE
 1430: 00A8  TST fB[10]
 1431: 12C3  JNC 12D0
-1432: 01D5  C<>D ALL
+1432: 01D5  C<>D ALL          ; keycode → address in the mnemonic table …
 1433: 016C  C=SRC ALL
 1434: 0624  C=C EXP
 1435: 0A18  MOV KR[4..7],R5
 1436: 0A75  TST KR[7]
 1437: 1804  JC 1439
-1438: 00C5  SET KR[12]
+1438: 00C5  SET KR[12]        ; … 0x1000 base …
 1439: 0A65  TST KR[6]
 143A: 1804  JC 143C
 143B: 00B5  SET KR[11]
@@ -6401,7 +6413,7 @@
 145E: 1804  JC 1460
 145F: 0724  C=C+1 EXP1
 1460: 0A07  MOV R5,#0
-1461: 0015  SET KR[1] ; PREG
+1461: 0015  SET KR[1] ; PREG  ; … computed jump: three characters, right to left
 1462: 0A18  MOV KR[4..7],R5
 1463: 0114  C=B ALL
 1464: 01D5  C<>D ALL
