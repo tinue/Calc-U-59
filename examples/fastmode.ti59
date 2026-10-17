@@ -36,6 +36,9 @@
 #    program (normal mode ~70% slower). With X = 1.000000000004 (Prg Src 4) it works the same;
 #    1 or 3 (library bit) and 8 (keycode-table bit) do not.
 # 5. The run ends at the program's own RST/R/S; R/S cannot interrupt fast mode.
+# 6. The comment at step 008 below is TI PPC folklore: Dsz loops to an absolute address
+#    work in fast mode. Only transfers to a label (and SBR) fail, because the ROM then
+#    searches the module. Full list: rom/TI59-ROM-Guide.md § "What a fast-mode program can do".
 
 PARTITION: 319.79
 

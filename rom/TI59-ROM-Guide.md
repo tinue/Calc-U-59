@@ -374,16 +374,11 @@ is also fragile:
   module, because bit 0 is tested first, and 8 fetches from the constant-ROM
   table. The run loses its RAM program either way (headless sweep of 0–9,
   SST entry with X = 1.00000000000N).
-- SBR does not work. The launch prologue (`0A54`–`0A57`) asks only whether
-  the caller's source is non-zero, so it treats a fast-mode caller as a
-  library program. It saves the module's address counter as the return
-  address (`0DA7`) and sets the source to 1, so the subroutine runs from the
-  module instead of RAM and never returns. Trace-checked with
-  `SBR 020 … INV SBR` inside the fast-mode program.
 - X's digits also overwrite the step counter, the Fix setting, the
   pending-key field and the user flags (the example ends with flag 4 set).
-- The display stays frozen while it runs, and only the program's own R/S or
-  RST ends it.
+- Labels, subroutines and the built-in keycode sub-programs do not work, and
+  stopping can hang the calculator. See "What a fast-mode program can do"
+  below.
 
 It is a hobbyist technique built on a firmware bug, not a TI feature.
 
@@ -428,20 +423,116 @@ at `0005`, which writes register A into SCOM[0]: source 4.
 registers 1–8 (range check at `11C1`). `St flg Ind` with flag numbers above 9
 and `Fix Ind` do not reach nibble 3.
 
-**After entry, and leaving.** The jump to the new step does not reload the
+**After entry.** The jump to the new step does not reload the
 program-register cache. Steps 001–007 therefore run from the drained cache
 (as 00 when St flg was the last byte of its register), and the real program
-starts at step 008. Fast mode skips the display formatter (`DISP_FORMAT`),
-which leaves two traps:
+starts at step 008.
 
-- A plain R/S stops with the source flag still set, and the display stays
-  dark, even after CLR.
-- Leaving with a result recalled in fast mode (`RCL 00 RST`) leaves an
-  unformatted display image, and the redisplay after RST loops forever in
-  `030A`–`030E`.
+### What a fast-mode program can do
 
-Clean exits are `CLR +/- RST` (`examples/fastmode.ti59`) or RST followed by
-the RCL in normal mode (`examples/fastmode-sst.ti59`).
+Every instruction class was run once in fast mode and once in normal mode
+from the same program, and X, the data registers, the printout and the
+display were compared. Sources 2, 4 and 6 behave alike. To reproduce:
+`uv run python tools/agentic/fastmode_matrix.py`.
+
+**Why things break.** The ROM tests the Prg Src Flag in seven places. Only
+the step fetch tests single bits. The other six ask only "non-zero?", so
+there a fast-mode program counts as a keycode sub-program or a library
+program:
+
+| Site | Test | Effect in fast mode |
+|---|---|---|
+| `07C5`–`07C9` RUN_LOOP | ≠ 0 → `08AE` | No R/S poll, no GTO "peek" poll, and no error stop under flag 8 (`07E0`–`07E9`). This is where the speed comes from. |
+| `054F`–`0553` DISP_FORMAT | ≠ 0 → `08A1` | X is not formatted for the display after a step. The trace-print check (`05A8`) is inside the formatter, so nothing is traced. |
+| `08B2`–`08B8`, `0B8F` PRGREG_FETCH | bit 0, bit 3 | 2, 4 and 6 fetch from RAM, so the program itself runs. |
+| `0860` → `0BD2` LABEL_SEARCH | ≠ 0 → `0FAD` | Labels are searched in the selected module program, not in RAM. |
+| `0A4B`–`0A57` launch prologue | caller ≠ 0 → `0DA7` | Every call pushes the module's address counter as the return address, as for a library caller. |
+| `1191`, `14F9`–`1506` RTN_POP / LIB_RETURN | library level popped | The return reloads the module PC and sets source 1, so execution continues in the module. |
+| `06B9`–`06C5` key epilogue | ≠ 0 → `08AE` | After an operation, the program keeps running even when fB[0] is clear. |
+
+**Works as in normal mode:**
+
+- Number entry, EE, AOS arithmetic with all 8 parenthesis levels, and every
+  function computed in microcode: ln x, log, their inverses, sin, cos and tan
+  and their inverses in DEG, RAD and GRAD, √x, x², 1/x, yˣ, INV yˣ, |x|,
+  Int, INV Int, π, +/-, Fix, Eng and INV EE.
+- Memory: STO, RCL, SUM, Prd and Exc with their INV forms, all Ind forms,
+  CMs, CP (inside a program it clears only t, as usual), x⇄t, CE, CLR, and
+  HIR STO, RCL and SUM.
+- Flags: St flg, INV St flg, If flg.
+- Transfers to absolute or indirect addresses: GTO nnn, GTO Ind, x=t and x≥t
+  (with or without INV) to nnn or Ind, If flg to nnn or Ind, and Dsz n nnn.
+  **Dsz loops work.** The comment in `examples/fastmode.ti59` (TI PPC
+  folklore) says otherwise, but only Dsz to a *label* fails.
+- Lbl and Nop steps in the flow of the program; they are skipped as usual.
+- Op 00–08, Op 10, Op 16, Op 17, Op 18/19, Op 20–39, Op Ind, Fix Ind, and
+  Pgm nn on its own (it only selects the module program).
+- Printing: Prt, Adv, Op 05 and Op 06, Op 08 (label list). Pause shows
+  the correctly formatted X, because Pause formats it itself.
+- Errors (1/0, …) set the error condition as usual, and Op 18/19 see it.
+
+**Broken.** In each case the program leaves fast mode, usually stops with a
+dark display, and the result is lost:
+
+- **Any label as a transfer target.** This covers GTO, SBR, x=t, x≥t, If flg
+  and Dsz to a label, and the user keys A–E′ called from the program. The
+  search runs in the module program selected in SCOM[9]. When the label is
+  not there, the run stops with an error. If the label does exist there,
+  execution continues in the module. Use absolute addresses or Ind instead.
+- **Any subroutine call:** SBR nnn, SBR label, SBR Ind, and `Pgm nn SBR`
+  into the module. The subroutine itself runs, but its INV SBR returns into
+  the module, at whatever address the module's address counter held at the
+  call. (The launch also clears the source, so the subroutine runs in normal
+  mode.)
+- **The built-in keycode sub-programs**, which are calls of the same kind:
+  Σ+ and INV Σ+, x̄, P→R and INV P→R, D.MS and INV D.MS, and Op 11–15. The
+  sub-program completes (the first Σ+ does update R01–R06), and then returns
+  into the module.
+
+**Behaves differently:**
+
+- Nothing is traced: neither the printer's TRACE switch nor flag 9 prints
+  anything during the run.
+- Errors never stop the run, not even with flag 8 set.
+- INV SBR with an empty return stack does not stop the program. RTN_POP ends
+  the run (`1195`), but the key epilogue sees the source flag and carries on
+  with the next step.
+- The R/S and GTO keys are not polled, so R/S cannot interrupt the program
+  and holding GTO shows no peek. The other keys are ignored, as in normal
+  mode.
+- The display keeps whatever it showed at entry until the program stops.
+
+**Stopping and leaving.** RST clears the source flag and continues at step
+000 in normal mode. A program R/S stops the run but leaves the source flag
+set. Both then redisplay X. If X holds a computed, non-zero value that
+fast mode never formatted, that redisplay loops forever in `030A`–`030E`.
+The display stays dark, no key works, and only switching off ends it, which
+also loses the program. Measured stops (second table of the tool):
+
+| Ends with | Result |
+|---|---|
+| `CLR RST`, `CLR +/- RST`, `0 RST` | safe, normal mode (X = 0 or digit entry) |
+| `RCL nn Pause RST`, `RCL nn Prt RST` | safe: Pause and Prt format X |
+| `RCL nn RST`, `… = RST` | **hangs** |
+| `5 R/S`, `CLR R/S` (X in digit entry) | stops, shows the entry, source still set |
+| `RCL nn Pause R/S`, `RCL nn Prt R/S` | stops showing the formatted result, source still set |
+| `RCL nn R/S`, `… = R/S`, `STO nn R/S`, `RCL nn CE R/S` | **hangs** |
+
+So X must be in digit entry, or 0, or have just been shown by Pause or Prt.
+The robust pattern is `CLR RST` with the result in a register, which a
+normal-mode RCL at step 000 then shows (`examples/fastmode-sst.ti59`).
+
+**After a program R/S** the calculator is still in fast mode, with the
+source flag set:
+
+- The R/S key resumes the program, still in fast mode.
+- Digit keys, `.`, +/-, EE, INV, CLR and CE work as number entry.
+- Any operation key (+, =, x², x⇄t, 1/x, (, STO nn, RCL nn, …) executes and
+  then, through the key epilogue, quietly runs the program on from the
+  stopped step to its next R/S.
+- A user key A–E′ searches the module for its label and fails.
+- **RST from the keyboard** clears the source flag and is the way back to a
+  normal calculator.
 
 ## Magnetic cards
 

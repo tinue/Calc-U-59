@@ -45,6 +45,7 @@ real-hardware times of the calendar programs within a few seconds.
 | `runtime.py` | How much program run time does each key cost, including preparation keys before the start key? |
 | `hotsteps.py` | Which program steps are hot; is the printer the bottleneck; is fast mode on; what runs between two lines? |
 | `stepcost.py` | What does one step (or a short sequence) cost in fast mode and in normal mode? |
+| `fastmode_matrix.py` | Which instructions work in fast mode, and which stops hang the calculator? |
 | `kdis.py` | What does the program in a `.ti59` file say, instruction by instruction? |
 | `asm59.py` | Library: write a keycode program with mnemonics and labels instead of numbers. |
 | `calendar/` | Tools for the calendar-printer programs (see below). |
@@ -143,6 +144,24 @@ docstring); choose register numbers in the cases accordingly. Useful values
 from the table: RCL/STO ≈ 580, SUM/Exc ≈ 650–700, RC* ≈ 930, Op 05 (print a
 line) ≈ 3200, a digit ≈ 120 instructions in fast mode. Normal mode costs about
 twice as much.
+
+### fastmode_matrix.py — what works in fast mode
+
+```bash
+uv run python tools/agentic/fastmode_matrix.py          # all cases, then the stop table
+uv run python tools/agentic/fastmode_matrix.py label    # only cases whose name contains "label"
+# SAME GTO nnn                          fast [0, 2]  normal [0]
+# DIFF SBR nnn                          fast [0, 1]  normal [0]
+# RCL 01 RST           HANGS 030A-030E  Prg Src 0  display ['']
+```
+
+Runs each instruction class once in fast mode (SST entry) and once in
+normal mode, and compares X, the data registers, the printout and the
+display. The brackets list the Prg Src Flag values seen while the program
+ran: a 1 means the run went into the module. The stop table ends a fast
+program with R/S or RST in various X states and reports whether the
+calculator hangs. The results and their ROM explanation are in
+`rom/TI59-ROM-Guide.md` § "What a fast-mode program can do".
 
 ### kdis.py — disassembler
 
