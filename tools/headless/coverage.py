@@ -174,6 +174,19 @@ SCENARIOS["ind_sbr"] = ([S("LRN","Lbl","A","9","INV","SBR","LRN","1","1","STO","
 SCENARIOS["pct_add"] = ([], S("2", "+", "3", "x>=t"))  # x>=t from keyboard = no-op test
 SCENARIOS["pgm01"] = ([], S("Pgm", "0", "1", "SBR", "0", "0", "0"))
 
+# ── added in the second ROM documentation pass ──
+_PCARD = _CARD[:3] + b"\x10" + _CARD[4:]          # same bank, protect byte set
+SCENARIOS["write_card_prot"] = ([S("LRN","5","+","3","=","LRN")], S("1", "+/-", "Write"), {"card": "blank"})
+SCENARIOS["read_card_prot"] = ([], S(), {"card": _PCARD})
+SCENARIOS["read_card_part"] = ([S("3","Op","1","7","CLR")], S(), {"card": _CARD})
+SCENARIOS["read_card_inv"] = ([], S("1", "INV", "Write"), {"card": _CARD})
+SCENARIOS["lrn_ind_merge"] = ([S("LRN")], S("STO","Ind","0","5","GTO","Ind","0","3","Op","Ind","0","4","Exc","Ind","0","1","Fix","Ind","0","2"))
+SCENARIOS["p2r_deep_aos"] = ([S("1","+","(","2","*","(","3","+","(","4","*","(","5","+","(")], S("3","x<>t","4","P>R"))
+SCENARIOS["p2r_in_program"] = ([S("LRN","Lbl","A","3","x<>t","4","Nop","Nop","P>R","R/S","LRN")], S("A"))
+SCENARIOS["label_keys"] = ([S("LRN","Lbl","E'","5","R/S","Lbl","x2","R/S","LRN")], S("GTO","E'","GTO","x2","SBR","E'"))
+SCENARIOS["sto_abandon"] = ([], S("5","STO","x2"))
+SCENARIOS["op09_short"] = ([S("Pgm","2","3")], S("Op","0","9"))
+
 
 def expand(keys):
     out = []
