@@ -92,7 +92,11 @@ pending operation's inverse-pair bit (see below).
 |---|---|
 | 1–8 | AOS pending left operands, one per level |
 | 12 | AOS operator stack: 2 nibbles per entry (precedence, paren level), top entry in nibbles 1/0 |
-| 0 | nibble 0 = Fix setting (n+2, 0 = floating); nibble 3 = Prg Src Flag; nibbles 4–7 = program step (see `reference/CoreArchitecture.md`) |
+| 0 | nibble 0 = Fix setting (n+2, 0 = floating); nibble 3 = Prg Src Flag; nibbles 4–7 = program step (nibble 4 = byte 0–7, nibbles 5–7 = BCD register number); nibbles 11–15 = user flags (flag n = bit ⌊n/5⌋ of nibble 11 + n mod 5) |
+| 9 | library/partition descriptor (see `reference/CoreArchitecture.md`) |
+| 10 | current program register as a keycode shift register (current keycode in nibbles 1..0) |
+| 11 | t register |
+| 14, 15 | subroutine return stack (6 levels; SCOM[15] nibble 0 = depth) |
 | 13 | nibble 0 = angle unit (0 DEG, 1 GRAD, 0xC RAD); nibble 1 = current paren level; nibble 2 = AOS depth; nibbles 3–5 = index of the top RAM register (119 TI-59, 59 TI-58), set by the power-on probe; nibbles 8–9 = program partition ÷ 10 |
 
 (Other rows are covered in `reference/CoreArchitecture.md`; this table grows
@@ -116,10 +120,13 @@ Meanings established so far; "set" means the bit is 1.
 | fA[11] | tan (trig sequence) |
 | fA[12] | cos (trig sequence); sin↔cos role in the octant fold |
 | fA[15] | exponent entry (after EE during number entry) |
+| fB[0] | program running |
+| fB[11] | program-register cache (SCOM[10]) must be reloaded |
+| fB[13] | single step (SST in run mode) |
 | fB[4] | decimal point typed (number entry); kernel mode ln (1) / exp (0) in the transcendental kernel |
 | fB[5] | a result (not an entry) is on display: X is in C, the next digit starts a new number |
 | fB[7] | engineering display (Eng) |
-| fB[8] | INV saved for a suspended operation sequence (`0234`) |
+| fB[8] | INV saved for a suspended operation sequence (`0234`): INV SUM, INV Prd, INV St flg, inverted conditionals |
 | fB[10] | LRN mode (toggled at `03D8`); outside LRN borrowed as a transient prefix/reformat marker, cleared before idle |
 | fB[6] | "fresh operand": set by every key at `06A3`, cleared by an AOS push and by `(`; an operator or `)`/`=` arriving with fA[6] clear is an error (`5 + =`, `5 + × 3`) |
 | fB[9] | error: display blinks until CLR/CE (`0641`) |
@@ -217,3 +224,34 @@ display image in two passes (fB[5]): pass 1 picks fixed/sci/eng layout,
 rounds at the first hidden digit and renormalizes; pass 2 lays it out
 again and strips trailing zeros. Fix n is kept in SCOM[0] nibble 0 as
 n + 2 (0 = floating); fB[15] = sci, fB[7] = eng.
+
+## Program memory and execution
+
+- **Step counter**: SCOM[0] nibbles 4–7 — nibble 4 = byte (0–7) within an
+  8-step program register, nibbles 5–7 = register number (BCD). Nibble 3 =
+  Prg Src Flag (0 RAM, 1 library module, 2 library return, 8 keycode
+  sub-program in the constant ROM).
+- **Keycodes** are two BCD digits row·10 + column (2nd functions: column + 5,
+  so units 6–9/0); digit keys store their value 00–09 (`KEY_ENCODE` `0788`).
+- **SCOM[10]** caches the current program register as a shift register: the
+  current keycode is in nibbles 1..0 and each step within the register
+  shifts it right by one keycode; fB[11] forces a reload from RAM
+  (`PRGREG_FETCH` `08B2`).
+- **LRN mode** (fB[10]): every key is routed to `LRN_KEY` (`099E`) instead of
+  executing; editing keys act at once, others are encoded and stored
+  (`LRN_STORE` `0D80`: read register, replace byte, write back, advance).
+- **Execution**: while fB[0] is set the pre-idle checks enter `RUN_LOOP`
+  (`07C1`), which polls R/S, fetches the next step and dispatches it through
+  `STEP_DISPATCH` (`0837`) — the keycode is turned back into a matrix
+  position and fed into the normal keystroke pipeline at `0689`, so a stored
+  keycode behaves exactly like the key press.
+- **Labels**: user keys A–E′ and SBR/GTO label search walk the program with
+  the **program scanner table** at `0x0E10` (indexed 0x0E⟨units⟩⟨tens⟩ by
+  keycode) to skip operand bytes, comparing the byte after each Lbl.
+- **Subroutines**: SBR pushes a 5-nibble level (caller's Prg Src Flag, then
+  register·10 + byte LSD-first) onto SCOM[15]/[14] (`0D50`); RTN (`1175`)
+  pops it; a RTN with an empty stack ends the run (keyboard-started label).
+- **Conditionals** (x=t, x≥t, If flg, Dsz) leave their result in fA[9];
+  `COND_TRANSFER` (`0499`) applies INV and branches or skips the address.
+- **User flags**: flag n = bit ⌊n/5⌋ of SCOM[0] nibble 11 + (n mod 5)
+  (`FLAG_OP` `15BA`).

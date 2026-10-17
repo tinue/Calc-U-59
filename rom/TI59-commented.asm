@@ -265,17 +265,17 @@
 00B4: 0A37  MOV R5,#3         ; sin/cos/tan: fn 3 …
 00B5: 1FBC  JC 0493           ; … + KR[9] → slot 0523
 00B6: 1ECC  JC 041C           ; If flg (program): normalize …
-00B7: 1A74  JC 01F1
-00B8: 1FF6  JC 04B3
-00B9: 1FC0  JC 0499
+00B7: 1A74  JC 01F1           ; … collect the flag digit (01F1)
+00B8: 1FF6  JC 04B3           ; … test the flag (08A0 → 0C67): fA[9] := flag set …
+00B9: 1FC0  JC 0499           ; … conditional transfer (COND_TRANSFER)
 00BA: 1EC4  JC 041C           ; x≥t: normalize …
-00BB: 1FF8  JC 04B7
-00BC: 1AB4  JC 0216
-00BD: 1FB8  JC 0499
+00BB: 1FF8  JC 04B7           ; … B := t (SCOM[11]) …
+00BC: 1AB4  JC 0216           ; … x − t ≥ 0? → fA[9]
+00BD: 1FB8  JC 0499           ; … conditional transfer
 00BE: 1EBC  JC 041C           ; x=t: normalize …
-00BF: 1FF0  JC 04B7
-00C0: 1AB0  JC 0218
-00C1: 1FB0  JC 0499
+00BF: 1FF0  JC 04B7           ; … B := t (SCOM[11]) …
+00C0: 1AB0  JC 0218           ; … x − t = 0? → fA[9]
+00C1: 1FB0  JC 0499           ; … conditional transfer
 00C2: 1EB4  JC 041C           ; "+"/"−" push: normalize X …
 00C3: 1934  JC 015D           ; … then AOS_PUSH with precedence 2
 00C4: 1D28  JC 0358           ; AOS reduce of a prec-2 entry: ADD (fA[1] = subtract)
@@ -289,8 +289,8 @@
 00CC: 193B  JC 002F           ; AOS reduce of a prec-6 entry: fn 12 = y^x (fA[1] = INV y^x, the
                               ;   root)
 00CD: 1E9E  JC 041C           ; St flg / INV St flg: normalize …
-00CE: 1A46  JC 01F1
-00CF: 1FCA  JC 04B4
+00CE: 1A46  JC 01F1           ; … collect the flag digit
+00CF: 1FCA  JC 04B4           ; … set / clear it (0B14 → 11E0 → FLAG_OP 15BA)
 00D0: 1E98  JC 041C           ; |x|: normalize …
 00D1: 18A9  JC 007D
 00D2: 1E94  JC 041C           ; ")": normalize X …
@@ -327,12 +327,12 @@
 00F1: 1A68  JC 0225
 00F2: 1F70  JC 04AA
 00F3: 1E52  JC 041C           ; Dsz: normalize …
-00F4: 19FA  JC 01F1
-00F5: 1BC0  JC 02D5
-00F6: 1F6A  JC 04AB
-00F7: 1DF6  JC 03F2
-00F8: 1A36  JC 0213
-00F9: 1F40  JC 0499
+00F4: 19FA  JC 01F1           ; … collect the register digit 0–9 …
+00F5: 1BC0  JC 02D5           ; … read the register …
+00F6: 1F6A  JC 04AB           ; … decrement its magnitude (0715) …
+00F7: 1DF6  JC 03F2           ; … write it back (075D → 0A2E) …
+00F8: 1A36  JC 0213           ; … zero? → fA[9] (inverted: Dsz branches while non-zero) …
+00F9: 1F40  JC 0499           ; … conditional transfer
 00FA: 1E44  JC 041C           ; D.MS / P→R / Σ+ / x̄ family: normalize …
 00FB: 1FA2  JC 04CC
 00FC: 1FD0  JC 04E4
@@ -644,12 +644,15 @@
 01EE: 01DE  D=0 ALL
 01EF: 0080  TST fA[8]
 01F0: 1522  JNC 0481
-01F1: 0008  TST fB[0]
-01F2: 00D8  TST fB[13]
-01F3: 15B2  JNC 04CC
-01F4: 01D7  A<>E ALL
-01F5: 0A07  MOV R5,#0
-01F6: 186C  JC 022C
+; ARG_ONE_DIGIT (slots 00B7, 00CE, 00F4 …): in a program the operand is the
+; next keycode (fB[0]/fB[13] → 04CC path is skipped); from the keyboard
+; collect one digit (R5 = 0 → 022C).
+01F1: 0008  TST fB[0]         ; running …
+01F2: 00D8  TST fB[13]        ; … or single step?
+01F3: 15B2  JNC 04CC          ; yes → operand from the program (via the 2-digit path)
+01F4: 01D7  A<>E ALL          ; keyboard: X → E …
+01F5: 0A07  MOV R5,#0         ; … one digit
+01F6: 186C  JC 022C           ; → ARG_COLLECT_SETUP
 01F7: 0158  A=SRB ALL         ; ")"/"=": A[0] := current paren level
 01F8: 0308  A=A-1 DPT1        ; level − 1 (borrows at level 0)
 01F9: 1006  JNC 01FC          ; already at level 0 → leave it
@@ -1511,6 +1514,10 @@
 0496: 02F3  B=R5 DPT
 0497: 0A17  MOV R5,#1
 0498: 1862  JC 04C9
+; COND_TRANSFER (slots 00B9, 00BD, 00C1, 00F9): the preceding slot left the
+; test result in fA[9]; INV (saved in fB[8]) inverts it. True → read the
+; transfer address (label or 3-digit step) and branch (085C …); false →
+; skip the address operand and continue with the next step.
 0499: 1F86  JC 085C
 049A: 0051  SET fA[5]
 049B: 0080  TST fA[8]
@@ -1539,11 +1546,11 @@
 ; X, set = read into A. → 0856 → 0B10 → REG_ADDR (0D33).
 04B1: 0092  CLR fA[9]         ; STO: write
 04B2: 1F48  JC 0856
-04B3: 1FDA  JC 08A0
-04B4: 0A47  MOV R5,#4
-04B5: 1C7F  JC 0276
+04B3: 1FDA  JC 08A0           ; If flg: test the user flag (0C67)
+04B4: 0A47  MOV R5,#4         ; St flg / INV St flg: sequence bank 0x0B10, code 4 …
+04B5: 1C7F  JC 0276           ; … → 0B14 → 0E10 → 11E0 → FLAG_OP
 04B6: 0051  SET fA[5]
-04B7: 0A06  MOV R5,fA[1..4]
+04B7: 0A06  MOV R5,fA[1..4]   ; x=t / x≥t: compare X with t (SCOM[11])
 04B8: 02F0  A=R5 DPT
 04B9: 0103  B=A ALL
 04BA: 01D7  A<>E ALL
@@ -2394,13 +2401,15 @@
 0712: 0724  C=C+1 EXP1
 0713: 1809  JC 070F
 0714: 1558  JNC 09C0          ; too large → overflow / underflow (09C0 → 05EA)
+; Dsz decrement (slot 00F6 → 04AB): |register| − 1 towards zero via ADD
+; (035A) with B = 1; a register already below 1 becomes 0 (071B).
 0715: 01DB  B=0 ALL
 0716: 0086  MOV fA[8],fB[8]
-0717: 0D09  IO=A-1 MLSD1
+0717: 0D09  IO=A-1 MLSD1      ; register zero?
 0718: 177D  JNC 035A
-0719: 0030  TST fA[3]
+0719: 0030  TST fA[3]         ; |register| < 1?
 071A: 1FC6  JC 0AFD
-071B: 01D8  A=0 ALL
+071B: 01D8  A=0 ALL           ; yes → 0
 071C: 1F85  JC 035A
 ; y^x first step (slot 050C): save x in D, ln y via the kernel. Guards: y or
 ; x zero (0724–0726 → 04E0), y negative is an error (0727 → 0546).
@@ -2785,7 +2794,7 @@
 0859: 0AA7  MOV R5,#10
 085A: 1CC5  JC 05F8
 085B: 1F42  JC 0BFC
-085C: 0088  TST fB[8]
+085C: 0088  TST fB[8]         ; INV?
 085D: 1778  JNC 0C19
 085E: 0000  TST fA[0]
 085F: 01D7  A<>E ALL
@@ -5872,7 +5881,7 @@
 130F: 01D6  D=LOAD ALL
 1310: 0906  D=A MANT
 1311: 0101  IO=A ALL
-1312: 0A0F  STOF
+1312: 0A0F  STOF              ; SCOM[0] := updated flags
 1313: 0131  IO=D ALL
 1314: 18B9  JC 12B8
 1315: 0AA8  PRT.GO
@@ -6572,44 +6581,53 @@
 15B7: 0164  C=SLC ALL
 15B8: 0164  C=SLC ALL
 15B9: 180B  JC 15B4
-15BA: 01D7  A<>E ALL
+; ═══════════════════════════════════════════════════════════════════════════
+; FLAG_OP  (0x15BA–0x15E1, 1312) — St flg n / INV St flg n (and the flag test
+; for If flg). Trace-confirmed for all ten flags (headless harness): user
+; flag n is bit ⌊n/5⌋ of SCOM[0] nibble 11 + (n mod 5) — flags 0–4 bit 0 of
+; nibbles 11–15, flags 5–9 bit 1. 15C1–15C8 split n into nibble and bit,
+; 15C9–15CC slide a one-digit mask into place, then the bit is added (set)
+; or subtracted (INV, fB[8]) unless it is already in that state, and SCOM[0]
+; is written back at 1312.
+; ═══════════════════════════════════════════════════════════════════════════
+15BA: 01D7  A<>E ALL          ; A := flag number
 15BB: 0A77  MOV R5,#7
 15BC: 09F6  D=R5 MANT
 15BD: 0A1F  RCLF
 15BE: 09D3  B=LOAD MANT
 15BF: 0901  IO=A MANT
 15C0: 09F0  A=R5 MANT
-15C1: 0B09  IO=A-5 MLSD5
+15C1: 0B09  IO=A-5 MLSD5      ; n ≥ 5?
 15C2: 09B0  A=A+D MANT
 15C3: 01D5  C<>D ALL
 15C4: 0DD4  C=LOAD MLSD1
-15C5: 1008  JNC 15C9
-15C6: 0B08  A=A-5 MLSD5
+15C5: 1008  JNC 15C9          ; no → bit 0
+15C6: 0B08  A=A-5 MLSD5       ; yes → n − 5, bit 1
 15C7: 0D24  C=C+1 MLSD1
 15C8: 07D4  C=LOAD EXP1
-15C9: 095B  B=SRB MANT
-15CA: 0964  C=SLC MANT
+15C9: 095B  B=SRB MANT        ; slide to nibble 11 + n …
+15CA: 0964  C=SLC MANT        ; … building the mask in C …
 15CB: 0D08  A=A-1 MLSD1
 15CC: 1807  JC 15C9
 15CD: 09D2  A<>B MANT
 15CE: 0729  IO=C-1 EXP1
 15CF: 0948  A=SRA MANT
-15D0: 0A18  MOV KR[4..7],R5
-15D1: 0A1F  RCLF
+15D0: 0A18  MOV KR[4..7],R5   ; KR[4..7] := the flag nibble's current value
+15D1: 0A1F  RCLF              ; A := SCOM[0]
 15D2: 01D0  A=LOAD ALL
 15D3: 01D5  C<>D ALL
 15D4: 100E  JNC 15DB
-15D5: 0A55  TST KR[5]
+15D5: 0A55  TST KR[5]         ; bit 1 currently set?
 15D6: 180E  JC 15DD
-15D7: 0088  TST fB[8]
-15D8: 1E41  JC 12B8
-15D9: 09B8  A=A-D MANT
+15D7: 0088  TST fB[8]         ; INV (clear)?
+15D8: 1E41  JC 12B8           ; set requested, already set → nothing to do
+15D9: 09B8  A=A-D MANT        ; clear the bit
 15DA: 180C  JC 15E0
-15DB: 0A45  TST KR[4]
+15DB: 0A45  TST KR[4]         ; bit 0 currently set?
 15DC: 100B  JNC 15D7
 15DD: 0088  TST fB[8]
-15DE: 164D  JNC 12B8
-15DF: 09B0  A=A+D MANT
+15DE: 164D  JNC 12B8          ; clear requested, already clear → nothing to do
+15DF: 09B0  A=A+D MANT        ; set the bit
 15E0: 0106  D=A ALL
 15E1: 1D9F  JC 1312
 15E2: 0099  SET fB[9]
