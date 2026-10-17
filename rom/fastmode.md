@@ -145,11 +145,14 @@ St flg in its own block:
   follows it, so the buffer is empty. Steps 001–007 run as empty steps (each
   one types a harmless 0). At step 008 a new block begins, the firmware reads
   memory again, and the real program runs from there.
-- **St flg anywhere else**, for example on step 012: the rest of that block
-  is still in the buffer and runs first, in place of steps 001–007. Later
-  the run reaches step 012 from memory and executes St flg again, this
-  time as an ordinary instruction. This can be made to work, but it is hard
-  to follow.
+- **St flg anywhere else**, for example on step 004: fast mode starts just
+  the same, but the rest of that block is still in the buffer and runs
+  first. The step right after St flg is skipped, because that is where a
+  program keeps St flg's flag number; the typed digit took its place. So
+  steps 006 and 007 run in place of 001 and 002, followed by empty steps.
+  If the program later passes through St flg's block again, St flg runs a
+  second time, as an ordinary instruction. This can be made to work, but it
+  is hard to follow.
 
 That is why St flg is put at step 007 (or 015, 023, …), and the program
 proper starts at step 008. Steps 000–006 can hold anything, because they are
