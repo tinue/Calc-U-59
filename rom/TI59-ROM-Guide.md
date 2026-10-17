@@ -375,6 +375,62 @@ is also fragile:
 
 It is a hobbyist technique built on a firmware bug, not a TI feature.
 
+### Entry methods compared (headless traces)
+
+Two independent bugs lead into fast mode.
+
+**Family 1: the St flg mis-dispatch.** St flg's argument is cut short by a
+non-digit key after exactly one digit. That key's KEY_ENCODE column bit bends
+the continuation to `0B34`, and the chain ends in the HIR STO code (`11D9`)
+with register 0, so X's digit image lands in SCOM[0]. Only column-2 keys work
+as the terminator (B, INV, x⇄t, STO, EE; every key tested), and any digit
+works as the first one. X must carry 2, 4 or 6 as its 12th decimal; nibbles
+4–7 of its image become the start step. `1 + 2 EE 12 +/- =` gives exactly
+1.000000000002, so no tan 45 is needed.
+
+- **St flg at the end of the partition** (`examples/fastmode.ti59`, the St flg
+  trick of TI PPC Notes V9N3P5). Fetching the operand fails, the program halts
+  with the argument pending, and the user presses 7 EE.
+- **Acosta's "hi2"** (`examples/calendar-08-acosta.ti59`): RCL of the
+  constant, St flg, then a pseudo-keycode `0C` as the operand, all inside the
+  program. Its hex units digit feeds only the digit C and leaves the argument
+  open, and the next step (68 Nop) ends it. The keyboard ritual (`Pgm 12 SBR
+  999`, `R/S`, `D.MS`, `LRN Ins Ins`) only manufactures that `0C`, with the
+  stale-cache Ins quirk known from `examples/texas-print.ti59`.
+- **SST** (the simplest, `examples/fastmode-sst.ti59`). One St flg step
+  anywhere, preferably at step 8k+7, then `GTO` to it, `SST`, a digit and
+  STO. SST leaves the operand pending because a program operand is fed as
+  two digits. No partition-end halt and no pseudo-keycode are needed.
+- **No program-only form without pseudo-keycodes.** A sweep of all 10,000
+  `St flg kk kk` programs recordable in LRN found none that triggers it,
+  because stored operands always arrive as two decimal digits.
+
+**Family 2: LRN inside a module program** (Arendt / Meusch, `00000 Pgm 02 SBR
+239 …`; `examples/FastMode_Zero4.ti59`, `examples/characters-fastmode.ti59`).
+ML-02 step 239 is a byte 31, the LRN keycode. Executed there, it switches on
+LRN mode while the module keeps running, so the module records its own
+keycodes into RAM. One of them then dispatches into the cold-start clear loop
+at `0005`, which writes register A into SCOM[0]: source 4.
+
+**Dead ends checked:** `HIR 00` would be the direct route, but HIR accepts only
+registers 1–8 (range check at `11C1`). `St flg Ind` with flag numbers above 9
+and `Fix Ind` do not reach nibble 3.
+
+**After entry, and leaving.** The jump to the new step does not reload the
+program-register cache. Steps 001–007 therefore run from the drained cache
+(as 00 when St flg was the last byte of its register), and the real program
+starts at step 008. Fast mode skips the display formatter (`DISP_FORMAT`),
+which leaves two traps:
+
+- A plain R/S stops with the source flag still set, and the display stays
+  dark, even after CLR.
+- Leaving with a result recalled in fast mode (`RCL 00 RST`) leaves an
+  unformatted display image, and the redisplay after RST loops forever in
+  `030A`–`030E`.
+
+Clean exits are `CLR +/- RST` (`examples/fastmode.ti59`) or RST followed by
+the RCL in normal mode (`examples/fastmode-sst.ti59`).
+
 ## Magnetic cards
 
 `Write` (bank number in X) and an inserted card (idle-loop card-switch poll)
