@@ -294,6 +294,8 @@ n + 2 (0 = floating); fB[15] = sci, fB[7] = eng.
   its sign; a magnitude below 1 becomes 0. It transfers while the result is
   non-zero. Trace-checked: 3 → 2 and −2 → −1 transfer, 2.5 → 1.5 transfers,
   1 → 0 and 0.5 → 0 do not.
+  x=t and x≥t compare the full 13-digit values, not the display. 1 ÷ 3 × 3
+  shows 1 but is not equal to 1, and √2 squared is less than 2.
 - **User flags**: flag n = bit ⌊n/5⌋ of SCOM[0] nibble 11 + (n mod 5)
   (`FLAG_OP` `15BA`).
   Flag 8 makes an error stop a running program (run loop `07E2`).
