@@ -125,8 +125,14 @@ HIR STO, with register number 0.
 - The zeros become step 000 and floating-point display.
 - The leading 1 happens to set flag 4.
 
-From the next step on, the run loop sees "non-zero source" and takes the fast
-path, while the fetch still reads from RAM.
+**Why it starts running.** No key starts the program. Like every operation,
+the misrouted St flg ends in the display routine. That routine sees a
+non-zero source and concludes that a ROM routine such as P→R is running and
+is between two of its steps. In that case it does not format X: it switches
+the calculator to "running" and fetches the next step. This is TI's own
+mechanism for carrying a ROM routine from step to step. From then on the run
+loop sees "non-zero source" at every step and takes the fast path, while the
+fetch still reads from RAM.
 
 **Why the program starts at step 008.** The RAM chips can only transfer
 whole registers. A register is 16 decimal digits, shifted serially over the
