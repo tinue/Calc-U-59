@@ -4859,12 +4859,12 @@
 0EC2: 0A18  MOV KR[4..7],R5
 0EC3: 0508  A=A-1 LLSD1       ; … − 1 (borrow from the register digits)
 0EC4: 1E6D  JC 0B8E           ; store and show
-0EC5: 0948  A=SRA MANT
+0EC5: 0948  A=SRA MANT        ; byte 0: previous register, byte 7 (BST 008 → 007) …
 0EC6: 014E  D=SRA ALL
 0EC7: 017E  D=SRD ALL
 0EC8: 017E  D=SRD ALL
 0EC9: 09DE  D=0 MANT
-0ECA: 0139  IO=-D ALL
+0ECA: 0139  IO=-D ALL         ; … but at step 000 BST stays at 000 (no wrap; trace-checked)
 0ECB: 1806  JC 0ECE
 0ECC: 0A37  MOV R5,#3
 0ECD: 09F6  D=R5 MANT
