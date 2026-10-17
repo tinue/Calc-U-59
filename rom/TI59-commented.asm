@@ -823,7 +823,7 @@
 0273: 0A17  MOV R5,#1
 0274: 00A8  TST fB[10]
 0275: 186A  JC 02AA
-0276: 0085  SET KR[8]
+0276: 0085  SET KR[8]         ; KR := 0xB1x0 (0276–0279 + 0211) → slot 0x0B10 + code
 0277: 00F5  SET KR[15]
 0278: 00D5  SET KR[13]
 0279: 18D1  JC 0211
@@ -923,11 +923,13 @@
                               ;   below pulls the continuation saved at 041D
                               ;   from SR (e.g. back into the 0x0500 fn table —
                               ;   trace-confirmed 050B for 1/x, errorblink.txt)
-; KEY_USERDEF: keyboard row 1, user-defined label keys A–E (from 06B0);
-; bypasses the dispatch table at 0011. (02D2 doubles as the PREG-return delay
-; slot of the 02D1 path above.)
+; KEY_USERDEF: keyboard row 1, user-defined label keys A–E and (with 2nd)
+; A′–E′ (from 06B0); bypasses the dispatch table at 0011. Builds KR for the
+; 0x0B10 sequence bank (0276: KR[8], KR[15], KR[13] + FN_ENTRY's KR[12]) with
+; code 2 → slot 0B12: search the program for the label and run it as a
+; subroutine. (02D2 doubles as the PREG-return delay slot of 02D1.)
 02D2: 0A0D  SWAP KR,SR
-02D3: 0A27  MOV R5,#2
+02D3: 0A27  MOV R5,#2         ; slot 0B12
 02D4: 18BD  JC 0276
 ; Register read-modify-write prologue (slots 00D9 SUM, 00E2 Prd, 00E7 Exc):
 ; B := X with its flags, then read the register (fA[9] = read).
@@ -3561,10 +3563,11 @@
 0B0D: 0A45  TST KR[4]
 0B0E: 12E0  JNC 0C7E
 0B0F: 1ADC  JC 0C7D
-0B10: 1C46  JC 0D33
-0B11: 1E92  JC 0E5A
-0B12: 1867  JC 0ADF
-0B13: 1BF1  JC 091B
+; ── 0x0B10 sequence bank (KR[15]+KR[13]+KR[12]+KR[8]): program-related slots.
+0B10: 1C46  JC 0D33           ; → REG_ADDR (via 0856, register operand)
+0B11: 1E92  JC 0E5A           ; Ins / Del (via KEY_OP_ENTRY, labels OP_INS)
+0B12: 1867  JC 0ADF           ; user label key A–E′: start the label search …
+0B13: 1BF1  JC 091B           ; … found: subroutine call (push return, 091B) …
 0B14: 1DF8  JC 0E10
 0B15: 1F52  JC 0EBE
 0B16: 0042  CLR fA[4]
@@ -3770,13 +3773,15 @@
 0BCF: 1D4F  JC 0928
 0BD0: 1F79  JC 0814
 0BD1: 1FB6  JC 0FAC
+; LABEL_SEARCH start: set up the scan from step 000 of the current program,
+; then read register by register (0F45).
 0BD2: 02F3  B=R5 DPT
 0BD3: 0219  IO=-B DPT
 0BD4: 0603  B=A EXP
 0BD5: 0A97  MOV R5,#9
 0BD6: 01F0  A=R5 ALL
 0BD7: 17AC  JNC 0FAD
-0BD8: 0AD7  MOV R5,#13
+0BD8: 0AD7  MOV R5,#13        ; partition limit from SCOM[13] (nibbles 8–9) …
 0BD9: 02F6  D=R5 DPT
 0BDA: 0131  IO=D ALL
 0BDB: 0A1F  RCLF
@@ -3785,8 +3790,8 @@
 0BDE: 017E  D=SRD ALL
 0BDF: 017E  D=SRD ALL
 0BE0: 017E  D=SRD ALL
-0BE1: 09B9  IO=A-D MANT
-0BE2: 1D10  JC 0E6A
+0BE1: 09B9  IO=A-D MANT       ; … past the end of program memory?
+0BE2: 1D10  JC 0E6A           ; yes → label not found (0E6A → error)
 0BE3: 0903  B=A MANT
 0BE4: 0148  A=SRA ALL
 0BE5: 0148  A=SRA ALL
@@ -4394,16 +4399,30 @@
 0E0D: 0A77  MOV R5,#7
 0E0E: 09F0  A=R5 MANT
 0E0F: 01D7  A<>E ALL
+; ═══════════════════════════════════════════════════════════════════════════
+; PROGRAM SCANNER TABLE  (0x0E10–0x0E98) — trace-confirmed (Lbl A … SBR A,
+; GTO B, Dsz, x=t, If flg). While the label search (0F45) walks a program it
+; dispatches each keycode through PREG to 0x0E<units><tens> (built at
+; 0F53–0F6D), so it can skip the operand bytes that follow an instruction —
+; a register number after STO looks like a keycode but must not be mistaken
+; for a Lbl. The slots hold one JC each; the non-slot addresses in between
+; (x0, xA–xF) are ordinary code. Classes:
+;   0E99 plain step          11B8 one operand byte (register / Op / Pgm)
+;   0E90 address follows     0E50 Lbl: the next byte is a label name
+;   0E64 INV prefix toggle   0E8C/0E8E operand unless INV (Fix, SBR → RTN)
+;   0E68/0E79 Dsz, If flg: digit then address
+; ═══════════════════════════════════════════════════════════════════════════
 0E10: 1FA0  JC 11E0
-0E11: 1910  JC 0E99
-0E12: 190E  JC 0E99
-0E13: 190C  JC 0E99
-0E14: 190A  JC 0E99
-0E15: 1908  JC 0E99
-0E16: 18F4  JC 0E90
-0E17: 18EE  JC 0E8E
-0E18: 1902  JC 0E99
-0E19: 1900  JC 0E99
+0E11: 1910  JC 0E99           ; keycode 11 A: no operand
+0E12: 190E  JC 0E99           ; keycode 21 2nd: no operand
+0E13: 190C  JC 0E99           ; keycode 31 LRN: no operand
+0E14: 190A  JC 0E99           ; keycode 41 SST: no operand
+0E15: 1908  JC 0E99           ; keycode 51 BST: no operand
+0E16: 18F4  JC 0E90           ; keycode 61 GTO: followed by a transfer address (label or 3-digit
+                              ;   step)
+0E17: 18EE  JC 0E8E           ; keycode 71 SBR: address follows unless INV (RTN)
+0E18: 1902  JC 0E99           ; keycode 81 RST: no operand
+0E19: 1900  JC 0E99           ; keycode 91 R/S: no operand
 ; Cache path: D := SCOM[10], shift by one keycode (A[0] = 1) → 0EE2.
 0E1A: 0AA7  MOV R5,#10
 0E1B: 02F6  D=R5 DPT
@@ -4412,15 +4431,19 @@
 0E1E: 01D6  D=LOAD ALL        ; D := cached register
 0E1F: 03D0  A=LOAD DPT1       ; one keycode
 0E20: 1984  JC 0EE2
-0E21: 18F0  JC 0E99
-0E22: 1884  JC 0E64
-0E23: 18EC  JC 0E99
-0E24: 1F28  JC 11B8
-0E25: 18E8  JC 0E99
-0E26: 1F24  JC 11B8
-0E27: 1F22  JC 11B8
-0E28: 1F20  JC 11B8
-0E29: 18E0  JC 0E99
+0E21: 18F0  JC 0E99           ; keycode 12 B: no operand
+0E22: 1884  JC 0E64           ; keycode 22 INV: toggles INV (fA[8]) for the next keycode
+0E23: 18EC  JC 0E99           ; keycode 32 x⇄t: no operand
+0E24: 1F28  JC 11B8           ; keycode 42 STO: one operand byte (register / Op / Pgm number) —
+                              ;   skipped
+0E25: 18E8  JC 0E99           ; keycode 52 EE: no operand
+0E26: 1F24  JC 11B8           ; keycode 62 Pgm Ind: one operand byte (register / Op / Pgm
+                              ;   number) — skipped
+0E27: 1F22  JC 11B8           ; keycode 72 STO Ind: one operand byte (register / Op / Pgm
+                              ;   number) — skipped
+0E28: 1F20  JC 11B8           ; keycode 82 HIR: one operand byte (register / Op / Pgm number) —
+                              ;   skipped
+0E29: 18E0  JC 0E99           ; keycode 92 RTN: no operand
 0E2A: 177B  JNC 0A6D
 0E2B: 0A67  MOV R5,#6
 0E2C: 191A  JC 0EB9
@@ -4428,15 +4451,19 @@
 0E2E: 0A45  TST KR[4]
 0E2F: 1F73  JC 0A76
 0E30: 12B7  JNC 0CD5
-0E31: 18D0  JC 0E99
-0E32: 18CE  JC 0E99
-0E33: 18CC  JC 0E99
-0E34: 1F08  JC 11B8
-0E35: 18C8  JC 0E99
-0E36: 1F04  JC 11B8
-0E37: 1F02  JC 11B8
-0E38: 1F00  JC 11B8
-0E39: 18C0  JC 0E99
+0E31: 18D0  JC 0E99           ; keycode 13 C: no operand
+0E32: 18CE  JC 0E99           ; keycode 23 lnx: no operand
+0E33: 18CC  JC 0E99           ; keycode 33 x²: no operand
+0E34: 1F08  JC 11B8           ; keycode 43 RCL: one operand byte (register / Op / Pgm number) —
+                              ;   skipped
+0E35: 18C8  JC 0E99           ; keycode 53 (: no operand
+0E36: 1F04  JC 11B8           ; keycode 63 Exc Ind: one operand byte (register / Op / Pgm
+                              ;   number) — skipped
+0E37: 1F02  JC 11B8           ; keycode 73 RCL Ind: one operand byte (register / Op / Pgm
+                              ;   number) — skipped
+0E38: 1F00  JC 11B8           ; keycode 83 GTO Ind: one operand byte (register / Op / Pgm
+                              ;   number) — skipped
+0E39: 18C0  JC 0E99           ; keycode 93 .: no operand
 0E3A: 00AA  CLR fB[10]
 0E3B: 0042  CLR fA[4]
 0E3C: 00CA  CLR fB[12]
@@ -4444,15 +4471,19 @@
 0E3E: 0091  SET fA[9]
 0E3F: 0059  SET fB[5]
 0E40: 187F  JC 0E01
-0E41: 18B0  JC 0E99
-0E42: 18AE  JC 0E99
-0E43: 18AC  JC 0E99
-0E44: 1EE8  JC 11B8
-0E45: 18A8  JC 0E99
-0E46: 1EE4  JC 11B8
-0E47: 1EE2  JC 11B8
-0E48: 1EE0  JC 11B8
-0E49: 18A0  JC 0E99
+0E41: 18B0  JC 0E99           ; keycode 14 D: no operand
+0E42: 18AE  JC 0E99           ; keycode 24 CE: no operand
+0E43: 18AC  JC 0E99           ; keycode 34 √x: no operand
+0E44: 1EE8  JC 11B8           ; keycode 44 SUM: one operand byte (register / Op / Pgm number) —
+                              ;   skipped
+0E45: 18A8  JC 0E99           ; keycode 54 ): no operand
+0E46: 1EE4  JC 11B8           ; keycode 64 Prd Ind: one operand byte (register / Op / Pgm
+                              ;   number) — skipped
+0E47: 1EE2  JC 11B8           ; keycode 74 SUM Ind: one operand byte (register / Op / Pgm
+                              ;   number) — skipped
+0E48: 1EE0  JC 11B8           ; keycode 84 Op Ind: one operand byte (register / Op / Pgm number)
+                              ;   — skipped
+0E49: 18A0  JC 0E99           ; keycode 94 +/-: no operand
 0E4A: 01D7  A<>E ALL
 0E4B: 0201  IO=A DPT
 0E4C: 0007  MOV fA[1..4],R5
@@ -4460,15 +4491,15 @@
 0E4E: 005A  CLR fB[5]
 0E4F: 1F14  JC 11D9
 0E50: 0001  SET fA[0]
-0E51: 1890  JC 0E99
-0E52: 188E  JC 0E99
-0E53: 188C  JC 0E99
-0E54: 188A  JC 0E99
-0E55: 1888  JC 0E99
-0E56: 1886  JC 0E99
-0E57: 1884  JC 0E99
-0E58: 1882  JC 0E99
-0E59: 1880  JC 0E99
+0E51: 1890  JC 0E99           ; keycode 15 E: no operand
+0E52: 188E  JC 0E99           ; keycode 25 CLR: no operand
+0E53: 188C  JC 0E99           ; keycode 35 1/x: no operand
+0E54: 188A  JC 0E99           ; keycode 45 y^x: no operand
+0E55: 1888  JC 0E99           ; keycode 55 ÷: no operand
+0E56: 1886  JC 0E99           ; keycode 65 ×: no operand
+0E57: 1884  JC 0E99           ; keycode 75 −: no operand
+0E58: 1882  JC 0E99           ; keycode 85 +: no operand
+0E59: 1880  JC 0E99           ; keycode 95 =: no operand
 0E5A: 00B9  SET fB[11]
 0E5B: 0A1F  RCLF
 0E5C: 09D0  A=LOAD MANT
@@ -4476,15 +4507,16 @@
 0E5E: 0075  SET KR[7]
 0E5F: 0148  A=SRA ALL
 0E60: 1D8F  JC 0B99
-0E61: 1870  JC 0E99
-0E62: 186E  JC 0E99
-0E63: 1EAA  JC 11B8
+0E61: 1870  JC 0E99           ; keycode 16 A': no operand
+0E62: 186E  JC 0E99           ; keycode 26 2nd': no operand
+0E63: 1EAA  JC 11B8           ; keycode 36 Pgm: one operand byte (register / Op / Pgm number) —
+                              ;   skipped
 0E64: 0083  TOG fA[8]
-0E65: 186A  JC 0E9A
-0E66: 1866  JC 0E99
-0E67: 182F  JC 0E50
+0E65: 186A  JC 0E9A           ; keycode 56 Del: no operand
+0E66: 1866  JC 0E99           ; keycode 66 Pause: no operand
+0E67: 182F  JC 0E50           ; keycode 76 Lbl: next byte is a label name
 0E68: 00C9  SET fB[12]
-0E69: 1860  JC 0E99
+0E69: 1860  JC 0E99           ; keycode 96 Write: no operand
 0E6A: 01D5  C<>D ALL
 0E6B: 0092  CLR fA[9]
 0E6C: 00CA  CLR fB[12]
@@ -4492,13 +4524,15 @@
 0E6E: 0002  CLR fA[0]
 0E6F: 1ECB  JC 0B0A
 0E70: 1F3D  JC 0AD2
-0E71: 1850  JC 0E99
-0E72: 181D  JC 0E64
-0E73: 184C  JC 0E99
-0E74: 184A  JC 0E99
-0E75: 1848  JC 0E99
-0E76: 1834  JC 0E90
-0E77: 1832  JC 0E90
+0E71: 1850  JC 0E99           ; keycode 17 B': no operand
+0E72: 181D  JC 0E64           ; keycode 27 INV': toggles INV (fA[8]) for the next keycode
+0E73: 184C  JC 0E99           ; keycode 37 P→R: no operand
+0E74: 184A  JC 0E99           ; keycode 47 CMs: no operand
+0E75: 1848  JC 0E99           ; keycode 57 Eng: no operand
+0E76: 1834  JC 0E90           ; keycode 67 x=t: followed by a transfer address (label or 3-digit
+                              ;   step)
+0E77: 1832  JC 0E90           ; keycode 77 x≥t: followed by a transfer address (label or 3-digit
+                              ;   step)
 0E78: 0100  A=A ALL
 0E79: 0051  SET fA[5]
 0E7A: 1825  JC 0E68
@@ -4508,15 +4542,16 @@
 0E7E: 01D5  C<>D ALL
 0E7F: 01B4  C=A+D ALL
 0E80: 1A16  JC 0F8B
-0E81: 1830  JC 0E99
-0E82: 182E  JC 0E99
-0E83: 182C  JC 0E99
-0E84: 1E68  JC 11B8
-0E85: 180E  JC 0E8C
-0E86: 1828  JC 0E9A
-0E87: 1824  JC 0E99
-0E88: 1822  JC 0E99
-0E89: 1820  JC 0E99
+0E81: 1830  JC 0E99           ; keycode 18 C': no operand
+0E82: 182E  JC 0E99           ; keycode 28 log: no operand
+0E83: 182C  JC 0E99           ; keycode 38 sin: no operand
+0E84: 1E68  JC 11B8           ; keycode 48 Exc: one operand byte (register / Op / Pgm number) —
+                              ;   skipped
+0E85: 180E  JC 0E8C           ; keycode 58 Fix: one digit unless INV
+0E86: 1828  JC 0E9A           ; keycode 68 Nop: no operand
+0E87: 1824  JC 0E99           ; keycode 78 Σ+: no operand
+0E88: 1822  JC 0E99           ; keycode 88 D.MS: no operand
+0E89: 1820  JC 0E99           ; keycode 98 Adv: no operand
 0E8A: 1E64  JC 11BC
 0E8B: 1DD4  JC 1175
 0E8C: 0080  TST fA[8]
@@ -4524,25 +4559,27 @@
 0E8E: 0080  TST fA[8]
 0E8F: 1014  JNC 0E99
 0E90: 0051  SET fA[5]
-0E91: 1810  JC 0E99
-0E92: 180E  JC 0E99
-0E93: 180C  JC 0E99
-0E94: 1E48  JC 11B8
-0E95: 1808  JC 0E99
-0E96: 1E44  JC 11B8
-0E97: 1804  JC 0E99
-0E98: 1802  JC 0E99 ; clear COND
-0E99: 0082  CLR fA[8]
+0E91: 1810  JC 0E99           ; keycode 19 D': no operand
+0E92: 180E  JC 0E99           ; keycode 29 CP: no operand
+0E93: 180C  JC 0E99           ; keycode 39 cos: no operand
+0E94: 1E48  JC 11B8           ; keycode 49 Prd: one operand byte (register / Op / Pgm number) —
+                              ;   skipped
+0E95: 1808  JC 0E99           ; keycode 59 Int: no operand
+0E96: 1E44  JC 11B8           ; keycode 69 Op: one operand byte (register / Op / Pgm number) —
+                              ;   skipped
+0E97: 1804  JC 0E99           ; keycode 79 x̄: no operand
+0E98: 1802  JC 0E99 ; clear COND ; keycode 89 π: no operand
+0E99: 0082  CLR fA[8]         ; next keycode (INV no longer pending) …
 0E9A: 0040  TST fA[4]
 0E9B: 158C  JNC 1161
 0E9C: 0219  IO=-B DPT
 0E9D: 1342  JNC 103E
-0E9E: 017E  D=SRD ALL
-0E9F: 0308  A=A-1 DPT1
-0EA0: 1956  JC 0F4B
-0EA1: 0910  A=B MANT
+0E9E: 017E  D=SRD ALL         ; … shift the next keycode into nibbles 1..0
+0E9F: 0308  A=A-1 DPT1        ; … keycodes left in this register?
+0EA0: 1956  JC 0F4B           ; yes → classify it
+0EA1: 0910  A=B MANT          ; no → next register …
 0EA2: 0D00  A=A+1 MLSD1
-0EA3: 1D97  JC 0BD8
+0EA3: 1D97  JC 0BD8           ; … (end-of-memory check at 0BD8)
 0EA4: 1FA8  JC 1278
 0EA5: 01D7  A<>E ALL
 0EA6: 0A1F  RCLF
@@ -4727,20 +4764,28 @@
 0F42: 08EF  KEY [Q]
 0F43: 1019  JNC 0F37
 0F44: 1E55  JC 0C1A
+; ═══════════════════════════════════════════════════════════════════════════
+; LABEL_SEARCH loop  (0x0F45–0x0F6D, 0x0E99–0x0EA3, 0x1243–0x125C) — read the
+; next program register (8 keycodes) into D and walk it keycode by keycode
+; (A[0] = keycodes left). Each keycode (D[1..0]) is classified through the
+; PROGRAM SCANNER TABLE (0x0E10); fA[9] = skip the next byte (an operand),
+; fA[0] = the next byte is a label name, compared with the wanted label at
+; 1243. A match transfers to the step after it (0E70 → 0AD2 → STEP_TO_REG).
+; ═══════════════════════════════════════════════════════════════════════════
 0F45: 0140  A=SLA ALL
-0F46: 0AF8  RAM.OP           ; fetch the 8-keycode RAM register (row RAMREG = step/8) holding this step's program word
+0F46: 0AF8  RAM.OP            ; read the program register (row = step / 8)
 0F47: 01B1  IO=A+D ALL
-0F48: 01D6  D=LOAD ALL
+0F48: 01D6  D=LOAD ALL        ; D := 8 keycodes, the first in nibbles 1..0
 0F49: 0A77  MOV R5,#7
-0F4A: 02F0  A=R5 DPT
-0F4B: 0090  TST fA[9]
+0F4A: 02F0  A=R5 DPT          ; A[0] := keycodes left in this register − 1
+0F4B: 0090  TST fA[9]         ; operand byte to skip?
 0F4C: 0092  CLR fA[9]
-0F4D: 16DE  JNC 12BC
+0F4D: 16DE  JNC 12BC          ; yes → skip it
 0F4E: 00C8  TST fB[12]
 0F4F: 0050  TST fA[5]
-0F50: 14B8  JNC 11AC
-0F51: 0000  TST fA[0]
-0F52: 15E2  JNC 1243
+0F50: 14B8  JNC 11AC          ; address operand pending → 11AC
+0F51: 0000  TST fA[0]         ; label name byte?
+0F52: 15E2  JNC 1243          ; yes → compare with the wanted label
 ; ── RAM-program keycode fetch & computed-jump dispatch (0x0F53-0x0F6D) ──────
 ; Confirmed against CALCU59_TRACE.ans while single-stepping examples/texas-print.ti59.
 ; Extracts the two BCD digits of the current step's keycode from D (DPT nibble
@@ -4767,15 +4812,15 @@
 ; which is then reached after only 3 more instructions (0EF1→0EF2→JC 0EF7 at
 ; 0EF3→...→JC 0EFC at 0EFA) with none of the normal PRT.STEP/PRT.CLR/PRT.OUT
 ; print-a-character sequence executed first. See annotation at 0x0EF1 below.
-0F53: 0A0C  MOV KR,EXT[4..15]
-0F54: 0231  IO=D DPT
+0F53: 0A0C  MOV KR,EXT[4..15] ; classify: KR := 0 …
+0F54: 0231  IO=D DPT          ; … units digit …
 0F55: 0A18  MOV KR[4..7],R5
-0F56: 0239  IO=-D DPT
+0F56: 0239  IO=-D DPT         ; … units 0 →
 0F57: 017E  D=SRD ALL
-0F58: 197F  JC 0E99
-0F59: 0239  IO=-D DPT
-0F5A: 1983  JC 0E99
-0F5B: 00E5  SET KR[14]
+0F58: 197F  JC 0E99           ; … plain step
+0F59: 0239  IO=-D DPT         ; digit keycode 00–09 →
+0F5A: 1983  JC 0E99           ; … plain step
+0F5B: 00E5  SET KR[14]        ; KR := 0xE000 | units<<8 | tens<<4 → slot 0x0E<units><tens>
 0F5C: 00F5  SET KR[15]
 0F5D: 00D5  SET KR[13]
 0F5E: 0A75  TST KR[7]
@@ -4792,7 +4837,7 @@
 0F69: 0085  SET KR[8]
 0F6A: 0231  IO=D DPT
 0F6B: 0A18  MOV KR[4..7],R5
-0F6C: 0015  SET KR[1] ; PREG    ; computed jump: unvalidated keycode digits become the jump vector — see printer-interrupt quirk note above
+0F6C: 0015  SET KR[1] ; PREG  ; jump into the scanner table
 0F6D: 0A0C  MOV KR,EXT[4..15]
 0F6E: 0120  A=C ALL
 0F6F: 0633  B=D EXP
@@ -5391,7 +5436,7 @@
 11B5: 1972  JC 126E
 11B6: 00C8  TST fB[12]
 11B7: 197A  JC 1274
-11B8: 0091  SET fA[9]
+11B8: 0091  SET fA[9]         ; operand follows: skip one byte
 11B9: 00CA  CLR fB[12]
 11BA: 1E43  JC 0E99
 11BB: 1EF7  JC 0E40
@@ -5558,7 +5603,7 @@
 1240: 0082  CLR fA[8]
 1241: 017E  D=SRD ALL
 1242: 19BF  JC 1163
-1243: 0002  CLR fA[0]
+1243: 0002  CLR fA[0]         ; label byte: compare with the wanted label (B EXP) …
 1244: 0040  TST fA[4]
 1245: 100B  JNC 1240
 1246: 0CD2  A<>B MAEX
@@ -5567,9 +5612,9 @@
 1249: 1804  JC 124B
 124A: 03D3  B=LOAD DPT1
 124B: 068B  B=A-B EXP
-124C: 0619  IO=-B EXP
+124C: 0619  IO=-B EXP         ; … equal?
 124D: 0CD2  A<>B MAEX
-124E: 15EF  JNC 0F57
+124E: 15EF  JNC 0F57          ; no → keep scanning
 124F: 0219  IO=-B DPT
 1250: 01D5  C<>D ALL
 1251: 1367  JNC 109E
@@ -5583,7 +5628,7 @@
 1259: 0904  C=A MANT
 125A: 0288  A=A-B DPT
 125B: 09F3  B=R5 MANT
-125C: 1FD9  JC 0E70
+125C: 1FD9  JC 0E70           ; yes → transfer to the step after the label
 125D: 0BD0  A=LOAD MLSD5
 125E: 0A87  MOV R5,#8
 125F: 06F0  A=R5 EXP
