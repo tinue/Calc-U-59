@@ -369,6 +369,10 @@ TI-59 *programs* in the constant ROM (rows 16–63, 384 steps), run with Prg
 Src Flag 8. Listing with entry points: `rom/TI59-keycode-programs.asm`.
 They use the HIR (hierarchy register) keycode 82 for scratch storage and the
 statistics registers R01–R06.
+They also use AOS levels themselves, so the launch (`0A40`) refuses to start
+one when five or more AOS levels are already pending: "1 + ( 2 × ( 3 + ( 4 ×
+( 5 + ( 3 Σ+" blinks, while the same keys one level shallower work
+(trace-checked for Σ+, D.MS, P→R and Op 11).
 
 ## HIR and compact keycodes
 

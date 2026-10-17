@@ -3485,15 +3485,15 @@
                               ;   0A4B
 0A3E: 02F3  B=R5 DPT
 0A3F: 0082  CLR fA[8]
-0A40: 0AD7  MOV R5,#13
+0A40: 0AD7  MOV R5,#13        ; keycode sub-program launch: SCOM[13] nibble 2 = AOS depth …
 0A41: 01F0  A=R5 ALL
 0A42: 0101  IO=A ALL
 0A43: 0A1F  RCLF
 0A44: 06D0  A=LOAD EXP
-0A45: 0C40  A=SLA MAEX
-0A46: 0B09  IO=A-5 MLSD5
-0A47: 1D34  JC 0CE1
-0A48: 0110  A=B ALL
+0A45: 0C40  A=SLA MAEX        ; … into A[3]
+0A46: 0B09  IO=A-5 MLSD5      ; five or more levels pending?
+0A47: 1D34  JC 0CE1           ; yes → error (the sub-program needs AOS levels of its own)
+0A48: 0110  A=B ALL           ; launch descriptor (entry step, source 8) → E
 0A49: 01D7  A<>E ALL
 0A4A: 01D2  A<>B ALL
 ; ── Set Prg Src Flag: program-source switch of the launch prologue ──────────
@@ -3524,21 +3524,23 @@
 0A55: 064E  D=SRA EXP
 0A56: 0639  IO=-D EXP
 0A57: 16A0  JNC 0DA7
-0A58: 0309  IO=A-1 DPT1
-0A59: 0008  TST fB[0]
+0A58: 0309  IO=A-1 DPT1       ; keyboard / RAM caller:
+0A59: 0008  TST fB[0]         ; running already?
 0A5A: 100A  JNC 0A5F
-0A5B: 00D8  TST fB[13]
+0A5B: 00D8  TST fB[13]        ; no: start the run (fB[0]) as a sub-program call (fB[13])
 0A5C: 0009  SET fB[0]
 0A5D: 00D9  SET fB[13]
 0A5E: 1810  JC 0A66
-0A5F: 0A67  MOV R5,#6
+0A5F: 0A67  MOV R5,#6         ; called from a running RAM program: return address = the caller's
+                              ;   step …
 0A60: 09F6  D=R5 MANT
-0A61: 05B9  IO=A-D LLSD1
+0A61: 05B9  IO=A-D LLSD1      ; … + 1; at byte 7 the extra +2 (0A64–0A65) carries into the next
+                              ;   register
 0A62: 0500  A=A+1 LLSD1
 0A63: 1006  JNC 0A66
 0A64: 0D00  A=A+1 MLSD1
 0A65: 0D00  A=A+1 MLSD1
-0A66: 0140  A=SLA ALL
+0A66: 0140  A=SLA ALL         ; → push the return level (0D50)
 0A67: 1DD2  JC 0D50
 ; Trace-queue gate (from 069C/06A1, printer + TRACE on; trace-confirmed:
 ; KEYPRESS_TRC_59.txt). fA[10] = "trace record pending"; run twice per key —
