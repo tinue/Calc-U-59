@@ -1531,9 +1531,11 @@
 0484: 0A0F  STOF
 0485: 0131  IO=D ALL          ; … nibble 0 := Fix setting
 0486: 1812  JC 048F
-0487: 0A10  WAIT D1
+; Adv (2nd ., slot 0098 → 0487) and the printer's ADV button (pseudo-key 0089 →
+; 0487): only with a printer → 0857 → 0C28 → PAPER_ADVANCE 0F36.
+0487: 0A10  WAIT D1           ; printer present?
 0488: 08FB  KEY [P]
-0489: 179C  JNC 0857
+0489: 179C  JNC 0857          ; yes → advance
 048A: 1BC1  JC 02AA
 ; INV EE (0115): leave scientific display and exponent entry.
 048B: 00FA  CLR fB[15]
@@ -4922,20 +4924,24 @@
 0F33: 1E96  JC 127E
 0F34: 1FAF  JC 0B5D
 0F35: 170C  JNC 12BB
+; PAPER_ADVANCE: feed two blank lines (PRT.FEED, paced by TST.BUSY), then keep
+; feeding while the printer's ADV button (digit 12 / K-line N) or the
+; calculator's "." key (row 9 / column 3 — Adv is 2nd .) is still held.
+; Trace-confirmed (ADV button held: one line per printer cycle).
 0F36: 0A01  CLR.IDLE
 0F37: 0A0C  MOV KR,EXT[4..15]
-0F38: 0A98  PRT.STEP
+0F38: 0A98  PRT.STEP          ; wait until the printer is idle …
 0F39: 0A0B  TST.BUSY
 0F3A: 1005  JNC 0F38
-0F3B: 0AB8  PRT.FEED
+0F3B: 0AB8  PRT.FEED          ; … one blank line
 0F3C: 0A04  INC KR
-0F3D: 0A55  TST KR[5]
+0F3D: 0A55  TST KR[5]         ; two lines done?
 0F3E: 180D  JC 0F38
-0F3F: 0AD0  WAIT D13
+0F3F: 0AD0  WAIT D13          ; printer ADV button still held …
 0F40: 08FE  KEY [N]
-0F41: 0AA0  WAIT D10
+0F41: 0AA0  WAIT D10          ; … or the "." key?
 0F42: 08EF  KEY [Q]
-0F43: 1019  JNC 0F37
+0F43: 1019  JNC 0F37          ; yes → keep feeding
 0F44: 1E55  JC 0C1A
 ; ═══════════════════════════════════════════════════════════════════════════
 ; LABEL_SEARCH loop  (0x0F45–0x0F6D, 0x0E99–0x0EA3, 0x1243–0x125C) — read the
