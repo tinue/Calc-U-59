@@ -290,3 +290,20 @@ into SCOM[0] (an argument terminated by EE after `St flg` at the end of the
 partition, mis-dispatched twice, ending in the SCOM store at `11D9` with row
 0). The 12th decimal digit of X becomes the source flag, the next digits the
 start step. Full walkthrough: `examples/fastmode.ti59`.
+
+## Magnetic cards
+
+`Write` (bank number in X) and an inserted card (idle-loop card-switch poll)
+both enter the card sequence; fB[8] selects read. A bank is 246 bytes:
+three header bytes (partition, "bank is program memory", 3·(bank−1), each
+with high nibble 1), a 0, 30 registers × 8 bytes, and a mod-16 nibble
+checksum in byte 244. Reading verifies header and checksum (error blink on
+mismatch); the registers are already stored by then. See `0x1680` in the
+listing.
+
+## Printing
+
+Every keycode has a 3-character PC-100 mnemonic in the table at
+`0x1000–0x1151` (slot 0x1000 + 32·tens + 3·units, rightmost character
+first), produced through the INC KR character slide at `0x1399`. Op 00–07
+drive the alphanumeric buffer (`OP_TABLE` `0x0A00`).

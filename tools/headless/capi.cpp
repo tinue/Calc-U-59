@@ -89,6 +89,18 @@ void h_display(void* m, uint8_t* digits12, uint8_t* ctrl12, uint16_t* masks) {
     masks[1] = d.suppressedMask;
 }
 
+// Magnetic card: insert (count 0 = blank card for writing), eject (returns the
+// bytes written, up to cap), and the reader's state.
+void h_card_insert(void* m, const uint8_t* b, int n) { static_cast<TI59Machine*>(m)->insertCard(b, n); }
+int  h_card_eject(void* m, uint8_t* out, int cap) {
+    std::vector<uint8_t> v = static_cast<TI59Machine*>(m)->cardEject();
+    int n = static_cast<int>(v.size()) < cap ? static_cast<int>(v.size()) : cap;
+    if (n) memcpy(out, v.data(), n);
+    return n;
+}
+int  h_card_present(void* m) { return static_cast<TI59Machine*>(m)->isCardPresent() ? 1 : 0; }
+int  h_card_mode(void* m)    { return static_cast<TI59Machine*>(m)->cardMode(); }
+
 // Printer output lines, joined with '\n'. Returns bytes written (truncated to cap).
 int h_printer_lines(void* m, char* out, int cap) {
     std::string s;

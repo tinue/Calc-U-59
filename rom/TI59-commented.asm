@@ -1454,10 +1454,13 @@
 045A: 0A0B  TST.BUSY
 045B: 13CC  JNC 0641          ; digit-7 line asserted (or printer busy) → back to idle
 045C: 0A01  CLR.IDLE
-045D: 0081  SET fA[8]
+045D: 0081  SET fA[8]         ; card inserted while idle: read
 045E: 0A0C  MOV KR,EXT[4..15]
+; "Write" (2nd R/S, slot 0069) and card-inserted (0459 from the idle loop's
+; card-switch poll): fB[8] := INV (0x045D sets fA[8] for the automatic read)
+; = read, clear = write; bank number taken from X. → card sequence 053F.
 045F: 0A87  MOV R5,#8
-0460: 008E  MOV fB[8],fA[8]
+0460: 008E  MOV fB[8],fA[8]   ; fB[8] := INV: 1 = read (INV Write / card inserted), 0 = write
 0461: 1F46  JC 0804
 0462: 0080  TST fA[8]
 0463: 10C8  JNC 04C7
@@ -6852,9 +6855,25 @@
 167D: 0AA8  PRT.GO
 167E: 0110  A=B ALL
 167F: 19A9  JC 15AB
+; ═══════════════════════════════════════════════════════════════════════════
+; CARD READER  (0x1680–0x17AB) — write or read one bank of a magnetic card.
+; Trace-confirmed with the headless harness (tools/headless/ti59.py
+; card_insert/card_eject): 1 Write → bank 1 written; inserting that card →
+; program restored; bit errors → error flag.
+; Bank image, 246 bytes (two nibbles each, written high nibble first):
+;   0  header: 1, partition (program registers ÷ 10)
+;   1  header: 1, 1 if the bank's first register is program memory else 0
+;   2  header: 1, 3·(bank − 1)
+;   3  0
+;   4–243  30 registers × 8 bytes (bank n holds RAM registers 30(n−1)…+29)
+;   244  low nibble = checksum: sum of the header low nibbles and all data
+;        nibbles, mod 16 (verified: one flipped data bit → error)
+;   245  not checked on read
+; Header high nibbles are not checked. fB[8] = read. R/S held aborts (1799).
+; ═══════════════════════════════════════════════════════════════════════════
 1680: 01D7  A<>E ALL
 1681: 0A45  TST KR[4]
-1682: 0A97  MOV R5,#9
+1682: 0A97  MOV R5,#9         ; SCOM[9]: partition, RAM chips
 1683: 02F3  B=R5 DPT
 1684: 0111  IO=B ALL
 1685: 0A1F  RCLF
@@ -6862,7 +6881,7 @@
 1687: 06F6  D=R5 EXP
 1688: 065B  B=SRB EXP
 1689: 1267  JNC 1556
-168A: 0AA0  WAIT D10
+168A: 0AA0  WAIT D10          ; wait until R/S (row 9) is released …
 168B: 08FD  KEY [O]
 168C: 1005  JNC 168A
 168D: 0A0B  TST.BUSY
@@ -6870,20 +6889,20 @@
 168F: 0619  IO=-B EXP
 1690: 1804  JC 1692
 1691: 0031  SET fA[3]
-1692: 0C48  A=SRA MAEX
+1692: 0C48  A=SRA MAEX        ; bank number from X …
 1693: 0C48  A=SRA MAEX
 1694: 0A47  MOV R5,#4
 1695: 06F3  B=R5 EXP
 1696: 06D2  A<>B EXP
 1697: 0098  TST fB[9]
-1698: 0689  IO=A-B EXP
-1699: 1222  JNC 17AA
-169A: 0614  C=B EXP
+1698: 0689  IO=A-B EXP        ; bank > 4?
+1699: 1222  JNC 17AA          ; yes → error
+169A: 0614  C=B EXP           ; 3·bank (C = B + B + B)
 169B: 0694  C=C+B EXP
 169C: 0694  C=C+B EXP
 169D: 02DC  C=0 DPT
 169E: 06D5  C<>D EXP
-169F: 06A9  IO=C-D EXP
+169F: 06A9  IO=C-D EXP        ; bank inside the program partition?
 16A0: 100C  JNC 16A6
 16A1: 03D4  C=LOAD DPT1
 16A2: 0088  TST fB[8]
@@ -6902,24 +6921,24 @@
 16AF: 0164  C=SLC ALL
 16B0: 0214  C=B DPT
 16B1: 0126  D=C ALL
-16B2: 0AA0  WAIT D10
+16B2: 0AA0  WAIT D10          ; wait for the card: R/S (row 9) aborts …
 16B3: 08FD  KEY [O]
 16B4: 11CA  JNC 1799
-16B5: 0AB0  WAIT D11
+16B5: 0AB0  WAIT D11          ; … card switch (digit 10) still open → keep waiting
 16B6: 0A0B  TST.BUSY
 16B7: 100B  JNC 16B2
-16B8: 0A01  CLR.IDLE
-16B9: 0088  TST fB[8]
+16B8: 0A01  CLR.IDLE          ; card present: run the transport
+16B9: 0088  TST fB[8]         ; read or write?
 16BA: 1806  JC 16BD
-16BB: 0A58  CRD.RD
+16BB: 0A58  CRD.RD            ; read mode
 16BC: 1804  JC 16BE
-16BD: 0AC8  CRD.WR
-16BE: 0AA0  WAIT D10
+16BD: 0AC8  CRD.WR            ; write mode
+16BE: 0AA0  WAIT D10          ; wait for the card to reach the head (R/S aborts)
 16BF: 08FD  KEY [O]
 16C0: 11B2  JNC 1799
 16C1: 0A0B  TST.BUSY
 16C2: 1009  JNC 16BE
-16C3: 0A37  MOV R5,#3
+16C3: 0A37  MOV R5,#3         ; three header bytes
 16C4: 09F0  A=R5 MANT
 16C5: 0940  A=SLA MANT
 16C6: 0D08  A=A-1 MLSD1
@@ -6927,8 +6946,9 @@
 16C8: 0A27  MOV R5,#2
 16C9: 06F0  A=R5 EXP
 16CA: 0088  TST fB[8]
-16CB: 190E  JC 1752
-16CC: 0A58  CRD.RD
+16CB: 190E  JC 1752           ; write → write the header (1752)
+16CC: 0A58  CRD.RD            ; read: header bytes, low nibbles summed into the checksum (A[0])
+                              ;   …
 16CD: 0A28  CRD.IN
 16CE: 0A0C  MOV KR,EXT[4..15]
 16CF: 01DE  D=0 ALL
@@ -6946,7 +6966,7 @@
 16DB: 1002  JNC 16DC ; clear COND
 16DC: 0708  A=A-1 EXP1
 16DD: 1815  JC 16D3
-16DE: 0619  IO=-B EXP
+16DE: 0619  IO=-B EXP         ; header vs the requested bank / partition
 16DF: 1986  JC 17A2
 16E0: 01AB  B=C-D ALL
 16E1: 0119  IO=-B ALL
@@ -6957,7 +6977,7 @@
 16E6: 182E  JC 16FD
 16E7: 0130  A=D ALL
 16E8: 0A0C  MOV KR,EXT[4..15]
-16E9: 0099  SET fB[9]
+16E9: 0099  SET fB[9]         ; mismatch → ERROR, let the card run out (16F0–16F3)
 16EA: 0AA0  WAIT D10
 16EB: 08FD  KEY [O]
 16EC: 1010  JNC 16F4
@@ -6971,7 +6991,7 @@
 16F4: 0048  TST fB[4]
 16F5: 1146  JNC 1798
 16F6: 1890  JC 173E
-16F7: 0020  TST fA[2]
+16F7: 0020  TST fA[2]         ; write: fourth header byte (0) …
 16F8: 1804  JC 16FA
 16F9: 0085  SET KR[8]
 16FA: 0AC8  CRD.WR
@@ -6980,15 +7000,15 @@
 16FD: 0C26  D=C MAEX
 16FE: 03D6  D=LOAD DPT1
 16FF: 18BE  JC 175E
-1700: 0A77  MOV R5,#7
+1700: 0A77  MOV R5,#7         ; WRITE_LOOP: 8 bytes per register …
 1701: 06F0  A=R5 EXP
 1702: 0C76  D=SLD MAEX
 1703: 0C64  C=SLC MAEX
-1704: 0AF8  RAM.OP
+1704: 0AF8  RAM.OP            ; read the next RAM register …
 1705: 01A1  IO=C+D ALL
 1706: 01D3  B=LOAD ALL
 1707: 0C7E  D=SRD MAEX
-1708: 095E  D=SRB MANT
+1708: 095E  D=SRB MANT        ; … and shift it out two nibbles at a time (1708–172F)
 1709: 097E  D=SRD MANT
 170A: 097E  D=SRD MANT
 170B: 097E  D=SRD MANT
@@ -7017,7 +7037,7 @@
 1722: 0A75  TST KR[7]
 1723: 1804  JC 1725
 1724: 00B5  SET KR[11]
-1725: 0280  A=A+B DPT
+1725: 0280  A=A+B DPT         ; checksum += nibble
 1726: 097E  D=SRD MANT
 1727: 0931  IO=D MANT
 1728: 0A18  MOV KR[4..7],R5
@@ -7025,17 +7045,17 @@
 172A: 0280  A=A+B DPT
 172B: 1002  JNC 172C ; clear COND
 172C: 0AC8  CRD.WR
-172D: 0A38  CRD.OUT
+172D: 0A38  CRD.OUT           ; one byte to the card
 172E: 0708  A=A-1 EXP1
 172F: 184F  JC 1708
-1730: 0C6C  C=SRC MAEX
+1730: 0C6C  C=SRC MAEX        ; next register …
 1731: 0724  C=C+1 EXP1
-1732: 0D08  A=A-1 MLSD1
+1732: 0D08  A=A-1 MLSD1       ; … 30 per bank
 1733: 1867  JC 1700
 1734: 0A0C  MOV KR,EXT[4..15]
 1735: 0201  IO=A DPT
 1736: 0A18  MOV KR[4..7],R5
-1737: 0AC8  CRD.WR
+1737: 0AC8  CRD.WR            ; trailer: checksum byte(s)
 1738: 0A38  CRD.OUT
 1739: 0AC8  CRD.WR
 173A: 0A38  CRD.OUT
@@ -7048,13 +7068,13 @@
 1741: 0C80  A=A+B MAEX
 1742: 06D8  A=0 EXP
 1743: 0D00  A=A+1 MLSD1
-1744: 0A48  CRD.OFF
+1744: 0A48  CRD.OFF           ; transport off (card leaves the reader)
 1745: 1002  JNC 1746 ; clear COND
 1746: 004A  CLR fB[4]
 1747: 008A  CLR fB[8]
 1748: 0091  SET fA[9]
 1749: 02D8  A=0 DPT
-174A: 0098  TST fB[9]
+174A: 0098  TST fB[9]         ; error?
 174B: 1B45  JC 15A9
 174C: 000A  CLR fB[0]
 174D: 0A1F  RCLF
@@ -7062,7 +7082,7 @@
 174F: 0529  IO=C-1 LLSD1
 1750: 134F  JNC 15A9
 1751: 1F87  JC 138E
-1752: 02B0  A=A+D DPT
+1752: 02B0  A=A+D DPT         ; write the three header bytes …
 1753: 0231  IO=D DPT
 1754: 1002  JNC 1755 ; clear COND
 1755: 0A18  MOV KR[4..7],R5
@@ -7083,8 +7103,8 @@
 1764: 0A77  MOV R5,#7
 1765: 06F0  A=R5 EXP
 1766: 0088  TST fB[8]
-1767: 18E1  JC 16F7
-1768: 0A58  CRD.RD
+1767: 18E1  JC 16F7           ; write → 16F7
+1768: 0A58  CRD.RD            ; READ_LOOP: 8 bytes → B …
 1769: 0A28  CRD.IN
 176A: 0A0C  MOV KR,EXT[4..15]
 176B: 0153  B=SLB ALL
@@ -7104,7 +7124,7 @@
 1779: 0AB5  TST KR[11]
 177A: 1804  JC 177C
 177B: 0075  SET KR[7]
-177C: 0280  A=A+B DPT
+177C: 0280  A=A+B DPT         ; checksum += nibbles
 177D: 0153  B=SLB ALL
 177E: 0A08  MOV R5,KR[4..7]
 177F: 02F3  B=R5 DPT
@@ -7113,7 +7133,7 @@
 1782: 0708  A=A-1 EXP1
 1783: 1837  JC 1768
 1784: 0C64  C=SLC MAEX
-1785: 0AF8  RAM.OP
+1785: 0AF8  RAM.OP            ; … write the register into RAM
 1786: 01A1  IO=C+D ALL
 1787: 0111  IO=B ALL
 1788: 0C6C  C=SRC MAEX
@@ -7121,18 +7141,18 @@
 178A: 0A28  CRD.IN
 178B: 0A0C  MOV KR,EXT[4..15]
 178C: 0724  C=C+1 EXP1
-178D: 0D08  A=A-1 MLSD1
+178D: 0D08  A=A-1 MLSD1       ; next register, 30 per bank
 178E: 0A77  MOV R5,#7
 178F: 06F0  A=R5 EXP
 1790: 184B  JC 176B
 1791: 0A08  MOV R5,KR[4..7]
 1792: 02F3  B=R5 DPT
-1793: 028B  B=A-B DPT
+1793: 028B  B=A-B DPT         ; computed checksum vs byte 244
 1794: 0219  IO=-B DPT
 1795: 0A48  CRD.OFF
 1796: 18B6  JC 17F1
 1797: 06DB  B=0 EXP
-1798: 0099  SET fB[9]
+1798: 0099  SET fB[9]         ; abort / error: blink
 1799: 06D2  A<>B EXP
 179A: 09D8  A=0 MANT
 179B: 0C40  A=SLA MAEX
@@ -7150,7 +7170,7 @@
 17A7: 1953  JC 16FE
 17A8: 0031  SET fA[3]
 17A9: 1957  JC 16FE
-17AA: 0049  SET fB[4]
+17AA: 0049  SET fB[4]         ; invalid bank → error path
 17AB: 1987  JC 16E8
 17AC: 0508  A=A-1 LLSD1
 17AD: 0A18  MOV KR[4..7],R5

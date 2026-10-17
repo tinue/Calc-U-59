@@ -267,6 +267,18 @@ class Machine:
         s = self.snapshot()
         return f"A={nibs(s.A)} B={nibs(s.B)} R5={s.R5}"
 
+    def card_insert(self, data: bytes = b""):
+        buf = (C.c_uint8 * max(1, len(data))).from_buffer_copy(data or b"\0")
+        LIB.h_card_insert(self.h, buf, len(data))
+
+    def card_eject(self) -> bytes:
+        b = (C.c_uint8 * 1024)()
+        n = LIB.h_card_eject(self.h, b, 1024)
+        return bytes(b[:n])
+
+    def card_present(self) -> bool:
+        return bool(LIB.h_card_present(self.h))
+
     def printer_lines(self) -> list[str]:
         b = C.create_string_buffer(65536)
         n = LIB.h_printer_lines(self.h, b, 65536)
