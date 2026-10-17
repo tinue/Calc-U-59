@@ -714,13 +714,16 @@
 0222: 0092  CLR fA[9]
 0223: 1804  JC 0225
 0224: 0083  TOG fA[8]
+; Address operand (GTO / SBR / x=t / Dsz targets, slot 00F1): fA[0] = a label
+; name may follow; from the keyboard collect 3 digits (R5 = 2) for a step
+; number, in a program the operand step(s) come from memory (R5 = 3).
 0225: 01D7  A<>E ALL
-0226: 0001  SET fA[0]
-0227: 0A27  MOV R5,#2
+0226: 0001  SET fA[0]         ; label or step number
+0227: 0A27  MOV R5,#2         ; keyboard: three digits
 0228: 0008  TST fB[0]
 0229: 00D8  TST fB[13]
 022A: 1804  JC 022C
-022B: 0A37  MOV R5,#3
+022B: 0A37  MOV R5,#3         ; running: (program operand path)
 ; 022C ARG_COLLECT_SETUP: suspend the current operation sequence until its
 ; numeric argument has been typed. R5 = digits expected − 1 (04CC: 1 → two
 ; register digits; 0227: 2/3 → three-digit step numbers). The collector state
@@ -1362,14 +1365,15 @@
 0402: 065B  B=SRB EXP
 0403: 0619  IO=-B EXP         ; security code (nibble 2) set?
 0404: 103F  JNC 03E5          ; yes → protected, ignore
-0405: 00D8  TST fB[13]
-0406: 185D  JC 03D8
-0407: 006E  MOV fB[6],fA[6]
+0405: 00D8  TST fB[13]        ; SST (03FA set fB[13])?
+0406: 185D  JC 03D8           ; no → LRN toggle
+0407: 006E  MOV fB[6],fA[6]   ; SST in run mode: execute exactly one step …
 0408: 00A2  CLR fA[10]
-0409: 1FB0  JC 07E1
+0409: 1FB0  JC 07E1           ; … (07E1 → fetch, dispatch; fB[13] ends after it, 07CA)
 ; KEY_RS: "R/S" handler (slot 0019)
-040A: 1FC0  JC 07EA
-; KEY_BST: "BST" handler (slot 0015)
+040A: 1FC0  JC 07EA           ; KEY_RS slot target
+; KEY_BST: "BST" handler (slot 0015): code 5 in the 0x0B10 bank → 0B15 →
+; 0EBE: step − 1 (cache reload), redisplay.
 040B: 0A57  MOV R5,#5
 040C: 1B31  JC 0274
 040D: 0033  TOG fA[3]         ; divide: negate the divisor's exponent, then add exponents
@@ -1561,7 +1565,7 @@
 04A7: 0A1F  RCLF
 04A8: 0CD6  D=LOAD MAEX
 04A9: 1C11  JC 02A1
-04AA: 1F68  JC 085E
+04AA: 1F68  JC 085E           ; GTO (slot 00F2): transfer (STEP_TO_REG via 085E)
 04AB: 1CD4  JC 0715
 04AC: 00A0  TST fA[10]
 04AD: 1923  JC 041C
@@ -4754,13 +4758,13 @@
 0EBB: 0901  IO=A MANT
 0EBC: 02F6  D=R5 DPT
 0EBD: 1CD3  JC 0C54
-0EBE: 00B9  SET fB[11]
-0EBF: 0A1F  RCLF
+0EBE: 00B9  SET fB[11]        ; BST: cache reload …
+0EBF: 0A1F  RCLF              ; SCOM[0] step …
 0EC0: 01D0  A=LOAD ALL
 0EC1: 0948  A=SRA MANT
 0EC2: 0A18  MOV KR[4..7],R5
-0EC3: 0508  A=A-1 LLSD1
-0EC4: 1E6D  JC 0B8E
+0EC3: 0508  A=A-1 LLSD1       ; … − 1 (borrow from the register digits)
+0EC4: 1E6D  JC 0B8E           ; store and show
 0EC5: 0948  A=SRA MANT
 0EC6: 014E  D=SRA ALL
 0EC7: 017E  D=SRD ALL
