@@ -5656,8 +5656,9 @@
 11AA: 1F8B  JC 0DE5
 11AB: 1DA4  JC 147D
 ; Scanner: address operand after GTO / SBR / x=t / x≥t (fA[5], from 0F50):
-; a label name is one byte, an absolute step number two (first digit < 10 ⇒
-; step number, 11B0–11B5); the bytes are skipped (126E → 12BD).
+; a label name is one byte (a keycode ≥ 10), an absolute step number two
+; bytes, the first one 00–09 = the hundreds digit (11B0–11B5); the bytes are
+; skipped (126E → 12BD).
 11AC: 0631  IO=D EXP
 11AD: 0A18  MOV KR[4..7],R5
 11AE: 0239  IO=-D DPT
