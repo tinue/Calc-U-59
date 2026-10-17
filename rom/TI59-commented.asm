@@ -230,7 +230,7 @@
 00A7: 1FF4  JC 04A1
 00A8: 1FF6  JC 04A3
 00A9: 0A10  WAIT D1
-00AA: 08FB  KEY [P] D3
+00AA: 08FB  KEY [P]
 00AB: 1B14  JC 0235
 00AC: 00A9  SET fB[10]
 00AD: 0051  SET fA[5]
@@ -1482,7 +1482,7 @@
 0485: 0131  IO=D ALL
 0486: 1812  JC 048F
 0487: 0A10  WAIT D1
-0488: 08FB  KEY [P] D3
+0488: 08FB  KEY [P]
 0489: 179C  JNC 0857
 048A: 1BC1  JC 02AA
 048B: 00FA  CLR fB[15]
@@ -1828,7 +1828,7 @@
 ; symbol and PRT.GO at 0EFC finally prints the line ("0.     +").
 05A8: 00A0  TST fA[10]        ; trace record pending?
 05A9: 0A00  WAIT D0
-05AA: 08FB  KEY [P] D3        ; printer TRACE switch still on?
+05AA: 08FB  KEY [P]           ; printer TRACE switch still on?
 05AB: 1808  JC 05AF
 05AC: 0000  TST fA[0]
 05AD: 00C8  TST fB[12]
@@ -2210,7 +2210,7 @@
 ;                appends the display value and PRT.GO at 0EFC finally prints
 ;                the whole line — e.g. "0" then "+" prints "0.     +".
 068B: 0A10  WAIT D1
-068C: 08FB  KEY [P] D3        ; printer present?
+068C: 08FB  KEY [P]           ; printer present?
 068D: 182A  JC 06A2           ; no printer → skip straight to dispatch
 068E: 0A97  MOV R5,#9
 068F: 02F6  D=R5 DPT
@@ -2225,7 +2225,7 @@
 0698: 0639  IO=-D EXP
 0699: 1012  JNC 06A2
 069A: 0A00  WAIT D0
-069B: 08FB  KEY [P] D3        ; printer TRACE switch on?
+069B: 08FB  KEY [P]           ; printer TRACE switch on?
 069C: 1798  JNC 0A68          ; → queue the keystroke's print symbol (no print yet)
 ; ── 069D–06A1: printer present but TRACE off — a test on D (same C=C-1 MMSD1
 ; ── pair as at 05A4/05A5) can still route to the queue at 0A68; speculative:
@@ -2592,7 +2592,7 @@
 07CD: 0000  TST fA[0]
 07CE: 11C6  JNC 08B1
 07CF: 0A70  WAIT D7
-07D0: 08FD  KEY [O] D5
+07D0: 08FD  KEY [O]
 07D1: 1818  JC 07DD
 07D2: 0A97  MOV R5,#9
 07D3: 02F6  D=R5 DPT
@@ -2606,7 +2606,7 @@
 07DB: 0050  TST fA[5]
 07DC: 15ED  JNC 04E6
 07DD: 0AA0  WAIT D10
-07DE: 08FD  KEY [O] D5
+07DE: 08FD  KEY [O]
 07DF: 1016  JNC 07EA
 07E0: 0098  TST fB[9]
 07E1: 19A0  JC 08B1
@@ -2621,7 +2621,7 @@
 07EA: 0008  TST fB[0]
 07EB: 1008  JNC 07EF
 07EC: 0AA0  WAIT D10
-07ED: 08FD  KEY [O] D5
+07ED: 08FD  KEY [O]
 07EE: 1009  JNC 07EA
 07EF: 0A97  MOV R5,#9
 07F0: 02F6  D=R5 DPT
@@ -2702,7 +2702,7 @@
 0832: 02F6  D=R5 DPT
 0833: 01D2  A<>B ALL
 0834: 0A90  WAIT D9
-0835: 08FD  KEY [O] D5
+0835: 08FD  KEY [O]
 0836: 16A7  JNC 04E3
 0837: 0008  TST fB[0]
 0838: 00D8  TST fB[13]
@@ -4695,9 +4695,9 @@
 0F3D: 0A55  TST KR[5]
 0F3E: 180D  JC 0F38
 0F3F: 0AD0  WAIT D13
-0F40: 08FE  KEY [N] D6
+0F40: 08FE  KEY [N]
 0F41: 0AA0  WAIT D10
-0F42: 08EF  KEY [Q] D7
+0F42: 08EF  KEY [Q]
 0F43: 1019  JNC 0F37
 0F44: 1E55  JC 0C1A
 0F45: 0140  A=SLA ALL
@@ -4820,7 +4820,7 @@
 0F9B: 16BB  JNC 0C3E
 0F9C: 1EA1  JC 0C4C
 0F9D: 0AA0  WAIT D10
-0F9E: 08FD  KEY [O] D5
+0F9E: 08FD  KEY [O]
 0F9F: 0A1F  RCLF
 0FA0: 01D0  A=LOAD ALL
 0FA1: 0700  A=A+1 EXP1
@@ -5991,9 +5991,9 @@
 13FE: 0176  D=SLD ALL
 13FF: 0986  D=A+B MANT
 
-; ── TMC0571B 0x1400–0x17FF  1,024 words  (SCOM constant table) ──────────
-; NOTE: this block is constant data used by the SCOM chip,
-;       not executable code.  Disassembly shown for reference.
+; ── TMC0571B 0x1400–0x17FF  1,024 words  (ROM chip 3) ────────────────────
+; Executable code like chips 1–2 (printer, card reader, LRN display, …);
+; the 64-entry constant table lives in TMC0582/0583 (roms/calculator/*-CONST-K).
 
 1400: 0040  TST fA[4]
 1401: 103C  JNC 141F
@@ -6003,7 +6003,7 @@
 1405: 0E08  A=A-1 MMSD1
 1406: 1838  JC 1422
 1407: 0A00  WAIT D0
-1408: 08FB  KEY [P] D3
+1408: 08FB  KEY [P]
 1409: 1032  JNC 1422
 140A: 0A37  MOV R5,#3
 140B: 01F3  B=R5 ALL
@@ -6027,7 +6027,7 @@
 141D: 000A  CLR fB[0]
 141E: 1ACD  JC 12B8
 141F: 0AA0  WAIT D10
-1420: 08FD  KEY [O] D5
+1420: 08FD  KEY [O]
 1421: 1465  JNC 11EF
 ; ── Keystroke trace-symbol QUEUE routine (trace-confirmed: KEYPRESS_TRC_59.txt).
 ; Reached from the 0689 gate's first pass (0A6B/0788, fA[4] set) via 0B16→
@@ -6042,7 +6042,7 @@
 ; remapping: key "0" (row 9, col 2 → code 92) queues "RTN" — the symbol of
 ; keycode 92 (INV SBR). Harmless, since digit records are never printed.
 1422: 0A10  WAIT D1
-1423: 08FB  KEY [P] D3        ; printer still present?
+1423: 08FB  KEY [P]           ; printer still present?
 1424: 1835  JC 140A
 1425: 0A98  PRT.STEP
 1426: 0A0B  TST.BUSY          ; wait for any running print to finish
@@ -6321,7 +6321,7 @@
 1537: 0090  TST fA[9]
 1538: 15F5  JNC 123E
 1539: 0A10  WAIT D1
-153A: 08FB  KEY [P] D3
+153A: 08FB  KEY [P]
 153B: 1DFB  JC 123E
 153C: 00A0  TST fA[10]
 153D: 182C  JC 1553
@@ -6337,7 +6337,7 @@
 1547: 01D5  C<>D ALL
 1548: 19BE  JC 1627
 1549: 0A00  WAIT D0
-154A: 08FB  KEY [P] D3
+154A: 08FB  KEY [P]
 154B: 11B8  JNC 1627
 154C: 0A98  PRT.STEP
 154D: 0A0B  TST.BUSY
@@ -6617,7 +6617,7 @@
 165F: 0A75  TST KR[7]
 1660: 1040  JNC 1680
 1661: 0A10  WAIT D1
-1662: 08FB  KEY [P] D3
+1662: 08FB  KEY [P]
 1663: 1836  JC 167E
 1664: 0A04  INC KR
 1665: 0A75  TST KR[7]
@@ -6658,7 +6658,7 @@
 1688: 065B  B=SRB EXP
 1689: 1267  JNC 1556
 168A: 0AA0  WAIT D10
-168B: 08FD  KEY [O] D5
+168B: 08FD  KEY [O]
 168C: 1005  JNC 168A
 168D: 0A0B  TST.BUSY
 168E: 116C  JNC 1744
@@ -6698,7 +6698,7 @@
 16B0: 0214  C=B DPT
 16B1: 0126  D=C ALL
 16B2: 0AA0  WAIT D10
-16B3: 08FD  KEY [O] D5
+16B3: 08FD  KEY [O]
 16B4: 11CA  JNC 1799
 16B5: 0AB0  WAIT D11
 16B6: 0A0B  TST.BUSY
@@ -6710,7 +6710,7 @@
 16BC: 1804  JC 16BE
 16BD: 0AC8  CRD.WR
 16BE: 0AA0  WAIT D10
-16BF: 08FD  KEY [O] D5
+16BF: 08FD  KEY [O]
 16C0: 11B2  JNC 1799
 16C1: 0A0B  TST.BUSY
 16C2: 1009  JNC 16BE
@@ -6754,7 +6754,7 @@
 16E8: 0A0C  MOV KR,EXT[4..15]
 16E9: 0099  SET fB[9]
 16EA: 0AA0  WAIT D10
-16EB: 08FD  KEY [O] D5
+16EB: 08FD  KEY [O]
 16EC: 1010  JNC 16F4
 16ED: 0AB0  WAIT D11
 16EE: 0A0B  TST.BUSY

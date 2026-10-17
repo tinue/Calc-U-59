@@ -5,8 +5,8 @@ Reads the chip .txt files from roms/calculator/, decodes every 13-bit opcode,
 and writes both rom/TI59.asm (TI-58/59) and rom/TI58C.asm (TI-58C).
 
 Each calculator ROM is spread across three chips:
-  TI-58/59 : TMC0582 + TMC0583 (executable code) + TMC0571B (SCOM constants)
-  TI-58C   : CD2400  + CD2401  (executable code) + TMC0573  (SCOM constants)
+  TI-58/59 : TMC0582 + TMC0583 + TMC0571B (all executable code)
+  TI-58C   : CD2400  + CD2401  + TMC0573  (all executable code)
 
 The -CONST-K.txt files (BCD constants / keycode programs embedded in the ROM
 chips) are intentionally not loaded — only the executable opcode sections are
@@ -375,9 +375,9 @@ _ROM_META: dict[str, dict] = {
         "sections": {
             0x0000: "; ── TMC0582  0x0000–0x09FF  2,560 words  (ROM chip 1) " + "─" * 20,
             0x0A00: "; ── TMC0583  0x0A00–0x13FF  2,560 words  (ROM chip 2) " + "─" * 20,
-            0x1400: ("; ── TMC0571B 0x1400–0x17FF  1,024 words  (SCOM constant table) " + "─" * 10
-                     + "\n; NOTE: this block is constant data used by the SCOM chip,\n"
-                     + ";       not executable code.  Disassembly shown for reference."),
+            0x1400: ("; ── TMC0571B 0x1400–0x17FF  1,024 words  (ROM chip 3) " + "─" * 20
+                     + "\n; Executable code like chips 1–2 (printer, card reader, LRN display, …);\n"
+                     + "; the 64-entry constant table lives in TMC0582/0583 (roms/calculator/*-CONST-K)."),
         },
         "expected": 6144,
         "addr_range": "0x0000–0x17FF",
@@ -389,7 +389,7 @@ _ROM_META: dict[str, dict] = {
         "sections": {
             0x0000: "; ── CD2400   0x0000–0x09FF  2,560 words  (ROM chip 1) " + "─" * 20,
             0x0A00: "; ── CD2401   0x0A00–0x13FF  2,560 words  (ROM chip 2) " + "─" * 20,
-            0x1400: "; ── TMC0573  0x1400–0x17FF  1,024 words  (SCOM constant table) " + "─" * 10,
+            0x1400: "; ── TMC0573  0x1400–0x17FF  1,024 words  (ROM chip 3) " + "─" * 20,
         },
         "expected": 6144,
         "addr_range": "0x0000–0x17FF",
