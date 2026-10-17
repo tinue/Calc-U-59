@@ -50,14 +50,12 @@
 0266  KEY_INV            [T] "INV" handler (slot 0022)
 0268  KEY_2ND            [T] "2nd" handler (slot 0012); TOG fA[9]
 027A  KEY_XT             [D] "x⇄t" handler (slot 0023)
-0291  KEY_RST            [D] "RST" handler (slot 0018)
 02AC  KEY_GTO            [D] "GTO" handler (slot 0016)
 0318  KEY_DPT            [T] "." handler (slot 0039)
 039F  KEY_CLR            [T] "CLR" handler (slot 0052); checks pending trace record (fA[10]) at entry; flag wipe at 03B0 + CLR fB[9] at 03BA end an error blink — traced in errorblink.txt
 03B9  KEY_CE             [D] "CE" handler (slot 0042)
 03E9  KEY_SBR            [D] "SBR" handler (slot 0017)
 03F8  KEY_SST            [D] "SST" handler (slot 0014)
-03FB  KEY_LRN            [D] "LRN" handler (slot 0013)
 040A  KEY_RS             [D] "R/S" handler (slot 0019)
 040B  KEY_BST            [D] "BST" handler (slot 0015)
 0462  KEY_PR             [T] "P/R" handler (2nd slot 0073); launches the P→R keycode sub-program: Prg Src Flag := 8 via 0A4B–0A53
@@ -79,7 +77,6 @@
 031A  NUMBER_ENTRY       [T] digit / "." entry into the display image in A (digit limits 0338–033B); argument digits diverted to 06C6
 
 ; ── Arithmetic / number pipeline (trace: errorblink.txt, 1/x of 0) ──────────
-0500  FN_TABLE           [T] unary-function dispatch table (0500–051F), reached by FN_ENTRY's PREG jump at 0x0500+fn (KR[8] variant → 0x0510+fn); entries chain to their own next slot via NORM_CALL
 041C  NORM_CALL          [T] "normalize, then do the work" prologue: parks KR+1 (caller's next FN_TABLE slot) in SR, runs NUM_NORM, PREG-returns via 02D1/02D2
 0418  ARITH_OVFL_EXIT    [T] arithmetic overflow exit (fA[4] tag): bumps the pending continuation, then exits to OVFL_CLAMP
 0419  ARITH_EXIT         [T] arithmetic exit: advance SR (current slot) by one, NUM_NORM, return to the next slot
@@ -87,7 +84,6 @@
 025A  OVFL_CLAMP         [T] over/underflow clamp: SET fB[9] (ERROR blink) unless fA[14]; clamps A to 9.9999999E99 (fA[3] clear) or 1E−99 (fA[3] set, [S] not exercised)
 03CC  MULDIV             [T] A := B × A or B ÷ A (fA[1]); shift-and-add multiply 0447, restoring division 042D; x÷0 → 0418, 0÷0 → error + 1.0
 0770  RECIP              [T] "1/x" implementation (FN_TABLE slot 050B): B := 1.0, divide mode, → MULDIV with X as divisor
-054C  DISP_FORMAT        [T] display format & round (054C–05BE): builds the display image in A; two passes flagged by fB[5]
 05B9  DISP_ROUND         [T] first-pass display rounding: +5 at the guard digit, clear it, re-run NUM_NORM (a carry can re-overflow → OVFL_CLAMP again)
 
 ; ── Printer / TRACE ─────────────────────────────────────────────────────────
@@ -103,7 +99,6 @@
 ; ── User-program execution ──────────────────────────────────────────────────
 0F53  PRG_DISPATCH       [T] RAM-program keycode fetch & computed-jump dispatch (0F53–0F6D); no keycode validation
 082F  LIB_EXEC_FETCH     [T] solid-state (CROM) execution-interpreter IN LIB fetch site — latches the user-visible library PC (see reference/CoreArchitecture.md); instruction site, not an entry point
-08B2  PRGREG_FETCH       [T] source-aware program-register fetch: dispatches on Prg Src Flag (SCOM[0] nibble 3) to CROM (082B), constant table (0B9D), or RAM (0EDB); fB[11] = SCOM[10] cache stale
 0B9D  PRGREG_FETCH_CON   [T] constant-table branch of PRGREG_FETCH: step counter → row 16 + step/8 (index in KR[10:8]·8 + KR[6:4]), C=C+CON reads 8 packed keycodes (step 008 → row 17 traced)
 0EDB  PRGREG_RAM_READ    [T] read a program register from RAM (RAM.OP read; register number in the next IO value, nibbles 3·2)
 0F85  PRGREG_RAM_WRITE   [T] write a program register to RAM (RAM.OP write; specifier then data on the two following IO values)
