@@ -1041,6 +1041,7 @@
 030C: 0953  B=SLB MANT        ; yes → slide sign and digit markers further left
 030D: 0976  D=SLD MANT
 030E: 1809  JC 030A
+; Unused filler: A=A ALL (no-op) words, never executed.
 030F: 0100  A=A ALL
 0310: 0100  A=A ALL
 0311: 0100  A=A ALL
@@ -2008,6 +2009,7 @@
 05F7: 177C  JNC 09B5          ; LRN digit (from 031E) → encode and store
 05F8: 1E97  JC 02AD
 05F9: 1FB1  JC 0221
+; Unused filler: A=A ALL (no-op) words, never executed.
 05FA: 0100  A=A ALL
 05FB: 0100  A=A ALL
 05FC: 0100  A=A ALL
@@ -3094,6 +3096,7 @@
 08ED: 0501  IO=A+1 LLSD1
 08EE: 1F9C  JC 0CBC           ; … 20–39 → register increment / decrement
 08EF: 1790  JNC 0CB7          ; 00–19 → OP_TABLE
+; Unused filler: A=A ALL (no-op) words, never executed.
 08F0: 0100  A=A ALL
 08F1: 0100  A=A ALL
 08F2: 0100  A=A ALL
@@ -4007,6 +4010,7 @@
 0BFB: 1FB2  JC 0FD4           ; print the value (from the trace trigger 08C5): → 13AA →
                               ;   PRT_VALUE
 0BFC: 1F88  JC 0FC0           ; CMs / CP → CLEAR_MEM
+; Unused filler: A=A ALL (no-op) words, never executed.
 0BFD: 0100  A=A ALL
 0BFE: 0100  A=A ALL
 0BFF: 0100  A=A ALL
@@ -4938,6 +4942,7 @@
 0F00: 0050  TST fA[5]
 0F01: 160F  JNC 0BFA
 0F02: 1E65  JC 0BD0
+; Unused filler: A=A ALL (no-op) words, never executed.
 0F03: 0100  A=A ALL
 0F04: 0100  A=A ALL
 0F05: 0100  A=A ALL
@@ -5793,6 +5798,7 @@
 11EE: 000A  CLR fB[0]
 11EF: 176B  JNC 0E3A
 11F0: 1F72  JC 15A9
+; Unused filler: A=A ALL (no-op) words, never executed.
 11F1: 0100  A=A ALL
 11F2: 0100  A=A ALL
 11F3: 0100  A=A ALL
@@ -6650,6 +6656,7 @@
 14EC: 0148  A=SRA ALL
 14ED: 0148  A=SRA ALL
 14EE: 1D9B  JC 1221           ; write the register (1221 → 0F84 → 131A, fB[10] clear)
+; Unused filler: A=A ALL (no-op) words, never executed.
 14EF: 0100  A=A ALL
 14F0: 0100  A=A ALL
 14F1: 0100  A=A ALL
