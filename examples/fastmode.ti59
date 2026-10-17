@@ -26,9 +26,9 @@
 #    dispatch address by OR-ing bits into KR: it lands on 0x0B34 (inside the ln finish code)
 #    instead of 0x0B14 (FLAG_OP). The stray path re-arms argument mode, and the pending EE is
 #    re-executed (pre-idle 0x0620 -> 0x04F6 -> STEP_DISPATCH). Through a second offset
-#    dispatch it ends in a "store X into SCOM row D[0]" (0x11D9-0x11DD, part of the x<>t /
-#    Sigma+ code) with D[0] = 0 instead of 11 (t) — X's digit image is written verbatim into
-#    SCOM[0].
+#    dispatch it ends in the HIR STO code (0x11D9-0x11DD, "store X into hierarchy register
+#    SCOM[m]") with m = D[0] = 0 — effectively HIR STO 0: X's digit image is written
+#    verbatim into SCOM[0].
 # 4. SCOM[0] = 1000000000002000: step counter 000 (nibbles 4-7), Prg Src Flag 2 (nibble 3),
 #    user flag 4 (nibble 15). The RAM program runs, but because the source flag is non-zero
 #    the run loop treats it like a keycode sub-program (0x07C9 -> 0x08AE): no display rebuild,

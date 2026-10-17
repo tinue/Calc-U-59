@@ -288,7 +288,7 @@ skips the per-step display rebuild and R/S/GTO polls: ~40% less time, but R/S
 cannot stop it. The only way in is a quirk chain that writes X's digit image
 into SCOM[0] (an argument terminated by EE after `St flg` at the end of the
 partition, mis-dispatched twice, ending in the SCOM store at `11D9` with row
-0). The 12th decimal digit of X becomes the source flag, the next digits the
+0 — effectively HIR STO into SCOM[0]). The 12th decimal digit of X becomes the source flag, the next digits the
 start step. Full walkthrough: `examples/fastmode.ti59`.
 
 ## Magnetic cards
@@ -315,3 +315,13 @@ TI-59 *programs* in the constant ROM (rows 16–63, 384 steps), run with Prg
 Src Flag 8. Listing with entry points: `rom/TI59-keycode-programs.asm`.
 They use the HIR (hierarchy register) keycode 82 for scratch storage and the
 statistics registers R01–R06.
+
+## HIR and compact keycodes
+
+Keycodes at a digit key's matrix position (92, 82–84, 72–74, 62–64) are not
+digits — digits are stored as 00–09 — but compact codes, dispatched by the
+digit through bank `0x0B20`: 92 RTN, 82 HIR, and the Ind forms GO*, OP*,
+ST*, RC*, SM*, PG*, EX*, PD*. **HIR nm** (programs only) operates on
+hierarchy register m = SCOM[m] (1–8, the AOS level rows): n = 0 STO, 1 RCL,
+3 SUM, 4 Prd, 5 INV SUM, 6 INV Prd (verified). The keycode ROM programs use
+HIR as scratch storage.

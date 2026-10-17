@@ -156,6 +156,8 @@
 0A00  OP_TABLE           [T] Op 00–19, slot 0x0A00 + 16·tens + units
 1000  PRT_MNEMONIC_TABLE [T] 3-character PC-100 mnemonic per keycode (0x1000 + 32·tens + 3·units)
 1680  CARD_IO            [T] magnetic card bank read/write (header, 30 registers, checksum)
-11D9  SCOM_STORE_X       [T] store X into SCOM row D[0] (t for x⇄t); fast-mode chain writes row 0
+11D9  HIR_STO            [T] HIR STO: X → hierarchy register SCOM[m]; the fast-mode chain writes m = 0 (SCOM[0])
+00FA  HIR                [T] HIR nm sequence (keycode 82): n = 0 STO, 1 RCL, 3 SUM, 4 Prd, 5 INV SUM, 6 INV Prd; m = SCOM row 1–8
+0B20  COMPACT_BANK       [T] compact keycodes by digit position: 92 RTN, 82 HIR, 83/84/72–74/62–64 Ind forms (0EA5)
 141C  PGM_ERROR_HALT     [T] error blink and stop (e.g. Pgm out of range)
 ; Keycode sub-programs (Prg Src 8) are listed in rom/TI59-keycode-programs.asm.

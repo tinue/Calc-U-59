@@ -334,13 +334,15 @@
 00F7: 1DF6  JC 03F2           ; … write it back (075D → 0A2E) …
 00F8: 1A36  JC 0213           ; … zero? → fA[9] (inverted: Dsz branches while non-zero) …
 00F9: 1F40  JC 0499           ; … conditional transfer
-00FA: 1E44  JC 041C           ; D.MS / P→R / Σ+ / x̄ family: normalize …
-00FB: 1FA2  JC 04CC
-00FC: 1FD0  JC 04E4
-00FD: 1987  JC 003A
-00FE: 1FCE  JC 04E5
-00FF: 18E7  JC 008C
-0100: 1FCA  JC 04E5
+00FA: 1E44  JC 041C           ; HIR nm (keycode 82, programs only): normalize …
+00FB: 1FA2  JC 04CC           ; … operand nm: n = operation, m = hierarchy register 1–8
+                              ;   (SCOM[m])
+00FC: 1FD0  JC 04E4           ; … recall / combine: n = 1 RCL, 3 SUM, 4 Prd, 5 INV SUM, 6 INV
+                              ;   Prd (0CCB)
+00FD: 1987  JC 003A           ; … SUM / INV SUM: ADD
+00FE: 1FCE  JC 04E5           ; … store the result back (0CCC → HIR_STO 11D9) …
+00FF: 18E7  JC 008C           ; … Prd / INV Prd: MULDIV
+0100: 1FCA  JC 04E5           ; … store back
 0101: 1E36  JC 041C           ; Op nn: normalize …
 0102: 1F94  JC 04CC           ; … collect the 2-digit Op number
 0103: 1FF8  JC 04FF
@@ -508,8 +510,11 @@
 016C: 0008  TST fB[0]
 016D: 00D8  TST fB[13]
 016E: 1B5A  JC 031B          ; → number entry with the digit in KR[4..7]
-016F: 0A08  MOV R5,KR[4..7]
-0170: 0095  SET KR[9]
+; DIGIT_SLIDE exit for a running program (fB[0]/fB[13]): a keycode at a
+; digit key's matrix position is not a digit (digits are stored as 00–09) but
+; one of the compact codes — dispatch on the digit through bank 0x0B20 + d.
+016F: 0A08  MOV R5,KR[4..7]   ; d = the digit of that key position …
+0170: 0095  SET KR[9]         ; … → slot 0x0B20 + d
 0171: 1A0C  JC 0277
 ; D.MS key (2nd slot 0088 → 0172): fn 12 bank → sequence slots 010C/010D →
 ; 0175: entry step 303 (D.MS) or, with INV, 341 (0280) of the keycode ROM.
@@ -3710,16 +3715,20 @@
 0B1D: 0183  B=A+B ALL
 0B1E: 1D3A  JC 0DBB           ; → RAM_READ of the program register (fB[10] → 1157)
 0B1F: 0100  A=A ALL
+; ── Compact keycodes (bank 0x0B20 + d, d = digit at the key position):
+; 92 RTN, 82 HIR, 83 GO*, 84 OP*, 72 ST*, 73 RC*, 74 SM*, 62 PG*, 63 EX*,
+; 64 PD* — the Ind forms go to 0EA5 (operation + fA[7]). Trace-confirmed for
+; RTN and HIR (headless: HIR 05/15/33/43/53/63 programs).
 0B20: 1ED6  JC 0E8B           ; RTN (INV SBR, keycode 92) → 0E8B → RTN_POP 1175
-0B21: 1D93  JC 0858
-0B22: 1F06  JC 0EA5
+0B21: 1D93  JC 0858           ; 82 HIR → 0858 → slot 00FA
+0B22: 1F06  JC 0EA5           ; 83 GO* (Ind)
 0B23: 0A0C  MOV KR,EXT[4..15]
-0B24: 1F02  JC 0EA5
-0B25: 1F00  JC 0EA5
-0B26: 1EFE  JC 0EA5
-0B27: 1EFC  JC 0EA5
-0B28: 1EFA  JC 0EA5
-0B29: 1EF8  JC 0EA5
+0B24: 1F02  JC 0EA5           ; 72 ST*
+0B25: 1F00  JC 0EA5           ; 73 RC*
+0B26: 1EFE  JC 0EA5           ; 74 SM*
+0B27: 1EFC  JC 0EA5           ; 62 PG*
+0B28: 1EFA  JC 0EA5           ; 63 EX*
+0B29: 1EF8  JC 0EA5           ; 64 PD*
 ; LN finish (from 0759/075B): combine ln(10/m) with the decimal exponent e:
 ; ln x = (e+1)·ln 10 − ln(10/m), sign in fA[2].
 0B2A: 072C  C=C-1 EXP1
@@ -5653,9 +5662,9 @@
 11D6: 0A0D  SWAP KR,SR
 11D7: 1909  JC 1153
 11D8: 0059  SET fB[5]
-; Store X (C, flags from fB[1..4]) into the SCOM row named by D[0] — 11 (t)
-; for x⇄t / Σ+. The fast-mode chain reaches it with D[0] = 0, writing X's digit
-; image into SCOM[0] (examples/fastmode.ti59).
+; HIR_STO: store X (C, flags from fB[1..4]) into hierarchy register SCOM[D[0]]
+; (HIR 0m, and the store-back of HIR SUM/Prd). The fast-mode chain reaches it
+; with D[0] = 0, writing X's digit image into SCOM[0] (examples/fastmode.ti59).
 11D9: 0A16  MOV R5,fB[1..4]
 11DA: 02F4  C=R5 DPT
 11DB: 0131  IO=D ALL
