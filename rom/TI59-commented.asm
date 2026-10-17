@@ -2649,13 +2649,14 @@
 07E7: 0E09  IO=A-1 MMSD1
 07E8: 01D7  A<>E ALL
 07E9: 1190  JNC 08B1
-; KEY_RS: "R/S" handler (slot 0019 → 040A). First wait until R/S is released
-; (07EC–07EE: WAIT D10 + KEY [O] samples the R/S key, row 9 column 1), then
-; toggle: running → stop (07FD TOG fB[0]); stopped → start (0BB3). A stored
-; library program number in SCOM[9] resumes that program (07F9 → 0BCC/0928).
+; KEY_RS: "R/S" handler (slot 0019 → 040A; also the run loop's R/S poll at
+; 07DF). Running → stop (07FD TOG fB[0]). Stopped → first wait until R/S is
+; released (07EC–07EE: WAIT D10 + KEY [O] samples the R/S key, row 9 column 1),
+; so execution starts on the release, then start (0BB3). A selected library
+; program in SCOM[9] is resumed rather than restarted (07F9 → 0BCC/0928).
 07EA: 0008  TST fB[0]         ; running?
-07EB: 1008  JNC 07EF
-07EC: 0AA0  WAIT D10          ; wait for the R/S key to be released …
+07EB: 1008  JNC 07EF          ; yes → stop without waiting
+07EC: 0AA0  WAIT D10          ; stopped: wait for the R/S key to be released …
 07ED: 08FD  KEY [O]
 07EE: 1009  JNC 07EA
 07EF: 0A97  MOV R5,#9         ; SCOM[9] (library page) …
