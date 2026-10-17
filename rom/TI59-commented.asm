@@ -225,7 +225,7 @@
 009F: 1AE0  JC 020F
 00A0: 0A27  MOV R5,#2         ; "+"/"−" stub (from slot 0058): op code 2 …
 00A1: 193E  JC 0140           ;   … → KEY_ARITH — trace-confirmed ("+")
-00A2: 1DFA  JC 039F           ; 2nd slot: (2nd CLR) (keycode 20)
+00A2: 1DFA  JC 039F           ; 2nd slot: 2nd CLR (keycode 20) — same as CLR (trace-checked)
 00A3: 18C7  JC 0040           ; 2nd slot: tan (keycode 30)
 00A4: 1E94  JC 03EE           ; 2nd slot: Ind (keycode 40)
 00A5: 1837  JC 008A           ; 2nd slot: |x| (keycode 50)
@@ -1364,10 +1364,11 @@
 03F0: 0AA7  MOV R5,#10        ; Pgm (2nd LRN, slot 0063): fn 10, KR[8]+KR[9] → slot 053A
 03F1: 180B  JC 03EC
 03F2: 1ED6  JC 075D           ; Dsz (slot 00F7): write the counter back (075D → 0A2E)
-03F3: 0008  TST fB[0]
+03F3: 0008  TST fB[0]         ; Lbl: from the keyboard it does nothing — number entry even
+                              ;   continues ("5 Lbl 3" → 53, trace-checked) …
 03F4: 00D8  TST fB[13]
 03F5: 1B17  JC 026A
-03F6: 0001  SET fA[0]
+03F6: 0001  SET fA[0]         ; … in a program: the label name follows (skipped as an operand)
 03F7: 1B1B  JC 026A
 ; KEY_SST: "SST" handler (slot 0014). In LRN mode (fB[10]) step forward
 ; (06FD → PRGREG_FETCH); in run mode execute one program step (fB[13]).
