@@ -5056,324 +5056,335 @@
 0FFD: 01D5  C<>D ALL
 0FFE: 04D4  C=LOAD DPTC
 0FFF: 1EED  JC 0C89           ; → 0B3B → ARITH_EXIT
-1000: 1F50  JC 13A8
-1001: 1F4C  JC 13A7
-1002: 1F4C  JC 13A8
-1003: 1F4A  JC 13A8
-1004: 1F44  JC 13A6
-1005: 1F46  JC 13A8
-1006: 1F44  JC 13A8
-1007: 1F3C  JC 13A5
-1008: 1F40  JC 13A8
-1009: 1F3E  JC 13A8
-100A: 1F34  JC 13A4
-100B: 1F3A  JC 13A8
-100C: 1F38  JC 13A8
-100D: 1F2C  JC 13A3
-100E: 1F34  JC 13A8
-100F: 1F32  JC 13A8
-1010: 1F24  JC 13A2
-1011: 1F2E  JC 13A8
-1012: 1F2C  JC 13A8
-1013: 1F1C  JC 13A1
-1014: 1F28  JC 13A8
-1015: 1F26  JC 13A8
-1016: 1F14  JC 13A0
-1017: 1F22  JC 13A8
-1018: 1F20  JC 13A8
-1019: 1F0C  JC 139F
-101A: 1F1C  JC 13A8
-101B: 1F1A  JC 13A8
-101C: 1F04  JC 139E
-101D: 1F16  JC 13A8
+; ═══════════════════════════════════════════════════════════════════════════
+; PRINT MNEMONIC TABLE  (0x1000–0x1151) — trace-confirmed with List (LBL A,
+; STO 12, SIN, +). Each program keycode has three consecutive slots at
+; 0x1000 + 32·tens + 3·units, one per character of its 3-character printer
+; mnemonic, rightmost character first (the PC-100 buffer fills right to
+; left). A slot jumps into the INC KR slide at 0x1399–0x13E5, entering at a
+; depth equal to the 6-bit printer character code (KR[4..9]); the slide's
+; tails add 16/32/48 via KR[8]/KR[9] and end in PRT.OUT at 13BC. The two
+; words after each 30-slot row (xx1E/xx1F, …) are ordinary code. Character
+; codes follow the PC-100 set (Core/TMC0501.cpp PRN_CODE).
+; ═══════════════════════════════════════════════════════════════════════════
+1000: 1F50  JC 13A8           ; keycode 00 " 0 ": right char ' ' (code 0)
+1001: 1F4C  JC 13A7           ; keycode 00 " 0 ": middle char '0' (code 1)
+1002: 1F4C  JC 13A8           ; keycode 00 " 0 ": left char ' ' (code 0)
+1003: 1F4A  JC 13A8           ; keycode 01 " 1 ": right char ' ' (code 0)
+1004: 1F44  JC 13A6           ; keycode 01 " 1 ": middle char '1' (code 2)
+1005: 1F46  JC 13A8           ; keycode 01 " 1 ": left char ' ' (code 0)
+1006: 1F44  JC 13A8           ; keycode 02 " 2 ": right char ' ' (code 0)
+1007: 1F3C  JC 13A5           ; keycode 02 " 2 ": middle char '2' (code 3)
+1008: 1F40  JC 13A8           ; keycode 02 " 2 ": left char ' ' (code 0)
+1009: 1F3E  JC 13A8           ; keycode 03 " 3 ": right char ' ' (code 0)
+100A: 1F34  JC 13A4           ; keycode 03 " 3 ": middle char '3' (code 4)
+100B: 1F3A  JC 13A8           ; keycode 03 " 3 ": left char ' ' (code 0)
+100C: 1F38  JC 13A8           ; keycode 04 " 4 ": right char ' ' (code 0)
+100D: 1F2C  JC 13A3           ; keycode 04 " 4 ": middle char '4' (code 5)
+100E: 1F34  JC 13A8           ; keycode 04 " 4 ": left char ' ' (code 0)
+100F: 1F32  JC 13A8           ; keycode 05 " 5 ": right char ' ' (code 0)
+1010: 1F24  JC 13A2           ; keycode 05 " 5 ": middle char '5' (code 6)
+1011: 1F2E  JC 13A8           ; keycode 05 " 5 ": left char ' ' (code 0)
+1012: 1F2C  JC 13A8           ; keycode 06 " 6 ": right char ' ' (code 0)
+1013: 1F1C  JC 13A1           ; keycode 06 " 6 ": middle char '6' (code 7)
+1014: 1F28  JC 13A8           ; keycode 06 " 6 ": left char ' ' (code 0)
+1015: 1F26  JC 13A8           ; keycode 07 " 7 ": right char ' ' (code 0)
+1016: 1F14  JC 13A0           ; keycode 07 " 7 ": middle char '7' (code 8)
+1017: 1F22  JC 13A8           ; keycode 07 " 7 ": left char ' ' (code 0)
+1018: 1F20  JC 13A8           ; keycode 08 " 8 ": right char ' ' (code 0)
+1019: 1F0C  JC 139F           ; keycode 08 " 8 ": middle char '8' (code 9)
+101A: 1F1C  JC 13A8           ; keycode 08 " 8 ": left char ' ' (code 0)
+101B: 1F1A  JC 13A8           ; keycode 09 " 9 ": right char ' ' (code 0)
+101C: 1F04  JC 139E           ; keycode 09 " 9 ": middle char '9' (code 10)
+101D: 1F16  JC 13A8           ; keycode 09 " 9 ": left char ' ' (code 0)
 101E: 1D86  JC 12E1
 101F: 1D49  JC 0D7B
-1020: 1F10  JC 13A8
-1021: 1F7C  JC 13DF
-1022: 1EEE  JC 1399
-1023: 1F0A  JC 13A8
-1024: 1EF2  JC 139D
-1025: 1F06  JC 13A8
-1026: 1F04  JC 13A8
-1027: 1EEA  JC 139C
-1028: 1F00  JC 13A8
-1029: 1EFE  JC 13A8
-102A: 1EE2  JC 139B
-102B: 1EFA  JC 13A8
-102C: 1EF8  JC 13A8
-102D: 1EDA  JC 139A
-102E: 1EF4  JC 13A8
-102F: 1EF2  JC 13A8
-1030: 1ED2  JC 1399
-1031: 1EEE  JC 13A8
-1032: 1EEC  JC 13A8
-1033: 1F58  JC 13DF
-1034: 1ED2  JC 139D
-1035: 1EE6  JC 13A8
-1036: 1F52  JC 13DF
-1037: 1ECA  JC 139C
-1038: 1EE0  JC 13A8
-1039: 1F4C  JC 13DF
-103A: 1EC2  JC 139B
-103B: 1EDA  JC 13A8
-103C: 1F46  JC 13DF
-103D: 1EBA  JC 139A
+1020: 1F10  JC 13A8           ; keycode 10 "E÷ ": right char ' ' (code 0)
+1021: 1F7C  JC 13DF           ; keycode 10 "E÷ ": middle char '÷' (code 58)
+1022: 1EEE  JC 1399           ; keycode 10 "E÷ ": left char 'E' (code 15)
+1023: 1F0A  JC 13A8           ; keycode 11 " A ": right char ' ' (code 0)
+1024: 1EF2  JC 139D           ; keycode 11 " A ": middle char 'A' (code 11)
+1025: 1F06  JC 13A8           ; keycode 11 " A ": left char ' ' (code 0)
+1026: 1F04  JC 13A8           ; keycode 12 " B ": right char ' ' (code 0)
+1027: 1EEA  JC 139C           ; keycode 12 " B ": middle char 'B' (code 12)
+1028: 1F00  JC 13A8           ; keycode 12 " B ": left char ' ' (code 0)
+1029: 1EFE  JC 13A8           ; keycode 13 " C ": right char ' ' (code 0)
+102A: 1EE2  JC 139B           ; keycode 13 " C ": middle char 'C' (code 13)
+102B: 1EFA  JC 13A8           ; keycode 13 " C ": left char ' ' (code 0)
+102C: 1EF8  JC 13A8           ; keycode 14 " D ": right char ' ' (code 0)
+102D: 1EDA  JC 139A           ; keycode 14 " D ": middle char 'D' (code 14)
+102E: 1EF4  JC 13A8           ; keycode 14 " D ": left char ' ' (code 0)
+102F: 1EF2  JC 13A8           ; keycode 15 " E ": right char ' ' (code 0)
+1030: 1ED2  JC 1399           ; keycode 15 " E ": middle char 'E' (code 15)
+1031: 1EEE  JC 13A8           ; keycode 15 " E ": left char ' ' (code 0)
+1032: 1EEC  JC 13A8           ; keycode 16 "A÷ ": right char ' ' (code 0)
+1033: 1F58  JC 13DF           ; keycode 16 "A÷ ": middle char '÷' (code 58)
+1034: 1ED2  JC 139D           ; keycode 16 "A÷ ": left char 'A' (code 11)
+1035: 1EE6  JC 13A8           ; keycode 17 "B÷ ": right char ' ' (code 0)
+1036: 1F52  JC 13DF           ; keycode 17 "B÷ ": middle char '÷' (code 58)
+1037: 1ECA  JC 139C           ; keycode 17 "B÷ ": left char 'B' (code 12)
+1038: 1EE0  JC 13A8           ; keycode 18 "C÷ ": right char ' ' (code 0)
+1039: 1F4C  JC 13DF           ; keycode 18 "C÷ ": middle char '÷' (code 58)
+103A: 1EC2  JC 139B           ; keycode 18 "C÷ ": left char 'C' (code 13)
+103B: 1EDA  JC 13A8           ; keycode 19 "D÷ ": right char ' ' (code 0)
+103C: 1F46  JC 13DF           ; keycode 19 "D÷ ": middle char '÷' (code 58)
+103D: 1EBA  JC 139A           ; keycode 19 "D÷ ": left char 'D' (code 14)
 103E: 0176  D=SLD ALL
 103F: 1E9A  JC 138C
-1040: 1EDA  JC 13AD
-1041: 1EE4  JC 13B3
-1042: 1EB2  JC 139B
-1043: 1EAE  JC 139A
-1044: 1EDA  JC 13B1
-1045: 1EC0  JC 13A5
-1046: 1F08  JC 13CA
-1047: 1ED4  JC 13B1
-1048: 1EDC  JC 13B6
-1049: 1EFE  JC 13C8
-104A: 1ECE  JC 13B1
-104B: 1ED0  JC 13B3
-104C: 1EB8  JC 13A8
-104D: 1E98  JC 1399
-104E: 1E9A  JC 139B
-104F: 1EBC  JC 13AD
-1050: 1EC6  JC 13B3
-1051: 1E94  JC 139B
-1052: 1E90  JC 139A
-1053: 1EBC  JC 13B1
-1054: 1EA2  JC 13A5
-1055: 1EEA  JC 13CA
-1056: 1EB6  JC 13B1
-1057: 1EBE  JC 13B6
-1058: 1EC0  JC 13B8
-1059: 1EAE  JC 13B0
-105A: 1EB2  JC 13B3
-105B: 1E9A  JC 13A8
-105C: 1EA6  JC 13AF
-105D: 1E7C  JC 139B
+1040: 1EDA  JC 13AD           ; keycode 20 "CLR": right char 'R' (code 29)
+1041: 1EE4  JC 13B3           ; keycode 20 "CLR": middle char 'L' (code 23)
+1042: 1EB2  JC 139B           ; keycode 20 "CLR": left char 'C' (code 13)
+1043: 1EAE  JC 139A           ; keycode 21 "2ND": right char 'D' (code 14)
+1044: 1EDA  JC 13B1           ; keycode 21 "2ND": middle char 'N' (code 25)
+1045: 1EC0  JC 13A5           ; keycode 21 "2ND": left char '2' (code 3)
+1046: 1F08  JC 13CA           ; keycode 22 "INV": right char 'V' (code 34)
+1047: 1ED4  JC 13B1           ; keycode 22 "INV": middle char 'N' (code 25)
+1048: 1EDC  JC 13B6           ; keycode 22 "INV": left char 'I' (code 20)
+1049: 1EFE  JC 13C8           ; keycode 23 "LNX": right char 'X' (code 36)
+104A: 1ECE  JC 13B1           ; keycode 23 "LNX": middle char 'N' (code 25)
+104B: 1ED0  JC 13B3           ; keycode 23 "LNX": left char 'L' (code 23)
+104C: 1EB8  JC 13A8           ; keycode 24 "CE ": right char ' ' (code 0)
+104D: 1E98  JC 1399           ; keycode 24 "CE ": middle char 'E' (code 15)
+104E: 1E9A  JC 139B           ; keycode 24 "CE ": left char 'C' (code 13)
+104F: 1EBC  JC 13AD           ; keycode 25 "CLR": right char 'R' (code 29)
+1050: 1EC6  JC 13B3           ; keycode 25 "CLR": middle char 'L' (code 23)
+1051: 1E94  JC 139B           ; keycode 25 "CLR": left char 'C' (code 13)
+1052: 1E90  JC 139A           ; keycode 26 "2ND": right char 'D' (code 14)
+1053: 1EBC  JC 13B1           ; keycode 26 "2ND": middle char 'N' (code 25)
+1054: 1EA2  JC 13A5           ; keycode 26 "2ND": left char '2' (code 3)
+1055: 1EEA  JC 13CA           ; keycode 27 "INV": right char 'V' (code 34)
+1056: 1EB6  JC 13B1           ; keycode 27 "INV": middle char 'N' (code 25)
+1057: 1EBE  JC 13B6           ; keycode 27 "INV": left char 'I' (code 20)
+1058: 1EC0  JC 13B8           ; keycode 28 "LOG": right char 'G' (code 18)
+1059: 1EAE  JC 13B0           ; keycode 28 "LOG": middle char 'O' (code 26)
+105A: 1EB2  JC 13B3           ; keycode 28 "LOG": left char 'L' (code 23)
+105B: 1E9A  JC 13A8           ; keycode 29 "CP ": right char ' ' (code 0)
+105C: 1EA6  JC 13AF           ; keycode 29 "CP ": middle char 'P' (code 27)
+105D: 1E7C  JC 139B           ; keycode 29 "CP ": left char 'C' (code 13)
 105E: 1671  JNC 0D26
 105F: 1DA8  JC 1333
-1060: 1EA2  JC 13B1
-1061: 1E78  JC 139D
-1062: 1E92  JC 13AB
-1063: 1E9C  JC 13B1
-1064: 1E92  JC 13AD
-1065: 1E9C  JC 13B3
-1066: 1E8A  JC 13AB
-1067: 1EF6  JC 13E2
-1068: 1EC0  JC 13C8
-1069: 1E7E  JC 13A8
-106A: 1EE4  JC 13DC
-106B: 1EBA  JC 13C8
-106C: 1E78  JC 13A8
-106D: 1EB6  JC 13C8
-106E: 1EA8  JC 13C2
-106F: 1EB2  JC 13C8
-1070: 1EE2  JC 13E1
-1071: 1E6A  JC 13A6
-1072: 1E80  JC 13B2
-1073: 1E8A  JC 13B8
-1074: 1E76  JC 13AF
-1075: 1E70  JC 13AD
-1076: 1ED6  JC 13E1
-1077: 1E70  JC 13AF
-1078: 1E72  JC 13B1
-1079: 1E7A  JC 13B6
-107A: 1E64  JC 13AC
-107B: 1E62  JC 13AC
-107C: 1E68  JC 13B0
-107D: 1E3C  JC 139B
+1060: 1EA2  JC 13B1           ; keycode 30 "TAN": right char 'N' (code 25)
+1061: 1E78  JC 139D           ; keycode 30 "TAN": middle char 'A' (code 11)
+1062: 1E92  JC 13AB           ; keycode 30 "TAN": left char 'T' (code 31)
+1063: 1E9C  JC 13B1           ; keycode 31 "LRN": right char 'N' (code 25)
+1064: 1E92  JC 13AD           ; keycode 31 "LRN": middle char 'R' (code 29)
+1065: 1E9C  JC 13B3           ; keycode 31 "LRN": left char 'L' (code 23)
+1066: 1E8A  JC 13AB           ; keycode 32 "Xx̄T": right char 'T' (code 31)
+1067: 1EF6  JC 13E2           ; keycode 32 "Xx̄T": middle char 'x̄' (code 55)
+1068: 1EC0  JC 13C8           ; keycode 32 "Xx̄T": left char 'X' (code 36)
+1069: 1E7E  JC 13A8           ; keycode 33 "X▴ ": right char ' ' (code 0)
+106A: 1EE4  JC 13DC           ; keycode 33 "X▴ ": middle char '▴' (code 61)
+106B: 1EBA  JC 13C8           ; keycode 33 "X▴ ": left char 'X' (code 36)
+106C: 1E78  JC 13A8           ; keycode 34 "√X ": right char ' ' (code 0)
+106D: 1EB6  JC 13C8           ; keycode 34 "√X ": middle char 'X' (code 36)
+106E: 1EA8  JC 13C2           ; keycode 34 "√X ": left char '√' (code 42)
+106F: 1EB2  JC 13C8           ; keycode 35 "1²X": right char 'X' (code 36)
+1070: 1EE2  JC 13E1           ; keycode 35 "1²X": middle char '²' (code 56)
+1071: 1E6A  JC 13A6           ; keycode 35 "1²X": left char '1' (code 2)
+1072: 1E80  JC 13B2           ; keycode 36 "PGM": right char 'M' (code 24)
+1073: 1E8A  JC 13B8           ; keycode 36 "PGM": middle char 'G' (code 18)
+1074: 1E76  JC 13AF           ; keycode 36 "PGM": left char 'P' (code 27)
+1075: 1E70  JC 13AD           ; keycode 37 "P²R": right char 'R' (code 29)
+1076: 1ED6  JC 13E1           ; keycode 37 "P²R": middle char '²' (code 56)
+1077: 1E70  JC 13AF           ; keycode 37 "P²R": left char 'P' (code 27)
+1078: 1E72  JC 13B1           ; keycode 38 "SIN": right char 'N' (code 25)
+1079: 1E7A  JC 13B6           ; keycode 38 "SIN": middle char 'I' (code 20)
+107A: 1E64  JC 13AC           ; keycode 38 "SIN": left char 'S' (code 30)
+107B: 1E62  JC 13AC           ; keycode 39 "COS": right char 'S' (code 30)
+107C: 1E68  JC 13B0           ; keycode 39 "COS": middle char 'O' (code 26)
+107D: 1E3C  JC 139B           ; keycode 39 "COS": left char 'C' (code 13)
 107E: 16D0  JNC 13E6
 107F: 16D5  JNC 0D15
-1080: 1E34  JC 139A
-1081: 1E60  JC 13B1
-1082: 1E68  JC 13B6
-1083: 1E50  JC 13AB
-1084: 1E50  JC 13AC
-1085: 1E4E  JC 13AC
-1086: 1E54  JC 13B0
-1087: 1E48  JC 13AB
-1088: 1E48  JC 13AC
-1089: 1E54  JC 13B3
-108A: 1E22  JC 139B
-108B: 1E44  JC 13AD
-108C: 1E4C  JC 13B2
-108D: 1E7C  JC 13CB
-108E: 1E3C  JC 13AC
-108F: 1E32  JC 13A8
-1090: 1E9C  JC 13DE
-1091: 1E6C  JC 13C7
-1092: 1E34  JC 13AC
-1093: 1E3C  JC 13B1
-1094: 1E44  JC 13B6
-1095: 1E2E  JC 13AC
-1096: 1E38  JC 13B2
-1097: 1E08  JC 139B
-1098: 1E06  JC 139B
-1099: 1E5E  JC 13C8
-109A: 1DFE  JC 1399
-109B: 1DFE  JC 139A
-109C: 1E22  JC 13AD
-109D: 1E24  JC 13AF
+1080: 1E34  JC 139A           ; keycode 40 "IND": right char 'D' (code 14)
+1081: 1E60  JC 13B1           ; keycode 40 "IND": middle char 'N' (code 25)
+1082: 1E68  JC 13B6           ; keycode 40 "IND": left char 'I' (code 20)
+1083: 1E50  JC 13AB           ; keycode 41 "SST": right char 'T' (code 31)
+1084: 1E50  JC 13AC           ; keycode 41 "SST": middle char 'S' (code 30)
+1085: 1E4E  JC 13AC           ; keycode 41 "SST": left char 'S' (code 30)
+1086: 1E54  JC 13B0           ; keycode 42 "STO": right char 'O' (code 26)
+1087: 1E48  JC 13AB           ; keycode 42 "STO": middle char 'T' (code 31)
+1088: 1E48  JC 13AC           ; keycode 42 "STO": left char 'S' (code 30)
+1089: 1E54  JC 13B3           ; keycode 43 "RCL": right char 'L' (code 23)
+108A: 1E22  JC 139B           ; keycode 43 "RCL": middle char 'C' (code 13)
+108B: 1E44  JC 13AD           ; keycode 43 "RCL": left char 'R' (code 29)
+108C: 1E4C  JC 13B2           ; keycode 44 "SUM": right char 'M' (code 24)
+108D: 1E7C  JC 13CB           ; keycode 44 "SUM": middle char 'U' (code 33)
+108E: 1E3C  JC 13AC           ; keycode 44 "SUM": left char 'S' (code 30)
+108F: 1E32  JC 13A8           ; keycode 45 "Y! ": right char ' ' (code 0)
+1090: 1E9C  JC 13DE           ; keycode 45 "Y! ": middle char '!' (code 59)
+1091: 1E6C  JC 13C7           ; keycode 45 "Y! ": left char 'Y' (code 37)
+1092: 1E34  JC 13AC           ; keycode 46 "INS": right char 'S' (code 30)
+1093: 1E3C  JC 13B1           ; keycode 46 "INS": middle char 'N' (code 25)
+1094: 1E44  JC 13B6           ; keycode 46 "INS": left char 'I' (code 20)
+1095: 1E2E  JC 13AC           ; keycode 47 "CMS": right char 'S' (code 30)
+1096: 1E38  JC 13B2           ; keycode 47 "CMS": middle char 'M' (code 24)
+1097: 1E08  JC 139B           ; keycode 47 "CMS": left char 'C' (code 13)
+1098: 1E06  JC 139B           ; keycode 48 "EXC": right char 'C' (code 13)
+1099: 1E5E  JC 13C8           ; keycode 48 "EXC": middle char 'X' (code 36)
+109A: 1DFE  JC 1399           ; keycode 48 "EXC": left char 'E' (code 15)
+109B: 1DFE  JC 139A           ; keycode 49 "PRD": right char 'D' (code 14)
+109C: 1E22  JC 13AD           ; keycode 49 "PRD": middle char 'R' (code 29)
+109D: 1E24  JC 13AF           ; keycode 49 "PRD": left char 'P' (code 27)
 109E: 0910  A=B MANT
 109F: 1C22  JC 12B0
-10A0: 1E2C  JC 13B6
-10A1: 1E46  JC 13C4
-10A2: 1E28  JC 13B6
-10A3: 1E10  JC 13AB
-10A4: 1E10  JC 13AC
-10A5: 1DEE  JC 139C
-10A6: 1E04  JC 13A8
-10A7: 1DE4  JC 1399
-10A8: 1DE2  JC 1399
-10A9: 1DFE  JC 13A8
-10AA: 1E2A  JC 13BF
-10AB: 1DFA  JC 13A8
-10AC: 1DF8  JC 13A8
-10AD: 1E22  JC 13BE
-10AE: 1DF4  JC 13A8
-10AF: 1DF2  JC 13A8
-10B0: 1E54  JC 13DA
-10B1: 1DEE  JC 13A8
-10B2: 1E02  JC 13B3
-10B3: 1DCC  JC 1399
-10B4: 1DCC  JC 139A
-10B5: 1E06  JC 13B8
-10B6: 1DF6  JC 13B1
-10B7: 1DC4  JC 1399
-10B8: 1E20  JC 13C8
-10B9: 1DFA  JC 13B6
-10BA: 1DFE  JC 13B9
-10BB: 1DE0  JC 13AB
-10BC: 1DEA  JC 13B1
-10BD: 1DF2  JC 13B6
+10A0: 1E2C  JC 13B6           ; keycode 50 "IxI": right char 'I' (code 20)
+10A1: 1E46  JC 13C4           ; keycode 50 "IxI": middle char 'x' (code 40)
+10A2: 1E28  JC 13B6           ; keycode 50 "IxI": left char 'I' (code 20)
+10A3: 1E10  JC 13AB           ; keycode 51 "BST": right char 'T' (code 31)
+10A4: 1E10  JC 13AC           ; keycode 51 "BST": middle char 'S' (code 30)
+10A5: 1DEE  JC 139C           ; keycode 51 "BST": left char 'B' (code 12)
+10A6: 1E04  JC 13A8           ; keycode 52 "EE ": right char ' ' (code 0)
+10A7: 1DE4  JC 1399           ; keycode 52 "EE ": middle char 'E' (code 15)
+10A8: 1DE2  JC 1399           ; keycode 52 "EE ": left char 'E' (code 15)
+10A9: 1DFE  JC 13A8           ; keycode 53 " ( ": right char ' ' (code 0)
+10AA: 1E2A  JC 13BF           ; keycode 53 " ( ": middle char '(' (code 45)
+10AB: 1DFA  JC 13A8           ; keycode 53 " ( ": left char ' ' (code 0)
+10AC: 1DF8  JC 13A8           ; keycode 54 " ) ": right char ' ' (code 0)
+10AD: 1E22  JC 13BE           ; keycode 54 " ) ": middle char ')' (code 46)
+10AE: 1DF4  JC 13A8           ; keycode 54 " ) ": left char ' ' (code 0)
+10AF: 1DF2  JC 13A8           ; keycode 55 " ∑ ": right char ' ' (code 0)
+10B0: 1E54  JC 13DA           ; keycode 55 " ∑ ": middle char '∑' (code 63)
+10B1: 1DEE  JC 13A8           ; keycode 55 " ∑ ": left char ' ' (code 0)
+10B2: 1E02  JC 13B3           ; keycode 56 "DEL": right char 'L' (code 23)
+10B3: 1DCC  JC 1399           ; keycode 56 "DEL": middle char 'E' (code 15)
+10B4: 1DCC  JC 139A           ; keycode 56 "DEL": left char 'D' (code 14)
+10B5: 1E06  JC 13B8           ; keycode 57 "ENG": right char 'G' (code 18)
+10B6: 1DF6  JC 13B1           ; keycode 57 "ENG": middle char 'N' (code 25)
+10B7: 1DC4  JC 1399           ; keycode 57 "ENG": left char 'E' (code 15)
+10B8: 1E20  JC 13C8           ; keycode 58 "FIX": right char 'X' (code 36)
+10B9: 1DFA  JC 13B6           ; keycode 58 "FIX": middle char 'I' (code 20)
+10BA: 1DFE  JC 13B9           ; keycode 58 "FIX": left char 'F' (code 17)
+10BB: 1DE0  JC 13AB           ; keycode 59 "INT": right char 'T' (code 31)
+10BC: 1DEA  JC 13B1           ; keycode 59 "INT": middle char 'N' (code 25)
+10BD: 1DF2  JC 13B6           ; keycode 59 "INT": left char 'I' (code 20)
 10BE: 017E  D=SRD ALL
 10BF: 1AE9  JC 0F4B
-10C0: 1DF0  JC 13B8
-10C1: 1DB0  JC 1399
-10C2: 1DB0  JC 139A
-10C3: 1DDA  JC 13B0
-10C4: 1DCE  JC 13AB
-10C5: 1DE6  JC 13B8
-10C6: 1DFA  JC 13C3
-10C7: 1DE2  JC 13B8
-10C8: 1DCE  JC 13AF
-10C9: 1DF4  JC 13C3
-10CA: 1DFC  JC 13C8
-10CB: 1D9C  JC 1399
-10CC: 1DEE  JC 13C3
-10CD: 1D9A  JC 139A
-10CE: 1DC2  JC 13AF
-10CF: 1DB2  JC 13A8
-10D0: 1DE8  JC 13C4
-10D1: 1DAE  JC 13A8
-10D2: 1DF2  JC 13CB
-10D3: 1D94  JC 139D
-10D4: 1DB6  JC 13AF
-10D5: 1DB2  JC 13AE
-10D6: 1D86  JC 1399
-10D7: 1DA2  JC 13A8
-10D8: 1DAE  JC 13AF
-10D9: 1DAE  JC 13B0
-10DA: 1DAE  JC 13B1
-10DB: 1D9A  JC 13A8
-10DC: 1DA6  JC 13AF
-10DD: 1DA6  JC 13B0
+10C0: 1DF0  JC 13B8           ; keycode 60 "DEG": right char 'G' (code 18)
+10C1: 1DB0  JC 1399           ; keycode 60 "DEG": middle char 'E' (code 15)
+10C2: 1DB0  JC 139A           ; keycode 60 "DEG": left char 'D' (code 14)
+10C3: 1DDA  JC 13B0           ; keycode 61 "GTO": right char 'O' (code 26)
+10C4: 1DCE  JC 13AB           ; keycode 61 "GTO": middle char 'T' (code 31)
+10C5: 1DE6  JC 13B8           ; keycode 61 "GTO": left char 'G' (code 18)
+10C6: 1DFA  JC 13C3           ; keycode 62 "PG*": right char '*' (code 41)
+10C7: 1DE2  JC 13B8           ; keycode 62 "PG*": middle char 'G' (code 18)
+10C8: 1DCE  JC 13AF           ; keycode 62 "PG*": left char 'P' (code 27)
+10C9: 1DF4  JC 13C3           ; keycode 63 "EX*": right char '*' (code 41)
+10CA: 1DFC  JC 13C8           ; keycode 63 "EX*": middle char 'X' (code 36)
+10CB: 1D9C  JC 1399           ; keycode 63 "EX*": left char 'E' (code 15)
+10CC: 1DEE  JC 13C3           ; keycode 64 "PD*": right char '*' (code 41)
+10CD: 1D9A  JC 139A           ; keycode 64 "PD*": middle char 'D' (code 14)
+10CE: 1DC2  JC 13AF           ; keycode 64 "PD*": left char 'P' (code 27)
+10CF: 1DB2  JC 13A8           ; keycode 65 " x ": right char ' ' (code 0)
+10D0: 1DE8  JC 13C4           ; keycode 65 " x ": middle char 'x' (code 40)
+10D1: 1DAE  JC 13A8           ; keycode 65 " x ": left char ' ' (code 0)
+10D2: 1DF2  JC 13CB           ; keycode 66 "PAU": right char 'U' (code 33)
+10D3: 1D94  JC 139D           ; keycode 66 "PAU": middle char 'A' (code 11)
+10D4: 1DB6  JC 13AF           ; keycode 66 "PAU": left char 'P' (code 27)
+10D5: 1DB2  JC 13AE           ; keycode 67 " EQ": right char 'Q' (code 28)
+10D6: 1D86  JC 1399           ; keycode 67 " EQ": middle char 'E' (code 15)
+10D7: 1DA2  JC 13A8           ; keycode 67 " EQ": left char ' ' (code 0)
+10D8: 1DAE  JC 13AF           ; keycode 68 "NOP": right char 'P' (code 27)
+10D9: 1DAE  JC 13B0           ; keycode 68 "NOP": middle char 'O' (code 26)
+10DA: 1DAE  JC 13B1           ; keycode 68 "NOP": left char 'N' (code 25)
+10DB: 1D9A  JC 13A8           ; keycode 69 "OP ": right char ' ' (code 0)
+10DC: 1DA6  JC 13AF           ; keycode 69 "OP ": middle char 'P' (code 27)
+10DD: 1DA6  JC 13B0           ; keycode 69 "OP ": left char 'O' (code 26)
 10DE: 017E  D=SRD ALL
 10DF: 1F21  JC 0D4F
-10E0: 1D74  JC 139A
-10E1: 1D78  JC 139D
-10E2: 1D96  JC 13AD
-10E3: 1D94  JC 13AD
-10E4: 1D70  JC 139C
-10E5: 1D8E  JC 13AC
-10E6: 1DBA  JC 13C3
-10E7: 1D88  JC 13AB
-10E8: 1D88  JC 13AC
-10E9: 1DB4  JC 13C3
-10EA: 1D62  JC 139B
-10EB: 1D84  JC 13AD
-10EC: 1DAE  JC 13C3
-10ED: 1D8A  JC 13B2
-10EE: 1D7C  JC 13AC
-10EF: 1D72  JC 13A8
-10F0: 1D94  JC 13BA
-10F1: 1D6E  JC 13A8
-10F2: 1D82  JC 13B3
-10F3: 1D52  JC 139C
-10F4: 1D7E  JC 13B3
-10F5: 1D48  JC 1399
-10F6: 1D84  JC 13B8
-10F7: 1D62  JC 13A8
-10F8: 1D60  JC 13A8
-10F9: 1D98  JC 13C5
-10FA: 1DBC  JC 13D8
-10FB: 1D5A  JC 13A8
-10FC: 1DC2  JC 13DD
-10FD: 1D56  JC 13A8
+10E0: 1D74  JC 139A           ; keycode 70 "RAD": right char 'D' (code 14)
+10E1: 1D78  JC 139D           ; keycode 70 "RAD": middle char 'A' (code 11)
+10E2: 1D96  JC 13AD           ; keycode 70 "RAD": left char 'R' (code 29)
+10E3: 1D94  JC 13AD           ; keycode 71 "SBR": right char 'R' (code 29)
+10E4: 1D70  JC 139C           ; keycode 71 "SBR": middle char 'B' (code 12)
+10E5: 1D8E  JC 13AC           ; keycode 71 "SBR": left char 'S' (code 30)
+10E6: 1DBA  JC 13C3           ; keycode 72 "ST*": right char '*' (code 41)
+10E7: 1D88  JC 13AB           ; keycode 72 "ST*": middle char 'T' (code 31)
+10E8: 1D88  JC 13AC           ; keycode 72 "ST*": left char 'S' (code 30)
+10E9: 1DB4  JC 13C3           ; keycode 73 "RC*": right char '*' (code 41)
+10EA: 1D62  JC 139B           ; keycode 73 "RC*": middle char 'C' (code 13)
+10EB: 1D84  JC 13AD           ; keycode 73 "RC*": left char 'R' (code 29)
+10EC: 1DAE  JC 13C3           ; keycode 74 "SM*": right char '*' (code 41)
+10ED: 1D8A  JC 13B2           ; keycode 74 "SM*": middle char 'M' (code 24)
+10EE: 1D7C  JC 13AC           ; keycode 74 "SM*": left char 'S' (code 30)
+10EF: 1D72  JC 13A8           ; keycode 75 " - ": right char ' ' (code 0)
+10F0: 1D94  JC 13BA           ; keycode 75 " - ": middle char '-' (code 16)
+10F1: 1D6E  JC 13A8           ; keycode 75 " - ": left char ' ' (code 0)
+10F2: 1D82  JC 13B3           ; keycode 76 "LBL": right char 'L' (code 23)
+10F3: 1D52  JC 139C           ; keycode 76 "LBL": middle char 'B' (code 12)
+10F4: 1D7E  JC 13B3           ; keycode 76 "LBL": left char 'L' (code 23)
+10F5: 1D48  JC 1399           ; keycode 77 " GE": right char 'E' (code 15)
+10F6: 1D84  JC 13B8           ; keycode 77 " GE": middle char 'G' (code 18)
+10F7: 1D62  JC 13A8           ; keycode 77 " GE": left char ' ' (code 0)
+10F8: 1D60  JC 13A8           ; keycode 78 "∑+ ": right char ' ' (code 0)
+10F9: 1D98  JC 13C5           ; keycode 78 "∑+ ": middle char '+' (code 39)
+10FA: 1DBC  JC 13D8           ; keycode 78 "∑+ ": left char '∑' (code 63)
+10FB: 1D5A  JC 13A8           ; keycode 79 " Ⅱ ": right char ' ' (code 0)
+10FC: 1DC2  JC 13DD           ; keycode 79 " Ⅱ ": middle char 'Ⅱ' (code 60)
+10FD: 1D56  JC 13A8           ; keycode 79 " Ⅱ ": left char ' ' (code 0)
 10FE: 01D7  A<>E ALL
 10FF: 1C59  JC 0ED3
-1100: 1D34  JC 139A
-1101: 1D58  JC 13AD
-1102: 1D6C  JC 13B8
-1103: 1D50  JC 13AB
-1104: 1D50  JC 13AC
-1105: 1D50  JC 13AD
-1106: 1D4E  JC 13AD
-1107: 1D5E  JC 13B6
-1108: 1D5E  JC 13B7
-1109: 1D74  JC 13C3
-110A: 1D4C  JC 13B0
-110B: 1D5A  JC 13B8
-110C: 1D6E  JC 13C3
-110D: 1D44  JC 13AF
-110E: 1D44  JC 13B0
-110F: 1D32  JC 13A8
-1110: 1D6A  JC 13C5
-1111: 1D2E  JC 13A8
-1112: 1D4E  JC 13B9
-1113: 1D30  JC 13AB
-1114: 1D30  JC 13AC
-1115: 1D48  JC 13B9
-1116: 1D46  JC 13B9
-1117: 1D3E  JC 13B6
-1118: 1D28  JC 13AC
-1119: 1D32  JC 13B2
-111A: 1D00  JC 139A
-111B: 1D1A  JC 13A8
-111C: 1D4A  JC 13C1
-111D: 1D16  JC 13A8
+1100: 1D34  JC 139A           ; keycode 80 "GRD": right char 'D' (code 14)
+1101: 1D58  JC 13AD           ; keycode 80 "GRD": middle char 'R' (code 29)
+1102: 1D6C  JC 13B8           ; keycode 80 "GRD": left char 'G' (code 18)
+1103: 1D50  JC 13AB           ; keycode 81 "RST": right char 'T' (code 31)
+1104: 1D50  JC 13AC           ; keycode 81 "RST": middle char 'S' (code 30)
+1105: 1D50  JC 13AD           ; keycode 81 "RST": left char 'R' (code 29)
+1106: 1D4E  JC 13AD           ; keycode 82 "HIR": right char 'R' (code 29)
+1107: 1D5E  JC 13B6           ; keycode 82 "HIR": middle char 'I' (code 20)
+1108: 1D5E  JC 13B7           ; keycode 82 "HIR": left char 'H' (code 19)
+1109: 1D74  JC 13C3           ; keycode 83 "GO*": right char '*' (code 41)
+110A: 1D4C  JC 13B0           ; keycode 83 "GO*": middle char 'O' (code 26)
+110B: 1D5A  JC 13B8           ; keycode 83 "GO*": left char 'G' (code 18)
+110C: 1D6E  JC 13C3           ; keycode 84 "OP*": right char '*' (code 41)
+110D: 1D44  JC 13AF           ; keycode 84 "OP*": middle char 'P' (code 27)
+110E: 1D44  JC 13B0           ; keycode 84 "OP*": left char 'O' (code 26)
+110F: 1D32  JC 13A8           ; keycode 85 " + ": right char ' ' (code 0)
+1110: 1D6A  JC 13C5           ; keycode 85 " + ": middle char '+' (code 39)
+1111: 1D2E  JC 13A8           ; keycode 85 " + ": left char ' ' (code 0)
+1112: 1D4E  JC 13B9           ; keycode 86 "STF": right char 'F' (code 17)
+1113: 1D30  JC 13AB           ; keycode 86 "STF": middle char 'T' (code 31)
+1114: 1D30  JC 13AC           ; keycode 86 "STF": left char 'S' (code 30)
+1115: 1D48  JC 13B9           ; keycode 87 "IFF": right char 'F' (code 17)
+1116: 1D46  JC 13B9           ; keycode 87 "IFF": middle char 'F' (code 17)
+1117: 1D3E  JC 13B6           ; keycode 87 "IFF": left char 'I' (code 20)
+1118: 1D28  JC 13AC           ; keycode 88 "DMS": right char 'S' (code 30)
+1119: 1D32  JC 13B2           ; keycode 88 "DMS": middle char 'M' (code 24)
+111A: 1D00  JC 139A           ; keycode 88 "DMS": left char 'D' (code 14)
+111B: 1D1A  JC 13A8           ; keycode 89 " π ": right char ' ' (code 0)
+111C: 1D4A  JC 13C1           ; keycode 89 " π ": middle char 'π' (code 43)
+111D: 1D16  JC 13A8           ; keycode 89 " π ": left char ' ' (code 0)
 111E: 0100  A=A ALL
 111F: 1FDB  JC 0D32
-1120: 1D16  JC 13AB
-1121: 1D16  JC 13AC
-1122: 1D22  JC 13B3
-1123: 1D12  JC 13AC
-1124: 1D7A  JC 13E1
-1125: 1D10  JC 13AD
-1126: 1D16  JC 13B1
-1127: 1D08  JC 13AB
-1128: 1D0A  JC 13AD
-1129: 1CFE  JC 13A8
-112A: 1D44  JC 13CC
-112B: 1CFA  JC 13A8
-112C: 1D1C  JC 13BA
-112D: 1D68  JC 13E1
-112E: 1D2E  JC 13C5
-112F: 1CF2  JC 13A8
-1130: 1D60  JC 13E0
-1131: 1CEE  JC 13A8
-1132: 1CF2  JC 13AB
-1133: 1CF4  JC 13AD
-1134: 1D2A  JC 13C9
-1135: 1D22  JC 13C6
-1136: 1CEC  JC 13AC
-1137: 1CC6  JC 139A
-1138: 1D24  JC 13CA
-1139: 1CC2  JC 139A
-113A: 1CC6  JC 139D
-113B: 1CE0  JC 13AB
-113C: 1CE2  JC 13AD
-113D: 1CE4  JC 13AF
+1120: 1D16  JC 13AB           ; keycode 90 "LST": right char 'T' (code 31)
+1121: 1D16  JC 13AC           ; keycode 90 "LST": middle char 'S' (code 30)
+1122: 1D22  JC 13B3           ; keycode 90 "LST": left char 'L' (code 23)
+1123: 1D12  JC 13AC           ; keycode 91 "R²S": right char 'S' (code 30)
+1124: 1D7A  JC 13E1           ; keycode 91 "R²S": middle char '²' (code 56)
+1125: 1D10  JC 13AD           ; keycode 91 "R²S": left char 'R' (code 29)
+1126: 1D16  JC 13B1           ; keycode 92 "RTN": right char 'N' (code 25)
+1127: 1D08  JC 13AB           ; keycode 92 "RTN": middle char 'T' (code 31)
+1128: 1D0A  JC 13AD           ; keycode 92 "RTN": left char 'R' (code 29)
+1129: 1CFE  JC 13A8           ; keycode 93 " . ": right char ' ' (code 0)
+112A: 1D44  JC 13CC           ; keycode 93 " . ": middle char '.' (code 32)
+112B: 1CFA  JC 13A8           ; keycode 93 " . ": left char ' ' (code 0)
+112C: 1D1C  JC 13BA           ; keycode 94 "+²-": right char '-' (code 16)
+112D: 1D68  JC 13E1           ; keycode 94 "+²-": middle char '²' (code 56)
+112E: 1D2E  JC 13C5           ; keycode 94 "+²-": left char '+' (code 39)
+112F: 1CF2  JC 13A8           ; keycode 95 " ? ": right char ' ' (code 0)
+1130: 1D60  JC 13E0           ; keycode 95 " ? ": middle char '?' (code 57)
+1131: 1CEE  JC 13A8           ; keycode 95 " ? ": left char ' ' (code 0)
+1132: 1CF2  JC 13AB           ; keycode 96 "WRT": right char 'T' (code 31)
+1133: 1CF4  JC 13AD           ; keycode 96 "WRT": middle char 'R' (code 29)
+1134: 1D2A  JC 13C9           ; keycode 96 "WRT": left char 'W' (code 35)
+1135: 1D22  JC 13C6           ; keycode 97 "DSZ": right char 'Z' (code 38)
+1136: 1CEC  JC 13AC           ; keycode 97 "DSZ": middle char 'S' (code 30)
+1137: 1CC6  JC 139A           ; keycode 97 "DSZ": left char 'D' (code 14)
+1138: 1D24  JC 13CA           ; keycode 98 "ADV": right char 'V' (code 34)
+1139: 1CC2  JC 139A           ; keycode 98 "ADV": middle char 'D' (code 14)
+113A: 1CC6  JC 139D           ; keycode 98 "ADV": left char 'A' (code 11)
+113B: 1CE0  JC 13AB           ; keycode 99 "PRT": right char 'T' (code 31)
+113C: 1CE2  JC 13AD           ; keycode 99 "PRT": middle char 'R' (code 29)
+113D: 1CE4  JC 13AF           ; keycode 99 "PRT": left char 'P' (code 27)
 113E: 0A47  MOV R5,#4
 113F: 1804  JC 1141
 1140: 0A37  MOV R5,#3

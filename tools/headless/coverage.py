@@ -145,6 +145,25 @@ SCENARIOS: dict[str, tuple] = {
     "op_print": ([S("1", "7", "Op", "0", "1")], S("Op", "0", "5"), {"printer": True}),
     "op_alpha": ([], S("1", "7", "Op", "0", "1"), {"printer": True}),
 }
+
+# ── Op codes, printer, cards (added for the printer/card/Op passes) ──
+for n in ["00","01","02","03","04","05","06","07","08","09","10","11","12","13","14","15","16","17","18","19","20","25","30","35"]:
+    SCENARIOS["op"+n] = ([S("1", "2", ".", "5")], S("Op", n[0], n[1]), {"printer": True})
+SCENARIOS["op_alpha_line"] = ([S("1","3","2","1","0","0","Op","0","1")], S("Op", "0", "5"), {"printer": True})
+SCENARIOS["op06"] = ([S("1","3","2","1","0","0","Op","0","4","7")], S("Op", "0", "6"), {"printer": True})
+SCENARIOS["op07"] = ([S("5")], S("Op", "0", "7"), {"printer": True})
+SCENARIOS["op08_labels"] = ([S("LRN","Lbl","A","5","Lbl","B","LRN")], S("Op", "0", "8"), {"printer": True})
+SCENARIOS["op09_pgm"] = ([S("Pgm","0","2")], S("Op", "0", "9"))
+SCENARIOS["list_labels"] = ([S("LRN","Lbl","A","STO","1","2","GTO","A","LRN","RST")], S("List"), {"printer": True})
+SCENARIOS["prt_lrn"] = ([S("LRN","5","+")], S("Prt"), {"printer": True})
+SCENARIOS["trace_run"] = ([S("LRN","5","+","3","=","R/S","LRN","RST")], S("R/S"), {"printer": True, "trace": True})
+SCENARIOS["pause_run"] = ([S("LRN","5","Pause","Pause","R/S","LRN","RST")], S("R/S"))
+SCENARIOS["write_card"] = ([S("LRN","5","LRN")], S("1", "Write"))
+SCENARIOS["ins_del"] = ([S("LRN","1","2","3","4","BST","BST")], S("Ins","Del","LRN"))
+SCENARIOS["cms_regs"] = ([S("5","STO","0","5")], S("CMs","RCL","0","5"))
+SCENARIOS["hir"] = ([], S("5","STO","0","5","CLR","RCL","0","5","x2","="))
+SCENARIOS["ind_sbr"] = ([S("LRN","Lbl","A","9","INV","SBR","LRN","1","1","STO","0","1")], S("SBR","Ind","0","1"))
+
 # Fix placeholders with real sequences
 SCENARIOS["pct_add"] = ([], S("2", "+", "3", "x>=t"))  # x>=t from keyboard = no-op test
 SCENARIOS["pgm01"] = ([], S("Pgm", "0", "1", "SBR", "0", "0", "0"))
