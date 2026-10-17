@@ -2703,6 +2703,8 @@
 0802: 1BF3  JC 0609           ; R/S executed as a program step: halt
 0803: 0A97  MOV R5,#9
 0804: 02F6  D=R5 DPT
+; Print-op entry (Op 00–05, 07): Op number into A (E), then the print
+; sequence 053F (fn-table bank 0x0540) dispatches on it (print engine 165A).
 0805: 01D7  A<>E ALL
 0806: 0231  IO=D DPT
 0807: 09F0  A=R5 MANT
@@ -3001,18 +3003,23 @@
 08E1: 0A57  MOV R5,#5
 08E2: 0A18  MOV KR[4..7],R5
 08E3: 1E87  JC 05A0
-08E4: 01D7  A<>E ALL
+; OP_DISPATCH (after slot 0102 collected nn): Op 40–99 → 0CE4 (no function);
+; Op 2x / 3x → 0CBC: increment / decrement data register x (fA[11] =
+; decrement) through the register read-modify-write path; Op 00–19 → 0CB7 →
+; computed jump into OP_TABLE at 0x0A00 + 16·tens + units (built by the
+; scanner's KR code at 0F5C). Trace-confirmed for Op 00–19, 20, 25, 30, 35, 40.
+08E4: 01D7  A<>E ALL          ; A := nn
 08E5: 0948  A=SRA MANT
 08E6: 02F6  D=R5 DPT
 08E7: 0A47  MOV R5,#4
 08E8: 09F6  D=R5 MANT
-08E9: 09B9  IO=A-D MANT
-08EA: 1FF4  JC 0CE4
-08EB: 0D08  A=A-1 MLSD1
+08E9: 09B9  IO=A-D MANT       ; nn ≥ 40?
+08EA: 1FF4  JC 0CE4           ; yes → 0CE4
+08EB: 0D08  A=A-1 MLSD1       ; nn − 20 …
 08EC: 0D09  IO=A-1 MLSD1
 08ED: 0501  IO=A+1 LLSD1
-08EE: 1F9C  JC 0CBC
-08EF: 1790  JNC 0CB7
+08EE: 1F9C  JC 0CBC           ; … 20–39 → register increment / decrement
+08EF: 1790  JNC 0CB7          ; 00–19 → OP_TABLE
 08F0: 0100  A=A ALL
 08F1: 0100  A=A ALL
 08F2: 0100  A=A ALL
@@ -3310,16 +3317,22 @@
 
 ; ── TMC0583  0x0A00–0x13FF  2,560 words  (ROM chip 2) ────────────────────
 
-0A00: 1BF7  JC 0805
-0A01: 1BF9  JC 0805
-0A02: 1BFB  JC 0805
-0A03: 1BFD  JC 0805
-0A04: 1BFF  JC 0805
-0A05: 1C01  JC 0805
-0A06: 199F  JC 0937
-0A07: 1C05  JC 0805
-0A08: 1BDD  JC 081A
-0A09: 1FB6  JC 0DE4
+; ═══════════════════════════════════════════════════════════════════════════
+; OP_TABLE  (0x0A00–0x0A19) — Op 00–19, slot 0x0A00 + 16·tens + units (BCD;
+; 0x0A0A–0x0A0F are ordinary code). Functions as in the TI-59 manual,
+; trace-confirmed with the headless harness (tools/headless/coverage.py op*).
+; ═══════════════════════════════════════════════════════════════════════════
+0A00: 1BF7  JC 0805           ; Op 00: clear the alphanumeric print buffer (print-op sequence
+                              ;   053F)
+0A01: 1BF9  JC 0805           ; Op 01: load print columns 1–5 from X
+0A02: 1BFB  JC 0805           ; Op 02: columns 6–10
+0A03: 1BFD  JC 0805           ; Op 03: columns 11–15
+0A04: 1BFF  JC 0805           ; Op 04: columns 16–20
+0A05: 1C01  JC 0805           ; Op 05: print the alphanumeric buffer
+0A06: 199F  JC 0937           ; Op 06: print X with the 4 characters of Op 04
+0A07: 1C05  JC 0805           ; Op 07: plot (asterisk at column X)
+0A08: 1BDD  JC 081A           ; Op 08: list the labels
+0A09: 1FB6  JC 0DE4           ; Op 09: download the selected library program into RAM
 0A0A: 03D3  B=LOAD DPT1
 0A0B: 1F8C  JC 0DD1
 ; ln of zero / non-positive argument: ERROR.
@@ -3327,16 +3340,16 @@
 0A0D: 0051  SET fA[5]
 0A0E: 1895  JC 09C4
 0A0F: 17DF  JNC 0620
-0A10: 1FE6  JC 0E03
-0A11: 1C0B  JC 080C
-0A12: 1F7C  JC 0DD0
-0A13: 184A  JC 0A38
-0A14: 1DC2  JC 0CF5
-0A15: 1817  JC 0A0A
-0A16: 00E9  SET fB[14]
-0A17: 1C29  JC 0803
-0A18: 0081  SET fA[8]
-0A19: 1FDE  JC 0E08
+0A10: 1FE6  JC 0E03           ; Op 10: signum of X
+0A11: 1C0B  JC 080C           ; Op 11: variance (statistics)
+0A12: 1F7C  JC 0DD0           ; Op 12: slope and intercept
+0A13: 184A  JC 0A38           ; Op 13: correlation coefficient
+0A14: 1DC2  JC 0CF5           ; Op 14: y′ for a given x
+0A15: 1817  JC 0A0A           ; Op 15: x′ for a given y
+0A16: 00E9  SET fB[14]        ; Op 16: show the partition (fB[14] = query only), falls into …
+0A17: 1C29  JC 0803           ; Op 17: set the partition (n · 10 data registers)
+0A18: 0081  SET fA[8]         ; Op 18: set flag 7 if no error (inverted test), falls into …
+0A19: 1FDE  JC 0E08           ; Op 19: set flag 7 if an error is pending
 ; RAM address encoding for RAM.OP: the bus carries op in nibble 0, units in
 ; nibble 2 and the tens in nibble 3 — a HEXADECIMAL nibble 0–B for registers
 ; 0–119. 100–119 are prepared as (n − 20) plus a marker in A[0], which the
@@ -4078,14 +4091,14 @@
 0CB8: 0A0C  MOV KR,EXT[4..15]
 0CB9: 0A18  MOV KR[4..7],R5
 0CBA: 01D7  A<>E ALL
-0CBB: 1D42  JC 0F5C
-0CBC: 0D08  A=A-1 MLSD1
+0CBB: 1D42  JC 0F5C           ; build KR = 0xA000 | tens<<8 | units<<4 and jump
+0CBC: 0D08  A=A-1 MLSD1       ; Op 2x/3x: register number x …
 0CBD: 0D09  IO=A-1 MLSD1
 0CBE: 0231  IO=D DPT
 0CBF: 09F0  A=R5 MANT
 0CC0: 01D7  A<>E ALL
-0CC1: 1B0D  JC 0B3B
-0CC2: 00B1  SET fA[11]
+0CC1: 1B0D  JC 0B3B           ; Op 2x: + 1
+0CC2: 00B1  SET fA[11]        ; Op 3x: − 1
 0CC3: 1B11  JC 0B3B
 0CC4: 0A75  TST KR[7]
 0CC5: 1046  JNC 0CE8
