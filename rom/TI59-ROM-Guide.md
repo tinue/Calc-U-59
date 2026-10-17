@@ -271,7 +271,8 @@ n + 2 (0 = floating); fB[15] = sci, fB[7] = eng.
   In operand position any key is stored as its own keycode (`STO B` is
   recorded as 42 12, i.e. STO 12, and `GTO GTO` as 61 61). The exceptions are
   the editing keys SST, BST, Ins, Del and LRN, which act instead, and
-  INV SBR, which merges into the compact RTN code 92. All trace-checked by a
+  INV SBR, which merges into the compact RTN code 92. It is the only INV
+  combination that merges; every other INV is recorded as a 22 step. All trace-checked by a
   prefix × key sweep in LRN mode.
 - **Keycodes that keys cannot record** still execute if they get into
   program memory (via HIR, Ins on a stale cache, or a written card). All
