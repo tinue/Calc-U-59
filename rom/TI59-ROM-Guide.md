@@ -354,7 +354,9 @@ All trace-confirmed with the headless harness:
   sets SCOM[9] nibble 2. From then on LRN is refused and writing a bank that
   lies entirely in program memory errors (`16A4`), while banks that are only
   partly or not at all program memory stay writable. The bank shows as
-  negative. CP clears the protection.
+  negative. Protected memory also turns off List (`0D2E`), Op 08, trace
+  printing (both the TRACE switch and flag 9, `068E`) and the GTO display
+  peek (`07D2`). CP clears the protection.
 
 ## Printing
 

@@ -1376,8 +1376,8 @@
 03F9: 1608  JNC 06FD          ; yes → advance one step and redisplay
 03FA: 00D9  SET fB[13]        ; run mode: single-step flag, falls into …
 ; KEY_LRN: "LRN" handler (slot 0013). Refused (→ 03E5) when the partition has
-; no program registers (SCOM[9] nibble 0 = 0) or a protected library program
-; is selected (SCOM[9] nibble 2 = module security code ≠ 0). Otherwise toggles
+; no program registers (SCOM[9] nibble 0 = 0) or memory is protected (SCOM[9]
+; nibble 2 ≠ 0, set by reading a protected card at 17F3). Otherwise toggles
 ; LRN mode (fB[10], 03D8) and fetches/displays the current step (06F3).
 03FB: 0A97  MOV R5,#9         ; SCOM[9] …
 03FC: 02F3  B=R5 DPT
@@ -1387,7 +1387,7 @@
 0400: 0219  IO=-B DPT         ; partition (nibble 0) zero?
 0401: 1839  JC 03E5           ; yes → no program memory, ignore
 0402: 065B  B=SRB EXP
-0403: 0619  IO=-B EXP         ; security code (nibble 2) set?
+0403: 0619  IO=-B EXP         ; memory protected (nibble 2)?
 0404: 103F  JNC 03E5          ; yes → protected, ignore
 0405: 00D8  TST fB[13]        ; SST (03FA set fB[13])?
 0406: 185D  JC 03D8           ; no → LRN toggle
@@ -2299,7 +2299,7 @@
 068B: 0A10  WAIT D1
 068C: 08FB  KEY [P]           ; printer present?
 068D: 182A  JC 06A2           ; no printer → skip straight to dispatch
-068E: 0A97  MOV R5,#9
+068E: 0A97  MOV R5,#9         ; memory protected (SCOM[9] nibble 2)? then no trace at all
 068F: 02F6  D=R5 DPT
 0690: 0131  IO=D ALL
 0691: 0A1F  RCLF
@@ -2710,12 +2710,13 @@
 ; Run-loop key polls (trace-confirmed, headless harness): holding the key at
 ; matrix row 6 / column 1 (GTO) while a RAM program runs makes every second
 ; step light the display for ~256 cycles (04E6), showing the intermediate X
-; values — an undocumented "peek"; skipped when a module security code is
-; set. Holding R/S (row 9 / column 1) stops the run.
+; values — an undocumented "peek"; skipped when memory is protected (a
+; protected card was read, SCOM[9] nibble 2). Holding R/S (row 9 / column 1)
+; stops the run.
 07CF: 0A70  WAIT D7           ; poll row 6 / column 1 (the GTO key) …
 07D0: 08FD  KEY [O]
 07D1: 1818  JC 07DD           ; not held → R/S poll
-07D2: 0A97  MOV R5,#9         ; held: SCOM[9] security code …
+07D2: 0A97  MOV R5,#9         ; held: SCOM[9] nibble 2 (protected memory) …
 07D3: 02F6  D=R5 DPT
 07D4: 0131  IO=D ALL
 07D5: 0A1F  RCLF
@@ -4346,7 +4347,7 @@
 0D2B: 0A1F  RCLF
 0D2C: 06D3  B=LOAD EXP
 0D2D: 065B  B=SRB EXP
-0D2E: 0619  IO=-B EXP         ; module security code set?
+0D2E: 0619  IO=-B EXP         ; memory protected (card)?
 0D2F: 1216  JNC 0E3A          ; yes → no listing of a protected program
 0D30: 00A9  SET fB[10]
 0D31: 0041  SET fA[4]         ; printing mode for the step fetch
