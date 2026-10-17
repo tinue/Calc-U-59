@@ -83,7 +83,8 @@ All methods put X = 1.000000000002 (or …04, …06) on the display first;
 `1 + 2 EE 12 +/- =` produces it exactly.
 
 - **SST** (shortest; `examples/fastmode-sst.ti59`). Put a St flg step at step
-  8k+7, for example 007, and start the real program at the next step. Key
+  007 (the last step of the first 8-step block; see "How the hack works") and
+  start the real program at step 008. Key
   `GTO 007 SST 0 STO`.
 - **St flg at the end of the partition** (TI PPC Notes V9N3P5;
   `examples/fastmode.ti59`). The program ends with St flg on the last step and
@@ -127,10 +128,29 @@ HIR STO, with register number 0.
 From the next step on, the run loop sees "non-zero source" and takes the fast
 path, while the fetch still reads from RAM.
 
-The program starts at step 008, not 001. The firmware keeps the current
-8-step block of program memory in a small cache. The jump to step 000 does
-not refresh that cache, so steps 001–007 execute as empty steps. This is why
-the St flg goes at the end of a block.
+**Why the program starts at step 008.** Program memory is stored in blocks
+of 8 steps: 000–007, 008–015, 016–023, and so on. The firmware does not read
+each step from memory separately. When a block begins, it copies the whole
+block into a working buffer and then takes one step at a time out of that
+buffer. It reads memory again only when the buffer is used up and the next
+block begins.
+
+The hack sets the step counter to 000 but leaves the buffer alone. The buffer
+still holds the rest of the block in which St flg was found. So the next
+steps are not steps 001, 002, … from memory. They are whatever followed
+St flg in its own block:
+
+- **St flg on the last step of a block** (007, 015, 023, …): nothing
+  follows it, so the buffer is empty. Steps 001–007 run as empty steps (each
+  one types a harmless 0). At step 008 a new block begins, the firmware reads
+  memory again, and the real program runs from there.
+- **St flg anywhere else**, for example on step 012: steps 013–015 are still
+  in the buffer, so they run in place of steps 001–003, followed by empty
+  steps up to 007. That works too, but it is confusing.
+
+That is why St flg is put at step 007 (or 015, 023, …), and the program
+proper starts at step 008. Steps 000–006 can hold anything, because they are
+never read during the run.
 
 **Why the restrictions follow.** All the other places that look at the source
 digit also ask only "non-zero?", and each draws the conclusion that suits a
