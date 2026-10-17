@@ -2730,14 +2730,17 @@
 07DF: 1016  JNC 07EA          ; pressed → stop (KEY_RS)
 07E0: 0098  TST fB[9]         ; error pending?
 07E1: 19A0  JC 08B1           ; no → next step
-07E2: 01D7  A<>E ALL
+07E2: 01D7  A<>E ALL          ; error during a run: user flag 8 set (bit 1 of SCOM[0] nibble
+                              ;   14)?
 07E3: 0A1F  RCLF
 07E4: 09D0  A=LOAD MANT
 07E5: 0140  A=SLA ALL
 07E6: 0E08  A=A-1 MMSD1
 07E7: 0E09  IO=A-1 MMSD1
 07E8: 01D7  A<>E ALL
-07E9: 1190  JNC 08B1
+07E9: 1190  JNC 08B1          ; no → keep running (error flag stays, blinks at the stop); yes →
+                              ;   stop at once (07EA). Trace-checked: "1/0= 5 R/S" ends showing
+                              ;   a blinking 5, with St flg 8 it halts at 9.9999999 99
 ; KEY_RS: "R/S" handler (slot 0019 → 040A; also the run loop's R/S poll at
 ; 07DF). Running → stop (07FD TOG fB[0]). Stopped → first wait until R/S is
 ; released (07EC–07EE: WAIT D10 + KEY [O] samples the R/S key, row 9 column 1),

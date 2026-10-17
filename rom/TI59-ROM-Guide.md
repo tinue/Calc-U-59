@@ -292,6 +292,9 @@ n + 2 (0 = floating); fB[15] = sci, fB[7] = eng.
   `COND_TRANSFER` (`0499`) applies INV and branches or skips the address.
 - **User flags**: flag n = bit ⌊n/5⌋ of SCOM[0] nibble 11 + (n mod 5)
   (`FLAG_OP` `15BA`).
+  Flag 8 makes an error stop a running program (run loop `07E2`).
+  Without it the program keeps running and the error only blinks once the
+  program stops.
 
 ## Solid State library
 
