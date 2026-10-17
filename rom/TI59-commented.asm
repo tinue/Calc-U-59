@@ -1380,7 +1380,9 @@
 ; no program registers (SCOM[9] nibble 0 = 0) or memory is protected (SCOM[9]
 ; nibble 2 ≠ 0, set by reading a protected card at 17F3). Otherwise toggles
 ; LRN mode (fB[10], 03D8) and fetches/displays the current step (06F3).
-03FB: 0A97  MOV R5,#9         ; SCOM[9] …
+03FB: 0A97  MOV R5,#9         ; (keycode 31 executed as a program step — not recordable by keys
+                              ;   — lands here too: the run stops in LRN mode at the next step;
+                              ;   trace-checked "7 LRN 5 …" → "002 05")
 03FC: 02F3  B=R5 DPT
 03FD: 0111  IO=B ALL
 03FE: 0A1F  RCLF

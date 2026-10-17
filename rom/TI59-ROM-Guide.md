@@ -273,6 +273,12 @@ n + 2 (0 = floating); fB[15] = sci, fB[7] = eng.
   the editing keys SST, BST, Ins, Del and LRN, which act instead, and
   INV SBR, which merges into the compact RTN code 92. All trace-checked by a
   prefix × key sweep in LRN mode.
+- **Keycodes that keys cannot record** still execute if they get into
+  program memory (via HIR, Ins on a stale cache, or a written card). All
+  100 codes were run as a step (headless sweep, program "7 kc 1 2 R/S").
+  LRN (31) stops the run in LRN mode at the following step. 2nd (21), INV
+  without a function (22), Ind (40), SST (41), Ins (46), BST (51) and Del
+  (56) do nothing, so the digits around them run together into "712".
 - **Execution**: while fB[0] is set the pre-idle checks enter `RUN_LOOP`
   (`07C1`), which polls R/S, fetches the next step and dispatches it through
   `STEP_DISPATCH` (`0837`) — the keycode is turned back into a matrix
