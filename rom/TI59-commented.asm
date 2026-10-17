@@ -2723,6 +2723,8 @@
 0800: 0082  CLR fA[8]
 0801: 17F5  JNC 0407
 0802: 1BF3  JC 0609           ; R/S executed as a program step: halt
+; Op 16 / Op 17 entry (OP_TABLE 0A16/0A17): Int(X) as n, SCOM[9] — shared
+; prefix with the card code (1680), which hands Op 16/17 to PARTITION 1556.
 0803: 0A97  MOV R5,#9
 0804: 02F6  D=R5 DPT
 ; Print-op entry (Op 00–05, 07): Op number into A (E), then the print
@@ -6604,16 +6606,27 @@
 1553: 0639  IO=-D EXP
 1554: 1811  JC 154C
 1555: 162F  JNC 123E
-1556: 00E8  TST fB[14]
+; ═══════════════════════════════════════════════════════════════════════════
+; PARTITION  (0x1556–0x15AB) — Op 17 (repartition) and Op 16 (fB[14] set:
+; show only, 155D). Trace-confirmed: 3 Op 17 → 719.29, 0 Op 17 → 959.,
+; 1.5 Op 17 → 879.09, 12/13 Op 17 → 159.99 (TI-59, 4 RAM chips).
+; n = Int(X) data-register decades, at most 10 (100 registers: STO/RCL only
+; reach 00–99) and at most all of RAM (1567/1568 → 17EF error otherwise).
+; Program registers = 30·chips − 10n is written to SCOM[13] nibbles 8–9
+; (1583–1585) and SCOM[9] nibble 0 (158C/158D); fB[11] forces a cache reload
+; when the current step moved outside (1574). The display shows
+; "steps−1 . registers−1" (158E–15A7: 8 steps per program register).
+; ═══════════════════════════════════════════════════════════════════════════
+1556: 00E8  TST fB[14]        ; Op 16?
 1557: 00EA  CLR fB[14]
 1558: 0619  IO=-B EXP
 1559: 0323  B=C+1 DPT1
 155A: 0111  IO=B ALL
 155B: 0A1F  RCLF
 155C: 01D4  C=LOAD ALL
-155D: 1062  JNC 158E
+155D: 1062  JNC 158E          ; yes → just display the current partition
 155E: 0C48  A=SRA MAEX
-155F: 0D09  IO=A-1 MLSD1
+155F: 0D09  IO=A-1 MLSD1      ; n …
 1560: 1004  JNC 1562
 1561: 0DD0  A=LOAD MLSD1
 1562: 0C4B  B=SRA MAEX
@@ -6621,8 +6634,8 @@
 1564: 0C48  A=SRA MAEX
 1565: 0C48  A=SRA MAEX
 1566: 0C48  A=SRA MAEX
-1567: 068B  B=A-B EXP
-1568: 150E  JNC 17EF
+1567: 068B  B=A-B EXP         ; … more than RAM allows?
+1568: 150E  JNC 17EF          ; yes → error
 1569: 02F6  D=R5 DPT
 156A: 0606  D=A EXP
 156B: 0A1F  RCLF
@@ -6634,12 +6647,12 @@
 1571: 0C48  A=SRA MAEX
 1572: 0689  IO=A-B EXP
 1573: 1004  JNC 1575
-1574: 00B9  SET fB[11]
+1574: 00B9  SET fB[11]        ; program cache must be reloaded
 1575: 0C53  B=SLB MAEX
 1576: 0A07  MOV R5,#0
 1577: 0919  IO=-B MANT
 1578: 1804  JC 157A
-1579: 0AA7  MOV R5,#10
+1579: 0AA7  MOV R5,#10        ; cap at 10 decades (100 data registers)
 157A: 02F0  A=R5 DPT
 157B: 0C53  B=SLB MAEX
 157C: 02B6  D=A+D DPT
@@ -6650,7 +6663,7 @@
 1581: 0974  C=SLD MANT
 1582: 0D2C  C=C-1 MLSD1
 1583: 0111  IO=B ALL
-1584: 0A0F  STOF
+1584: 0A0F  STOF              ; SCOM[13] := new partition (nibbles 8–9)
 1585: 0121  IO=C ALL
 1586: 0A97  MOV R5,#9
 1587: 02F3  B=R5 DPT
@@ -6658,9 +6671,9 @@
 1589: 0A1F  RCLF
 158A: 0CD6  D=LOAD MAEX
 158B: 0111  IO=B ALL
-158C: 0A0F  STOF
+158C: 0A0F  STOF              ; SCOM[9] := new partition (nibble 0)
 158D: 0131  IO=D ALL
-158E: 0D24  C=C+1 MLSD1
+158E: 0D24  C=C+1 MLSD1       ; display: steps = 8 · program registers …
 158F: 016C  C=SRC ALL
 1590: 016C  C=SRC ALL
 1591: 016C  C=SRC ALL
@@ -6674,7 +6687,7 @@
 1599: 09A6  D=C+D MANT
 159A: 09A4  C=C+D MANT
 159B: 09A4  C=C+D MANT
-159C: 0D2C  C=C-1 MLSD1
+159C: 0D2C  C=C-1 MLSD1       ; … − 1 . data registers − 1
 159D: 1804  JC 159F
 159E: 09DC  C=0 MANT
 159F: 0729  IO=C-1 EXP1
@@ -6689,7 +6702,7 @@
 15A8: 0022  CLR fA[2]
 15A9: 005A  CLR fB[5]
 15AA: 0032  CLR fA[3]
-15AB: 1FE1  JC 11BB
+15AB: 1FE1  JC 11BB           ; show it
 15AC: 01D7  A<>E ALL
 15AD: 0920  A=C MANT
 15AE: 09DB  B=0 MANT
