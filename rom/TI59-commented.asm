@@ -2780,7 +2780,7 @@
 0818: 1FCD  JC 0432           ; yes → C += B (via 0432, which returns to 073C)
 0819: 11A3  JNC 0748          ; no → next k
 081A: 0082  CLR fA[8]
-081B: 00D1  SET fA[13]
+081B: 00D1  SET fA[13]        ; Op 08: list labels only (tested at 1161)
 081C: 1EF9  JC 04A0
 ; ═══════════════════════════════════════════════════════════════════════════
 ; SQRT  (0x081D–0x082A, body 0x0AA8–0x0AD1) — trace-confirmed (√2 =
@@ -3761,7 +3761,8 @@
 0B3A: 06D8  A=0 EXP
 0B3B: 1E51  JC 0813           ; → ARITH_EXIT
 0B3C: 00C9  SET fB[12]
-0B3D: 00D1  SET fA[13]
+0B3D: 00D1  SET fA[13]        ; LRN: an operand is being recorded — no register range check
+                              ;   (0D4B)
 0B3E: 01D7  A<>E ALL
 0B3F: 0A45  TST KR[4]
 0B40: 0A77  MOV R5,#7
@@ -4332,7 +4333,8 @@
 0D48: 097E  D=SRD MANT
 0D49: 09B9  IO=A-D MANT       ; RAM index ≥ first data register?
 0D4A: 1E61  JC 0A1A           ; yes → address encoding
-0D4B: 00D0  TST fA[13]        ; no → error (unless …)
+0D4B: 00D0  TST fA[13]        ; out of range: fine while recording an operand in LRN (fA[13]),
+                              ;   else error
 0D4C: 14AC  JNC 0FA2
 0D4D: 0092  CLR fA[9]
 0D4E: 18CF  JC 0CE7
@@ -5564,7 +5566,7 @@
 115E: 017E  D=SRD ALL         ; shift two nibbles per byte
 115F: 017E  D=SRD ALL
 1160: 1809  JC 115C
-1161: 00D0  TST fA[13]
+1161: 00D0  TST fA[13]        ; Op 08 label listing: skip lines that are not label names
 1162: 1089  JNC 111E
 1163: 0A0C  MOV KR,EXT[4..15]
 1164: 0116  D=B ALL

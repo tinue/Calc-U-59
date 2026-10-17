@@ -122,7 +122,7 @@ Meanings established so far; "set" means the bit is 1.
 | fA[10] | printer trace record pending (`0A68`) |
 | fA[11] | tan (trig sequence) |
 | fA[12] | cos (trig sequence); sin↔cos role in the octant fold |
-| fA[13] | not fully established: set by Op 08 (`081B`) and the `0x0B10`-bank argument set-up (`0B3D`), cleared at `03DD`/`05E8`, tested at REG_ADDR's out-of-range exit (`0D4B`) |
+| fA[13] | operand-only mode: LRN is recording an operand (no register range check, `0B3D`/`0D4B`); Op 08 lists only label lines (`081B`/`1161`). Verified: `LRN STO 99` with 80 data registers is accepted; Op 08 prints `001 11 A` … |
 | fA[14] | tolerate an over/underflow clamp without the error blink (`025A`) |
 | fA[15] | exponent entry (after EE during number entry) |
 | fB[0] | program running |
