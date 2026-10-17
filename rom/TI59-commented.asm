@@ -4888,11 +4888,11 @@
 0EE5: 017E  D=SRD ALL
 0EE6: 1809  JC 0EE2
 0EE7: 0130  A=D ALL           ; sign and print
-0EE8: 0D09  IO=A-1 MLSD1      ; integer part empty (0 or |x| < 1)?
+0EE8: 0D09  IO=A-1 MLSD1      ; X = 0? → leading 0 (0EF0)
 0EE9: 100E  JNC 0EF0
-0EEA: 0038  TST fB[3]         ; no: sci / negative-exponent forms skip the leading 0 …
+0EEA: 0038  TST fB[3]         ; exponent positive: integer digits present, no leading 0
 0EEB: 1818  JC 0EF7
-0EEC: 0709  IO=A-1 EXP1
+0EEC: 0709  IO=A-1 EXP1       ; negative exponent shown in sci form ("1.-02"): none either
 0EED: 1814  JC 0EF7
 0EEE: 0C19  IO=-B MAEX
 0EEF: 1810  JC 0EF7
