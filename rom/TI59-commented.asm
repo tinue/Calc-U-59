@@ -848,8 +848,9 @@
 0271: 19E5  JC 017F           ; … bank 0x00B0 → slot 00B6
 0272: 0081  SET fA[8]         ; Del: fA[8] = delete, falls into Ins …
 0273: 0A17  MOV R5,#1         ; Ins / Del: code 1 in the 0x0B10 bank → slot 0B11 → INS_DEL 0E5A
-0274: 00A8  TST fB[10]
-0275: 186A  JC 02AA
+0274: 00A8  TST fB[10]        ; BST / Ins / Del only act in LRN mode …
+0275: 186A  JC 02AA           ; … outside LRN they are ignored (trace-checked: BST in run mode
+                              ;   leaves the step counter alone)
 0276: 0085  SET KR[8]         ; KR := 0xB1x0 (0276–0279 + 0211) → slot 0x0B10 + code
 0277: 00F5  SET KR[15]
 0278: 00D5  SET KR[13]
