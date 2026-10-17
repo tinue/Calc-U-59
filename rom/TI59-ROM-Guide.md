@@ -362,6 +362,10 @@ All trace-confirmed with the headless harness:
   repartitions itself. The checksum is checked after the registers are
   stored, so a bad checksum leaves the data in RAM and blinks. Afterwards X
   shows the bank number.
+- **Write in a program** waits for the card and then the program goes on
+  ("1 Write 5 R/S" writes bank 1 and stops showing 5). An invalid bank
+  number (0 or more than 4) sets the error but still waits for a card or
+  R/S, and lets the card pass unread.
 - **n INV Write**: read, but only a card whose header is exactly bank n's.
   Any other card is refused.
 - **Protection**: `−n Write` sets the protect byte to 1. Reading such a card

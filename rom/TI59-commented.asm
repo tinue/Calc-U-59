@@ -7474,7 +7474,10 @@
 17A7: 1953  JC 16FE
 17A8: 0031  SET fA[3]         ; yes → fA[3]
 17A9: 1957  JC 16FE
-17AA: 0049  SET fB[4]         ; invalid bank → error path
+17AA: 0049  SET fB[4]         ; invalid bank: error set, but the reader still waits for a card
+                              ;   (or R/S, 16EB) and lets it pass unread — "7 Write" blanks the
+                              ;   display until then; in a program the run waits likewise
+                              ;   (trace-checked)
 17AB: 1987  JC 16E8
 17AC: 0508  A=A-1 LLSD1       ; Op 00–05: Op 01–04 → SCOM[4 + n] := X digits (17B3–17B6) …
 17AD: 0A18  MOV KR[4..7],R5
