@@ -2559,7 +2559,7 @@
 075C: 1DA2  JC 0A2D
 075D: 1DA2  JC 0A2E
 075E: 1E63  JC 042D           ; enter the MULDIV division loop (pseudo-division users)
-075F: 0A65  TST KR[6]
+075F: 0A65  TST KR[6]         ; argument key (from 05CB): digit (→ 0763) or not (→ 0766)
 0760: 180C  JC 0766
 0761: 0A55  TST KR[5]
 0762: 1808  JC 0766
@@ -2568,16 +2568,17 @@
 0763: 0008  TST fB[0]
 0764: 00D8  TST fB[13]
 0765: 1969  JC 06B1
-0766: 02D7  A<>E DPT
+0766: 02D7  A<>E DPT          ; non-digit key in argument mode: digits already collected?
 0767: 0309  IO=A-1 DPT1
 0768: 02D7  A<>E DPT
-0769: 1834  JC 0783
-076A: 0000  TST fA[0]
+0769: 1834  JC 0783           ; yes → it terminates the argument (ARG_TERMINATE)
+076A: 0000  TST fA[0]         ; none yet: a transfer address (fA[0]) or Ind (fA[7]) pending?
 076B: 0070  TST fA[7]
 076C: 0002  CLR fA[0]
-076D: 00CA  CLR fB[12]
-076E: 161A  JNC 0A7B
-076F: 19CD  JC 0689
+076D: 00CA  CLR fB[12]        ; argument mode off either way
+076E: 161A  JNC 0A7B          ; yes → the key is a label (0A7B)
+076F: 19CD  JC 0689           ; no: the operation is dropped and the key runs normally ("5 STO
+                              ;   x²" → 25, trace-checked)
 ; RECIP: "1/x" (slot 050B; X already normalized by the 041C slot before it).
 ; Trace-confirmed (1/4, and 1/0 in errorblink.txt → x÷0 exit → error blink).
 0770: 0051  SET fA[5]         ; result to be displayed
@@ -2587,7 +2588,7 @@
 0774: 0013  TOG fA[1]         ; divide (0909/0605 enter here: ±ln 10 with fA[1] preset)
 0775: 0123  B=C ALL           ; B := C (1.0 for 1/x; X itself for x², slot 0509) → MULDIV
 0776: 1F55  JC 03CC           ;   0509's entry) → MUL/DIV core, divisor in A
-0777: 0AA5  TST KR[10]        ; argument mode: column 4–5 keys (Ind, …)
+0777: 0AA5  TST KR[10]        ; argument key in columns 4–5 (from 05C0): Ind, EE, …
 0778: 0A85  TST KR[8]
 0779: 0A75  TST KR[7]
 077A: 0A55  TST KR[5]
@@ -3561,7 +3562,7 @@
 0A78: 0A55  TST KR[5]
 0A79: 1189  JNC 09B5
 0A7A: 1F93  JC 06B1
-0A7B: 0070  TST fA[7]
+0A7B: 0070  TST fA[7]         ; label key: Ind pending → 0C29
 0A7C: 135A  JNC 0C29
 0A7D: 0AB5  TST KR[11]
 0A7E: 0A75  TST KR[7]
@@ -3576,27 +3577,30 @@
 0A87: 1806  JC 0A8A
 0A88: 0A45  TST KR[4]
 0A89: 17B1  JNC 06B1
-0A8A: 00A8  TST fB[10]
+0A8A: 00A8  TST fB[10]        ; LRN: record the label key's keycode as a step (09B4)
 0A8B: 11AF  JNC 09B4
 ; ── 0A8C–0A8F: another consume site for a pending trace record (fA[10], see
 ; ── the 0689 gate): flush the queued line buffer as-is with PRT.GO.
 ; ── Not exercised in the keypress traces. ─────────────────────────────────
-0A8C: 00A0  TST fA[10]
+0A8C: 00A0  TST fA[10]        ; flush a pending trace line first
 0A8D: 00A2  CLR fA[10]
 0A8E: 1804  JC 0A90
 0A8F: 0AA8  PRT.GO
-0A90: 0001  SET fA[0]
+0A90: 0001  SET fA[0]         ; KEY_TO_KEYCODE: the label key's own keycode becomes the operand
+                              ;   — tens = row (KR[4..7]), units = column code (KR[8..11], 2nd
+                              ;   keys 6–10), column 10 → 0 (E′ = 10, tan = 30 …).
+                              ;   Trace-checked: A → 11, C → 13, C′ → 18, E′ → 10.
 0A91: 01D7  A<>E ALL
-0A92: 0A08  MOV R5,KR[4..7]
+0A92: 0A08  MOV R5,KR[4..7]   ; tens := row …
 0A93: 0CF0  A=R5 MAEX
-0A94: 0A07  MOV R5,#0
+0A94: 0A07  MOV R5,#0         ; … units built in KR[4..7] from the column bits:
 0A95: 0A18  MOV KR[4..7],R5
-0A96: 0AB5  TST KR[11]
+0A96: 0AB5  TST KR[11]        ; column 8–10?
 0A97: 1808  JC 0A9B
-0A98: 0A95  TST KR[9]
+0A98: 0A95  TST KR[9]         ; column 10 → units 0 (0AA5)
 0A99: 1018  JNC 0AA5
-0A9A: 0075  SET KR[7]
-0A9B: 0AA5  TST KR[10]
+0A9A: 0075  SET KR[7]         ; 8 / 9: bit 3
+0A9B: 0AA5  TST KR[10]        ; bits 2, 1, 0 copied from KR[10], KR[9], KR[8]
 0A9C: 1804  JC 0A9E
 0A9D: 0065  SET KR[6]
 0A9E: 0A95  TST KR[9]
@@ -3606,9 +3610,9 @@
 0AA2: 1804  JC 0AA4
 0AA3: 0045  SET KR[4]
 0AA4: 0A08  MOV R5,KR[4..7]
-0AA5: 02F0  A=R5 DPT
+0AA5: 02F0  A=R5 DPT          ; A := tens·16 + units …
 0AA6: 0140  A=SLA ALL
-0AA7: 1DE7  JC 07B4
+0AA7: 1DE7  JC 07B4           ; … → ARG_COMPLETE: run the transfer with this label
 ; SQRT body (from 0826/0828)
 0AA8: 0030  TST fA[3]         ; odd exponent: pre-shift the mantissa
 0AA9: 1804  JC 0AAB
