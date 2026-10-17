@@ -53,12 +53,16 @@
 #    [R/S] does NOT stop anything — it does its normal job and RESUMES the "interrupted"
 #    library run: Prg Src Flag := 1 again (from the SCOM[9] descriptor), display zeroed, no
 #    validity check of any kind. The interpreter fetches from the leftover header address and
-#    executes the two BCD bytes of Pgm 14's start-address entry (2952) as keycodes: 29 = CP
-#    (harmless), then 52 = EE, whose handler exits through the keyboard epilogue and ends the
-#    run. The machine halts a second time — not a new error, fB[9] still blinks from the
-#    first one — showing an EE-mode zero ("0. 00"). This second halt is the state quirk 2
-#    needs: SCOM[0]'s Prg Src Flag is left at 1, and that leftover is exactly what the next
-#    launch dispatches on. (Trace-verified both ways with dedicated P/R traces: pressed after
+#    executes the header's BCD bytes 28-39 (the start addresses of Pgm 14-19) as keycodes:
+#    29 CP, 52 EE (sets the EE display mode), 30 tan, 95 =, 32 x<>t, 31 LRN, 33 x^2,
+#    63 Exc Ind, 34 sqrt, 80 Grad, 36 Pgm — and Pgm takes the next byte, 51, as its program
+#    number. There is no Pgm 51, so the run halts with the error flag (ROM 0x141C: SET fB[9],
+#    CLR fB[0]) after exactly 12 fetches, leaving the CROM PC at 0040 — the value the P/R
+#    launch below saves as its "return address". The display shows an EE-mode zero
+#    ("0. 00"), blinking. (Headless-harness trace, 2026-10-17; an earlier GUI capture had
+#    suggested the run ended after the EE, but its window was incomplete.) This second halt is
+#    the state quirk 2 needs: SCOM[0]'s Prg Src Flag is left at 1, and that leftover is
+#    exactly what the next launch dispatches on. (Trace-verified both ways with dedicated P/R traces: pressed after
 #    the second halt, P/R's launch reads caller source 1, takes the library-caller path —
 #    which saves the CROM pointer as a return address and leaves fB[0] clear — and leaks;
 #    pressed after the first halt alone it reads source 0 (the error halt had reset it),
