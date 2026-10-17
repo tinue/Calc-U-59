@@ -161,8 +161,10 @@
 0069: 1FEC  JC 045F
 006A: 0A47  MOV R5,#4
 006B: 18B7  JC 0010
-006C: 09DB  B=0 MANT
-006D: 19B4  JC 0147
+; "=" (from slot 00EA): incoming precedence 0, so the reduce loop pops every
+; entry, and 0204 repeats it for each paren level still open.
+006C: 09DB  B=0 MANT          ; incoming precedence 0
+006D: 19B4  JC 0147           ; → AOS reduce (0147)
 006E: 0AD7  MOV R5,#13
 006F: 19A4  JC 0141
 0070: 0AE7  MOV R5,#14
@@ -176,8 +178,9 @@
 0078: 1BF0  JC 0270
 0079: 0A37  MOV R5,#3
 007A: 1C66  JC 02AD
-007B: 0A47  MOV R5,#4
-007C: 1A30  JC 0194
+; "×"/"÷" push (from slot 00C7)
+007B: 0A47  MOV R5,#4         ; precedence 4
+007C: 1A30  JC 0194           ; → AOS_PUSH
 007D: 0022  CLR fA[2]
 007E: 002A  CLR fB[2]
 007F: 1B6C  JC 0235
@@ -232,88 +235,108 @@
 00AE: 0A77  MOV R5,#7
 00AF: 1E7A  JC 03EC
 00B0: 00C1  SET fA[12]
+; ═══════════════════════════════════════════════════════════════════════════
+; OPERATION SEQUENCE TABLE  (0x00B1–0x010F) — threaded "macro" code
+; Trace-confirmed (headless harness, tools/headless/coverage.py).
+; KEY_OP_ENTRY (0141) builds KR = 0x0C00 | tag | code<<4 and jumps through
+; PREG to slot 0x00C0 + code (+0x10 if KR[8] was set by KEY_RET 0010, +0x20 if
+; KR[9] was set by 002B). A slot holds one JC to a subroutine; the routine
+; returns to the NEXT slot because NORM_CALL (041C) and the AOS reduce loop
+; park KR+1 in SR, and routines end with SET KR[1] + SWAP KR,SR (02D1/02D2).
+; An operation is therefore a run of consecutive slots, and a sequence that
+; needs keyboard arguments (STO nn, SUM nn, …) parks its resume slot in SR and
+; returns to the idle loop (04CC → 022C sets fB[12]).
+; Most runs begin with "JC 041C" = finish number entry, normalize X.
+; Arithmetic slots come in pairs at 0x00C0 + 2·precedence:
+;   00C2/C3 push "+ −" (prec 2)    00C4/C5 execute ADD (0358), continue
+;   00C6/C7 push "× ÷" (prec 4)    00C8/C9 execute MULDIV (03CC), continue
+;   00CA/CB push "y^x" (prec 6)    00CC     execute y^x (fn 12 via 002F)
+; The operation each remaining run belongs to (from the scenarios that reach
+; it) is noted on its first slot.
+; ═══════════════════════════════════════════════════════════════════════════
 00B1: 0080  TST fA[8]
 00B2: 0A07  MOV R5,#0
 00B3: 12BA  JNC 0210
 00B4: 0A37  MOV R5,#3
 00B5: 1FBC  JC 0493
-00B6: 1ECC  JC 041C
+00B6: 1ECC  JC 041C           ; If flg (program): normalize …
 00B7: 1A74  JC 01F1
 00B8: 1FF6  JC 04B3
 00B9: 1FC0  JC 0499
-00BA: 1EC4  JC 041C
+00BA: 1EC4  JC 041C           ; x≥t: normalize …
 00BB: 1FF8  JC 04B7
 00BC: 1AB4  JC 0216
 00BD: 1FB8  JC 0499
-00BE: 1EBC  JC 041C
+00BE: 1EBC  JC 041C           ; x=t: normalize …
 00BF: 1FF0  JC 04B7
 00C0: 1AB0  JC 0218
 00C1: 1FB0  JC 0499
-00C2: 1EB4  JC 041C
-00C3: 1934  JC 015D
-00C4: 1D28  JC 0358
-00C5: 1934  JC 015F
-00C6: 1EAC  JC 041C
-00C7: 1899  JC 007B
-00C8: 1E08  JC 03CC
-00C9: 192C  JC 015F
-00CA: 1EA4  JC 041C
-00CB: 1990  JC 0193
-00CC: 193B  JC 002F
-00CD: 1E9E  JC 041C
+00C2: 1EB4  JC 041C           ; "+"/"−" push: normalize X …
+00C3: 1934  JC 015D           ; … then AOS_PUSH with precedence 2
+00C4: 1D28  JC 0358           ; AOS reduce of a prec-2 entry: ADD (fA[1] = subtract)
+00C5: 1934  JC 015F           ; … continue the reduce loop
+00C6: 1EAC  JC 041C           ; "×"/"÷" push: normalize X …
+00C7: 1899  JC 007B           ; … then AOS_PUSH with precedence 4
+00C8: 1E08  JC 03CC           ; AOS reduce of a prec-4 entry: MULDIV (fA[1] = divide)
+00C9: 192C  JC 015F           ; … continue the reduce loop
+00CA: 1EA4  JC 041C           ; "y^x" push: normalize X …
+00CB: 1990  JC 0193           ; … then AOS_PUSH with precedence 6
+00CC: 193B  JC 002F           ; AOS reduce of a prec-6 entry: fn 12 = y^x (fA[1] = INV y^x, the
+                              ;   root)
+00CD: 1E9E  JC 041C           ; St flg / INV St flg: normalize …
 00CE: 1A46  JC 01F1
 00CF: 1FCA  JC 04B4
-00D0: 1E98  JC 041C
+00D0: 1E98  JC 041C           ; |x|: normalize …
 00D1: 18A9  JC 007D
-00D2: 1E94  JC 041C
-00D3: 18E6  JC 0146
-00D4: 1E90  JC 041C
+00D2: 1E94  JC 041C           ; ")": normalize X …
+00D3: 18E6  JC 0146           ; … then AOS reduce with precedence 1: close one paren level
+00D4: 1E90  JC 041C           ; Fix n: normalize …
 00D5: 1A32  JC 01EE
 00D6: 1F48  JC 047A
-00D7: 1E8A  JC 041C
-00D8: 1FE8  JC 04CC
+00D7: 1E8A  JC 041C           ; SUM nn (also used by Σ+): normalize …
+00D8: 1FE8  JC 04CC           ; … collect the register number
 00D9: 1BF8  JC 02D5
 00DA: 1941  JC 003A
 00DB: 1FFE  JC 04DA
-00DC: 1E80  JC 041C
-00DD: 1FDE  JC 04CC
+00DC: 1E80  JC 041C           ; RCL nn: normalize …
+00DD: 1FDE  JC 04CC           ; … collect the register number
 00DE: 0051  SET fA[5]
 00DF: 1BF4  JC 02D9
-00E0: 1E78  JC 041C
-00E1: 1FD6  JC 04CC
+00E0: 1E78  JC 041C           ; Prd nn: normalize …
+00E1: 1FD6  JC 04CC           ; … collect the register number
 00E2: 1BE6  JC 02D5
 00E3: 18AF  JC 008C
 00E4: 1FEC  JC 04DA
-00E5: 1E6E  JC 041C
-00E6: 1FCC  JC 04CC
+00E5: 1E6E  JC 041C           ; Exc nn: normalize …
+00E6: 1FCC  JC 04CC           ; … collect the register number
 00E7: 1BDC  JC 02D5
 00E8: 1FDA  JC 04D5
-00E9: 1E66  JC 041C
-00EA: 18FD  JC 006C
-00EB: 1E62  JC 041C
-00EC: 1FC0  JC 04CC
+00E9: 1E66  JC 041C           ; "=": normalize X …
+00EA: 18FD  JC 006C           ; … then AOS reduce with precedence 0: close everything
+00EB: 1E62  JC 041C           ; STO nn: normalize …
+00EC: 1FC0  JC 04CC           ; … collect the register number
 00ED: 1F88  JC 04B1
-00EE: 1E5C  JC 041C
+00EE: 1E5C  JC 041C           ; x⇄t (also inside P→R, Σ+, x̄): normalize …
 00EF: 1F8E  JC 04B6
-00F0: 1E58  JC 041C
+00F0: 1E58  JC 041C           ; GTO nnn / GTO label (keyboard): normalize …
 00F1: 1A68  JC 0225
 00F2: 1F70  JC 04AA
-00F3: 1E52  JC 041C
+00F3: 1E52  JC 041C           ; Dsz: normalize …
 00F4: 19FA  JC 01F1
 00F5: 1BC0  JC 02D5
 00F6: 1F6A  JC 04AB
 00F7: 1DF6  JC 03F2
 00F8: 1A36  JC 0213
 00F9: 1F40  JC 0499
-00FA: 1E44  JC 041C
+00FA: 1E44  JC 041C           ; D.MS / P→R / Σ+ / x̄ family: normalize …
 00FB: 1FA2  JC 04CC
 00FC: 1FD0  JC 04E4
 00FD: 1987  JC 003A
 00FE: 1FCE  JC 04E5
 00FF: 18E7  JC 008C
 0100: 1FCA  JC 04E5
-0101: 1E36  JC 041C
-0102: 1F94  JC 04CC
+0101: 1E36  JC 041C           ; Op nn: normalize …
+0102: 1F94  JC 04CC           ; … collect the 2-digit Op number
 0103: 1FF8  JC 04FF
 0104: 1BA2  JC 02D5
 0105: 1CD6  JC 0370
@@ -321,9 +344,9 @@
 0107: 1A2A  JC 021C
 0108: 1F4E  JC 04AF
 0109: 1814  JC 0113
-010A: 1F4A  JC 04AF
+010A: 1F4A  JC 04AF           ; Eng
 010B: 1B4C  JC 02B1
-010C: 1E20  JC 041C
+010C: 1E20  JC 041C           ; D.MS: normalize …
 010D: 18D0  JC 0175
 010E: 1F42  JC 04AF
 010F: 1AF4  JC 0289
@@ -357,19 +380,22 @@
 012A: 1368  JNC 02DE
 012B: 00F1  SET fA[15]
 012C: 1B64  JC 02DE
-; KEY_LPAREN: "(" handler (slot 0035)
-012D: 0AD7  MOV R5,#13
+; KEY_LPAREN: "(" handler (slot 0035). Opens a paren level: SCOM[13] nibble 1
+; (current paren level) += 1. A tenth unclosed level carries into nibble 2 and
+; sets the error flag (0138). fB[6] is cleared, so an operator directly after
+; "(" is rejected just like an operator after an operator.
+012D: 0AD7  MOV R5,#13        ; B[0] := 13 …
 012E: 02F3  B=R5 DPT
 012F: 01D5  C<>D ALL
-0130: 0111  IO=B ALL
-0131: 0A1F  RCLF
-0132: 01D4  C=LOAD ALL
-0133: 006A  CLR fB[6]
-0134: 0724  C=C+1 EXP1
-0135: 0663  B=SLC EXP
-0136: 0619  IO=-B EXP
-0137: 11B9  JNC 005B
-0138: 0099  SET fB[9]
+0130: 0111  IO=B ALL          ; … IO-bus nibble 0 selects the SCOM row for RCLF
+0131: 0A1F  RCLF              ; recall SCOM[13] (AOS status) …
+0132: 01D4  C=LOAD ALL        ; … into C
+0133: 006A  CLR fB[6]         ; no fresh operand
+0134: 0724  C=C+1 EXP1        ; paren level (nibble 1) += 1
+0135: 0663  B=SLC EXP         ; B[2] := new level (zero only if it wrapped 9 → 0)
+0136: 0619  IO=-B EXP         ; level 1–9? (0 − B[EXP] borrows when non-zero)
+0137: 11B9  JNC 005B          ; yes → 005B: store C back into SCOM[13]
+0138: 0099  SET fB[9]         ; tenth level: ERROR
 0139: 19B7  JC 005E
 ; KEY_MUL: "×"/"÷" stub (slots 0056/0055; "÷" arrives with fA[1] set):
 ; op code 6 → KEY_ARITH
@@ -397,35 +423,55 @@
                               ;   the fn table at 0x0500+fn (trace-confirmed
                               ;   1/x → 0x050A in errorblink.txt)
 0145: 0100  A=A ALL           ; delay slot — still executes before the target
-0146: 0DD3  B=LOAD MLSD1
-0147: 0300  A=A+1 DPT1
+; ═══════════════════════════════════════════════════════════════════════════
+; AOS ENGINE  (0x0146–0x020A) — the algebraic operating system. Trace-
+; confirmed with 5+7×3=, (5+(7×2)×3)= and 5+= (headless harness).
+; State lives in three SCOM rows:
+;   SCOM[1..8]  one pending left operand per level (level n in SCOM[n]); its
+;               nibble 0 holds fA[1..4] at push time: bit 0 = inverse-pair bit
+;               (− ÷ INV y^x), bit 1 = mantissa sign, bit 2 = exponent sign.
+;   SCOM[12]    operator stack, two nibbles per entry, top entry in nibbles
+;               1/0: high = precedence (+− 2, ×÷ 4, y^x 6), low = the paren
+;               level the entry was pushed at.
+;   SCOM[13]    nibble 1 = current paren level, nibble 2 = depth (max 8).
+; Working registers: B is the control word — B[3] = incoming precedence,
+; B[1..2] = paren level/depth copied from SCOM[13]; C = X while the loop
+; runs; E keeps the control word while a popped operation executes.
+; Entries: 0146 ")" (precedence 1), 0147 "=" (precedence 0 already in B[3]),
+; 0194 AOS_PUSH (operator precedence in R5).
+; ═══════════════════════════════════════════════════════════════════════════
+0146: 0DD3  B=LOAD MLSD1      ; ")": incoming precedence 1 in B[3]
+0147: 0300  A=A+1 DPT1        ; A[0] 0xC → 0xD (NUM_NORM left 0xC there): select SCOM[13]
 0148: 0101  IO=A ALL
 0149: 0A1F  RCLF
-014A: 06D3  B=LOAD EXP
-014B: 0060  TST fA[6]
-014C: 0658  A=SRB EXP
-014D: 0709  IO=A-1 EXP1
-014E: 109A  JNC 019B
-014F: 0099  SET fB[9]
-0150: 070B  B=A-1 EXP1
-0151: 0121  IO=C ALL
+014A: 06D3  B=LOAD EXP        ; B[1..2] := paren level, depth
+014B: 0060  TST fA[6]         ; fresh operand since the last push? (COND := 0 if so)
+014C: 0658  A=SRB EXP         ; A[1] := depth
+014D: 0709  IO=A-1 EXP1       ; depth − 1: borrows (COND := 0) when nothing is pending
+014E: 109A  JNC 019B          ; operand present, or stack empty → reduce
+014F: 0099  SET fB[9]         ; operator directly followed by ")"/"=" (5 + =): ERROR …
+0150: 070B  B=A-1 EXP1        ; … and drop the dangling entry: depth − 1 …
+0151: 0121  IO=C ALL          ; … (C[0] = 0xC → SCOM[12])
 0152: 0A1F  RCLF
-0153: 01D0  A=LOAD ALL
+0153: 01D0  A=LOAD ALL        ; … pop the operator stack by one entry …
 0154: 0148  A=SRA ALL
 0155: 02F3  B=R5 DPT
 0156: 0148  A=SRA ALL
-0157: 0121  IO=C ALL
+0157: 0121  IO=C ALL          ; … store it back …
 0158: 0A0F  STOF
 0159: 0101  IO=A ALL
 015A: 0153  B=SLB ALL
 015B: 095B  B=SRB MANT
-015C: 187E  JC 019B
-015D: 0A27  MOV R5,#2
-015E: 186C  JC 0194
-015F: 0014  SWAP fA[1],fB[1]
-0160: 01D7  A<>E ALL
-0161: 01D2  A<>B ALL
-0162: 1872  JC 019B
+015C: 187E  JC 019B           ; … then reduce what is left
+; "+"/"−" push (from slot 00C3)
+015D: 0A27  MOV R5,#2         ; precedence 2
+015E: 186C  JC 0194           ; → AOS_PUSH
+; Reduce-loop continuation after an operation (slots 00C5/00C9): restore
+; the caller's fA[1], bring the control word back from E, loop again.
+015F: 0014  SWAP fA[1],fB[1]  ; restore the caller's fA[1] (parked in fB[1] at 01C6)
+0160: 01D7  A<>E ALL          ; A := control word, E := result of the operation
+0161: 01D2  A<>B ALL          ; B := control word
+0162: 1872  JC 019B           ; → reduce-loop test
 ; ── DIGIT_SLIDE: digit-key value slide (0x0163–0x016C) ──────────────────────
 ; Keyboard digit keys have no row/col-shaped keycode; their dispatch-table
 ; slots (see 0x0011) jump into this run of INC KR instructions with KR
@@ -483,97 +529,104 @@
 0190: 06F3  B=R5 EXP
 0191: 0153  B=SLB ALL
 0192: 1DB2  JC 046B
-0193: 0A67  MOV R5,#6
-0194: 09F3  B=R5 MANT
-0195: 0060  TST fA[6]
-0196: 1E72  JC 04CF
-0197: 0300  A=A+1 DPT1
+; "y^x" push (from slot 00CB); falls into AOS_PUSH
+0193: 0A67  MOV R5,#6         ; precedence 6
+; AOS_PUSH: operator with precedence R5 arrives, X normalized in A.
+0194: 09F3  B=R5 MANT         ; AOS_PUSH: B[3] := incoming precedence
+0195: 0060  TST fA[6]         ; fresh operand since the last push?
+0196: 1E72  JC 04CF           ; no (5 + × …) → error
+0197: 0300  A=A+1 DPT1        ; A[0] := 0xD → SCOM[13]
 0198: 0101  IO=A ALL
 0199: 0A1F  RCLF
-019A: 06D3  B=LOAD EXP
-019B: 0658  A=SRB EXP
-019C: 0709  IO=A-1 EXP1
-019D: 1058  JNC 01C9
-019E: 04D4  C=LOAD DPTC
+019A: 06D3  B=LOAD EXP        ; B[1..2] := paren level, depth
+; Reduce loop: while the top entry belongs to the current paren level and its
+; precedence ≥ the incoming one, pop and execute it.
+019B: 0658  A=SRB EXP         ; A[1] := depth
+019C: 0709  IO=A-1 EXP1       ; stack empty?
+019D: 1058  JNC 01C9          ; yes → push or finish (01C9)
+019E: 04D4  C=LOAD DPTC       ; C[0] := 0xC → SCOM[12]
 019F: 0121  IO=C ALL
 01A0: 0A1F  RCLF
-01A1: 01D0  A=LOAD ALL
-01A2: 015B  B=SRB ALL
-01A3: 0289  IO=A-B DPT
-01A4: 0153  B=SLB ALL
-01A5: 1048  JNC 01C9
-01A6: 0C48  A=SRA MAEX
-01A7: 09F0  A=R5 MANT
-01A8: 0989  IO=A-B MANT
-01A9: 1046  JNC 01CC
-01AA: 0658  A=SRB EXP
+01A1: 01D0  A=LOAD ALL        ; A := operator stack; top entry A[1] = precedence, A[0] = paren
+                              ;   level
+01A2: 015B  B=SRB ALL         ; B[0] := current paren level (B[1]) for the compare …
+01A3: 0289  IO=A-B DPT        ; entry level − current level
+01A4: 0153  B=SLB ALL         ; … control word restored
+01A5: 1048  JNC 01C9          ; entry belongs to an outer paren level → stop reducing
+01A6: 0C48  A=SRA MAEX        ; R5 := top-entry precedence …
+01A7: 09F0  A=R5 MANT         ; … into A[3]
+01A8: 0989  IO=A-B MANT       ; top precedence − incoming precedence
+01A9: 1046  JNC 01CC          ; lower → stop, push the incoming operator
+; Pop the top entry and execute it.
+01AA: 0658  A=SRB EXP         ; depth − 1 in the control word …
 01AB: 0708  A=A-1 EXP1
 01AC: 0140  A=SLA ALL
-01AD: 09D2  A<>B MANT
-01AE: 01D7  A<>E ALL
-01AF: 0121  IO=C ALL
+01AD: 09D2  A<>B MANT         ; … new control word → B …
+01AE: 01D7  A<>E ALL          ; … kept in E while the operation runs
+01AF: 0121  IO=C ALL          ; RCLF SCOM[12] …
 01B0: 0A1F  RCLF
 01B1: 01D0  A=LOAD ALL
-01B2: 0148  A=SRA ALL
+01B2: 0148  A=SRA ALL         ; … drop the top entry (two nibble shifts) …
 01B3: 0148  A=SRA ALL
-01B4: 0121  IO=C ALL
+01B4: 0121  IO=C ALL          ; … and store the stack back
 01B5: 0A0F  STOF
 01B6: 0101  IO=A ALL
 01B7: 015B  B=SRB ALL
-01B8: 0911  IO=B MANT
+01B8: 0911  IO=B MANT         ; R5 := popped precedence
 01B9: 02F0  A=R5 DPT
 01BA: 02F3  B=R5 DPT
-01BB: 0A0D  SWAP KR,SR
-01BC: 0A0C  MOV KR,EXT[4..15]
+01BB: 0A0D  SWAP KR,SR        ; SR := the caller's continuation …
+01BC: 0A0C  MOV KR,EXT[4..15] ; … KR := 0x0C00 + 2·precedence …
 01BD: 00B5  SET KR[11]
 01BE: 00A5  SET KR[10]
-01BF: 0280  A=A+B DPT
-01C0: 0A18  MOV KR[4..7],R5
-01C1: 015B  B=SRB ALL
+01BF: 0280  A=A+B DPT         ; (2 · precedence)
+01C0: 0A18  MOV KR[4..7],R5   ; … exec slot: + → 00C4, × → 00C8, y^x → 00CC
+01C1: 015B  B=SRB ALL         ; B[0] := popped level (depth before the pop)
 01C2: 0111  IO=B ALL
 01C3: 0A1F  RCLF
-01C4: 01D3  B=LOAD ALL
-01C5: 000F  MOV fB[1..4],R5
-01C6: 0014  SWAP fA[1],fB[1]
-01C7: 0120  A=C ALL
-01C8: 1A12  JC 02D1
-01C9: 0DD0  A=LOAD MLSD1
-01CA: 0989  IO=A-B MANT
-01CB: 1858  JC 01F7
-01CC: 0658  A=SRB EXP
+01C4: 01D3  B=LOAD ALL        ; B := SCOM[level], the pending left operand
+01C5: 000F  MOV fB[1..4],R5   ; fB[1..4] := its stored flags (nibble 0) …
+01C6: 0014  SWAP fA[1],fB[1]  ; … fA[1] := its inverse-pair bit; caller's fA[1] → fB[1]
+01C7: 0120  A=C ALL           ; A := X (right operand)
+01C8: 1A12  JC 02D1           ; execute: A := B op A; the exec slot's successor resumes at 015F
+; Stack exhausted at this paren level: finish ")"/"=" or push the operator.
+01C9: 0DD0  A=LOAD MLSD1      ; A[3] := 1
+01CA: 0989  IO=A-B MANT       ; incoming precedence ≤ 1, i.e. ")" or "="?
+01CB: 1858  JC 01F7           ; yes → close the paren level (01F7)
+01CC: 0658  A=SRB EXP         ; push: A[0] := depth
 01CD: 0148  A=SRA ALL
-01CE: 0A87  MOV R5,#8
+01CE: 0A87  MOV R5,#8         ; limit 8 levels
 01CF: 02F3  B=R5 DPT
 01D0: 0289  IO=A-B DPT
-01D1: 1DFE  JC 04D0
-01D2: 006A  CLR fB[6]
-01D3: 0300  A=A+1 DPT1
-01D4: 0A06  MOV R5,fA[1..4]
-01D5: 02F4  C=R5 DPT
-01D6: 0101  IO=A ALL
+01D1: 1DFE  JC 04D0           ; ninth level → error
+01D2: 006A  CLR fB[6]         ; the next operator needs a fresh operand
+01D3: 0300  A=A+1 DPT1        ; new level = depth + 1
+01D4: 0A06  MOV R5,fA[1..4]   ; operand flags (inverse-pair bit, signs) …
+01D5: 02F4  C=R5 DPT          ; … into nibble 0 of X
+01D6: 0101  IO=A ALL          ; STOF SCOM[level] := X
 01D7: 0A0F  STOF
 01D8: 0121  IO=C ALL
-01D9: 04D4  C=LOAD DPTC
+01D9: 04D4  C=LOAD DPTC       ; C[0] := 0xC → SCOM[12]
 01DA: 0121  IO=C ALL
 01DB: 0A1F  RCLF
-01DC: 01D0  A=LOAD ALL
-01DD: 0140  A=SLA ALL
+01DC: 01D0  A=LOAD ALL        ; A := operator stack
+01DD: 0140  A=SLA ALL         ; make room for a new top entry: precedence …
 01DE: 0911  IO=B MANT
 01DF: 02F0  A=R5 DPT
-01E0: 0140  A=SLA ALL
+01E0: 0140  A=SLA ALL         ; … then the current paren level
 01E1: 0611  IO=B EXP
 01E2: 02F0  A=R5 DPT
-01E3: 0121  IO=C ALL
+01E3: 0121  IO=C ALL          ; STOF SCOM[12]
 01E4: 0A0F  STOF
 01E5: 0101  IO=A ALL
-01E6: 0323  B=C+1 DPT1
+01E6: 0323  B=C+1 DPT1        ; B[0] := 0xD → SCOM[13]
 01E7: 0111  IO=B ALL
 01E8: 0A1F  RCLF
-01E9: 01D0  A=LOAD ALL
-01EA: 07D0  A=LOAD EXP1
+01E9: 01D0  A=LOAD ALL        ; A := SCOM[13] …
+01EA: 07D0  A=LOAD EXP1       ; … with its paren-level/depth field replaced by
 01EB: 0640  A=SLA EXP
-01EC: 0680  A=A+B EXP
-01ED: 1834  JC 0207
+01EC: 0680  A=A+B EXP         ; … B's paren level and depth + 1 …
+01ED: 1834  JC 0207           ; … → store it (0207)
 01EE: 01DE  D=0 ALL
 01EF: 0080  TST fA[8]
 01F0: 1522  JNC 0481
@@ -583,26 +636,26 @@
 01F4: 01D7  A<>E ALL
 01F5: 0A07  MOV R5,#0
 01F6: 186C  JC 022C
-01F7: 0158  A=SRB ALL
-01F8: 0308  A=A-1 DPT1
-01F9: 1006  JNC 01FC
+01F7: 0158  A=SRB ALL         ; ")"/"=": A[0] := current paren level
+01F8: 0308  A=A-1 DPT1        ; level − 1 (borrows at level 0)
+01F9: 1006  JNC 01FC          ; already at level 0 → leave it
 01FA: 0140  A=SLA ALL
-01FB: 0603  B=A EXP
-01FC: 0AD7  MOV R5,#13
+01FB: 0603  B=A EXP           ; B[1] := the decremented level
+01FC: 0AD7  MOV R5,#13        ; B[0] := 0xD → SCOM[13]
 01FD: 02F3  B=R5 DPT
 01FE: 0111  IO=B ALL
 01FF: 0A1F  RCLF
-0200: 01D0  A=LOAD ALL
-0201: 0610  A=B EXP
-0202: 0919  IO=-B MANT
-0203: 1008  JNC 0207
-0204: 0648  A=SRA EXP
+0200: 01D0  A=LOAD ALL        ; A := SCOM[13]
+0201: 0610  A=B EXP           ; with the new paren level / depth
+0202: 0919  IO=-B MANT        ; ")" (precedence 1)?
+0203: 1008  JNC 0207          ; yes → done, store
+0204: 0648  A=SRA EXP         ; "=": another paren level still open? …
 0205: 0709  IO=A-1 EXP1
-0206: 18D7  JC 019B
-0207: 0111  IO=B ALL
+0206: 18D7  JC 019B           ; … yes → reduce that level too
+0207: 0111  IO=B ALL          ; STOF SCOM[13]
 0208: 0A0F  STOF
 0209: 0101  IO=A ALL
-020A: 1D8E  JC 04D1
+020A: 1D8E  JC 04D1           ; → show the result (04D1 → 048F → display)
 ; KEY_LNX: "lnx" handler (slot 0032, fn code 2); falls through FN_ENTRY_KR8
 020B: 0A27  MOV R5,#2
 020C: 0080  TST fA[8]

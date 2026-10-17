@@ -80,10 +80,13 @@ void h_ram_write(void* m, int reg, const uint8_t* in16)  { static_cast<TI59Machi
 void h_write_program(void* m, const uint8_t* k, int n)   { static_cast<TI59Machine*>(m)->writeProgram(k, n); }
 uint16_t h_lib_exec_pc(void* m) { return static_cast<TI59Machine*>(m)->libExecPC(); }
 
-void h_display(void* m, uint8_t* digits12, uint8_t* ctrl12) {
+// masks[0] = decimal-point afterglow mask, masks[1] = zero-suppressed mask.
+void h_display(void* m, uint8_t* digits12, uint8_t* ctrl12, uint16_t* masks) {
     DisplaySnapshot d = static_cast<TI59Machine*>(m)->getDisplay();
     memcpy(digits12, d.digits, 12);
     memcpy(ctrl12, d.ctrl, 12);
+    masks[0] = d.dpAfterglowMask;
+    masks[1] = d.suppressedMask;
 }
 
 // Printer output lines, joined with '\n'. Returns bytes written (truncated to cap).

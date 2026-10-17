@@ -41,6 +41,18 @@ KEYS = {
     "RST": 81, "1": 82, "2": 83, "3": 84, "+": 85,
     "R/S": 91, "0": 92, ".": 93, "+/-": 94, "=": 95,
 }
+# 2nd functions: pressed as 2nd (21) followed by the base key's matrix code.
+SECOND = {
+    "A'": 11, "B'": 12, "C'": 13, "D'": 14, "E'": 15,
+    "log": 23, "CP": 24, "2ndCLR": 25,
+    "Pgm": 31, "P>R": 32, "sin": 33, "cos": 34, "tan": 35,
+    "Ins": 41, "CMs": 42, "Exc": 43, "Prd": 44, "Ind": 45,
+    "Del": 51, "Eng": 52, "Fix": 53, "Int": 54, "|x|": 55,
+    "Pause": 61, "x=t": 62, "Nop": 63, "Op": 64, "Deg": 65,
+    "Lbl": 71, "x>=t": 72, "S+": 73, "mean": 74, "Rad": 75,
+    "StFlg": 81, "IfFlg": 82, "D.MS": 83, "pi": 84, "Grad": 85,
+    "Write": 91, "Dsz": 92, "Adv": 93, "Prt": 94, "List": 95,
+}
 KBITS = [0, 1, 2, 3, 5, 6]  # physical column -> K-line bit (Bridge/TI59MachineWrapper.mm)
 
 # Idle-loop address window (memory note "FullSpeed Scan-Loop Range Fix").
@@ -200,7 +212,14 @@ class Machine:
         return recs
 
     def keys(self, *names: str) -> list[list[HRec]]:
-        return [self.key(n) for n in names]
+        """Press a sequence of keys; 2nd-function names expand to 2nd + key."""
+        out = []
+        for n in names:
+            if n in SECOND:
+                out.append(self.key("2nd"))
+                n = str(SECOND[n])
+            out.append(self.key(n))
+        return out
 
     def run_until_idle(self, max_steps: int = 50_000_000):
         """Fast-forward (no recording) until back in the idle loop."""
@@ -225,18 +244,22 @@ class Machine:
         LIB.h_write_program(self.h, (C.c_uint8 * len(keycodes))(*keycodes), len(keycodes))
 
     def display(self) -> str:
-        """Display as seen on the LEDs (after afterglow), leftmost digit first."""
-        d = (C.c_uint8 * 12)(); c = (C.c_uint8 * 12)()
-        LIB.h_display(self.h, d, c)
+        """Display as seen on the LEDs, leftmost digit first (glyph decode as in
+        App/Views/LEDDisplayView.swift)."""
+        d = (C.c_uint8 * 12)(); c = (C.c_uint8 * 12)(); mk = (C.c_uint16 * 2)()
+        LIB.h_display(self.h, d, c, mk)
         out = []
         for i in reversed(range(12)):
-            ctl = c[i]
-            if ctl == 7 or ctl == 3:
-                out.append(" ")
-            elif ctl in (5, 6, 0xD, 0xE) and False:
-                out.append("-")
+            ctl, dig = c[i], d[i]
+            if ctl in (0, 1, 8, 9):
+                ch = " " if (mk[1] >> i) & 1 else f"{dig:X}"
+            elif ctl == 5:
+                ch = "-" if dig == 0 else "°"
+            elif ctl == 6:
+                ch = "-"
             else:
-                out.append(f"{d[i]:X}")
+                ch = " "
+            out.append(ch + ("." if (mk[0] >> i) & 1 else ""))
         return "".join(out)
 
     def regA_display(self) -> str:
@@ -321,7 +344,10 @@ def main():
     if args.program:
         m.write_program([int(x) for x in args.program.split(",")])
     prev = m.snapshot()
+    seq = []
     for k in args.keys:
+        seq += ["2nd", str(SECOND[k])] if k in SECOND else [k]
+    for k in seq:
         recs = m.key(k)
         print(f"=== key {k}  ({len(recs)} steps) ===")
         print(Machine.format(recs, full=args.full, prev=prev, labels=labels))
