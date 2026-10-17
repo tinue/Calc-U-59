@@ -4888,15 +4888,15 @@
 0EE5: 017E  D=SRD ALL
 0EE6: 1809  JC 0EE2
 0EE7: 0130  A=D ALL           ; sign and print
-0EE8: 0D09  IO=A-1 MLSD1      ; value zero?
+0EE8: 0D09  IO=A-1 MLSD1      ; integer part empty (0 or |x| < 1)?
 0EE9: 100E  JNC 0EF0
-0EEA: 0038  TST fB[3]
+0EEA: 0038  TST fB[3]         ; no: sci / negative-exponent forms skip the leading 0 …
 0EEB: 1818  JC 0EF7
 0EEC: 0709  IO=A-1 EXP1
 0EED: 1814  JC 0EF7
 0EEE: 0C19  IO=-B MAEX
 0EEF: 1810  JC 0EF7
-0EF0: 0AA7  MOV R5,#10
+0EF0: 0AA7  MOV R5,#10        ; yes: '0' before the point when all digits are fraction
 ; ── Printer-interrupt "quirk" landing zone ──────────────────────────────────
 ; 0x0EF1 is an ordinary mid-routine instruction of the OP-05-style numeric
 ; print formatter (part of the same subroutine that ends in PRT.GO at 0EFC
@@ -4922,7 +4922,7 @@
 0EF3: 1808  JC 0EF7
 0EF4: 0A0C  MOV KR,EXT[4..15]
 0EF5: 0045  SET KR[4]
-0EF6: 0A68  PRT.OUT
+0EF6: 0A68  PRT.OUT           ; the leading 0 ("0.5", "0.001", "0.")
 0EF7: 0A0C  MOV KR,EXT[4..15]
 0EF8: 0085  SET KR[8]         ; code 16 = '−' …
 0EF9: 0020  TST fA[2]         ; … if negative
@@ -7014,7 +7014,8 @@
 1628: 0098  TST fB[9]         ; error pending?
 1629: 1810  JC 1631
 162A: 0A0C  MOV KR,EXT[4..15]
-162B: 0A97  MOV R5,#9
+162B: 0A97  MOV R5,#9         ; yes: '?' (code 9 + 16 + 32 = 57) in the column after the number
+                              ;   — "9.9999999 99?" for an overflow (trace-checked)
 162C: 0A18  MOV KR[4..7],R5
 162D: 0085  SET KR[8]
 162E: 0095  SET KR[9]
