@@ -1289,14 +1289,15 @@
 03D5: 0022  CLR fA[2]
 03D6: 0ED0  A=LOAD MMSD1      ; … with result 1.0
 03D7: 1902  JC 0458           ;   for 0÷0 (speculative: path not exercised)
-03D8: 00AB  TOG fB[10]
+; LRN toggle: fB[10] ↔, clear INV, error, run/trace flags.
+03D8: 00AB  TOG fB[10]        ; LRN mode ↔
 03D9: 00A8  TST fB[10]
 03DA: 0082  CLR fA[8]
-03DB: 009A  CLR fB[9]
+03DB: 009A  CLR fB[9]         ; clear a pending error
 03DC: 000A  CLR fB[0]
 03DD: 00D2  CLR fA[13]
 03DE: 00A2  CLR fA[10]
-03DF: 1628  JNC 06F3
+03DF: 1628  JNC 06F3          ; entering LRN → fetch and show the current step
 03E0: 00B9  SET fB[11]
 03E1: 0168  A=SRC ALL
 03E2: 0007  MOV fA[1..4],R5
@@ -1322,21 +1323,25 @@
 03F5: 1B17  JC 026A
 03F6: 0001  SET fA[0]
 03F7: 1B1B  JC 026A
-; KEY_SST: "SST" handler (slot 0014)
-03F8: 00A8  TST fB[10]
-03F9: 1608  JNC 06FD
-03FA: 00D9  SET fB[13]
-; KEY_LRN: "LRN" handler (slot 0013)
-03FB: 0A97  MOV R5,#9
+; KEY_SST: "SST" handler (slot 0014). In LRN mode (fB[10]) step forward
+; (06FD → PRGREG_FETCH); in run mode execute one program step (fB[13]).
+03F8: 00A8  TST fB[10]        ; LRN mode?
+03F9: 1608  JNC 06FD          ; yes → advance one step and redisplay
+03FA: 00D9  SET fB[13]        ; run mode: single-step flag, falls into …
+; KEY_LRN: "LRN" handler (slot 0013). Refused (→ 03E5) when the partition has
+; no program registers (SCOM[9] nibble 0 = 0) or a protected library program
+; is selected (SCOM[9] nibble 2 = module security code ≠ 0). Otherwise toggles
+; LRN mode (fB[10], 03D8) and fetches/displays the current step (06F3).
+03FB: 0A97  MOV R5,#9         ; SCOM[9] …
 03FC: 02F3  B=R5 DPT
 03FD: 0111  IO=B ALL
 03FE: 0A1F  RCLF
 03FF: 01D3  B=LOAD ALL
-0400: 0219  IO=-B DPT
-0401: 1839  JC 03E5
+0400: 0219  IO=-B DPT         ; partition (nibble 0) zero?
+0401: 1839  JC 03E5           ; yes → no program memory, ignore
 0402: 065B  B=SRB EXP
-0403: 0619  IO=-B EXP
-0404: 103F  JNC 03E5
+0403: 0619  IO=-B EXP         ; security code (nibble 2) set?
+0404: 103F  JNC 03E5          ; yes → protected, ignore
 0405: 00D8  TST fB[13]
 0406: 185D  JC 03D8
 0407: 006E  MOV fB[6],fA[6]
@@ -1921,7 +1926,7 @@
 05F4: 02F6  D=R5 DPT
 05F5: 07DE  D=-1 EXP1
 05F6: 17EA  JNC 09EB
-05F7: 177C  JNC 09B5
+05F7: 177C  JNC 09B5          ; LRN digit (from 031E) → encode and store
 05F8: 1E97  JC 02AD
 05F9: 1FB1  JC 0221
 05FA: 0100  A=A ALL
@@ -2333,18 +2338,21 @@
 06F0: 0A0F  STOF
 06F1: 0131  IO=D ALL
 06F2: 18F6  JC 076D
+; Enter LRN: save X (C) and the sign flags, then fetch the current step
+; through PRGREG_FETCH without advancing (fB[11] path) with KR := 0x6200
+; parked in SR as the continuation.
 06F3: 0058  TST fB[5]
 06F4: 1004  JNC 06F6
 06F5: 0144  C=SLA ALL
 06F6: 0A06  MOV R5,fA[1..4]
 06F7: 02F4  C=R5 DPT
 06F8: 0022  CLR fA[2]
-06F9: 0095  SET KR[9]
+06F9: 0095  SET KR[9]         ; continuation KR = 0x6200 …
 06FA: 00E5  SET KR[14]
 06FB: 00D5  SET KR[13]
-06FC: 0A0D  SWAP KR,SR
+06FC: 0A0D  SWAP KR,SR        ; … into SR
 06FD: 0032  CLR fA[3]
-06FE: 1B68  JC 08B2
+06FE: 1B68  JC 08B2           ; → PRGREG_FETCH
 ; y^x, last step (slot 050E): e^(x·ln y); 0701/0702 handle the root sign case.
 06FF: 0010  TST fA[1]
 0700: 1806  JC 0703
@@ -2515,11 +2523,16 @@
 0785: 017E  D=SRD ALL
 0786: 017E  D=SRD ALL
 0787: 00E9  SET fB[14]
-0788: 0A08  MOV R5,KR[4..7]
+; KEY_ENCODE: build the program keycode of the key being recorded from the
+; matrix position in KR (row in KR[4..7], column in KR[8..11]) into D[1..2]
+; as two BCD digits row·10 + column (2nd keys arrive with the column already
+; +5). Digit keys are recorded as their value 00–09 instead (079D–07A0 picks
+; the DIGIT_SLIDE value when the row nibble is a digit).
+0788: 0A08  MOV R5,KR[4..7]   ; row …
 0789: 02F6  D=R5 DPT
-078A: 0176  D=SLD ALL
+078A: 0176  D=SLD ALL         ; … into the tens position
 078B: 0A07  MOV R5,#0
-078C: 0A18  MOV KR[4..7],R5
+078C: 0A18  MOV KR[4..7],R5   ; KR[4..7] := column bits (3-bit K-line index → 1–5) …
 078D: 0AB5  TST KR[11]
 078E: 1808  JC 0792
 078F: 0A95  TST KR[9]
@@ -2534,7 +2547,7 @@
 0798: 0A85  TST KR[8]
 0799: 1804  JC 079B
 079A: 0045  SET KR[4]
-079B: 0A08  MOV R5,KR[4..7]
+079B: 0A08  MOV R5,KR[4..7]   ; … as the units digit
 079C: 02F6  D=R5 DPT
 079D: 0239  IO=-D DPT
 079E: 1006  JNC 07A1
@@ -2542,10 +2555,10 @@
 07A0: 0C76  D=SLD MAEX
 07A1: 00E8  TST fB[14]
 07A2: 1006  JNC 07A5
-07A3: 00A8  TST fB[10]
-07A4: 167A  JNC 0AE1
+07A3: 00A8  TST fB[10]        ; LRN mode?
+07A4: 167A  JNC 0AE1          ; yes → store the keycode (0AE1 → 0D80)
 07A5: 0176  D=SLD ALL
-07A6: 0040  TST fA[4]
+07A6: 0040  TST fA[4]         ; printer trace symbol (0A68 path)?
 07A7: 16DE  JNC 0B16
 07A8: 0A1F  RCLF
 07A9: 02D6  D=LOAD DPT
@@ -2850,35 +2863,35 @@
 08AF: 001A  CLR fB[1]
 08B0: 16B6  JNC 0C0B
 08B1: 01D2  A<>B ALL
-; ── Program-register fetch: source dispatch (PRGREG_FETCH) ──────────────────
-; Fetches the 8-keycode program register containing the current step, from
-; whichever memory the Prg Src Flag (SCOM[0] nibble 3) says the program lives
-; in. 08B2/08B3 load SCOM[0]; A=SRA MANT shifts nibble 3 out into R5, so
-; MOV KR[4..7],R5 leaves the flag in KR[4..7]:
-;   KR[4] (flag&1, solid-state module)  → 082B CROM interpreter fetch
-;   KR[7] (flag&8, ROM-resident keycode sub-program, tested at 0B98)
-;                                       → 0B9D constant-table fetch
-;   neither (flag=0, RAM program)       → 0EDB RAM.OP read
-; fB[11] = "SCOM[10] register cache is stale" (set whenever SCOM[0] is
-; rewritten, e.g. by KEY_PR at 089D): set → refetch at 0B95 (which clears
-; it) and recache via 0C10; clear → callers reuse the SCOM[10] copy.
-; Trace-confirmed in CALCU59_TRACE.txt with flag=1 (library execution) and
-; flag=8 (keycode sub-program).
-08B2: 0A1F  RCLF
+; ═══════════════════════════════════════════════════════════════════════════
+; PRGREG_FETCH  (0x08B2–0x08C5, 0x0B8E–0x0B9C) — advance the program step and
+; fetch its keycode. Trace-confirmed (LRN entry/store, SST/BST, run).
+; Step counter = SCOM[0] nibbles 4–7: nibble 4 = byte 0–7 within the 8-step
+; program register, nibbles 5–7 = register number (BCD); nibble 3 = Prg Src
+; Flag (KR[4..7] after 08B5): 1 → library module (082B), 8 → keycode table in
+; the constant ROM (0B9D), 0 → RAM.
+; SCOM[10] caches the current program register as a SHIFT REGISTER: the
+; current step's keycode is in nibbles 1..0; each advance within the register
+; shifts it right by one keycode (0EE2–0EE6). fB[11] = cache invalid: the next
+; fetch reads the register from RAM (0B98) instead of shifting the cache.
+; fB[11] clear → advance: byte + 1; at byte 7 the step carries into the next
+; register (08C0–08C3) and fB[11] is set so that register gets loaded.
+; ═══════════════════════════════════════════════════════════════════════════
+08B2: 0A1F  RCLF              ; SCOM[0] (bus zero → row 0) …
 08B3: 01D0  A=LOAD ALL
-08B4: 0948  A=SRA MANT
+08B4: 0948  A=SRA MANT        ; … A[3] := byte, A[4..6] := register; R5 := Prg Src Flag
 08B5: 0A18  MOV KR[4..7],R5
 08B6: 06F6  D=R5 EXP
-08B7: 0A45  TST KR[4]
-08B8: 111B  JNC 082B
-08B9: 00B8  TST fB[11]
-08BA: 15B6  JNC 0B95
+08B7: 0A45  TST KR[4]         ; library program?
+08B8: 111B  JNC 082B          ; yes → fetch from the module (LIB_EXEC_FETCH 082B)
+08B9: 00B8  TST fB[11]        ; cache invalid?
+08BA: 15B6  JNC 0B95          ; yes → reload without advancing
 08BB: 0A67  MOV R5,#6
 08BC: 09F6  D=R5 MANT
-08BD: 05B9  IO=A-D LLSD1
-08BE: 0500  A=A+1 LLSD1
-08BF: 159E  JNC 0B8E
-08C0: 00B9  SET fB[11]
+08BD: 05B9  IO=A-D LLSD1      ; byte < 7?
+08BE: 0500  A=A+1 LLSD1       ; byte + 1
+08BF: 159E  JNC 0B8E          ; yes → store the step
+08C0: 00B9  SET fB[11]        ; byte 7 → next register (+2 more at nibble 3 carries) and reload
 08C1: 0D00  A=A+1 MLSD1
 08C2: 0D00  A=A+1 MLSD1
 08C3: 1D96  JC 0B8E
@@ -3121,17 +3134,28 @@
 099B: 00A8  TST fB[10]
 099C: 146D  JNC 0766
 099D: 1DD9  JC 06B1
-099E: 00C8  TST fB[12]
-099F: 17C1  JNC 05BF
-09A0: 0A0D  SWAP KR,SR
+; ═══════════════════════════════════════════════════════════════════════════
+; LRN_KEY  (0x099E–0x09B7) — every key in LRN mode arrives here from the
+; print gate (068A: fB[10] set). Trace-confirmed (headless: LRN 5 + sin STO
+; 12, BST, SST, Ins, Del). The keys that edit the program act at once — SST
+; and BST (05EB), Ins and Del (0CD2), LRN itself (06B1 → 03FB) and the
+; prefixes 2nd/INV; every other key is encoded (KEY_ENCODE 0788) and stored
+; at the current step (0D80 → LRN_STORE). Digit keys pass DIGIT_SLIDE first
+; (0A89 → 06B1), which hands them to 05F7 because fB[10] is set (031E).
+; Keys that take an argument (STO nn, GTO …) suspend through ARG_COLLECT as in
+; run mode (09A5/0B3D), so their digits are recorded as separate steps.
+; ═══════════════════════════════════════════════════════════════════════════
+099E: 00C8  TST fB[12]        ; argument pending (after STO etc.)?
+099F: 17C1  JNC 05BF          ; yes → argument key classification
+09A0: 0A0D  SWAP KR,SR        ; SR := 0x6200: continuation for PRGREG_FETCH …
 09A1: 0A0C  MOV KR,EXT[4..15]
 09A2: 00D5  SET KR[13]
 09A3: 00E5  SET KR[14]
 09A4: 0095  SET KR[9]
 09A5: 00C8  TST fB[12]
 09A6: 13DB  JNC 07B9
-09A7: 0A0D  SWAP KR,SR
-09A8: 0AB5  TST KR[11]
+09A7: 0A0D  SWAP KR,SR        ; … KR = the key's matrix position again
+09A8: 0AB5  TST KR[11]        ; classify by column / row bits:
 09A9: 104E  JNC 09D0
 09AA: 0AA5  TST KR[10]
 09AB: 164E  JNC 0CD2
@@ -3145,7 +3169,7 @@
 09B3: 1605  JNC 06B1
 09B4: 0082  CLR fA[8]
 09B5: 01DE  D=0 ALL
-09B6: 1C5D  JC 0788
+09B6: 1C5D  JC 0788           ; → KEY_ENCODE, then store
 09B7: 1B0A  JC 0B3C
 ; EXP argument-reduction helpers (09B8–09FF): align the remaining argument,
 ; detect exponent overflow/underflow (09C0 → 05EA), handle |x| < 1 (09EE).
@@ -3546,12 +3570,12 @@
 0B16: 0042  CLR fA[4]
 0B17: 1F1A  JC 0EA4
 0B18: 1772  JNC 0ED1
-0B19: 0153  B=SLB ALL
+0B19: 0153  B=SLB ALL         ; new keycode up into the byte-0 position …
 0B1A: 0153  B=SLB ALL
 0B1B: 0153  B=SLB ALL
 0B1C: 0153  B=SLB ALL
 0B1D: 0183  B=A+B ALL
-0B1E: 1D3A  JC 0DBB
+0B1E: 1D3A  JC 0DBB           ; → RAM_READ of the program register (fB[10] → 1157)
 0B1F: 0100  A=A ALL
 0B20: 1ED6  JC 0E8B
 0B21: 1D93  JC 0858
@@ -3629,6 +3653,9 @@
 0B67: 1367  JNC 09B4
 0B68: 0083  TOG fA[8]
 0B69: 1B69  JC 09B5
+; RAM program register: check it lies inside the program partition
+; (SCOM[13] nibbles 8–9 × 10), encode its address (≥ 100 as at 0A1A) and read
+; it (0EDB). Beyond the partition → 0F0D (end of program memory).
 0B6A: 0901  IO=A MANT
 0B6B: 09F0  A=R5 MANT
 0B6C: 0140  A=SLA ALL
@@ -3636,7 +3663,7 @@
 0B6E: 0AD7  MOV R5,#13
 0B6F: 02F6  D=R5 DPT
 0B70: 0131  IO=D ALL
-0B71: 0A1F  RCLF
+0B71: 0A1F  RCLF              ; SCOM[13] …
 0B72: 09D6  D=LOAD MANT
 0B73: 0976  D=SLD MANT
 0B74: 097E  D=SRD MANT
@@ -3644,14 +3671,14 @@
 0B76: 097E  D=SRD MANT
 0B77: 097E  D=SRD MANT
 0B78: 097E  D=SRD MANT
-0B79: 09BE  D=A-D MANT
-0B7A: 1F26  JC 0F0D
+0B79: 09BE  D=A-D MANT        ; register − partition registers
+0B7A: 1F26  JC 0F0D           ; ≥ → outside program memory
 0B7B: 0A75  TST KR[7]
 0B7C: 1804  JC 0B7E
 0B7D: 0903  B=A MANT
 0B7E: 0148  A=SRA ALL
 0B7F: 0148  A=SRA ALL
-0B80: 0509  IO=A-1 LLSD1
+0B80: 0509  IO=A-1 LLSD1      ; register ≥ 100?
 0B81: 01DE  D=0 ALL
 0B82: 16B2  JNC 0EDB
 0B83: 0C40  A=SLA MAEX
@@ -3665,21 +3692,21 @@
 0B8B: 0676  D=SLD EXP
 0B8C: 0C76  D=SLD MAEX
 0B8D: 169C  JNC 0EDB
-0B8E: 0940  A=SLA MANT
-0B8F: 0A08  MOV R5,KR[4..7]
+0B8E: 0940  A=SLA MANT        ; store the step back into SCOM[0] …
+0B8F: 0A08  MOV R5,KR[4..7]   ; … with the Prg Src Flag in nibble 3
 0B90: 09F6  D=R5 MANT
 0B91: 09B0  A=A+D MANT
 0B92: 0A0F  STOF
 0B93: 0101  IO=A ALL
 0B94: 0948  A=SRA MANT
-0B95: 00B8  TST fB[11]
+0B95: 00B8  TST fB[11]        ; reload needed?
 0B96: 00BA  CLR fB[11]
-0B97: 1D06  JC 0E1A
-0B98: 0A75  TST KR[7]
-0B99: 0148  A=SRA ALL
+0B97: 1D06  JC 0E1A           ; no → shift the cached register (0E1A)
+0B98: 0A75  TST KR[7]         ; keycode-table sub-program (flag 8)?
+0B99: 0148  A=SRA ALL         ; A[0] := byte, A[1..3] := register number
 0B9A: 0148  A=SRA ALL
 0B9B: 0148  A=SRA ALL
-0B9C: 1865  JC 0B6A
+0B9C: 1865  JC 0B6A           ; RAM → 0B6A
 ; ── PRGREG_FETCH, constant-table branch (Prg Src Flag = 8) ──────────────────
 ; ROM-resident keycode sub-programs (P/R etc.) live in the SCOM constant
 ; table (rows 16–63; see the constant-table note in Core/TMC0501.cpp). This
@@ -3777,12 +3804,14 @@
 0BF1: 0676  D=SLD EXP
 0BF2: 0C76  D=SLD MAEX
 0BF3: 16A4  JNC 0F45
+; PRGREG_WRITE: RAM.OP write (op 1) of the program register in B, then
+; advance the step via PRGREG_FETCH.
 0BF4: 0140  A=SLA ALL
-0BF5: 03D6  D=LOAD DPT1
+0BF5: 03D6  D=LOAD DPT1       ; op 1 = write
 0BF6: 0AF8  RAM.OP
-0BF7: 01B1  IO=A+D ALL
-0BF8: 0111  IO=B ALL
-0BF9: 1E8F  JC 08B2
+0BF7: 01B1  IO=A+D ALL        ; bus: op + register address
+0BF8: 0111  IO=B ALL          ; data: the updated register
+0BF9: 1E8F  JC 08B2           ; → PRGREG_FETCH (step + 1)
 0BFA: 166D  JNC 08C4
 0BFB: 1FB2  JC 0FD4
 0BFC: 1F88  JC 0FC0
@@ -3805,26 +3834,22 @@
 0C0D: 017E  D=SRD ALL
 0C0E: 00EA  CLR fB[14]
 0C0F: 1FA1  JC 083F
-; ── PRGREG_CACHE: cache the fetched program register in SCOM[10] ────────────
-; Common tail of PRGREG_FETCH (08B2): whatever register was fetched — from
-; RAM, CROM, or the constant table — is stored in SCOM[10] for later reuse
-; (display in LRN mode, Ins/Del shift arithmetic at 11FE). The cache is
-; only refetched when fB[11] flags it stale; the source is never
-; revalidated (exploited by texas-print.ti59's pseudo-code insertion).
+; PRGREG_CACHE: SCOM[10] := D (current keycode in nibbles 1..0). In LRN mode
+; continue to the LRN display (0E2D → 107E → 13E6).
 0C10: 0AA7  MOV R5,#10
 0C11: 02F0  A=R5 DPT
 0C12: 0101  IO=A ALL
 0C13: 0A0F  STOF
-0C14: 0131  IO=D ALL
-0C15: 00A8  TST fB[10]
-0C16: 142E  JNC 0E2D
+0C14: 0131  IO=D ALL          ; SCOM[10] := D
+0C15: 00A8  TST fB[10]        ; LRN mode?
+0C16: 142E  JNC 0E2D          ; yes → LRN display
 0C17: 01D2  A<>B ALL
 0C18: 1FC3  JC 0837
 0C19: 0002  CLR fA[0]
 0C1A: 1EF7  JC 089F
 0C1B: 0148  A=SRA ALL
 0C1C: 01D2  A<>B ALL
-0C1D: 01B0  A=A+D ALL
+0C1D: 01B0  A=A+D ALL         ; new keycode
 0C1E: 01D2  A<>B ALL
 0C1F: 0148  A=SRA ALL
 0C20: 09F6  D=R5 MANT
@@ -4208,6 +4233,10 @@
 0D7D: 01D8  A=0 ALL
 0D7E: 017E  D=SRD ALL
 0D7F: 01D7  A<>E ALL
+; LRN_STORE  (0x0D80 → 0F92 → 0A1A → 0B19 → 0DBB → 1157 → 146F → 15FB → 0C1B
+; → 0BF4): read the program register holding the current step, replace the
+; keycode at the step's byte position, write the register back, then advance
+; the step (PRGREG_FETCH 08B2) and redisplay. With Ind (fA[7]) → 0F92 too.
 0D80: 0070  TST fA[7]
 0D81: 1C22  JC 0F92
 0D82: 0176  D=SLD ALL
@@ -4375,12 +4404,13 @@
 0E17: 18EE  JC 0E8E
 0E18: 1902  JC 0E99
 0E19: 1900  JC 0E99
+; Cache path: D := SCOM[10], shift by one keycode (A[0] = 1) → 0EE2.
 0E1A: 0AA7  MOV R5,#10
 0E1B: 02F6  D=R5 DPT
 0E1C: 0131  IO=D ALL
 0E1D: 0A1F  RCLF
-0E1E: 01D6  D=LOAD ALL
-0E1F: 03D0  A=LOAD DPT1
+0E1E: 01D6  D=LOAD ALL        ; D := cached register
+0E1F: 03D0  A=LOAD DPT1       ; one keycode
 0E20: 1984  JC 0EE2
 0E21: 18F0  JC 0E99
 0E22: 1884  JC 0E64
@@ -4568,22 +4598,19 @@
 0ED8: 0901  IO=A MANT
 0ED9: 02F6  D=R5 DPT
 0EDA: 1AB7  JC 0D7F
-; ── PRGREG_FETCH, RAM branch: read a program register from RAM ──────────────
-; RAM.OP armed as a READ: the next instruction's IO value (IO=A+D) is the
-; operation specifier — nibble 0 = 0 (read), nibbles 3·2 = register number —
-; and D=LOAD then takes the register content off the bus. Ins/Del also
-; enter here directly for every register of the shift loop, regardless of
-; the Prg Src Flag (program edits always target RAM).
+; PRGREG_RAM_READ: RAM.OP read of the program register into D, then shift it
+; right by A[0] keycodes (the byte position) so the current step's keycode
+; lands in nibbles 1..0, and cache it (0C10).
 0EDB: 0140  A=SLA ALL
 0EDC: 0AF8  RAM.OP
-0EDD: 01B1  IO=A+D ALL
-0EDE: 01D6  D=LOAD ALL
+0EDD: 01B1  IO=A+D ALL        ; bus: op 0 (read) + address
+0EDE: 01D6  D=LOAD ALL        ; D := program register
 0EDF: 0A75  TST KR[7]
 0EE0: 0148  A=SRA ALL
 0EE1: 1632  JNC 11FA
-0EE2: 0308  A=A-1 DPT1
-0EE3: 15A7  JNC 0C10
-0EE4: 017E  D=SRD ALL
+0EE2: 0308  A=A-1 DPT1        ; byte count …
+0EE3: 15A7  JNC 0C10          ; … exhausted → cache it
+0EE4: 017E  D=SRD ALL         ; shift one keycode (two nibbles)
 0EE5: 017E  D=SRD ALL
 0EE6: 1809  JC 0EE2
 0EE7: 0130  A=D ALL
@@ -4808,13 +4835,13 @@
 0F8F: 1FEB  JC 0B9A
 0F90: 0A47  MOV R5,#4
 0F91: 06F6  D=R5 EXP
-0F92: 0133  B=D ALL
-0F93: 0A1F  RCLF
-0F94: 09D0  A=LOAD MANT
+0F92: 0133  B=D ALL           ; B := new keycode
+0F93: 0A1F  RCLF              ; SCOM[0] (bus zero → row 0) …
+0F94: 09D0  A=LOAD MANT       ; … step counter: register number nibbles 5–7, byte nibble 4
 0F95: 0948  A=SRA MANT
 0F96: 0948  A=SRA MANT
-0F97: 0A18  MOV KR[4..7],R5
-0F98: 1C9D  JC 0D4A
+0F97: 0A18  MOV KR[4..7],R5   ; KR[4..7] := byte position 0–7
+0F98: 1C9D  JC 0D4A           ; → register address encoding (0A1A)
 0F99: 0A55  TST KR[5]
 0F9A: 0A0D  SWAP KR,SR
 0F9B: 16BB  JNC 0C3E
@@ -5263,14 +5290,18 @@
 1154: 0A1F  RCLF
 1155: 01D0  A=LOAD ALL
 1156: 1F15  JC 0DCC
-1157: 01D2  A<>B ALL
+; Keycode replace (LRN_STORE): shift the register image right by the byte
+; position (115C–1160), cache it in SCOM[10] (146F), isolate the old keycode
+; and shift it back into place (1474–147C), subtract it from the register
+; (15FB), shift the new keycode into place (1604–160A) and add it (0C1B).
+1157: 01D2  A<>B ALL          ; B := register image read from RAM
 1158: 0140  A=SLA ALL
-1159: 0A08  MOV R5,KR[4..7]
+1159: 0A08  MOV R5,KR[4..7]   ; byte position
 115A: 02F0  A=R5 DPT
 115B: 0116  D=B ALL
 115C: 0308  A=A-1 DPT1
 115D: 1624  JNC 146F
-115E: 017E  D=SRD ALL
+115E: 017E  D=SRD ALL         ; shift two nibbles per byte
 115F: 017E  D=SRD ALL
 1160: 1809  JC 115C
 1161: 00D0  TST fA[13]
@@ -5964,13 +5995,16 @@
 13E3: 0A04  INC KR
 13E4: 0085  SET KR[8]
 13E5: 1831  JC 13CD
+; LRN_DISPLAY  (0x13E6–0x141E): show "SSS KK" — step number SSS (decimal,
+; register·8 + byte computed by doubling at 13F6–13FB) and the keycode KK
+; from SCOM[10] nibbles 1..0. Trace-confirmed (LRN, LRN 5 → "001 00").
 13E6: 0070  TST fA[7]
 13E7: 0072  CLR fA[7]
 13E8: 16D3  JNC 107F
 13E9: 00B0  TST fA[11]
 13EA: 00B2  CLR fA[11]
 13EB: 15DB  JNC 10FE
-13EC: 0A1F  RCLF
+13EC: 0A1F  RCLF              ; SCOM[0] step counter
 13ED: 01D0  A=LOAD ALL
 13EE: 0148  A=SRA ALL
 13EF: 0148  A=SRA ALL
@@ -5980,7 +6014,7 @@
 13F3: 0953  B=SLB MANT
 13F4: 0953  B=SLB MANT
 13F5: 0953  B=SLB MANT
-13F6: 0988  A=A-B MANT
+13F6: 0988  A=A-B MANT        ; decimal step = register·8 + byte …
 13F7: 0103  B=A ALL
 13F8: 0980  A=A+B MANT
 13F9: 0983  B=A+B MANT
@@ -6018,9 +6052,9 @@
 1414: 0153  B=SLB ALL
 1415: 0153  B=SLB ALL
 1416: 04D0  A=LOAD DPTC
-1417: 00C8  TST fB[12]
+1417: 00C8  TST fB[12]        ; argument pending?
 1418: 1775  JNC 105E
-1419: 0A0D  SWAP KR,SR
+1419: 0A0D  SWAP KR,SR        ; return through the continuation in SR
 141A: 0015  SET KR[1] ; PREG
 141B: 0A0D  SWAP KR,SR
 141C: 0099  SET fB[9]
@@ -6118,14 +6152,14 @@
 146C: 0065  SET KR[6]
 146D: 0A68  PRT.OUT
 146E: 1B41  JC 12CE
-146F: 0AA7  MOV R5,#10
+146F: 0AA7  MOV R5,#10        ; SCOM[10] := shifted image (PRGREG_CACHE)
 1470: 02F0  A=R5 DPT
 1471: 0101  IO=A ALL
 1472: 0A0F  STOF
 1473: 0131  IO=D ALL
 1474: 0A08  MOV R5,KR[4..7]
 1475: 02F0  A=R5 DPT
-1476: 0631  IO=D EXP
+1476: 0631  IO=D EXP          ; old keycode = nibbles 1..0 …
 1477: 0CF6  D=R5 MAEX
 1478: 0308  A=A-1 DPT1
 1479: 1304  JNC 15FB
@@ -6515,7 +6549,7 @@
 15F9: 0AA8  PRT.GO
 15FA: 1EEF  JC 1283
 15FB: 01D2  A<>B ALL
-15FC: 01B8  A=A-D ALL
+15FC: 01B8  A=A-D ALL         ; register − old keycode
 15FD: 01D2  A<>B ALL
 15FE: 014E  D=SRA ALL
 15FF: 017E  D=SRD ALL
