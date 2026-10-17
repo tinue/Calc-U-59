@@ -6114,30 +6114,30 @@
 1317: 0116  D=B ALL
 1318: 19E4  JC 140A
 1319: 13F7  JNC 111E
-131A: 0120  A=C ALL
+131A: 0120  A=C ALL           ; Op 09 after the write (from 0F8A): E := next register address
 131B: 01D7  A<>E ALL
-131C: 0050  TST fA[5]
-131D: 1B66  JC 14D0
-131E: 0A1F  RCLF
+131C: 0050  TST fA[5]         ; last register written?
+131D: 1B66  JC 14D0           ; no → next 8 keycodes
+131E: 0A1F  RCLF              ; done: SCOM[0] …
 131F: 01D0  A=LOAD ALL
 1320: 0A47  MOV R5,#4
 1321: 02F4  C=R5 DPT
 1322: 06F4  C=R5 EXP
-1323: 0948  A=SRA MANT
+1323: 0948  A=SRA MANT        ; … drop nibbles 3–7 (step counter 000, Prg Src 0) …
 1324: 032C  C=C-1 DPT1
 1325: 1805  JC 1323
-1326: 0940  A=SLA MANT
+1326: 0940  A=SLA MANT        ; … and shift back
 1327: 072C  C=C-1 EXP1
 1328: 1805  JC 1326
 1329: 0A0F  STOF
-132A: 0101  IO=A ALL
+132A: 0101  IO=A ALL          ; SCOM[0] written
 132B: 0AA7  MOV R5,#10
 132C: 02F0  A=R5 DPT
 132D: 0101  IO=A ALL
 132E: 0A1F  RCLF
-132F: 01D4  C=LOAD ALL
-1330: 00B9  SET fB[11]
-1331: 1AED  JC 11BB
+132F: 01D4  C=LOAD ALL        ; C := SCOM[10]
+1330: 00B9  SET fB[11]        ; reload the program register at the next fetch
+1331: 1AED  JC 11BB           ; → display (0E40)
 1332: 16E7  JNC 0FBF
 1333: 1E4E  JC 165A
 1334: 01DB  B=0 ALL           ; CP: t := 0 …
@@ -6593,17 +6593,17 @@
 14C6: 16BB  JNC 1169          ; no → error
 14C7: 01D2  A<>B ALL
 14C8: 009A  CLR fB[9]         ; OK
-14C9: 0D08  A=A-1 MLSD1
+14C9: 0D08  A=A-1 MLSD1       ; empty program (length 0)?
 14CA: 16C3  JNC 1169
 14CB: 0AA7  MOV R5,#10
 14CC: 02F0  A=R5 DPT
 14CD: 0101  IO=A ALL
 14CE: 0A0F  STOF
-14CF: 0121  IO=C ALL
+14CF: 0121  IO=C ALL          ; SCOM[10] := C (cache invalidated)
 14D0: 0A77  MOV R5,#7         ; register loop: 8 keycodes …
 14D1: 02F0  A=R5 DPT
 14D2: 06F0  A=R5 EXP
-14D3: 01DC  C=0 ALL
+14D3: 01DC  C=0 ALL           ; C collects the keycodes in read order, the first one on top
 14D4: 0164  C=SLC ALL
 14D5: 0A3E  LIB.HI
 14D6: 0A0C  MOV KR,EXT[4..15]
@@ -6616,21 +6616,22 @@
 14DD: 02F4  C=R5 DPT
 14DE: 0D08  A=A-1 MLSD1       ; program end reached?
 14DF: 11AA  JNC 15B4          ; yes → done
-14E0: 0308  A=A-1 DPT1
+14E0: 0308  A=A-1 DPT1        ; 8 keycodes?
 14E1: 181B  JC 14D4
-14E2: 0176  D=SLD ALL
+14E2: 0176  D=SLD ALL         ; reverse into register order: C's lowest keycode …
 14E3: 0C6C  C=SRC MAEX
-14E4: 02F6  D=R5 DPT
+14E4: 02F6  D=R5 DPT          ; … goes into D below the earlier ones, so step 0 ends up in byte
+                              ;   0
 14E5: 0176  D=SLD ALL
 14E6: 016C  C=SRC ALL
 14E7: 02F6  D=R5 DPT
-14E8: 0708  A=A-1 EXP1
+14E8: 0708  A=A-1 EXP1        ; 8 keycodes moved?
 14E9: 180F  JC 14E2
-14EA: 01D7  A<>E ALL
-14EB: 0D04  C=A+1 MLSD1
+14EA: 01D7  A<>E ALL          ; A := register address (E) …
+14EB: 0D04  C=A+1 MLSD1       ; … C := the next one
 14EC: 0148  A=SRA ALL
 14ED: 0148  A=SRA ALL
-14EE: 1D9B  JC 1221           ; write the register (→ 0F84), next
+14EE: 1D9B  JC 1221           ; write the register (1221 → 0F84 → 131A, fB[10] clear)
 14EF: 0100  A=A ALL
 14F0: 0100  A=A ALL
 14F1: 0100  A=A ALL
@@ -6865,9 +6866,9 @@
 15B1: 0164  C=SLC ALL
 15B2: 0194  C=C+B ALL         ; … with the carry in step 0
 15B3: 1F37  JC 1218           ; → carry-out of this register's top keycode, write
-15B4: 0051  SET fA[5]
-15B5: 0308  A=A-1 DPT1
-15B6: 11A9  JNC 14E2
+15B4: 0051  SET fA[5]         ; program end inside this register: last one
+15B5: 0308  A=A-1 DPT1        ; pad the remaining bytes with 00 …
+15B6: 11A9  JNC 14E2          ; … → reverse and write
 15B7: 0164  C=SLC ALL
 15B8: 0164  C=SLC ALL
 15B9: 180B  JC 15B4
