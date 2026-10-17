@@ -120,7 +120,7 @@ Meanings established so far; "set" means the bit is 1.
 | fA[10] | printer trace record pending (`0A68`) |
 | fA[11] | tan (trig sequence) |
 | fA[12] | cos (trig sequence); sin↔cos role in the octant fold |
-| fA[13] | label search / scanner state; HIR / Op-related helper bit |
+| fA[13] | not fully established: set by Op 08 (`081B`) and the `0x0B10`-bank argument set-up (`0B3D`), cleared at `03DD`/`05E8`, tested at REG_ADDR's out-of-range exit (`0D4B`) |
 | fA[14] | tolerate an over/underflow clamp without the error blink (`025A`) |
 | fA[15] | exponent entry (after EE during number entry) |
 | fB[0] | program running |
