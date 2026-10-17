@@ -1697,12 +1697,12 @@
 ;   053D–053E  shared by D.MS, P→R, Σ+, x̄   053F–0545  Op
 ; ═══════════════════════════════════════════════════════════════════════════
 0500: 19C9  JC 041C           ; arc functions / R→P: normalize …
-0501: 1FBA  JC 08DE
-0502: 1B79  JC 0346
-0503: 1E36  JC 081E
-0504: 1A8B  JC 03BF
-0505: 1FF0  JC 08FD
-0506: 1994  JC 05D0
+0501: 1FBA  JC 08DE           ; … atan → CORDIC directly; asin/acos: …
+0502: 1B79  JC 0346           ; … 1 − x² …
+0503: 1E36  JC 081E           ; … √(1 − x²) …
+0504: 1A8B  JC 03BF           ; … tan-form argument x/√(1−x²) (or its inverse for acos) …
+0505: 1FF0  JC 08FD           ; … CORDIC backwards: angle in radians …
+0506: 1994  JC 05D0           ; … radians → angle unit, result
 0507: 19D7  JC 041C           ; x²: normalize …
 0508: 0051  SET fA[5]         ; result to be displayed
 0509: 1CD8  JC 0775           ; X × X (0775: B := X → MULDIV)
@@ -1732,22 +1732,22 @@
 0521: 18EB  JC 04AC           ; CP / CMs
 0522: 1E72  JC 085B
 0523: 1A0F  JC 041C           ; sin / cos / tan / P→R: normalize …
-0524: 195A  JC 05D1
-0525: 1DD0  JC 080D
-0526: 19A9  JC 0452
-0527: 19A9  JC 0453
-0528: 1ACB  JC 03C3
-0529: 1FD4  JC 0913
+0524: 195A  JC 05D1           ; … angle unit → radians
+0525: 1DD0  JC 080D           ; … D := θ
+0526: 19A9  JC 0452           ; … A := π …
+0527: 19A9  JC 0453           ; … A := 2π
+0528: 1ACB  JC 03C3           ; … θ ÷ 2π …
+0529: 1FD4  JC 0913           ; … fractional part (whole turns dropped) …
 052A: 1DC6  JC 080D
 052B: 19B3  JC 0452
 052C: 19B3  JC 0453
-052D: 1AD3  JC 03C4
-052E: 1F98  JC 08FA
-052F: 1B08  JC 06B3
-0530: 1BC1  JC 0350
-0531: 1DDA  JC 081E
+052D: 1AD3  JC 03C4           ; … × 2π: θ reduced to [0, 2π)
+052E: 1F98  JC 08FA           ; … octant fold + CORDIC → t = tan θ (tan ends here)
+052F: 1B08  JC 06B3           ; … sin/cos: t·t (cos: numerator 1) …
+0530: 1BC1  JC 0350           ; … 1 + t² …
+0531: 1DDA  JC 081E           ; … √(1 + t²) …
 0532: 0051  SET fA[5]
-0533: 1AE1  JC 03C3
+0533: 1AE1  JC 03C3           ; … sin = t / √(1+t²), cos = 1 / √(1+t²)
 0534: 1A31  JC 041C           ; SBR: normalize …
 0535: 1DA3  JC 0264
 0536: 1FCA  JC 091B
