@@ -3871,7 +3871,9 @@
 0B80: 0509  IO=A-1 LLSD1      ; register ≥ 100?
 0B81: 01DE  D=0 ALL
 0B82: 16B2  JNC 0EDB
-0B83: 0C40  A=SLA MAEX
+0B83: 0C40  A=SLA MAEX        ; program register ≥ 100 (steps 800–959 under 0 Op 17): address
+                              ;   encoded as at 0A1A — n − 20 plus marker 2, giving hex tens
+                              ;   nibble A/B
 0B84: 0A27  MOV R5,#2
 0B85: 06F6  D=R5 EXP
 0B86: 09F6  D=R5 MANT
@@ -3881,7 +3883,7 @@
 0B8A: 05BE  D=A-D LLSD1
 0B8B: 0676  D=SLD EXP
 0B8C: 0C76  D=SLD MAEX
-0B8D: 169C  JNC 0EDB
+0B8D: 169C  JNC 0EDB          ; → read it (trace-checked: Lbl A at step 850 found and run)
 0B8E: 0940  A=SLA MANT        ; store the step back into SCOM[0] …
 0B8F: 0A08  MOV R5,KR[4..7]   ; … with the Prg Src Flag in nibble 3
 0B90: 09F6  D=R5 MANT
@@ -3987,7 +3989,7 @@
 0BE6: 0509  IO=A-1 LLSD1
 0BE7: 01DE  D=0 ALL
 0BE8: 16BA  JNC 0F45
-0BE9: 0140  A=SLA ALL
+0BE9: 0140  A=SLA ALL         ; label search, register ≥ 100: same encoding as 0B83
 0BEA: 0A27  MOV R5,#2
 0BEB: 09F6  D=R5 MANT
 0BEC: 06F6  D=R5 EXP
@@ -3997,7 +3999,7 @@
 0BF0: 05BE  D=A-D LLSD1
 0BF1: 0676  D=SLD EXP
 0BF2: 0C76  D=SLD MAEX
-0BF3: 16A4  JNC 0F45
+0BF3: 16A4  JNC 0F45          ; → read it
 ; PRGREG_WRITE: RAM.OP write (op 1) of the program register in B, then
 ; advance the step via PRGREG_FETCH.
 0BF4: 0140  A=SLA ALL
