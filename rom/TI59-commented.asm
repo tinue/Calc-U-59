@@ -109,13 +109,14 @@
 0037: 1A60  JC 0167           ; "5"    → DIGIT_SLIDE (5 INCs)
 0038: 1A64  JC 016A           ; "2"    → DIGIT_SLIDE (2 INCs)
 0039: 1DBE  JC 0318           ; "."    → KEY_DPT
-; ── 003A–0040: non-slot gap — shared code fragment ──
+; SUM step (slot 00DA): A := register value, B := X; fB[8] = INV (saved at
+; 0234) → subtract. Then ADD.
 003A: 0CD2  A<>B MAEX
 003B: 0213  B=B DPT
 003C: 0007  MOV fA[1..4],R5
-003D: 0088  TST fB[8]
-003E: 1E34  JC 0358
-003F: 1636  JNC 035A
+003D: 0088  TST fB[8]         ; INV SUM?
+003E: 1E34  JC 0358           ; no → ADD (register + X)
+003F: 1636  JNC 035A          ; yes → subtract (register − X)
 0040: 00B1  SET fA[11]
 0041: 18E0  JC 00B1           ; col4·row1 "D" slot — unreachable (row 1 → 02D2)
 0042: 1EEE  JC 03B9           ; "CE"   → KEY_CE
@@ -197,12 +198,13 @@
 0089: 1FFC  JC 0487
 008A: 0A07  MOV R5,#0
 008B: 18F7  JC 0010
+; Prd step (slot 00E3): same for multiply; INV Prd divides.
 008C: 0CD2  A<>B MAEX
 008D: 0213  B=B DPT
 008E: 0007  MOV fA[1..4],R5
-008F: 0088  TST fB[8]
-0090: 1E78  JC 03CC
-0091: 167A  JNC 03CE
+008F: 0088  TST fB[8]         ; INV Prd?
+0090: 1E78  JC 03CC           ; no → MULDIV multiply
+0091: 167A  JNC 03CE          ; yes → divide
 0092: 1FFE  JC 0491
 0093: 183A  JC 00B0
 0094: 18ED  JC 001E
@@ -926,12 +928,14 @@
 02D2: 0A0D  SWAP KR,SR
 02D3: 0A27  MOV R5,#2
 02D4: 18BD  JC 0276
-02D5: 0120  A=C ALL
-02D6: 0A16  MOV R5,fB[1..4]
+; Register read-modify-write prologue (slots 00D9 SUM, 00E2 Prd, 00E7 Exc):
+; B := X with its flags, then read the register (fA[9] = read).
+02D5: 0120  A=C ALL           ; A := X
+02D6: 0A16  MOV R5,fB[1..4]   ; with its signs
 02D7: 02F0  A=R5 DPT
-02D8: 0103  B=A ALL
-02D9: 0091  SET fA[9]
-02DA: 1BB0  JC 04B2
+02D8: 0103  B=A ALL           ; B := X
+02D9: 0091  SET fA[9]         ; RCL (slot 00DF) enters here: read the register
+02DA: 1BB0  JC 04B2           ; → REG_ACCESS
 02DB: 0640  A=SLA EXP         ; exponent digit: shift the exponent left …
 02DC: 065B  B=SRB EXP
 02DD: 0680  A=A+B EXP         ; … and add the new digit
@@ -1518,7 +1522,9 @@
 04AE: 0AA8  PRT.GO
 04AF: 00A2  CLR fA[10]
 04B0: 1929  JC 041C
-04B1: 0092  CLR fA[9]
+; REG_ACCESS entry (slots 00ED STO, via 02DA for reads): fA[9] clear = write
+; X, set = read into A. → 0856 → 0B10 → REG_ADDR (0D33).
+04B1: 0092  CLR fA[9]         ; STO: write
 04B2: 1F48  JC 0856
 04B3: 1FDA  JC 08A0
 04B4: 0A47  MOV R5,#4
@@ -1545,26 +1551,31 @@
 04C9: 06F3  B=R5 EXP
 04CA: 18C5  JC 0468
 04CB: 00A1  SET fA[10]
-04CC: 01D7  A<>E ALL
-04CD: 0A17  MOV R5,#1
-04CE: 1D45  JC 022C
-04CF: 006A  CLR fB[6]
-04D0: 0099  SET fB[9]
-04D1: 04D4  C=LOAD DPTC
+; ARG_TWO_DIGITS (slots 00D8/00DD/00E1/00E6/00EC/0102): collect a 2-digit
+; register / Op number. X is parked in E meanwhile.
+04CC: 01D7  A<>E ALL          ; X → E (restored when the sequence resumes)
+04CD: 0A17  MOV R5,#1         ; two digits
+04CE: 1D45  JC 022C           ; → ARG_COLLECT_SETUP
+04CF: 006A  CLR fB[6]         ; error entry from AOS_PUSH (0196): no fresh operand …
+04D0: 0099  SET fB[9]         ; … ERROR (also the 9th-level overflow, 01D1)
+04D1: 04D4  C=LOAD DPTC       ; result exit after the AOS (020A)
 04D2: 1887  JC 048F
 04D3: 0051  SET fA[5]
 04D4: 1B6A  JC 0689
+; Exc step (slot 00E8): register value becomes X, old X is written back.
 04D5: 0A06  MOV R5,fA[1..4]
 04D6: 02F0  A=R5 DPT
 04D7: 01D7  A<>E ALL
 04D8: 0104  C=A ALL
 04D9: 000F  MOV fB[1..4],R5
+; Store-back step (slots 00DB SUM, 00E4 Prd): write the result into the
+; register addressed in E.
 04DA: 01D7  A<>E ALL
 04DB: 0201  IO=A DPT
 04DC: 0007  MOV fA[1..4],R5
 04DD: 04D0  A=LOAD DPTC
 04DE: 005A  CLR fB[5]
-04DF: 1CFA  JC 075C
+04DF: 1CFA  JC 075C           ; → 0A2D write
 04E0: 0ED3  B=LOAD MMSD1
 04E1: 1C7C  JC 071F
 04E2: 14F1  JNC 026A
@@ -1822,6 +1833,10 @@
 05BD: 0059  SET fB[5]         ; mark "rounded" → second pass skips this
 05BE: 1F05  JC 023C           ; renormalize (a carry, 9.99… → 10.0…, may
                               ;   re-overflow → clamp again at 025A)
+; Argument-key classification (from 06E3 while fB[12] is set): digits feed
+; the collector (0763 → 06B1 → DIGIT_SLIDE → 031B → 06C6); other keys
+; either complete/abort the pending sequence or are handled specially
+; (0777, 0990, 0994 — e.g. Ind, labels, 2nd keys).
 05BF: 0AB5  TST KR[11]
 05C0: 136E  JNC 0777
 05C1: 0AA5  TST KR[10]
@@ -2247,36 +2262,45 @@
 06C3: 13D6  JNC 08AE
 06C4: 0082  CLR fA[8]
 06C5: 1BD2  JC 08AE
-06C6: 0A08  MOV R5,KR[4..7]
-06C7: 09F6  D=R5 MANT
+; ═══════════════════════════════════════════════════════════════════════════
+; ARGUMENT COLLECTOR  (0x06C6–0x06DA) — trace-confirmed (STO 05, SUM 05,
+; STO Ind 01). Entered from NUMBER_ENTRY (031C) when fB[12] is set: the digit
+; in KR[4..7] is shifted into the argument held in E (the suspended X sits
+; in E's place in A meanwhile); E[1..2] count the digits still expected
+; (set at 022C). When the count runs out → 07AD: resume the operation.
+; ═══════════════════════════════════════════════════════════════════════════
+06C6: 0A08  MOV R5,KR[4..7]   ; digit …
+06C7: 09F6  D=R5 MANT         ; … into D[3]
 06C8: 0002  CLR fA[0]
-06C9: 01D7  A<>E ALL
-06CA: 0070  TST fA[7]
+06C9: 01D7  A<>E ALL          ; A := collector state
+06CA: 0070  TST fA[7]         ; Ind?
 06CB: 180A  JC 06D0
 06CC: 0309  IO=A-1 DPT1
 06CD: 1806  JC 06D0
 06CE: 0AB7  MOV R5,#11
 06CF: 0CF0  A=R5 MAEX
-06D0: 0940  A=SLA MANT
-06D1: 09B0  A=A+D MANT
+06D0: 0940  A=SLA MANT        ; shift the argument one digit …
+06D1: 09B0  A=A+D MANT        ; … and add the new digit
 06D2: 0148  A=SRA ALL
-06D3: 0308  A=A-1 DPT1
+06D3: 0308  A=A-1 DPT1        ; one digit fewer to go …
 06D4: 0140  A=SLA ALL
 06D5: 03D0  A=LOAD DPT1
-06D6: 11AE  JNC 07AD
-06D7: 01D7  A<>E ALL
+06D6: 11AE  JNC 07AD          ; … none left → complete (07AD)
+06D7: 01D7  A<>E ALL          ; more digits: collector back to E
 06D8: 00A8  TST fB[10]
 06D9: 1173  JNC 0620
 06DA: 1A45  JC 05B8
+; Key arriving in argument mode (06A8): fetch SCOM[13] into D (the stack
+; status), then classify the key (05BF).
 06DB: 0AD7  MOV R5,#13
 06DC: 02F3  B=R5 DPT
 06DD: 0111  IO=B ALL
 06DE: 0A1F  RCLF
-06DF: 01D6  D=LOAD ALL
+06DF: 01D6  D=LOAD ALL        ; D := SCOM[13]
 06E0: 01D5  C<>D ALL
 06E1: 0E2C  C=C-1 MMSD1
 06E2: 01D5  C<>D ALL
-06E3: 1249  JNC 05BF
+06E3: 1249  JNC 05BF          ; → classify
 06E4: 0AB5  TST KR[11]
 06E5: 0AA5  TST KR[10]
 06E6: 0A95  TST KR[9]
@@ -2433,6 +2457,8 @@
 0760: 180C  JC 0766
 0761: 0A55  TST KR[5]
 0762: 1808  JC 0766
+; Digit key in argument mode: dispatch it normally (06B1) — DIGIT_SLIDE then
+; routes it to the collector because fB[12] is set (031C).
 0763: 0008  TST fB[0]
 0764: 00D8  TST fB[13]
 0765: 1969  JC 06B1
@@ -2509,19 +2535,23 @@
 07AA: 0A0F  STOF
 07AB: 0131  IO=D ALL
 07AC: 01D7  A<>E ALL
-07AD: 00CA  CLR fB[12]
+; ARG_COMPLETE: all digits typed. Clear argument mode, leave the number in E
+; (A := X again) and resume the suspended sequence at the slot after the
+; collector call: SR holds that slot address; INC KR + SET KR[1] jump to it.
+; With Ind (fA[7]) the register is read first (04B1 → indirect address).
+07AD: 00CA  CLR fB[12]        ; argument complete
 07AE: 00A8  TST fB[10]
 07AF: 16D2  JNC 0B18
 07B0: 00A0  TST fA[10]
 07B1: 175A  JNC 0B5E
 07B2: 06D8  A=0 EXP
 07B3: 014E  D=SRA ALL
-07B4: 01D7  A<>E ALL
-07B5: 0070  TST fA[7]
-07B6: 160B  JNC 04B1
-07B7: 0A0D  SWAP KR,SR
-07B8: 0A04  INC KR
-07B9: 0015  SET KR[1] ; PREG
+07B4: 01D7  A<>E ALL          ; A := X, E := argument
+07B5: 0070  TST fA[7]         ; Ind?
+07B6: 160B  JNC 04B1          ; yes → read the pointer register first
+07B7: 0A0D  SWAP KR,SR        ; resume: KR := suspended slot …
+07B8: 0A04  INC KR            ; … + 1 …
+07B9: 0015  SET KR[1] ; PREG  ; … jump there
 07BA: 0A0D  SWAP KR,SR
 07BB: 17C7  JNC 03D8
 07BC: 16C6  JNC 0B1F
@@ -3204,27 +3234,32 @@
 0A17: 1C29  JC 0803
 0A18: 0081  SET fA[8]
 0A19: 1FDE  JC 0E08
+; RAM address encoding for RAM.OP: the bus carries op in nibble 0, units in
+; nibble 2 and the tens in nibble 3 — a HEXADECIMAL nibble 0–B for registers
+; 0–119. 100–119 are prepared as (n − 20) plus a marker in A[0], which the
+; read/write code turns into tens nibble A/B by an uncorrected ALU sum
+; (0DBE–0DC6, 0CFB–0FFB).
 0A1A: 0C48  A=SRA MAEX
 0A1B: 0C48  A=SRA MAEX
-0A1C: 0509  IO=A-1 LLSD1
+0A1C: 0509  IO=A-1 LLSD1      ; register ≥ 100?
 0A1D: 0140  A=SLA ALL
-0A1E: 100A  JNC 0A23
-0A1F: 0A27  MOV R5,#2
+0A1E: 100A  JNC 0A23          ; no
+0A1F: 0A27  MOV R5,#2         ; yes: marker …
 0A20: 02F0  A=R5 DPT
-0A21: 0D08  A=A-1 MLSD1
+0A21: 0D08  A=A-1 MLSD1       ; … and n − 20
 0A22: 0D08  A=A-1 MLSD1
 0A23: 0C48  A=SRA MAEX
-0A24: 0106  D=A ALL
+0A24: 0106  D=A ALL           ; D := encoded address
 0A25: 00A8  TST fB[10]
 0A26: 11E6  JNC 0B19
-0A27: 0090  TST fA[9]
+0A27: 0090  TST fA[9]         ; read?
 0A28: 0092  CLR fA[9]
-0A29: 1722  JNC 0DBA
+0A29: 1722  JNC 0DBA          ; yes → RAM_READ
 0A2A: 0070  TST fA[7]
 0A2B: 1762  JNC 0DDC
-0A2C: 01D7  A<>E ALL
-0A2D: 0051  SET fA[5]
-0A2E: 1D92  JC 0CF7
+0A2C: 01D7  A<>E ALL          ; write: A := X …
+0A2D: 0051  SET fA[5]         ; (store-back entry from 04DF/075C)
+0A2E: 1D92  JC 0CF7           ; → RAM_WRITE
 0A2F: 00C0  TST fA[12]        ; cos? (numerator 1 instead of t)
 0A30: 00E1  SET fA[14]        ; tolerate overflow while squaring
 0A31: 0106  D=A ALL           ; D := t
@@ -3992,11 +4027,13 @@
 0CF4: 1831  JC 0CDC
 0CF5: 04D3  B=LOAD DPTC
 0CF6: 19B6  JC 0DD1
-0CF7: 0239  IO=-D DPT
-0CF8: 01D5  C<>D ALL
+; RAM_WRITE: write C (the value, flags from fB[1..4]) to the register whose
+; encoded address is in D.
+0CF7: 0239  IO=-D DPT         ; register ≥ 100 marker?
+0CF8: 01D5  C<>D ALL          ; C := address, D := value
 0CF9: 01DB  B=0 ALL
 0CFA: 1DF4  JC 0FF4
-0CFB: 052C  C=C-1 LLSD1
+0CFB: 052C  C=C-1 LLSD1       ; yes → tens nibble A/B via the D[3] = 6 bias
 0CFC: 0A67  MOV R5,#6
 0CFD: 09F3  B=R5 MANT
 0CFE: 15EC  JNC 0FF4
@@ -4054,31 +4091,39 @@
 0D30: 00A9  SET fB[10]
 0D31: 0041  SET fA[4]
 0D32: 1A73  JC 0BF9
-0D33: 01D7  A<>E ALL
+; ═══════════════════════════════════════════════════════════════════════════
+; REG_ADDR  (0x0D33–0x0D4A) — data register number → RAM register, with the
+; partition check. Trace-confirmed (STO/RCL 05, STO Ind 01).
+; SCOM[13] nibbles 3–5 hold the index of the top RAM register (119 on the
+; TI-59, 59 on the TI-58 — set by the power-on memory probe): Rnn lives at
+; RAM[top − nn] (R05 → 114). The result must lie above the program
+; partition (SCOM[13] nibbles 8–9 × 10, e.g. 60), else error (0D4B → 0FA2).
+; ═══════════════════════════════════════════════════════════════════════════
+0D33: 01D7  A<>E ALL          ; A := register number (E), E := X
 0D34: 0906  D=A MANT
-0D35: 0AD7  MOV R5,#13
+0D35: 0AD7  MOV R5,#13        ; SCOM[13] …
 0D36: 02F6  D=R5 DPT
 0D37: 0131  IO=D ALL
 0D38: 0A1F  RCLF
 0D39: 09D0  A=LOAD MANT
-0D3A: 0148  A=SRA ALL
+0D3A: 0148  A=SRA ALL         ; … isolate nibbles 3–5 = top RAM register …
 0D3B: 0148  A=SRA ALL
 0D3C: 0148  A=SRA ALL
 0D3D: 09D8  A=0 MANT
 0D3E: 0140  A=SLA ALL
 0D3F: 0140  A=SLA ALL
 0D40: 0140  A=SLA ALL
-0D41: 09B8  A=A-D MANT
+0D41: 09B8  A=A-D MANT        ; … RAM index = top − nn
 0D42: 0131  IO=D ALL
 0D43: 0A1F  RCLF
-0D44: 09D6  D=LOAD MANT
-0D45: 097E  D=SRD MANT
+0D44: 09D6  D=LOAD MANT       ; SCOM[13] again …
+0D45: 097E  D=SRD MANT        ; … nibbles 8–9 = partition / 10 …
 0D46: 097E  D=SRD MANT
 0D47: 097E  D=SRD MANT
 0D48: 097E  D=SRD MANT
-0D49: 09B9  IO=A-D MANT
-0D4A: 1E61  JC 0A1A
-0D4B: 00D0  TST fA[13]
+0D49: 09B9  IO=A-D MANT       ; RAM index ≥ first data register?
+0D4A: 1E61  JC 0A1A           ; yes → address encoding
+0D4B: 00D0  TST fA[13]        ; no → error (unless …)
 0D4C: 14AC  JNC 0FA2
 0D4D: 0092  CLR fA[9]
 0D4E: 18CF  JC 0CE7
@@ -4216,28 +4261,29 @@
 0DB7: 0176  D=SLD ALL
 0DB8: 0930  A=D MANT
 0DB9: 1EA7  JC 0A66
+; RAM_READ: read the register addressed by A into A, flags → fA[1..4].
 0DBA: 01D5  C<>D ALL
-0DBB: 0309  IO=A-1 DPT1
+0DBB: 0309  IO=A-1 DPT1       ; register ≥ 100 marker?
 0DBC: 01DE  D=0 ALL
 0DBD: 100A  JNC 0DC2
-0DBE: 0508  A=A-1 LLSD1
+0DBE: 0508  A=A-1 LLSD1       ; yes → tens nibble A/B bias
 0DBF: 0A67  MOV R5,#6
 0DC0: 09F6  D=R5 MANT
 0DC1: 1002  JNC 0DC2 ; clear COND
-0DC2: 0140  A=SLA ALL
+0DC2: 0140  A=SLA ALL         ; address into bus position, op 0 = read
 0DC3: 0646  D=SLA EXP
 0DC4: 0C76  D=SLD MAEX
 0DC5: 0AF8  RAM.OP
-0DC6: 01B1  IO=A+D ALL
-0DC7: 01D0  A=LOAD ALL
+0DC6: 01B1  IO=A+D ALL        ; bus: op + address
+0DC7: 01D0  A=LOAD ALL        ; A := RAM register
 0DC8: 00A8  TST fB[10]
 0DC9: 171C  JNC 1157
 0DCA: 01D5  C<>D ALL
 0DCB: 00D2  CLR fA[13]
-0DCC: 0201  IO=A DPT
-0DCD: 0007  MOV fA[1..4],R5
+0DCC: 0201  IO=A DPT          ; its nibble 0 (signs) …
+0DCD: 0007  MOV fA[1..4],R5   ; … into fA[1..4]
 0DCE: 005A  CLR fB[5]
-0DCF: 1DFD  JC 0AD1
+0DCF: 1DFD  JC 0AD1           ; → 0812 → ARITH_EXIT
 0DD0: 02DB  B=0 DPT
 0DD1: 0AE7  MOV R5,#14
 0DD2: 02F6  D=R5 DPT
@@ -4845,18 +4891,18 @@
 0FF1: 0D08  A=A-1 MLSD1
 0FF2: 1391  JNC 0E2A
 0FF3: 1EC4  JC 1355
-0FF4: 0164  C=SLC ALL
+0FF4: 0164  C=SLC ALL         ; address into bus position (units nibble 2, tens nibble 3)
 0FF5: 0663  B=SLC EXP
 0FF6: 0C53  B=SLB MAEX
-0FF7: 03D3  B=LOAD DPT1
-0FF8: 0A16  MOV R5,fB[1..4]
+0FF7: 03D3  B=LOAD DPT1       ; op 1 = write
+0FF8: 0A16  MOV R5,fB[1..4]   ; value flags (signs) into nibble 0
 0FF9: 02F6  D=R5 DPT
-0FFA: 0AF8  RAM.OP
-0FFB: 0191  IO=C+B ALL
-0FFC: 0131  IO=D ALL
+0FFA: 0AF8  RAM.OP            ; next bus value = op + address …
+0FFB: 0191  IO=C+B ALL        ; … (uncorrected sum gives the hex tens nibble) …
+0FFC: 0131  IO=D ALL          ; … then the 16 data nibbles
 0FFD: 01D5  C<>D ALL
 0FFE: 04D4  C=LOAD DPTC
-0FFF: 1EED  JC 0C89
+0FFF: 1EED  JC 0C89           ; → 0B3B → ARITH_EXIT
 1000: 1F50  JC 13A8
 1001: 1F4C  JC 13A7
 1002: 1F4C  JC 13A8
