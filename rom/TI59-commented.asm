@@ -4708,7 +4708,8 @@
 0E6D: 0052  CLR fA[5]
 0E6E: 0002  CLR fA[0]
 0E6F: 1ECB  JC 0B0A
-0E70: 1F3D  JC 0AD2
+0E70: 1F3D  JC 0AD2           ; label found → 0AD2 → STEP_TO_REG (0877): transfer to the step
+                              ;   after the label
 0E71: 1850  JC 0E99           ; keycode 17 B': no operand
 0E72: 181D  JC 0E64           ; keycode 27 INV': toggles INV (fA[8]) for the next keycode
 0E73: 184C  JC 0E99           ; keycode 37 P→R: no operand
@@ -5654,6 +5655,9 @@
 11A9: 1755  JNC 0DFF          ; → stop the run (0DFF: CLR fB[0])
 11AA: 1F8B  JC 0DE5
 11AB: 1DA4  JC 147D
+; Scanner: address operand after GTO / SBR / x=t / x≥t (fA[5], from 0F50):
+; a label name is one byte, an absolute step number two (first digit < 10 ⇒
+; step number, 11B0–11B5); the bytes are skipped (126E → 12BD).
 11AC: 0631  IO=D EXP
 11AD: 0A18  MOV KR[4..7],R5
 11AE: 0239  IO=-D DPT
@@ -5661,10 +5665,10 @@
 11B0: 0A75  TST KR[7]
 11B1: 0A55  TST KR[5]
 11B2: 0A45  TST KR[4]
-11B3: 1176  JNC 126E
+11B3: 1176  JNC 126E          ; label name byte → skip one
 11B4: 0A65  TST KR[6]
 11B5: 1972  JC 126E
-11B6: 00C8  TST fB[12]
+11B6: 00C8  TST fB[12]        ; two-byte step number: skip both (fA[9] set at 1274)
 11B7: 197A  JC 1274
 11B8: 0091  SET fA[9]         ; operand follows: skip one byte
 11B9: 00CA  CLR fB[12]
@@ -5879,17 +5883,19 @@
 126B: 0A1F  RCLF
 126C: 01D4  C=LOAD ALL
 126D: 1865  JC 123B
-126E: 00C8  TST fB[12]
+126E: 00C8  TST fB[12]        ; Dsz / If flg: digit operand first, then the address
 126F: 00CA  CLR fB[12]
 1270: 109A  JNC 12BD
 1271: 0239  IO=-D DPT
 1272: 1006  JNC 1275
 1273: 0040  TST fA[4]
-1274: 0091  SET fA[9]
-1275: 0052  CLR fA[5]
+1274: 0091  SET fA[9]         ; skip the next byte too
+1275: 0052  CLR fA[5]         ; address operand handled
 1276: 108E  JNC 12BD
-1277: 1FBD  JC 0E99
+1277: 1FBD  JC 0E99           ; next keycode
 1278: 1B54  JC 1422
+; Ind address / library SBR operand: convert the operand into a step number
+; (1279–1285) before the transfer.
 1279: 04D0  A=LOAD DPTC
 127A: 0308  A=A-1 DPT1
 127B: 1012  JNC 1284
@@ -5975,11 +5981,13 @@
 12B9: 1EEB  JC 0F44
 12BA: 1FA7  JC 0EE7
 12BB: 1658  JNC 15E7
-12BC: 017E  D=SRD ALL
+; Scanner: operand byte to skip (fA[9], from 0F4D). During Op 08 / List the
+; label names are printed here (12C0–12CC: PRT.OUT digit codes).
+12BC: 017E  D=SRD ALL         ; drop the operand byte
 12BD: 0082  CLR fA[8]
-12BE: 0040  TST fA[4]
-12BF: 1891  JC 1277
-12C0: 00D0  TST fA[13]
+12BE: 0040  TST fA[4]         ; printing (List / Op 08)?
+12BF: 1891  JC 1277           ; no → next keycode
+12C0: 00D0  TST fA[13]        ; Op 08 label list …
 12C1: 1347  JNC 111E
 12C2: 0A0C  MOV KR,EXT[4..15]
 12C3: 07DE  D=-1 EXP1
