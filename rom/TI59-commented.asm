@@ -1900,7 +1900,7 @@
 05A1: 0A1F  RCLF              ; printer / trace checks (D[MSD] test as at 069D)
 05A2: 09D6  D=LOAD MANT
 05A3: 09D5  C<>D MANT
-05A4: 0E2C  C=C-1 MMSD1
+05A4: 0E2C  C=C-1 MMSD1       ; (flag 9 test as at 069D)
 05A5: 0E2C  C=C-1 MMSD1
 05A6: 09D5  C<>D MANT
 05A7: 180A  JC 05AC
@@ -2314,14 +2314,15 @@
 069A: 0A00  WAIT D0
 069B: 08FB  KEY [P]           ; printer TRACE switch on?
 069C: 1798  JNC 0A68          ; → queue the keystroke's print symbol (no print yet)
-; ── 069D–06A1: printer present but TRACE off — a test on D (same C=C-1 MMSD1
-; ── pair as at 05A4/05A5) can still route to the queue at 0A68; speculative:
-; ── serves the D12 PRINT pseudo-key. Not exercised in either keypress trace. ─
+; ── 069D–06A1: printer present, TRACE switch off: user flag 9 traces too.
+; ── D = SCOM[0] (0695); subtracting 2 twice from its nibble 15 tests bit 1 =
+; ── flag 9 (flags 5–9 are bit 1 of nibbles 11–15). Trace-checked: a program
+; ── with St flg 9 prints "2.  +", "3.  =" … with the TRACE switch off.
 069D: 09D5  C<>D MANT
-069E: 0E2C  C=C-1 MMSD1
+069E: 0E2C  C=C-1 MMSD1       ; flag 9 set?
 069F: 0E2C  C=C-1 MMSD1
 06A0: 09D5  C<>D MANT
-06A1: 1F8E  JC 0A68
+06A1: 1F8E  JC 0A68           ; yes → queue the trace symbol as with the TRACE switch
 06A2: 0066  MOV fA[6],fB[6]
 06A3: 0069  SET fB[6]
 06A4: 0050  TST fA[5]
@@ -6784,11 +6785,11 @@
 1541: 0239  IO=-D DPT
 1542: 0639  IO=-D EXP
 1543: 1012  JNC 154C
-1544: 01D5  C<>D ALL
+1544: 01D5  C<>D ALL          ; TRACE switch off: user flag 9 set?
 1545: 0E2C  C=C-1 MMSD1
 1546: 0E2C  C=C-1 MMSD1
 1547: 01D5  C<>D ALL
-1548: 19BE  JC 1627
+1548: 19BE  JC 1627           ; …
 1549: 0A00  WAIT D0           ; TRACE switch (KP at D15)?
 154A: 08FB  KEY [P]
 154B: 11B8  JNC 1627

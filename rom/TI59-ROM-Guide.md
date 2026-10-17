@@ -295,6 +295,7 @@ n + 2 (0 = floating); fB[15] = sci, fB[7] = eng.
   Flag 8 makes an error stop a running program (run loop `07E2`).
   Without it the program keeps running and the error only blinks once the
   program stops.
+  Flag 9 traces like the printer's TRACE switch (`069D`, `05A4`, `1544`).
 
 ## Solid State library
 
