@@ -390,7 +390,7 @@
 0126: 095B  B=SRB MANT        ; … marker now at the 10^8 position (nibble 11)
 0127: 0989  IO=A-B MANT       ; mantissa ≥ marker?
 0128: 1C36  JC 0343           ; yes → no room, just redisplay
-0129: 00A8  TST fB[10]        ; reached from a prefix key (2nd/INV)?
+0129: 00A8  TST fB[10]        ; reached from a prefix key (fB[10] borrowed, see 026C)?
 012A: 1368  JNC 02DE          ; yes → redisplay only
 012B: 00F1  SET fA[15]        ; EE key: exponent entry on
 012C: 1B64  JC 02DE
@@ -809,10 +809,11 @@
 ; column by +5 → mirror dispatch table at 0x0062).
 0268: 0093  TOG fA[9]         ; 2nd pending ↔
 0269: 006E  MOV fB[6],fA[6]   ; a prefix key doesn't consume the fresh-operand state
-026A: 00A8  TST fB[10]
-026B: 1750  JNC 0613
-026C: 00A9  SET fB[10]        ; transient "prefix key" mark: keeps INV through the redisplay
-                              ;   (0306)
+026A: 00A8  TST fB[10]        ; LRN mode?
+026B: 1750  JNC 0613          ; yes → record the prefix key as a program step (0613)
+026C: 00A9  SET fB[10]        ; run mode: borrow fB[10] as a transient "prefix key" mark — keeps
+                              ;   INV through the redisplay (0306) and stops EE entry (0129);
+                              ;   cleared at 0307
 026D: 0058  TST fB[5]         ; result on display?
 026E: 10E0  JNC 02DE          ; yes → redisplay it
 026F: 1AA9  JC 011B           ; entry in progress → redisplay the entry (via the EE room check)
@@ -997,7 +998,7 @@
 0303: 0289  IO=A-B DPT        ; … until past the decimal point
 0304: 100D  JNC 02FE          ; otherwise keep scanning
 0305: 0230  A=D DPT           ; restore the digits-after-point count in A[0]
-0306: 00A8  TST fB[10]        ; prefix key (2nd/INV) being processed?
+0306: 00A8  TST fB[10]        ; transient prefix mark set (026C)?
 0307: 00AA  CLR fB[10]
 0308: 1004  JNC 030A          ; yes → keep INV
 0309: 0082  CLR fA[8]         ; any other key cancels INV
@@ -1031,8 +1032,8 @@
 031A: 0085  SET KR[8]         ; "." : no digit to insert
 031B: 00C8  TST fB[12]        ; argument entry pending (STO nn, GTO nnn, …)?
 031C: 1754  JNC 06C6          ; yes → the digit goes to the argument collector
-031D: 00A8  TST fB[10]
-031E: 15B2  JNC 05F7          ; fB[10] handler (not taken)
+031D: 00A8  TST fB[10]        ; LRN mode?
+031E: 15B2  JNC 05F7          ; yes → the digit becomes a program step
 031F: 0058  TST fB[5]         ; result on display?
 0320: 1808  JC 0324           ; no → continue the entry
 0321: 01D8  A=0 ALL           ; yes → start a new number: clear the image …
@@ -1723,7 +1724,7 @@
 ; SCOM[0] nibble 3 non-zero, 054F–0553) formatting is skipped (08A1).
 ; ═══════════════════════════════════════════════════════════════════════════
 054C: 00A0  TST fA[10]        ; trace line pending …
-054D: 00A8  TST fB[10]        ; … or 0x0A-bank key: check for a running sub-program
+054D: 00A8  TST fB[10]        ; … or LRN / reformat-only marker → always format
 054E: 100C  JNC 0554
 054F: 0A1F  RCLF              ; SCOM[0] (bus zero → row 0) …
 0550: 09D3  B=LOAD MANT
@@ -1806,10 +1807,11 @@
 0599: 1806  JC 059C
 059A: 0309  IO=A-1 DPT1       ; … or at the decimal point
 059B: 180F  JC 0594
-059C: 00A8  TST fB[10]
+059C: 00A8  TST fB[10]        ; reformat-only (fB[10] borrowed outside LRN, e.g. EE/Fix on a
+                              ;   result)?
 059D: 00AA  CLR fB[10]
 059E: 1806  JC 05A1
-059F: 0059  SET fB[5]         ; 0x0A-bank path: result displayed, return now
+059F: 0059  SET fB[5]         ; yes: result displayed, return to the caller
 05A0: 1D9F  JC 02D1
 05A1: 0A1F  RCLF              ; printer / trace checks (D[MSD] test as at 069D)
 05A2: 09D6  D=LOAD MANT

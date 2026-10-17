@@ -92,7 +92,8 @@ pending operation's inverse-pair bit (see below).
 |---|---|
 | 1–8 | AOS pending left operands, one per level |
 | 12 | AOS operator stack: 2 nibbles per entry (precedence, paren level), top entry in nibbles 1/0 |
-| 13 | nibble 1 = current paren level, nibble 2 = AOS depth; nibbles 8–9 = partition (see `reference/CoreArchitecture.md`) |
+| 0 | nibble 0 = Fix setting (n+2, 0 = floating); nibble 3 = Prg Src Flag; nibbles 4–7 = program step (see `reference/CoreArchitecture.md`) |
+| 13 | nibble 0 = angle unit (0 DEG, 1 GRAD, 0xC RAD); nibble 1 = current paren level; nibble 2 = AOS depth; nibbles 3–5 = index of the top RAM register (119 TI-59, 59 TI-58), set by the power-on probe; nibbles 8–9 = program partition ÷ 10 |
 
 (Other rows are covered in `reference/CoreArchitecture.md`; this table grows
 as more of the ROM is documented.)
@@ -109,10 +110,21 @@ Meanings established so far; "set" means the bit is 1.
 | fA[4] | arithmetic overflow exit marker (`0418`) |
 | fA[6] | copy of fB[6] taken at the start of each key (`06A2`) |
 | fA[8] | INV pending |
+| fA[7] | Ind pending (indirect register / address) |
+| fA[9] | 2nd pending (column bias +5 at dispatch); in register access: 1 = read (`02D9`), 0 = write (`04B1`) |
 | fA[10] | printer trace record pending (`0A68`) |
+| fA[11] | tan (trig sequence) |
+| fA[12] | cos (trig sequence); sin↔cos role in the octant fold |
+| fA[15] | exponent entry (after EE during number entry) |
+| fB[4] | decimal point typed (number entry); kernel mode ln (1) / exp (0) in the transcendental kernel |
+| fB[5] | a result (not an entry) is on display: X is in C, the next digit starts a new number |
+| fB[7] | engineering display (Eng) |
+| fB[8] | INV saved for a suspended operation sequence (`0234`) |
+| fB[10] | LRN mode (toggled at `03D8`); outside LRN borrowed as a transient prefix/reformat marker, cleared before idle |
 | fB[6] | "fresh operand": set by every key at `06A3`, cleared by an AOS push and by `(`; an operator or `)`/`=` arriving with fA[6] clear is an error (`5 + =`, `5 + × 3`) |
 | fB[9] | error: display blinks until CLR/CE (`0641`) |
 | fB[12] | argument entry in progress: digit keys feed a suspended operation sequence |
+| fB[15] | scientific (EE) display |
 
 ## AOS (algebraic operating system)
 
@@ -183,3 +195,25 @@ All use the 16-entry constant ROM (read with `A=A+CON` etc., index in
   The arc functions run the CORDIC backwards and accumulate the angle
   (`0C95`), asin/acos first forming x/√(1−x²).
 - **Angle unit**: SCOM[13] nibble 0 = 0 DEG, 1 GRAD, 0xC RAD (`05D1`).
+
+## Memory registers
+
+`STO/RCL/SUM/Prd/Exc nn` are sequences that suspend for two digits
+(`04CC` → `022C`, fB[12]); the collector (`06C6`) shifts each digit into E
+and resumes the sequence at `07AD`. `REG_ADDR` (`0D33`) maps Rnn to
+RAM[top − nn] using SCOM[13] nibbles 3–5 (top = 119 on the TI-59) and
+rejects registers inside the program partition. The RAM.OP bus word
+carries the operation in nibble 0, the units digit in nibble 2 and a
+*hexadecimal* tens nibble (0–B) in nibble 3, so registers 100–119 are
+reached through an uncorrected ALU sum (`0DBE–0DC6`, `0CFB–0FFB`).
+`Ind` sets fA[7]; the collected number is then first used to read the
+pointer register.
+
+## Display formatting
+
+Two layers: the **entry display** (`02E2`) builds the control image for a
+number being typed; **DISP_FORMAT** (`054C`) converts a result to the
+display image in two passes (fB[5]): pass 1 picks fixed/sci/eng layout,
+rounds at the first hidden digit and renormalizes; pass 2 lays it out
+again and strips trailing zeros. Fix n is kept in SCOM[0] nibble 0 as
+n + 2 (0 = floating); fB[15] = sci, fB[7] = eng.
