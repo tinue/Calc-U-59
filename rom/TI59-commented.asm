@@ -4458,7 +4458,7 @@
 0DE1: 0A67  MOV R5,#6
 0DE2: 09F6  D=R5 MANT
 0DE3: 1280  JNC 0F23
-0DE4: 1F8E  JC 11AB
+0DE4: 1F8E  JC 11AB           ; Op 09 → 11AB → OP09_DOWNLOAD 147D
 0DE5: 032C  C=C-1 DPT1
 0DE6: 0121  IO=C ALL
 0DE7: 0A1F  RCLF
@@ -5494,7 +5494,7 @@
 1166: 0A1F  RCLF
 1167: 09D0  A=LOAD MANT
 1168: 0509  IO=A-1 LLSD1
-1169: 1655  JNC 0E3F
+1169: 1655  JNC 0E3F          ; Op 09 refused: error display
 116A: 0AE7  MOV R5,#14
 116B: 02F3  B=R5 DPT
 116C: 0111  IO=B ALL
@@ -6377,21 +6377,33 @@
 147A: 0176  D=SLD ALL
 147B: 0176  D=SLD ALL
 147C: 1809  JC 1478
-147D: 0A17  MOV R5,#1
+; ═══════════════════════════════════════════════════════════════════════════
+; OP09_DOWNLOAD  (0x147D–0x14EE) — Op 09: copy the selected library program
+; into RAM program memory from step 000. Trace-confirmed (headless):
+; ST Pgm 02 copies; ML Pgm 02 (898 steps) errors under 479.59 and copies under
+; 959. (0 Op 17). Checks, each failing to 1169 with fB[9] already set (1484):
+;   module copy-protect byte (header byte 1) ≠ 0 (1485–148A),
+;   program length (next program's start − this start) > program memory
+;   (8 · program registers, 14B4–14C6).
+; Then 8 keycodes per register are read from the CROM (LIB.HI/LIB.IN pairs,
+; 14D4–14E1) and written as RAM program registers (0F84) until the program's
+; end (14DE → 15B4).
+; ═══════════════════════════════════════════════════════════════════════════
+147D: 0A17  MOV R5,#1         ; CROM PC := 0001 (copy-protect byte) …
 147E: 0A18  MOV KR[4..7],R5
 147F: 0A1E  LIB.PC
 1480: 0A0C  MOV KR,EXT[4..15]
 1481: 0A1E  LIB.PC
 1482: 0A1E  LIB.PC
 1483: 0A1E  LIB.PC
-1484: 0099  SET fB[9]
-1485: 0A0E  LIB.IN
+1484: 0099  SET fB[9]         ; assume failure
+1485: 0A0E  LIB.IN            ; protect byte
 1486: 0A0C  MOV KR,EXT[4..15]
 1487: 0A08  MOV R5,KR[4..7]
 1488: 02F3  B=R5 DPT
-1489: 0219  IO=-B DPT
-148A: 1643  JNC 1169
-148B: 0A97  MOV R5,#9
+1489: 0219  IO=-B DPT         ; protected?
+148A: 1643  JNC 1169          ; yes → error
+148B: 0A97  MOV R5,#9         ; SCOM[9] page p → header entry 2p …
 148C: 01F0  A=R5 ALL
 148D: 0CD7  A<>E MAEX
 148E: 0101  IO=A ALL
@@ -6414,7 +6426,7 @@
 149F: 0133  B=D ALL
 14A0: 01DE  D=0 ALL
 14A1: 0153  B=SLB ALL
-14A2: 0A3E  LIB.HI
+14A2: 0A3E  LIB.HI            ; read this program's start and the next one's (end) …
 14A3: 0A0C  MOV KR,EXT[4..15]
 14A4: 0A08  MOV R5,KR[4..7]
 14A5: 02F6  D=R5 DPT
@@ -6430,9 +6442,9 @@
 14AF: 1823  JC 149E
 14B0: 0176  D=SLD ALL
 14B1: 0170  A=SLD ALL
-14B2: 0988  A=A-B MANT
+14B2: 0988  A=A-B MANT        ; length = end − start
 14B3: 01D2  A<>B ALL
-14B4: 0323  B=C+1 DPT1
+14B4: 0323  B=C+1 DPT1        ; program memory = 8 · partition registers (SCOM[13]) …
 14B5: 0111  IO=B ALL
 14B6: 0A1F  RCLF
 14B7: 01D6  D=LOAD ALL
@@ -6449,10 +6461,10 @@
 14C2: 09B6  D=A+D MANT
 14C3: 09B0  A=A+D MANT
 14C4: 09B0  A=A+D MANT
-14C5: 0989  IO=A-B MANT
-14C6: 16BB  JNC 1169
+14C5: 0989  IO=A-B MANT       ; … length fits?
+14C6: 16BB  JNC 1169          ; no → error
 14C7: 01D2  A<>B ALL
-14C8: 009A  CLR fB[9]
+14C8: 009A  CLR fB[9]         ; OK
 14C9: 0D08  A=A-1 MLSD1
 14CA: 16C3  JNC 1169
 14CB: 0AA7  MOV R5,#10
@@ -6460,7 +6472,7 @@
 14CD: 0101  IO=A ALL
 14CE: 0A0F  STOF
 14CF: 0121  IO=C ALL
-14D0: 0A77  MOV R5,#7
+14D0: 0A77  MOV R5,#7         ; register loop: 8 keycodes …
 14D1: 02F0  A=R5 DPT
 14D2: 06F0  A=R5 EXP
 14D3: 01DC  C=0 ALL
@@ -6474,8 +6486,8 @@
 14DB: 0A0C  MOV KR,EXT[4..15]
 14DC: 0A08  MOV R5,KR[4..7]
 14DD: 02F4  C=R5 DPT
-14DE: 0D08  A=A-1 MLSD1
-14DF: 11AA  JNC 15B4
+14DE: 0D08  A=A-1 MLSD1       ; program end reached?
+14DF: 11AA  JNC 15B4          ; yes → done
 14E0: 0308  A=A-1 DPT1
 14E1: 181B  JC 14D4
 14E2: 0176  D=SLD ALL
@@ -6490,7 +6502,7 @@
 14EB: 0D04  C=A+1 MLSD1
 14EC: 0148  A=SRA ALL
 14ED: 0148  A=SRA ALL
-14EE: 1D9B  JC 1221
+14EE: 1D9B  JC 1221           ; write the register (→ 0F84), next
 14EF: 0100  A=A ALL
 14F0: 0100  A=A ALL
 14F1: 0100  A=A ALL
