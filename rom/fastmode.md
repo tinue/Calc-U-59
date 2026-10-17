@@ -111,8 +111,9 @@ You need three facts about the calculator's internals to follow it.
    register n. HIR normally accepts only n = 1–8. Register 0 would be the
    status register.
 
-**The bug.** St flg waits for its digit. If a key such as STO, EE or x⇄t
-arrives instead, the firmware ends the operation early. But the code that
+**The bug.** Run from a program, St flg expects a two-digit flag number. If
+a key such as STO, EE or x⇄t arrives after the first digit, the firmware
+ends the operation early. But the code that
 decoded that key leaves one stray address bit behind, and St flg's
 completion adds its own bits on top of it. The jump lands in the wrong
 routine. After one more misrouted jump, execution ends in the code of
@@ -125,44 +126,29 @@ HIR STO, with register number 0.
 - The zeros become step 000 and floating-point display.
 - The leading 1 happens to set flag 4.
 
-**Why it starts running.** No key starts the program. Like every operation,
-the misrouted St flg ends in the display routine. That routine sees a
-non-zero source and concludes that a ROM routine such as P→R is running and
-is between two of its steps. In that case it does not format X: it switches
-the calculator to "running" and fetches the next step. This is TI's own
-mechanism for carrying a ROM routine from step to step. From then on the run
-loop sees "non-zero source" at every step and takes the fast path, while the
-fetch still reads from RAM.
+**Why it starts running.** Like every operation, the misrouted St flg ends
+in the display routine. That routine sees a non-zero source, assumes a ROM
+routine such as P→R is between two of its steps, and fetches the next step
+instead of formatting X. This is TI's own mechanism for running ROM routines;
+from here on every step takes the fast path, and the fetch still reads RAM.
 
-**Why the program starts at step 008.** The RAM chips can only transfer
-whole registers. A register is 16 decimal digits, shifted serially over the
-bus in one instruction cycle. It holds either one data register or 8 program
-steps of 2 digits each: 000–007, 008–015, 016–023, and so on. So the firmware
-cannot read a single step. When a block begins, it copies the whole register
-into a working buffer and then takes one step at a time out of that buffer. It reads memory again only when the buffer is used up and the next
-block begins.
+**Why the program starts at step 008.** The RAM chips transfer only whole
+registers of 16 digits. A register is either one data register or 8 program
+steps (000–007, 008–015, …). The firmware therefore copies a whole block of
+8 steps into a buffer, takes the steps out one by one, and reads memory again
+only when the next block begins.
 
-The hack sets the step counter to 000 but leaves the buffer alone. The buffer
-still holds the rest of the block in which St flg was found. So the next
-steps are not steps 001, 002, … from memory. They are whatever followed
-St flg in its own block:
+The hack sets the step counter to 000 but leaves the buffer alone. Steps
+001–007 come from the leftovers of St flg's own block, minus the step after
+St flg, which held the place of its flag number:
 
-- **St flg on the last step of a block** (007, 015, 023, …): nothing
-  follows it, so the buffer is empty. Steps 001–007 run as empty steps (each
-  one types a harmless 0). At step 008 a new block begins, the firmware reads
-  memory again, and the real program runs from there.
-- **St flg anywhere else**, for example on step 004: fast mode starts just
-  the same, but the rest of that block is still in the buffer and runs
-  first. The step right after St flg is skipped, because that is where a
-  program keeps St flg's flag number; the typed digit took its place. So
-  steps 006 and 007 run in place of 001 and 002, followed by empty steps.
-  If the program later passes through St flg's block again, St flg runs a
-  second time, as an ordinary instruction. This can be made to work, but it
-  is hard to follow.
+- **St flg on step 007:** nothing is left. Steps 001–007 run as empty steps,
+  each typing a harmless 0, and the real program starts when block 008–015
+  is read from memory.
+- **St flg on, say, step 004:** steps 006 and 007 run first, in place of 001
+  and 002. It works, but it is hard to follow.
 
-That is why St flg is put at step 007 (or 015, 023, …), and the program
-proper starts at step 008. Steps 000–006 can hold anything, because they are
-never read during the run.
+Steps 000–006 are never read during the run, so they can hold anything.
 
 **Why the restrictions follow.** All the other places that look at the source
 digit also ask only "non-zero?", and each draws the conclusion that suits a
