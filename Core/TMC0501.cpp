@@ -119,15 +119,16 @@ const TMC0501::MaskInfo TMC0501::mask_info[16] = {
 // index is encoded in KR bits 10:4 and loaded by running through the
 // INC KR chain at ROM addresses 0x139A–0x13A8.
 //
-// Entries 0–15: floating-point constants for transcendental math.
-//   The algorithms use a table-driven CORDIC-style approach; most entries are
-//   partial products or argument-reduction values, not simple named constants.
-//   Notable entries:
-//     [0]  ln(10) ≈ 2.302585092994…   (used for log₁₀ / 10^x)
-//     [1]  ln(2)  ≈ 0.693147180559…   (used for 2^x)
-//     [13] π/2    ≈ 1.570796326794…   (argument reduction for trig)
-//     [14] π      ≈ 3.141592653589…
-//     [15] 180/π  ≈ 57.2957795130…    (degree ↔ radian conversion)
+// Entries 0–15: floating-point constants for transcendental math, used by
+//   the ROM's Meggitt pseudo-multiplication (ln/e^x) and decimal CORDIC
+//   (trig) kernels — see rom/TI59-ROM-Guide.md § "Transcendental functions":
+//     [0]     ln(10) ≈ 2.302585092994        (log₁₀, 10^x, exponent fold-in)
+//     [1–7]   ln(1 + 10^−k), k = 0…6        ([1] = ln 2)
+//     [8–12]  atan(10^−k),   k = 0…4        ([8] = π/4)
+//     [13]    1.5707963267950 E+01 (= 5π)   the grad code flips its exponent
+//                                           to E−02 and uses it as π/200
+//     [14]    π      ≈ 3.141592653590       (2π range reduction)
+//     [15]    180/π  ≈ 57.2957795130…       (degree ↔ radian conversion)
 //
 // Entries 16–63: Keycode programs for routines such as Polar->Rec coordinates
 

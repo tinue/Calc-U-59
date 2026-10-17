@@ -234,7 +234,10 @@
 00AD: 0051  SET fA[5]
 00AE: 0A77  MOV R5,#7
 00AF: 1E7A  JC 03EC
-00B0: 00C1  SET fA[12]
+; Trig keys (2nd-table slots for sin/cos/tan land here; cos enters at 00B0,
+; tan arrives with fA[11] set): fA[12] = cos. INV → arc functions, fn 0
+; (slot 0500); otherwise fn 3 in the KR[9] bank → slot 0523.
+00B0: 00C1  SET fA[12]        ; cos
 ; ═══════════════════════════════════════════════════════════════════════════
 ; OPERATION SEQUENCE TABLE  (0x00B1–0x010F) — threaded "macro" code
 ; Trace-confirmed (headless harness, tools/headless/coverage.py).
@@ -254,11 +257,11 @@
 ; The operation each remaining run belongs to (from the scenarios that reach
 ; it) is noted on its first slot.
 ; ═══════════════════════════════════════════════════════════════════════════
-00B1: 0080  TST fA[8]
+00B1: 0080  TST fA[8]         ; INV?
 00B2: 0A07  MOV R5,#0
-00B3: 12BA  JNC 0210
-00B4: 0A37  MOV R5,#3
-00B5: 1FBC  JC 0493
+00B3: 12BA  JNC 0210          ; yes → arc function (slot 0500)
+00B4: 0A37  MOV R5,#3         ; sin/cos/tan: fn 3 …
+00B5: 1FBC  JC 0493           ; … + KR[9] → slot 0523
 00B6: 1ECC  JC 041C           ; If flg (program): normalize …
 00B7: 1A74  JC 01F1
 00B8: 1FF6  JC 04B3
@@ -1411,15 +1414,17 @@
 044D: 0E00  A=A+1 MMSD1       ; … insert the carry digit at the top …
 044E: 0308  A=A-1 DPT1        ; … and count the shift
 044F: 1811  JC 0447
+; LOAD_PI (slots 0526/0527, 052B/052C): 0452 sets A := π, 0453 adds π again
+; (A := 2π). Constant 14 (KR[8] set by the 02CC convention + index 6).
 0450: 0085  SET KR[8]
 0451: 0051  SET fA[5]
-0452: 01D8  A=0 ALL
-0453: 0A67  MOV R5,#6
+0452: 01D8  A=0 ALL           ; A := 0 …
+0453: 0A67  MOV R5,#6         ; … + constant 14 = π
 0454: 0A18  MOV KR[4..7],R5
 0455: 0022  CLR fA[2]
 0456: 0CC0  A=A+CON MAEX
 0457: 005A  CLR fB[5]
-0458: 1F74  JC 0812
+0458: 1F74  JC 0812           ; → ARITH_EXIT (next slot)
 ; Second card-path gate, entered from the idle-loop card poll (JC at 0640):
 ; sample digit 7. Asserted (or printer busy) → COND=0 → back to idle; clear →
 ; fall through toward card handling. See the discussion at 063C: on a TI-58
@@ -1483,7 +1488,7 @@
 0490: 1CB1  JC 0238
 0491: 0081  SET fA[8]
 0492: 0A17  MOV R5,#1
-0493: 0095  SET KR[9]
+0493: 0095  SET KR[9]         ; FN_ENTRY in the KR[9] bank (0x0520+fn)
 0494: 1D09  JC 0210
 0495: 0A37  MOV R5,#3
 0496: 02F3  B=R5 DPT
@@ -1834,19 +1839,30 @@
 05CD: 0A45  TST KR[4]
 05CE: 1B2A  JC 0763
 05CF: 132E  JNC 0766
-05D0: 0051  SET fA[5]
-05D1: 02D7  A<>E DPT
+; ═══════════════════════════════════════════════════════════════════════════
+; ANGLE UNIT CONVERSION  (0x05D0–0x05DC, 0x095C–0x096B) — trace-confirmed
+; (sin 30 in DEG, sin 1 in RAD, sin 50 in GRAD, INV sin .5). The unit is
+; SCOM[13] nibble 0: 0 = DEG, 1 = GRAD, 0xC = RAD. 05D1 converts X to
+; radians (slot 0524, before sin/cos/tan); 05D0 sets fA[5] first and converts
+; radians back to the unit (arc results, slot 0506).
+;   DEG:  ÷ / × constant 15 = 180/π                      (095C)
+;   GRAD: × / ÷ constant 13 used as π/200 — the ROM stores it as
+;         1.5707963…E01 (5π) and flips/raises its exponent to 10^−2 (0962)
+;   RAD:  unchanged
+; ═══════════════════════════════════════════════════════════════════════════
+05D0: 0051  SET fA[5]         ; radians → angle unit (arc results)
+05D1: 02D7  A<>E DPT          ; units → radians: A[0] := 0xD → SCOM[13] …
 05D2: 0AD7  MOV R5,#13
 05D3: 02F0  A=R5 DPT
 05D4: 0101  IO=A ALL
 05D5: 0A1F  RCLF
-05D6: 02D0  A=LOAD DPT
-05D7: 0309  IO=A-1 DPT1
-05D8: 1708  JNC 095C
-05D9: 0409  IO=A-xC DPTC
-05DA: 1710  JNC 0962
-05DB: 02D7  A<>E DPT
-05DC: 1B87  JC 0419
+05D6: 02D0  A=LOAD DPT        ; … A[0] := angle unit
+05D7: 0309  IO=A-1 DPT1       ; DEG (0)?
+05D8: 1708  JNC 095C          ; yes → 095C
+05D9: 0409  IO=A-xC DPTC      ; GRAD (1)?
+05DA: 1710  JNC 0962          ; yes → 0962
+05DB: 02D7  A<>E DPT          ; RAD: no conversion
+05DC: 1B87  JC 0419           ; → ARITH_EXIT
 05DD: 0A1F  RCLF
 05DE: 09D3  B=LOAD MANT
 05DF: 06F3  B=R5 EXP
@@ -2209,6 +2225,9 @@
 ; late, so 06B2 still executes, conveniently zeroing KR for the handler.
 06B1: 0015  SET KR[1] ; PREG
 06B2: 0A0C  MOV KR,EXT[4..15]
+; After the kernel (slot 052F): tan → result. sin/cos continue with
+; 1 + tan² → √ → divide: sin = t/√(1+t²), cos = 1/√(1+t²) (slots 0530–0533,
+; 0A2F–0A37 picks the numerator). Tan at an exact multiple of 90° → 03D6.
 06B3: 0F01  IO=A+1 MAEX1
 06B4: 1EF6  JC 0A2F
 06B5: 00C0  TST fA[12]
@@ -2819,30 +2838,45 @@
 08C4: 162B  JNC 05AF
 08C5: 1E6C  JC 0BFB
 08C6: 095B  B=SRB MANT
-08C7: 0708  A=A-1 EXP1
+; ═══════════════════════════════════════════════════════════════════════════
+; TAN KERNEL  (0x08C7–0x08DB, 0x0C5D–0x0C66, 0x09DF–0x09E5) — decimal CORDIC,
+; trace-confirmed (sin 30, cos 60, tan 45, sin 1 rad). Constants 8–12 =
+; atan(10^−k), k = 0…4 (KR[8] + index k). Registers: C = remaining angle θ
+; (C[0] reused as the shift count), A = y, B = x, starting at (0, 1).
+; For each k, while θ ≥ atan(10^−k): θ −= atan(10^−k) and the vector is
+; rotated by that angle, unnormalized:
+;     x' = x − y·10^−k   (0C5D–0C63)       y' = y + x·10^−k   (09DF–09E4)
+; After k = 4 the small remainder is applied as y += θ·x (0CFF–0D14) and
+; tan θ = y / x (0AE2–0AF8). The rotation gain cancels in the ratio.
+; With INV (fA[8], arc functions) the same loop runs backwards from (x, y)
+; = (1, t), rotating y towards 0 and accumulating the angle (0C95–0CAB).
+; ═══════════════════════════════════════════════════════════════════════════
+08C7: 0708  A=A-1 EXP1        ; align θ to a fixed-point mantissa (shift by its exponent)
 08C8: 1805  JC 08C6
 08C9: 06D8  A=0 EXP
-08CA: 0A07  MOV R5,#0
+08CA: 0A07  MOV R5,#0         ; k := 0 (constant 8 = atan 1 = π/4)
 08CB: 0A18  MOV KR[4..7],R5
-08CC: 0C06  D=A MAEX
-08CD: 0A08  MOV R5,KR[4..7]
+08CC: 0C06  D=A MAEX          ; D := y (for the y' step)
+08CD: 0A08  MOV R5,KR[4..7]   ; C[0] := k (shift count)
 08CE: 02F4  C=R5 DPT
-08CF: 0080  TST fA[8]
+08CF: 0080  TST fA[8]         ; arc mode?
 08D0: 171C  JNC 0C5E
-08D1: 0CEC  C=C-CON MAEX
-08D2: 1F18  JC 0C5E
-08D3: 0CE4  C=C+CON MAEX
+08D1: 0CEC  C=C-CON MAEX      ; θ − atan(10^−k) …
+08D2: 1F18  JC 0C5E           ; … fits → rotate
+08D3: 0CE4  C=C+CON MAEX      ; … doesn't: restore θ …
 08D4: 1A20  JC 09E4
-08D5: 0A65  TST KR[6]
-08D6: 0A04  INC KR
-08D7: 17B6  JNC 0CB2
+08D5: 0A65  TST KR[6]         ; … k = 4 done?
+08D6: 0A04  INC KR            ; next k
+08D7: 17B6  JNC 0CB2          ; yes → remainder step (0CB2)
 08D8: 0080  TST fA[8]
 08D9: 181B  JC 08CC
 08DA: 0C33  B=D MAEX
 08DB: 1F74  JC 0C95
 08DC: 1FDE  JC 0CCB
 08DD: 1FDE  JC 0CCC
-08DE: 00B0  TST fA[11]
+; Arc functions (slot 0501): atan → 0947; asin/acos first form x/√(1−x²) or
+; √(1−x²)/x (slots 0502–0504), then all run the CORDIC backwards (0505).
+08DE: 00B0  TST fA[11]        ; INV tan?
 08DF: 18D0  JC 0947
 08E0: 0A0D  SWAP KR,SR
 08E1: 0A57  MOV R5,#5
@@ -2870,16 +2904,20 @@
 08F7: 0100  A=A ALL
 08F8: 0100  A=A ALL
 08F9: 0100  A=A ALL
-08FA: 00B0  TST fA[11]
+; Range reduction before the CORDIC (slot 052E): very small angles skip the
+; kernel (sin θ ≈ θ, exponent ≤ −7 → 0C81); otherwise 0C8D/0FD5–0FEC fold
+; θ ∈ [0, 2π) into [0, π/4] by subtracting π/4 multiples, toggling the
+; result sign (fA[2]) and the sin↔cos role (fA[12]) per octant.
+08FA: 00B0  TST fA[11]        ; tan?
 08FB: 1804  JC 08FD
 08FC: 0051  SET fA[5]
 08FD: 0030  TST fA[3]
 08FE: 0D09  IO=A-1 MLSD1
 08FF: 1F1C  JC 0C8D
-0900: 0A77  MOV R5,#7
+0900: 0A77  MOV R5,#7         ; |θ| < 10^−7?
 0901: 06F3  B=R5 EXP
 0902: 0689  IO=A-B EXP
-0903: 1EFC  JC 0C81
+0903: 1EFC  JC 0C81           ; yes → small-angle result
 0904: 0090  TST fA[9]
 0905: 11F1  JNC 080D
 0906: 06D8  A=0 EXP
@@ -2970,22 +3008,22 @@
 0959: 1FA5  JC 0587
 095A: 0036  MOV fA[3],fB[3]
 095B: 1FEB  JC 0566
-095C: 0050  TST fA[5]
+095C: 0050  TST fA[5]         ; DEG: direction — to radians: ÷ 180/π, from radians: ×
 095D: 1804  JC 095F
 095E: 0011  SET fA[1]
-095F: 0A77  MOV R5,#7
+095F: 0A77  MOV R5,#7         ; constant 15 = 180/π …
 0960: 0A18  MOV KR[4..7],R5
-0961: 18AD  JC 090B
-0962: 0050  TST fA[5]
+0961: 18AD  JC 090B           ; … via 090B → MULDIV (fA[1] toggled at 0774)
+0962: 0050  TST fA[5]         ; GRAD: direction (opposite sense: × π/200 to radians)
 0963: 1004  JNC 0965
 0964: 0011  SET fA[1]
-0965: 0A57  MOV R5,#5
+0965: 0A57  MOV R5,#5         ; constant 13 …
 0966: 0A18  MOV KR[4..7],R5
 0967: 01D8  A=0 ALL
-0968: 01C0  A=A+CON ALL
-0969: 0031  SET fA[3]
-096A: 0700  A=A+1 EXP1
-096B: 18BB  JC 090E
+0968: 01C0  A=A+CON ALL       ; … = 1.5707963E01
+0969: 0031  SET fA[3]         ; exponent negative …
+096A: 0700  A=A+1 EXP1        ; … and 02: 1.5707963E−02 = π/200
+096B: 18BB  JC 090E           ; → MULDIV
 096C: 01D7  A<>E ALL
 096D: 0176  D=SLD ALL
 096E: 0AD7  MOV R5,#13
@@ -3103,13 +3141,13 @@
 09DC: 0080  TST fA[8]
 09DD: 1FED  JC 05E7
 09DE: 1055  JNC 09B4
-09DF: 0C48  A=SRA MAEX
+09DF: 0C48  A=SRA MAEX        ; y-step: x · 10^−k …
 09E0: 032C  C=C-1 DPT1
 09E1: 1805  JC 09DF
 09E2: 0080  TST fA[8]
 09E3: 1221  JNC 08D3
-09E4: 0CB0  A=A+D MAEX
-09E5: 1A33  JC 08CC
+09E4: 0CB0  A=A+D MAEX        ; … y' = y + x·10^−k
+09E5: 1A33  JC 08CC           ; next rotation
 09E6: 0C48  A=SRA MAEX
 09E7: 0C7E  D=SRD MAEX
 09E8: 0E00  A=A+1 MMSD1
@@ -3187,14 +3225,14 @@
 0A2C: 01D7  A<>E ALL
 0A2D: 0051  SET fA[5]
 0A2E: 1D92  JC 0CF7
-0A2F: 00C0  TST fA[12]
-0A30: 00E1  SET fA[14]
-0A31: 0106  D=A ALL
+0A2F: 00C0  TST fA[12]        ; cos? (numerator 1 instead of t)
+0A30: 00E1  SET fA[14]        ; tolerate overflow while squaring
+0A31: 0106  D=A ALL           ; D := t
 0A32: 0012  CLR fA[1]
 0A33: 0A06  MOV R5,fA[1..4]
 0A34: 02F6  D=R5 DPT
-0A35: 1D81  JC 0775
-0A36: 0ED6  D=LOAD MMSD1
+0A35: 1D81  JC 0775           ; → t · t
+0A36: 0ED6  D=LOAD MMSD1      ; cos: numerator 1.0
 0A37: 1D85  JC 0775
 0A38: 01D7  A<>E ALL
 0A39: 0AF7  MOV R5,#15
@@ -3390,6 +3428,8 @@
 0ADF: 0A0D  SWAP KR,SR
 0AE0: 18A1  JC 0A90
 0AE1: 153E  JNC 0D80
+; Division y ÷ x for the tan kernel (pseudo-division digit loop), result
+; normalized through 075E.
 0AE2: 0CB8  A=A-D MAEX
 0AE3: 1245  JNC 09C1
 0AE4: 0E2C  C=C-1 MMSD1
@@ -3796,16 +3836,16 @@
 0C5A: 1D4D  JC 09B4
 0C5B: 0001  SET fA[0]
 0C5C: 1CFF  JC 09DD
-0C5D: 0C48  A=SRA MAEX
+0C5D: 0C48  A=SRA MAEX        ; x-step: y · 10^−k …
 0C5E: 032C  C=C-1 DPT1
 0C5F: 1805  JC 0C5D
 0C60: 0CD2  A<>B MAEX
 0C61: 0C89  IO=A-B MAEX
 0C62: 171B  JNC 08D5
-0C63: 0C8B  B=A-B MAEX
+0C63: 0C8B  B=A-B MAEX        ; … x' = x − y·10^−k
 0C64: 0A08  MOV R5,KR[4..7]
 0C65: 02F4  C=R5 DPT
-0C66: 1D0D  JC 09E0
+0C66: 1D0D  JC 09E0           ; → y-step
 0C67: 01D7  A<>E ALL
 0C68: 0086  MOV fA[8],fB[8]
 0C69: 0148  A=SRA ALL
@@ -3852,10 +3892,12 @@
 0C92: 1F97  JC 08C7
 0C93: 0E09  IO=A-1 MMSD1
 0C94: 1F95  JC 08CA
+; Arc mode accumulation (backwards CORDIC): count how often each atan(10^−k)
+; rotation is needed to drive y to zero; the angle is built in C.
 0C95: 0CD2  A<>B MAEX
 0C96: 1F95  JC 08CC
-0C97: 0F24  C=C+1 MAEX1
-0C98: 0C88  A=A-B MAEX
+0C97: 0F24  C=C+1 MAEX1       ; angle digit + 1 …
+0C98: 0C88  A=A-B MAEX        ; … while y can be reduced
 0C99: 1805  JC 0C97
 0C9A: 0C80  A=A+B MAEX
 0C9B: 1AC3  JC 0B3A
@@ -3958,6 +4000,8 @@
 0CFC: 0A67  MOV R5,#6
 0CFD: 09F3  B=R5 MANT
 0CFE: 15EC  JNC 0FF4
+; Remainder step: y += θ·x for the angle left after k = 4 (tan r ≈ r), then
+; divide y / x (0AE4).
 0CFF: 04D4  C=LOAD DPTC
 0D00: 0CD8  A=0 MAEX
 0D01: 032C  C=C-1 DPT1
@@ -3979,7 +4023,7 @@
 0D11: 00E1  SET fA[14]
 0D12: 0031  SET fA[3]
 0D13: 0CD5  C<>D MAEX
-0D14: 1C61  JC 0AE4
+0D14: 1C61  JC 0AE4           ; → y ÷ x
 0D15: 00C8  TST fB[12]
 0D16: 00CA  CLR fB[12]
 0D17: 16ED  JNC 09A1
@@ -4768,6 +4812,8 @@
 0FD2: 1351  JNC 0E2A
 0FD3: 1F00  JC 1353
 0FD4: 1FAC  JC 13AA
+; Octant folding (see 08FA): subtract π/4 multiples (constant 8 via KR),
+; swapping sin↔cos (fA[12]) and adjusting the sign (fA[2]) per octant.
 0FD5: 0CC8  A=A-CON MAEX
 0FD6: 00C0  TST fA[12]
 0FD7: 1010  JNC 0FDF

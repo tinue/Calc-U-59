@@ -135,3 +135,51 @@ Implemented at `0146–020A`; full register-level detail in the listing.
   `01D1 → 04D0`), 9 open parentheses (the 10th errors at `0138`).
 - An operator, `)` or `=` immediately after another operator is an error
   (fA[6] check at `0195` / `014B`).
+
+## Arithmetic
+
+- **ADD** (`0358`): A := B ± A. Operands are swapped until A has the larger
+  exponent, B is shifted right by the difference, then magnitudes are added
+  (sharing the multiply loop's carry tail at `0449`) or the smaller is
+  subtracted from the larger. An exponent gap ≥ 100 leaves A unchanged.
+- **MULDIV** (`03CC`): A := B × A or B ÷ A (fA[1]). Exponents add (division
+  toggles the divisor's exponent sign first); the sign is the XOR.
+  Multiplication is digit-serial shift-and-add; division is restoring
+  repeated subtraction, 13 quotient digits. x ÷ 0 overflows to
+  9.9999999 99 (blinking); 0 ÷ 0 gives a blinking 1.
+- **ARITH_EXIT** (`0419`): the common tail — advance the continuation in SR
+  to the next slot, normalize, return.
+
+## Transcendental functions
+
+All use the 16-entry constant ROM (read with `A=A+CON` etc., index in
+`KR[4..6]` + `KR[8..11]`):
+
+| Index | Value |
+|---|---|
+| 0 | ln 10 |
+| 1–7 | ln(1 + 10⁻ᵏ), k = 0…6 (1 = ln 2) |
+| 8–12 | atan(10⁻ᵏ), k = 0…4 (8 = π/4) |
+| 13 | 1.5707963267950 E+01 (5π) — used as π/200 by flipping its exponent |
+| 14 | π |
+| 15 | 180/π |
+
+- **ln** (`072A`, kernel `0730–075B`, ln mode fB[4]=1): Meggitt
+  pseudo-multiplication. The mantissa m is multiplied by (1+10⁻ᵏ) for
+  k = 0…6 as long as it stays below 10, adding ln(1+10⁻ᵏ) each time; then
+  ln(10/m) ≈ Σ + (10 − m)/10 and ln x = (e+1)·ln 10 − ln(10/m) (`0B2A`).
+- **eˣ** (`0703`): x = n·ln 10 + r; the kernel runs in exp mode (fB[4]=0),
+  subtracting ln(1+10⁻ᵏ) from r while multiplying a product (from 1.0) by
+  (1+10⁻ᵏ); finish ≈ ×(1+r) (`0AD3`); n becomes the decimal exponent.
+- **log** = ln ÷ ln 10 (`0909`); **10ˣ** = eˣ after × ln 10 (`0605`);
+  **yˣ** = e^(x·ln y) (slots `050C–050F`), the root (INV yˣ) divides by x.
+- **√x** (`081D`, body `0AA8`): halve the exponent, then digit-by-digit
+  subtraction of odd multiples.
+- **sin/cos/tan** (slots `0523–0533`): convert to radians (`05D1`), reduce
+  modulo 2π (÷2π, fraction, ×2π), fold into [0, π/4] (`08FA`, `0FD5`),
+  compute tan θ with a decimal CORDIC (`08C7`: θ decomposed into
+  atan(10⁻ᵏ) steps, each rotating (x, y) by x' = x − y·10⁻ᵏ,
+  y' = y + x·10⁻ᵏ; tan = y/x), then sin = t/√(1+t²), cos = 1/√(1+t²).
+  The arc functions run the CORDIC backwards and accumulate the angle
+  (`0C95`), asin/acos first forming x/√(1−x²).
+- **Angle unit**: SCOM[13] nibble 0 = 0 DEG, 1 GRAD, 0xC RAD (`05D1`).
