@@ -6513,10 +6513,23 @@
 14F6: 0100  A=A ALL
 14F7: 0100  A=A ALL
 14F8: 0100  A=A ALL
-14F9: 0708  A=A-1 EXP1
+; RTN continuation (from 1194): returning into RAM / keyboard → shift the
+; return stack down (0DE5); returning into a library program (Prg Src 2 in
+; the popped level) → LIB_RETURN 14FC.
+14F9: 0708  A=A-1 EXP1        ; library return?
 14FA: 1004  JNC 14FC
 14FB: 00D9  SET fB[13]
-14FC: 0A27  MOV R5,#2
+; ═══════════════════════════════════════════════════════════════════════════
+; LIB_RETURN  (0x14FC–0x152A) — RTN back into a library program. Trace-
+; confirmed (ML Pgm 02, key C: return to CROM address 0396). Prg Src 2 in the
+; popped level means "the module PC must be reloaded": the CROM PC is set to
+; the header's program table (0002), SCOM[0]'s source becomes 1 again
+; (1504–1506), the start addresses are scanned to find which program holds
+; the return address (1507–151B, C counts programs: here 02), the CROM PC is
+; loaded with the return address (151C–1522, LIB.PC ×4, LSD first) and the
+; program number becomes the current page in SCOM[9] (1523 → 1196).
+; ═══════════════════════════════════════════════════════════════════════════
+14FC: 0A27  MOV R5,#2         ; CROM PC := 0002 (program table) …
 14FD: 0A18  MOV KR[4..7],R5
 14FE: 0A1E  LIB.PC
 14FF: 0A0C  MOV KR,EXT[4..15]
@@ -6524,14 +6537,14 @@
 1501: 0A1E  LIB.PC
 1502: 0A1E  LIB.PC
 1503: 0948  A=SRA MANT
-1504: 05D6  D=LOAD LLSD1
+1504: 05D6  D=LOAD LLSD1      ; Prg Src 2 → 1
 1505: 0A0F  STOF
-1506: 0131  IO=D ALL
+1506: 0131  IO=D ALL          ; SCOM[0] updated
 1507: 01D5  C<>D ALL
-1508: 01DC  C=0 ALL
+1508: 01DC  C=0 ALL           ; program counter := 0
 1509: 01DB  B=0 ALL
 150A: 03D8  A=-1 DPT1
-150B: 0A3E  LIB.HI
+150B: 0A3E  LIB.HI            ; next program's start address …
 150C: 0A0C  MOV KR,EXT[4..15]
 150D: 0A08  MOV R5,KR[4..7]
 150E: 02F3  B=R5 DPT
@@ -6544,11 +6557,11 @@
 1515: 1015  JNC 150B
 1516: 0153  B=SLB ALL
 1517: 0153  B=SLB ALL
-1518: 0989  IO=A-B MANT
-1519: 1006  JNC 151C
-151A: 0D24  C=C+1 MLSD1
+1518: 0989  IO=A-B MANT       ; … beyond the return address?
+1519: 1006  JNC 151C          ; yes → found
+151A: 0D24  C=C+1 MLSD1       ; no → next program
 151B: 1825  JC 1509
-151C: 0A37  MOV R5,#3
+151C: 0A37  MOV R5,#3         ; CROM PC := return address, one digit per LIB.PC …
 151D: 02F0  A=R5 DPT
 151E: 0948  A=SRA MANT
 151F: 0A18  MOV KR[4..7],R5
@@ -6557,7 +6570,7 @@
 1522: 1809  JC 151E
 1523: 01D5  C<>D ALL
 1524: 0121  IO=C ALL
-1525: 0A1F  RCLF
+1525: 0A1F  RCLF              ; SCOM[9]: current page := the found program …
 1526: 01D3  B=LOAD ALL
 1527: 02F0  A=R5 DPT
 1528: 030B  B=A-1 DPT1
