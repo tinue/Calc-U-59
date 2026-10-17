@@ -51,7 +51,7 @@
 ;   0028 "1"→016B  0038 "2"→016A  0048 "3"→0169   (row 8)
 ;   0029 "0"→016C  (zero INCs)                    (row 9)
 ; Keyboard row 1 (A–E) is dispatched at 0x02D2 instead and never lands here;
-; the printer PRINT/ADV keys arrive remapped as pseudo-entries 0x0099/0x0089.
+; the printer's PRINT/ADV buttons are remapped onto the Prt/Adv slots 0x0099/0x0089.
 ; Trace-confirmed for key "6" (row 7, col 4 → 0x0047) in KEYPRESS_59.txt and
 ; for keys "0" (slot 0029) and "+" (slot 0058) in KEYPRESS_TRC_59.txt.
 ; 2nd-shifted keys land in a mirror table at 0x0062–0x00A9: same scheme with
@@ -195,7 +195,8 @@
 0086: 1BC6  JC 0269
 0087: 1FD4  JC 0471
 0088: 19D4  JC 0172
-; KEY_PSEUDO_ADV: printer paper-ADVANCE key pseudo table entry (remapped at 0679–0688)
+; KEY_ADV: 2nd-table slot of Adv (2nd .), shared with the printer's ADV button
+; (remapped here at 0679–0688) → paper advance (0487).
 0089: 1FFC  JC 0487
 008A: 0A07  MOV R5,#0
 008B: 18F7  JC 0010
@@ -213,9 +214,10 @@
 0096: 1BEE  JC 028D
 0097: 19D6  JC 0182
 0098: 1F70  JC 0450
-; KEY_PSEUDO_PRINT: printer PRINT key pseudo table entry (remapped at 0679–0688)
-0099: 00A1  SET fA[10]        ; mark "record pending" — speculative: the value
-009A: 1B36  JC 0235           ;   print reuses the TRACE machinery (fA[10])
+; KEY_PRT: 2nd-table slot of Prt (2nd +/-), shared with the printer's PRINT
+; button (remapped at 0679–0688): print X (fA[10] path, PRT_VALUE 152B).
+0099: 00A1  SET fA[10]        ; print the value through the trace-record machinery
+009A: 1B36  JC 0235           ; → NUM_NORM / DISP_FORMAT, which prints at 05A8
 009B: 0AB7  MOV R5,#11
 009C: 0080  TST fA[8]
 009D: 1AE4  JC 020F
