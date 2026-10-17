@@ -3265,19 +3265,26 @@
 0973: 01D2  A<>B ALL
 0974: 0E08  A=A-1 MMSD1
 0975: 1572  JNC 0C2E
-0976: 0131  IO=D ALL
+; PGM_IN_PROGRAM (0x0976–0x098D): "Pgm nn" executed inside a running program
+; only marks SCOM[13] nibble 15 (13D5). The next operation step sees the mark
+; here, clears it and checks its keycode: a user label key (tens 1, 097C–
+; 0980) or SBR 71 / R/S 91 (0982–098D) take the library path (0C80 → 0FAE);
+; anything else runs as if Pgm had not been there. Trace-checked (RAM
+; program "3 Pgm 02 …"): "SBR C" and plain "C" run ML-02's C; "R/S" errors;
+; "x²" gives 9 and "5 + 1 =" gives 6, the Pgm selection simply dropped.
+0976: 0131  IO=D ALL          ; SCOM[13] nibble 15 := 0
 0977: 0A0F  STOF
 0978: 0101  IO=A ALL
 0979: 09DE  D=0 MANT
 097A: 017E  D=SRD ALL
 097B: 00CA  CLR fB[12]
-097C: 07D0  A=LOAD EXP1
+097C: 07D0  A=LOAD EXP1       ; keycode tens 1 (label key)?
 097D: 06B8  A=A-D EXP
 097E: 1002  JNC 097F ; clear COND
 097F: 0709  IO=A-1 EXP1
-0980: 1600  JNC 0C80
+0980: 1600  JNC 0C80          ; yes → library label call
 0981: 0DD0  A=LOAD MLSD1
-0982: 0A77  MOV R5,#7
+0982: 0A77  MOV R5,#7         ; 71 (SBR), then 91 (R/S) …
 0983: 06F0  A=R5 EXP
 0984: 03D0  A=LOAD DPT1
 0985: 06B8  A=A-D EXP
@@ -3285,11 +3292,11 @@
 0987: 1008  JNC 098B
 0988: 0709  IO=A-1 EXP1
 0989: 0309  IO=A-1 DPT1
-098A: 15EC  JNC 0C80
+098A: 15EC  JNC 0C80          ; match → library path
 098B: 0D08  A=A-1 MLSD1
 098C: 0A97  MOV R5,#9
 098D: 1815  JC 0983
-098E: 01D7  A<>E ALL
+098E: 01D7  A<>E ALL          ; → dispatch the step's digit / keycode (083F)
 098F: 1AA1  JC 083F           ; dispatch the tens digit as a key
 0990: 0A85  TST KR[8]
 0991: 1457  JNC 0766
@@ -6354,7 +6361,7 @@
 13CC: 008D  CLR KR[8]
 13CD: 0095  SET KR[9]
 13CE: 1825  JC 13BC
-13CF: 00C9  SET fB[12]
+13CF: 00C9  SET fB[12]        ; Pgm nn while running: mark SCOM[13] nibble 15 for the next step
 13D0: 0320  A=C+1 DPT1
 13D1: 01D5  C<>D ALL
 13D2: 0101  IO=A ALL
