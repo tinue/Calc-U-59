@@ -119,3 +119,48 @@
 137C  —                  [D] CROM module-header read (IN LIB); same note as 1377
 1390  —                  [D] CROM label-search read (LIB.HI/IN LIB); same note as 1377
 1394  —                  [D] CROM label-search read (IN LIB); same note as 1377
+
+; ── Added 2026-10-17 (headless-harness pass) ───────────────────────────────
+0500  FN_SEQ_TABLE       [T] function sequence table 0500–0545 (√x 0510, ln 0512, e^x 0515, 10^x 0518, log 051B, trig 0523, SBR 0534, Pgm 053A, Op 053F)
+0703  EXP                [T] e^x: argument reduction by ln 10, kernel in exp mode, finish 0AD3
+072A  LN                 [T] ln x entry (error for 0, flag for negative); kernel 0730 in ln mode
+0730  LNEXP_KERNEL       [T] Meggitt pseudo-multiplication with constants ln(1+10^-k)
+081D  SQRT               [T] √x: exponent halving, digit-by-digit body 0AA8
+05D0  ANGLE_CONVERT      [T] angle unit ↔ radians (SCOM[13] nibble 0: 0 DEG, 1 GRAD, C RAD)
+08C7  TAN_KERNEL         [T] decimal CORDIC (atan(10^-k) constants 8–12), tan = y/x
+0452  LOAD_PI            [T] A := π (0452) / A += π (0453)
+054C  DISP_FORMAT        [T] result display image: Fix/sci/eng layout, two-pass rounding (fB[5])
+0D33  REG_ADDR           [T] data register nn → RAM[top − nn], partition check
+0A1A  RAM_ADDR_ENCODE    [T] RAM.OP address encoding (hex tens nibble for registers ≥ 100)
+0DBA  RAM_READ           [T] RAM.OP read of a data register into A
+0CF7  RAM_WRITE          [T] RAM.OP write of X into a data register
+06C6  ARG_COLLECTOR      [T] digit → argument in E; complete → 07AD
+07AD  ARG_COMPLETE       [T] resume the suspended sequence (Ind → read pointer first)
+0783  ARG_TERMINATE      [T] non-digit key ends an argument; keycode parked in SCOM[0] nibbles 1–2, fB[14]
+04CC  ARG_TWO_DIGITS     [T] collect a 2-digit argument (register, Op, Pgm)
+01F1  ARG_ONE_DIGIT      [T] collect a 1-digit argument (flag, Dsz register) from the keyboard
+0291  KEY_RST            [T] RST: step 000, stack cleared, library deselected
+03FB  KEY_LRN            [T] LRN toggle (refused without program memory or with a protected module)
+099E  LRN_KEY            [T] key in LRN mode: edit keys act, others encoded and stored
+0D80  LRN_STORE          [T] replace the keycode at the current step, write back, advance
+08B2  PRGREG_FETCH       [T] advance the step and fetch its keycode (source dispatch, SCOM[10] shift cache)
+13E6  LRN_DISPLAY        [T] "SSS KK" display
+07C1  RUN_LOOP           [T] between steps: R/S and GTO-peek polls, fetch, dispatch
+0837  STEP_DISPATCH      [T] keycode → matrix position → key pipeline (0689)
+07EA  KEY_RS             [T] R/S: stop, or start after the key is released
+1175  RTN_POP            [T] return from subroutine; empty stack ends the run
+0E10  SCANNER_TABLE      [T] program scanner: per-keycode operand classes for label search (0x0E<units><tens>)
+0F45  LABEL_SEARCH       [T] walk RAM program registers looking for Lbl x
+1364  LIB_LABEL_SEARCH   [T] same for a library program (header start/end)
+12E1  PGM_SELECT         [T] Pgm nn: check against the module's program count
+082B  LIB_EXEC_FETCH     [T] module keycode fetch; RST held → abort (0836)
+0499  COND_TRANSFER      [T] x=t, x≥t, If flg, Dsz: branch on fA[9] (INV inverts)
+15BA  FLAG_OP            [T] St flg / INV St flg: flag n = bit ⌊n/5⌋ of SCOM[0] nibble 11 + n mod 5
+04E6  DISPLAY_PEEK       [T] light the display ~256 cycles (GTO held while a RAM program runs)
+08E4  OP_DISPATCH        [T] Op nn: 00–19 table, 2x/3x register inc/dec, ≥ 40 nothing
+0A00  OP_TABLE           [T] Op 00–19, slot 0x0A00 + 16·tens + units
+1000  PRT_MNEMONIC_TABLE [T] 3-character PC-100 mnemonic per keycode (0x1000 + 32·tens + 3·units)
+1680  CARD_IO            [T] magnetic card bank read/write (header, 30 registers, checksum)
+11D9  SCOM_STORE_X       [T] store X into SCOM row D[0] (t for x⇄t); fast-mode chain writes row 0
+141C  PGM_ERROR_HALT     [T] error blink and stop (e.g. Pgm out of range)
+; Keycode sub-programs (Prg Src 8) are listed in rom/TI59-keycode-programs.asm.

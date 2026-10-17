@@ -307,3 +307,11 @@ Every keycode has a 3-character PC-100 mnemonic in the table at
 `0x1000–0x1151` (slot 0x1000 + 32·tens + 3·units, rightmost character
 first), produced through the INC KR character slide at `0x1399`. Op 00–07
 drive the alphanumeric buffer (`OP_TABLE` `0x0A00`).
+
+## Keycode sub-programs
+
+Statistics (Σ+, x̄, σ, Op 11–15), P→R / R→P and D.MS are not ROM routines but
+TI-59 *programs* in the constant ROM (rows 16–63, 384 steps), run with Prg
+Src Flag 8. Listing with entry points: `rom/TI59-keycode-programs.asm`.
+They use the HIR (hierarchy register) keycode 82 for scratch storage and the
+statistics registers R01–R06.
