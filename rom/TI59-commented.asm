@@ -5095,7 +5095,16 @@
 0F6B: 0A18  MOV KR[4..7],R5
 0F6C: 0015  SET KR[1] ; PREG  ; jump into the scanner table
 0F6D: 0A0C  MOV KR,EXT[4..15]
-0F6E: 0120  A=C ALL
+; INV_LIST (0x0F6E–0x0FAB, 0D24 via slot 0539, end 1144) — INV List: print
+; the data registers from Int(X) up to the last one of the data partition,
+; one line each: the value, then the register number in the function column.
+; Trace-checked (PC-100, 479.59, X = 58: "7.  58", "0.  59", then stop).
+; The register number is kept in SCOM[0] nibbles 1–2 (the pending-key
+; field); SCOM[9] nibble 15 = 1 marks the listing while it runs. Each
+; register goes through REG_ADDR with fA[13] set, so the first register
+; past the partition ends the list (0D4B → 0FA2 → 1144) instead of erroring.
+; Holding R/S stops it (0F9E).
+0F6E: 0120  A=C ALL           ; first register: SCOM[0] nibbles 1–2 := Int(X)
 0F6F: 0633  B=D EXP
 0F70: 0A0F  STOF
 0F71: 0111  IO=B ALL
@@ -5107,11 +5116,11 @@
 0F77: 0111  IO=B ALL
 0F78: 0A1F  RCLF
 0F79: 01D0  A=LOAD ALL
-0F7A: 0E00  A=A+1 MMSD1
+0F7A: 0E00  A=A+1 MMSD1       ; SCOM[9] nibble 15 := 1 (listing active)
 0F7B: 0111  IO=B ALL
 0F7C: 0A0F  STOF
 0F7D: 0101  IO=A ALL
-0F7E: 0A0D  SWAP KR,SR
+0F7E: 0A0D  SWAP KR,SR        ; advance the sequence to its print slot
 0F7F: 0A04  INC KR
 0F80: 0A0D  SWAP KR,SR
 0F81: 0A1F  RCLF
@@ -5151,14 +5160,15 @@
 0F9E: 08FD  KEY [O]
 0F9F: 0A1F  RCLF
 0FA0: 01D0  A=LOAD ALL
-0FA1: 0700  A=A+1 EXP1
-0FA2: 1344  JNC 1144
+0FA1: 0700  A=A+1 EXP1        ; next register …
+0FA2: 1344  JNC 1144          ; … past 99 → done
 0FA3: 0A0F  STOF
-0FA4: 0101  IO=A ALL
+0FA4: 0101  IO=A ALL          ; SCOM[0] updated
 0FA5: 09D8  A=0 MANT
 0FA6: 0C40  A=SLA MAEX
 0FA7: 0C40  A=SLA MAEX
-0FA8: 0091  SET fA[9]
+0FA8: 0091  SET fA[9]         ; read it, print value + number (fA[10]); fA[13]: the partition
+                              ;   check ends the list instead of an error
 0FA9: 00A1  SET fA[10]
 0FAA: 00D1  SET fA[13]
 0FAB: 1CEF  JC 0D34
@@ -5595,7 +5605,7 @@
 1141: 02F6  D=R5 DPT
 1142: 0A87  MOV R5,#8
 1143: 1F55  JC 0D99
-1144: 00A2  CLR fA[10]
+1144: 00A2  CLR fA[10]        ; INV List done: clear the listing mark (SCOM[9] nibble 15) …
 1145: 0091  SET fA[9]
 1146: 0A97  MOV R5,#9
 1147: 02F6  D=R5 DPT
@@ -5606,7 +5616,7 @@
 114C: 0131  IO=D ALL
 114D: 0A0F  STOF
 114E: 0101  IO=A ALL
-114F: 01D7  A<>E ALL
+114F: 01D7  A<>E ALL          ; … and restore X
 1150: 0051  SET fA[5]
 1151: 1F0D  JC 0DCB
 1152: 0051  SET fA[5]

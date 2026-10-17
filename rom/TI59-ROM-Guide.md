@@ -365,6 +365,13 @@ KR[4..9], filled right to left), PRT.GO prints the line, TST.BUSY paces it.
   first (`1422`) and printed with the result.
 - **List** (`0D28`): per step the LRN-style fetch, the scanner (so operands
   print as numbers), the mnemonic table and the digits.
+- **INV List** (`0F6E`): the data registers from Int(X) up to the last one
+  in the data partition, each printed as "value nn". The register number
+  is held in SCOM[0] nibbles 1–2 while the list runs. R/S held stops it,
+  and X is restored at the end.
+- **Trace mode**: an operand gets a line of its own with leading zeros
+  suppressed (`STO 01` → "1"), and an Ind operand is marked "*" (`15E4`).
+  An overflowed or error value is printed with "?" after it (`162B`).
 - **Alphanumeric** (Op 00–05): a 20-column buffer in SCOM[5]–[8]; the TI
   two-digit character codes map to printer codes as tens·8 + units. Op 06
   prints X with Op 04's characters, Op 07 plots an asterisk at column X.
