@@ -96,6 +96,54 @@ All methods put X = 1.000000000002 (or …04, …06) on the display first;
   `examples/FastMode_Zero4.ti59`). This is an unrelated bug that reaches the
   same state.
 
+## What entry does to the flags and Fix
+
+Every way in writes the whole status register at once, so it replaces all
+ten user flags and the Fix setting. Flags set before entry are lost. Set
+them inside the fast-mode program instead (St flg works there).
+
+**From X** (SST, St flg at the end of the partition, Acosta's STF IND 7 INV
+and "hi2"). The first five mantissa digits of X become the flags, one digit
+per pair of flags:
+
+| Mantissa digit | 1st | 2nd | 3rd | 4th | 5th |
+|---|---|---|---|---|---|
+| Flags | 4 / 9 | 3 / 8 | 2 / 7 | 1 / 6 | 0 / 5 |
+
+The value of the digit decides which flags of the pair are set:
+
+| Digit | 0, 4, 8 | 1, 5, 9 | 2, 6 | 3, 7 |
+|---|---|---|---|---|
+| Set | neither | lower (0–4) | upper (5–9) | both |
+
+The leading digit cannot be 0, because X is always normalized. That is why
+`1 + 2 EE 12 +/- =` sets flag 4. Flag 4 means nothing to the calculator;
+it is just what a leading 1 gives. A leading 4 or 8 sets no flag:
+`4 + 2 EE 12 +/- =` enters fast mode with all flags clear (tested with the
+SST method and leading digits 1, 2, 3, 4 and 8: same run time and result).
+Avoid a leading 2 or 3 unless you want flag 9, the trace flag.
+
+The signs of X become the Fix setting: a positive X with a non-negative
+exponent, as above, gives floating display (TI PPC Notes V6N8P3, rule 7).
+
+**From program memory** (`Pgm 02 SBR 239`, the Neef method). Here the
+firmware loads the status register from the program register that holds
+steps 008–015 (Acosta, TI PPC Notes V6N8P3: "from the following octet").
+The keycode at step 015 sits in the top two digits, step 014 in the next
+two, and so on, so:
+
+- step 015, first digit → flags 4 / 9; second digit → 3 / 8
+- step 014, first digit → flags 2 / 7; second digit → 1 / 6
+- step 013, first digit → flags 0 / 5
+
+The digit values work as in the table above. Zeros in 013–015 clear all
+flags, and `Op 00` (69 00) at 014–015 sets flags 7 and 1. Steps 011, 012
+and the second digit of 013 land next to the step address, so keep
+011–015 zero unless you mean to set flags. Jay Claborn's PPX article states
+the same rule for 011–015 (Fast Mode Summaries, "Fast Mode (continued)",
+item 4). This method also leaves Fix 0. Checked on the emulator with
+several codes at 011–015.
+
 ## How the hack works
 
 You need three facts about the calculator's internals to follow it.
