@@ -3566,8 +3566,9 @@
 ; ── 0x0B10 sequence bank (KR[15]+KR[13]+KR[12]+KR[8]): program-related slots.
 0B10: 1C46  JC 0D33           ; → REG_ADDR (via 0856, register operand)
 0B11: 1E92  JC 0E5A           ; Ins / Del (via KEY_OP_ENTRY, labels OP_INS)
-0B12: 1867  JC 0ADF           ; user label key A–E′: start the label search …
-0B13: 1BF1  JC 091B           ; … found: subroutine call (push return, 091B) …
+0B12: 1867  JC 0ADF           ; user label key A–E′: take the key itself as the label operand …
+0B13: 1BF1  JC 091B           ; … push the return level (091B), set running (0BB4), then search
+                              ;   (085E → 0BD2)
 0B14: 1DF8  JC 0E10
 0B15: 1F52  JC 0EBE
 0B16: 0042  CLR fA[4]
