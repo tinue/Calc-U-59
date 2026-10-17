@@ -568,7 +568,7 @@ since solid-state programs never move the SCOM[0] step counter.
 | 0 | Keyboard / RAM program |
 | 1 | Library program executing — CROM counter is live |
 | 2 | Transitional "suspended library" return: the RTN handler popped a saved level `[2][4-digit CROM addr]` into SCOM[0]; the next dispatch reloads the CROM PC via OUT LIB_PC ×4 and sets source back to 1 |
-| 4 | Fast mode |
+| 4 (or 2, 6) | "Fast mode" (TI PPC): a RAM program running with a source flag that is non-zero but selects neither the library (bit 0) nor the keycode table (bit 3). The run loop then takes the sub-program path (ROM 0x07C9 → 0x08AE) and skips the per-step display rebuild and key polls (~40% faster, R/S no longer stops it). Only reachable by a quirk — see `examples/fastmode.ti59` and `rom/TI59-ROM-Guide.md` |
 | 8 | Keycode-ROM sub-program (e.g. P→R) called from a library program; SCOM PC is used, `m_libExecPC` holds |
 
 Source 2 exists because a library caller cannot be pushed as source 1: source 1

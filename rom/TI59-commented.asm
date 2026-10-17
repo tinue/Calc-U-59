@@ -1628,8 +1628,8 @@
 04F9: 0948  A=SRA MANT        ;   back into the mantissa/EXP working layout
 04FA: 0050  TST fA[5]
 04FB: 15BE  JNC 07DA
-04FC: 00E8  TST fB[14]
-04FD: 1766  JNC 08B0
+04FC: 00E8  TST fB[14]        ; key pending from an argument terminator?
+04FD: 1766  JNC 08B0          ; yes → execute it (08B0 → 0C0B → STEP_DISPATCH)
 04FE: 1D2B  JC 0269
 04FF: 1FCA  JC 08E4
 ; ═══════════════════════════════════════════════════════════════════════════
@@ -2537,11 +2537,18 @@
 0780: 0309  IO=A-1 DPT1
 0781: 02D7  A<>E DPT
 0782: 11A3  JNC 06B1
-0783: 0A1F  RCLF
+; ARG_TERMINATE: a non-digit key ends a pending argument ("5 STO 3 +" stores
+; into R03, then executes +). The key is encoded (KEY_ENCODE) and parked as
+; a keycode in SCOM[0] nibbles 1–2 with fB[14] = key pending (07A8–07AB); the
+; suspended sequence then resumes (07AD) and the pending key is executed via
+; 0620 → 04F6 → STEP_DISPATCH. Missing safeguard: KEY_ENCODE's column bits stay
+; in KR and can offset the resumed sequence's bank dispatch (St flg → 0B34) —
+; one link of the fast-mode chain, see examples/fastmode.ti59.
+0783: 0A1F  RCLF              ; SCOM[0] …
 0784: 01D6  D=LOAD ALL
 0785: 017E  D=SRD ALL
 0786: 017E  D=SRD ALL
-0787: 00E9  SET fB[14]
+0787: 00E9  SET fB[14]        ; terminating key pending
 ; KEY_ENCODE: build the program keycode of the key being recorded from the
 ; matrix position in KR (row in KR[4..7], column in KR[8..11]) into D[1..2]
 ; as two BCD digits row·10 + column (2nd keys arrive with the column already
@@ -2579,7 +2586,7 @@
 07A5: 0176  D=SLD ALL
 07A6: 0040  TST fA[4]         ; printer trace symbol (0A68 path)?
 07A7: 16DE  JNC 0B16
-07A8: 0A1F  RCLF
+07A8: 0A1F  RCLF              ; SCOM[0] nibbles 1–2 := its keycode …
 07A9: 02D6  D=LOAD DPT
 07AA: 0A0F  STOF
 07AB: 0131  IO=D ALL
@@ -3656,7 +3663,8 @@
 0B31: 0C48  A=SRA MAEX
 0B32: 0C5B  B=SRB MAEX
 0B33: 0E00  A=A+1 MMSD1
-0B34: 0308  A=A-1 DPT1
+0B34: 0308  A=A-1 DPT1        ; (also reached by the St flg mis-dispatch of the fast-mode chain,
+                              ;   examples/fastmode.ti59)
 0B35: 1811  JC 0B2D
 0B36: 0E09  IO=A-1 MMSD1
 0B37: 1806  JC 0B3A
@@ -5534,6 +5542,9 @@
 11D6: 0A0D  SWAP KR,SR
 11D7: 1909  JC 1153
 11D8: 0059  SET fB[5]
+; Store X (C, flags from fB[1..4]) into the SCOM row named by D[0] — 11 (t)
+; for x⇄t / Σ+. The fast-mode chain reaches it with D[0] = 0, writing X's digit
+; image into SCOM[0] (examples/fastmode.ti59).
 11D9: 0A16  MOV R5,fB[1..4]
 11DA: 02F4  C=R5 DPT
 11DB: 0131  IO=D ALL

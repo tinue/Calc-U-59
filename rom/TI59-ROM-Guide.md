@@ -278,3 +278,15 @@ n + 2 (0 = floating); fB[15] = sci, fB[7] = eng.
   code is set.
 - **RST** (row 8, col 1) is polled on every library-module fetch (`0834`):
   held → the run stops and RST is performed.
+
+## Fast mode
+
+The TI PPC "fast mode" is a RAM program running with a non-zero Prg Src Flag
+that selects neither the library (bit 0) nor the keycode table (bit 3) —
+2, 4 or 6. The run loop (`07C9`) then takes the sub-program path (`08AE`) and
+skips the per-step display rebuild and R/S/GTO polls: ~40% less time, but R/S
+cannot stop it. The only way in is a quirk chain that writes X's digit image
+into SCOM[0] (an argument terminated by EE after `St flg` at the end of the
+partition, mis-dispatched twice, ending in the SCOM store at `11D9` with row
+0). The 12th decimal digit of X becomes the source flag, the next digits the
+start step. Full walkthrough: `examples/fastmode.ti59`.
