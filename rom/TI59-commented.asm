@@ -510,7 +510,7 @@
 ; the low digit of the 00–09 program keycode — and 016E hands it to the
 ; number-entry path, which reads it at 0x0326 via MOV R5,KR[4..7].
 0163: 0A04  INC KR
-0164: 0A04  INC KR
+0164: 0A04  INC KR            ; "8" enters here (8 INCs)
 0165: 0A04  INC KR
 0166: 0A04  INC KR
 0167: 0A04  INC KR
@@ -662,7 +662,7 @@
 01EB: 0640  A=SLA EXP
 01EC: 0680  A=A+B EXP         ; … B's paren level and depth + 1 …
 01ED: 1834  JC 0207           ; … → store it (0207)
-01EE: 01DE  D=0 ALL
+01EE: 01DE  D=0 ALL           ; Fix: collect one digit (INV Fix needs none, 01EF)
 01EF: 0080  TST fA[8]
 01F0: 1522  JNC 0481
 ; ARG_ONE_DIGIT (slots 00B7, 00CE, 00F4 …): in a program the operand is the
@@ -720,13 +720,13 @@
 0218: 0D09  IO=A-1 MLSD1      ; x=t: difference zero?
 0219: 1004  JNC 021B
 021A: 0091  SET fA[9]         ; condition true
-021B: 07D8  A=-1 EXP1
+021B: 07D8  A=-1 EXP1         ; condition result → collector state; fA[9] = true
 021C: 01D7  A<>E ALL
 021D: 0201  IO=A DPT
 021E: 0007  MOV fA[1..4],R5
 021F: 04D0  A=LOAD DPTC
 0220: 182A  JC 0235
-0221: 0090  TST fA[9]
+0221: 0090  TST fA[9]         ; test true? (INV inverts in COND_TRANSFER)
 0222: 0092  CLR fA[9]
 0223: 1804  JC 0225
 0224: 0083  TOG fA[8]
@@ -825,7 +825,7 @@
 0261: 10C2  JNC 02C2          ; borrow guarantees the jump → display epilogue
 0262: 0FD8  A=-1 MAEX1        ; overflow: borrow floods A[1..15] with 9s
 0263: 10BE  JNC 02C2          ;   = 9.9999999 99 → display epilogue
-0264: 00A1  SET fA[10]
+0264: 00A1  SET fA[10]        ; SBR (slot 0535): flush trace, then collect the address (0225)
 0265: 1881  JC 0225
 ; KEY_INV: "INV" handler (slot 0022): toggle INV (fA[8]); the SET + TOG of fA[9]
 ; cancels a pending 2nd. Falls into the shared prefix-key tail.
@@ -900,16 +900,16 @@
 029E: 0A1F  RCLF
 029F: 01D6  D=LOAD ALL
 02A0: 09DE  D=0 MANT          ; … library program number cleared
-02A1: 0111  IO=B ALL
+02A1: 0111  IO=B ALL          ; store D into the SCOM row named by B[0] (angle unit, RST)
 02A2: 0A0F  STOF
 02A3: 0131  IO=D ALL
 02A4: 00A8  TST fB[10]        ; LRN mode?
 02A5: 00AA  CLR fB[10]
 02A6: 10E3  JNC 0235
-02A7: 00A0  TST fA[10]
+02A7: 00A0  TST fA[10]        ; R/S as a program step (0609): print a pending trace line, stop
 02A8: 1804  JC 02AA
 02A9: 0AA8  PRT.GO
-02AA: 0082  CLR fA[8]
+02AA: 0082  CLR fA[8]         ; common key epilogue: INV used up, then redisplay (026A)
 02AB: 1883  JC 026A
 ; KEY_GTO: "GTO" handler (slot 0016)
 02AC: 0A07  MOV R5,#0
@@ -917,7 +917,7 @@
 02AE: 1D3D  JC 0010
 02AF: 02DE  D=0 DPT           ; Deg: 0
 02B0: 1BE8  JC 04A4
-02B1: 0080  TST fA[8]
+02B1: 0080  TST fA[8]         ; Eng: INV Eng → clear fB[7], else set it
 02B2: 0079  SET fB[7]
 02B3: 0091  SET fA[9]
 02B4: 18FF  JC 0235
@@ -1149,7 +1149,7 @@
 035F: 1015  JNC 0355          ; A.exp smaller → swap, retry
 0360: 0030  TST fA[3]         ; both exponents negative: the larger exponent value is the
 0361: 1808  JC 0365           ; smaller number → swap (0362)
-0362: 0CD2  A<>B MAEX
+0362: 0CD2  A<>B MAEX         ; ADD: swap operands (sign of the larger magnitude wins)
 0363: 0024  SWAP fA[2],fB[2]
 0364: 0034  SWAP fA[3],fB[3]
 0365: 072C  C=C-1 EXP1        ; align: for each unit of exponent difference …
@@ -1163,7 +1163,7 @@
 036D: 1017  JNC 0362          ; yes → swap (sign of the larger wins)
 036E: 0988  A=A-B MANT        ; A := |A| − |B|
 036F: 1954  JC 0419           ; → ARITH_EXIT
-0370: 0022  CLR fA[2]
+0370: 0022  CLR fA[2]         ; Op 2x/3x (slot 0105): result sign
 0371: 00B0  TST fA[11]
 0372: 1F50  JC 071A
 0373: 0021  SET fA[2]
@@ -1296,7 +1296,7 @@
 03C1: 00C0  TST fA[12]
 03C2: 0092  CLR fA[9]
 03C3: 0011  SET fA[1]         ; divide
-03C4: 0133  B=D ALL
+03C4: 0133  B=D ALL           ; multiply variant of 03C3 (fA[1] clear): B := D
 03C5: 000F  MOV fB[1..4],R5
 03C6: 1808  JC 03CA
 03C7: 0CD2  A<>B MAEX
@@ -1346,7 +1346,8 @@
 03E2: 0007  MOV fA[1..4],R5
 03E3: 0042  CLR fA[4]
 03E4: 04D4  C=LOAD DPTC
-03E5: 00D8  TST fB[13]
+03E5: 00D8  TST fB[13]        ; LRN refused (no program memory / protected module): plain
+                              ;   redisplay
 03E6: 0058  TST fB[5]
 03E7: 1365  JNC 0235
 03E8: 1A7D  JC 02AA
@@ -1354,13 +1355,14 @@
 03E9: 0080  TST fA[8]
 03EA: 17A4  JNC 07BC
 03EB: 0A47  MOV R5,#4
-03EC: 0095  SET KR[9]
+03EC: 0095  SET KR[9]         ; FN_ENTRY in the KR[9] bank (0x0520 + fn / with KR[8] 0x0530 +
+                              ;   fn)
 03ED: 1BBD  JC 020F
-03EE: 0073  TOG fA[7]
+03EE: 0073  TOG fA[7]         ; Ind (2nd y^x, slot 00A4): toggle Ind
 03EF: 1B0B  JC 026A
-03F0: 0AA7  MOV R5,#10
+03F0: 0AA7  MOV R5,#10        ; Pgm (2nd LRN, slot 0063): fn 10, KR[8]+KR[9] → slot 053A
 03F1: 180B  JC 03EC
-03F2: 1ED6  JC 075D
+03F2: 1ED6  JC 075D           ; Dsz (slot 00F7): write the counter back (075D → 0A2E)
 03F3: 0008  TST fB[0]
 03F4: 00D8  TST fB[13]
 03F5: 1B17  JC 026A
@@ -1589,8 +1591,8 @@
 04A8: 0CD6  D=LOAD MAEX
 04A9: 1C11  JC 02A1
 04AA: 1F68  JC 085E           ; GTO (slot 00F2): transfer (STEP_TO_REG via 085E)
-04AB: 1CD4  JC 0715
-04AC: 00A0  TST fA[10]
+04AB: 1CD4  JC 0715           ; Dsz (slot 00F6): decrement (0715)
+04AC: 00A0  TST fA[10]        ; CP / CMs (slot 0521): flush a pending trace line …
 04AD: 1923  JC 041C
 04AE: 0AA8  PRT.GO
 04AF: 00A2  CLR fA[10]
@@ -1635,7 +1637,8 @@
 04D0: 0099  SET fB[9]         ; … ERROR (also the 9th-level overflow, 01D1)
 04D1: 04D4  C=LOAD DPTC       ; result exit after the AOS (020A)
 04D2: 1887  JC 048F
-04D3: 0051  SET fA[5]
+04D3: 0051  SET fA[5]         ; digit keycode from a program (0846): result display, → key
+                              ;   pipeline
 04D4: 1B6A  JC 0689
 ; Exc step (slot 00E8): register value becomes X, old X is written back.
 04D5: 0A06  MOV R5,fA[1..4]
@@ -1917,7 +1920,7 @@
 05B1: 0A02  CLR fA
 05B2: 1804  JC 05B4
 05B3: 0001  SET fA[0]
-05B4: 0007  MOV fA[1..4],R5
+05B4: 0007  MOV fA[1..4],R5   ; DISP_FORMAT cleanup: keep the sign bits
 05B5: 0012  CLR fA[1]
 05B6: 0042  CLR fA[4]
 05B7: 0A0D  SWAP KR,SR
@@ -1974,7 +1977,8 @@
 05DA: 1710  JNC 0962          ; yes → 0962
 05DB: 02D7  A<>E DPT          ; RAD: no conversion
 05DC: 1B87  JC 0419           ; → ARITH_EXIT
-05DD: 0A1F  RCLF
+05DD: 0A1F  RCLF              ; digit entry while a program runs (0344, fB[0]): no display
+                              ;   rebuild
 05DE: 09D3  B=LOAD MANT
 05DF: 06F3  B=R5 EXP
 05E0: 0619  IO=-B EXP
@@ -2017,9 +2021,9 @@
 ; 10^x prologue (slot 0519): X × ln 10, then e^x (051A → 0516).
 0605: 0011  SET fA[1]         ; 090A toggles fA[1] back → multiply
 0606: 1E08  JC 090A
-0607: 1EA1  JC 02B7
+0607: 1EA1  JC 02B7           ; end of a sequence: → 02B7 → 0235: normalize and display X
 0608: 13E1  JNC 0418
-0609: 1EC5  JC 02A7
+0609: 1EC5  JC 02A7           ; R/S executed as a program step
 ; ═══════════════════════════════════════════════════════════════════════════
 ; PRE-IDLE CONDITION CHECKS  (0x060A, reached from 0x030B)
 ; Last gauntlet of flag tests before the calculator settles into its display/
@@ -2035,7 +2039,7 @@
 0610: 0C53  B=SLB MAEX
 0611: 071B  B=-B EXP1
 0612: 0C53  B=SLB MAEX
-0613: 0619  IO=-B EXP
+0613: 0619  IO=-B EXP         ; 2nd / INV in LRN mode (026B)
 0614: 1806  JC 0617
 0615: 0940  A=SLA MANT
 0616: 0C40  A=SLA MAEX
@@ -2345,14 +2349,15 @@
 06B6: 0051  SET fA[5]
 06B7: 1DC3  JC 03D6
 06B8: 17F3  JNC 02BF
-06B9: 0A1F  RCLF
+06B9: 0A1F  RCLF              ; key epilogue while a program runs (02DF): Prg Src ≠ 0 → keep
+                              ;   running (08AE)
 06BA: 09D3  B=LOAD MANT
 06BB: 06F3  B=R5 EXP
 06BC: 0619  IO=-B EXP
 06BD: 1FBB  JC 02E0
 06BE: 0050  TST fA[5]
 06BF: 17BF  JNC 02E0
-06C0: 00A8  TST fB[10]
+06C0: 00A8  TST fB[10]        ; sub-program / library run continues (→ 08AE on both branches)
 06C1: 00AA  CLR fB[10]
 06C2: 00A2  CLR fA[10]
 06C3: 13D6  JNC 08AE
@@ -2582,7 +2587,7 @@
 0774: 0013  TOG fA[1]         ; divide (0909/0605 enter here: ±ln 10 with fA[1] preset)
 0775: 0123  B=C ALL           ; B := C (1.0 for 1/x; X itself for x², slot 0509) → MULDIV
 0776: 1F55  JC 03CC           ;   0509's entry) → MUL/DIV core, divisor in A
-0777: 0AA5  TST KR[10]
+0777: 0AA5  TST KR[10]        ; argument mode: column 4–5 keys (Ind, …)
 0778: 0A85  TST KR[8]
 0779: 0A75  TST KR[7]
 077A: 0A55  TST KR[5]
@@ -2761,7 +2766,7 @@
 ; Op 16 / Op 17 entry (OP_TABLE 0A16/0A17): Int(X) as n, SCOM[9] — shared
 ; prefix with the card code (1680), which hands Op 16/17 to PARTITION 1556.
 0803: 0A97  MOV R5,#9
-0804: 02F6  D=R5 DPT
+0804: 02F6  D=R5 DPT          ; card / Op 16 / Op 17 sequence entry (R5 = 8 / 9)
 ; Print-op entry (Op 00–05, 07): Op number into A (E), then the print
 ; sequence 053F (fn-table bank 0x0540) dispatches on it (print engine 165A).
 0805: 01D7  A<>E ALL
@@ -2770,7 +2775,7 @@
 0808: 01D7  A<>E ALL
 0809: 0082  CLR fA[8]
 080A: 1D97  JC 053F
-080B: 1E7D  JC 04CD
+080B: 1E7D  JC 04CD           ; LRN: operand recording via the collector
 ; Op 11 (OP_TABLE 0A11): variance — the x̄ keycode program (entry 067, via
 ; 0183) with a variant flag in B[0] (054A).
 080C: 1D85  JC 054A
@@ -2870,9 +2875,9 @@
 0853: 0231  IO=D DPT          ; … row (tens) → KR[4..7]
 0854: 0A18  MOV KR[4..7],R5
 0855: 1B99  JC 0689           ; → key pipeline, as if the key had been pressed
-0856: 1D74  JC 0B10
-0857: 17A2  JNC 0C28
-0858: 0A0C  MOV KR,EXT[4..15]
+0856: 1D74  JC 0B10           ; REG_ACCESS → 0B10 → REG_ADDR
+0857: 17A2  JNC 0C28          ; Adv → paper advance
+0858: 0A0C  MOV KR,EXT[4..15] ; HIR (from 0B21): → slot 00FA
 0859: 0AA7  MOV R5,#10
 085A: 1CC5  JC 05F8
 085B: 1F42  JC 0BFC
@@ -2882,7 +2887,8 @@
 ; overflow). False → skip the operand (0C19 → 089F).
 085C: 0088  TST fB[8]         ; INV?
 085D: 1778  JNC 0C19
-085E: 0000  TST fA[0]
+085E: 0000  TST fA[0]         ; transfer: label (→ LABEL_SEARCH 0BD2) or step number
+                              ;   (STEP_TO_REG)
 085F: 01D7  A<>E ALL
 0860: 0A1F  RCLF
 0861: 09D3  B=LOAD MANT
@@ -2971,8 +2977,8 @@
 089D: 00B9  SET fB[11]
 089E: 01D7  A<>E ALL
 089F: 1DCF  JC 05B8
-08A0: 1F8E  JC 0C67
-08A1: 0F21  IO=C+1 MAEX1
+08A0: 1F8E  JC 0C67           ; If flg test (04B3)
+08A1: 0F21  IO=C+1 MAEX1      ; DISP_FORMAT skipped while a sub-program / library runs (0553)
 08A2: 1804  JC 08A4
 08A3: 0099  SET fB[9]
 08A4: 0030  TST fA[3]
@@ -3022,7 +3028,7 @@
 08C1: 0D00  A=A+1 MLSD1
 08C2: 0D00  A=A+1 MLSD1
 08C3: 1D96  JC 0B8E
-08C4: 162B  JNC 05AF
+08C4: 162B  JNC 05AF          ; after a printed trace line: DISP_FORMAT cleanup
 08C5: 1E6C  JC 0BFB
 08C6: 095B  B=SRB MANT
 ; ═══════════════════════════════════════════════════════════════════════════
@@ -3103,7 +3109,7 @@
 08FA: 00B0  TST fA[11]        ; tan?
 08FB: 1804  JC 08FD
 08FC: 0051  SET fA[5]
-08FD: 0030  TST fA[3]
+08FD: 0030  TST fA[3]         ; arc functions (slot 0505): CORDIC backwards
 08FE: 0D09  IO=A-1 MLSD1
 08FF: 1F1C  JC 0C8D
 0900: 0A77  MOV R5,#7         ; |θ| < 10^−7?
@@ -3154,11 +3160,11 @@
 0925: 02DB  B=0 DPT
 0926: 0939  IO=-D MANT
 0927: 1A46  JC 0A4A
-0928: 03D3  B=LOAD DPT1
+0928: 03D3  B=LOAD DPT1       ; R/S resume of a library program (0BC3)
 0929: 1A42  JC 0A4A
 092A: 1FF4  JC 0D24
-092B: 1FF4  JC 0D25
-092C: 0080  TST fA[8]
+092B: 1FF4  JC 0D25           ; Pgm (slot 053C) → PGM_SELECT
+092C: 0080  TST fA[8]         ; List (slot 0538) → LIST loop (0D28)
 092D: 0052  CLR fA[5]
 092E: 1FF4  JC 0D28
 092F: 014E  D=SRA ALL
@@ -3183,13 +3189,13 @@
 093E: 0A57  MOV R5,#5         ; slot 0545
 093F: 0A18  MOV KR[4..7],R5
 0940: 0A0D  SWAP KR,SR
-0941: 0053  TOG fA[5]
+0941: 0053  TOG fA[5]         ; print-op / card / partition sequence tail
 0942: 0050  TST fA[5]
 0943: 1FC8  JC 0D27
 0944: 00A9  SET fB[10]
-0945: 1E7D  JC 0607
+0945: 1E7D  JC 0607           ; → display X
 0946: 16AB  JNC 05F1
-0947: 0030  TST fA[3]
+0947: 0030  TST fA[3]         ; atan (INV tan, from 08DF)
 0948: 11D0  JNC 0A30
 0949: 0709  IO=A-1 EXP1
 094A: 180A  JC 094F
@@ -3469,12 +3475,13 @@
 0A35: 1D81  JC 0775           ; → t · t
 0A36: 0ED6  D=LOAD MMSD1      ; cos: numerator 1.0
 0A37: 1D85  JC 0775
-0A38: 01D7  A<>E ALL
+0A38: 01D7  A<>E ALL          ; Op 13: correlation keycode program
 0A39: 0AF7  MOV R5,#15
 0A3A: 09F0  A=R5 MANT
 0A3B: 0940  A=SLA MANT
 0A3C: 0D0B  B=A-1 MLSD1
-0A3D: 0A87  MOV R5,#8
+0A3D: 0A87  MOV R5,#8         ; keycode-program launch (0934): Prg Src Flag 8 → launch prologue
+                              ;   0A4B
 0A3E: 02F3  B=R5 DPT
 0A3F: 0082  CLR fA[8]
 0A40: 0AD7  MOV R5,#13
@@ -3540,10 +3547,10 @@
 0A6A: 1791  JNC 06A2          ; 2nd pass (was set) → normal dispatch at 06A2
 0A6B: 0041  SET fA[4]         ; 1st pass: tag "trace queue" (tested at 07A6)
 0A6C: 1DC9  JC 0788           ; → pack key position code, queue print symbol
-0A6D: 005A  CLR fB[5]
+0A6D: 005A  CLR fB[5]         ; end of CP / CMs
 0A6E: 01D7  A<>E ALL
 0A6F: 0091  SET fA[9]
-0A70: 1A57  JC 0945
+0A70: 1A57  JC 0945           ; → display X
 0A71: 0A65  TST KR[6]
 0A72: 1F07  JC 06EF
 0A73: 0A45  TST KR[4]
@@ -3915,7 +3922,7 @@
 ; Start a run: fB[0] := running, merge the current step into SCOM[0] (0BB4–
 ; 0BBE, also the label-key entry from 0924), then continue at 07F9.
 0BB3: 0009  SET fB[0]         ; program running
-0BB4: 09DE  D=0 MANT
+0BB4: 09DE  D=0 MANT          ; start a run from a label key (0924): step into SCOM[0]
 0BB5: 0C76  D=SLD MAEX
 0BB6: 0C76  D=SLD MAEX
 0BB7: 0973  B=SLD MANT
@@ -3944,7 +3951,7 @@
 0BCE: 01D7  A<>E ALL
 0BCF: 1D4F  JC 0928
 0BD0: 1F79  JC 0814
-0BD1: 1FB6  JC 0FAC
+0BD1: 1FB6  JC 0FAC           ; library SBR resolve (0868)
 ; LABEL_SEARCH start: set up the scan from step 000 of the current program,
 ; then read register by register (0F45).
 0BD2: 02F3  B=R5 DPT
@@ -3989,9 +3996,10 @@
 0BF7: 01B1  IO=A+D ALL        ; bus: op + register address
 0BF8: 0111  IO=B ALL          ; data: the updated register
 0BF9: 1E8F  JC 08B2           ; → PRGREG_FETCH (step + 1)
-0BFA: 166D  JNC 08C4
-0BFB: 1FB2  JC 0FD4
-0BFC: 1F88  JC 0FC0
+0BFA: 166D  JNC 08C4          ; after printing (0F01)
+0BFB: 1FB2  JC 0FD4           ; print the value (from the trace trigger 08C5): → 13AA →
+                              ;   PRT_VALUE
+0BFC: 1F88  JC 0FC0           ; CMs / CP → CLEAR_MEM
 0BFD: 0100  A=A ALL
 0BFE: 0100  A=A ALL
 0BFF: 0100  A=A ALL
@@ -4002,11 +4010,11 @@
 0C04: 0100  A=A ALL
 0C05: 0100  A=A ALL
 0C06: 0100  A=A ALL
-0C07: 0239  IO=-D DPT
+0C07: 0239  IO=-D DPT         ; keycode with tens digit 0 (0844): digit
 0C08: 1F85  JC 0846
 0C09: 0095  SET KR[9]
 0C0A: 1F71  JC 0852
-0C0B: 0A1F  RCLF
+0C0B: 0A1F  RCLF              ; continue a sub-program / library run (08B0)
 0C0C: 01D6  D=LOAD ALL
 0C0D: 017E  D=SRD ALL
 0C0E: 00EA  CLR fB[14]
@@ -4023,7 +4031,7 @@
 0C17: 01D2  A<>B ALL
 0C18: 1FC3  JC 0837
 0C19: 0002  CLR fA[0]         ; condition false: no transfer, continue
-0C1A: 1EF7  JC 089F
+0C1A: 1EF7  JC 089F           ; end of a flag / transfer op: display
 0C1B: 0148  A=SRA ALL
 0C1C: 01D2  A<>B ALL
 0C1D: 01B0  A=A+D ALL         ; new keycode
@@ -4301,9 +4309,9 @@
 0D22: 1531  JNC 0A8A
 0D23: 1C96  JC 0F6E
 0D24: 1CF2  JC 0F9D
-0D25: 1DF2  JC 101E
+0D25: 1DF2  JC 101E           ; Pgm → 12E1
 0D26: 162F  JNC 0A0F
-0D27: 1E70  JC 105F
+0D27: 1E70  JC 105F           ; print / card sequence → 1333 → 165A
 ; LIST loop: for each step from the current one — fetch it (0BF9 → 08B2 → LRN
 ; display 13E6), poll R/S (141F: held → stop, 11EF), wait for the printer and
 ; clear its buffer (1425–1428), let the scanner (10BF → 0F4B) classify the
@@ -4536,7 +4544,7 @@
 0DD9: 01D7  A<>E ALL
 0DDA: 01DB  B=0 ALL
 0DDB: 1F3D  JC 0A3D
-0DDC: 0072  CLR fA[7]
+0DDC: 0072  CLR fA[7]         ; Ind: read the pointer register (0A2B)
 0DDD: 0309  IO=A-1 DPT1
 0DDE: 01DE  D=0 ALL
 0DDF: 1288  JNC 0F23
@@ -4777,7 +4785,7 @@
 0E97: 1804  JC 0E99           ; keycode 79 x̄: no operand
 0E98: 1802  JC 0E99 ; clear COND ; keycode 89 π: no operand
 0E99: 0082  CLR fA[8]         ; next keycode (INV no longer pending) …
-0E9A: 0040  TST fA[4]
+0E9A: 0040  TST fA[4]         ; scanner: next keycode (Nop, Del, INV …)
 0E9B: 158C  JNC 1161
 0E9C: 0219  IO=-B DPT
 0E9D: 1342  JNC 103E
@@ -4838,7 +4846,7 @@
 0ECE: 0940  A=SLA MANT
 0ECF: 09B8  A=A-D MANT
 0ED0: 1E85  JC 0B8E
-0ED1: 0148  A=SRA ALL
+0ED1: 0148  A=SRA ALL         ; LRN: completed argument → record it (0B18)
 0ED2: 0148  A=SRA ALL
 0ED3: 0308  A=A-1 DPT1
 0ED4: 0308  A=A-1 DPT1
