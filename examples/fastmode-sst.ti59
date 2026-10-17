@@ -17,8 +17,8 @@
 #   STO                  any column-2 key (STO, EE, x<>t, INV, B) ends it
 #
 # The calculation starts at once in fast mode and stops showing 69!
-# (1.7112245 98). For comparison, normal mode: GTO 008 R/S takes about 80%
-# longer (headless measurement: 328k vs 588k instruction cycles).
+# (1.7112245 98). For comparison, normal mode: GTO 008 R/S takes about 75%
+# longer (headless measurement: 298k vs 518k instruction cycles).
 #
 # HOW IT WORKS
 #
@@ -42,7 +42,7 @@
 #    cache, and the program proper starts at step 008. That is why St flg
 #    sits at the last byte of a register (step 8k+7) and steps 000-006 are
 #    left empty.
-# 5. Fast mode ends at the RST at step 032, which clears the step counter and
+# 5. Fast mode ends at the RST at step 031, which clears the step counter and
 #    the Prg Src Flag. The program then continues in normal mode at step 000:
 #    RCL 00, R/S. Steps 000-002 are free for this because on entry the run
 #    starts at 001 and 001-007 come from the drained cache.
@@ -62,7 +62,7 @@
 MODEL: TI-59
 
 PROGRAM:
-000  43 RCL     # reached through the RST at step 032, in normal mode again:
+000  43 RCL     # reached through the RST at step 031, in normal mode again:
 001  00  00     # show the result …
 002  91 R/S     # … and stop. (On entry steps 001-007 run from the drained cache.)
 007  86 STF     # the entry trigger; its operand is supplied from the keyboard
@@ -75,22 +75,21 @@ PROGRAM:
 014  00  00     # R00 := 69 (product)
 015  42 STO
 016  01  01     # R01 := 69 (counter)
-017  43 RCL     # loop
-018  01  01
-019  75  -
-020  01  1
-021  95  =
-022  42 STO
-023  01  01
-024  67 EQ      # counter = 0 → done (step 032)
-025  00  00
-026  32  32
-027  49 PRD
-028  00  00     # R00 *= counter
-029  61 GTO
-030  00  00
-031  17  17     # → step 017
-032  81 RST     # leave fast mode (Prg Src Flag 0) and go to step 000
+017  01  1      # loop: counter - 1
+018  94 +/-
+019  44 SUM
+020  01  01
+021  43 RCL
+022  01  01
+023  67 EQ      # counter = 0 → done (step 031)
+024  00  00
+025  31  31
+026  49 PRD
+027  00  00     # R00 *= counter
+028  61 GTO
+029  00  00
+030  17  17     # → step 017
+031  81 RST     # leave fast mode (Prg Src Flag 0) and go to step 000
 
 KEYSTROKES:
 82          # 1
