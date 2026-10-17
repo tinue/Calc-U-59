@@ -128,11 +128,12 @@ HIR STO, with register number 0.
 From the next step on, the run loop sees "non-zero source" and takes the fast
 path, while the fetch still reads from RAM.
 
-**Why the program starts at step 008.** Program memory is stored in blocks
-of 8 steps: 000–007, 008–015, 016–023, and so on. The firmware does not read
-each step from memory separately. When a block begins, it copies the whole
-block into a working buffer and then takes one step at a time out of that
-buffer. It reads memory again only when the buffer is used up and the next
+**Why the program starts at step 008.** The RAM chips can only transfer
+whole registers. A register is 16 decimal digits, shifted serially over the
+bus in one instruction cycle. It holds either one data register or 8 program
+steps of 2 digits each: 000–007, 008–015, 016–023, and so on. So the firmware
+cannot read a single step. When a block begins, it copies the whole register
+into a working buffer and then takes one step at a time out of that buffer. It reads memory again only when the buffer is used up and the next
 block begins.
 
 The hack sets the step counter to 000 but leaves the buffer alone. The buffer
