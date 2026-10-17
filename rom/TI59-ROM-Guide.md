@@ -114,6 +114,7 @@ Meanings established so far; "set" means the bit is 1.
 | fA[2] | X mantissa negative |
 | fA[3] | X exponent negative |
 | fA[4] | arithmetic overflow exit marker (`0418`) |
+| fA[5] | a result is to be (re)formatted for display: NUM_NORM's exit runs DISP_FORMAT (`02CD`) |
 | fA[6] | copy of fB[6] taken at the start of each key (`06A2`) |
 | fA[7] | Ind pending (indirect register / address) |
 | fA[8] | INV pending; also CP vs CMs, Del vs Ins, Op 18 vs 19 |
@@ -125,6 +126,7 @@ Meanings established so far; "set" means the bit is 1.
 | fA[14] | tolerate an over/underflow clamp without the error blink (`025A`) |
 | fA[15] | exponent entry (after EE during number entry) |
 | fB[0] | program running |
+| fB[2], fB[3] | saved mantissa / exponent signs of the full-precision X in C (`02C6`, `0238`) |
 | fB[4] | decimal point typed (number entry); kernel mode ln (1) / exp (0) in the transcendental kernel |
 | fB[5] | a result (not an entry) is on display: X is in C, the next digit starts a new number |
 | fB[6] | "fresh operand": set by every key at `06A3`, cleared by an AOS push and by `(`; an operator or `)`/`=` arriving with fA[6] clear is an error (`5 + =`, `5 + × 3`) |
