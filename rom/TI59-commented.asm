@@ -6912,20 +6912,32 @@
 1657: 1021  JNC 1647
 1658: 0CDB  B=0 MAEX
 1659: 1825  JC 1647
+; ═══════════════════════════════════════════════════════════════════════════
+; PRINT_OPS  (0x165A–0x167F, 0x17AC–0x17EE) — Op 00–05 and Op 07 (from the
+; print-op sequence 053F; also the card/partition prefix at 1680). Trace-
+; confirmed (headless, printer attached):
+;   Op 00 clear, Op 01–04 load, Op 05 print the 20-column alphanumeric
+;   buffer, which lives in SCOM[5]–[8] (Op 01 → SCOM[5], … Op 04 → SCOM[8]),
+;   5 characters = 10 digits each — the same rows as AOS levels 5–8.
+;   Characters are TI two-digit codes, octal-like: printer code =
+;   tens·8 + units (13 → 'A', 24 → 'I', 17 → 'E', 36 → 'S'; 17D2–17E2).
+;   Op 07 plots: '*' (code 41) at column Int(X), 0–19 (1667–167D).
+; Without a printer the ops do nothing (KEY [P] at D0, 1661).
+; ═══════════════════════════════════════════════════════════════════════════
 165A: 0103  B=A ALL
 165B: 01D7  A<>E ALL
-165C: 0901  IO=A MANT
+165C: 0901  IO=A MANT         ; Op number → R5 …
 165D: 02F6  D=R5 DPT
-165E: 0A18  MOV KR[4..7],R5
-165F: 0A75  TST KR[7]
+165E: 0A18  MOV KR[4..7],R5   ; … KR[4..7]
+165F: 0A75  TST KR[7]         ; Op ≥ 8 → card / partition (1680)
 1660: 1040  JNC 1680
-1661: 0A10  WAIT D1
+1661: 0A10  WAIT D1           ; printer present?
 1662: 08FB  KEY [P]
-1663: 1836  JC 167E
-1664: 0A04  INC KR
+1663: 1836  JC 167E           ; no → nothing
+1664: 0A04  INC KR            ; Op 07 → KR[7] (8)?
 1665: 0A75  TST KR[7]
-1666: 1A8C  JC 17AC
-1667: 0619  IO=-B EXP
+1666: 1A8C  JC 17AC           ; Op 00–05 → 17AC
+1667: 0619  IO=-B EXP         ; Op 07 PLOT: X must be 0 ≤ X < 20 …
 1668: 0030  TST fA[3]
 1669: 0020  TST fA[2]
 166A: 1111  JNC 15E2
@@ -6937,16 +6949,16 @@
 1670: 0A0C  MOV KR,EXT[4..15]
 1671: 0095  SET KR[9]
 1672: 0075  SET KR[7]
-1673: 0045  SET KR[4]
-1674: 0A98  PRT.STEP
+1673: 0045  SET KR[4]         ; '*' = code 41 (KR[4]+KR[7]+KR[9])
+1674: 0A98  PRT.STEP          ; wait for the printer …
 1675: 0A0B  TST.BUSY
 1676: 1005  JNC 1674
 1677: 0A88  PRT.CLR
-1678: 0D08  A=A-1 MLSD1
+1678: 0D08  A=A-1 MLSD1       ; skip X columns …
 1679: 1006  JNC 167C
 167A: 0A98  PRT.STEP
 167B: 1807  JC 1678
-167C: 0A68  PRT.OUT
+167C: 0A68  PRT.OUT           ; the asterisk
 167D: 0AA8  PRT.GO
 167E: 0110  A=B ALL
 167F: 19A9  JC 15AB
@@ -7267,12 +7279,12 @@
 17A9: 1957  JC 16FE
 17AA: 0049  SET fB[4]         ; invalid bank → error path
 17AB: 1987  JC 16E8
-17AC: 0508  A=A-1 LLSD1
+17AC: 0508  A=A-1 LLSD1       ; Op 00–05: Op 01–04 → SCOM[4 + n] := X digits (17B3–17B6) …
 17AD: 0A18  MOV KR[4..7],R5
 17AE: 0A47  MOV R5,#4
 17AF: 02F0  A=R5 DPT
-17B0: 1012  JNC 17B9
-17B1: 0A65  TST KR[6]
+17B0: 1012  JNC 17B9          ; Op 00 → clear SCOM[5]–[8] (17B9–17C0)
+17B1: 0A65  TST KR[6]         ; Op 05 → print (17C1)
 17B2: 101E  JNC 17C1
 17B3: 02B6  D=A+D DPT
 17B4: 0131  IO=D ALL
@@ -7288,14 +7300,14 @@
 17BE: 0A65  TST KR[6]
 17BF: 180B  JC 17BA
 17C0: 1013  JNC 17B7
-17C1: 0A98  PRT.STEP
+17C1: 0A98  PRT.STEP          ; Op 05: wait for the printer …
 17C2: 0A0B  TST.BUSY
 17C3: 1005  JNC 17C1
 17C4: 0A88  PRT.CLR
 17C5: 0A45  TST KR[4]
 17C6: 1804  JC 17C8
 17C7: 0011  SET fA[1]
-17C8: 0A87  MOV R5,#8
+17C8: 0A87  MOV R5,#8         ; rows 8, 7, 6, 5 (right to left) …
 17C9: 02F0  A=R5 DPT
 17CA: 0101  IO=A ALL
 17CB: 0A1F  RCLF
@@ -7305,7 +7317,7 @@
 17CF: 0010  TST fA[1]
 17D0: 1804  JC 17D2
 17D1: 0708  A=A-1 EXP1
-17D2: 0A0C  MOV KR,EXT[4..15]
+17D2: 0A0C  MOV KR,EXT[4..15] ; next character: tens digit → KR[8..9] (·8) …
 17D3: 0948  A=SRA MANT
 17D4: 06F6  D=R5 EXP
 17D5: 0948  A=SRA MANT
@@ -7318,21 +7330,21 @@
 17DC: 0095  SET KR[9]
 17DD: 0A45  TST KR[4]
 17DE: 0636  D=D EXP
-17DF: 0A18  MOV KR[4..7],R5
+17DF: 0A18  MOV KR[4..7],R5   ; … units digit → KR[4..6]
 17E0: 1804  JC 17E2
 17E1: 0075  SET KR[7]
 17E2: 0A68  PRT.OUT
-17E3: 0708  A=A-1 EXP1
+17E3: 0708  A=A-1 EXP1        ; five characters per row
 17E4: 1825  JC 17D2
 17E5: 0010  TST fA[1]
 17E6: 0051  SET fA[5]
 17E7: 01D2  A<>B ALL
 17E8: 1383  JNC 1627
 17E9: 01D2  A<>B ALL
-17EA: 0308  A=A-1 DPT1
+17EA: 0308  A=A-1 DPT1        ; next row
 17EB: 02B9  IO=A-D DPT
 17EC: 1845  JC 17CA
-17ED: 0AA8  PRT.GO
+17ED: 0AA8  PRT.GO            ; print the line
 17EE: 186F  JC 17B7
 17EF: 0099  SET fB[9]
 17F0: 1CC5  JC 158E
