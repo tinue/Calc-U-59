@@ -63,7 +63,7 @@ its resume slot in SR and drops back to the idle loop with **fB[12]** set;
 the next digit keys are routed to the argument collector instead of number
 entry (`KEY_DISPATCH` `06A7`), which resumes the sequence when complete.
 
-The unary functions use a second table at `0x0500` (`FN_TABLE`), entered
+The unary functions use a second table at `0x0500` (`FN_SEQ_TABLE`), entered
 through `FN_ENTRY` (`0210`) with KR = `0x5000 | fn<<4` (`+0x100` for the
 `KR[8]` variant). Example: `√x` → `0x0510` (normalize) → `0x0511` →
 `JC 081D` → digit-by-digit square root at `0AAC`.
@@ -90,17 +90,18 @@ pending operation's inverse-pair bit (see below).
 
 | Row | Use |
 |---|---|
-| 1–8 | AOS pending left operands, one per level; also the HIR hierarchy registers 1–8, and rows 5–8 hold the Op 01–04 print buffer |
-| 12 | AOS operator stack: 2 nibbles per entry (precedence, paren level), top entry in nibbles 1/0 |
 | 0 | nibble 0 = Fix setting (n+2, 0 = floating); nibbles 1–2 = pending keycode (argument terminator, second operand digit, Ind of a compact code; fB[14]); nibble 3 = Prg Src Flag; nibbles 4–7 = program step (nibble 4 = byte 0–7, nibbles 5–7 = BCD register number); nibbles 11–15 = user flags (flag n = bit ⌊n/5⌋ of nibble 11 + n mod 5) |
+| 1–8 | AOS pending left operands, one per level; also the HIR hierarchy registers 1–8, and rows 5–8 hold the Op 01–04 print buffer |
 | 9 | library/partition descriptor (see `reference/CoreArchitecture.md`) |
 | 10 | current program register as a keycode shift register (current keycode in nibbles 1..0) |
 | 11 | t register |
-| 14, 15 | subroutine return stack (6 levels; SCOM[15] nibble 0 = depth) |
+| 12 | AOS operator stack: 2 nibbles per entry (precedence, paren level), top entry in nibbles 1/0 |
 | 13 | nibble 0 = angle unit (0 DEG, 1 GRAD, 0xC RAD); nibble 1 = current paren level; nibble 2 = AOS depth; nibbles 3–5 = index of the top RAM register (119 TI-59, 59 TI-58), set by the power-on probe; nibbles 8–9 = program partition ÷ 10 |
+| 14, 15 | subroutine return stack (6 levels; SCOM[15] nibble 0 = depth) |
 
-(Other rows are covered in `reference/CoreArchitecture.md`; this table grows
-as more of the ROM is documented.)
+Rows 1–8 are shared: AOS levels, HIR registers and (5–8) the Op 01–04 print
+buffer use the same storage, so deep pending arithmetic and alpha printing or
+HIR use in the keycode programs can collide.
 
 ## Flags (fA / fB)
 
@@ -114,8 +115,8 @@ Meanings established so far; "set" means the bit is 1.
 | fA[3] | X exponent negative |
 | fA[4] | arithmetic overflow exit marker (`0418`) |
 | fA[6] | copy of fB[6] taken at the start of each key (`06A2`) |
-| fA[8] | INV pending; also CP vs CMs, Del vs Ins, Op 18 vs 19 |
 | fA[7] | Ind pending (indirect register / address) |
+| fA[8] | INV pending; also CP vs CMs, Del vs Ins, Op 18 vs 19 |
 | fA[9] | 2nd pending (column bias +5 at dispatch); in register access: 1 = read (`02D9`), 0 = write (`04B1`) |
 | fA[10] | printer trace record pending (`0A68`) |
 | fA[11] | tan (trig sequence) |
@@ -124,16 +125,16 @@ Meanings established so far; "set" means the bit is 1.
 | fA[14] | tolerate an over/underflow clamp without the error blink (`025A`) |
 | fA[15] | exponent entry (after EE during number entry) |
 | fB[0] | program running |
-| fB[11] | program-register cache (SCOM[10]) must be reloaded |
-| fB[13] | single step (SST in run mode) |
 | fB[4] | decimal point typed (number entry); kernel mode ln (1) / exp (0) in the transcendental kernel |
 | fB[5] | a result (not an entry) is on display: X is in C, the next digit starts a new number |
+| fB[6] | "fresh operand": set by every key at `06A3`, cleared by an AOS push and by `(`; an operator or `)`/`=` arriving with fA[6] clear is an error (`5 + =`, `5 + × 3`) |
 | fB[7] | engineering display (Eng) |
 | fB[8] | INV saved for a suspended operation sequence (`0234`): INV SUM, INV Prd, INV St flg, inverted conditionals |
-| fB[10] | LRN mode (toggled at `03D8`); outside LRN borrowed as a transient prefix/reformat marker, cleared before idle |
-| fB[6] | "fresh operand": set by every key at `06A3`, cleared by an AOS push and by `(`; an operator or `)`/`=` arriving with fA[6] clear is an error (`5 + =`, `5 + × 3`) |
 | fB[9] | error: display blinks until CLR/CE (`0641`) |
+| fB[10] | LRN mode (toggled at `03D8`); outside LRN borrowed as a transient prefix/reformat marker, cleared before idle |
+| fB[11] | program-register cache (SCOM[10]) must be reloaded |
 | fB[12] | argument entry in progress: digit keys feed a suspended operation sequence |
+| fB[13] | single step (SST in run mode) |
 | fB[14] | a keycode is pending in SCOM[0] nibbles 1–2 and is executed on the next pass (`0620` → `04F6`); Op 16: query only |
 | fB[15] | scientific (EE) display |
 
@@ -233,8 +234,9 @@ n + 2 (0 = floating); fB[15] = sci, fB[7] = eng.
 
 - **Step counter**: SCOM[0] nibbles 4–7 — nibble 4 = byte (0–7) within an
   8-step program register, nibbles 5–7 = register number (BCD). Nibble 3 =
-  Prg Src Flag (0 RAM, 1 library module, 2 library return, 8 keycode
-  sub-program in the constant ROM).
+  Prg Src Flag (0 RAM, 1 library module, 2 return into a library program,
+  8 keycode sub-program in the constant ROM; 2/4/6 on a RAM program = fast
+  mode, see below).
 - **Keycodes** are two BCD digits row·10 + column (2nd functions: column + 5,
   so units 6–9/0); digit keys store their value 00–09 (`KEY_ENCODE` `0788`).
 - **SCOM[10]** caches the current program register as a shift register: the
@@ -291,9 +293,9 @@ that selects neither the library (bit 0) nor the keycode table (bit 3) —
 skips the per-step display rebuild and R/S/GTO polls: ~40% less time, but R/S
 cannot stop it. The only way in is a quirk chain that writes X's digit image
 into SCOM[0] (an argument terminated by EE after `St flg` at the end of the
-partition, mis-dispatched twice, ending in the SCOM store at `11D9` with row
-0 — effectively HIR STO into SCOM[0]). The 12th decimal digit of X becomes the source flag, the next digits the
-start step. Full walkthrough: `examples/fastmode.ti59`.
+partition, mis-dispatched twice, ending in the HIR STO code at `11D9` with
+register 0, i.e. SCOM[0]). The 12th decimal digit of X becomes the source
+flag, the digits after it the start step. Full walkthrough: `examples/fastmode.ti59`.
 
 ## Magnetic cards
 
@@ -307,10 +309,22 @@ listing.
 
 ## Printing
 
-Every keycode has a 3-character PC-100 mnemonic in the table at
-`0x1000–0x1151` (slot 0x1000 + 32·tens + 3·units, rightmost character
-first), produced through the INC KR character slide at `0x1399`. Op 00–07
-drive the alphanumeric buffer (`OP_TABLE` `0x0A00`).
+The PC-100 is driven one character at a time (PRT.OUT with a 6-bit code in
+KR[4..9], filled right to left), PRT.GO prints the line, TST.BUSY paces it.
+
+- **Mnemonics**: every keycode has a 3-character mnemonic in the table at
+  `0x1000–0x1151` (slot 0x1000 + 32·tens + 3·units, rightmost character
+  first), produced through the INC KR character slide at `0x1399`.
+- **Values** (`PRT_VALUE` `152B`): digits from the display image as code
+  digit+1, point = 32, minus = 16; with TRACE the key's mnemonic is queued
+  first (`1422`) and printed with the result.
+- **List** (`0D28`): per step the LRN-style fetch, the scanner (so operands
+  print as numbers), the mnemonic table and the digits.
+- **Alphanumeric** (Op 00–05): a 20-column buffer in SCOM[5]–[8]; the TI
+  two-digit character codes map to printer codes as tens·8 + units. Op 06
+  prints X with Op 04's characters, Op 07 plots an asterisk at column X.
+- **Adv** feeds two lines and keeps feeding while Adv or the printer's ADV
+  button is held (`0F36`).
 
 ## Keycode sub-programs
 
