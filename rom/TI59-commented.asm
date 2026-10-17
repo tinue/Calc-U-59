@@ -1514,8 +1514,9 @@
 048E: 1A97  JC 0343
 048F: 0051  SET fA[5]
 0490: 1CB1  JC 0238
-0491: 0081  SET fA[8]
-0492: 0A17  MOV R5,#1
+0491: 0081  SET fA[8]         ; CP (fA[8] marks CP) …
+0492: 0A17  MOV R5,#1         ; CMs / CP: fn 1 in the KR[9] bank → slots 0521/0522 (→ 085B →
+                              ;   0BFC → CLEAR_MEM 0FC0)
 0493: 0095  SET KR[9]         ; FN_ENTRY in the KR[9] bank (0x0520+fn)
 0494: 1D09  JC 0210
 0495: 0A37  MOV R5,#3
@@ -1619,6 +1620,8 @@
 04E9: 1806  JC 04EC
 04EA: 0940  A=SLA MANT
 04EB: 0C40  A=SLA MAEX
+; Pause (keycode 66) enters DISPLAY_PEEK here with KR starting at 0: the
+; display is held for 512 loop passes (twice as long as the GTO peek).
 04EC: 0A98  PRT.STEP
 04ED: 0A0B  TST.BUSY
 04EE: 1005  JNC 04EC
@@ -5011,10 +5014,22 @@
 0FBD: 0101  IO=A ALL
 0FBE: 1ED3  JC 0C55
 0FBF: 1749  JNC 0C1B
+; ═══════════════════════════════════════════════════════════════════════════
+; CLEAR_MEM  (0x0FC0–0x0FF3, 0x1334–0x1363) — CMs and CP. Trace-confirmed.
+; CMs (fA[8] clear): clear all data registers, i.e. RAM from the partition
+; boundary up to the top register (range from SCOM[13], 0FC3–0FD0).
+; CP (fA[8] set, 1334): t (SCOM[11]) := 0; from the keyboard also the return
+; stack (SCOM[15]), step counter / Prg Src / user flags (SCOM[0] keeps only
+; Fix), the module security nibble in SCOM[9], and all PROGRAM registers;
+; inside a running program only t. (In LRN mode CP is recorded as step 29.)
+; The clearing uses the RAM chips' own block operation: RAM.OP op 4 clears
+; ten registers at once, op 2 one register (0FED–0FF3, 1355–1363).
+; ═══════════════════════════════════════════════════════════════════════════
 0FC0: 01D7  A<>E ALL
-0FC1: 0080  TST fA[8]
+0FC1: 0080  TST fA[8]         ; CP?
 0FC2: 16E4  JNC 1334
-0FC3: 0AD7  MOV R5,#13
+0FC3: 0AD7  MOV R5,#13        ; CMs: data-register range from SCOM[13] (partition … top
+                              ;   register)
 0FC4: 02F0  A=R5 DPT
 0FC5: 0101  IO=A ALL
 0FC6: 0A1F  RCLF
@@ -5058,11 +5073,11 @@
 0FEA: 0C8C  C=A-B MAEX
 0FEB: 0CD8  A=0 MAEX
 0FEC: 1EB7  JC 0C91
-0FED: 0C64  C=SLC MAEX
+0FED: 0C64  C=SLC MAEX        ; clear loop: RAM.OP with op 4 (10 registers) / op 2 (1) …
 0FEE: 0AF8  RAM.OP
 0FEF: 01A1  IO=C+D ALL
 0FF0: 0308  A=A-1 DPT1
-0FF1: 0D08  A=A-1 MLSD1
+0FF1: 0D08  A=A-1 MLSD1       ; … next block
 0FF2: 1391  JNC 0E2A
 0FF3: 1EC4  JC 1355
 0FF4: 0164  C=SLC ALL         ; address into bus position (units nibble 2, tens nibble 3)
@@ -5976,25 +5991,25 @@
 1331: 1AED  JC 11BB
 1332: 16E7  JNC 0FBF
 1333: 1E4E  JC 165A
-1334: 01DB  B=0 ALL
-1335: 0328  A=C-1 DPT1
+1334: 01DB  B=0 ALL           ; CP: t := 0 …
+1335: 0328  A=C-1 DPT1        ; (C[0] = 0xC − 1 = 11 → SCOM[11])
 1336: 0101  IO=A ALL
 1337: 0A0F  STOF
 1338: 0111  IO=B ALL
-1339: 0008  TST fB[0]
-133A: 00D8  TST fB[13]
-133B: 1693  JNC 0FF2
-133C: 0AF7  MOV R5,#15
+1339: 0008  TST fB[0]         ; running …
+133A: 00D8  TST fB[13]        ; … or single step?
+133B: 1693  JNC 0FF2          ; yes → only t
+133C: 0AF7  MOV R5,#15        ; keyboard: SCOM[15] := 0 (return stack) …
 133D: 01F0  A=R5 ALL
 133E: 0101  IO=A ALL
 133F: 0A0F  STOF
 1340: 0111  IO=B ALL
 1341: 00B9  SET fB[11]
-1342: 0A1F  RCLF
+1342: 0A1F  RCLF              ; … SCOM[0] := its Fix nibble only (step 000, flags off) …
 1343: 02D3  B=LOAD DPT
 1344: 0A0F  STOF
 1345: 0111  IO=B ALL
-1346: 0A97  MOV R5,#9
+1346: 0A97  MOV R5,#9         ; … SCOM[9]: security nibble cleared …
 1347: 01F4  C=R5 ALL
 1348: 0121  IO=C ALL
 1349: 0A1F  RCLF
@@ -6007,7 +6022,7 @@
 1350: 0308  A=A-1 DPT1
 1351: 09F0  A=R5 MANT
 1352: 16C1  JNC 0FF2
-1353: 0A47  MOV R5,#4
+1353: 0A47  MOV R5,#4         ; … then clear the program registers in blocks of ten
 1354: 01F4  C=R5 ALL
 1355: 0C4C  C=SRA MAEX
 1356: 0529  IO=C-1 LLSD1
