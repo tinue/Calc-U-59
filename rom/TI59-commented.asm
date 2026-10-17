@@ -3764,7 +3764,13 @@
 0B39: 0300  A=A+1 DPT1
 0B3A: 06D8  A=0 EXP
 0B3B: 1E51  JC 0813           ; → ARITH_EXIT
-0B3C: 00C9  SET fB[12]
+; LRN_OPERAND_SETUP (from 0CDD, after an instruction with an operand was
+; recorded): arm argument mode (fB[12]) and operand-only mode (fA[13]) so the
+; following keys are recorded as the operand: the instruction's column bits
+; select the operand shape (0B3F–0B51); the state is parked in SCOM[14] (the
+; upper return-stack levels, unused in LRN). Trace-confirmed: LRN Fix 3 STO 45
+; GTO 123 Op 17 If flg 2 B → 58 03 42 45 61 01 23 69 17 87 02 12.
+0B3C: 00C9  SET fB[12]        ; argument mode …
 0B3D: 00D1  SET fA[13]        ; LRN: an operand is being recorded — no register range check
                               ;   (0D4B)
 0B3E: 01D7  A<>E ALL
@@ -3787,7 +3793,7 @@
 0B4F: 0A85  TST KR[8]
 0B50: 1804  JC 0B52
 0B51: 0300  A=A+1 DPT1
-0B52: 0AE7  MOV R5,#14
+0B52: 0AE7  MOV R5,#14        ; … state into SCOM[14]
 0B53: 00C8  TST fB[12]
 0B54: 02F6  D=R5 DPT
 0B55: 0131  IO=D ALL
@@ -4196,6 +4202,9 @@
 0CCF: 0A45  TST KR[4]
 0CD0: 1018  JNC 0CDC
 0CD1: 1CAF  JC 0A7A
+; LRN key classification (from 09AB/0B61): column/row bits pick the keys that
+; act immediately (09C6 2nd-row editing keys, 09B4, 0E2E) or that are followed
+; by an operand (0CDD → LRN_OPERAND_SETUP 0B3D); digits go to 0A89 → 06B1.
 0CD2: 0A95  TST KR[9]
 0CD3: 161B  JNC 09C6
 0CD4: 0A85  TST KR[8]
@@ -4207,9 +4216,9 @@
 0CDA: 0A55  TST KR[5]
 0CDB: 0A45  TST KR[4]
 0CDC: 0082  CLR fA[8]
-0CDD: 1B41  JC 0B3D
+0CDD: 1B41  JC 0B3D           ; instruction with an operand → operand setup
 0CDE: 0A55  TST KR[5]
-0CDF: 14AD  JNC 0A89
+0CDF: 14AD  JNC 0A89          ; digit → DIGIT_SLIDE (then 05F7: stored as a step)
 0CE0: 1E59  JC 09B4
 0CE1: 0A1F  RCLF
 0CE2: 09D0  A=LOAD MANT
