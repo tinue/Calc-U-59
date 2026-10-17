@@ -182,6 +182,7 @@
 ; "×"/"÷" push (from slot 00C7)
 007B: 0A47  MOV R5,#4         ; precedence 4
 007C: 1A30  JC 0194           ; → AOS_PUSH
+; |x| (slot 00D1): clear the mantissa sign.
 007D: 0022  CLR fA[2]
 007E: 002A  CLR fB[2]
 007F: 1B6C  JC 0235
@@ -895,7 +896,7 @@
 02AC: 0A07  MOV R5,#0
 02AD: 0095  SET KR[9]
 02AE: 1D3D  JC 0010
-02AF: 02DE  D=0 DPT
+02AF: 02DE  D=0 DPT           ; Deg: 0
 02B0: 1BE8  JC 04A4
 02B1: 0080  TST fA[8]
 02B2: 0079  SET fB[7]
@@ -1542,17 +1543,19 @@
 ; transfer address (label or 3-digit step) and branch (085C …); false →
 ; skip the address operand and continue with the next step.
 0499: 1F86  JC 085C
-049A: 0051  SET fA[5]
-049B: 0080  TST fA[8]
-049C: 0133  B=D ALL
+049A: 0051  SET fA[5]         ; Int / INV Int result (slot 0520):
+049B: 0080  TST fA[8]         ; INV Int?
+049C: 0133  B=D ALL           ; B := original X
 049D: 000F  MOV fB[1..4],R5
-049E: 110B  JNC 0419
-049F: 1A8B  JC 035A
+049E: 110B  JNC 0419          ; no → Int result
+049F: 1A8B  JC 035A           ; yes → frac = X − Int(X)
 04A0: 1FEF  JC 00A9
-04A1: 04D6  D=LOAD DPTC
+; Angle-unit keys: SCOM[13] nibble 0 := 0xC (Rad, 04A1), 1 (Grad, 04A3),
+; 0 (Deg, 02AF). Trace-confirmed.
+04A1: 04D6  D=LOAD DPTC       ; Rad: 0xC
 04A2: 1804  JC 04A4
-04A3: 03D6  D=LOAD DPT1
-04A4: 0AD7  MOV R5,#13
+04A3: 03D6  D=LOAD DPT1       ; Grad: 1
+04A4: 0AD7  MOV R5,#13        ; SCOM[13] nibble 0 := D[0] …
 04A5: 02F3  B=R5 DPT
 04A6: 0111  IO=B ALL
 04A7: 0A1F  RCLF
@@ -1572,23 +1575,25 @@
 04B3: 1FDA  JC 08A0           ; If flg: test the user flag (0C67)
 04B4: 0A47  MOV R5,#4         ; St flg / INV St flg: sequence bank 0x0B10, code 4 …
 04B5: 1C7F  JC 0276           ; … → 0B14 → 0E10 → 11E0 → FLAG_OP
-04B6: 0051  SET fA[5]
+; x⇄t (slot 00EF, fA[5] set) / x=t, x≥t compare (04B7): t lives in SCOM[11].
+; Trace-confirmed (5 x⇄t; x=t / x≥t programs).
+04B6: 0051  SET fA[5]         ; x⇄t (not a compare)
 04B7: 0A06  MOV R5,fA[1..4]   ; x=t / x≥t: compare X with t (SCOM[11])
 04B8: 02F0  A=R5 DPT
-04B9: 0103  B=A ALL
+04B9: 0103  B=A ALL           ; B := X with its flags
 04BA: 01D7  A<>E ALL
-04BB: 032C  C=C-1 DPT1
+04BB: 032C  C=C-1 DPT1        ; C[0] = 0xC − 1 = 11 → SCOM[11] (t) …
 04BC: 0121  IO=C ALL
 04BD: 0A1F  RCLF
-04BE: 01D0  A=LOAD ALL
+04BE: 01D0  A=LOAD ALL        ; … A := t
 04BF: 0007  MOV fA[1..4],R5
 04C0: 04D0  A=LOAD DPTC
-04C1: 0050  TST fA[5]
-04C2: 1847  JC 049F
+04C1: 0050  TST fA[5]         ; compare?
+04C2: 1847  JC 049F           ; yes → X − t via ADD (035A), tested by the next slot
 04C3: 0121  IO=C ALL
-04C4: 0A0F  STOF
+04C4: 0A0F  STOF              ; x⇄t: t := old X …
 04C5: 0111  IO=B ALL
-04C6: 1D15  JC 023C
+04C6: 1D15  JC 023C           ; … X := old t, normalize and show
 04C7: 02DB  B=0 DPT           ; R→P: entry 250 …
 04C8: 0A57  MOV R5,#5
 04C9: 06F3  B=R5 EXP
@@ -3089,17 +3094,20 @@
 090D: 0032  CLR fA[3]
 090E: 0022  CLR fA[2]
 090F: 1B37  JC 0774           ; → MULDIV (fA[1] toggled: ÷ for log, × for 10^x)
-0910: 0106  D=A ALL
+; Int (slot 051F): keep the integer digits — shift the mantissa by the
+; exponent and truncate (0B39); |x| < 1 → 0 (0823). The original X stays in D
+; for INV Int (049A). Trace-confirmed (2.7 Int → 2, INV Int → 0.7).
+0910: 0106  D=A ALL           ; D := X (for INV Int)
 0911: 0A06  MOV R5,fA[1..4]
 0912: 02F6  D=R5 DPT
-0913: 0D09  IO=A-1 MLSD1
+0913: 0D09  IO=A-1 MLSD1      ; zero?
 0914: 0012  CLR fA[1]
-0915: 0030  TST fA[3]
-0916: 11E7  JNC 0823
-0917: 0940  A=SLA MANT
+0915: 0030  TST fA[3]         ; |x| < 1?
+0916: 11E7  JNC 0823          ; yes → 0
+0917: 0940  A=SLA MANT        ; align by the exponent …
 0918: 072C  C=C-1 EXP1
 0919: 1805  JC 0917
-091A: 143E  JNC 0B39
+091A: 143E  JNC 0B39          ; … and drop the fraction
 ; SBR / label-key call (slot 0B13): read SCOM[9] (library page) and push a
 ; return level unless the call comes from the keyboard with no program
 ; running (fB[0]/fB[13] clear → 0BB4: just start running).
@@ -4032,8 +4040,8 @@
 0C53: 06DE  D=0 EXP
 0C54: 00E9  SET fB[14]        ; pending key
 0C55: 1D8F  JC 098E
-0C56: 0080  TST fA[8]
-0C57: 136A  JNC 0E0C
+0C56: 0080  TST fA[8]         ; no error: Op 18?
+0C57: 136A  JNC 0E0C          ; yes → set flag 7
 0C58: 1BD1  JC 0A70
 0C59: 0A45  TST KR[4]
 0C5A: 1D4D  JC 09B4
@@ -4512,17 +4520,20 @@
 0E00: 01D7  A<>E ALL
 0E01: 04D4  C=LOAD DPTC
 0E02: 1F25  JC 0A70
-0E03: 0D29  IO=C-1 MLSD1
+; Op 10 (signum): X := −1, 0 or 1 with X's sign.
+0E03: 0D29  IO=C-1 MLSD1      ; X zero → stays 0
 0E04: 1076  JNC 0E3F
-0E05: 0ED4  C=LOAD MMSD1
+0E05: 0ED4  C=LOAD MMSD1      ; else 1.0 (sign kept, exponent sign cleared)
 0E06: 003A  CLR fB[3]
 0E07: 1870  JC 0E3F
-0E08: 0098  TST fB[9]
+; Op 19: set flag 7 if an error is pending; Op 18 (fA[8] set): if none.
+; Both go through FLAG_OP with n = 7 (0E0C → 11E0).
+0E08: 0098  TST fB[9]         ; error pending?
 0E09: 1B67  JC 0C56
 0E0A: 0080  TST fA[8]
 0E0B: 1015  JNC 0E01
 0E0C: 01D7  A<>E ALL
-0E0D: 0A77  MOV R5,#7
+0E0D: 0A77  MOV R5,#7         ; flag 7 …
 0E0E: 09F0  A=R5 MANT
 0E0F: 01D7  A<>E ALL
 ; ═══════════════════════════════════════════════════════════════════════════
@@ -4538,7 +4549,7 @@
 ;   0E64 INV prefix toggle   0E8C/0E8E operand unless INV (Fix, SBR → RTN)
 ;   0E68/0E79 Dsz, If flg: digit then address
 ; ═══════════════════════════════════════════════════════════════════════════
-0E10: 1FA0  JC 11E0
+0E10: 1FA0  JC 11E0           ; … set (FLAG_OP)
 0E11: 1910  JC 0E99           ; keycode 11 A: no operand
 0E12: 190E  JC 0E99           ; keycode 21 2nd: no operand
 0E13: 190C  JC 0E99           ; keycode 31 LRN: no operand
