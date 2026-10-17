@@ -3853,9 +3853,9 @@
 0B78: 097E  D=SRD MANT
 0B79: 09BE  D=A-D MANT        ; register − partition registers
 0B7A: 1F26  JC 0F0D           ; ≥ → outside program memory
-0B7B: 0A75  TST KR[7]
+0B7B: 0A75  TST KR[7]         ; Ins / Del pass (KR[7], 0E5E)?
 0B7C: 1804  JC 0B7E
-0B7D: 0903  B=A MANT
+0B7D: 0903  B=A MANT          ; yes: B := register address (recovered at 11FB)
 0B7E: 0148  A=SRA ALL
 0B7F: 0148  A=SRA ALL
 0B80: 0509  IO=A-1 LLSD1      ; register ≥ 100?
@@ -4751,12 +4751,13 @@
 0E78: 0100  A=A ALL
 0E79: 0051  SET fA[5]
 0E7A: 1825  JC 0E68
-0E7B: 019C  C=C-B ALL
-0E7C: 0148  A=SRA ALL
-0E7D: 0148  A=SRA ALL
+0E7B: 019C  C=C-B ALL         ; Del, current register: C := steps below the cursor (register −
+                              ;   cache)
+0E7C: 0148  A=SRA ALL         ; A := cached steps from the cursor up, one keycode down
+0E7D: 0148  A=SRA ALL         ; (the deleted keycode drops out)
 0E7E: 01D5  C<>D ALL
-0E7F: 01B4  C=A+D ALL
-0E80: 1A16  JC 0F8B
+0E7F: 01B4  C=A+D ALL         ; C := low part + shifted high part; top byte still empty
+0E80: 1A16  JC 0F8B           ; write deferred: the next register's first keycode fills the top
 0E81: 1830  JC 0E99           ; keycode 18 C': no operand
 0E82: 182E  JC 0E99           ; keycode 28 log: no operand
 0E83: 182C  JC 0E99           ; keycode 38 sin: no operand
@@ -4863,9 +4864,9 @@
 0EDC: 0AF8  RAM.OP
 0EDD: 01B1  IO=A+D ALL        ; bus: op 0 (read) + address
 0EDE: 01D6  D=LOAD ALL        ; D := program register
-0EDF: 0A75  TST KR[7]
+0EDF: 0A75  TST KR[7]         ; Ins / Del pass?
 0EE0: 0148  A=SRA ALL
-0EE1: 1632  JNC 11FA
+0EE1: 1632  JNC 11FA          ; yes → shift this register (no byte positioning)
 0EE2: 0308  A=A-1 DPT1        ; byte count …
 0EE3: 15A7  JNC 0C10          ; … exhausted → cache it
 0EE4: 017E  D=SRD ALL         ; shift one keycode (two nibbles)
@@ -4932,7 +4933,7 @@
 ; END_OF_PROGRAM_MEMORY (from 0B7A): the step counter left the program
 ; partition. Running → stop with the error blink (0F1F–0F21; trace-confirmed:
 ; GTO Ind to an empty area runs off the end); LRN mode → 0B5F.
-0F0D: 0A75  TST KR[7]
+0F0D: 0A75  TST KR[7]         ; Ins / Del pass: last register done → 1264
 0F0E: 16AC  JNC 1264
 0F0F: 0939  IO=-D MANT
 0F10: 1014  JNC 0F1A
@@ -5099,13 +5100,13 @@
 0F86: 0AF8  RAM.OP
 0F87: 0181  IO=A+B ALL
 0F88: 0131  IO=D ALL
-0F89: 00A8  TST fB[10]
+0F89: 00A8  TST fB[10]        ; LRN (Ins / Del)? no → Op 09 download (131A)
 0F8A: 1F20  JC 131A
-0F8B: 01D7  A<>E ALL
+0F8B: 01D7  A<>E ALL          ; next register: address + 1 …
 0F8C: 0603  B=A EXP
 0F8D: 0D00  A=A+1 MLSD1
-0F8E: 0045  SET KR[4]
-0F8F: 1FEB  JC 0B9A
+0F8E: 0045  SET KR[4]         ; … KR[4] = "not the cursor's register"
+0F8F: 1FEB  JC 0B9A           ; … → partition check and read (0B6A)
 0F90: 0A47  MOV R5,#4
 0F91: 06F6  D=R5 EXP
 0F92: 0133  B=D ALL           ; B := new keycode
@@ -5783,10 +5784,10 @@
 11F7: 0100  A=A ALL
 11F8: 0100  A=A ALL
 11F9: 0100  A=A ALL
-11FA: 0A45  TST KR[4]
-11FB: 0910  A=B MANT
-11FC: 1066  JNC 122F
-11FD: 02D7  A<>E DPT
+11FA: 0A45  TST KR[4]         ; the cursor's register (first pass)?
+11FB: 0910  A=B MANT          ; A := register address (saved at 0B7D)
+11FC: 1066  JNC 122F          ; no → carry the neighbour keycode (122F)
+11FD: 02D7  A<>E DPT          ; E[0] := byte position of the cursor
 ; ── Ins per-register shift: recall the SCOM[10] register cache ──────────────
 ; B := SCOM[10], the program-register copy cached by PRGREG_FETCH/0C10.
 ; The shift arithmetic below trusts this cache to equal the register's
@@ -5798,20 +5799,20 @@
 1202: 01D3  B=LOAD ALL
 1203: 0101  IO=A ALL
 1204: 0A0F  STOF
-1205: 0121  IO=C ALL
+1205: 0121  IO=C ALL          ; SCOM[10] := 0: cache invalidated (C = 0)
 1206: 01D7  A<>E ALL
-1207: 0C58  A=SRB MAEX
+1207: 0C58  A=SRB MAEX        ; A := cache with the byte count in nibble 0 …
 1208: 0C40  A=SLA MAEX
-1209: 0308  A=A-1 DPT1
+1209: 0308  A=A-1 DPT1        ; … per byte below the cursor:
 120A: 100C  JNC 1210
-120B: 0153  B=SLB ALL
+120B: 0153  B=SLB ALL         ; B := cache back in register position (2 nibbles per byte)
 120C: 0153  B=SLB ALL
-120D: 0C40  A=SLA MAEX
+120D: 0C40  A=SLA MAEX        ; A follows (upper part, for Del at 0E7C)
 120E: 0C40  A=SLA MAEX
 120F: 180D  JC 1209
-1210: 01D5  C<>D ALL
-1211: 0080  TST fA[8]
-1212: 172F  JNC 0E7B
+1210: 01D5  C<>D ALL          ; C := register read from RAM
+1211: 0080  TST fA[8]         ; Del?
+1212: 172F  JNC 0E7B          ; yes → 0E7B
 ; ── Ins shift arithmetic ────────────────────────────────────────────────────
 ; new register := (C − B) + (B << 2 nibbles), with C = the register's actual
 ; RAM content (read at 0EDB) and B = the SCOM[10] cache of the same register
@@ -5822,24 +5823,24 @@
 ; a stale cache yields keycode digits outside 0–9. texas-print.ti59's
 ; pseudo-code insertion (the illegal 1F at step 008) exploits exactly this;
 ; the full quirk chain is documented in that file's header.
-1213: 0920  A=C MANT
+1213: 0920  A=C MANT          ; Ins: A := register (for the carry-out below)
 1214: 019C  C=C-B ALL
 1215: 0153  B=SLB ALL
 1216: 0153  B=SLB ALL
 1217: 0194  C=C+B ALL
 1218: 01D5  C<>D ALL
-1219: 04D0  A=LOAD DPTC
+1219: 04D0  A=LOAD DPTC       ; carry-out: shift A right 12 keycode nibbles …
 121A: 0C48  A=SRA MAEX
 121B: 0308  A=A-1 DPT1
 121C: 1805  JC 121A
-121D: 09D7  A<>E MANT
-121E: 014B  B=SRA ALL
-121F: 01D7  A<>E ALL
+121D: 09D7  A<>E MANT         ; … the register's old top keycode
+121E: 014B  B=SRA ALL         ; B := carry byte for the next register (15AC)
+121F: 01D7  A<>E ALL          ; A := register address
 1220: 0158  A=SRB ALL
-1221: 0509  IO=A-1 LLSD1
+1221: 0509  IO=A-1 LLSD1      ; register ≥ 100? (RAM address encoding as at 0B80)
 1222: 01DB  B=0 ALL
-1223: 153F  JNC 0F84
-1224: 0140  A=SLA ALL
+1223: 153F  JNC 0F84          ; < 100 → write D back (0F84)
+1224: 0140  A=SLA ALL         ; ≥ 100: hex tens nibble, as at 0B83
 1225: 0A27  MOV R5,#2
 1226: 09F3  B=R5 MANT
 1227: 06F3  B=R5 EXP
@@ -5850,21 +5851,21 @@
 122C: 0653  B=SLB EXP
 122D: 0C53  B=SLB MAEX
 122E: 1555  JNC 0F84
-122F: 0080  TST fA[8]
+122F: 0080  TST fA[8]         ; later registers: Ins or Del?
 1230: 01D5  C<>D ALL
-1231: 1EF6  JC 15AC
-1232: 0160  A=SLC ALL
-1233: 04D0  A=LOAD DPTC
+1231: 1EF6  JC 15AC           ; Ins → 15AC: shift up, carry byte in at the bottom
+1232: 0160  A=SLC ALL         ; Del: this register's first keycode …
+1233: 04D0  A=LOAD DPTC       ; … moved up 12 nibbles …
 1234: 0C40  A=SLA MAEX
 1235: 0308  A=A-1 DPT1
 1236: 1805  JC 1234
-1237: 016C  C=SRC ALL
+1237: 016C  C=SRC ALL         ; C := this register shifted down one keycode
 1238: 016C  C=SRC ALL
-1239: 09B6  D=A+D MANT
-123A: 01D2  A<>B ALL
-123B: 0D0B  B=A-1 MLSD1
+1239: 09B6  D=A+D MANT        ; … into the top of the previous register (D)
+123A: 01D2  A<>B ALL          ; A := previous register's address
+123B: 0D0B  B=A-1 MLSD1       ; (register number − 1: the one still pending)
 123C: 015B  B=SRB ALL
-123D: 183D  JC 121F
+123D: 183D  JC 121F           ; → write the previous register
 123E: 0100  A=A ALL
 123F: 1E85  JC 0EFD
 1240: 0082  CLR fA[8]
@@ -5903,16 +5904,16 @@
 1261: 0C40  A=SLA MAEX
 1262: 0CD7  A<>E MAEX
 1263: 1C89  JC 101F
-1264: 0080  TST fA[8]
-1265: 0082  CLR fA[8]
-1266: 1A91  JC 111E
-1267: 01D5  C<>D ALL
+1264: 0080  TST fA[8]         ; past the partition: Del with a register still pending?
+1265: 0082  CLR fA[8]         ; (only once)
+1266: 1A91  JC 111E           ; Ins, or Del done → redisplay the current step (0D32)
+1267: 01D5  C<>D ALL          ; Del: next register = SCOM[10] (0) — the top keycode becomes 00
 1268: 0AA7  MOV R5,#10
 1269: 02F0  A=R5 DPT
 126A: 0101  IO=A ALL
 126B: 0A1F  RCLF
 126C: 01D4  C=LOAD ALL
-126D: 1865  JC 123B
+126D: 1865  JC 123B           ; → write the last register
 126E: 00C8  TST fB[12]        ; Dsz / If flg: digit operand first, then the address
 126F: 00CA  CLR fB[12]
 1270: 109A  JNC 12BD
@@ -6856,14 +6857,14 @@
 15A9: 005A  CLR fB[5]
 15AA: 0032  CLR fA[3]
 15AB: 1FE1  JC 11BB           ; show it
-15AC: 01D7  A<>E ALL
+15AC: 01D7  A<>E ALL          ; Ins, later registers: E := address
 15AD: 0920  A=C MANT
 15AE: 09DB  B=0 MANT
-15AF: 015B  B=SRB ALL
-15B0: 0164  C=SLC ALL
+15AF: 015B  B=SRB ALL         ; B := carry byte from the previous register
+15B0: 0164  C=SLC ALL         ; C := register shifted up one keycode …
 15B1: 0164  C=SLC ALL
-15B2: 0194  C=C+B ALL
-15B3: 1F37  JC 1218
+15B2: 0194  C=C+B ALL         ; … with the carry in step 0
+15B3: 1F37  JC 1218           ; → carry-out of this register's top keycode, write
 15B4: 0051  SET fA[5]
 15B5: 0308  A=A-1 DPT1
 15B6: 11A9  JNC 14E2
