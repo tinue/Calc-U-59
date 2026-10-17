@@ -3726,11 +3726,11 @@
 0B12: 1867  JC 0ADF           ; user label key A–E′: take the key itself as the label operand …
 0B13: 1BF1  JC 091B           ; … push the return level (091B), set running (0BB4), then search
                               ;   (085E → 0BD2)
-0B14: 1DF8  JC 0E10
-0B15: 1F52  JC 0EBE
-0B16: 0042  CLR fA[4]
-0B17: 1F1A  JC 0EA4
-0B18: 1772  JNC 0ED1
+0B14: 1DF8  JC 0E10           ; St flg / INV St flg (04B4): → 0E10 → 11E0 → FLAG_OP
+0B15: 1F52  JC 0EBE           ; BST (040B): step − 1
+0B16: 0042  CLR fA[4]         ; trace-symbol queue (from KEY_ENCODE 07A7) …
+0B17: 1F1A  JC 0EA4           ; … → 1278 → TRC_SYM_QUEUE 1422
+0B18: 1772  JNC 0ED1          ; argument completed in LRN mode (07AF): record it
 0B19: 0153  B=SLB ALL         ; new keycode up into the byte-0 position …
 0B1A: 0153  B=SLB ALL
 0B1B: 0153  B=SLB ALL
@@ -3745,7 +3745,7 @@
 0B20: 1ED6  JC 0E8B           ; RTN (INV SBR, keycode 92) → 0E8B → RTN_POP 1175
 0B21: 1D93  JC 0858           ; 82 HIR → 0858 → slot 00FA
 0B22: 1F06  JC 0EA5           ; 83 GO* (Ind)
-0B23: 0A0C  MOV KR,EXT[4..15]
+0B23: 0A0C  MOV KR,EXT[4..15] ; 84 OP*: KR cleared, then as the other Ind forms
 0B24: 1F02  JC 0EA5           ; 72 ST*
 0B25: 1F00  JC 0EA5           ; 73 RC*
 0B26: 1EFE  JC 0EA5           ; 74 SM*
