@@ -46,3 +46,45 @@ Never published, so not recoverable — mentioned only secondhand in other artic
 - **Galidas (HIR) — 52 Notes v3n7** (July 1978, ~3:15–3:17 per other articles' mentions) — no separate listing exists in v3n7 itself; distinct from the September v3n9 program already captured as `calendar-07-calidas.ti59`.
 
 Not applicable (HP-41, not TI-59): Roger Hill's v7n5 (2:19, elsewhere 2:17) and late-1980 (1:14) programs.
+
+## Comparison of the programs
+
+Times are emulated seconds in the Calc-U-59 headless harness for 2026, from
+the key that starts the year's printing to the last printed line. Each
+program's own preparation after that key is included. "Published" is the
+time given in the article, for 1978 (52 Notes) or 2000 (Acosta) on a real
+TI-59. Steps are the program length without trailing zero steps.
+
+| File | Published | Emulator (2026) | Steps | Technique introduced |
+|---|---|---|---|---|
+| `calendar-01-Weinberger.ti59` | 34 min | 34:57 | 442 | ML-20 gives the weekday of each 1st, and February's length from a day-number difference. Each line fills a block of 7 registers with day numbers and converts them to print codes with a translator routine. (This file prints a February 29 in 2026; not investigated.) |
+| `calendar-02-cargile.ti59` | 34 min | 34:38 | 382 | Month lengths by tests (leap year, February, odd/even month, July/August). A "quasi base seven" counter supplies the print code of each next day directly. |
+| `calendar-03-vanderburgh.ti59` | 26 min | 26:00 | 452 | ML-20 SBR 086 day numbers give the month length as a difference, SBR 177 the weekday. One general print-buffer packing routine serves every line. |
+| `calendar-04-skillman.ti59` | 7.5 min | 7:28 | 308 | A block of consecutive registers, each holding the print code of one day, from which any line is packed. The revision replaces x:t comparisons by INV Dsz and uses equally spaced GTOs for a double-indirect jump. |
+| `calendar-05-vanderburgh.ti59` | under 5 min | 4:51 | 720 | Swinnen's doubled print codes (two days per register, via Galidas). HIR 5-8 fill the print buffer directly instead of Op 1-4. Prestored data in the program area. |
+| `calendar-06-cargile.ti59` | 2:57 | 2:57 | 320 | HIR print-code processing with chosen integer/fraction parts: the integer part 2 of an entry is also the pointer step (the "2-trick"). As much code in line as memory allows. |
+| `calendar-07-calidas.ti59` | 2:38.6 | 2:38 | 366 | Full 13-digit data packing. One division (start weekday + month length) / 7 gives the number of full rows and the next month's start day. The last line is packed in reverse order. |
+| `calendar-08-acosta.ti59` | 1:23 | 1:22 | 398 | Fast mode (Neef, applied to Galidas' program by Hanson). Separate print commands so that calculation goes on while the printer runs (Snow). The "hi2" fast-mode entry from inside the program, which frees the ML-20 module for the preparation. |
+| `calendar-09-dispatch.ti59` | (2026) | 1:19 | 399 | Each month record holds the address of a small routine for the change of month length (GTO Ind). The routine copies at most four table entries and sets a threshold. The number of rows follows from one comparison. The preparation is plain arithmetic in fast mode, so no module is needed. The SST fast-mode entry is typed. |
+
+The emulator times match the published ones within a few seconds, although
+the published times are for other years. The last four programs share one
+row engine (Galidas' table of two-day entries); with it a printed line costs
+0.89 s, and 61 to 64 lines a year are most of the run time. The later gains
+come from the work per month.
+
+Measured the same way, counting all program run time after the year is
+keyed in (Acosta's normal-mode preparation, the new program's fast-mode
+preparation):
+
+| Year | Acosta | `calendar-09-dispatch` |
+|---|---|---|
+| 1900 | 84.0 s | 79.5 s |
+| 2000 | 84.8 s | 81.5 s |
+| 2024 | 83.3 s | 79.5 s |
+| 2026 | 82.1 s | 78.5 s |
+
+Both programs print the same lines for every year tested (1900, 1999-2027,
+2100), and the dates agree with Python's `calendar` module. Acosta's program
+prints any number of months from any start month; the new one prints one
+whole year.
