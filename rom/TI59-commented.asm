@@ -1778,8 +1778,8 @@
 0547: 1FD1  JC 015F
 0548: 0FDC  C=-1 MAEX1
 0549: 17D5  JNC 015F
-054A: 03D3  B=LOAD DPT1
-054B: 1F91  JC 0183
+054A: 03D3  B=LOAD DPT1       ; Op 11 variant flag …
+054B: 1F91  JC 0183           ; … → x̄ launch stub
 ; ═══════════════════════════════════════════════════════════════════════════
 ; DISP_FORMAT  (0x054C–0x05B8) — turn the normalized X (A = C) into the
 ; display image for a RESULT. Trace-confirmed (5÷3, 2÷3 with Fix 0/1/2/5/8,
@@ -2771,6 +2771,8 @@
 0809: 0082  CLR fA[8]
 080A: 1D97  JC 053F
 080B: 1E7D  JC 04CD
+; Op 11 (OP_TABLE 0A11): variance — the x̄ keycode program (entry 067, via
+; 0183) with a variant flag in B[0] (054A).
 080C: 1D85  JC 054A
 080D: 0126  D=C ALL
 080E: 0A06  MOV R5,fA[1..4]
@@ -2787,6 +2789,7 @@
 0817: 0C91  IO=C+B MAEX       ; C · (1+10^−k) < 10?
 0818: 1FCD  JC 0432           ; yes → C += B (via 0432, which returns to 073C)
 0819: 11A3  JNC 0748          ; no → next k
+; Op 08 (OP_TABLE 0A08): List with fA[13] = labels only (1161), → 04A0 → LIST.
 081A: 0082  CLR fA[8]
 081B: 00D1  SET fA[13]        ; Op 08: list labels only (tested at 1161)
 081C: 1EF9  JC 04A0
@@ -3168,6 +3171,8 @@
 0934: 01D7  A<>E ALL
 0935: 0103  B=A ALL
 0936: 1A0E  JC 0A3D
+; Op 06 (OP_TABLE 0A06): print X with the four characters loaded by Op 04 —
+; continue in the print-op sequence (fn bank 0x0540, slot 0545 → 0941).
 0937: 01D7  A<>E ALL
 0938: 0A67  MOV R5,#6
 0939: 09F0  A=R5 MANT
@@ -3175,7 +3180,7 @@
 093B: 00E5  SET KR[14]
 093C: 00C5  SET KR[12]
 093D: 00A5  SET KR[10]
-093E: 0A57  MOV R5,#5
+093E: 0A57  MOV R5,#5         ; slot 0545
 093F: 0A18  MOV KR[4..7],R5
 0940: 0A0D  SWAP KR,SR
 0941: 0053  TOG fA[5]
@@ -3412,7 +3417,7 @@
 0A07: 1C05  JC 0805           ; Op 07: plot (asterisk at column X)
 0A08: 1BDD  JC 081A           ; Op 08: list the labels
 0A09: 1FB6  JC 0DE4           ; Op 09: download the selected library program into RAM
-0A0A: 03D3  B=LOAD DPT1
+0A0A: 03D3  B=LOAD DPT1       ; Op 15: variant 1
 0A0B: 1F8C  JC 0DD1
 ; ln of zero / non-positive argument: ERROR.
 0A0C: 0099  SET fB[9]
@@ -4516,8 +4521,11 @@
 0DCD: 0007  MOV fA[1..4],R5   ; … into fA[1..4]
 0DCE: 005A  CLR fB[5]
 0DCF: 1DFD  JC 0AD1           ; → 0812 → ARITH_EXIT
-0DD0: 02DB  B=0 DPT
-0DD1: 0AE7  MOV R5,#14
+; Op 12 / Op 15 (0A12, 0A15 → 0A0A): least-squares keycode program at entry
+; 000 with the variant (0 = slope/intercept, 1 = x′) in B[0], parked in
+; SCOM[14] (return levels 4–6) for the program to test.
+0DD0: 02DB  B=0 DPT           ; Op 12: variant 0
+0DD1: 0AE7  MOV R5,#14        ; SCOM[14] := variant …
 0DD2: 02F6  D=R5 DPT
 0DD3: 0131  IO=D ALL
 0DD4: 0A1F  RCLF
