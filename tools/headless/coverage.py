@@ -186,6 +186,15 @@ SCENARIOS["p2r_in_program"] = ([S("LRN","Lbl","A","3","x<>t","4","Nop","Nop","P>
 SCENARIOS["label_keys"] = ([S("LRN","Lbl","E'","5","R/S","Lbl","x2","R/S","LRN")], S("GTO","E'","GTO","x2","SBR","E'"))
 SCENARIOS["sto_abandon"] = ([], S("5","STO","x2"))
 SCENARIOS["op09_short"] = ([S("Pgm","2","3")], S("Op","0","9"))
+SCENARIOS["inv_list"] = ([S("7","STO","5","8","5","8")], S("INV","List"), {"printer": True})
+SCENARIOS["sbr_overflow"] = ([S("LRN","Lbl","A","SBR","B","R/S","Lbl","B","SBR","C","INV","SBR","Lbl","C","SBR","D","INV","SBR",
+                                "Lbl","D","SBR","E","INV","SBR","Lbl","E","SBR","A'","INV","SBR","Lbl","A'","SBR","B'","INV","SBR",
+                                "Lbl","B'","SBR","C'","INV","SBR","Lbl","C'","INV","SBR","LRN")], S("A"))
+SCENARIOS["bst_boundary"] = ([S("LRN","1","2","3","4","5","6","7","8")], S("BST", "RST", "BST"))
+SCENARIOS["prog_reg_100"] = ([S("0","Op","1","7","CLR","GTO","8","5","0","LRN","Lbl","A","5","R/S","LRN","RST","CLR")], S("A"))
+SCENARIOS["kbd_lbl"] = ([], S("5","Lbl","3","2ndCLR"))
+SCENARIOS["prt_sci_err"] = ([], S("1",".","5","EE","3","+/-","Prt","1","/","0","=","Prt",".","5","Prt"), {"printer": True})
+SCENARIOS["trace_ind"] = ([S("5","STO","0","1")], S("RCL","Ind","0","1"), {"printer": True, "trace": True})
 
 
 def expand(keys):
