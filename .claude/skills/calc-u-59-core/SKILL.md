@@ -51,12 +51,11 @@ The two are completely independent. A single calculator step (one keycode) typic
 
 ### SCOM Key Rows
 
-| Row | Content |
-|-----|---------|
-| 0 | IO user flags (3 bits), Last key, Prg Src Flag, **RAM address**, Second ROM address, Fixed PT, **calculator PC / user step address (nibbles 4–7)** |
-| 1–8 | Hierarchy registers 1–8 (mantissa bits 15–3, exp 2–1, sign 0) |
-| 11 | T register (stack top / last-X) |
-| 13 | Pending ops count; Deg/Rad/Grad mode (nibble 0: `0`=DEG, `1`=GRAD, `C`=RAD) |
+Row-by-row firmware usage (Fix, pending key, Prg Src Flag, step counter and
+user flags in row 0; AOS levels / HIR registers 1–8; library descriptor 9;
+program-register cache 10; t 11; AOS operator stack 12; AOS status, angle
+unit, top RAM register and partition 13; return stack 14/15) is documented in
+`rom/TI59-ROM-Guide.md` § "SCOM register map" — read it there.
 
 ### Calculator PC Encoding (SCOM[0] nibbles 4–7)
 
