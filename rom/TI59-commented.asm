@@ -3277,8 +3277,10 @@
 ; here, clears it and checks its keycode: a user label key (tens 1, 097C–
 ; 0980) or SBR 71 / R/S 91 (0982–098D) take the library path (0C80 → 0FAE);
 ; anything else runs as if Pgm had not been there. Trace-checked (RAM
-; program "3 Pgm 02 …"): "SBR C" and plain "C" run ML-02's C; "R/S" errors;
-; "x²" gives 9 and "5 + 1 =" gives 6, the Pgm selection simply dropped.
+; program "3 Pgm 02 …"): "SBR C" and plain "C" run ML-02's C; "x²" gives 9
+; and "5 + 1 =" gives 6, the Pgm selection simply dropped. R/S resumes the
+; module at its current CROM address, which nothing has positioned — see the
+; R/S-resume note in examples/texas-print.ti59.
 0976: 0131  IO=D ALL          ; SCOM[13] nibble 15 := 0
 0977: 0A0F  STOF
 0978: 0101  IO=A ALL

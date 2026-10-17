@@ -314,8 +314,8 @@ n + 2 (0 = floating); fB[15] = sci, fB[7] = eng.
 - `Pgm nn` (`PGM_SELECT` `12E1`) reads the program count from module header
   byte 0 and rejects nn beyond it; from the keyboard nn becomes the current
   page in SCOM[9]. Inside a program it only marks SCOM[13] nibble 15. The
-  next step must be a label key or SBR for the call to go to the module, and
-  R/S is an error; any other step clears the mark and runs normally (`0976`).
+  next step must be a label key or SBR for the call to go to the module. Any
+  other step clears the mark and runs normally (`0976`).
 - Labels in a module program are found by `LIB_LABEL_SEARCH` (`1364`): the
   program's start/end come from the header (2 BCD bytes per program), and
   the bytes are walked through the same scanner as RAM programs.
@@ -459,7 +459,6 @@ noted. Sites (all in the listing):
 | `16A5` | Write of a bank lying entirely in program memory while memory is protected |
 | `17A5` → `16E9` | card recorded under another partition; with `n INV Write`, a card other than bank n |
 | `17AA` | Write with bank 0 or above 4 (still waits for a card) |
-| `0C80` path | `Pgm nn` followed by R/S inside a program |
 
 ## Execution cost
 
