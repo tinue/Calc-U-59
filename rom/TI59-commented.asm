@@ -4759,15 +4759,21 @@
 0EA2: 0D00  A=A+1 MLSD1
 0EA3: 1D97  JC 0BD8           ; … (end-of-memory check at 0BD8)
 0EA4: 1FA8  JC 1278
+; COMPACT_IND (bank slots 0B22–0B29): a compact Ind keycode is expanded into
+; two keystrokes — Ind (keycode 40) is parked as the pending key in SCOM[0]
+; nibbles 1–2 (fB[14], 0EA8–0EAC), and the base operation is dispatched now
+; (0EAD–0EBD derive it from the digit: 72 → 42 STO, 73 → 43 RCL, 74 → 44 SUM,
+; 62 → 36 Pgm, 63 → 48 Exc, 64 → 49 Prd, 83 → 61 GTO, 84 → 69 Op). Trace-
+; confirmed: 7 STO 01 5 ST* 01 → R07 = 5.
 0EA5: 01D7  A<>E ALL
-0EA6: 0A1F  RCLF
+0EA6: 0A1F  RCLF              ; SCOM[0] …
 0EA7: 01D0  A=LOAD ALL
-0EA8: 0A47  MOV R5,#4
+0EA8: 0A47  MOV R5,#4         ; … pending key := 40 (Ind) …
 0EA9: 06F6  D=R5 EXP
 0EAA: 0670  A=SLD EXP
 0EAB: 0A0F  STOF
 0EAC: 0101  IO=A ALL
-0EAD: 0A08  MOV R5,KR[4..7]
+0EAD: 0A08  MOV R5,KR[4..7]   ; the digit of the key position → base operation keycode
 0EAE: 09F0  A=R5 MANT
 0EAF: 02F6  D=R5 DPT
 0EB0: 0D08  A=A-1 MLSD1
@@ -4783,7 +4789,7 @@
 0EBA: 0D00  A=A+1 MLSD1
 0EBB: 0901  IO=A MANT
 0EBC: 02F6  D=R5 DPT
-0EBD: 1CD3  JC 0C54
+0EBD: 1CD3  JC 0C54           ; → fB[14], dispatch the base operation (098E → 083F)
 0EBE: 00B9  SET fB[11]        ; BST: cache reload …
 0EBF: 0A1F  RCLF              ; SCOM[0] step …
 0EC0: 01D0  A=LOAD ALL
