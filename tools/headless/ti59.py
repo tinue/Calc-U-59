@@ -314,6 +314,27 @@ class Machine:
         return "\n".join(lines)
 
 
+def summary(recs: list[HRec], labels: dict[int, str] | None = None) -> str:
+    """Each distinct non-idle PC once, in first-execution order, with its hit
+    count — a compact map of the code a keystroke runs, loops folded."""
+    order: list[int] = []
+    count: dict[int, int] = {}
+    op: dict[int, int] = {}
+    for r in recs:
+        if IDLE_LO <= r.pc <= IDLE_HI and (r.flags & FLG_IDLE):
+            continue
+        if r.pc not in count:
+            order.append(r.pc)
+            count[r.pc] = 0
+            op[r.pc] = r.opcode
+        count[r.pc] += 1
+    out = []
+    for pc in order:
+        lab = (labels or {}).get(pc, "")
+        out.append(f"{pc:04X} ×{count[pc]:<5} {(lab + ': ') if lab else ''}{disasm(pc, op[pc])}")
+    return "\n".join(out)
+
+
 def load_labels() -> dict[int, str]:
     labels = {}
     p = REPO / "rom" / "TI59-labels.asm"
@@ -335,6 +356,7 @@ def main():
     ap.add_argument("--full", action="store_true", help="don't collapse idle-loop steps")
     ap.add_argument("--boot", action="store_true", help="also print the boot trace")
     ap.add_argument("--program", help="comma-separated keycodes written to RAM step 0..")
+    ap.add_argument("--summary", action="store_true", help="distinct PCs per key with hit counts")
     args = ap.parse_args()
     m = Machine(module=args.module or None, printer=args.printer)
     labels = load_labels()
@@ -350,7 +372,10 @@ def main():
     for k in seq:
         recs = m.key(k)
         print(f"=== key {k}  ({len(recs)} steps) ===")
-        print(Machine.format(recs, full=args.full, prev=prev, labels=labels))
+        if args.summary:
+            print(summary(recs, labels))
+        else:
+            print(Machine.format(recs, full=args.full, prev=prev, labels=labels))
         prev = recs[-1] if recs else prev
         print(f"--- display: [{m.display()}]  {m.regA_display()}")
     for line in m.printer_lines():

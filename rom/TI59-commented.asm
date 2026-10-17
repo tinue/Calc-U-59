@@ -1594,50 +1594,56 @@
 04FE: 1D2B  JC 0269
 04FF: 1FCA  JC 08E4
 ; ═══════════════════════════════════════════════════════════════════════════
-; UNARY-FUNCTION DISPATCH TABLE  (0x0500–0x051F)
-; Landing zone of FN_ENTRY's computed PREG jump (0210 → 0143/0144): KR[14] +
-; KR[12] plus the function code in KR[4..7] form fetch address 0x0500+fn
-; (FN_ENTRY_KR8 adds KR[8] → 0x0510+fn). Entries chain to their own NEXT slot:
-; a "JC 041C" slot normalizes/rounds X first, and 041C's INC KR makes the PREG
-; return at 02D1/02D2 land on the slot after it, which jumps to the
-; implementation. Trace-confirmed for 1/x (fn 10 → 050A/050B, errorblink.txt).
+; FUNCTION SEQUENCE TABLE  (0x0500–0x0545) — threaded like OP_SEQ_TABLE.
+; Entered from FN_ENTRY (0210): KR = 0x5000 | code<<4 (+0x100 for FN_ENTRY_KR8
+; (020F), +0x200 when KR[9] is also set, +0x400 via KR[10]) → slot 0x0500 +
+; code + 0x10·tag. A "JC 041C" slot normalizes X; 041C's INC KR makes the
+; return land on the following slot. Slot runs (trace-confirmed, headless
+; harness scenarios in tools/headless/coverage.py):
+;   0500–0506  arc functions (INV sin/cos/tan) and R→P
+;   0507–0509  x²            050A–050B  1/x          050C–050F  y^x / root
+;   0510–0511  √x            0512–0514  ln x         0515–0517  e^x
+;   0518–051A  10^x          051B–051D  log x        051E–0520  Int/frac, D.MS
+;   0521–0522  CP / CMs      0523–0533  sin/cos/tan, P→R
+;   0534–0536  SBR           0537–0539  List         053A–053C  Pgm
+;   053D–053E  shared by D.MS, P→R, Σ+, x̄   053F–0545  Op
 ; ═══════════════════════════════════════════════════════════════════════════
-0500: 19C9  JC 041C
+0500: 19C9  JC 041C           ; arc functions / R→P: normalize …
 0501: 1FBA  JC 08DE
 0502: 1B79  JC 0346
 0503: 1E36  JC 081E
 0504: 1A8B  JC 03BF
 0505: 1FF0  JC 08FD
 0506: 1994  JC 05D0
-0507: 19D7  JC 041C
-0508: 0051  SET fA[5]
-0509: 1CD8  JC 0775
-050A: 19DD  JC 041C           ; fn 10 "1/x": normalize X, PREG-return to 050B…
-050B: 1CCA  JC 0770           ;   …→ RECIP (1 ÷ X)
-050C: 1C22  JC 071D
-050D: 1D60  JC 07BD
-050E: 1BE2  JC 06FF
-050F: 1F61  JC 015F
-0510: 19E9  JC 041C
-0511: 1E18  JC 081D
-0512: 19ED  JC 041C
+0507: 19D7  JC 041C           ; x²: normalize …
+0508: 0051  SET fA[5]         ; result to be displayed
+0509: 1CD8  JC 0775           ; X × X (0775: B := X → MULDIV)
+050A: 19DD  JC 041C           ; 1/x: normalize X, return to 050B …
+050B: 1CCA  JC 0770           ; … → RECIP (1 ÷ X)
+050C: 1C22  JC 071D           ; y^x (AOS exec, slot 00CC): ln y …
+050D: 1D60  JC 07BD           ; … × x (÷ x for the root) …
+050E: 1BE2  JC 06FF           ; … e^(result) …
+050F: 1F61  JC 015F           ; … back into the AOS reduce loop
+0510: 19E9  JC 041C           ; √x: normalize …
+0511: 1E18  JC 081D           ; … → SQRT
+0512: 19ED  JC 041C           ; ln x: normalize …
 0513: 0051  SET fA[5]
-0514: 1C2C  JC 072A
-0515: 19F3  JC 041C
+0514: 1C2C  JC 072A           ; … → LN
+0515: 19F3  JC 041C           ; e^x (INV lnx): normalize …
 0516: 0051  SET fA[5]
-0517: 1BD8  JC 0703
-0518: 19F9  JC 041C
-0519: 19D8  JC 0605
-051A: 1809  JC 0516
-051B: 19FF  JC 041C
-051C: 1C1C  JC 072A
-051D: 1FD8  JC 0909
-051E: 1A05  JC 041C
+0517: 1BD8  JC 0703           ; … → EXP
+0518: 19F9  JC 041C           ; 10^x (INV log): normalize …
+0519: 19D8  JC 0605           ; … × ln 10 …
+051A: 1809  JC 0516           ; … then e^x
+051B: 19FF  JC 041C           ; log x: normalize …
+051C: 1C1C  JC 072A           ; … LN …
+051D: 1FD8  JC 0909           ; … ÷ ln 10
+051E: 1A05  JC 041C           ; Int / INV Int / D.MS: normalize …
 051F: 1FE2  JC 0910
 0520: 190D  JC 049A
-0521: 18EB  JC 04AC
+0521: 18EB  JC 04AC           ; CP / CMs
 0522: 1E72  JC 085B
-0523: 1A0F  JC 041C
+0523: 1A0F  JC 041C           ; sin / cos / tan / P→R: normalize …
 0524: 195A  JC 05D1
 0525: 1DD0  JC 080D
 0526: 19A9  JC 0452
@@ -1654,18 +1660,18 @@
 0531: 1DDA  JC 081E
 0532: 0051  SET fA[5]
 0533: 1AE1  JC 03C3
-0534: 1A31  JC 041C
+0534: 1A31  JC 041C           ; SBR: normalize …
 0535: 1DA3  JC 0264
 0536: 1FCA  JC 091B
-0537: 1911  JC 04AF
+0537: 1911  JC 04AF           ; List
 0538: 1FE8  JC 092C
 0539: 1FE2  JC 092A
-053A: 1A3D  JC 041C
-053B: 18E1  JC 04CB
+053A: 1A3D  JC 041C           ; Pgm nn: normalize …
+053B: 18E1  JC 04CB           ; … collect the program number
 053C: 1FDE  JC 092B
 053D: 1A43  JC 041C
 053E: 1FEC  JC 0934
-053F: 0A27  MOV R5,#2
+053F: 0A27  MOV R5,#2         ; Op nn
 0540: 00A5  SET KR[10]
 0541: 1E63  JC 0210
 0542: 1927  JC 04AF
@@ -1881,7 +1887,8 @@
 0602: 0100  A=A ALL
 0603: 0C40  A=SLA MAEX
 0604: 1F74  JC 09BE
-0605: 0011  SET fA[1]
+; 10^x prologue (slot 0519): X × ln 10, then e^x (051A → 0516).
+0605: 0011  SET fA[1]         ; 090A toggles fA[1] back → multiply
 0606: 1E08  JC 090A
 0607: 1EA1  JC 02B7
 0608: 13E1  JNC 0418
@@ -2278,28 +2285,40 @@
 06FC: 0A0D  SWAP KR,SR
 06FD: 0032  CLR fA[3]
 06FE: 1B68  JC 08B2
+; y^x, last step (slot 050E): e^(x·ln y); 0701/0702 handle the root sign case.
 06FF: 0010  TST fA[1]
 0700: 1806  JC 0703
 0701: 0939  IO=-D MANT
 0702: 1BE7  JC 050F
-0703: 0D09  IO=A-1 MLSD1
-0704: 165F  JNC 03D5
-0705: 008D  CLR KR[8]
+; ═══════════════════════════════════════════════════════════════════════════
+; EXP  (0x0703–0x071C) — e^x (slot 0517, also y^x and 10^x). Trace-confirmed
+; (e^2 = 7.389056099, 10^2, 2^3, 8^(1/3)).
+; Argument reduction: x = n·ln 10 + r with 0 ≤ r < ln 10 — n is counted by
+; repeated subtraction of ln 10 (constant 0) at 070F–0713, small/negative x
+; handled at 09B8–09FF. Then the shared kernel at 0730 runs with fB[4] clear
+; (pseudo-multiplication): for k = 0…6, while r ≥ ln(1+10^−k), subtract it
+; and multiply the product (C, starting at 1.0) by (1+10^−k). The result
+; e^r is finished at 0AD3–0ADE (remainder correction ≈ ×(1+r)) and n becomes
+; the decimal exponent. x = 0 → 1 directly (0704 → 03D5).
+; ═══════════════════════════════════════════════════════════════════════════
+0703: 0D09  IO=A-1 MLSD1      ; x = 0?
+0704: 165F  JNC 03D5          ; yes → result 1
+0705: 008D  CLR KR[8]         ; constant 0 = ln 10 …
 0706: 01D8  A=0 ALL
-0707: 0CC3  B=A+CON MAEX
-0708: 0920  A=C MANT
-0709: 0030  TST fA[3]
-070A: 15C8  JNC 09EE
+0707: 0CC3  B=A+CON MAEX      ; … into B
+0708: 0920  A=C MANT          ; A := |x|
+0709: 0030  TST fA[3]         ; |x| < 1 (negative exponent)?
+070A: 15C8  JNC 09EE          ; yes → scale down (09EE) and go straight to the kernel
 070B: 09DC  C=0 MANT
 070C: 016C  C=SRC ALL
 070D: 0729  IO=C-1 EXP1
 070E: 1D64  JC 09C0
-070F: 0C89  IO=A-B MAEX
+070F: 0C89  IO=A-B MAEX       ; n := number of whole ln 10 in x …
 0710: 1550  JNC 09B8
 0711: 0C88  A=A-B MAEX
 0712: 0724  C=C+1 EXP1
 0713: 1809  JC 070F
-0714: 1558  JNC 09C0
+0714: 1558  JNC 09C0          ; too large → overflow / underflow (09C0 → 05EA)
 0715: 01DB  B=0 ALL
 0716: 0086  MOV fA[8],fB[8]
 0717: 0D09  IO=A-1 MLSD1
@@ -2308,72 +2327,89 @@
 071A: 1FC6  JC 0AFD
 071B: 01D8  A=0 ALL
 071C: 1F85  JC 035A
+; y^x first step (slot 050C): save x in D, ln y via the kernel. Guards: y or
+; x zero (0724–0726 → 04E0), y negative is an error (0727 → 0546).
 071D: 0A0D  SWAP KR,SR
 071E: 0A0C  MOV KR,EXT[4..15]
-071F: 0106  D=A ALL
+071F: 0106  D=A ALL           ; D := x (exponent operand) with its flags
 0720: 0A06  MOV R5,fA[1..4]
 0721: 02F6  D=R5 DPT
-0722: 0114  C=B ALL
+0722: 0114  C=B ALL           ; C := y (the pending AOS operand)
 0723: 0120  A=C ALL
-0724: 0919  IO=-B MANT
-0725: 0939  IO=-D MANT
+0724: 0919  IO=-B MANT        ; y zero? …
+0725: 0939  IO=-D MANT        ; … or x zero?
 0726: 1C8D  JC 04E0
 0727: 0D09  IO=A-1 MLSD1
 0728: 13C5  JNC 0546
 0729: 0036  MOV fA[3],fB[3]
-072A: 0D09  IO=A-1 MLSD1
-072B: 0049  SET fB[4]
-072C: 15C0  JNC 0A0C
-072D: 0028  TST fB[2]
+; ═══════════════════════════════════════════════════════════════════════════
+; LN  (0x072A) and the shared LN/EXP KERNEL (0x0730–0x075B) — Meggitt
+; pseudo-multiplication with the constant ROM (C=C+CON / A=A±CON, index in
+; KR[4..6]/KR[8..11]; constant 0 = ln 10, constants 1–7 = ln(1+10^−k) for
+; k = 0…6). Trace-confirmed (ln 2 = .6931471806, log 2, e^2, 2^3).
+;   ln mode (fB[4] set): the mantissa m (in C) is multiplied by (1+10^−k)
+;       as long as it stays below 10 (0817 tests the carry), each factor
+;       adding ln(1+10^−k) to the sum in A; after k = 6, ln(10/m) ≈ Σ +
+;       (10 − m)/10 (074D–0751), and ln x = (e+1)·ln 10 − that (0752–075B,
+;       finished at 0B2A–0B3B with the decimal exponent e).
+;   exp mode (fB[4] clear): the reverse — subtract constants from r,
+;       multiply the product (see EXP 0703).
+; ln of zero → error (072C → 0A0C); a negative argument sets the error flag
+; (072F) and continues with |x|.
+; ═══════════════════════════════════════════════════════════════════════════
+072A: 0D09  IO=A-1 MLSD1      ; LN: x zero?
+072B: 0049  SET fB[4]         ; kernel in ln mode
+072C: 15C0  JNC 0A0C          ; zero → error
+072D: 0028  TST fB[2]         ; negative?
 072E: 1804  JC 0730
-072F: 0099  SET fB[9]
-0730: 0148  A=SRA ALL
+072F: 0099  SET fB[9]         ; yes → ERROR flag, continue with |x|
+0730: 0148  A=SRA ALL         ; KERNEL: scale the mantissa down two digits (headroom) …
 0731: 0022  CLR fA[2]
 0732: 0203  B=A DPT
 0733: 0148  A=SRA ALL
 0734: 06DC  C=0 EXP
-0735: 008D  CLR KR[8]
+0735: 008D  CLR KR[8]         ; KR := 0x0010: k = 0, constant 1 = ln 2
 0736: 0A04  INC KR
-0737: 0CD8  A=0 MAEX
-0738: 0048  TST fB[4]
+0737: 0CD8  A=0 MAEX          ; A := sum of logarithms = 0
+0738: 0048  TST fB[4]         ; exp mode?
 0739: 100A  JNC 073E
-073A: 0C20  A=C MAEX
-073B: 0ED4  C=LOAD MMSD1
+073A: 0C20  A=C MAEX          ; exp: A := reduced argument r …
+073B: 0ED4  C=LOAD MMSD1      ; … C := product = 1.0
 073C: 0048  TST fB[4]
 073D: 1012  JNC 0746
-073E: 0C23  B=C MAEX
-073F: 0A08  MOV R5,KR[4..7]
+073E: 0C23  B=C MAEX          ; B := C · 10^−k: copy …
+073F: 0A08  MOV R5,KR[4..7]   ; … shift count k (+1) from the constant index …
 0740: 02F4  C=R5 DPT
 0741: 032C  C=C-1 DPT1
 0742: 0048  TST fB[4]
-0743: 11A4  JNC 0815
-0744: 0CC8  A=A-CON MAEX
-0745: 19A0  JC 0815
-0746: 0CC0  A=A+CON MAEX
-0747: 1813  JC 073E
-0748: 0A04  INC KR
-0749: 0A75  TST KR[7]
+0743: 11A4  JNC 0815          ; ln → shift B (0815/074F loop), try C·(1+10^−k)
+0744: 0CC8  A=A-CON MAEX      ; exp: r − ln(1+10^−k) …
+0745: 19A0  JC 0815           ; … fits → multiply C by (1+10^−k)
+0746: 0CC0  A=A+CON MAEX      ; ln: Σ += ln(1+10^−k) / exp: undo the over-subtraction …
+0747: 1813  JC 073E           ; … (ln: try the same factor again; exp: carry → next k)
+0748: 0A04  INC KR            ; next k (constant index + 1) …
+0749: 0A75  TST KR[7]         ; … up to k = 6 (index 7)
 074A: 1819  JC 073E
-074B: 0048  TST fB[4]
+074B: 0048  TST fB[4]         ; exp → finish at 0AD4
 074C: 1F10  JC 0AD4
-074D: 0C23  B=C MAEX
+074D: 0C23  B=C MAEX          ; ln: remainder term (10 − m), scaled …
 074E: 0C1B  B=-B MAEX
 074F: 0C5B  B=SRB MAEX
 0750: 198A  JC 0815
-0751: 0C83  B=A+B MAEX
-0752: 0A0C  MOV KR,EXT[4..15]
+0751: 0C83  B=A+B MAEX        ; … added to the sum: B = ln(10/m)
+0752: 0A0C  MOV KR,EXT[4..15] ; KR := 0 → constant 0 = ln 10
 0753: 0144  C=SLA ALL
 0754: 0214  C=B DPT
 0755: 0164  C=SLC ALL
 0756: 01D8  A=0 ALL
-0757: 01C0  A=A+CON ALL
-0758: 0030  TST fA[3]
+0757: 01C0  A=A+CON ALL       ; A := ln 10
+0758: 0030  TST fA[3]         ; exponent sign selects the combination at 0B2A / 0B2C
 0759: 17A2  JNC 0B2A
 075A: 0C8B  B=A-B MAEX
 075B: 1FA2  JC 0B2C
 075C: 1DA2  JC 0A2D
 075D: 1DA2  JC 0A2E
-075E: 1E63  JC 042D
+075E: 1E63  JC 042D           ; enter the MULDIV division loop (pseudo-division users)
 075F: 0A65  TST KR[6]
 0760: 180C  JC 0766
 0761: 0A55  TST KR[5]
@@ -2391,15 +2427,14 @@
 076D: 00CA  CLR fB[12]
 076E: 161A  JNC 0A7B
 076F: 19CD  JC 0689
-; RECIP: "1/x" implementation (table slot 050B; X was already normalized and
-; rounded by the 041C prologue). Computes 1 ÷ X through the MUL/DIV core.
-; Trace-confirmed in errorblink.txt (X = 0 → x÷0 exit → error blink).
-0770: 0051  SET fA[5]         ; speculative: fA[5] = display refresh pending
-0771: 0ED4  C=LOAD MMSD1      ; C := 1.0000000… (mask constant 1 at the MSD)
+; RECIP: "1/x" (slot 050B; X already normalized by the 041C slot before it).
+; Trace-confirmed (1/4, and 1/0 in errorblink.txt → x÷0 exit → error blink).
+0770: 0051  SET fA[5]         ; result to be displayed
+0771: 0ED4  C=LOAD MMSD1      ; C := 1.0
 0772: 003A  CLR fB[3]
 0773: 002A  CLR fB[2]
-0774: 0013  TOG fA[1]         ; fA[1] set = divide mode
-0775: 0123  B=C ALL           ; dividend B := 1.0 (0775 is also table slot
+0774: 0013  TOG fA[1]         ; divide (0909/0605 enter here: ±ln 10 with fA[1] preset)
+0775: 0123  B=C ALL           ; B := C (1.0 for 1/x; X itself for x², slot 0509) → MULDIV
 0776: 1F55  JC 03CC           ;   0509's entry) → MUL/DIV core, divisor in A
 0777: 0AA5  TST KR[10]
 0778: 0A85  TST KR[8]
@@ -2471,10 +2506,11 @@
 07BA: 0A0D  SWAP KR,SR
 07BB: 17C7  JNC 03D8
 07BC: 16C6  JNC 0B1F
-07BD: 0130  A=D ALL
-07BE: 0007  MOV fA[1..4],R5
+; y^x second step (slot 050D): ln y × x (÷ x for INV y^x).
+07BD: 0130  A=D ALL           ; A := x (saved in D at 071F) …
+07BE: 0007  MOV fA[1..4],R5   ; … with its flags; fA[1] = root
 07BF: 04D0  A=LOAD DPTC
-07C0: 1897  JC 0775
+07C0: 1897  JC 0775           ; → ln y × x, or ÷ x for INV y^x
 07C1: 0619  IO=-B EXP
 07C2: 1806  JC 07C5
 07C3: 0C48  A=SRA MAEX
@@ -2556,30 +2592,39 @@
 080F: 02F6  D=R5 DPT
 0810: 0024  SWAP fA[2],fB[2]
 0811: 0034  SWAP fA[3],fB[3]
-0812: 04D0  A=LOAD DPTC
-0813: 1FF5  JC 0419
+0812: 04D0  A=LOAD DPTC       ; A[0] := 0xC (normalized marker) …
+0813: 1FF5  JC 0419           ; … → ARITH_EXIT
 0814: 1FEB  JC 041F
+; Kernel shift/test helper (from 0743/0745): shift B right by the count in
+; C[0], then test whether C + B stays below 10.
 0815: 032C  C=C-1 DPT1
-0816: 198F  JC 074F
-0817: 0C91  IO=C+B MAEX
-0818: 1FCD  JC 0432
-0819: 11A3  JNC 0748
+0816: 198F  JC 074F           ; more shifts → 074F
+0817: 0C91  IO=C+B MAEX       ; C · (1+10^−k) < 10?
+0818: 1FCD  JC 0432           ; yes → C += B (via 0432, which returns to 073C)
+0819: 11A3  JNC 0748          ; no → next k
 081A: 0082  CLR fA[8]
 081B: 00D1  SET fA[13]
 081C: 1EF9  JC 04A0
-081D: 0051  SET fA[5]
-081E: 0020  TST fA[2]
+; ═══════════════════════════════════════════════════════════════════════════
+; SQRT  (0x081D–0x082A, body 0x0AA8–0x0AD1) — trace-confirmed (√2 =
+; 1.414213562, √−2 → error). Exponent halved (0825–082A; an odd exponent
+; shifts the mantissa one digit, 0AA8), then the root is built digit by digit
+; by subtracting successive odd multiples (C = remainder, B = 2·root + odd
+; increment, A = digit weight) at 0AB5–0AC7, one root digit per pass.
+; ═══════════════════════════════════════════════════════════════════════════
+081D: 0051  SET fA[5]         ; result to be displayed
+081E: 0020  TST fA[2]         ; negative?
 081F: 1804  JC 0821
-0820: 0099  SET fB[9]
+0820: 0099  SET fB[9]         ; yes → ERROR flag, continue with |x|
 0821: 01DB  B=0 ALL
-0822: 0E09  IO=A-1 MMSD1
-0823: 170B  JNC 049E
-0824: 0ED0  A=LOAD MMSD1
-0825: 072C  C=C-1 EXP1
-0826: 150C  JNC 0AAC
+0822: 0E09  IO=A-1 MMSD1      ; zero?
+0823: 170B  JNC 049E          ; yes → result 0
+0824: 0ED0  A=LOAD MMSD1      ; A := 1 (digit weight at the MSD)
+0825: 072C  C=C-1 EXP1        ; halve the exponent: count C's exponent down in twos …
+0826: 150C  JNC 0AAC          ; even → body
 0827: 072C  C=C-1 EXP1
-0828: 1500  JNC 0AA8
-0829: 0700  A=A+1 EXP1
+0828: 1500  JNC 0AA8          ; odd → shift first
+0829: 0700  A=A+1 EXP1        ; … one result exponent unit per two
 082A: 180B  JC 0825
 082B: 0A3E  LIB.HI
 082C: 0A0C  MOV KR,EXT[4..15]
@@ -2840,13 +2885,15 @@
 0906: 06D8  A=0 EXP
 0907: 1F08  JC 0C8B
 0908: 1631  JNC 05F0
+; log x final step (slot 051D): ln x ÷ ln 10. 090A is also the 10^x entry
+; (× ln 10, fA[1] preset at 0605).
 0909: 0051  SET fA[5]
-090A: 0A0C  MOV KR,EXT[4..15]
+090A: 0A0C  MOV KR,EXT[4..15] ; constant 0 …
 090B: 01D8  A=0 ALL
-090C: 01C0  A=A+CON ALL
+090C: 01C0  A=A+CON ALL       ; … A := ln 10
 090D: 0032  CLR fA[3]
 090E: 0022  CLR fA[2]
-090F: 1B37  JC 0774
+090F: 1B37  JC 0774           ; → MULDIV (fA[1] toggled: ÷ for log, × for 10^x)
 0910: 0106  D=A ALL
 0911: 0A06  MOV R5,fA[1..4]
 0912: 02F6  D=R5 DPT
@@ -3015,6 +3062,8 @@
 09B5: 01DE  D=0 ALL
 09B6: 1C5D  JC 0788
 09B7: 1B0A  JC 0B3C
+; EXP argument-reduction helpers (09B8–09FF): align the remaining argument,
+; detect exponent overflow/underflow (09C0 → 05EA), handle |x| < 1 (09EE).
 09B8: 032C  C=C-1 DPT1
 09B9: 1070  JNC 09F1
 09BA: 0C64  C=SLC MAEX
@@ -3023,7 +3072,7 @@
 09BD: 0C5B  B=SRB MAEX
 09BE: 0D29  IO=C-1 MLSD1
 09BF: 1561  JNC 070F
-09C0: 0020  TST fA[2]
+09C0: 0020  TST fA[2]         ; n out of range: overflow for positive x, underflow for negative
 09C1: 0032  CLR fA[3]
 09C2: 1FB1  JC 05EA
 09C3: 0033  TOG fA[3]
@@ -3069,7 +3118,7 @@
 09EB: 175E  JNC 0D9A
 09EC: 1FE7  JC 05F9
 09ED: 0C48  A=SRA MAEX
-09EE: 072C  C=C-1 EXP1
+09EE: 072C  C=C-1 EXP1        ; |x| < 1: shift the argument right by its exponent
 09EF: 1805  JC 09ED
 09F0: 06DC  C=0 EXP
 09F1: 0CD2  A<>B MAEX
@@ -3083,10 +3132,10 @@
 09F9: 0031  SET fA[3]
 09FA: 0724  C=C+1 EXP1
 09FB: 17E7  JNC 0608
-09FC: 004A  CLR fB[4]
+09FC: 004A  CLR fB[4]         ; kernel in exp mode …
 09FD: 0620  A=C EXP
 09FE: 0C14  C=B MAEX
-09FF: 1D9F  JC 0730
+09FF: 1D9F  JC 0730           ; … → KERNEL
 
 ; ── TMC0583  0x0A00–0x13FF  2,560 words  (ROM chip 2) ────────────────────
 
@@ -3102,6 +3151,7 @@
 0A09: 1FB6  JC 0DE4
 0A0A: 03D3  B=LOAD DPT1
 0A0B: 1F8C  JC 0DD1
+; ln of zero / non-positive argument: ERROR.
 0A0C: 0099  SET fB[9]
 0A0D: 0051  SET fA[5]
 0A0E: 1895  JC 09C4
@@ -3279,11 +3329,12 @@
 0AA5: 02F0  A=R5 DPT
 0AA6: 0140  A=SLA ALL
 0AA7: 1DE7  JC 07B4
-0AA8: 0030  TST fA[3]
+; SQRT body (from 0826/0828)
+0AA8: 0030  TST fA[3]         ; odd exponent: pre-shift the mantissa
 0AA9: 1804  JC 0AAB
 0AAA: 0700  A=A+1 EXP1
 0AAB: 0948  A=SRA MANT
-0AAC: 0022  CLR fA[2]
+0AAC: 0022  CLR fA[2]         ; result positive
 0AAD: 0148  A=SRA ALL
 0AAE: 02D2  A<>B DPT
 0AAF: 0148  A=SRA ALL
@@ -3292,13 +3343,13 @@
 0AB2: 0C40  A=SLA MAEX
 0AB3: 06DC  C=0 EXP
 0AB4: 1824  JC 0AC6
-0AB5: 0C5B  B=SRB MAEX
+0AB5: 0C5B  B=SRB MAEX        ; next root digit: halve the increment weight …
 0AB6: 0C48  A=SRA MAEX
 0AB7: 181C  JC 0AC5
-0AB8: 0C9C  C=C-B MAEX
+0AB8: 0C9C  C=C-B MAEX        ; subtract the odd increment …
 0AB9: 0C9C  C=C-B MAEX
-0ABA: 0C83  B=A+B MAEX
-0ABB: 0C99  IO=C-B MAEX
+0ABA: 0C83  B=A+B MAEX        ; … and grow it by 2·weight …
+0ABB: 0C99  IO=C-B MAEX       ; … while the remainder allows
 0ABC: 1809  JC 0AB8
 0ABD: 01D2  A<>B ALL
 0ABE: 0C88  A=A-B MAEX
@@ -3309,9 +3360,9 @@
 0AC3: 181D  JC 0AB5
 0AC4: 0C64  C=SLC MAEX
 0AC5: 0C48  A=SRA MAEX
-0AC6: 0F09  IO=A-1 MAEX1
+0AC6: 0F09  IO=A-1 MAEX1      ; all digits done?
 0AC7: 181D  JC 0AB9
-0AC8: 0C10  A=B MAEX
+0AC8: 0C10  A=B MAEX          ; result := B (2·root) adjusted …
 0AC9: 0E09  IO=A-1 MMSD1
 0ACA: 1806  JC 0ACD
 0ACB: 0C40  A=SLA MAEX
@@ -3320,8 +3371,10 @@
 0ACE: 0214  C=B DPT
 0ACF: 0164  C=SLC ALL
 0AD0: 0620  A=C EXP
-0AD1: 1D7F  JC 0812
+0AD1: 1D7F  JC 0812           ; → ARITH_EXIT
 0AD2: 1CB7  JC 0877
+; EXP finish (from 074C): multiply the product by (1 + remaining r), then
+; place the integer part n as the decimal exponent.
 0AD3: 0C83  B=A+B MAEX
 0AD4: 0E2C  C=C-1 MMSD1
 0AD5: 1805  JC 0AD3
@@ -3333,7 +3386,7 @@
 0ADB: 0210  A=B DPT
 0ADC: 0140  A=SLA ALL
 0ADD: 0910  A=B MANT
-0ADE: 1D99  JC 0812
+0ADE: 1D99  JC 0812           ; → ARITH_EXIT
 0ADF: 0A0D  SWAP KR,SR
 0AE0: 18A1  JC 0A90
 0AE1: 153E  JNC 0D80
@@ -3418,6 +3471,8 @@
 0B27: 1EFC  JC 0EA5
 0B28: 1EFA  JC 0EA5
 0B29: 1EF8  JC 0EA5
+; LN finish (from 0759/075B): combine ln(10/m) with the decimal exponent e:
+; ln x = (e+1)·ln 10 − ln(10/m), sign in fA[2].
 0B2A: 072C  C=C-1 EXP1
 0B2B: 0021  SET fA[2]
 0B2C: 0CD2  A<>B MAEX
@@ -3435,7 +3490,7 @@
 0B38: 0C40  A=SLA MAEX
 0B39: 0300  A=A+1 DPT1
 0B3A: 06D8  A=0 EXP
-0B3B: 1E51  JC 0813
+0B3B: 1E51  JC 0813           ; → ARITH_EXIT
 0B3C: 00C9  SET fB[12]
 0B3D: 00D1  SET fA[13]
 0B3E: 01D7  A<>E ALL
