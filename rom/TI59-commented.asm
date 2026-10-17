@@ -16,7 +16,7 @@
 ; ═══════════════════════════════════════════════════════════════════════════
 0000: 0A01  CLR.IDLE          ; leave display-idle: CPU drives the bus instead of the multiplexer
 0001: 0A0A  CLR fB
-0002: 00B9  SET fB[11]        ; speculative: fB[11] = "cold start / power-on" status bit (preserved at 03AC below)
+0002: 00B9  SET fB[11]        ; program-register cache (SCOM[10]) invalid: the first fetch reads RAM (08B9)
 0003: 03DC  C=-1 DPT1         ; C := F in the digit-pointer slot → loop counter / first SCOM row to clear
 0004: 01D8  A=0 ALL           ; A = 0 is the value written into each cleared row
 0005: 0A48  CRD.OFF           ; de-energize the magnetic card reader
@@ -814,7 +814,7 @@
 ; set — routines that tolerate the clamp pre-set fA[14] (03BF, 0A30, 0D11),
 ; and the epilogues at 02C9/055B clear it again. Then clamps the value in A:
 ; fA[3] (exponent-negative) clear → overflow, +9.9999999…E99; set → underflow,
-; 1E−99 (speculative: underflow branch not exercised in the trace). ──
+; 1E−99 (verified with the headless harness: 1 EE 99 +/- x² → 1 E−99, error). ──
 025A: 00E0  TST fA[14]        ; error suppressed?
 025B: 1004  JNC 025D          ; fA[14] set → clamp silently
 025C: 0099  SET fB[9]         ; ERROR — start the display blink
@@ -1331,7 +1331,7 @@
 03D4: 0099  SET fB[9]         ; 0 ÷ 0: ERROR …
 03D5: 0022  CLR fA[2]
 03D6: 0ED0  A=LOAD MMSD1      ; … with result 1.0
-03D7: 1902  JC 0458           ;   for 0÷0 (speculative: path not exercised)
+03D7: 1902  JC 0458           ;   for 0÷0 (verified: 0 ÷ 0 = → 1, error flag set)
 ; LRN toggle: fB[10] ↔, clear INV, error, run/trace flags.
 03D8: 00AB  TOG fB[10]        ; LRN mode ↔
 03D9: 00A8  TST fB[10]
@@ -2326,7 +2326,7 @@
 06A9: 0A0D  SWAP KR,SR
 06AA: 0A0C  MOV KR,EXT[4..15] ; KR := 0
 06AB: 0085  SET KR[8]         ; KR = 0x0100 → return address 0x0010 stashed in
-06AC: 0A0D  SWAP KR,SR        ; SR (speculative: for SWAP KR,SR + SET KR[1] returns)
+06AC: 0A0D  SWAP KR,SR        ; SR (the neutral continuation, as restored at 02CA–02CC)
 06AD: 0A75  TST KR[7]         ; keyboard row 1 (A–E: KR[5..7] all clear) is
 06AE: 0A65  TST KR[6]         ; dispatched separately at 02D2 (user-defined
 06AF: 0A55  TST KR[5]         ; label keys) and never reaches the table
