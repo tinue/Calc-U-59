@@ -90,9 +90,9 @@ pending operation's inverse-pair bit (see below).
 
 | Row | Use |
 |---|---|
-| 1–8 | AOS pending left operands, one per level |
+| 1–8 | AOS pending left operands, one per level; also the HIR hierarchy registers 1–8, and rows 5–8 hold the Op 01–04 print buffer |
 | 12 | AOS operator stack: 2 nibbles per entry (precedence, paren level), top entry in nibbles 1/0 |
-| 0 | nibble 0 = Fix setting (n+2, 0 = floating); nibble 3 = Prg Src Flag; nibbles 4–7 = program step (nibble 4 = byte 0–7, nibbles 5–7 = BCD register number); nibbles 11–15 = user flags (flag n = bit ⌊n/5⌋ of nibble 11 + n mod 5) |
+| 0 | nibble 0 = Fix setting (n+2, 0 = floating); nibbles 1–2 = pending keycode (argument terminator, second operand digit, Ind of a compact code; fB[14]); nibble 3 = Prg Src Flag; nibbles 4–7 = program step (nibble 4 = byte 0–7, nibbles 5–7 = BCD register number); nibbles 11–15 = user flags (flag n = bit ⌊n/5⌋ of nibble 11 + n mod 5) |
 | 9 | library/partition descriptor (see `reference/CoreArchitecture.md`) |
 | 10 | current program register as a keycode shift register (current keycode in nibbles 1..0) |
 | 11 | t register |
@@ -108,17 +108,20 @@ Meanings established so far; "set" means the bit is 1.
 
 | Flag | Meaning |
 |---|---|
+| fA[0] | a label name follows (address operands, label search) |
 | fA[1] | inverse-pair bit: subtract (−), divide (÷), root (INV y^x); during an AOS reduction it carries the popped entry's bit |
 | fA[2] | X mantissa negative |
 | fA[3] | X exponent negative |
 | fA[4] | arithmetic overflow exit marker (`0418`) |
 | fA[6] | copy of fB[6] taken at the start of each key (`06A2`) |
-| fA[8] | INV pending |
+| fA[8] | INV pending; also CP vs CMs, Del vs Ins, Op 18 vs 19 |
 | fA[7] | Ind pending (indirect register / address) |
 | fA[9] | 2nd pending (column bias +5 at dispatch); in register access: 1 = read (`02D9`), 0 = write (`04B1`) |
 | fA[10] | printer trace record pending (`0A68`) |
 | fA[11] | tan (trig sequence) |
 | fA[12] | cos (trig sequence); sin↔cos role in the octant fold |
+| fA[13] | label search / scanner state; HIR / Op-related helper bit |
+| fA[14] | tolerate an over/underflow clamp without the error blink (`025A`) |
 | fA[15] | exponent entry (after EE during number entry) |
 | fB[0] | program running |
 | fB[11] | program-register cache (SCOM[10]) must be reloaded |
@@ -131,6 +134,7 @@ Meanings established so far; "set" means the bit is 1.
 | fB[6] | "fresh operand": set by every key at `06A3`, cleared by an AOS push and by `(`; an operator or `)`/`=` arriving with fA[6] clear is an error (`5 + =`, `5 + × 3`) |
 | fB[9] | error: display blinks until CLR/CE (`0641`) |
 | fB[12] | argument entry in progress: digit keys feed a suspended operation sequence |
+| fB[14] | a keycode is pending in SCOM[0] nibbles 1–2 and is executed on the next pass (`0620` → `04F6`); Op 16: query only |
 | fB[15] | scientific (EE) display |
 
 ## AOS (algebraic operating system)
