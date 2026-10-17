@@ -454,6 +454,12 @@ noted. Sites (all in the listing):
 | `15E2` | Op 07 column outside 0–19 |
 | `16E9`, `1798` | card header/checksum mismatch, card aborted |
 | `17EF` | Op 17 more data registers than RAM |
+| `0A47` | keycode sub-program (Σ+, P→R, D.MS, Op 11–15, …) with five or more AOS levels pending |
+| `07E2` | (not an error site) an error while running stops the program only if flag 8 is set |
+| `16A5` | Write of a bank lying entirely in program memory while memory is protected |
+| `17A5` → `16E9` | card recorded under another partition; with `n INV Write`, a card other than bank n |
+| `17AA` | Write with bank 0 or above 4 (still waits for a card) |
+| `0C80` path | `Pgm nn` followed by R/S inside a program |
 
 ## Execution cost
 
