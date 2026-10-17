@@ -68,6 +68,26 @@ through `FN_ENTRY` (`0210`) with KR = `0x5000 | fn<<4` (`+0x100` for the
 `KR[8]` variant). Example: `√x` → `0x0510` (normalize) → `0x0511` →
 `JC 081D` → digit-by-digit square root at `0AAC`.
 
+### Computed-jump tables
+
+`SET KR[1]` jumps to KR >> 4, so each KR bit 4–15 contributes one address bit
+(KR[4..7] = 0x001–0x008 … KR[8] = 0x010, KR[9] = 0x020, KR[10] = 0x040,
+KR[11] = 0x080, KR[12] = 0x100, KR[13] = 0x200, KR[14] = 0x400,
+KR[15] = 0x800). The ROM's dispatch tables are all built this way:
+
+| Table | Address | Built by |
+|---|---|---|
+| keyboard | 0x0⟨col⟩⟨row⟩, 2nd: col + 5 | key decode, `06B1` |
+| operation sequences | 0x00C0 + code (+0x10 KR[8], +0x20 KR[9]); 0x00B0 bank via `017F`/`0142`; 0x0100 bank via `0211` | `KEY_OP_ENTRY` `0141` |
+| AOS execute | 0x00C0 + 2·precedence | `01BB–01C0` |
+| function sequences | 0x0500 + code (+0x10/+0x20/+0x40) | `FN_ENTRY` `0210` |
+| Op 00–19 | 0x0A00 + 16·tens + units | `0CB7` → `0F5C` |
+| program bank (Ins/Del, labels, flags) | 0x0B10 + code | `0276` |
+| compact keycodes | 0x0B20 + digit | `016F` |
+| program scanner | 0x0E00 + 16·units + tens | `0F53–0F6D` |
+| print mnemonics | 0x1000 + 32·tens + 3·units | `1432–1462` |
+| character codes | depth into the INC KR slide 0x1399–0x13E5 | mnemonic table, `1422` |
+
 ## Number formats
 
 **Entry format** (while digits are being typed): digits accumulate in A from
