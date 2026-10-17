@@ -4735,8 +4735,8 @@
 0EE4: 017E  D=SRD ALL         ; shift one keycode (two nibbles)
 0EE5: 017E  D=SRD ALL
 0EE6: 1809  JC 0EE2
-0EE7: 0130  A=D ALL
-0EE8: 0D09  IO=A-1 MLSD1
+0EE7: 0130  A=D ALL           ; sign and print
+0EE8: 0D09  IO=A-1 MLSD1      ; value zero?
 0EE9: 100E  JNC 0EF0
 0EEA: 0038  TST fB[3]
 0EEB: 1818  JC 0EF7
@@ -4772,8 +4772,8 @@
 0EF5: 0045  SET KR[4]
 0EF6: 0A68  PRT.OUT
 0EF7: 0A0C  MOV KR,EXT[4..15]
-0EF8: 0085  SET KR[8]
-0EF9: 0020  TST fA[2]
+0EF8: 0085  SET KR[8]         ; code 16 = '−' …
+0EF9: 0020  TST fA[2]         ; … if negative
 0EFA: 1804  JC 0EFC
 0EFB: 0A68  PRT.OUT
 0EFC: 0AA8  PRT.GO           ; print-complete/advance-paper signal; the printer-interrupt quirk fires this out of band — see landing-zone note above
@@ -6510,10 +6510,22 @@
 1528: 030B  B=A-1 DPT1
 1529: 07D3  B=LOAD EXP1
 152A: 1F29  JC 1196
+; ═══════════════════════════════════════════════════════════════════════════
+; PRT_VALUE  (0x152B–0x1659, 0x0EE7–0x0F01) — print the display value as a
+; PC-100 line (Prt, trace lines, Op 06). Trace-confirmed (−12.5 Prt →
+; "       -12.5        "). Without a printer (KEY [P] at D0, 1539) it does
+; nothing. Layout: clear the buffer (154F), the 3-character function field
+; (PRT.FUNC, blank for Prt or the traced key's mnemonic, 1551/1638), then the
+; digits RIGHT TO LEFT from the display image A: code = digit + 1 (1653–1656),
+; the decimal point (code 32) when A[0]'s fraction count runs out (164A–164C),
+; exponent digits in sci/eng display (1633–1637), finally the sign (code 16 at
+; 0EFB) and PRT.GO (0EFC). fA[10] (pending trace record, 153C) selects the
+; trace layout with the key's symbol already queued (1422).
+; ═══════════════════════════════════════════════════════════════════════════
 152B: 0A0D  SWAP KR,SR
 152C: 0A0C  MOV KR,EXT[4..15]
 152D: 03D3  B=LOAD DPT1
-152E: 0A97  MOV R5,#9
+152E: 0A97  MOV R5,#9         ; SCOM[9] …
 152F: 02F6  D=R5 DPT
 1530: 0131  IO=D ALL
 1531: 0A1F  RCLF
@@ -6524,10 +6536,10 @@
 1536: 0A0D  SWAP KR,SR
 1537: 0090  TST fA[9]
 1538: 15F5  JNC 123E
-1539: 0A10  WAIT D1
+1539: 0A10  WAIT D1           ; printer present (KP at D0)?
 153A: 08FB  KEY [P]
-153B: 1DFB  JC 123E
-153C: 00A0  TST fA[10]
+153B: 1DFB  JC 123E           ; no printer → skip
+153C: 00A0  TST fA[10]        ; trace record pending?
 153D: 182C  JC 1553
 153E: 0A1F  RCLF
 153F: 09D6  D=LOAD MANT
@@ -6540,15 +6552,15 @@
 1546: 0E2C  C=C-1 MMSD1
 1547: 01D5  C<>D ALL
 1548: 19BE  JC 1627
-1549: 0A00  WAIT D0
+1549: 0A00  WAIT D0           ; TRACE switch (KP at D15)?
 154A: 08FB  KEY [P]
 154B: 11B8  JNC 1627
-154C: 0A98  PRT.STEP
+154C: 0A98  PRT.STEP          ; wait until the printer is idle …
 154D: 0A0B  TST.BUSY
 154E: 1005  JNC 154C
-154F: 0A88  PRT.CLR
+154F: 0A88  PRT.CLR           ; … clear the line buffer
 1550: 0A0D  SWAP KR,SR
-1551: 0A78  PRT.FUNC
+1551: 0A78  PRT.FUNC          ; function field (code from KR: blank)
 1552: 19A8  JC 1626
 1553: 0639  IO=-D EXP
 1554: 1811  JC 154C
@@ -6770,9 +6782,9 @@
 1623: 0A0D  SWAP KR,SR
 1624: 01D5  C<>D ALL
 1625: 0A98  PRT.STEP
-1626: 0A98  PRT.STEP
-1627: 0106  D=A ALL
-1628: 0098  TST fB[9]
+1626: 0A98  PRT.STEP          ; spacing column
+1627: 0106  D=A ALL           ; keep the display image
+1628: 0098  TST fB[9]         ; error pending?
 1629: 1810  JC 1631
 162A: 0A0C  MOV KR,EXT[4..15]
 162B: 0A97  MOV R5,#9
@@ -6783,8 +6795,8 @@
 1630: 1804  JC 1632
 1631: 0A98  PRT.STEP
 1632: 0A0C  MOV KR,EXT[4..15]
-1633: 00F8  TST fB[15]
-1634: 0078  TST fB[7]
+1633: 00F8  TST fB[15]        ; sci …
+1634: 0078  TST fB[7]         ; … or eng display: print the exponent field
 1635: 100A  JNC 163A
 1636: 0709  IO=A-1 EXP1
 1637: 1806  JC 163A
@@ -6802,21 +6814,21 @@
 1643: 1804  JC 1645
 1644: 0085  SET KR[8]
 1645: 0A68  PRT.OUT
-1646: 0130  A=D ALL
-1647: 0308  A=A-1 DPT1
+1646: 0130  A=D ALL           ; digit loop over the display image (rightmost first):
+1647: 0308  A=A-1 DPT1        ; fraction digits left before the point …
 1648: 0A0C  MOV KR,EXT[4..15]
 1649: 180A  JC 164E
-164A: 0095  SET KR[9]
+164A: 0095  SET KR[9]         ; … none: the decimal point, code 32
 164B: 02DB  B=0 DPT
 164C: 0A68  PRT.OUT
 164D: 0A0C  MOV KR,EXT[4..15]
-164E: 0D09  IO=A-1 MLSD1
+164E: 0D09  IO=A-1 MLSD1      ; digits left?
 164F: 1806  JC 1652
 1650: 0219  IO=-B DPT
-1651: 1F2F  JC 12BA
-1652: 0948  A=SRA MANT
+1651: 1F2F  JC 12BA           ; no → sign and print (0EE7)
+1652: 0948  A=SRA MANT        ; next digit into R5 …
 1653: 0A18  MOV KR[4..7],R5
-1654: 0A04  INC KR
+1654: 0A04  INC KR            ; … code = digit + 1
 1655: 0219  IO=-B DPT
 1656: 0A68  PRT.OUT
 1657: 1021  JNC 1647
