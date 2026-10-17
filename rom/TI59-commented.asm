@@ -852,8 +852,8 @@
 028C: 18A4  JC 02DE           ; → redisplay
 028D: 0A17  MOV R5,#1
 028E: 18FB  JC 0211
-028F: 000A  CLR fB[0]
-0290: 00A9  SET fB[10]
+028F: 000A  CLR fB[0]         ; stop the run …
+0290: 00A9  SET fB[10]        ; … transient marker (cleared at 02A5), then RST
 ; KEY_RST: "RST" handler (slot 0018), also the RST keycode in a program.
 ; Step counter := 000 with Prg Src Flag 0 (SCOM[0] nibbles 3–15 cleared, Fix
 ; kept), subroutine return stack emptied (SCOM[15] := 0), library program
@@ -1599,11 +1599,14 @@
 04E0: 0ED3  B=LOAD MMSD1
 04E1: 1C7C  JC 071F
 04E2: 14F1  JNC 026A
-04E3: 14A9  JNC 028F
+04E3: 14A9  JNC 028F          ; (RST abort from 0836)
 04E4: 1FF0  JC 08DC
 04E5: 1FF0  JC 08DD
+; DISPLAY_PEEK (from 07DC): light the display — wait for the printer,
+; SET.IDLE, count KR up to KR[13] (≈256 instruction cycles), back to active
+; mode and continue the run.
 04E6: 0A0C  MOV KR,EXT[4..15]
-04E7: 00C5  SET KR[12]
+04E7: 00C5  SET KR[12]        ; KR := 0x1000: counts to 0x2000
 04E8: 0619  IO=-B EXP
 04E9: 1806  JC 04EC
 04EA: 0940  A=SLA MANT
@@ -1614,11 +1617,11 @@
 04EF: 0213  B=B DPT           ; reload R5 = dp digit before SET.IDLE (R5 is the
                               ;   display's decimal-point position; cf. 0653)
 04F0: 0A10  WAIT D1
-04F1: 0A09  SET.IDLE
-04F2: 0A04  INC KR
+04F1: 0A09  SET.IDLE          ; display on
+04F2: 0A04  INC KR            ; hold it …
 04F3: 0AD5  TST KR[13]
 04F4: 1805  JC 04F2
-04F5: 0A01  CLR.IDLE
+04F5: 0A01  CLR.IDLE          ; … display off, continue
 04F6: 0619  IO=-B EXP         ; EE-image realign, same idiom as 0662–0665:
 04F7: 1806  JC 04FA           ;   if the display image carries exponent digits
 04F8: 0C48  A=SRA MAEX        ;   (B EXP ≠ 0), shift A's mantissa right twice
@@ -1704,7 +1707,7 @@
 0539: 1FE2  JC 092A
 053A: 1A3D  JC 041C           ; Pgm nn: normalize …
 053B: 18E1  JC 04CB           ; … collect the program number
-053C: 1FDE  JC 092B
+053C: 1FDE  JC 092B           ; … validate and select (101E → PGM_SELECT 12E1)
 053D: 1A43  JC 041C
 053E: 1FEC  JC 0934
 053F: 0A27  MOV R5,#2         ; Op nn
@@ -2610,12 +2613,10 @@
 ; RUN_LOOP  (0x07C1–0x07E9) — between two program steps (reached from the
 ; pre-idle checks at 0623 while fB[0] is set). Trace-confirmed (5 + 3 = R/S,
 ; loops, labels). Keycode sub-programs and library programs (Prg Src ≠ 0)
-; continue at 08AE. Otherwise, unless an argument is pending: poll the key
-; matrix — digit 6 / K-line O (07CF; when that line is active and no
-; security code is set, every other step flashes the display via 04E6 —
-; purpose unverified) and the R/S key (07DD, digit 9 / K-line O): R/S held →
+; continue at 08AE. Otherwise, unless an argument is pending, poll two keys
+; (07CF): GTO held → display "peek" every second step (04E6); R/S held →
 ; stop (07EA). Then fetch the next step (08B1 → PRGREG_FETCH) and dispatch it
-; (0837).
+; (STEP_DISPATCH 0837).
 ; ═══════════════════════════════════════════════════════════════════════════
 07C1: 0619  IO=-B EXP         ; EE layout image? → realign A (as at 0662)
 07C2: 1806  JC 07C5
@@ -2631,20 +2632,25 @@
 07CC: 00C8  TST fB[12]        ; … argument pending …
 07CD: 0000  TST fA[0]         ; … or label byte pending?
 07CE: 11C6  JNC 08B1          ; yes → next step immediately (no key poll)
-07CF: 0A70  WAIT D7           ; poll digit 6 / K-line O
+; Run-loop key polls (trace-confirmed, headless harness): holding the key at
+; matrix row 6 / column 1 (GTO) while a RAM program runs makes every second
+; step light the display for ~256 cycles (04E6), showing the intermediate X
+; values — an undocumented "peek"; skipped when a module security code is
+; set. Holding R/S (row 9 / column 1) stops the run.
+07CF: 0A70  WAIT D7           ; poll row 6 / column 1 (the GTO key) …
 07D0: 08FD  KEY [O]
-07D1: 1818  JC 07DD           ; not active → R/S poll
-07D2: 0A97  MOV R5,#9         ; active: SCOM[9] security code …
+07D1: 1818  JC 07DD           ; not held → R/S poll
+07D2: 0A97  MOV R5,#9         ; held: SCOM[9] security code …
 07D3: 02F6  D=R5 DPT
 07D4: 0131  IO=D ALL
 07D5: 0A1F  RCLF
 07D6: 06D6  D=LOAD EXP
 07D7: 067E  D=SRD EXP
 07D8: 0639  IO=-D EXP
-07D9: 1008  JNC 07DD          ; … set → ignore
-07DA: 0053  TOG fA[5]         ; alternate steps …
+07D9: 1008  JNC 07DD          ; … set → no peek
+07DA: 0053  TOG fA[5]         ; every second step …
 07DB: 0050  TST fA[5]
-07DC: 15ED  JNC 04E6          ; … flash the display (04E6)
+07DC: 15ED  JNC 04E6          ; … show the display (DISPLAY_PEEK 04E6)
 07DD: 0AA0  WAIT D10          ; poll the R/S key (digit 9 / K-line O)
 07DE: 08FD  KEY [O]
 07DF: 1016  JNC 07EA          ; pressed → stop (KEY_RS)
@@ -2737,18 +2743,23 @@
 0828: 1500  JNC 0AA8          ; odd → shift first
 0829: 0700  A=A+1 EXP1        ; … one result exponent unit per two
 082A: 180B  JC 0825
-082B: 0A3E  LIB.HI
+; LIB_EXEC_FETCH: next keycode of a library program from the CROM (FETCH
+; HIGH then FETCH, which advances the module's internal PC): tens → D[1],
+; units → D[0]. Then poll row 8 / column 1 (the RST key): held → abort the
+; run and perform RST (0836 → 04E3 → 028F → 0291; trace-confirmed with
+; ML-01).
+082B: 0A3E  LIB.HI            ; high digit of the byte (no advance) …
 082C: 0A0C  MOV KR,EXT[4..15]
 082D: 0A08  MOV R5,KR[4..7]
-082E: 06F6  D=R5 EXP
-082F: 0A0E  LIB.IN
+082E: 06F6  D=R5 EXP          ; … tens digit → D[1]
+082F: 0A0E  LIB.IN            ; fetch the byte, CROM PC + 1 (user-visible step latch)
 0830: 0A0C  MOV KR,EXT[4..15]
 0831: 0A08  MOV R5,KR[4..7]
-0832: 02F6  D=R5 DPT
+0832: 02F6  D=R5 DPT          ; units digit → D[0]
 0833: 01D2  A<>B ALL
-0834: 0A90  WAIT D9
+0834: 0A90  WAIT D9           ; poll row 8 / column 1 (the RST key)
 0835: 08FD  KEY [O]
-0836: 16A7  JNC 04E3
+0836: 16A7  JNC 04E3          ; held → stop and RST
 ; ═══════════════════════════════════════════════════════════════════════════
 ; STEP_DISPATCH  (0x0837–0x0856) — execute the fetched keycode (D[1..0]) by
 ; turning it back into a keyboard matrix position and entering the normal
@@ -2899,6 +2910,7 @@
 08AB: 0059  SET fB[5]
 08AC: 1804  JC 08AE
 08AD: 0031  SET fA[3]
+; Continue a keycode sub-program / library run (from 07C9, 06C3/06C5).
 08AE: 00E8  TST fB[14]
 08AF: 001A  CLR fB[1]
 08B0: 16B6  JNC 0C0B
@@ -5783,7 +5795,7 @@
 12AD: 0153  B=SLB ALL
 12AE: 098B  B=A-B MANT
 12AF: 199D  JC 11E1
-12B0: 0A37  MOV R5,#3
+12B0: 0A37  MOV R5,#3         ; found: commit the address to the CROM PC …
 12B1: 02F0  A=R5 DPT
 12B2: 0948  A=SRA MANT
 12B3: 0A18  MOV KR[4..7],R5
@@ -5832,11 +5844,17 @@
 12DE: 0A27  MOV R5,#2
 12DF: 02F0  A=R5 DPT
 12E0: 181D  JC 12D2
-12E1: 01D7  A<>E ALL
+; PGM_SELECT: Pgm nn. Save the CROM PC (LIB.PC.IN ×4 → B), point it at the
+; module header (LIB.PC ×4 with 0000), read byte 0 = number of programs N,
+; restore the CROM PC, and check nn against N: out of range → error (141C,
+; as the garbage run's "Pgm 51" in examples/texas-print.ti59). From the
+; keyboard nn becomes the current library page in SCOM[9]; in a program it
+; applies to the next SBR / label only (13CF).
+12E1: 01D7  A<>E ALL          ; A := nn
 12E2: 0A37  MOV R5,#3
 12E3: 02F0  A=R5 DPT
 12E4: 015B  B=SRB ALL
-12E5: 0A2E  LIB.PC.IN
+12E5: 0A2E  LIB.PC.IN         ; save the CROM PC, one digit per read …
 12E6: 0A0C  MOV KR,EXT[4..15]
 12E7: 0A08  MOV R5,KR[4..7]
 12E8: 09F3  B=R5 MANT
@@ -5846,12 +5864,12 @@
 12EC: 0A0C  MOV KR,EXT[4..15]
 12ED: 0A37  MOV R5,#3
 12EE: 02F0  A=R5 DPT
-12EF: 0A0C  MOV KR,EXT[4..15]
+12EF: 0A0C  MOV KR,EXT[4..15] ; CROM PC := 0000 (module header) …
 12F0: 0A1E  LIB.PC
 12F1: 0A1E  LIB.PC
 12F2: 0A1E  LIB.PC
 12F3: 0A1E  LIB.PC
-12F4: 0A3E  LIB.HI
+12F4: 0A3E  LIB.HI            ; byte 0: number of programs N …
 12F5: 0A0C  MOV KR,EXT[4..15]
 12F6: 0A08  MOV R5,KR[4..7]
 12F7: 09F6  D=R5 MANT
@@ -5864,24 +5882,24 @@
 12FE: 0211  IO=B DPT
 12FF: 0A18  MOV KR[4..7],R5
 1300: 015B  B=SRB ALL
-1301: 0A1E  LIB.PC
+1301: 0A1E  LIB.PC            ; restore the saved CROM PC …
 1302: 0308  A=A-1 DPT1
 1303: 180B  JC 12FE
-1304: 09BE  D=A-D MANT
+1304: 09BE  D=A-D MANT        ; nn vs N
 1305: 1006  JNC 1308
 1306: 0939  IO=-D MANT
-1307: 122A  JNC 141C
-1308: 0008  TST fB[0]
+1307: 122A  JNC 141C          ; out of range → error halt (141C)
+1308: 0008  TST fB[0]         ; called from a running program …
 1309: 00D8  TST fB[13]
-130A: 118A  JNC 13CF
-130B: 0A97  MOV R5,#9
+130A: 118A  JNC 13CF          ; … yes → one-shot selection (13CF)
+130B: 0A97  MOV R5,#9         ; keyboard: SCOM[9] page := nn
 130C: 02F0  A=R5 DPT
 130D: 0101  IO=A ALL
 130E: 0A1F  RCLF
 130F: 01D6  D=LOAD ALL
 1310: 0906  D=A MANT
 1311: 0101  IO=A ALL
-1312: 0A0F  STOF              ; SCOM[0] := updated flags
+1312: 0A0F  STOF              ; SCOM[9] := new library page
 1313: 0131  IO=D ALL
 1314: 18B9  JC 12B8
 1315: 0AA8  PRT.GO
@@ -5963,26 +5981,36 @@
 1361: 0676  D=SLD EXP
 1362: 0C76  D=SLD MAEX
 1363: 16ED  JNC 0FED
+; ═══════════════════════════════════════════════════════════════════════════
+; LIB_LABEL_SEARCH  (0x1364–0x1398) — find a label inside the selected
+; library program. Trace-confirmed (Pgm 02, A). Reads the program's start
+; and end addresses from the module header (2 BCD bytes per program from
+; address 0002, LIB.PC ×4 to position, 1377–1381 reading high/low digits),
+; positions the CROM PC at the program start (1387–1389) and then walks the
+; program byte by byte (1390–1398, never past its end: 138D/138E) through
+; the same scanner loop as RAM programs (10BF → 0F4B, scanner table 0E10).
+; Found → commit the CROM PC (12B0–12B6, LIB.PC ×4).
+; ═══════════════════════════════════════════════════════════════════════════
 1364: 0101  IO=A ALL
-1365: 0A1F  RCLF
+1365: 0A1F  RCLF              ; SCOM[9] page = program number p …
 1366: 09D0  A=LOAD MANT
 1367: 0948  A=SRA MANT
 1368: 0948  A=SRA MANT
 1369: 0903  B=A MANT
-136A: 0980  A=A+B MANT
+136A: 0980  A=A+B MANT        ; … header offset 2p
 136B: 0A37  MOV R5,#3
 136C: 02F0  A=R5 DPT
 136D: 06F0  A=R5 EXP
 136E: 0948  A=SRA MANT
 136F: 0A18  MOV KR[4..7],R5
-1370: 0A1E  LIB.PC
+1370: 0A1E  LIB.PC            ; CROM PC := 2p (header entry)
 1371: 0308  A=A-1 DPT1
 1372: 1809  JC 136E
 1373: 05D0  A=LOAD LLSD1
 1374: 03D8  A=-1 DPT1
 1375: 0933  B=D MANT
 1376: 01DE  D=0 ALL
-1377: 0A3E  LIB.HI
+1377: 0A3E  LIB.HI            ; read the start address (B) and the next program's start (end) …
 1378: 0A0C  MOV KR,EXT[4..15]
 1379: 0A08  MOV R5,KR[4..7]
 137A: 02F6  D=R5 DPT
@@ -6000,22 +6028,22 @@
 1386: 0910  A=B MANT
 1387: 0948  A=SRA MANT
 1388: 0A18  MOV KR[4..7],R5
-1389: 0A1E  LIB.PC
+1389: 0A1E  LIB.PC            ; CROM PC := program start
 138A: 0708  A=A-1 EXP1
 138B: 1809  JC 1387
 138C: 0CD2  A<>B MAEX
-138D: 09B9  IO=A-D MANT
-138E: 1B59  JC 11E2
+138D: 09B9  IO=A-D MANT       ; past the program's end?
+138E: 1B59  JC 11E2           ; yes → label not found (error)
 138F: 0D03  B=A+1 MLSD1
-1390: 0A3E  LIB.HI
+1390: 0A3E  LIB.HI            ; next byte: tens …
 1391: 0A0C  MOV KR,EXT[4..15]
 1392: 0A08  MOV R5,KR[4..7]
 1393: 06F6  D=R5 EXP
-1394: 0A0E  LIB.IN
+1394: 0A0E  LIB.IN            ; … units
 1395: 0A0C  MOV KR,EXT[4..15]
 1396: 0A08  MOV R5,KR[4..7]
 1397: 02F6  D=R5 DPT
-1398: 1DB3  JC 10BF
+1398: 1DB3  JC 10BF           ; → scanner (0F4B)
 1399: 0A04  INC KR
 139A: 0A04  INC KR
 139B: 0A04  INC KR
@@ -6155,8 +6183,9 @@
 1419: 0A0D  SWAP KR,SR        ; return through the continuation in SR
 141A: 0015  SET KR[1] ; PREG
 141B: 0A0D  SWAP KR,SR
-141C: 0099  SET fB[9]
-141D: 000A  CLR fB[0]
+; Program error halt (Pgm out of range, …): error blink, stop the run.
+141C: 0099  SET fB[9]         ; ERROR
+141D: 000A  CLR fB[0]         ; program stops
 141E: 1ACD  JC 12B8
 141F: 0AA0  WAIT D10
 1420: 08FD  KEY [O]

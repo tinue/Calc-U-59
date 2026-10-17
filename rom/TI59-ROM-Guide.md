@@ -255,3 +255,26 @@ n + 2 (0 = floating); fB[15] = sci, fB[7] = eng.
   `COND_TRANSFER` (`0499`) applies INV and branches or skips the address.
 - **User flags**: flag n = bit ⌊n/5⌋ of SCOM[0] nibble 11 + (n mod 5)
   (`FLAG_OP` `15BA`).
+
+## Solid State library
+
+- `Pgm nn` (`PGM_SELECT` `12E1`) reads the program count from module header
+  byte 0 and rejects nn beyond it; from the keyboard nn becomes the current
+  page in SCOM[9], inside a program it applies to the next call only.
+- Labels in a module program are found by `LIB_LABEL_SEARCH` (`1364`): the
+  program's start/end come from the header (2 BCD bytes per program), and
+  the bytes are walked through the same scanner as RAM programs.
+- Execution fetches each keycode at `LIB_EXEC_FETCH` (`082B`/`082F`); the
+  module's own address counter is the program counter (SCOM[0]'s step
+  counter is not used).
+
+## Key polls while a program runs (trace-confirmed, not in the owner's manual)
+
+- **R/S** (row 9, col 1) is polled between RAM program steps (`07DD`): held →
+  stop.
+- **GTO** (row 6, col 1) is polled there too (`07CF`): held → every second
+  step lights the display for ≈256 cycles (`04E6`), so the running program's
+  intermediate X values become visible. Suppressed when a module security
+  code is set.
+- **RST** (row 8, col 1) is polled on every library-module fetch (`0834`):
+  held → the run stops and RST is performed.
