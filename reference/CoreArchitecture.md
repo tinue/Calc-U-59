@@ -563,13 +563,23 @@ since solid-state programs never move the SCOM[0] step counter.
 
 ### PRG SOURCE flag (SCOM[0] nibble 3)
 
+The firmware tests the flag two ways. The run loop (`07C9`), the display
+formatter (`0553`), the key epilogue (`06BD`) and the SBR launch (`0A57`)
+ask only whether it is non-zero. The step fetch tests single bits: bit 0
+(`08B7`) selects the module, then bit 3 (`0B98`) the constant-ROM keycode
+table. No code tests bits 1 or 2.
+
 | Value | Meaning |
 |---|---|
 | 0 | Keyboard / RAM program |
 | 1 | Library program executing — CROM counter is live |
-| 2 | Transitional "suspended library" return: the RTN handler popped a saved level `[2][4-digit CROM addr]` into SCOM[0]; the next dispatch reloads the CROM PC via OUT LIB_PC ×4 and sets source back to 1 |
-| 4 (or 2, 6) | "Fast mode" (TI PPC): a RAM program running with a source flag that is non-zero but selects neither the library (bit 0) nor the keycode table (bit 3). The run loop then takes the sub-program path (ROM 0x07C9 → 0x08AE) and skips the per-step display rebuild and key polls (~40% faster, R/S no longer stops it). Only reachable by a quirk — see `examples/fastmode.ti59` and `rom/TI59-ROM-Guide.md` |
+| 2 | Inside a RTN back into a library program only: RTN writes the popped level `[2][4-digit CROM addr]` into SCOM[0] at ROM `1192`, and LIB_RETURN reloads the CROM PC via OUT LIB_PC ×4 and sets the source back to 1 at `1506`, 16 instructions later. A frozen single-step (`stepUntilNextKeycode`) can stop inside that window |
+| 2, 4, 6 (outside that window) | "Fast mode" (TI PPC). There is no fast-mode value: it is a RAM program running with a non-zero flag that selects neither the library (bit 0) nor the keycode table (bit 3). The run loop takes the sub-program path (ROM 0x07C9 → 0x08AE) and skips the per-step display rebuild and R/S/GTO polls (~40% faster, R/S no longer stops it). SBR breaks, because the launch treats the caller as a library program. Only reachable by a quirk — see `examples/fastmode.ti59` and `rom/TI59-ROM-Guide.md` § "Fast mode" |
+| 3, 5, 7, 9 | Undocumented; act like 1 (bit 0 is tested first) |
 | 8 | Keycode-ROM sub-program (constant-ROM rows 16–63: Σ+, x̄/σ, Op 11–15, P→R/R→P, D.MS — listing in `rom/TI59-keycode-programs.asm`), from any caller; the SCOM PC is used (step 000–383), `m_libExecPC` holds |
+
+The debug panel decodes the flag the same way (`ProgramSource` in
+`App/EmulatorViewModel.swift`).
 
 Source 2 exists because a library caller cannot be pushed as source 1: source 1
 means "the CROM counter is live", and the counter is clobbered by intervening

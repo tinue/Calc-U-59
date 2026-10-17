@@ -196,11 +196,11 @@ struct LiveDebugView: View {
 
         if vm.isFrozen, !vm.programListing.isEmpty {
             // Frozen mode: show full scrollable program.
-            // programListing is always-live; programListingSourceFlag tracks the display source
-            // (during solidStateReturn it holds the previous source's flag, not the raw CROM address).
+            // programListing is always-live; programListingSource tracks the display source
+            // (during solidStateReturn it holds the previous source, not the raw CROM address).
             let program = vm.programListing
             let currentIdx = vm.programListingCurrentIndex
-            let currentLineColor = programSourceHighlightColor(vm.programListingSourceFlag)
+            let currentLineColor = programSourceHighlightColor(vm.programListingSource)
 
             SectionBox(title: "PROGRAM STEPS") {
                 ScrollViewReader { proxy in
@@ -249,7 +249,7 @@ struct LiveDebugView: View {
             }
         } else {
             // Normal mode: show current step window (±5 around current)
-            let currentLineColor = programSourceHighlightColor(snap.prSourceFlag)
+            let currentLineColor = programSourceHighlightColor(snap.programSource)
 
             SectionBox(title: "PROGRAM STEPS") {
                 VStack(alignment: .leading, spacing: 0) {
@@ -441,7 +441,7 @@ struct LiveDebugView: View {
 
     private func prSourceFlagSection(baseFontSize: CGFloat) -> some View {
         let snap = vm.liveDebugSnapshot
-        let sourceText = resolvedProgramSource(snap.prSourceFlag)
+        let sourceText = resolvedProgramSource(snap.programSource, flag: snap.prSourceFlag)
         return SectionBox(title: "") {
             Text(sourceText)
                 .font(.system(size: baseFontSize + 2, design: .monospaced))
@@ -451,26 +451,28 @@ struct LiveDebugView: View {
         }
     }
 
-    private func resolvedProgramSource(_ flag: UInt8) -> String {
-        switch flag {
-        case 0: return "Prg Source: User Program"
-        case 1: return "Prg Source: Solid State Program"
-        case 2: return "Prg Source: Solid State Return (PC Reload)"
-        case 4: return "Prg Source: User Program (Fast Mode)"
-        case 8: return "Prg Source: ROM Program"
-        default: return String(format: "Prg Source: Unknown (%X)", flag)
+    /// Undocumented flag values that decode like an official one (3, 5, 7, 9 →
+    /// Solid State; A, C, E → ROM) show the raw value; fast mode always does,
+    /// since it has no flag value of its own (2, 4 or 6).
+    private func resolvedProgramSource(_ source: ProgramSource, flag: UInt8) -> String {
+        switch source {
+        case .userProgram:      return "Prg Source: User Program"
+        case .solidState:       return "Prg Source: Solid State Program" + (flag == 1 ? "" : String(format: " (%X)", flag))
+        case .solidStateReturn: return "Prg Source: Solid State Return (PC Reload)"
+        case .fastMode:         return String(format: "Prg Source: User Program (Fast Mode, %X)", flag)
+        case .rom:              return "Prg Source: ROM Program" + (flag == 8 ? "" : String(format: " (%X)", flag))
         }
     }
 
     /// Returns the highlight color for the current step in the program window based on program source.
-    private func programSourceHighlightColor(_ flag: UInt8) -> Color {
-        switch flag {
-        case ProgramSource.rom.rawValue:
+    private func programSourceHighlightColor(_ source: ProgramSource) -> Color {
+        switch source {
+        case .rom:
             return Color(red: 0.35, green: 0.28, blue: 0.10)  // Yellow for ROM
-        case ProgramSource.solidState.rawValue:
+        case .solidState:
             return Color(red: 0.10, green: 0.24, blue: 0.35)  // Blue for Solid State module
         default:
-            return Color(red: 0.10, green: 0.30, blue: 0.10)  // Green for User Program (0, 4) and others
+            return Color(red: 0.10, green: 0.30, blue: 0.10)  // Green for User Program (incl. fast mode) and others
         }
     }
 
@@ -529,6 +531,7 @@ private struct SectionBox<Content: View>: View {
             snap.hir8 = 0
             snap.tRegister = 2.71828
             snap.prSourceFlag = 0xA
+            snap.programSource = ProgramSource(flag: 0xA, romPC: 0)
             snap.pendingOpsCount = 2
             snap.angleMode = .deg
             snap.dataRegCount = 60

@@ -35,17 +35,51 @@ enum DebugLevel: Int, Comparable {
     }
 }
 
-enum ProgramSource: UInt8 {
-    case userProgram = 0
-    case solidState = 1
-    /// Transitional state after a RTN whose return level points back into the
-    /// solid-state module: SCOM[0] nibbles 4–7 hold the saved CROM return
-    /// address (plain BCD, not a step number) and the firmware reloads the
-    /// CROM PC from it on the next keycode dispatch before setting the flag
-    /// back to 1. Lasts exactly one single-step.
-    case solidStateReturn = 2
-    case fastMode = 4
-    case rom = 8
+/// Where the running program's steps come from, decoded from the PRG SOURCE
+/// flag (SCOM[0] nibble 3) the way the firmware tests it: the run loop (ROM
+/// 07C9) only asks "non-zero?", the step fetch (08B7, 0B98) tests bit 0
+/// (module) before bit 3 (constant-ROM keycode table). There is no fast-mode
+/// flag value: fast mode is any non-zero flag that selects neither table
+/// (2, 4, 6) — see rom/TI59-ROM-Guide.md § "Fast mode".
+enum ProgramSource: Equatable {
+    /// 0: RAM program or keyboard.
+    case userProgram
+    /// Bit 0 set (1 official; 3, 5, 7, 9 fetch from the module just the same).
+    case solidState
+    /// 2 inside RTN_POP → LIB_RETURN (ROM 1193–1194, 14F9–1506, same on all
+    /// variants): RTN has written the popped library level into SCOM[0], so
+    /// nibbles 4–7 hold the saved CROM return address (plain BCD, not a step
+    /// number) until 1506 sets the flag back to 1. Lasts 16 instructions —
+    /// visible only when frozen, since stepUntilNextKeycode stops at 1192.
+    case solidStateReturn
+    /// 2, 4 or 6 anywhere else: a RAM program on the sub-program fast path —
+    /// no display formatting, no R/S or GTO polls.
+    case fastMode
+    /// Bit 3 set, bit 0 clear (8 official): keycode sub-program in the
+    /// constant ROM.
+    case rom
+
+    init(flag: UInt8, romPC: UInt16) {
+        if flag & 0x1 != 0 {
+            self = .solidState
+        } else if flag & 0x8 != 0 {
+            self = .rom
+        } else if flag == 0 {
+            self = .userProgram
+        } else if flag == 2 && ((0x1193...0x1194).contains(romPC) || (0x14F9...0x1506).contains(romPC)) {
+            self = .solidStateReturn
+        } else {
+            self = .fastMode
+        }
+    }
+
+    /// Steps are fetched from program RAM.
+    var isUserProgram: Bool { self == .userProgram || self == .fastMode }
+
+    /// The step is the SCOM[0] PC and can be shown via the SCOM-PC path.
+    /// Solid State also shows steps, but through the CROM exec latch via a
+    /// separate early branch — it is not covered here.
+    var stepsFromScomPC: Bool { isUserProgram || self == .rom }
 }
 
 @Observable
@@ -207,7 +241,7 @@ class EmulatorViewModel {
     // Full program listing — always kept current (not just when frozen).
     // Updated at 60 Hz by buildLiveSnapshot when running, and after each STEP/freeze-entry when frozen.
     var programListing: [LiveDebugSnapshot.StepEntry] = []
-    var programListingSourceFlag: UInt8 = 0   // Prg Source flag the listing was built for
+    var programListingSource: ProgramSource = .userProgram   // Prg Source the listing was built for
 
     // ── Solid-state module image (for the live PROGRAM STEPS view) ────────────
     // Swift-side copy of the module bytes plus the per-program byte ranges
@@ -1513,36 +1547,33 @@ class EmulatorViewModel {
                 guard let self else { return }
                 m.beginNextStep()
                 let cpu = m.snapshotCPU()
-                let prSourceFlag = UInt8(cpu.SCOM.0.3)
-                let isLibSource = prSourceFlag == ProgramSource.solidState.rawValue
+                let source = ProgramSource(flag: UInt8(cpu.SCOM.0.3), romPC: cpu.pc)
+                let isLibSource = source == .solidState
                 let libInfo = isLibSource ? self.libraryProgramStep(machine: m) : nil
                 let currentStep = isLibSource ? (libInfo?.step ?? -1)
                                               : self.decodeProgramCounter(from: cpu)
 
                 // Update always-live program listing.
-                // Prg Source 2 (solidStateReturn): SCOM[0] holds a raw CROM return address —
+                // solidStateReturn: SCOM[0] holds a raw CROM return address —
                 // keep the previous listing and advance the highlight onto the just-executed RTN.
                 // All other sources: rebuild from current machine state.
-                if prSourceFlag == ProgramSource.solidStateReturn.rawValue {
+                if source == .solidStateReturn {
                     self.advanceProgramListingCurrent()
                 } else {
                     let sourceKeycodes: [UInt8]
                     let effectiveStep: Int
-                    if self.isUserProgramSource(prSourceFlag) {
+                    if source.isUserProgram {
                         sourceKeycodes = Array(m.allProgramSteps() as Data)
                         effectiveStep = max(0, currentStep - 1)
-                    } else if prSourceFlag == ProgramSource.rom.rawValue {
+                    } else if source == .rom {
                         sourceKeycodes = self.romKeycodes(machine: m)
                         effectiveStep = max(0, currentStep - 1)
-                    } else if isLibSource {
+                    } else {
                         sourceKeycodes = libInfo.map { Array(self.moduleKeycodes[$0.range]) } ?? []
                         effectiveStep = currentStep
-                    } else {
-                        sourceKeycodes = []
-                        effectiveStep = -1
                     }
                     let argSteps = TI59KeyNames.argumentSteps(in: sourceKeycodes)
-                    self.refreshProgramListing(machine: m, prSourceFlag: prSourceFlag,
+                    self.refreshProgramListing(machine: m, source: source,
                                               currentStep: effectiveStep,
                                               sourceKeycodes: sourceKeycodes, argSteps: argSteps)
                 }
@@ -1611,12 +1642,12 @@ class EmulatorViewModel {
     }
 
     /// Rebuild programListing from the current machine state.
-    /// For Prg Source 2 (solidStateReturn) call advanceProgramListingCurrent() instead —
+    /// For solidStateReturn call advanceProgramListingCurrent() instead —
     /// that source's SCOM PC is a raw return address, not a step number.
-    private func refreshProgramListing(machine m: TI59MachineWrapper, prSourceFlag: UInt8, currentStep: Int,
+    private func refreshProgramListing(machine m: TI59MachineWrapper, source: ProgramSource, currentStep: Int,
                                        sourceKeycodes: [UInt8], argSteps: Set<Int>) {
         guard !sourceKeycodes.isEmpty else { programListing = []; return }
-        programListingSourceFlag = prSourceFlag
+        programListingSource = source
         programListing = sourceKeycodes.enumerated().map { i, kc in
             .init(stepNum: i, keycode: kc,
                   mnemonic: argSteps.contains(i) ? String(format: "%02d", kc) : TI59KeyNames.mnemonic(for: kc),
@@ -1625,7 +1656,7 @@ class EmulatorViewModel {
     }
 
     /// Move the isCurrent marker one step forward in programListing.
-    /// Used for Prg Source 2 (solidStateReturn): keep the previous listing visible,
+    /// Used for solidStateReturn: keep the previous listing visible,
     /// advance the highlight onto the just-executed RTN.
     private func advanceProgramListingCurrent() {
         guard let idx = programListing.firstIndex(where: { $0.isCurrent }),
@@ -1646,21 +1677,6 @@ class EmulatorViewModel {
         clearFrozenState()
         startEmulationLoop()
         startDisplayRefresh()
-    }
-
-    // MARK: - Program source helpers
-
-    /// Returns true if the flag represents a user-stored program (User RAM or Fast Mode).
-    private func isUserProgramSource(_ flag: UInt8) -> Bool {
-        flag == ProgramSource.userProgram.rawValue || flag == ProgramSource.fastMode.rawValue
-    }
-
-    /// Returns true if the flag represents a program source whose step is
-    /// driven by the SCOM[0] PC and can be shown via the SCOM-PC fallback path.
-    /// Solid State (1) also shows steps, but through the CROM exec latch via a
-    /// separate early branch — it is not covered here.
-    private func isScomDisplayableSource(_ flag: UInt8) -> Bool {
-        flag == ProgramSource.userProgram.rawValue || flag == ProgramSource.fastMode.rawValue || flag == ProgramSource.rom.rawValue
     }
 
     // MARK: - Solid-state module program table
@@ -1843,6 +1859,7 @@ class EmulatorViewModel {
 
         // Program Source Flag (SCOM[0], nibble 3; per SCOM map)
         snap.prSourceFlag = UInt8(cpu.SCOM.0.3)
+        snap.programSource = ProgramSource(flag: snap.prSourceFlag, romPC: cpu.pc)
 
         // Degree/Radian/Grad mode (SCOM[13][0], nibble 0; per SCOM map)
         // Encoding: 0=DEG, 1=GRAD, 12(C)=RAD
@@ -1927,13 +1944,13 @@ class EmulatorViewModel {
         // Program steps window — source depends on PRG SOURCE flag
         let decodedPC = decodeProgramCounter(from: cpu)
 
-        // SCOM-PC-based sources: 0 (User), 4 (Fast Mode), 8 (ROM). Solid State
-        // (1) uses the CROM latch — handled by the libInfo branch below.
-        let canDisplayFromScomPC = isScomDisplayableSource(snap.prSourceFlag)
+        // SCOM-PC-based sources: User (incl. fast mode) and ROM. Solid State
+        // uses the CROM latch — handled by the libInfo branch below.
+        let canDisplayFromScomPC = snap.programSource.stepsFromScomPC
 
-        // Solid State (1): the step comes from the library exec latch, not the
+        // Solid State: the step comes from the library exec latch, not the
         // SCOM[0] program counter (which does not move during module execution).
-        let libInfo = snap.prSourceFlag == ProgramSource.solidState.rawValue
+        let libInfo = snap.programSource == .solidState
             ? libraryProgramStep(machine: m) : nil
 
         if let lib = libInfo {
@@ -1965,17 +1982,17 @@ class EmulatorViewModel {
         }
 
         // Keycodes for the active source, fetched once per frame and shared by the
-        // window and next-step sections. User RAM (0/4) = full program, ROM (8) =
-        // 384 constants, Solid State (1) = current module program (step numbers
-        // relative to its start). Operand classification runs over the full
+        // window and next-step sections. User RAM (incl. fast mode) = full
+        // program, ROM = 384 constants, Solid State = current module program
+        // (step numbers relative to its start). Operand classification runs over the full
         // listing so windows starting mid-instruction don't misread operands
         // as opcodes.
         let sourceKeycodes: [UInt8]
-        switch snap.prSourceFlag {
-        case 0, 4: sourceKeycodes = Array(m.allProgramSteps() as Data)
-        case 8:    sourceKeycodes = romKeycodes(machine: m)
-        case 1:    sourceKeycodes = libInfo.map { Array(moduleKeycodes[$0.range]) } ?? []
-        default:   sourceKeycodes = []
+        switch snap.programSource {
+        case .userProgram, .fastMode: sourceKeycodes = Array(m.allProgramSteps() as Data)
+        case .rom:                    sourceKeycodes = romKeycodes(machine: m)
+        case .solidState:             sourceKeycodes = libInfo.map { Array(moduleKeycodes[$0.range]) } ?? []
+        case .solidStateReturn:       sourceKeycodes = []
         }
         let argSteps = TI59KeyNames.argumentSteps(in: sourceKeycodes)
 
@@ -2000,8 +2017,8 @@ class EmulatorViewModel {
 
         // Always-live full program listing — skip solidStateReturn (raw CROM address in PC);
         // that case is handled by advanceProgramListingCurrent() in stepKeycode.
-        if snap.prSourceFlag != ProgramSource.solidStateReturn.rawValue {
-            refreshProgramListing(machine: m, prSourceFlag: snap.prSourceFlag,
+        if snap.programSource != .solidStateReturn {
+            refreshProgramListing(machine: m, source: snap.programSource,
                                   currentStep: snap.currentStep,
                                   sourceKeycodes: sourceKeycodes, argSteps: argSteps)
         }
@@ -2973,6 +2990,7 @@ struct LiveDebugSnapshot: Equatable {
 
     // SCOM-derived control state
     var prSourceFlag: UInt8 = 0   // Program Source Flag (SCOM[0] nibble 3)
+    var programSource: ProgramSource = .userProgram  // prSourceFlag decoded (see ProgramSource)
     var pendingOpsCount: Int = 0  // Number of pending operations in hierarchy stack (SCOM 13)
 
     // Printer SCOM rows 0–3

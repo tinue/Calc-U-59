@@ -323,6 +323,10 @@ n + 2 (0 = floating); fB[15] = sci, fB[7] = eng.
 - Execution fetches each keycode at `LIB_EXEC_FETCH` (`082B`/`082F`); the
   module's own address counter is the program counter (SCOM[0]'s step
   counter is not used).
+- Source 2 exists in SCOM[0] only inside a RTN back into a module program.
+  RTN writes the popped level at `1192`, and `LIB_RETURN` sets the source to
+  1 at `1506`, 16 instructions later, before the next step is dispatched
+  (trace-checked: ML Pgm 02, key C).
 
 ## Key polls while a program runs (trace-confirmed, not in the owner's manual)
 
@@ -366,8 +370,16 @@ flag, the digits after it the start step. Full walkthrough: `examples/fastmode.t
 users found it and published it (the example cites TI PPC Notes V9N3P5). It
 is also fragile:
 
-- Source 1 or 3 makes the calculator fetch its steps from the module, and 8
-  from the constant-ROM table, instead of from RAM.
+- Only 2, 4 and 6 are fast mode. Odd values (1, 3, 5, 7, 9) fetch from the
+  module, because bit 0 is tested first, and 8 fetches from the constant-ROM
+  table. The run loses its RAM program either way (headless sweep of 0–9,
+  SST entry with X = 1.00000000000N).
+- SBR does not work. The launch prologue (`0A54`–`0A57`) asks only whether
+  the caller's source is non-zero, so it treats a fast-mode caller as a
+  library program. It saves the module's address counter as the return
+  address (`0DA7`) and sets the source to 1, so the subroutine runs from the
+  module instead of RAM and never returns. Trace-checked with
+  `SBR 020 … INV SBR` inside the fast-mode program.
 - X's digits also overwrite the step counter, the Fix setting, the
   pending-key field and the user flags (the example ends with flag 4 set).
 - The display stays frozen while it runs, and only the program's own R/S or
