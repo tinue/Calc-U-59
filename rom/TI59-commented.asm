@@ -300,40 +300,40 @@
 00CE: 1A46  JC 01F1           ; … collect the flag digit
 00CF: 1FCA  JC 04B4           ; … set / clear it (0B14 → 11E0 → FLAG_OP 15BA)
 00D0: 1E98  JC 041C           ; |x|: normalize …
-00D1: 18A9  JC 007D
+00D1: 18A9  JC 007D           ; … clear the sign
 00D2: 1E94  JC 041C           ; ")": normalize X …
 00D3: 18E6  JC 0146           ; … then AOS reduce with precedence 1: close one paren level
 00D4: 1E90  JC 041C           ; Fix n: normalize …
-00D5: 1A32  JC 01EE
-00D6: 1F48  JC 047A
+00D5: 1A32  JC 01EE           ; … collect the digit (01EE → ARG_ONE_DIGIT)
+00D6: 1F48  JC 047A           ; … set Fix
 00D7: 1E8A  JC 041C           ; SUM nn (also used by Σ+): normalize …
 00D8: 1FE8  JC 04CC           ; … collect the register number
-00D9: 1BF8  JC 02D5
-00DA: 1941  JC 003A
-00DB: 1FFE  JC 04DA
+00D9: 1BF8  JC 02D5           ; … read the register (B := X)
+00DA: 1941  JC 003A           ; … register ± X
+00DB: 1FFE  JC 04DA           ; … store back
 00DC: 1E80  JC 041C           ; RCL nn: normalize …
 00DD: 1FDE  JC 04CC           ; … collect the register number
-00DE: 0051  SET fA[5]
-00DF: 1BF4  JC 02D9
+00DE: 0051  SET fA[5]         ; … result to display
+00DF: 1BF4  JC 02D9           ; … read the register into X
 00E0: 1E78  JC 041C           ; Prd nn: normalize …
 00E1: 1FD6  JC 04CC           ; … collect the register number
-00E2: 1BE6  JC 02D5
-00E3: 18AF  JC 008C
-00E4: 1FEC  JC 04DA
+00E2: 1BE6  JC 02D5           ; … read the register (B := X)
+00E3: 18AF  JC 008C           ; … register × / ÷ X
+00E4: 1FEC  JC 04DA           ; … store back
 00E5: 1E6E  JC 041C           ; Exc nn: normalize …
 00E6: 1FCC  JC 04CC           ; … collect the register number
-00E7: 1BDC  JC 02D5
-00E8: 1FDA  JC 04D5
+00E7: 1BDC  JC 02D5           ; … read the register (B := X)
+00E8: 1FDA  JC 04D5           ; … X := register, register := old X
 00E9: 1E66  JC 041C           ; "=": normalize X …
 00EA: 18FD  JC 006C           ; … then AOS reduce with precedence 0: close everything
 00EB: 1E62  JC 041C           ; STO nn: normalize …
 00EC: 1FC0  JC 04CC           ; … collect the register number
-00ED: 1F88  JC 04B1
+00ED: 1F88  JC 04B1           ; … write X into the register
 00EE: 1E5C  JC 041C           ; x⇄t (also inside P→R, Σ+, x̄): normalize …
-00EF: 1F8E  JC 04B6
+00EF: 1F8E  JC 04B6           ; … swap X and t (SCOM[11])
 00F0: 1E58  JC 041C           ; GTO nnn / GTO label (keyboard): normalize …
-00F1: 1A68  JC 0225
-00F2: 1F70  JC 04AA
+00F1: 1A68  JC 0225           ; … collect the address (label or 3 digits)
+00F2: 1F70  JC 04AA           ; … transfer (STEP_TO_REG)
 00F3: 1E52  JC 041C           ; Dsz: normalize …
 00F4: 19FA  JC 01F1           ; … collect the register digit 0–9 …
 00F5: 1BC0  JC 02D5           ; … read the register …
@@ -352,7 +352,7 @@
 0100: 1FCA  JC 04E5           ; … store back
 0101: 1E36  JC 041C           ; Op nn: normalize …
 0102: 1F94  JC 04CC           ; … collect the 2-digit Op number
-0103: 1FF8  JC 04FF
+0103: 1FF8  JC 04FF           ; … dispatch on nn (04FF → 08E4 OP_DISPATCH)
 0104: 1BA2  JC 02D5
 0105: 1CD6  JC 0370
 0106: 1DD8  JC 03F2
