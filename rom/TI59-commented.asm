@@ -4399,33 +4399,34 @@
 ; Trace-verified during the SBR 444 launch: the push stores
 ; 0000000000001001 = register 001 / byte 0 / source 0 / depth 1, the
 ; keyboard caller at step 008 — see memory/sbr444-quirk-analysis.md.
-0D50: 0AF7  MOV R5,#15
+0D50: 0AF7  MOV R5,#15        ; D := SCOM[15] (levels 1–3, depth in nibble 0)
 0D51: 02F4  C=R5 DPT
 0D52: 0121  IO=C ALL
 0D53: 0A1F  RCLF
 0D54: 01D6  D=LOAD ALL
-0D55: 0A57  MOV R5,#5
+0D55: 0A57  MOV R5,#5         ; stack full (depth > 5)?
 0D56: 02F0  A=R5 DPT
 0D57: 02B9  IO=A-D DPT
-0D58: 1042  JNC 0D79
-0D59: 0304  C=A+1 DPT1
+0D58: 1042  JNC 0D79          ; yes → push silently skipped: a 7th SBR loses its return (no
+                              ;   error)
+0D59: 0304  C=A+1 DPT1        ; shift levels 1–2 up one 5-nibble slot …
 0D5A: 0308  A=A-1 DPT1
 0D5B: 0C76  D=SLD MAEX
 0D5C: 0940  A=SLA MANT
 0D5D: 0308  A=A-1 DPT1
 0D5E: 1807  JC 0D5B
-0D5F: 0C48  A=SRA MAEX
+0D5F: 0C48  A=SRA MAEX        ; … the displaced level 3 into A for SCOM[14]
 0D60: 032C  C=C-1 DPT1
 0D61: 1805  JC 0D5F
-0D62: 03D0  A=LOAD DPT1
+0D62: 03D0  A=LOAD DPT1       ; depth + 1, new level merged into nibbles 1–5
 0D63: 01B6  D=A+D ALL
 0D64: 0121  IO=C ALL
 0D65: 0A1F  RCLF
 0D66: 09D0  A=LOAD MANT
 0D67: 0121  IO=C ALL
 0D68: 0A0F  STOF
-0D69: 0131  IO=D ALL
-0D6A: 032C  C=C-1 DPT1
+0D69: 0131  IO=D ALL          ; SCOM[15] written
+0D6A: 032C  C=C-1 DPT1        ; SCOM[14] (levels 4–6): shift up, take the displaced level
 0D6B: 0121  IO=C ALL
 0D6C: 0A1F  RCLF
 0D6D: 01D6  D=LOAD ALL
@@ -4439,8 +4440,8 @@
 0D75: 0CB6  D=A+D MAEX
 0D76: 0121  IO=C ALL
 0D77: 0A0F  STOF
-0D78: 0131  IO=D ALL
-0D79: 04D4  C=LOAD DPTC
+0D78: 0131  IO=D ALL          ; SCOM[14] written
+0D79: 04D4  C=LOAD DPTC       ; → continue the transfer (0BCB)
 0D7A: 01D2  A<>B ALL
 0D7B: 1B61  JC 0BCB
 0D7C: 0606  D=A EXP

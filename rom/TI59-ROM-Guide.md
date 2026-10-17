@@ -284,6 +284,10 @@ n + 2 (0 = floating); fB[15] = sci, fB[7] = eng.
 - **Subroutines**: SBR pushes a 5-nibble level (caller's Prg Src Flag, then
   register·10 + byte LSD-first) onto SCOM[15]/[14] (`0D50`); RTN (`1175`)
   pops it; a RTN with an empty stack ends the run (keyboard-started label).
+  The stack holds six levels. A seventh SBR is not an error: the push is
+  skipped (`0D57` → `0D79`), so the deepest RTN returns to the sixth level's
+  caller and the code after the seventh call never runs. Trace-checked with a
+  chain of SBRs, each adding a distinct value to R01 after its return.
 - **Conditionals** (x=t, x≥t, If flg, Dsz) leave their result in fA[9];
   `COND_TRANSFER` (`0499`) applies INV and branches or skips the address.
 - **User flags**: flag n = bit ⌊n/5⌋ of SCOM[0] nibble 11 + (n mod 5)
