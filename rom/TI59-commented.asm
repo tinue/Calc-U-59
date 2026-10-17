@@ -1239,26 +1239,31 @@
 039C: 0101  IO=A ALL
 039D: 0A0F  STOF              ; SCOM[13] := C
 039E: 0121  IO=C ALL
-; KEY_CLR: "CLR" handler (slot 0052); note it checks the pending
-; trace-record flag fA[10] right at entry (see the 0689 gate).
-; Trace-confirmed in errorblink.txt: pressed during the error blink — the
-; flag wipe at 03B0 (fB[9] is not among the preserved bits) plus the explicit
-; CLR fB[9] at 03BA stop the blink, and 0321 zeroes the display value.
+; ═══════════════════════════════════════════════════════════════════════════
+; KEY_CLR / KEY_CE  (0x039F–0x03BE) — also the tail of the power-on setup.
+; Trace-confirmed (headless: 1 2 CE → 0; 5+3= CE → 8.; 5+3 CE 2= → 7.;
+; 5+3 CLR 2= → 2.; CE/CLR end the error blink).
+; CLR: print a pending trace line, empty the AOS (SCOM[13] paren level and
+; depth := 0), X := 0, clear every fB flag except fB[0] (running), fB[7]
+; (Eng), fB[11] (cache) and fB[13] (SST) — this includes the error flag —,
+; abandon any suspended operation sequence (KR = SR = 0), then fall into CE.
+; CE: clear the error flag; a displayed result stays as it is, a number being
+; typed is cleared (treated as a fresh "." entry, 031A). Pending operations
+; survive CE.
+; ═══════════════════════════════════════════════════════════════════════════
 039F: 00A0  TST fA[10]
 03A0: 1804  JC 03A2           ; if fA[10] clear, skip PRT.GO (no print pending)
 03A1: 0AA8  PRT.GO
-; Recall the saved flag word from SCOM, strip its exponent field, and store it
-; back — re-seating the user/condition flags after the cold clear above.
-03A2: 0AD7  MOV R5,#13
+03A2: 0AD7  MOV R5,#13        ; SCOM[13] …
 03A3: 01F0  A=R5 ALL
 03A4: 0101  IO=A ALL
 03A5: 0A1F  RCLF              ; recall a SCOM register onto the bus
 03A6: 01D3  B=LOAD ALL
-03A7: 06DB  B=0 EXP
+03A7: 06DB  B=0 EXP           ; … paren level / depth := 0 (AOS emptied)
 03A8: 0101  IO=A ALL
 03A9: 0A0F  STOF
 03AA: 0111  IO=B ALL
-03AB: 01DC  C=0 ALL
+03AB: 01DC  C=0 ALL           ; X := 0
 ; Idiom: clear all of fB EXCEPT bits {0,7,11,13}. The four SWAPs park those
 ; bits in fA, CLR fB wipes the rest, and the second four SWAPs restore them.
 ; Net effect: reset the volatile flag bits, keep the 4 sticky status bits.
@@ -1273,18 +1278,17 @@
 03B2: 00D4  SWAP fA[13],fB[13]
 03B3: 0004  SWAP fA[0],fB[0]
 03B4: 00B4  SWAP fA[11],fB[11]
-03B5: 0A0C  MOV KR,EXT[4..15] ; load KR from the external latch (card/library nibbles; 0 here)
+03B5: 0A0C  MOV KR,EXT[4..15] ; KR = SR = 0: no suspended sequence …
 03B6: 0A0D  SWAP KR,SR        ; swap KR with the subroutine-return register
 03B7: 0A0C  MOV KR,EXT[4..15]
-03B8: 0069  SET fB[6]         ; speculative: fB[6] = "calculator ready / first-pass" status
-; KEY_CE: "CE" handler (slot 0042)
-03B9: 0058  TST fB[5]
+03B8: 0069  SET fB[6]         ; … and a fresh operand
+03B9: 0058  TST fB[5]         ; KEY_CE: result on display?
 03BA: 009A  CLR fB[9]         ; clear ERROR — the CE entry at 03B9 also passes
                               ;   here, so CE too stops the error blink
-03BB: 11BB  JNC 02DE          ; not taken on cold start (COND=1 after the flag ops)
-03BC: 0059  SET fB[5]
+03BB: 11BB  JNC 02DE          ; yes → leave it, redisplay
+03BC: 0059  SET fB[5]         ; entry: start over …
 03BD: 004A  CLR fB[4]
-03BE: 1949  JC 031A           ; → reset-condition dispatch
+03BE: 1949  JC 031A           ; … as an empty number entry
 ; Trig/R→P helpers in front of MULDIV (03BF–03CB): set up a divide (fA[1]) of
 ; D by A, optionally swapping operands; fA[14] tolerates an overflow clamp.
 03BF: 00E1  SET fA[14]        ; tolerate over/underflow clamp silently (025A)
