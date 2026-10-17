@@ -510,14 +510,16 @@
 016F: 0A08  MOV R5,KR[4..7]
 0170: 0095  SET KR[9]
 0171: 1A0C  JC 0277
+; D.MS key (2nd slot 0088 → 0172): fn 12 bank → sequence slots 010C/010D →
+; 0175: entry step 303 (D.MS) or, with INV, 341 (0280) of the keycode ROM.
 0172: 00A0  TST fA[10]
 0173: 0AC7  MOV R5,#12
 0174: 1A12  JC 027D
-0175: 005A  CLR fB[5]
+0175: 005A  CLR fB[5]         ; (slot 010D) D.MS launch:
 0176: 0052  CLR fA[5]
-0177: 0080  TST fA[8]
-0178: 1210  JNC 0280
-0179: 0A37  MOV R5,#3
+0177: 0080  TST fA[8]         ; INV?
+0178: 1210  JNC 0280          ; yes → entry 341
+0179: 0A37  MOV R5,#3         ; entry step 303: digits 3, 0, 3 …
 017A: 01F3  B=R5 ALL
 017B: 0153  B=SLB ALL
 017C: 0A37  MOV R5,#3
@@ -526,8 +528,10 @@
 017F: 0095  SET KR[9]
 0180: 0085  SET KR[8]
 0181: 187F  JC 0142
+; x̄ key (2nd slot 0097 → 0182): clear SCOM[14] (return levels 4–6) for the
+; sub-program, entry step 067 (x̄) or with INV 107 (σ).
 0182: 02DB  B=0 DPT
-0183: 0AE7  MOV R5,#14
+0183: 0AE7  MOV R5,#14        ; SCOM[14] := 0 …
 0184: 02F6  D=R5 DPT
 0185: 0131  IO=D ALL
 0186: 0A1F  RCLF
@@ -537,9 +541,9 @@
 018A: 0111  IO=B ALL
 018B: 0A77  MOV R5,#7
 018C: 01F3  B=R5 ALL
-018D: 0080  TST fA[8]
-018E: 15D2  JNC 0477
-018F: 0A67  MOV R5,#6
+018D: 0080  TST fA[8]         ; INV?
+018E: 15D2  JNC 0477          ; yes → entry 107
+018F: 0A67  MOV R5,#6         ; entry 067
 0190: 06F3  B=R5 EXP
 0191: 0153  B=SLB ALL
 0192: 1DB2  JC 046B
@@ -837,7 +841,7 @@
 027D: 00A9  SET fB[10]
 027E: 0051  SET fA[5]
 027F: 18DD  JC 0211
-0280: 03D3  B=LOAD DPT1
+0280: 03D3  B=LOAD DPT1       ; INV D.MS: entry 341 …
 0281: 0A47  MOV R5,#4
 0282: 06F3  B=R5 EXP
 0283: 1A11  JC 017B
@@ -1467,24 +1471,31 @@
 045F: 0A87  MOV R5,#8
 0460: 008E  MOV fB[8],fA[8]   ; fB[8] := INV: 1 = read (INV Write / card inserted), 0 = write
 0461: 1F46  JC 0804
-0462: 0080  TST fA[8]
-0463: 10C8  JNC 04C7
-0464: 0A47  MOV R5,#4
+; KEY_PR: "P→R" (2nd x⇄t, slot 0073): entry step 284 of the keycode ROM, or
+; with INV 250 (R→P, 04C7).
+0462: 0080  TST fA[8]         ; INV?
+0463: 10C8  JNC 04C7          ; yes → entry 250
+0464: 0A47  MOV R5,#4         ; entry 284: digits 4, 8, 2 …
 0465: 02F3  B=R5 DPT
 0466: 0A87  MOV R5,#8
 0467: 06F3  B=R5 EXP
 0468: 0153  B=SLB ALL
 0469: 0A27  MOV R5,#2
 046A: 09F3  B=R5 MANT
-046B: 0153  B=SLB ALL
+; KEYPROG_LAUNCH tail: entry step in B[3..5], then FN_ENTRY bank KR[8]+KR[9]
+; code 13 → slots 053D (normalize) / 053E (→ 0934 → launch prologue 0A3D,
+; return push 0D50, transfer 086F with Prg Src Flag 8). Trace-confirmed for
+; Σ+, INV Σ+, x̄, σ, P→R, R→P, D.MS, Op 11–15 (headless harness).
+046B: 0153  B=SLB ALL         ; entry step into position
 046C: 01D7  A<>E ALL
 046D: 0150  A=SLB ALL
 046E: 01D7  A<>E ALL
-046F: 0AD7  MOV R5,#13
+046F: 0AD7  MOV R5,#13        ; slot 053D
 0470: 1909  JC 03EC
-0471: 0080  TST fA[8]
-0472: 1046  JNC 0495
-0473: 0A27  MOV R5,#2
+; Σ+ key (2nd slot 0087 → 0471): entry step 192 (Σ+) or with INV 213 (Σ−).
+0471: 0080  TST fA[8]         ; INV?
+0472: 1046  JNC 0495          ; yes → entry 213
+0473: 0A27  MOV R5,#2         ; entry 192: digits 2, 9, 1 …
 0474: 01F3  B=R5 ALL
 0475: 0A97  MOV R5,#9
 0476: 06F3  B=R5 EXP
@@ -1519,7 +1530,7 @@
                               ;   0BFC → CLEAR_MEM 0FC0)
 0493: 0095  SET KR[9]         ; FN_ENTRY in the KR[9] bank (0x0520+fn)
 0494: 1D09  JC 0210
-0495: 0A37  MOV R5,#3
+0495: 0A37  MOV R5,#3         ; INV Σ+: entry 213 …
 0496: 02F3  B=R5 DPT
 0497: 0A17  MOV R5,#1
 0498: 1862  JC 04C9
@@ -1575,7 +1586,7 @@
 04C4: 0A0F  STOF
 04C5: 0111  IO=B ALL
 04C6: 1D15  JC 023C
-04C7: 02DB  B=0 DPT
+04C7: 02DB  B=0 DPT           ; R→P: entry 250 …
 04C8: 0A57  MOV R5,#5
 04C9: 06F3  B=R5 EXP
 04CA: 18C5  JC 0468
@@ -3108,6 +3119,8 @@
 0931: 01D3  B=LOAD ALL
 0932: 017E  D=SRD ALL
 0933: 1FE0  JC 0D23
+; Keycode-program launch (slot 053E): descriptor = entry step (B) + source 8
+; → launch prologue 0A3D/0A4B.
 0934: 01D7  A<>E ALL
 0935: 0103  B=A ALL
 0936: 1A0E  JC 0A3D
