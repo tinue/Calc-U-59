@@ -1936,7 +1936,8 @@
 ; the collector (0763 → 06B1 → DIGIT_SLIDE → 031B → 06C6); other keys
 ; either complete/abort the pending sequence or are handled specially
 ; (0777, 0990, 0994 — e.g. Ind, labels, 2nd keys).
-05BF: 0AB5  TST KR[11]
+05BF: 0AB5  TST KR[11]        ; (in LRN every non-editing key ends up stored as its keycode: STO
+                              ;   B → 42 12)
 05C0: 136E  JNC 0777
 05C1: 0AA5  TST KR[10]
 05C2: 179C  JNC 0990
@@ -4211,7 +4212,9 @@
 0CC1: 1B0D  JC 0B3B           ; Op 2x: + 1
 0CC2: 00B1  SET fA[11]        ; Op 3x: − 1
 0CC3: 1B11  JC 0B3B
-0CC4: 0A75  TST KR[7]
+0CC4: 0A75  TST KR[7]         ; LRN operand / key routing by row bits (sweep-checked: B′ here,
+                              ;   CMs 0CC8, A′ 0CCD, Pgm 0CCF) — all reach 09B4 (store the
+                              ;   keycode)
 0CC5: 1046  JNC 0CE8
 0CC6: 0A65  TST KR[6]
 0CC7: 1AC3  JC 0B66

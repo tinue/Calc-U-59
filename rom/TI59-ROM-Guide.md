@@ -268,6 +268,11 @@ n + 2 (0 = floating); fB[15] = sci, fB[7] = eng.
 - **LRN mode** (fB[10]): every key is routed to `LRN_KEY` (`099E`) instead of
   executing; editing keys act at once, others are encoded and stored
   (`LRN_STORE` `0D80`: read register, replace byte, write back, advance).
+  In operand position any key is stored as its own keycode (`STO B` is
+  recorded as 42 12, i.e. STO 12, and `GTO GTO` as 61 61). The exceptions are
+  the editing keys SST, BST, Ins, Del and LRN, which act instead, and
+  INV SBR, which merges into the compact RTN code 92. All trace-checked by a
+  prefix × key sweep in LRN mode.
 - **Execution**: while fB[0] is set the pre-idle checks enter `RUN_LOOP`
   (`07C1`), which polls R/S, fetches the next step and dispatches it through
   `STEP_DISPATCH` (`0837`) — the keycode is turned back into a matrix
