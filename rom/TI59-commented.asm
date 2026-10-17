@@ -851,27 +851,32 @@
 028E: 18FB  JC 0211
 028F: 000A  CLR fB[0]
 0290: 00A9  SET fB[10]
-; KEY_RST: "RST" handler (slot 0018)
-0291: 0A1F  RCLF
+; KEY_RST: "RST" handler (slot 0018), also the RST keycode in a program.
+; Step counter := 000 with Prg Src Flag 0 (SCOM[0] nibbles 3–15 cleared, Fix
+; kept), subroutine return stack emptied (SCOM[15] := 0), library program
+; deselected (SCOM[9] nibbles 3–15 cleared, partition / RAM chips / security
+; kept), program cache invalidated (fB[11]). Trace-confirmed (GTO 012 RST).
+0291: 0A1F  RCLF              ; SCOM[0] …
 0292: 01D6  D=LOAD ALL
-0293: 09DE  D=0 MANT
-0294: 00B9  SET fB[11]
+0293: 09DE  D=0 MANT          ; … step 000, source 0
+0294: 00B9  SET fB[11]        ; cached program register stale
 0295: 0A0F  STOF
 0296: 0131  IO=D ALL
-0297: 0AF7  MOV R5,#15
+0297: 0AF7  MOV R5,#15        ; SCOM[15] := 0 (the next instruction drives no IO: zero is
+                              ;   stored)
 0298: 02F3  B=R5 DPT
 0299: 0111  IO=B ALL
 029A: 0A0F  STOF
-029B: 0A97  MOV R5,#9
+029B: 0A97  MOV R5,#9         ; SCOM[9] …
 029C: 02F3  B=R5 DPT
 029D: 0111  IO=B ALL
 029E: 0A1F  RCLF
 029F: 01D6  D=LOAD ALL
-02A0: 09DE  D=0 MANT
+02A0: 09DE  D=0 MANT          ; … library program number cleared
 02A1: 0111  IO=B ALL
 02A2: 0A0F  STOF
 02A3: 0131  IO=D ALL
-02A4: 00A8  TST fB[10]
+02A4: 00A8  TST fB[10]        ; LRN mode?
 02A5: 00AA  CLR fB[10]
 02A6: 10E3  JNC 0235
 02A7: 00A0  TST fA[10]
@@ -1978,8 +1983,8 @@
 061F: 1267  JNC 04EC          ; fA[5] handler (not taken)
 0620: 00E8  TST fB[14]
 0621: 1257  JNC 04F6          ; fB[14] handler (not taken)
-0622: 0008  TST fB[0]
-0623: 133C  JNC 07C1          ; fB[0] handler (not taken) — falls through to idle entry
+0622: 0008  TST fB[0]         ; program running?
+0623: 133C  JNC 07C1          ; yes → RUN_LOOP instead of idling
 ; Drain the printer before idling: PRT.STEP advances one position, then spin on
 ; TST.BUSY until the (possibly absent) printer reports not-busy. At reset the
 ; printer is already idle, so this passes immediately: diffing the printer vs
@@ -2592,39 +2597,50 @@
 07BE: 0007  MOV fA[1..4],R5   ; … with its flags; fA[1] = root
 07BF: 04D0  A=LOAD DPTC
 07C0: 1897  JC 0775           ; → ln y × x, or ÷ x for INV y^x
-07C1: 0619  IO=-B EXP
+; ═══════════════════════════════════════════════════════════════════════════
+; RUN_LOOP  (0x07C1–0x07E9) — between two program steps (reached from the
+; pre-idle checks at 0623 while fB[0] is set). Trace-confirmed (5 + 3 = R/S,
+; loops, labels). Keycode sub-programs and library programs (Prg Src ≠ 0)
+; continue at 08AE. Otherwise, unless an argument is pending: poll the key
+; matrix — digit 6 / K-line O (07CF; when that line is active and no
+; security code is set, every other step flashes the display via 04E6 —
+; purpose unverified) and the R/S key (07DD, digit 9 / K-line O): R/S held →
+; stop (07EA). Then fetch the next step (08B1 → PRGREG_FETCH) and dispatch it
+; (0837).
+; ═══════════════════════════════════════════════════════════════════════════
+07C1: 0619  IO=-B EXP         ; EE layout image? → realign A (as at 0662)
 07C2: 1806  JC 07C5
 07C3: 0C48  A=SRA MAEX
 07C4: 0948  A=SRA MANT
-07C5: 0A1F  RCLF
+07C5: 0A1F  RCLF              ; SCOM[0] …
 07C6: 09D6  D=LOAD MANT
-07C7: 06F6  D=R5 EXP
-07C8: 0639  IO=-D EXP
-07C9: 11CA  JNC 08AE
-07CA: 00DA  CLR fB[13]
-07CB: 0080  TST fA[8]
-07CC: 00C8  TST fB[12]
-07CD: 0000  TST fA[0]
-07CE: 11C6  JNC 08B1
-07CF: 0A70  WAIT D7
+07C7: 06F6  D=R5 EXP          ; … D[1] := Prg Src Flag
+07C8: 0639  IO=-D EXP         ; sub-program / library running?
+07C9: 11CA  JNC 08AE          ; yes → their fetch loop
+07CA: 00DA  CLR fB[13]        ; single step done
+07CB: 0080  TST fA[8]         ; INV pending …
+07CC: 00C8  TST fB[12]        ; … argument pending …
+07CD: 0000  TST fA[0]         ; … or label byte pending?
+07CE: 11C6  JNC 08B1          ; yes → next step immediately (no key poll)
+07CF: 0A70  WAIT D7           ; poll digit 6 / K-line O
 07D0: 08FD  KEY [O]
-07D1: 1818  JC 07DD
-07D2: 0A97  MOV R5,#9
+07D1: 1818  JC 07DD           ; not active → R/S poll
+07D2: 0A97  MOV R5,#9         ; active: SCOM[9] security code …
 07D3: 02F6  D=R5 DPT
 07D4: 0131  IO=D ALL
 07D5: 0A1F  RCLF
 07D6: 06D6  D=LOAD EXP
 07D7: 067E  D=SRD EXP
 07D8: 0639  IO=-D EXP
-07D9: 1008  JNC 07DD
-07DA: 0053  TOG fA[5]
+07D9: 1008  JNC 07DD          ; … set → ignore
+07DA: 0053  TOG fA[5]         ; alternate steps …
 07DB: 0050  TST fA[5]
-07DC: 15ED  JNC 04E6
-07DD: 0AA0  WAIT D10
+07DC: 15ED  JNC 04E6          ; … flash the display (04E6)
+07DD: 0AA0  WAIT D10          ; poll the R/S key (digit 9 / K-line O)
 07DE: 08FD  KEY [O]
-07DF: 1016  JNC 07EA
-07E0: 0098  TST fB[9]
-07E1: 19A0  JC 08B1
+07DF: 1016  JNC 07EA          ; pressed → stop (KEY_RS)
+07E0: 0098  TST fB[9]         ; error pending?
+07E1: 19A0  JC 08B1           ; no → next step
 07E2: 01D7  A<>E ALL
 07E3: 0A1F  RCLF
 07E4: 09D0  A=LOAD MANT
@@ -2633,12 +2649,16 @@
 07E7: 0E09  IO=A-1 MMSD1
 07E8: 01D7  A<>E ALL
 07E9: 1190  JNC 08B1
-07EA: 0008  TST fB[0]
+; KEY_RS: "R/S" handler (slot 0019 → 040A). First wait until R/S is released
+; (07EC–07EE: WAIT D10 + KEY [O] samples the R/S key, row 9 column 1), then
+; toggle: running → stop (07FD TOG fB[0]); stopped → start (0BB3). A stored
+; library program number in SCOM[9] resumes that program (07F9 → 0BCC/0928).
+07EA: 0008  TST fB[0]         ; running?
 07EB: 1008  JNC 07EF
-07EC: 0AA0  WAIT D10
+07EC: 0AA0  WAIT D10          ; wait for the R/S key to be released …
 07ED: 08FD  KEY [O]
 07EE: 1009  JNC 07EA
-07EF: 0A97  MOV R5,#9
+07EF: 0A97  MOV R5,#9         ; SCOM[9] (library page) …
 07F0: 02F6  D=R5 DPT
 07F1: 0131  IO=D ALL
 07F2: 0A1F  RCLF
@@ -2647,17 +2667,17 @@
 07F5: 0C7E  D=SRD MAEX
 07F6: 0008  TST fB[0]
 07F7: 00D8  TST fB[13]
-07F8: 1F76  JC 0BB3
+07F8: 1F76  JC 0BB3           ; stopped and not single-stepping → start
 07F9: 0939  IO=-D MANT
 07FA: 17A4  JNC 0BCC
 07FB: 00D8  TST fB[13]
 07FC: 1006  JNC 07FF
-07FD: 000B  TOG fB[0]
+07FD: 000B  TOG fB[0]         ; running → stop
 07FE: 0008  TST fB[0]
 07FF: 0072  CLR fA[7]
 0800: 0082  CLR fA[8]
 0801: 17F5  JNC 0407
-0802: 1BF3  JC 0609
+0802: 1BF3  JC 0609           ; R/S executed as a program step: halt
 0803: 0A97  MOV R5,#9
 0804: 02F6  D=R5 DPT
 0805: 01D7  A<>E ALL
@@ -2719,23 +2739,31 @@
 0834: 0A90  WAIT D9
 0835: 08FD  KEY [O]
 0836: 16A7  JNC 04E3
-0837: 0008  TST fB[0]
-0838: 00D8  TST fB[13]
+; ═══════════════════════════════════════════════════════════════════════════
+; STEP_DISPATCH  (0x0837–0x0856) — execute the fetched keycode (D[1..0]) by
+; turning it back into a keyboard matrix position and entering the normal
+; key pipeline at the print/trace gate (0689). Trace-confirmed (run of
+; 5 + 3 =, Lbl A … x² …). keycode = tens·10 + units, tens = row, units =
+; column (2nd functions have column 6–9/0 and land in the 2nd mirror table);
+; digit keycodes 00–09 are routed to number entry directly (0846 → 04D3).
+; ═══════════════════════════════════════════════════════════════════════════
+0837: 0008  TST fB[0]         ; running …
+0838: 00D8  TST fB[13]        ; … or single-stepping?
 0839: 180C  JC 083F
-083A: 00C8  TST fB[12]
+083A: 00C8  TST fB[12]        ; argument pending → the keycode is an operand (096C)
 083B: 1262  JNC 096C
 083C: 0000  TST fA[0]
 083D: 0002  CLR fA[0]
 083E: 16B9  JNC 04E2
-083F: 0A0C  MOV KR,EXT[4..15]
+083F: 0A0C  MOV KR,EXT[4..15] ; KR := 0
 0840: 0239  IO=-D DPT
-0841: 0231  IO=D DPT
+0841: 0231  IO=D DPT          ; units digit …
 0842: 0A18  MOV KR[4..7],R5
-0843: 017E  D=SRD ALL
+0843: 017E  D=SRD ALL         ; … tens digit into D[0]
 0844: 1F86  JC 0C07
-0845: 0239  IO=-D DPT
-0846: 1EE7  JC 04D3
-0847: 0A45  TST KR[4]
+0845: 0239  IO=-D DPT         ; tens 0 = digit keycode 00–09?
+0846: 1EE7  JC 04D3           ; yes → number entry (04D3 → 0689)
+0847: 0A45  TST KR[4]         ; column bits → KR[8..11] …
 0848: 1804  JC 084A
 0849: 0085  SET KR[8]
 084A: 0A55  TST KR[5]
@@ -2747,9 +2775,9 @@
 0850: 0A75  TST KR[7]
 0851: 1804  JC 0853
 0852: 00B5  SET KR[11]
-0853: 0231  IO=D DPT
+0853: 0231  IO=D DPT          ; … row (tens) → KR[4..7]
 0854: 0A18  MOV KR[4..7],R5
-0855: 1B99  JC 0689
+0855: 1B99  JC 0689           ; → key pipeline, as if the key had been pressed
 0856: 1D74  JC 0B10
 0857: 17A2  JNC 0C28
 0858: 0A0C  MOV KR,EXT[4..15]
@@ -3005,16 +3033,19 @@
 0918: 072C  C=C-1 EXP1
 0919: 1805  JC 0917
 091A: 143E  JNC 0B39
+; SBR / label-key call (slot 0B13): read SCOM[9] (library page) and push a
+; return level unless the call comes from the keyboard with no program
+; running (fB[0]/fB[13] clear → 0BB4: just start running).
 091B: 0A97  MOV R5,#9
 091C: 02F6  D=R5 DPT
 091D: 0131  IO=D ALL
 091E: 0A1F  RCLF
-091F: 01D3  B=LOAD ALL
+091F: 01D3  B=LOAD ALL        ; B := SCOM[9]
 0920: 0C5E  D=SRB MAEX
 0921: 0C7E  D=SRD MAEX
-0922: 0008  TST fB[0]
-0923: 00D8  TST fB[13]
-0924: 1D20  JC 0BB4
+0922: 0008  TST fB[0]         ; called from a running program …
+0923: 00D8  TST fB[13]        ; … or single step?
+0924: 1D20  JC 0BB4           ; no → keyboard call: start the run without a return level
 0925: 02DB  B=0 DPT
 0926: 0939  IO=-D MANT
 0927: 1A46  JC 0A4A
@@ -3581,7 +3612,7 @@
 0B1D: 0183  B=A+B ALL
 0B1E: 1D3A  JC 0DBB           ; → RAM_READ of the program register (fB[10] → 1157)
 0B1F: 0100  A=A ALL
-0B20: 1ED6  JC 0E8B
+0B20: 1ED6  JC 0E8B           ; RTN (INV SBR, keycode 92) → 0E8B → RTN_POP 1175
 0B21: 1D93  JC 0858
 0B22: 1F06  JC 0EA5
 0B23: 0A0C  MOV KR,EXT[4..15]
@@ -3743,7 +3774,9 @@
 0BB0: 01E4  C=C+CON ALL
 0BB1: 01D5  C<>D ALL
 0BB2: 1660  JNC 0EE2
-0BB3: 0009  SET fB[0]
+; Start a run: fB[0] := running, merge the current step into SCOM[0] (0BB4–
+; 0BBE, also the label-key entry from 0924), then continue at 07F9.
+0BB3: 0009  SET fB[0]         ; program running
 0BB4: 09DE  D=0 MANT
 0BB5: 0C76  D=SLD MAEX
 0BB6: 0C76  D=SLD MAEX
@@ -4383,7 +4416,7 @@
 0DFC: 1808  JC 0E00
 0DFD: 0308  A=A-1 DPT1
 0DFE: 1804  JC 0E00
-0DFF: 000A  CLR fB[0]
+0DFF: 000A  CLR fB[0]         ; program stops
 0E00: 01D7  A<>E ALL
 0E01: 04D4  C=LOAD DPTC
 0E02: 1F25  JC 0A70
@@ -5370,26 +5403,35 @@
 1172: 0309  IO=A-1 DPT1
 1173: 04D0  A=LOAD DPTC
 1174: 1E6B  JC 0E3F
+; ═══════════════════════════════════════════════════════════════════════════
+; RTN_POP  (0x1175–0x11AB) — return from a subroutine (keycode 92 / INV SBR).
+; Trace-confirmed (Lbl A SBR B R/S Lbl B SBR C RTN Lbl C 4 RTN). Level 1 of the
+; return stack (SCOM[15] nibbles 1–5: caller's Prg Src Flag, then the
+; position LSD-first = register·10 + byte) is converted back into the
+; SCOM[0] step format (1183–1192) and the stack shifted down (14F9 → 0DE5).
+; Depth 0 (nothing pushed — the subroutine was started from the keyboard)
+; ends the run instead (1195 → 0DFF clears fB[0]).
+; ═══════════════════════════════════════════════════════════════════════════
 1175: 01D7  A<>E ALL
-1176: 0AF7  MOV R5,#15
+1176: 0AF7  MOV R5,#15        ; SCOM[15] …
 1177: 02F4  C=R5 DPT
 1178: 06F3  B=R5 EXP
 1179: 0121  IO=C ALL
 117A: 0A1F  RCLF
-117B: 01D0  A=LOAD ALL
-117C: 0308  A=A-1 DPT1
-117D: 1030  JNC 1195
+117B: 01D0  A=LOAD ALL        ; … A := return stack
+117C: 0308  A=A-1 DPT1        ; depth − 1 …
+117D: 1030  JNC 1195          ; … was 0 → return to the keyboard: stop
 117E: 0A1F  RCLF
-117F: 01D6  D=LOAD ALL
+117F: 01D6  D=LOAD ALL        ; D := stack image (SCOM[15] again) for the shifts
 1180: 0103  B=A ALL
 1181: 042C  C=C-xC DPTC
 1182: 0320  A=C+1 DPT1
-1183: 0C40  A=SLA MAEX
+1183: 0C40  A=SLA MAEX        ; unpack level 1's position digits …
 1184: 0C40  A=SLA MAEX
 1185: 097E  D=SRD MANT
 1186: 0308  A=A-1 DPT1
 1187: 1809  JC 1183
-1188: 0C48  A=SRA MAEX
+1188: 0C48  A=SRA MAEX        ; … into the step-counter layout (register nibbles 5–7, byte 4)
 1189: 0C48  A=SRA MAEX
 118A: 0976  D=SLD MANT
 118B: 032C  C=C-1 DPT1
@@ -5398,15 +5440,15 @@
 118E: 09B6  D=A+D MANT
 118F: 06F3  B=R5 EXP
 1190: 06F0  A=R5 EXP
-1191: 0A0F  STOF
+1191: 0A0F  STOF              ; SCOM[0] := return step (with the caller's Prg Src Flag)
 1192: 0131  IO=D ALL
 1193: 0708  A=A-1 EXP1
-1194: 1ECA  JC 14F9
-1195: 09DE  D=0 MANT
+1194: 1ECA  JC 14F9           ; → shift the remaining levels down (0DE5)
+1195: 09DE  D=0 MANT          ; empty stack: library program finished → back to the RAM page …
 1196: 0A97  MOV R5,#9
 1197: 02F6  D=R5 DPT
 1198: 0131  IO=D ALL
-1199: 0A1F  RCLF
+1199: 0A1F  RCLF              ; … (SCOM[9] page fields)
 119A: 01D0  A=LOAD ALL
 119B: 0606  D=A EXP
 119C: 0C48  A=SRA MAEX
@@ -5422,7 +5464,7 @@
 11A6: 02F0  A=R5 DPT
 11A7: 065B  B=SRB EXP
 11A8: 0619  IO=-B EXP
-11A9: 1755  JNC 0DFF
+11A9: 1755  JNC 0DFF          ; → stop the run (0DFF: CLR fB[0])
 11AA: 1F8B  JC 0DE5
 11AB: 1DA4  JC 147D
 11AC: 0631  IO=D EXP
