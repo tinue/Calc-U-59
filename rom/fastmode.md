@@ -144,9 +144,11 @@ St flg in its own block:
   follows it, so the buffer is empty. Steps 001–007 run as empty steps (each
   one types a harmless 0). At step 008 a new block begins, the firmware reads
   memory again, and the real program runs from there.
-- **St flg anywhere else**, for example on step 012: steps 013–015 are still
-  in the buffer, so they run in place of steps 001–003, followed by empty
-  steps up to 007. That works too, but it is confusing.
+- **St flg anywhere else**, for example on step 012: the rest of that block
+  is still in the buffer and runs first, in place of steps 001–007. Later
+  the run reaches step 012 from memory and executes St flg again, this
+  time as an ordinary instruction. This can be made to work, but it is hard
+  to follow.
 
 That is why St flg is put at step 007 (or 015, 023, …), and the program
 proper starts at step 008. Steps 000–006 can hold anything, because they are
