@@ -177,6 +177,17 @@ source 8).
   *after* that instruction; a taken branch is only visible from the next line's
   address. Observed: `TST` of a SET flag leaves COND = 0.
 
+### Related trigger: `Pgm nn R/S` inside a program (headless, 2026-10-17)
+
+A RAM program step `Pgm nn` only marks SCOM[13] nibble 15; the next step
+decides (ROM `0976`). For R/S the library path is taken without any label
+search or start-address load, so the run continues at the CROM chip's
+current address. After a fresh selection that is the module header: with ML
+the fetches at `082F` go to CROM 0001, 0002, …, 0009 and then jump (Pgm 23
+→ 4660, Pgm 02 → 0596), the header bytes acting as keycodes exactly as in
+the R/S resume after the failed SBR 444. Program "3 Pgm 02 R/S" ends with
+an error from a 0 ÷ 0 inside that garbage (`03D4`).
+
 ## Open questions and proposed next steps
 
 1. **RESOLVED — Why does P/R arrive at the 087E test with fB[0] SET after halt 1 but
