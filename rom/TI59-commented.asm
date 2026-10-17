@@ -886,13 +886,13 @@
 02B5: 00FA  CLR fB[15]
 02B6: 007A  CLR fB[7]
 02B7: 1905  JC 0235
-02B8: 0030  TST fA[3]
-02B9: 1138  JNC 0355
-02BA: 0684  C=A+B EXP
-02BB: 12BC  JNC 0419
-02BC: 0D09  IO=A-1 MLSD1
-02BD: 1950  JC 0365
-02BE: 1148  JNC 0362
+02B8: 0030  TST fA[3]         ; unlike exponent signs: A's exponent negative?
+02B9: 1138  JNC 0355          ; yes → swap so A has the positive exponent
+02BA: 0684  C=A+B EXP         ; difference = sum of the magnitudes
+02BB: 12BC  JNC 0419          ; ≥ 100 → B is negligible, result A
+02BC: 0D09  IO=A-1 MLSD1      ; A zero?
+02BD: 1950  JC 0365           ; no → align and add
+02BE: 1148  JNC 0362          ; yes → result B (swap)
 02BF: 01D8  A=0 ALL           ; X := 0 …
 02C0: 0022  CLR fA[2]         ; … positive
 02C1: 0032  CLR fA[3]
@@ -1066,6 +1066,8 @@
 0343: 0008  TST fB[0]         ; LRN mode? (program-step display)
 0344: 1532  JNC 05DD          ; fB[0] handler (not taken on cold start)
 0345: 18C7  JC 02E2           ; → build the entry display
+; Entry used by the trig / P→R code (asin, acos, R→P): sets up a subtract or
+; swap before falling into ADD.
 0346: 0011  SET fA[1]
 0347: 00C3  TOG fA[12]
 0348: 0092  CLR fA[9]
@@ -1076,38 +1078,49 @@
 034D: 0011  SET fA[1]
 034E: 0080  TST fA[8]
 034F: 1808  JC 0353
-0350: 0ED3  B=LOAD MMSD1
+0350: 0ED3  B=LOAD MMSD1      ; B := 1.0
 0351: 002A  CLR fB[2]
 0352: 003A  CLR fB[3]
 0353: 0090  TST fA[9]
 0354: 1008  JNC 0358
+; ADD_SWAP: exchange the operands (value and signs) and retry.
 0355: 0CD2  A<>B MAEX
 0356: 0024  SWAP fA[2],fB[2]
 0357: 0034  SWAP fA[3],fB[3]
-0358: 0010  TST fA[1]
+; ═══════════════════════════════════════════════════════════════════════════
+; ADD  (0x0358–0x036F) — A := B + A, or B − A with fA[1] set (AOS slot 00C4).
+; Trace-confirmed (12 + .034, 3 − 5). Signs: fA[2]/fA[3] for A, fB[2]/fB[3]
+; for B. Subtraction negates A's sign. The operands are swapped (0355) until
+; A has the larger exponent, B is shifted right by the exponent difference,
+; then magnitudes are added (via the multiply loop's carry tail at 0449) or,
+; for unlike signs, the smaller magnitude is subtracted from the larger.
+; An exponent difference ≥ 100 (only possible with unlike exponent signs)
+; leaves A unchanged (02BB). Exit through ARITH_EXIT 0419.
+; ═══════════════════════════════════════════════════════════════════════════
+0358: 0010  TST fA[1]         ; subtract?
 0359: 1804  JC 035B
-035A: 0023  TOG fA[2]
+035A: 0023  TOG fA[2]         ; yes → negate A
 035B: 0012  CLR fA[1]
-035C: 003C  CMP fA[3],fB[3]
-035D: 194B  JC 02B8
-035E: 068C  C=A-B EXP
-035F: 1015  JNC 0355
-0360: 0030  TST fA[3]
-0361: 1808  JC 0365
+035C: 003C  CMP fA[3],fB[3]   ; exponent signs equal?
+035D: 194B  JC 02B8           ; no → 02B8
+035E: 068C  C=A-B EXP         ; same sign: A.exp − B.exp
+035F: 1015  JNC 0355          ; A.exp smaller → swap, retry
+0360: 0030  TST fA[3]         ; both exponents negative: the larger exponent value is the
+0361: 1808  JC 0365           ; smaller number → swap (0362)
 0362: 0CD2  A<>B MAEX
 0363: 0024  SWAP fA[2],fB[2]
 0364: 0034  SWAP fA[3],fB[3]
-0365: 072C  C=C-1 EXP1
+0365: 072C  C=C-1 EXP1        ; align: for each unit of exponent difference …
 0366: 1006  JNC 0369
-0367: 095B  B=SRB MANT
+0367: 095B  B=SRB MANT        ; … shift B right one digit
 0368: 1807  JC 0365
 0369: 01DC  C=0 ALL
-036A: 002C  CMP fA[2],fB[2]
-036B: 11BC  JNC 0449
-036C: 0989  IO=A-B MANT
-036D: 1017  JNC 0362
-036E: 0988  A=A-B MANT
-036F: 1954  JC 0419
+036A: 002C  CMP fA[2],fB[2]   ; like signs?
+036B: 11BC  JNC 0449          ; yes → A += B, carry handled by the multiply tail (0449)
+036C: 0989  IO=A-B MANT       ; unlike: |A| < |B|?
+036D: 1017  JNC 0362          ; yes → swap (sign of the larger wins)
+036E: 0988  A=A-B MANT        ; A := |A| − |B|
+036F: 1954  JC 0419           ; → ARITH_EXIT
 0370: 0022  CLR fA[2]
 0371: 00B0  TST fA[11]
 0372: 1F50  JC 071A
@@ -1225,11 +1238,13 @@
 03BC: 0059  SET fB[5]
 03BD: 004A  CLR fB[4]
 03BE: 1949  JC 031A           ; → reset-condition dispatch
-03BF: 00E1  SET fA[14]
+; Trig/R→P helpers in front of MULDIV (03BF–03CB): set up a divide (fA[1]) of
+; D by A, optionally swapping operands; fA[14] tolerates an overflow clamp.
+03BF: 00E1  SET fA[14]        ; tolerate over/underflow clamp silently (025A)
 03C0: 00C3  TOG fA[12]
 03C1: 00C0  TST fA[12]
 03C2: 0092  CLR fA[9]
-03C3: 0011  SET fA[1]
+03C3: 0011  SET fA[1]         ; divide
 03C4: 0133  B=D ALL
 03C5: 000F  MOV fB[1..4],R5
 03C6: 1808  JC 03CA
@@ -1238,21 +1253,33 @@
 03C9: 0034  SWAP fA[3],fB[3]
 03CA: 0090  TST fA[9]
 03CB: 13E4  JNC 05BD
-; ── MUL/DIV CORE ENTRY (0x03CC) — entered from the arithmetic ops and from
-; RECIP (0770); A = divisor, B = dividend, fA[1] set = divide. Only the
-; zero-divisor checks are trace-confirmed (errorblink.txt, 1/x of 0); the
-; multiply/divide loops themselves (0424–0447) are unannotated. ──
+; ═══════════════════════════════════════════════════════════════════════════
+; MULDIV  (0x03CC–0x044F) — A := B × A, or B ÷ A with fA[1] set (AOS slot
+; 00C8; RECIP 0770 for 1/x). Trace-confirmed (7 × 3, 5 ÷ 3, 1/x of 0).
+; Exponents are added (division toggles the divisor's exponent sign first,
+; 040D); the result sign is the XOR of the operand signs.
+;   multiply 0447–044F: C holds the multiplier; for each of its digits
+;            (LSD first, 0447) B is added into the product A that many times;
+;            then either the product is shifted right or the multiplicand
+;            left (0440–0446), keeping 13 significant digits. A carry out of
+;            the product shifts it right and bumps A[0] (044B–044F).
+;   divide   042D–043C: restoring division — C (dividend) is reduced by B
+;            (divisor) until it borrows, counting the quotient digit in A[3]
+;            (042F–0432); then the divisor shifts right and the quotient left
+;            until 13 digits are produced (0434).
+; Exit: ARITH_EXIT 0419; exponent overflow → 0418.
+; ═══════════════════════════════════════════════════════════════════════════
 03CC: 0010  TST fA[1]         ; divide?
-03CD: 1882  JC 040E           ; fA[1] clear (multiply) → skip divisor checks
+03CD: 1882  JC 040E           ; no → multiply
 03CE: 0011  SET fA[1]
-03CF: 0D09  IO=A-1 MLSD1      ; divisor mantissa == 0? (borrow clears COND)
-03D0: 187A  JC 040D           ; non-zero → normal division setup
-03D1: 0989  IO=A-B MANT       ; divisor IS 0 — dividend zero too?
+03CF: 0D09  IO=A-1 MLSD1      ; divisor zero?
+03D0: 187A  JC 040D           ; no → divide
+03D1: 0989  IO=A-B MANT       ; divisor 0 — dividend zero too?
 03D2: 0026  MOV fA[2],fB[2]
-03D3: 108A  JNC 0418          ; x÷0, x≠0 → overflow exit 0418 → clamp at 025A
-03D4: 0099  SET fB[9]         ; 0÷0: ERROR, and…
+03D3: 108A  JNC 0418          ; x ÷ 0, x ≠ 0 → overflow exit → 9.9999999 99, blinking
+03D4: 0099  SET fB[9]         ; 0 ÷ 0: ERROR …
 03D5: 0022  CLR fA[2]
-03D6: 0ED0  A=LOAD MMSD1      ; …result := 1.0 — the infamous blinking "1"
+03D6: 0ED0  A=LOAD MMSD1      ; … with result 1.0
 03D7: 1902  JC 0458           ;   for 0÷0 (speculative: path not exercised)
 03D8: 00AB  TOG fB[10]
 03D9: 00A8  TST fB[10]
@@ -1312,79 +1339,77 @@
 ; KEY_BST: "BST" handler (slot 0015)
 040B: 0A57  MOV R5,#5
 040C: 1B31  JC 0274
-040D: 0033  TOG fA[3]
-040E: 0114  C=B ALL
-040F: 0903  B=A MANT
-0410: 002C  CMP fA[2],fB[2]
+040D: 0033  TOG fA[3]         ; divide: negate the divisor's exponent, then add exponents
+040E: 0114  C=B ALL           ; C := left operand (multiplicand / dividend)
+040F: 0903  B=A MANT          ; B := right operand mantissa (multiplier / divisor)
+0410: 002C  CMP fA[2],fB[2]   ; result sign = XOR of the signs
 0411: 0022  CLR fA[2]
 0412: 1004  JNC 0414
 0413: 0021  SET fA[2]
-0414: 003C  CMP fA[3],fB[3]
-0415: 181E  JC 0424
-0416: 0680  A=A+B EXP
-0417: 1820  JC 0427
-; ── Shared arithmetic exit / NORM_CALL prologue — trace-confirmed in
-; errorblink.txt. Two entries:
-; • 041C, from a 0x0500-table slot (fA[4] clear): parks KR+1 — the caller's
-;   NEXT table slot — in SR, normalizes/rounds X via NUM_NORM (0236), and
-;   PREG-returns to that slot at 02D1/02D2 ("normalize, then do the work").
-; • 0418, on arithmetic overflow (fA[4] set): bumps the pending continuation
-;   the same way, but exits to the over/underflow clamp at 025A instead. ──
+0414: 003C  CMP fA[3],fB[3]   ; exponent signs equal?
+0415: 181E  JC 0424           ; no → subtract magnitudes
+0416: 0680  A=A+B EXP         ; yes → add them …
+0417: 1820  JC 0427           ; … no carry → continue
+; ARITH_EXIT: shared arithmetic exit. 0418 marks an exponent overflow (fA[4]).
+; 0419: advance the continuation parked in SR by one slot (SR = the slot being
+; executed, set at 02D1/02D2), then NUM_NORM (or OVFL_CLAMP on overflow) and
+; return to that next slot. NORM_CALL (041C) is the same code entered from a
+; slot directly. In argument mode (fB[12]) only normalizes (023C).
 0418: 0041  SET fA[4]         ; mark: overflow exit
-0419: 00C8  TST fB[12]
+0419: 00C8  TST fB[12]        ; ARITH_EXIT
 041A: 13BD  JNC 023C
 041B: 0A0D  SWAP KR,SR
-041C: 0A04  INC KR            ; continuation := next table slot (+0x10 in KR)
-041D: 0A0D  SWAP KR,SR        ; …parked in SR
+041C: 0A04  INC KR            ; NORM_CALL: continuation := next table slot (+0x10 in KR)
+041D: 0A0D  SWAP KR,SR        ; … parked in SR
 041E: 0040  TST fA[4]
-041F: 1BD3  JC 0236           ; fA[4] clear → NUM_NORM, return via 02D1
+041F: 1BD3  JC 0236           ; no overflow → NUM_NORM, return to the next slot via 02D1
 0420: 0042  CLR fA[4]
-0421: 1B8F  JC 025A           ; overflow → clamp & error blink
-0422: 0033  TOG fA[3]
+0421: 1B8F  JC 025A           ; overflow → OVFL_CLAMP, error blink
+0422: 0033  TOG fA[3]         ; unlike exponent signs: the larger magnitude's sign wins …
 0423: 06D2  A<>B EXP
 0424: 0689  IO=A-B EXP
 0425: 1007  JNC 0422
-0426: 0688  A=A-B EXP
-0427: 09D8  A=0 MANT
+0426: 0688  A=A-B EXP         ; … exponent := difference
+0427: 09D8  A=0 MANT          ; clear the product / quotient
 0428: 06DC  C=0 EXP
-0429: 0D29  IO=C-1 MLSD1
-042A: 1016  JNC 0435
+0429: 0D29  IO=C-1 MLSD1      ; left operand zero?
+042A: 1016  JNC 0435          ; yes → result 0
 042B: 0010  TST fA[1]
-042C: 1836  JC 0447
-042D: 06DB  B=0 EXP
+042C: 1836  JC 0447           ; multiply → 0447
+042D: 06DB  B=0 EXP           ; divide (also entered from 075E)
 042E: 1804  JC 0430
-042F: 0D00  A=A+1 MLSD1
-0430: 0C9C  C=C-B MAEX
-0431: 1805  JC 042F
-0432: 0C94  C=C+B MAEX
-0433: 1E12  JC 073C
-0434: 0E09  IO=A-1 MMSD1
+042F: 0D00  A=A+1 MLSD1       ; quotient digit + 1
+0430: 0C9C  C=C-B MAEX        ; remainder − divisor …
+0431: 1805  JC 042F           ; … until it borrows
+0432: 0C94  C=C+B MAEX        ; restore the last subtraction (also entered from 0818)
+0433: 1E12  JC 073C           ; COND at rest only for the 0818 entry (transcendentals) → 073C
+0434: 0E09  IO=A-1 MMSD1      ; 13 quotient digits done (MSD reached nibble 15)?
 0435: 0012  CLR fA[1]
-0436: 183B  JC 0419
-0437: 0C5B  B=SRB MAEX
-0438: 0940  A=SLA MANT
-0439: 0D09  IO=A-1 MLSD1
+0436: 183B  JC 0419           ; yes → ARITH_EXIT
+0437: 0C5B  B=SRB MAEX        ; next quotient digit: divisor ÷ 10 …
+0438: 0940  A=SLA MANT        ; … quotient × 10
+0439: 0D09  IO=A-1 MLSD1      ; quotient still zero (leading zero digit)?
 043A: 1815  JC 0430
-043B: 0300  A=A+1 DPT1
+043B: 0300  A=A+1 DPT1        ; yes → one less integer digit (A[0] tracks the exponent shift)
 043C: 1819  JC 0430
-043D: 096C  C=SRC MANT
-043E: 0D29  IO=C-1 MLSD1
-043F: 104D  JNC 0419
-0440: 0CD2  A<>B MAEX
-0441: 0E0A  A<>B=A-1 MMSD1
+043D: 096C  C=SRC MANT        ; multiply: next multiplier digit
+043E: 0D29  IO=C-1 MLSD1      ; multiplier exhausted?
+043F: 104D  JNC 0419          ; yes → ARITH_EXIT
+0440: 0CD2  A<>B MAEX         ; multiplicand MSD still zero?
+0441: 0E0A  A<>B=A-1 MMSD1    ; (test on B's MSD by exchanging around an IO-only ALU op)
 0442: 1808  JC 0446
-0443: 0953  B=SLB MANT
-0444: 0300  A=A+1 DPT1
+0443: 0953  B=SLB MANT        ; yes → shift the multiplicand left …
+0444: 0300  A=A+1 DPT1        ; … and count it
 0445: 1804  JC 0447
-0446: 0948  A=SRA MANT
-0447: 052C  C=C-1 LLSD1
-0448: 1017  JNC 043D
-0449: 0980  A=A+B MANT
-044A: 1807  JC 0447
-044B: 0948  A=SRA MANT
-044C: 095B  B=SRB MANT
-044D: 0E00  A=A+1 MMSD1
-044E: 0308  A=A-1 DPT1
+0446: 0948  A=SRA MANT        ; no → shift the product right
+0447: 052C  C=C-1 LLSD1       ; multiplier digit − 1 …
+0448: 1017  JNC 043D          ; … exhausted → next digit
+0449: 0980  A=A+B MANT        ; product += multiplicand (also ADD's like-sign add, 036B)
+044A: 1807  JC 0447           ; no carry → next
+044B: 0948  A=SRA MANT        ; carry out: shift the product right …
+044C: 095B  B=SRB MANT        ; … and the multiplicand …
+044D: 0E00  A=A+1 MMSD1       ; … insert the carry digit at the top …
+044E: 0308  A=A-1 DPT1        ; … and count the shift
 044F: 1811  JC 0447
 0450: 0085  SET KR[8]
 0451: 0051  SET fA[5]

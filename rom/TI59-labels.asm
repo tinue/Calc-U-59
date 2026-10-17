@@ -27,7 +27,7 @@
 06A2  KEY_DISPATCH       [T] normal dispatch continuation after the print/trace gate
 0788  KEY_ENCODE         [T] pack key row/col into 2-digit position code in D
 02D2  KEY_USERDEF        [D] keyboard row 1 (A–E user-defined label keys); bypasses KEY_TABLE
-02E2  DISP_REBUILD       [T] display / working-register rebuild; drops pending trace record (02E3)
+02E2  DISP_REBUILD       [T] entry display build: control image in B for the number being typed in A (sign marker, dp position, EE layout); drops pending trace record (02E3)
 0643  ERR_BLINK          [T] error-blink service: runs each idle pass while fB[9] set; D[1..3] pass counter, hundreds-digit parity gates SET.IDLE (~100 dark : 25 lit passes)
 
 ; ── Keyboard dispatch table and key handlers ────────────────────────────────
@@ -37,22 +37,22 @@
 ; position encoding; [T] where a keypress trace exercised the slot.
 0010  KEY_RET            [S] handler return vector (SR := 0x0100 at 06AB); sets KR[8], falls into 0011 → KEY_OP_ENTRY
 0011  KEY_TABLE          [T] keyboard dispatch table (0011–0059)
-0110  KEY_EE             [D] "EE" handler (slot 0025)
-012D  KEY_LPAREN         [D] "(" handler (slot 0035)
+0110  KEY_EE             [T] "EE" handler (slot 0025): scientific display (fB[15]), exponent entry (fA[15]); INV EE → 048B
+012D  KEY_LPAREN         [T] "(" handler (slot 0035): SCOM[13] paren level + 1; 10th level → error
 013A  KEY_MUL            [D] "×"/"÷" stub (slots 0056/0055): op code 6 → KEY_ARITH; "÷" arrives with fA[1] set
 013C  KEY_YX             [D] "y^x" stub (slot 0054): op code 10 → KEY_ARITH; fA[8] set → tags fA[1] (inverse pair)
 0140  KEY_ARITH          [T] arithmetic-op common tail: sets fA[9], falls into KEY_OP_ENTRY; op code in R5 (+ − = 2 via 00A0, × ÷ = 6, y^x = 10; fA[1] = inverse-pair bit) — traced for "+"
-0141  KEY_OP_ENTRY       [T] common pending-op/prefix recorder; operation code in R5, variants tagged via fA[1]/KR[8]/KR[9] (used by + − = STO RCL SUM …)
+0141  KEY_OP_ENTRY       [T] builds KR = 0x0C00|tag|code<<4 and jumps into OP_SEQ_TABLE slot 0x00C0+code (+0x10 KR[8], +0x20 KR[9])
 0163  DIGIT_SLIDE        [T] INC KR slide 0163–016C; digit d enters at 016C−d ("6"→0166 traced, "0"→016C traced)
 020B  KEY_LNX            [D] "lnx" handler (slot 0032); R5 := 2, falls through 020F into FN_ENTRY
 020F  FN_ENTRY_KR8       [D] FN_ENTRY variant: sets KR[8] first ("√x" enters here with R5=0)
 0210  FN_ENTRY           [T] common unary-function entry; function code in R5 ("x²" R5=7, "1/x" R5=10); PREG jump to FN_TABLE 0x0500+fn — traced for 1/x
-0266  KEY_INV            [D] "INV" handler (slot 0022)
-0268  KEY_2ND            [D] "2nd" handler (slot 0012); TOG fA[9]
+0266  KEY_INV            [T] "INV" handler (slot 0022)
+0268  KEY_2ND            [T] "2nd" handler (slot 0012); TOG fA[9]
 027A  KEY_XT             [D] "x⇄t" handler (slot 0023)
 0291  KEY_RST            [D] "RST" handler (slot 0018)
 02AC  KEY_GTO            [D] "GTO" handler (slot 0016)
-0318  KEY_DPT            [D] "." handler (slot 0039)
+0318  KEY_DPT            [T] "." handler (slot 0039)
 039F  KEY_CLR            [T] "CLR" handler (slot 0052); checks pending trace record (fA[10]) at entry; flag wipe at 03B0 + CLR fB[9] at 03BA end an error blink — traced in errorblink.txt
 03B9  KEY_CE             [D] "CE" handler (slot 0042)
 03E9  KEY_SBR            [D] "SBR" handler (slot 0017)
@@ -65,13 +65,27 @@
 0089  KEY_PSEUDO_ADV     [D] pseudo table entry for the printer paper-ADVANCE key (remapped at 0679–0688)
 0099  KEY_PSEUDO_PRINT   [D] pseudo table entry for the printer PRINT key (remapped at 0679–0688)
 
+; ── Operation sequences and AOS ─────────────────────────────────────────────
+00B1  OP_SEQ_TABLE       [T] threaded operation-sequence table (00B1–010F): runs of JC slots, each routine returns to the next slot via SR
+006C  AOS_EQUALS         [T] "=": incoming precedence 0 → AOS reduce (0147)
+0146  AOS_RPAREN         [T] ")": incoming precedence 1 → reduce the current paren level
+0147  AOS_REDUCE_ENTRY   [T] reduce entry with precedence in B[3]; rejects ")"/"=" right after an operator (014F, error)
+0194  AOS_PUSH           [T] operator push, precedence in R5 (+− 2, ×÷ 4, y^x 6); rejects operator after operator (0196)
+019B  AOS_REDUCE_LOOP    [T] pop while top entry has same paren level and precedence ≥ incoming; exec slot 0x00C0+2·prec
+01C9  AOS_FINISH         [T] stack exhausted: close paren level (01F7) or push operand/operator (01CC); 8-level limit → 04D0
+015F  AOS_CONTINUE       [T] reduce-loop continuation after an executed operation (slots 00C5/00C9)
+0358  ADD                [T] A := B ± A (fA[1] = subtract): align exponents, add/subtract magnitudes
+022C  ARG_COLLECT_SETUP  [T] suspend the operation sequence until R5+1 argument digits are typed (fB[12]); state in E
+031A  NUMBER_ENTRY       [T] digit / "." entry into the display image in A (digit limits 0338–033B); argument digits diverted to 06C6
+
 ; ── Arithmetic / number pipeline (trace: errorblink.txt, 1/x of 0) ──────────
 0500  FN_TABLE           [T] unary-function dispatch table (0500–051F), reached by FN_ENTRY's PREG jump at 0x0500+fn (KR[8] variant → 0x0510+fn); entries chain to their own next slot via NORM_CALL
 041C  NORM_CALL          [T] "normalize, then do the work" prologue: parks KR+1 (caller's next FN_TABLE slot) in SR, runs NUM_NORM, PREG-returns via 02D1/02D2
 0418  ARITH_OVFL_EXIT    [T] arithmetic overflow exit (fA[4] tag): bumps the pending continuation, then exits to OVFL_CLAMP
-0236  NUM_NORM           [T] normalize working value in A: zero case (02BF), mantissa left-align, decimal exponent (fA[3] = negative); clamps at OVFL_CLAMP on over/underflow
+0419  ARITH_EXIT         [T] arithmetic exit: advance SR (current slot) by one, NUM_NORM, return to the next slot
+0236  NUM_NORM           [T] finish number entry: entry image in A (or full-precision X in C when fB[5]) → normalized A = C; zero case 02BF; clamps at OVFL_CLAMP
 025A  OVFL_CLAMP         [T] over/underflow clamp: SET fB[9] (ERROR blink) unless fA[14]; clamps A to 9.9999999E99 (fA[3] clear) or 1E−99 (fA[3] set, [S] not exercised)
-03CC  MULDIV             [T] multiply/divide core entry: A = divisor, B = dividend, fA[1] = divide; zero-divisor checks traced (x÷0 → ARITH_OVFL_EXIT, 0÷0 → error + result 1.0 [S]); main loops (0424–0447) unannotated
+03CC  MULDIV             [T] A := B × A or B ÷ A (fA[1]); shift-and-add multiply 0447, restoring division 042D; x÷0 → 0418, 0÷0 → error + 1.0
 0770  RECIP              [T] "1/x" implementation (FN_TABLE slot 050B): B := 1.0, divide mode, → MULDIV with X as divisor
 054C  DISP_FORMAT        [T] display format & round (054C–05BE): builds the display image in A; two passes flagged by fB[5]
 05B9  DISP_ROUND         [T] first-pass display rounding: +5 at the guard digit, clear it, re-run NUM_NORM (a carry can re-overflow → OVFL_CLAMP again)
