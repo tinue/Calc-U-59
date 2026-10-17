@@ -330,7 +330,8 @@ DisplaySnapshot TMC0501::getDisplay() const {
     //   • brief sub-frame computations      → small but non-zero duty cycle
     //   • long computations (e.g. 1/x)     → duty cycle near 1.0
     //   • IDLE with only decimal-point bits → duty cycle = 0.0 (no false C)
-    //   • "A" blink bright phase in IDLE   → fA[14] set → duty cycle ≈ 0.25
+    //   • label-not-found blink (e.g. A on a reset calculator): IDLE with
+    //     fA[14] set during the dark phase → C alternates with "0" → duty ≈ 0.25
     const uint32_t cSteps    = m_cSteps.exchange(0, std::memory_order_relaxed);
     const uint32_t pollSteps = m_pollSteps.exchange(0, std::memory_order_relaxed);
     const float cLevel = pollSteps ? (float)cSteps / (float)pollSteps : 0.0f;
