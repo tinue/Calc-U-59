@@ -3603,9 +3603,9 @@
 0A89: 17B1  JNC 06B1
 0A8A: 00A8  TST fB[10]        ; LRN: record the label key's keycode as a step (09B4)
 0A8B: 11AF  JNC 09B4
-; ── 0A8C–0A8F: another consume site for a pending trace record (fA[10], see
-; ── the 0689 gate): flush the queued line buffer as-is with PRT.GO.
-; ── Not exercised in the keypress traces. ─────────────────────────────────
+; ── 0A8C–0A8F: a label key as a transfer operand with TRACE on: the pending
+; ── trace record ("0.  GTO") is printed here with PRT.GO before the label's
+; ── own line ("E'"). Trace-checked (PC-100, TRACE: GTO E′, SBR E′).
 0A8C: 00A0  TST fA[10]        ; flush a pending trace line first
 0A8D: 00A2  CLR fA[10]
 0A8E: 1804  JC 0A90
