@@ -6611,7 +6611,8 @@
 ; show only, 155D). Trace-confirmed: 3 Op 17 → 719.29, 0 Op 17 → 959.,
 ; 1.5 Op 17 → 879.09, 12/13 Op 17 → 159.99 (TI-59, 4 RAM chips).
 ; n = Int(X) data-register decades, at most 10 (100 registers: STO/RCL only
-; reach 00–99) and at most all of RAM (1567/1568 → 17EF error otherwise).
+; reach 00–99) and at most all of RAM (1567/1568 → 17EF error otherwise —
+; verified on the TI-58: 7 Op 17 errors, the partition stays unchanged).
 ; Program registers = 30·chips − 10n is written to SCOM[13] nibbles 8–9
 ; (1583–1585) and SCOM[9] nibble 0 (158C/158D); fB[11] forces a cache reload
 ; when the current step moved outside (1574). The display shows
