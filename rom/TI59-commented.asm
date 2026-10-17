@@ -3610,7 +3610,7 @@
 0AA2: 1804  JC 0AA4
 0AA3: 0045  SET KR[4]
 0AA4: 0A08  MOV R5,KR[4..7]
-0AA5: 02F0  A=R5 DPT          ; A := tens·16 + units …
+0AA5: 02F0  A=R5 DPT          ; A[1..0] := tens, units …
 0AA6: 0140  A=SLA ALL
 0AA7: 1DE7  JC 07B4           ; … → ARG_COMPLETE: run the transfer with this label
 ; SQRT body (from 0826/0828)
