@@ -390,3 +390,33 @@ noted. Sites (all in the listing):
 | `15E2` | Op 07 column outside 0–19 |
 | `16E9`, `1798` | card header/checksum mismatch, card aborted |
 | `17EF` | Op 17 more data registers than RAM |
+
+## Execution cost
+
+Active (non-idle) instructions from key acceptance to the next idle loop,
+measured with the headless harness, including display formatting; the
+millisecond column assumes the TI-59's ≈14.2 k instructions/s
+(455 kHz ÷ 2 ÷ 16, see `reference/CoreArchitecture.md`).
+
+| Operation | Instructions | ≈ ms |
+|---|---|---|
+| digit key | 144 | 10 |
+| 5 + 3 = (the =) | 658 | 46 |
+| 3 x² | 636 | 45 |
+| 1/4 | 764 | 54 |
+| 5 × 3 = | 834 | 59 |
+| √2 | 956 | 67 |
+| 5 ÷ 3 = | 1010 | 71 |
+| e² | 1403 | 99 |
+| ln 2 | 1531 | 108 |
+| log 2 | 1899 | 134 |
+| tan 45° | 2204 | 155 |
+| 2 yˣ 3 = | 2370 | 167 |
+| asin .5 | 3404 | 240 |
+| sin 30° | 5100 | 359 |
+| D.MS | 11393 | 802 |
+| Σ+ | 11712 | 825 |
+| P→R | 16892 | 1190 |
+
+The last three are keycode sub-programs interpreted step by step, which is
+why they are an order of magnitude slower than the native functions.
