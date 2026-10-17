@@ -125,13 +125,13 @@
 0046: 1A3A  JC 0163           ; "9"    → DIGIT_SLIDE (9 INCs)
 0047: 1A3E  JC 0166           ; "6"    → DIGIT_SLIDE (6 INCs) — trace-confirmed
 0048: 1A42  JC 0169           ; "3"    → DIGIT_SLIDE (3 INCs)
-0049: 00F0  TST fA[15]        ; "+/-"  — handler starts inline
-004A: 1482  JNC 028B
-004B: 0023  TOG fA[2]
-004C: 002B  TOG fB[2]
-004D: 0058  TST fB[5]
-004E: 1520  JNC 02DE
-004F: 1DE8  JC 0343
+0049: 00F0  TST fA[15]        ; "+/-" handler (inline in its slot): exponent entry active?
+004A: 1482  JNC 028B          ; yes → toggle the exponent sign (028B)
+004B: 0023  TOG fA[2]         ; mantissa sign …
+004C: 002B  TOG fB[2]         ; … and its saved copy
+004D: 0058  TST fB[5]         ; result on display (not an entry)?
+004E: 1520  JNC 02DE          ; yes → redisplay via 02DE
+004F: 1DE8  JC 0343           ; entry → rebuild the entry display (0343)
 0050: 0A07  MOV R5,#0         ; "√x" stub (from slot 0043): fn code 0 …
 0051: 1B7C  JC 020F           ;   … → FN_ENTRY_KR8  (0051 = col5·row1 "E" slot, unreachable)
 0052: 1E9A  JC 039F           ; "CLR"  → KEY_CLR
@@ -350,35 +350,44 @@
 010D: 18D0  JC 0175
 010E: 1F42  JC 04AF
 010F: 1AF4  JC 0289
-; KEY_EE: "EE" handler (slot 0025)
-0110: 0A87  MOV R5,#8
-0111: 0058  TST fB[5]
-0112: 12D6  JNC 027D
-0113: 0080  TST fA[8]
+; ═══════════════════════════════════════════════════════════════════════════
+; KEY_EE: "EE" handler (slot 0025) — trace-confirmed (1 2 EE 3, 12.34 EE 5).
+; Switches the display to scientific format (fB[15]) and, during number entry,
+; opens exponent entry (fA[15]): following digits go to the exponent (0329 →
+; 02DB). Only possible while the mantissa leaves room for the two exponent
+; digits (011B–0128); otherwise the key is ignored. INV EE leaves scientific
+; format (048B). With a result on display (fB[5]) EE only reformats (027D).
+; ═══════════════════════════════════════════════════════════════════════════
+0110: 0A87  MOV R5,#8         ; R5 := 8 (for the result case at 027D)
+0111: 0058  TST fB[5]         ; result on display?
+0112: 12D6  JNC 027D          ; yes → reformat the result in scientific notation
+0113: 0080  TST fA[8]         ; INV EE?
 0114: 0052  CLR fA[5]
-0115: 16EC  JNC 048B
+0115: 16EC  JNC 048B          ; yes → leave scientific format (048B)
 0116: 0058  TST fB[5]
 0117: 1806  JC 011A
 0118: 005A  CLR fB[5]
 0119: 0049  SET fB[4]
-011A: 00F9  SET fB[15]
+011A: 00F9  SET fB[15]        ; scientific display format on
+; 011B: shared with the prefix keys (026F): does the entry leave room for the
+; exponent? Digits after the point must be < 9 and the mantissa < 10^8.
 011B: 0A97  MOV R5,#9
 011C: 02F3  B=R5 DPT
-011D: 0289  IO=A-B DPT
-011E: 1C4A  JC 0343
-011F: 02D2  A<>B DPT
-0120: 0ED3  B=LOAD MMSD1
-0121: 095B  B=SRB MANT
+011D: 0289  IO=A-B DPT        ; digits after the point − 9
+011E: 1C4A  JC 0343           ; too many → just redisplay
+011F: 02D2  A<>B DPT          ; B[0] := count, A[0] := 0 for the loop
+0120: 0ED3  B=LOAD MMSD1      ; marker 1 in nibble 15 …
+0121: 095B  B=SRB MANT        ; … slid right while A[0] counts up to 12 …
 0122: 0300  A=A+1 DPT1
 0123: 0409  IO=A-xC DPTC
 0124: 1007  JNC 0121
 0125: 02D2  A<>B DPT
-0126: 095B  B=SRB MANT
-0127: 0989  IO=A-B MANT
-0128: 1C36  JC 0343
-0129: 00A8  TST fB[10]
-012A: 1368  JNC 02DE
-012B: 00F1  SET fA[15]
+0126: 095B  B=SRB MANT        ; … marker now at the 10^8 position (nibble 11)
+0127: 0989  IO=A-B MANT       ; mantissa ≥ marker?
+0128: 1C36  JC 0343           ; yes → no room, just redisplay
+0129: 00A8  TST fB[10]        ; reached from a prefix key (2nd/INV)?
+012A: 1368  JNC 02DE          ; yes → redisplay only
+012B: 00F1  SET fA[15]        ; EE key: exponent entry on
 012C: 1B64  JC 02DE
 ; KEY_LPAREN: "(" handler (slot 0035). Opens a paren level: SCOM[13] nibble 1
 ; (current paren level) += 1. A tenth unclosed level carries into nibble 2 and
@@ -670,14 +679,18 @@
 0210: 00E5  SET KR[14]
 0211: 00C5  SET KR[12]
 0212: 199F  JC 0143
-0213: 0D09  IO=A-1 MLSD1
+; ── Comparison helpers for x=t / x≥t / Dsz (slots 00BC, 00C0, 00F8) ────────
+; Enter with the difference (or decremented counter) in A; leave fA[9] set
+; when the test is true. 021B onward also serves as the start of the
+; argument collector set-up (022C).
+0213: 0D09  IO=A-1 MLSD1      ; Dsz: counter (mantissa) zero?
 0214: 100C  JNC 021A
 0215: 180C  JC 021B
-0216: 0020  TST fA[2]
+0216: 0020  TST fA[2]         ; x≥t: difference negative?
 0217: 1808  JC 021B
-0218: 0D09  IO=A-1 MLSD1
+0218: 0D09  IO=A-1 MLSD1      ; x=t: difference zero?
 0219: 1004  JNC 021B
-021A: 0091  SET fA[9]
+021A: 0091  SET fA[9]         ; condition true
 021B: 07D8  A=-1 EXP1
 021C: 01D7  A<>E ALL
 021D: 0201  IO=A DPT
@@ -695,60 +708,73 @@
 0229: 00D8  TST fB[13]
 022A: 1804  JC 022C
 022B: 0A37  MOV R5,#3
-022C: 00C9  SET fB[12]
-022D: 01F0  A=R5 ALL
-022E: 06F0  A=R5 EXP
+; 022C ARG_COLLECT_SETUP: suspend the current operation sequence until its
+; numeric argument has been typed. R5 = digits expected − 1 (04CC: 1 → two
+; register digits; 0227: 2/3 → three-digit step numbers). The collector state
+; goes to E (digit counters in E[1..2]); X moves back to A.
+022C: 00C9  SET fB[12]        ; argument entry mode: digit keys feed the collector (06A7)
+022D: 01F0  A=R5 ALL          ; collector state: count in A[0] …
+022E: 06F0  A=R5 EXP          ; … and A[1]
 022F: 0140  A=SLA ALL
-0230: 01D7  A<>E ALL
+0230: 01D7  A<>E ALL          ; … to E; X back to A
 0231: 0072  CLR fA[7]
 0232: 00A8  TST fB[10]
 0233: 1788  JNC 05F7
-0234: 008E  MOV fB[8],fA[8]
-0235: 0051  SET fA[5]
+0234: 008E  MOV fB[8],fA[8]   ; remember INV for the suspended operation
+0235: 0051  SET fA[5]         ; then normalize and display X (falls into NUM_NORM)
 ; ═══════════════════════════════════════════════════════════════════════════
-; NUM_NORM  (0x0236–0x0263) — trace-confirmed in errorblink.txt (1/x of 0).
-; Normalizes the working value in A: handles the zero case at 02BF, left-
-; aligns the mantissa (SLA loop 0246–0249) while tracking the decimal exponent
-; (fA[3] = exponent negative), and clamps at 025A on over/underflow. Usually
-; entered through the 041C prologue with a PREG continuation parked in SR;
-; exits through the display epilogue at 02C2, which returns via 02D1/02D2.
+; NUM_NORM  (0x0236–0x02D2) — finish number entry and normalize X.
+; Trace-confirmed (headless: 5, 21, 7×3; errorblink.txt). Two registers
+; represent X: A is the DISPLAY IMAGE while digits are typed (digits from
+; nibble 3 up, A[0] = digits after the point), C holds the full-precision
+; value once a result is shown (fB[5] set). On exit A = C = X normalized:
+; mantissa left-aligned (MSD in nibble 15), exponent in A[1..2], A[0] = 0xC,
+; signs in fA[2] (mantissa) / fA[3] (exponent), copied to fB[2]/fB[3].
+; Loop 023E–0259: A[0] counts towards 12 — each pass either shifts the
+; mantissa left (while the MSD is 0) or steps the exponent (fA[3] = sign,
+; 0256/0257 cross zero), so the typed digits/decimal point become a proper
+; exponent. Zero → 02BF; exponent overflow → OVFL_CLAMP 025A.
+; Exit 02C2: if fA[5] or fA[10] is set the display is reformatted (054C)
+; first; returns through 02D1/02D2 to the continuation parked in SR.
+; Note: COND accumulates borrows across several ALU steps until the next
+; branch (e.g. 0241 + 0242 → 0243).
 ; ═══════════════════════════════════════════════════════════════════════════
-0236: 0058  TST fB[5]
-0237: 180A  JC 023C
-0238: 005A  CLR fB[5]
+0236: 0058  TST fB[5]         ; result on display (X already normalized in C)?
+0237: 180A  JC 023C           ; no → normalize the entry image in A
+0238: 005A  CLR fB[5]         ; yes: restore the saved signs …
 0239: 0026  MOV fA[2],fB[2]
 023A: 0036  MOV fA[3],fB[3]
-023B: 0120  A=C ALL
-023C: 0D09  IO=A-1 MLSD1
-023D: 1104  JNC 02BF
-023E: 0709  IO=A-1 EXP1
+023B: 0120  A=C ALL           ; … and take X from C
+023C: 0D09  IO=A-1 MLSD1      ; mantissa zero?
+023D: 1104  JNC 02BF          ; yes → X := 0
+023E: 0709  IO=A-1 EXP1       ; exponent zero?
 023F: 1804  JC 0241
-0240: 0032  CLR fA[3]
-0241: 0308  A=A-1 DPT1
-0242: 0409  IO=A-xC DPTC
-0243: 1818  JC 024F
+0240: 0032  CLR fA[3]         ; yes → it can't be negative
+0241: 0308  A=A-1 DPT1        ; A[0] − 1 …
+0242: 0409  IO=A-xC DPTC      ; … still below 0xC?
+0243: 1818  JC 024F           ; no → step the exponent
 0244: 0300  A=A+1 DPT1
 0245: 180A  JC 024A
-0246: 0300  A=A+1 DPT1
-0247: 0E09  IO=A-1 MMSD1
-0248: 1814  JC 0252
-0249: 0940  A=SLA MANT
-024A: 0409  IO=A-xC DPTC
+0246: 0300  A=A+1 DPT1        ; shift loop: count …
+0247: 0E09  IO=A-1 MMSD1      ; … MSD already non-zero?
+0248: 1814  JC 0252           ; yes → step the exponent instead
+0249: 0940  A=SLA MANT        ; shift mantissa left one digit
+024A: 0409  IO=A-xC DPTC      ; count reached 12?
 024B: 100B  JNC 0246
-024C: 0E09  IO=A-1 MMSD1
-024D: 18EA  JC 02C2
+024C: 0E09  IO=A-1 MMSD1      ; normalized (MSD ≠ 0)?
+024D: 18EA  JC 02C2           ; yes → done
 024E: 0940  A=SLA MANT
-024F: 0030  TST fA[3]
+024F: 0030  TST fA[3]         ; exponent negative? (choose the step direction)
 0250: 1010  JNC 0258
 0251: 1806  JC 0254
 0252: 0030  TST fA[3]
 0253: 180A  JC 0258
-0254: 0708  A=A-1 EXP1
+0254: 0708  A=A-1 EXP1        ; exponent − 1 …
 0255: 182F  JC 023E
-0256: 06D8  A=0 EXP
+0256: 06D8  A=0 EXP           ; … crossed below zero: 0, sign flips
 0257: 0033  TOG fA[3]
-0258: 0700  A=A+1 EXP1
-0259: 1837  JC 023E
+0258: 0700  A=A+1 EXP1        ; exponent + 1; a carry out of 99 overflows into …
+0259: 1837  JC 023E           ; … OVFL_CLAMP below (falls through on carry)
 ; ── OVER/UNDERFLOW CLAMP (0x025A–0x0263) — trace-confirmed in errorblink.txt.
 ; 1/x of 0 lands here twice: once from the divide's overflow exit at 0421, and
 ; again when display rounding (05B9) carries the all-9s image back over the
@@ -769,18 +795,22 @@
 0263: 10BE  JNC 02C2          ;   = 9.9999999 99 → display epilogue
 0264: 00A1  SET fA[10]
 0265: 1881  JC 0225
-; KEY_INV: "INV" handler (slot 0022)
+; KEY_INV: "INV" handler (slot 0022): toggle INV (fA[8]); the SET + TOG of fA[9]
+; cancels a pending 2nd. Falls into the shared prefix-key tail.
 0266: 0091  SET fA[9]
-0267: 0083  TOG fA[8]
+0267: 0083  TOG fA[8]         ; INV pending ↔
 ; KEY_2ND: "2nd" handler (slot 0012)
-0268: 0093  TOG fA[9]
-0269: 006E  MOV fB[6],fA[6]
+; KEY_2ND: "2nd" handler (slot 0012): toggle 2nd (fA[9] biases the next key's
+; column by +5 → mirror dispatch table at 0x0062).
+0268: 0093  TOG fA[9]         ; 2nd pending ↔
+0269: 006E  MOV fB[6],fA[6]   ; a prefix key doesn't consume the fresh-operand state
 026A: 00A8  TST fB[10]
 026B: 1750  JNC 0613
-026C: 00A9  SET fB[10]
-026D: 0058  TST fB[5]
-026E: 10E0  JNC 02DE
-026F: 1AA9  JC 011B
+026C: 00A9  SET fB[10]        ; transient "prefix key" mark: keeps INV through the redisplay
+                              ;   (0306)
+026D: 0058  TST fB[5]         ; result on display?
+026E: 10E0  JNC 02DE          ; yes → redisplay it
+026F: 1AA9  JC 011B           ; entry in progress → redisplay the entry (via the EE room check)
 0270: 0A67  MOV R5,#6
 0271: 19E5  JC 017F
 0272: 0081  SET fA[8]
@@ -791,7 +821,7 @@
 0277: 00F5  SET KR[15]
 0278: 00D5  SET KR[13]
 0279: 18D1  JC 0211
-; KEY_XT: "x⇄t" handler (slot 0023)
+; KEY_XT: "x⇄t" handler (slot 0023): operation code 14 in the KR[9] bank → slot 00EE
 027A: 0AE7  MOV R5,#14
 027B: 1CA1  JC 002B
 027C: 0AA7  MOV R5,#10
@@ -809,8 +839,8 @@
 0288: 1017  JNC 027D
 0289: 0051  SET fA[5]
 028A: 1840  JC 02AA
-028B: 0033  TOG fA[3]
-028C: 18A4  JC 02DE
+028B: 0033  TOG fA[3]         ; "+/-" in exponent entry: exponent sign ↔
+028C: 18A4  JC 02DE           ; → redisplay
 028D: 0A17  MOV R5,#1
 028E: 18FB  JC 0211
 028F: 000A  CLR fB[0]
@@ -863,23 +893,25 @@
 02BC: 0D09  IO=A-1 MLSD1
 02BD: 1950  JC 0365
 02BE: 1148  JNC 0362
-02BF: 01D8  A=0 ALL
-02C0: 0022  CLR fA[2]
+02BF: 01D8  A=0 ALL           ; X := 0 …
+02C0: 0022  CLR fA[2]         ; … positive
 02C1: 0032  CLR fA[3]
+; NUM_NORM exit / display epilogue: keep the full-precision X in C, save its
+; signs, then return (reformatting the display first when fA[5]/fA[10]).
 02C2: 0058  TST fB[5]
-02C3: 04D0  A=LOAD DPTC
+02C3: 04D0  A=LOAD DPTC       ; A[0] := 0xC (also the SCOM row of the AOS stack, see 0147)
 02C4: 1008  JNC 02C8
-02C5: 0104  C=A ALL
-02C6: 002E  MOV fB[2],fA[2]
-02C7: 003E  MOV fB[3],fA[3]
-02C8: 004A  CLR fB[4]
+02C5: 0104  C=A ALL           ; C := normalized X
+02C6: 002E  MOV fB[2],fA[2]   ; save mantissa sign …
+02C7: 003E  MOV fB[3],fA[3]   ; … and exponent sign
+02C8: 004A  CLR fB[4]         ; decimal point no longer "typed"
 02C9: 00E2  CLR fA[14]        ; re-arm the error clamp (fA[14] = suppress, 025A)
-02CA: 0A0C  MOV KR,EXT[4..15]
+02CA: 0A0C  MOV KR,EXT[4..15] ; KR := 0x0100 …
 02CB: 0085  SET KR[8]
-02CC: 0A0D  SWAP KR,SR
-02CD: 0050  TST fA[5]
-02CE: 00A0  TST fA[10]
-02CF: 14FA  JNC 054C
+02CC: 0A0D  SWAP KR,SR        ; … SR := 0x0100, KR := the continuation
+02CD: 0050  TST fA[5]         ; result needs formatting? …
+02CE: 00A0  TST fA[10]        ; … or a trace line is pending?
+02CF: 14FA  JNC 054C          ; yes → DISP_FORMAT, which returns here via 05BC/05BE
 02D0: 005A  CLR fB[5]
 02D1: 0015  SET KR[1] ; PREG  ; NUM_NORM return: arm PREG; the delay-slot SWAP
                               ;   below pulls the continuation saved at 041D
@@ -897,65 +929,74 @@
 02D8: 0103  B=A ALL
 02D9: 0091  SET fA[9]
 02DA: 1BB0  JC 04B2
-02DB: 0640  A=SLA EXP
+02DB: 0640  A=SLA EXP         ; exponent digit: shift the exponent left …
 02DC: 065B  B=SRB EXP
-02DD: 0680  A=A+B EXP
+02DD: 0680  A=A+B EXP         ; … and add the new digit
+; Redisplay entry: fB[0] = LRN/program-step display (06B9); otherwise rebuild
+; the entry display image.
 02DE: 0008  TST fB[0]
 02DF: 17B4  JNC 06B9
 02E0: 00F8  TST fB[15]
 02E1: 0078  TST fB[7]
 ; ═══════════════════════════════════════════════════════════════════════════
-; DISPLAY / WORKING-REGISTER REBUILD  (0x02E2)
-; Prepares the constants used to lay out the 12-digit display field, then runs
-; the digit-scan loop at 0x02F4 that walks the display positions.
+; ENTRY DISPLAY BUILD  (0x02E2–0x030B) — trace-confirmed (1 2 . 3 4 +/- EE 5
+; +/-). Builds the display-control image in B for the number being typed in
+; A. B nibble codes (decoded by the display hardware, cf.
+; App/Views/LEDDisplayView.swift): 0 = digit with leading-zero blanking,
+; 9 = digit always shown, 3 = blank (positive sign), 6 = minus sign;
+; B[0] = decimal-point position (R5 at idle, 0626). The sign marker (3/6) is
+; slid left until it sits just left of the most significant digit, so all
+; positions beyond it blank. In EE mode B[1..4] become "99" (exponent digits)
+; plus the exponent sign 3/6 — generated by negating 7/4 (02F0–02F1) — and the
+; pre-idle code (060A) shifts A two places left to make room.
 ; ═══════════════════════════════════════════════════════════════════════════
-02E2: 0030  TST fA[3]
-02E3: 00A2  CLR fA[10]        ; drop any pending trace record (see 0689 gate):
-                              ; digit keys reach here without printing, so their
-                              ; queued symbol is discarded, never put on paper
-02E4: 01DB  B=0 ALL
-02E5: 0DD6  D=LOAD MLSD1      ; load the most-significant-digit constant into D
+02E2: 0030  TST fA[3]         ; exponent negative?
+02E3: 00A2  CLR fA[10]        ; drop any pending trace record (see 0689): digit keys never print
+                              ;   theirs
+02E4: 01DB  B=0 ALL           ; start with an empty control image
+02E5: 0DD6  D=LOAD MLSD1      ; D := digit marker at nibble 3 (units position)
 02E6: 001A  CLR fB[1]
-02E7: 1008  JNC 02EB          ; not taken here (COND set)
-02E8: 0709  IO=A-1 EXP1
-02E9: 0A37  MOV R5,#3
-02EA: 1014  JNC 02F4          ; → digit-scan loop
-02EB: 0FD6  D=LOAD MAEX1
+02E7: 1008  JNC 02EB          ; negative exponent → EE layout
+02E8: 0709  IO=A-1 EXP1       ; exponent zero?
+02E9: 0A37  MOV R5,#3         ; plain layout: decimal point base position 3
+02EA: 1014  JNC 02F4          ; yes → plain layout
+02EB: 0FD6  D=LOAD MAEX1      ; EE layout: digit marker at nibble 1
 02EC: 0030  TST fA[3]
-02ED: 0A77  MOV R5,#7
+02ED: 0A77  MOV R5,#7         ; exponent sign positive → 7 …
 02EE: 1804  JC 02F0
-02EF: 0A47  MOV R5,#4
+02EF: 0A47  MOV R5,#4         ; … negative → 4
 02F0: 06F3  B=R5 EXP
-02F1: 061B  B=-B EXP
+02F1: 061B  B=-B EXP          ; 100 − 7 = "93", 100 − 4 = "96": forced exponent digits + sign
+                              ;   code
 02F2: 1002  JNC 02F3 ; clear COND
-02F3: 0A57  MOV R5,#5
+02F3: 0A57  MOV R5,#5         ; EE layout: decimal point base position 5
 02F4: 02F3  B=R5 DPT
-02F5: 0283  B=A+B DPT
-02F6: 0020  TST fA[2]
-02F7: 0A37  MOV R5,#3
+02F5: 0283  B=A+B DPT         ; decimal point position = base + digits after the point
+02F6: 0020  TST fA[2]         ; mantissa negative?
+02F7: 0A37  MOV R5,#3         ; blank sign …
 02F8: 1804  JC 02FA           ; fA[2] selects between two field widths (#3 vs #6)
-02F9: 0A67  MOV R5,#6
-02FA: 09F3  B=R5 MANT
-02FB: 0206  D=A DPT
+02F9: 0A67  MOV R5,#6         ; … or minus
+02FA: 09F3  B=R5 MANT         ; sign marker at nibble 3
+02FB: 0206  D=A DPT           ; keep the digits-after-point count
 02FC: 0A27  MOV R5,#2
-02FD: 02F0  A=R5 DPT
+02FD: 02F0  A=R5 DPT          ; A[0] := 2: position counter
 ; Digit-position loop: slide D and B one BCD place per pass while A counts the
 ; position up; exit when A reaches the field limit (IO=A-xC sets carry).
-02FE: 0C76  D=SLD MAEX        ; shift D left one digit
-02FF: 0953  B=SLB MANT        ; shift B left one digit
+02FE: 0C76  D=SLD MAEX        ; slide the digit marker …
+02FF: 0953  B=SLB MANT        ; … and the sign marker one place left …
 0300: 0300  A=A+1 DPT1        ; advance position counter
-0301: 0409  IO=A-xC DPTC      ; compare position against the field limit
+0301: 0409  IO=A-xC DPTC      ; … until position 12, or …
 0302: 1806  JC 0305           ; reached the limit → leave the loop
-0303: 0289  IO=A-B DPT
+0303: 0289  IO=A-B DPT        ; … until past the decimal point
 0304: 100D  JNC 02FE          ; otherwise keep scanning
-0305: 0230  A=D DPT
-0306: 00A8  TST fB[10]
+0305: 0230  A=D DPT           ; restore the digits-after-point count in A[0]
+0306: 00A8  TST fB[10]        ; prefix key (2nd/INV) being processed?
 0307: 00AA  CLR fB[10]
-0308: 1004  JNC 030A
-0309: 0082  CLR fA[8]
-030A: 09B9  IO=A-D MANT
-030B: 15FE  JNC 060A          ; → pre-idle condition checks
-030C: 0953  B=SLB MANT
+0308: 1004  JNC 030A          ; yes → keep INV
+0309: 0082  CLR fA[8]         ; any other key cancels INV
+030A: 09B9  IO=A-D MANT       ; digits left of the marker?
+030B: 15FE  JNC 060A          ; no → done, go idle (060A)
+030C: 0953  B=SLB MANT        ; yes → slide sign and digit markers further left
 030D: 0976  D=SLD MANT
 030E: 1809  JC 030A
 030F: 0100  A=A ALL
@@ -967,61 +1008,64 @@
 0315: 0100  A=A ALL
 0316: 0100  A=A ALL
 0317: 0100  A=A ALL
-; KEY_DPT: "." handler (slot 0039)
-0318: 0049  SET fB[4]
-0319: 00F2  CLR fA[15]
-; ── Reset-condition dispatch (0x031A) ──────────────────────────────────────
-; Tests the persistent fB status bits to decide how this wake-up was caused
-; and branches to the matching handler. On a clean cold start none of these
-; conditions hold, so control falls straight through to 0x0343.
-; NOTE: keyboard digit keys enter at 0x031B (from 0x016E), BYPASSING the
-; SET KR[8] scratch flag — so for them 0324/0325 falls through into the
-; digit-insert code at 0326 instead of skipping to 0343.
-031A: 0085  SET KR[8]         ; KR[8] used as a scratch "decision" flag, re-tested at 0324
-031B: 00C8  TST fB[12]
-031C: 1754  JNC 06C6          ; fB[12] handler (not taken on cold start)
+; KEY_DPT: "." handler (slot 0039): mark the decimal point (fB[4]); following
+; digits count up A[0]. Falls into the number-entry path at 031A.
+0318: 0049  SET fB[4]         ; decimal point typed
+0319: 00F2  CLR fA[15]        ; leaves exponent entry
+; ═══════════════════════════════════════════════════════════════════════════
+; NUMBER ENTRY  (0x031A–0x0345) — trace-confirmed (headless harness).
+; Digit keys enter at 031B from DIGIT_SLIDE (016E) with the digit in KR[4..7];
+; "." enters at 031A with KR[8] set, which skips the digit insert (0324).
+; A digit key with a result on display (fB[5]) starts a new number (0321).
+; Limits: 10 mantissa digits (8 while an exponent is shown), and as many
+; digits after the point (0338–033B). In exponent entry (fA[15]) the digit is
+; shifted into A[1..2] instead (02DB).
+; ═══════════════════════════════════════════════════════════════════════════
+031A: 0085  SET KR[8]         ; "." : no digit to insert
+031B: 00C8  TST fB[12]        ; argument entry pending (STO nn, GTO nnn, …)?
+031C: 1754  JNC 06C6          ; yes → the digit goes to the argument collector
 031D: 00A8  TST fB[10]
 031E: 15B2  JNC 05F7          ; fB[10] handler (not taken)
-031F: 0058  TST fB[5]
-0320: 1808  JC 0324           ; fB[5] clear → skip the clear-A block
-0321: 01D8  A=0 ALL
-0322: 0A02  CLR fA
+031F: 0058  TST fB[5]         ; result on display?
+0320: 1808  JC 0324           ; no → continue the entry
+0321: 01D8  A=0 ALL           ; yes → start a new number: clear the image …
+0322: 0A02  CLR fA            ; … and the entry flags
 0323: 005A  CLR fB[5]
-0324: 0A85  TST KR[8]         ; re-test the scratch flag set at 031A
-0325: 103C  JNC 0343
-0326: 0A08  MOV R5,KR[4..7]   ; R5 := digit keycode (from the 0163 INC slide)
-0327: 0EF3  B=R5 MMSD1
-0328: 0653  B=SLB EXP
-0329: 00F0  TST fA[15]
-032A: 109F  JNC 02DB
-032B: 095B  B=SRB MANT
+0324: 0A85  TST KR[8]         ; "."?
+0325: 103C  JNC 0343          ; yes → just redisplay
+0326: 0A08  MOV R5,KR[4..7]   ; R5 := digit
+0327: 0EF3  B=R5 MMSD1        ; B[1] := digit, B[15] := 1 (limit marker) …
+0328: 0653  B=SLB EXP         ; … digit moved to B[2]
+0329: 00F0  TST fA[15]        ; exponent entry?
+032A: 109F  JNC 02DB          ; yes → shift the digit into the exponent
+032B: 095B  B=SRB MANT        ; limit marker 10 digits up: nibble 12 …
 032C: 095B  B=SRB MANT
 032D: 095B  B=SRB MANT
 032E: 0AA7  MOV R5,#10
-032F: 02F3  B=R5 DPT
-0330: 0030  TST fA[3]
+032F: 02F3  B=R5 DPT          ; … and at most 10 digits after the point
+0330: 0030  TST fA[3]         ; exponent shown (negative, …
 0331: 1006  JNC 0334
-0332: 0709  IO=A-1 EXP1
-0333: 100A  JNC 0338
-0334: 095B  B=SRB MANT
+0332: 0709  IO=A-1 EXP1       ; … or non-zero)?
+0333: 100A  JNC 0338          ; exponent 00 → keep the 10-digit limit
+0334: 095B  B=SRB MANT        ; yes → only 8 digits: marker to nibble 10 …
 0335: 095B  B=SRB MANT
 0336: 0A87  MOV R5,#8
-0337: 02F3  B=R5 DPT
-0338: 0989  IO=A-B MANT
-0339: 1814  JC 0343
-033A: 0289  IO=A-B DPT
-033B: 1810  JC 0343
-033C: 0048  TST fB[4]
+0337: 02F3  B=R5 DPT          ; … and at most 8 after the point
+0338: 0989  IO=A-B MANT       ; mantissa already at the limit?
+0339: 1814  JC 0343           ; yes → ignore the digit
+033A: 0289  IO=A-B DPT        ; too many digits after the point?
+033B: 1810  JC 0343           ; yes → ignore the digit
+033C: 0048  TST fB[4]         ; after the decimal point?
 033D: 1804  JC 033F
-033E: 0300  A=A+1 DPT1
-033F: 0940  A=SLA MANT
+033E: 0300  A=A+1 DPT1        ; yes → one more fractional digit
+033F: 0940  A=SLA MANT        ; make room at nibble 3 …
 0340: 09DB  B=0 MANT
-0341: 0C53  B=SLB MAEX
-0342: 0980  A=A+B MANT
+0341: 0C53  B=SLB MAEX        ; … B[3] := digit …
+0342: 0980  A=A+B MANT        ; … insert it
 ; ── Branch on fB[0] (0x0343) ───────────────────────────────────────────────
-0343: 0008  TST fB[0]
+0343: 0008  TST fB[0]         ; LRN mode? (program-step display)
 0344: 1532  JNC 05DD          ; fB[0] handler (not taken on cold start)
-0345: 18C7  JC 02E2           ; → display/register rebuild
+0345: 18C7  JC 02E2           ; → build the entry display
 0346: 0011  SET fA[1]
 0347: 00C3  TOG fA[12]
 0348: 0092  CLR fA[9]
