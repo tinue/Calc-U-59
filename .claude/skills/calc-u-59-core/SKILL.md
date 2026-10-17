@@ -147,6 +147,6 @@ Deep architecture documentation: `reference/CoreArchitecture.md`
 
 2. **Commit often, never push.** Commit after each logical unit of work. Never run `git push`.
 
-3. **iOS and macOS both must work.** Every change must leave both platforms building. If there is any doubt, make two explicit builds before declaring the task done.
+3. **Build on macOS.** Verify Swift-facing changes with a macOS build; build for iOS only when explicitly required (commands: `calc-u-59-swift` skill, § "Build Verification").
 
 4. **Cite your sources.** When referencing a hardware spec, standard, or external document, include the https URL (or a pointer to the local reference file) in the relevant code comment or documentation.

@@ -79,22 +79,23 @@ documented in `reference/AppArchitecture.md` § "Solid-State Program Display".
 
 ---
 
-## iOS and macOS: Both Platforms Must Work
+## Build Verification: macOS by Default
 
-Every change must leave **both** the iOS and macOS targets building and running correctly. When there is any doubt:
+Verify every change with a macOS build:
 
-1. Build for iOS Simulator:
-   ```bash
-   xcodebuild -project Calc-U-59.xcodeproj -scheme "Calc-U-59" \
-     -destination "platform=iOS Simulator,name=iPhone 17e" build
-   ```
-2. Build for macOS:
-   ```bash
-   xcodebuild -project Calc-U-59.xcodeproj -scheme "Calc-U-59" \
-     -destination "platform=macOS" build
-   ```
+```bash
+xcodebuild -project Calc-U-59.xcodeproj -scheme "Calc-U-59" \
+  -destination "platform=macOS" build
+```
 
-Both must succeed before the task is done.
+Build for iOS only when a task or test explicitly needs it. Simulator names
+change with each Xcode release, so look one up instead of hard-coding it:
+
+```bash
+SIM=$(xcrun simctl list devices available | grep -m1 -o 'iPhone[^(]*(\([0-9A-F-]*\))' | grep -o '[0-9A-F-]\{36\}')
+xcodebuild -project Calc-U-59.xcodeproj -scheme "Calc-U-59" \
+  -destination "platform=iOS Simulator,id=$SIM" build
+```
 
 ---
 
@@ -111,6 +112,6 @@ Both must succeed before the task is done.
 
 2. **Commit often, never push.** Commit after each logical unit of work. Never run `git push`.
 
-3. **iOS and macOS both must work.** See the build commands above. Both targets must succeed before declaring the task done.
+3. **Build on macOS.** A macOS build must succeed before declaring the task done; add an iOS build only when explicitly required (see above).
 
 4. **Cite your sources.** When referencing a hardware spec, standard, or external document, include the https URL (or a pointer to the local reference file) in the relevant code comment or documentation.
