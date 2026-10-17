@@ -290,6 +290,10 @@ n + 2 (0 = floating); fB[15] = sci, fB[7] = eng.
   chain of SBRs, each adding a distinct value to R01 after its return.
 - **Conditionals** (x=t, x≥t, If flg, Dsz) leave their result in fA[9];
   `COND_TRANSFER` (`0499`) applies INV and branches or skips the address.
+  Dsz (`0715`) moves the register's magnitude one step toward zero, keeping
+  its sign; a magnitude below 1 becomes 0. It transfers while the result is
+  non-zero. Trace-checked: 3 → 2 and −2 → −1 transfer, 2.5 → 1.5 transfers,
+  1 → 0 and 0.5 → 0 do not.
 - **User flags**: flag n = bit ⌊n/5⌋ of SCOM[0] nibble 11 + (n mod 5)
   (`FLAG_OP` `15BA`).
   Flag 8 makes an error stop a running program (run loop `07E2`).
