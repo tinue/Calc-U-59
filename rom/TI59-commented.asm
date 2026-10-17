@@ -1531,8 +1531,9 @@
 0484: 0A0F  STOF
 0485: 0131  IO=D ALL          ; … nibble 0 := Fix setting
 0486: 1812  JC 048F
-; Adv (2nd ., slot 0098 → 0487) and the printer's ADV button (pseudo-key 0089 →
-; 0487): only with a printer → 0857 → 0C28 → PAPER_ADVANCE 0F36.
+; Adv (2nd ., 2nd-table slot 0089) and the printer's ADV button (remapped to
+; the same slot at 0679–0688): only with a printer → 0857 → 0C28 →
+; PAPER_ADVANCE 0F36.
 0487: 0A10  WAIT D1           ; printer present?
 0488: 08FB  KEY [P]
 0489: 179C  JNC 0857          ; yes → advance

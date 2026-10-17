@@ -60,8 +60,8 @@
 040B  KEY_BST            [D] "BST" handler (slot 0015)
 0462  KEY_PR             [T] "P/R" handler (2nd slot 0073); launches the P→R keycode sub-program: Prg Src Flag := 8 via 0A4B–0A53
 0B11  OP_INS             [T] "Ins" operation body (2nd slot 0064 → KEY_OP_ENTRY chain, vector 0xB11); per-register shift loop uses PRGREG_RAM_READ / PRGREG_CACHE / 1213
-0089  KEY_PSEUDO_ADV     [D] pseudo table entry for the printer paper-ADVANCE key (remapped at 0679–0688)
-0099  KEY_PSEUDO_PRINT   [D] pseudo table entry for the printer PRINT key (remapped at 0679–0688)
+0089  KEY_ADV            [T] 2nd-table slot of Adv (2nd .); the printer's ADV button is remapped to it (0679–0688)
+0099  KEY_PRT            [T] 2nd-table slot of Prt (2nd +/-); the printer's PRINT button is remapped to it (0679–0688)
 
 ; ── Operation sequences and AOS ─────────────────────────────────────────────
 00B1  OP_SEQ_TABLE       [T] threaded operation-sequence table (00B1–010F): runs of JC slots, each routine returns to the next slot via SR
