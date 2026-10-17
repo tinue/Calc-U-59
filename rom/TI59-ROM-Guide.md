@@ -347,6 +347,34 @@ partition, mis-dispatched twice, ending in the HIR STO code at `11D9` with
 register 0, i.e. SCOM[0]). The 12th decimal digit of X becomes the source
 flag, the digits after it the start step. Full walkthrough: `examples/fastmode.ti59`.
 
+**Designed or accidental?** Both, in different parts.
+
+- **The fast path is designed.** It exists for the ROM's own sub-programs:
+  the keycode programs in the constant ROM (source 8: Σ+, x̄, P→R, D.MS,
+  Op 11–15) and module programs (source 1). A built-in "function" such as
+  P→R is 20–40 keycode steps internally, and the fast path makes it look
+  like a single operation, with no display flicker in between.
+- **Getting a RAM program onto that path is an accident.** The two tests on
+  the source flag disagree. The run loop asks only "non-zero?", while the
+  step fetch tests single bits (bit 0 → module, bit 3 → constant ROM), so 2,
+  4 and 6 fall through to an ordinary RAM fetch. The only way to put such a
+  value into SCOM[0] is the bug chain above: EE's `KEY_ENCODE` leaves a
+  column bit in KR, and St flg's continuation ORs into it and lands at
+  `0B34` instead of `0B14` (missing safeguard, see `0783`).
+
+**Not meant for end users.** Fast mode is not in TI's owner's manual; TI-59
+users found it and published it (the example cites TI PPC Notes V9N3P5). It
+is also fragile:
+
+- Source 1 or 3 makes the calculator fetch its steps from the module, and 8
+  from the constant-ROM table, instead of from RAM.
+- X's digits also overwrite the step counter, the Fix setting, the
+  pending-key field and the user flags (the example ends with flag 4 set).
+- The display stays frozen while it runs, and only the program's own R/S or
+  RST ends it.
+
+It is a hobbyist technique built on a firmware bug, not a TI feature.
+
 ## Magnetic cards
 
 `Write` (bank number in X) and an inserted card (idle-loop card-switch poll)
