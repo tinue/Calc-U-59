@@ -3183,7 +3183,7 @@
 094C: 0D09  IO=A-1 MLSD1
 094D: 0E00  A=A+1 MMSD1
 094E: 11C6  JNC 0A31
-094F: 0099  SET fB[9]
+094F: 0099  SET fB[9]         ; undefined Op number: ERROR
 0950: 0051  SET fA[5]
 0951: 1A7F  JC 0812
 0952: 0708  A=A-1 EXP1        ; fixed layout step: exponent − 1 …
@@ -4208,7 +4208,7 @@
 0CE1: 0A1F  RCLF
 0CE2: 09D0  A=LOAD MANT
 0CE3: 0509  IO=A-1 LLSD1
-0CE4: 01D7  A<>E ALL
+0CE4: 01D7  A<>E ALL          ; Op 40–99: no such Op → error (094F)
 0CE5: 1F2D  JC 094F
 0CE6: 000A  CLR fB[0]
 0CE7: 1F31  JC 094F
@@ -4892,6 +4892,9 @@
 0F0A: 0100  A=A ALL
 0F0B: 0100  A=A ALL
 0F0C: 0100  A=A ALL
+; END_OF_PROGRAM_MEMORY (from 0B7A): the step counter left the program
+; partition. Running → stop with the error blink (0F1F–0F21; trace-confirmed:
+; GTO Ind to an empty area runs off the end); LRN mode → 0B5F.
 0F0D: 0A75  TST KR[7]
 0F0E: 16AC  JNC 1264
 0F0F: 0939  IO=-D MANT
@@ -4908,11 +4911,11 @@
 0F1A: 00B9  SET fB[11]
 0F1B: 0040  TST fA[4]
 0F1C: 11C5  JNC 0E3A
-0F1D: 00A8  TST fB[10]
+0F1D: 00A8  TST fB[10]        ; LRN mode?
 0F1E: 177F  JNC 0B5F
-0F1F: 000A  CLR fB[0]
+0F1F: 000A  CLR fB[0]         ; running: stop …
 0F20: 01D2  A<>B ALL
-0F21: 0099  SET fB[9]
+0F21: 0099  SET fB[9]         ; … with ERROR
 0F22: 1A43  JC 0E01
 0F23: 0140  A=SLA ALL
 0F24: 0646  D=SLA EXP

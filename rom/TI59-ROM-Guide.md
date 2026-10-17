@@ -329,3 +329,28 @@ ST*, RC*, SM*, PG*, EX*, PD*. **HIR nm** (programs only) operates on
 hierarchy register m = SCOM[m] (1–8, the AOS level rows): n = 0 STO, 1 RCL,
 3 SUM, 4 Prd, 5 INV SUM, 6 INV Prd (verified). The keycode ROM programs use
 HIR as scratch storage.
+
+## Error conditions
+
+Every error sets fB[9]; the idle loop then blinks the display (`0641`) until
+CLR or CE (`03B0`, `03BA`). A running program stops (fB[0] cleared) only where
+noted. Sites (all in the listing):
+
+| Address | Condition |
+|---|---|
+| `0138` | tenth open parenthesis |
+| `014F` | `)` or `=` directly after an operator |
+| `04CF/04D0` | operator after operator; ninth pending AOS level |
+| `025C` | over/underflow clamp (unless fA[14]) — x÷0, overflowing results |
+| `03D4` | 0 ÷ 0 (result 1) |
+| `072F`, `0A0C` | ln of a negative number (continues with \|x\|) / of zero |
+| `0820` | √ of a negative number (continues with \|x\|) |
+| `094F` | Op 40–99 |
+| `0B0A` | transfer target outside program memory (GTO 999, …) |
+| `0F21` | program ran past the end of the partition (stops) |
+| `11E8` | library transfer out of range (stops, return stack reset) |
+| `141C` | Pgm number beyond the module (stops) |
+| `1484` | Op 09: module protected or program too long |
+| `15E2` | Op 07 column outside 0–19 |
+| `16E9`, `1798` | card header/checksum mismatch, card aborted |
+| `17EF` | Op 17 more data registers than RAM |
