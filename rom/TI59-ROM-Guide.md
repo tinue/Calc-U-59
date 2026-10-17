@@ -377,8 +377,8 @@ is also fragile:
 - X's digits also overwrite the step counter, the Fix setting, the
   pending-key field and the user flags (the example ends with flag 4 set).
   Digit-to-flag mapping, and the `Pgm 02 SBR 239` variant that takes the
-  flags from steps 013–015: `rom/fastmode.md` § "What entry does to the
-  flags and Fix".
+  flags from steps 013–015: `rom/fastmode.md` § "Flags and Fix after
+  entry".
 - Labels, subroutines and the built-in keycode sub-programs do not work, and
   stopping can hang the calculator. See "What a fast-mode program can do"
   below.
