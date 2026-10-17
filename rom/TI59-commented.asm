@@ -2224,8 +2224,10 @@
 ;              the K mask) is collapsed out of the 3-bit index, mapping
 ;              {1,2,3,5,6} → {1,2,3,4,5}, so KR[8..11] = keyboard column 1–5.
 ;   0679–0688  second remap for the fA[9]-tagged printer pseudo-keys into
-;              pseudo table entries 0x0089 (ADV) / 0x0099 (PRINT) — derived
-;              from the bit arithmetic, not exercised in the keypress trace.
+;              pseudo table entries 0x0089 (ADV) / 0x0099 (PRINT), i.e. the
+;              2nd Adv / 2nd Prt slots. Trace-checked (headless PRINT/PAPER
+;              buttons): PRINT prints X like Prt ("5 + 3 PRINT =" prints 3.
+;              and still gives 8), PAPER feeds lines while held, like Adv.
 ;   0689–06A1  keystroke print/trace gate: with printer + TRACE it QUEUES the
 ;              key's print symbol (no immediate print) — see notes inline.
 ;   06A9–06B2  computed dispatch: PC := 0x0<col><row> via SET KR[1]/PREG,

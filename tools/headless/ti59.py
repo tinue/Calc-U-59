@@ -53,6 +53,8 @@ SECOND = {
     "StFlg": 81, "IfFlg": 82, "D.MS": 83, "pi": 84, "Grad": 85,
     "Write": 91, "Dsz": 92, "Adv": 93, "Prt": 94, "List": 95,
 }
+# The PC-100's own PRINT and ADV buttons (TI59Machine::pressPrinterPrint/Adv).
+PRINTER_BUTTONS = {"PRINT": "h_printer_print", "PAPER": "h_printer_adv"}
 KBITS = [0, 1, 2, 3, 5, 6]  # physical column -> K-line bit (Bridge/TI59MachineWrapper.mm)
 
 # Idle-loop address window (memory note "FullSpeed Scan-Loop Range Fix").
@@ -83,7 +85,7 @@ def _lib():
     for name in ("h_free", "h_reset", "h_load_rom", "h_load_lib", "h_load_const", "h_press",
                  "h_release", "h_printer", "h_trace_sw", "h_stepn", "h_record", "h_snapshot",
                  "h_ram_read", "h_ram_write", "h_write_program", "h_display", "h_pc",
-                 "h_lib_exec_pc", "h_printer_lines"):
+                 "h_lib_exec_pc", "h_printer_lines", "h_printer_print", "h_printer_adv"):
         getattr(lib, name).argtypes = None
     lib.h_stepn.argtypes = [C.c_void_p, C.c_uint32]
     lib.h_record.argtypes = [C.c_void_p, C.c_void_p, C.c_int, C.c_int]
@@ -196,10 +198,14 @@ class Machine:
         return out
 
     def press(self, name: str):
+        if name in PRINTER_BUTTONS:
+            return getattr(LIB, PRINTER_BUTTONS[name])(self.h, 1)
         mc = KEYS[name] if name in KEYS else int(name)
         LIB.h_press(self.h, KBITS[mc % 10], mc // 10)
 
     def release(self, name: str):
+        if name in PRINTER_BUTTONS:
+            return getattr(LIB, PRINTER_BUTTONS[name])(self.h, 0)
         mc = KEYS[name] if name in KEYS else int(name)
         LIB.h_release(self.h, KBITS[mc % 10], mc // 10)
 

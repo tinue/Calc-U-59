@@ -52,6 +52,8 @@ void h_press(void* m, int kbit, int digit)   { static_cast<TI59Machine*>(m)->pre
 void h_release(void* m, int kbit, int digit) { static_cast<TI59Machine*>(m)->releaseKey(kbit, digit); }
 void h_printer(void* m, int connected)  { static_cast<TI59Machine*>(m)->setPrinterConnected(connected != 0); }
 void h_trace_sw(void* m, int on)        { static_cast<TI59Machine*>(m)->setPrinterTrace(on != 0); }
+void h_printer_print(void* m, int down) { static_cast<TI59Machine*>(m)->pressPrinterPrint(down != 0); }
+void h_printer_adv(void* m, int down)   { static_cast<TI59Machine*>(m)->pressPrinterAdv(down != 0); }
 
 uint32_t h_stepn(void* m, uint32_t n) { return static_cast<TI59Machine*>(m)->stepN(n, false); }
 uint16_t h_pc(void* m) { return static_cast<TI59Machine*>(m)->pc(); }
