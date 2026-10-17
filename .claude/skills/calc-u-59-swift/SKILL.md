@@ -88,13 +88,14 @@ xcodebuild -project Calc-U-59.xcodeproj -scheme "Calc-U-59" \
   -destination "platform=macOS" build
 ```
 
-Build for iOS only when a task or test explicitly needs it. Simulator names
-change with each Xcode release, so look one up instead of hard-coding it:
+Build for iOS only when a task or test explicitly needs it, and only on a
+simulator from `bin/simulators.yaml`. `bin/simulators status` lists them with
+their UDIDs; never hard-code a model name from memory.
 
 ```bash
-SIM=$(xcrun simctl list devices available | grep -m1 -o 'iPhone[^(]*(\([0-9A-F-]*\))' | grep -o '[0-9A-F-]\{36\}')
+bin/simulators status    # pick a device, e.g. the iPhone 18 Pro Max
 xcodebuild -project Calc-U-59.xcodeproj -scheme "Calc-U-59" \
-  -destination "platform=iOS Simulator,id=$SIM" build
+  -destination "platform=iOS Simulator,id=<UDID>" build
 ```
 
 ---

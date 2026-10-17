@@ -29,13 +29,15 @@ All tests are `#if !os(macOS)` guarded (the file picker and orientation APIs are
 
 ## Running a Single Test Standalone
 
-Click the diamond icon next to the test function in Xcode, or from the terminal:
+Click the diamond icon next to the test function in Xcode, or from the
+terminal. Use a simulator from `bin/simulators status` (the configured set in
+`bin/simulators.yaml`); never hard-code a model name from memory:
 
 ```bash
 xcodebuild test \
   -project Calc-U-59.xcodeproj \
   -scheme "Calc-U-59" \
-  -destination "platform=iOS Simulator,name=iPhone 17 Pro Max,OS=latest" \
+  -destination "platform=iOS Simulator,id=<UDID from bin/simulators status>" \
   -only-testing "Calc-U-59UITests/PresetLoadTests/testLoadDiagPreset"
 ```
 
