@@ -350,21 +350,25 @@
 00FE: 1FCE  JC 04E5           ; … store the result back (0CCC → HIR_STO 11D9) …
 00FF: 18E7  JC 008C           ; … Prd / INV Prd: MULDIV
 0100: 1FCA  JC 04E5           ; … store back
+; ── Sequence bank 0x0100 (entered through 0211 with only KR[12] set):
+; 0101 Op (028D), 0108 EE on a result (0112), 010A Eng (027C), 010C D.MS
+; (0174), 010E Pause from the keyboard (0288). 0104–0107 (register read,
+; add, write back) has no caller found and never ran in any scenario.
 0101: 1E36  JC 041C           ; Op nn: normalize …
 0102: 1F94  JC 04CC           ; … collect the 2-digit Op number
 0103: 1FF8  JC 04FF           ; … dispatch on nn (04FF → 08E4 OP_DISPATCH)
-0104: 1BA2  JC 02D5
+0104: 1BA2  JC 02D5           ; (no caller found; never executed)
 0105: 1CD6  JC 0370
 0106: 1DD8  JC 03F2
 0107: 1A2A  JC 021C
-0108: 1F4E  JC 04AF
-0109: 1814  JC 0113
+0108: 1F4E  JC 04AF           ; EE on a result: flush trace, normalize …
+0109: 1814  JC 0113           ; … then KEY_EE's result branch (sci format / INV EE)
 010A: 1F4A  JC 04AF           ; Eng
-010B: 1B4C  JC 02B1
+010B: 1B4C  JC 02B1           ; … Eng / INV Eng display flags (02B1)
 010C: 1E20  JC 041C           ; D.MS: normalize …
-010D: 18D0  JC 0175
-010E: 1F42  JC 04AF
-010F: 1AF4  JC 0289
+010D: 18D0  JC 0175           ; … launch the D.MS keycode program (0175)
+010E: 1F42  JC 04AF           ; Pause from the keyboard: flush trace …
+010F: 1AF4  JC 0289           ; … and just redisplay
 ; ═══════════════════════════════════════════════════════════════════════════
 ; KEY_EE: "EE" handler (slot 0025) — trace-confirmed (1 2 EE 3, 12.34 EE 5).
 ; Switches the display to scientific format (fB[15]) and, during number entry,
