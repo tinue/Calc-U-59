@@ -1701,55 +1701,68 @@
 054A: 03D3  B=LOAD DPT1
 054B: 1F91  JC 0183
 ; ═══════════════════════════════════════════════════════════════════════════
-; DISPLAY FORMAT & ROUND  (0x054C–0x05BE)
-; Builds the display image in A from the normalized value (decimal-point
-; position, EE exponent digits, blanking mask in B). Two passes, flagged by
-; fB[5]: on the first pass 05B9 rounds the value at the display's guard digit
-; and re-runs NUM_NORM at 023C with fB[5] set (a round that carries — e.g. the
-; error clamp's all-9s image — re-overflows and re-clamps at 025A); the second
-; pass finishes the image and falls through to the print/idle epilogue.
-; Control flow trace-confirmed in errorblink.txt (error image 9.9999999 99);
-; most line-level semantics are still unannotated.
+; DISP_FORMAT  (0x054C–0x05B8) — turn the normalized X (A = C) into the
+; display image for a RESULT. Trace-confirmed (5÷3, 2÷3 with Fix 0/1/2/5/8,
+; Eng, EE). Entered from the NUM_NORM epilogue (02CF) when fA[5] (result to
+; show) or fA[10] (trace line pending) is set; returns there via 05BC/05BE or
+; 059F/05A0. Format state:
+;   SCOM[0] nibble 0 = Fix: n + 2 for Fix n (0–8), 0 = floating (Fix 9 /
+;                      INV Fix)
+;   fB[15] = scientific (EE) display, fB[7] = engineering (Eng) display
+; Two passes, told apart by fB[5]:
+;   pass 1  shift the mantissa to the display field (A[3..13], A[0] = digit
+;           position counter), choose the layout (fixed / sci / eng, 0563–
+;           0591; values that don't fit switch to sci, 095A), round with +5
+;           at the first hidden digit (DISP_ROUND 05B9), SET fB[5] and
+;           renormalize (023C) — the rounding carry may change the exponent.
+;   pass 2  same layout again, then strip trailing zeros after the point
+;           (0594–059B), then the trace-print check (05A8) and the display
+;           control image is built by the redisplay tail (02AA → 026A → 02DE
+;           → DISP_REBUILD).
+; While a keycode sub-program or library program runs (Prg Src Flag in
+; SCOM[0] nibble 3 non-zero, 054F–0553) formatting is skipped (08A1).
 ; ═══════════════════════════════════════════════════════════════════════════
-054C: 00A0  TST fA[10]
-054D: 00A8  TST fB[10]
+054C: 00A0  TST fA[10]        ; trace line pending …
+054D: 00A8  TST fB[10]        ; … or 0x0A-bank key: check for a running sub-program
 054E: 100C  JNC 0554
-054F: 0A1F  RCLF
+054F: 0A1F  RCLF              ; SCOM[0] (bus zero → row 0) …
 0550: 09D3  B=LOAD MANT
-0551: 06F3  B=R5 EXP
-0552: 0619  IO=-B EXP
-0553: 169C  JNC 08A1
-0554: 0948  A=SRA MANT
+0551: 06F3  B=R5 EXP          ; … B[1] := nibble 3 = Prg Src Flag
+0552: 0619  IO=-B EXP         ; non-zero = keycode / library program running
+0553: 169C  JNC 08A1          ; yes → no display formatting (08A1)
+0554: 0948  A=SRA MANT        ; mantissa → display field (MSD in nibble 13)
 0555: 0948  A=SRA MANT
 0556: 0AA7  MOV R5,#10
-0557: 02F0  A=R5 DPT
-0558: 0103  B=A ALL
+0557: 02F0  A=R5 DPT          ; A[0] := 10: digit position counter
+0558: 0103  B=A ALL           ; B := working copy …
 0559: 0A87  MOV R5,#8
 055A: 02F3  B=R5 DPT
 055B: 00E2  CLR fA[14]
-055C: 095B  B=SRB MANT
+055C: 095B  B=SRB MANT        ; … two digits lower (sci/eng mantissa room)
 055D: 095B  B=SRB MANT
-055E: 0A1F  RCLF
-055F: 02D6  D=LOAD DPT
+055E: 0A1F  RCLF              ; SCOM[0] …
+055F: 02D6  D=LOAD DPT        ; … D[0] := Fix setting (n+2, 0 = floating)
 0560: 0050  TST fA[5]
 0561: 1004  JNC 0563
-0562: 02DE  D=0 DPT
-0563: 00F8  TST fB[15]
-0564: 0078  TST fB[7]
-0565: 183C  JC 0583
+0562: 02DE  D=0 DPT           ; trace-only formatting: floating
+0563: 00F8  TST fB[15]        ; sci …
+0564: 0078  TST fB[7]         ; … or eng display?
+0565: 183C  JC 0583           ; neither → fixed-point layout (0583)
 0566: 0110  A=B ALL
-0567: 0078  TST fB[7]
-0568: 1828  JC 057C
+0567: 0078  TST fB[7]         ; eng?
+0568: 1828  JC 057C           ; sci → 057C
+; Engineering: reduce the exponent to a multiple of 3, moving the remainder
+; into the mantissa (more integer digits).
 0569: 0A37  MOV R5,#3
-056A: 06F6  D=R5 EXP
-056B: 06B8  A=A-D EXP
+056A: 06F6  D=R5 EXP          ; D[1..2] := 3
+056B: 06B8  A=A-D EXP         ; exponent mod 3 …
 056C: 1803  JC 056B
 056D: 06B0  A=A+D EXP
 056E: 1002  JNC 056F ; clear COND
-056F: 0709  IO=A-1 EXP1
+056F: 0709  IO=A-1 EXP1       ; remainder 0?
 0570: 06D2  A<>B EXP
 0571: 1016  JNC 057C
-0572: 0030  TST fA[3]
+0572: 0030  TST fA[3]         ; negative exponent: round towards the next lower multiple
 0573: 180C  JC 0579
 0574: 068B  B=A-B EXP
 0575: 06D2  A<>B EXP
@@ -1758,45 +1771,47 @@
 0578: 1804  JC 057A
 0579: 0688  A=A-B EXP
 057A: 015B  B=SRB ALL
-057B: 0288  A=A-B DPT
-057C: 0239  IO=-D DPT
-057D: 182A  JC 0592
-057E: 02B9  IO=A-D DPT
+057B: 0288  A=A-B DPT         ; integer digits += remainder
+; Fix (and sci/eng) digit limit: drop digits beyond the Fix setting.
+057C: 0239  IO=-D DPT         ; Fix active?
+057D: 182A  JC 0592           ; no → round
+057E: 02B9  IO=A-D DPT        ; more digits than Fix allows?
 057F: 1026  JNC 0592
-0580: 0948  A=SRA MANT
+0580: 0948  A=SRA MANT        ; drop one …
 0581: 0308  A=A-1 DPT1
 0582: 1809  JC 057E
-0583: 0030  TST fA[3]
+; Fixed-point layout: move the decimal point by the exponent.
+0583: 0030  TST fA[3]         ; negative exponent?
 0584: 1806  JC 0587
 0585: 0940  A=SLA MANT
 0586: 0300  A=A+1 DPT1
-0587: 0709  IO=A-1 EXP1
-0588: 1F94  JC 0952
+0587: 0709  IO=A-1 EXP1       ; exponent left?
+0588: 1F94  JC 0952           ; yes → shift one place (0952) and loop
 0589: 0032  CLR fA[3]
-058A: 0239  IO=-D DPT
-058B: 101B  JNC 057E
-058C: 0058  TST fB[5]
+058A: 0239  IO=-D DPT         ; Fix?
+058B: 101B  JNC 057E          ; yes → apply the digit limit
+058C: 0058  TST fB[5]         ; pass 2?
 058D: 1806  JC 0590
 058E: 0509  IO=A-1 LLSD1
 058F: 1F96  JC 095A
-0590: 0B09  IO=A-5 MLSD5
+0590: 0B09  IO=A-5 MLSD5      ; pass 1: rounding digit ≥ 5? (IO only)
 0591: 1792  JNC 095A
-0592: 0058  TST fB[5]
+0592: 0058  TST fB[5]         ; pass 1 → round (05B9)
 0593: 184C  JC 05B9
-0594: 0948  A=SRA MANT
+0594: 0948  A=SRA MANT        ; pass 2: strip trailing zeros after the point …
 0595: 0308  A=A-1 DPT1
-0596: 0239  IO=-D DPT
+0596: 0239  IO=-D DPT         ; … unless Fix is set …
 0597: 100A  JNC 059C
-0598: 0509  IO=A-1 LLSD1
+0598: 0509  IO=A-1 LLSD1      ; … stop at a non-zero digit …
 0599: 1806  JC 059C
-059A: 0309  IO=A-1 DPT1
+059A: 0309  IO=A-1 DPT1       ; … or at the decimal point
 059B: 180F  JC 0594
 059C: 00A8  TST fB[10]
 059D: 00AA  CLR fB[10]
 059E: 1806  JC 05A1
-059F: 0059  SET fB[5]
+059F: 0059  SET fB[5]         ; 0x0A-bank path: result displayed, return now
 05A0: 1D9F  JC 02D1
-05A1: 0A1F  RCLF
+05A1: 0A1F  RCLF              ; printer / trace checks (D[MSD] test as at 069D)
 05A2: 09D6  D=LOAD MANT
 05A3: 09D5  C<>D MANT
 05A4: 0E2C  C=C-1 MMSD1
@@ -1816,7 +1831,7 @@
 05AC: 0000  TST fA[0]
 05AD: 00C8  TST fB[12]
 05AE: 1E2E  JC 08C5           ; → print the queued trace line
-05AF: 0A06  MOV R5,fA[1..4]
+05AF: 0A06  MOV R5,fA[1..4]   ; cleanup: keep only the sign bits of fA …
 05B0: 0000  TST fA[0]
 05B1: 0A02  CLR fA
 05B2: 1804  JC 05B4
@@ -1825,14 +1840,14 @@
 05B5: 0012  CLR fA[1]
 05B6: 0042  CLR fA[4]
 05B7: 0A0D  SWAP KR,SR
-05B8: 1E1D  JC 02AA
-05B9: 0B00  A=A+5 MLSD5       ; round: +5 at the mantissa guard digit
-05BA: 0948  A=SRA MANT        ; shift the guard digit off…
-05BB: 0940  A=SLA MANT        ;   …and back: guard digit is now 0
+05B8: 1E1D  JC 02AA           ; → redisplay tail (control image, idle)
+05B9: 0B00  A=A+5 MLSD5       ; DISP_ROUND: +5 at the first hidden digit
+05BA: 0948  A=SRA MANT        ; drop it …
+05BB: 0940  A=SLA MANT        ; … (guard digit now 0)
 05BC: 0A0D  SWAP KR,SR
-05BD: 0059  SET fB[5]         ; mark "rounded" → second pass skips this
-05BE: 1F05  JC 023C           ; renormalize (a carry, 9.99… → 10.0…, may
-                              ;   re-overflow → clamp again at 025A)
+05BD: 0059  SET fB[5]         ; pass 1 done
+05BE: 1F05  JC 023C           ; renormalize (a carry 9.99… → 10.0… adjusts the exponent), then
+                              ;   pass 2
 ; Argument-key classification (from 06E3 while fB[12] is set): digits feed
 ; the collector (0763 → 06B1 → DIGIT_SLIDE → 031B → 06C6); other keys
 ; either complete/abort the pending sequence or are handled specially
@@ -3028,15 +3043,15 @@
 094F: 0099  SET fB[9]
 0950: 0051  SET fA[5]
 0951: 1A7F  JC 0812
-0952: 0708  A=A-1 EXP1
+0952: 0708  A=A-1 EXP1        ; fixed layout step: exponent − 1 …
 0953: 0030  TST fA[3]
 0954: 1806  JC 0957
-0955: 0948  A=SRA MANT
+0955: 0948  A=SRA MANT        ; … positive: one more integer digit (shift right)
 0956: 1F9F  JC 0587
-0957: 0308  A=A-1 DPT1
+0957: 0308  A=A-1 DPT1        ; … negative: one more leading zero
 0958: 0309  IO=A-1 DPT1
 0959: 1FA5  JC 0587
-095A: 0036  MOV fA[3],fB[3]
+095A: 0036  MOV fA[3],fB[3]   ; doesn't fit fixed format → scientific layout
 095B: 1FEB  JC 0566
 095C: 0050  TST fA[5]         ; DEG: direction — to radians: ÷ 180/π, from radians: ×
 095D: 1804  JC 095F
