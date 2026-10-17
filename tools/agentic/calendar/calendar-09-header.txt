@@ -1,0 +1,112 @@
+# TI-59/PC-100A Program: Calendar Printer, fast mode with dispatched month fix-ups
+#
+# A new program in the line of the 1978-1981 calendar printing competition
+# (examples/CALENDAR_PROGRAMS.md, calendar-01 to calendar-08). Written in
+# 2026 with the Calc-U-59 headless harness. It prints a whole year, January
+# to December, in exactly the format of Patrick Acosta's program
+# (calendar-08-acosta.ti59), and is about 4% faster.
+#
+# USE
+#
+#   Key the year, press A. Then enter fast mode:
+#     1 + 2 EE 12 +/- =      X = 1.000000000002
+#     GTO 007 SST 0 STO      fast-mode entry by SST (examples/fastmode-sst.ti59)
+#   The year prints at once. The run ends with 0 in the display. For another
+#   year repeat both steps. No module is needed.
+#
+#   Loading this file prints 2026 (KEYSTROKES below).
+#
+# TIMING
+#
+#   Program run time after the year is keyed in (headless emulator; for
+#   Acosta this includes its normal-mode preparation after the last R/S, for
+#   this program the preparation in fast mode):
+#
+#     year   this program   Acosta
+#     1900      79.5 s      84.0 s
+#     2000      81.5 s      84.8 s
+#     2024      79.5 s      83.3 s
+#     2026      78.5 s      82.1 s
+#
+#   Acosta's published time for 2000 is 1:23 on a real TI-59. The output was
+#   checked against Python's calendar module and against Acosta's printout
+#   for 1900, 1999-2027 and 2100: identical in every line.
+#
+# HOW IT WORKS
+#
+# Day table. R01-R42 hold the entries P(-5) to P(36). P(x) holds the print
+# codes of day x and day x+1 ("dd dd", blank outside 1-31) in the low ten
+# of its 13 digits. The leading 2.01 has two jobs: the 2 is the pointer step
+# when the entry is added to the pointer (SUM 00), and the .01 makes INV Int
+# and the addition of 98.99 shift the codes by exactly one character. This is
+# the row engine of Galidas and Acosta (Swinnen's two-day print codes,
+# Cargile's "2-trick", HIR 5-8 for the print buffer).
+#
+# One row. R00 points at day x (R00 = 6 + x). Four RC* 00 read P(x),
+# P(x+2), P(x+3) and P(x+5) into the four 5-character print-buffer chunks
+# (HIR 5-8), and Op 05 prints the line. Three SUM 00 (2 each) and Op 20 (1)
+# move the pointer on by 7 days.
+#
+# The end of the month. In a 30-day month day 30 must be followed by
+# blanks, not by 31. So P28-P31 are changed for each month: P(L) becomes a
+# one-day entry "L", the later ones become blank. R43-R49 hold the normal
+# and the one-day entries to copy from.
+#
+# Month records. R50-R61 hold one value per month. Its integer part is a
+# program address, its low ten digits are the month name. The month loop
+# prints the header line (the year with Op 06, the name in chunk 4), builds
+# and prints the weekday line, and jumps to the address with GTO Ind 67.
+# Each address starts a small routine for the change of month length:
+#
+#     F28  31 -> 28 days      R30  30 -> 31 days
+#     F29  31 -> 29 days      MAR  28/29 -> 31 days
+#     F30  31 -> 30 days      J    31 -> 31 days (JAN, AUG): nothing to copy
+#
+# In a leap year the preparation adds the distance F29 - F28 to the FEB
+# record, and the end of the run subtracts it again. Each routine also puts
+# the threshold 6 + L + 1 into t: the pointer value of day L + 1.
+#
+# Rows per month. Four row copies always print. Row 5 prints in every month
+# except a 28-day February that starts on a Sunday; that February enters the
+# row code one copy later (ROWS2) and so gets four rows. After row 5,
+# RCL 00 x>=t ends the month when the pointer has reached day L + 1;
+# otherwise the loop prints row 6.
+#
+# Next month. At the end the pointer stands at day L + 1 + d, where d is the
+# number of empty places at the end of the last row. The next month starts
+# with 7 - d empty places, so its pointer is 6 + 1 - (7 - d) = R00 - t. When
+# d = 0 the next month starts on Sunday and the pointer is 7 instead.
+#
+# Preparation, in fast mode and part of the measured time.
+# E(z) = Int(z/4) - Int(z/100) + Int(z/400) counts the leap days of the
+# Gregorian calendar up to year z. A two-pass loop computes E(Y) and
+# E(Y-1). Y is a leap year when they differ. January 1 of year Y falls on
+# weekday (Y + E(Y-1)) mod 7, with Sunday = 0. No ML-20 call is needed.
+#
+# No subroutines. An earlier version called the end-of-month routine with
+# SBR. In fast mode its RTN returned to a wrong address. This version uses
+# only GTO, GTO Ind and conditional jumps in the fast part.
+#
+# Entry and exit. Fast mode is entered by the SST method. On entry, steps
+# 001-006 run as 00 from the drained program cache, whatever they contain.
+# They hold Lbl A STO 69 R/S, which the label search for A finds at once.
+# The run ends with CLR RST: back to step 000 in normal mode, where R/S
+# stops.
+#
+# COMPARED WITH ACOSTA
+#
+# - The same printout, line for line.
+# - This program prints one whole year. Acosta's prints any number of months
+#   from any start month.
+# - No ML module and no Pgm 12 / LRN Ins Ins ritual. The fast-mode entry is
+#   typed.
+# - The rows cost the same: 0.89 s each, 61 to 64 rows a year. The gain is
+#   in the work per month, about 0.3 s. Acosta computes the number of rows
+#   and the next start day by division by 7 (Galidas' method) and packs the
+#   last row backwards from its end with a computed GTO Ind. This program
+#   copies at most four table entries, chosen by the month record, and
+#   decides the number of rows with one comparison.
+#
+# Registers: R00 pointer, R01-R42 day table, R43-R49 entries for the end of
+# the month, R50-R61 month records, R62-R64 weekday line, R65 98.99,
+# R66 month counter, R67 fix-up address, R68 month pointer, R69 year.

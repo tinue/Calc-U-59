@@ -21,3 +21,10 @@ Architecture facts (register model, SCOM layout, PC encoding, machine variants, 
 - `reference/DebugAPI.md` — debug panel and bridge API
 
 Do not restate these facts in CLAUDE.md, skills, or memory files — link to the reference doc instead.
+
+## Agentic tools
+
+`tools/agentic/` holds command-line tools for running, timing and profiling
+`.ti59` programs headless (run a file, per-line print times, run time per
+key, hot steps, step costs, keycode disassembler/assembler). Read
+`tools/agentic/README.md` before measuring or comparing program speed.

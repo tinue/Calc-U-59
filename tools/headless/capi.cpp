@@ -57,6 +57,7 @@ void h_printer_adv(void* m, int down)   { static_cast<TI59Machine*>(m)->pressPri
 
 uint32_t h_stepn(void* m, uint32_t n) { return static_cast<TI59Machine*>(m)->stepN(n, false); }
 uint16_t h_pc(void* m) { return static_cast<TI59Machine*>(m)->pc(); }
+uint64_t h_elapsed(void* m) { return static_cast<TI59Machine*>(m)->elapsedTicks(); }
 
 // Run n steps, recording each into out[0..n). Stops early (returning the
 // count recorded) when stopPC >= 0 and the next PC equals it.

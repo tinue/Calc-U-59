@@ -20,3 +20,6 @@ Key names: see `KEYS` in `ti59.py` (plus `PRINT` / `PAPER` for the PC-100's own 
 `sqrt`, `1/x`, `y^x`, `+/-`, …); 2nd functions are two presses, as on the
 hardware. Library use: `from ti59 import Machine` — `Machine().key("5")`
 returns per-instruction `HRec` records (post-execution CPU state).
+
+For running, timing and profiling whole `.ti59` programs (rather than
+tracing the ROM), see `tools/agentic/`.

@@ -61,6 +61,8 @@ KBITS = [0, 1, 2, 3, 5, 6]  # physical column -> K-line bit (Bridge/TI59MachineW
 IDLE_LO, IDLE_HI = 0x0627, 0x0660
 
 FLG_IDLE, FLG_COND = 0x0001, 0x0800
+# TI-59 active-mode instruction rate: 455 kHz clock / 32 (Core/TMC0501.cpp, getPrinterBusyCycles).
+INSTR_PER_SEC = 455000 / 32
 
 
 class HRec(C.Structure):
@@ -91,6 +93,8 @@ def _lib():
     lib.h_record.argtypes = [C.c_void_p, C.c_void_p, C.c_int, C.c_int]
     lib.h_pc.argtypes = [C.c_void_p]
     lib.h_pc.restype = C.c_uint16
+    lib.h_elapsed.argtypes = [C.c_void_p]
+    lib.h_elapsed.restype = C.c_uint64
     lib.h_lib_exec_pc.argtypes = [C.c_void_p]
     lib.h_lib_exec_pc.restype = C.c_uint16
     lib.h_disasm.argtypes = [C.c_uint16, C.c_uint16, C.c_char_p, C.c_int]
@@ -168,6 +172,11 @@ class Machine:
         r = HRec()
         LIB.h_snapshot(self.h, C.byref(r))
         return r
+
+    def elapsed(self) -> int:
+        """Weighted instruction count since reset (idle steps count 4); divide by
+        INSTR_PER_SEC for emulated seconds."""
+        return LIB.h_elapsed(self.h)
 
     def step(self, n: int = 1):
         LIB.h_stepn(self.h, n)
