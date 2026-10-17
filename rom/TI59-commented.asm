@@ -2315,7 +2315,7 @@
 069B: 08FB  KEY [P]           ; printer TRACE switch on?
 069C: 1798  JNC 0A68          ; → queue the keystroke's print symbol (no print yet)
 ; ── 069D–06A1: printer present, TRACE switch off: user flag 9 traces too.
-; ── D = SCOM[0] (0695); subtracting 2 twice from its nibble 15 tests bit 1 =
+; ── D = SCOM[0] (0695); subtracting 1 twice from its nibble 15 tests bit 1 =
 ; ── flag 9 (flags 5–9 are bit 1 of nibbles 11–15). Trace-checked: a program
 ; ── with St flg 9 prints "2.  +", "3.  =" … with the TRACE switch off.
 069D: 09D5  C<>D MANT
