@@ -3179,12 +3179,23 @@
 0969: 0031  SET fA[3]         ; exponent negative …
 096A: 0700  A=A+1 EXP1        ; … and 02: 1.5707963E−02 = π/200
 096B: 18BB  JC 090E           ; → MULDIV
-096C: 01D7  A<>E ALL
+; ═══════════════════════════════════════════════════════════════════════════
+; PROG_OPERAND  (0x096C–0x0975, 0x0C2E–0x0C55, 098E) — an operand step read
+; while a running program's operation waits for its argument (fB[12], from
+; STEP_DISPATCH 083B). Trace-confirmed (program 7 STO 12 R/S → R12 = 7): the
+; step's two digits are fed to the argument collector as two digit keys —
+; the tens digit is dispatched at once (098E → 083F), the units digit is
+; parked as a pending key in SCOM[0] (nibble 1, as at ARG_TERMINATE) with
+; fB[14], and is dispatched on the next pass (0620 → 04F6). Operands that are
+; not digits (label names, fA[0]) and Ind (fA[7]) branch off at 0C31–0C35;
+; 0C37–0F9C check the pending sequence's slot to tell one-digit operands.
+; ═══════════════════════════════════════════════════════════════════════════
+096C: 01D7  A<>E ALL          ; A := collector state
 096D: 0176  D=SLD ALL
 096E: 0AD7  MOV R5,#13
 096F: 02F6  D=R5 DPT
 0970: 0131  IO=D ALL
-0971: 0A1F  RCLF
+0971: 0A1F  RCLF              ; SCOM[13] …
 0972: 01D3  B=LOAD ALL
 0973: 01D2  A<>B ALL
 0974: 0E08  A=A-1 MMSD1
@@ -3214,7 +3225,7 @@
 098C: 0A97  MOV R5,#9
 098D: 1815  JC 0983
 098E: 01D7  A<>E ALL
-098F: 1AA1  JC 083F
+098F: 1AA1  JC 083F           ; dispatch the tens digit as a key
 0990: 0A85  TST KR[8]
 0991: 1457  JNC 0766
 0992: 0A95  TST KR[9]
@@ -3975,14 +3986,14 @@
 0C2C: 0A0D  SWAP KR,SR
 0C2D: 1AB2  JC 0D86
 0C2E: 01D2  A<>B ALL
-0C2F: 017E  D=SRD ALL
-0C30: 0309  IO=A-1 DPT1
+0C2F: 017E  D=SRD ALL         ; D[1..0] := operand keycode
+0C30: 0309  IO=A-1 DPT1       ; digits still expected …
 0C31: 1836  JC 0C4C
-0C32: 0070  TST fA[7]
+0C32: 0070  TST fA[7]         ; Ind?
 0C33: 1032  JNC 0C4C
-0C34: 0000  TST fA[0]
+0C34: 0000  TST fA[0]         ; label operand?
 0C35: 1012  JNC 0C3E
-0C36: 0A0D  SWAP KR,SR
+0C36: 0A0D  SWAP KR,SR        ; inspect the suspended slot (SR) …
 0C37: 0A65  TST KR[6]
 0C38: 1808  JC 0C3C
 0C39: 0A75  TST KR[7]
@@ -4004,15 +4015,15 @@
 0C49: 1806  JC 0C4C
 0C4A: 0639  IO=-D EXP
 0C4B: 157B  JNC 098E
-0C4C: 0A1F  RCLF
+0C4C: 0A1F  RCLF              ; SCOM[0] nibble 1 := units digit (pending key) …
 0C4D: 01D3  B=LOAD ALL
 0C4E: 0231  IO=D DPT
 0C4F: 06F3  B=R5 EXP
 0C50: 0A0F  STOF
 0C51: 0111  IO=B ALL
-0C52: 017E  D=SRD ALL
+0C52: 017E  D=SRD ALL         ; D := tens digit
 0C53: 06DE  D=0 EXP
-0C54: 00E9  SET fB[14]
+0C54: 00E9  SET fB[14]        ; pending key
 0C55: 1D8F  JC 098E
 0C56: 0080  TST fA[8]
 0C57: 136A  JNC 0E0C
