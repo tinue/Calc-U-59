@@ -4444,13 +4444,22 @@
 ; the step (PRGREG_FETCH 08B2) and redisplay. With Ind (fA[7]) → 0F92 too.
 0D80: 0070  TST fA[7]
 0D81: 1C22  JC 0F92
+; LRN_IND_MERGE (0x0D82–0x0DA6, 0F90) — Ind in LRN mode, applied when the Ind
+; operand's second digit is stored. If the op recorded before Ind has a
+; compact Ind form (fA[13] set), that step is rewritten: STO/RCL/SUM →
+; 72/73/74, Exc/Prd → 63/64, Pgm → 62, GTO → 83, Op → 84 (tens digit at
+; 0D92 / 0D99, units for GTO / Op from 1140 / 113E), and the step counter
+; goes back one (0D9A–0DA4) so the merged code overwrites it. Any other op
+; records Ind as its own step, keycode 40 (0F90). Trace-checked (headless,
+; LRN): "STO Ind 05" → 72 05, "INV SUM Ind 07" → 22 74 07, "Exc Ind 05" →
+; 63 05, "Fix Ind 02" → 58 40 02, "SBR Ind 22" → 71 40 22.
 0D82: 0176  D=SLD ALL
 0D83: 01D7  A<>E ALL
 0D84: 0630  A=D EXP
 0D85: 01D7  A<>E ALL
-0D86: 00D0  TST fA[13]
-0D87: 1C12  JC 0F90
-0D88: 0AE7  MOV R5,#14
+0D86: 00D0  TST fA[13]        ; previous step mergeable?
+0D87: 1C12  JC 0F90           ; no → record Ind as keycode 40
+0D88: 0AE7  MOV R5,#14        ; which op it was …
 0D89: 02F6  D=R5 DPT
 0D8A: 0131  IO=D ALL
 0D8B: 0A1F  RCLF
@@ -4460,27 +4469,27 @@
 0D8F: 0939  IO=-D MANT
 0D90: 1F5C  JC 113E
 0D91: 0A77  MOV R5,#7
-0D92: 0CF6  D=R5 MAEX
+0D92: 0CF6  D=R5 MAEX         ; new tens digit 7 (STO, RCL, SUM)
 0D93: 0B09  IO=A-5 MLSD5
 0D94: 100C  JNC 0D9A
 0D95: 02F6  D=R5 DPT
 0D96: 0239  IO=-D DPT
 0D97: 1F52  JC 1140
 0D98: 0A67  MOV R5,#6
-0D99: 0CF6  D=R5 MAEX
-0D9A: 0A1F  RCLF
+0D99: 0CF6  D=R5 MAEX         ; or 6 (Exc, Prd, Pgm), 8 (GTO, Op via 1143)
+0D9A: 0A1F  RCLF              ; step counter − 1 …
 0D9B: 01D0  A=LOAD ALL
 0D9C: 0948  A=SRA MANT
-0D9D: 0508  A=A-1 LLSD1
+0D9D: 0508  A=A-1 LLSD1       ; … byte − 1 …
 0D9E: 1808  JC 0DA2
 0D9F: 0AC7  MOV R5,#12
 0DA0: 09F3  B=R5 MANT
-0DA1: 0988  A=A-B MANT
+0DA1: 0988  A=A-B MANT        ; … byte 0: back into the previous register
 0DA2: 0940  A=SLA MANT
 0DA3: 0A0F  STOF
-0DA4: 0101  IO=A ALL
-0DA5: 00D2  CLR fA[13]
-0DA6: 1BD8  JC 0F92
+0DA4: 0101  IO=A ALL          ; SCOM[0] written
+0DA5: 00D2  CLR fA[13]        ; merged
+0DA6: 1BD8  JC 0F92           ; → store the merged keycode
 ; ── Launch prologue, library-caller path (from 0A57) ────────────────────────
 ; Reached when the caller's Prg Src digit is non-zero: the (believed-)
 ; running program lives in the module, so the caller's return address is
@@ -5113,7 +5122,7 @@
 0F8D: 0D00  A=A+1 MLSD1
 0F8E: 0045  SET KR[4]         ; … KR[4] = "not the cursor's register"
 0F8F: 1FEB  JC 0B9A           ; … → partition check and read (0B6A)
-0F90: 0A47  MOV R5,#4
+0F90: 0A47  MOV R5,#4         ; Ind as its own step: keycode 40
 0F91: 06F6  D=R5 EXP
 0F92: 0133  B=D ALL           ; B := new keycode
 0F93: 0A1F  RCLF              ; SCOM[0] (bus zero → row 0) …
@@ -5568,9 +5577,9 @@
 113B: 1CE0  JC 13AB           ; keycode 99 "PRT": right char 'T' (code 31)
 113C: 1CE2  JC 13AD           ; keycode 99 "PRT": middle char 'R' (code 29)
 113D: 1CE4  JC 13AF           ; keycode 99 "PRT": left char 'P' (code 27)
-113E: 0A47  MOV R5,#4
+113E: 0A47  MOV R5,#4         ; Op Ind → 84
 113F: 1804  JC 1141
-1140: 0A37  MOV R5,#3
+1140: 0A37  MOV R5,#3         ; GTO Ind → 83
 1141: 02F6  D=R5 DPT
 1142: 0A87  MOV R5,#8
 1143: 1F55  JC 0D99
