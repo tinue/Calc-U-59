@@ -39,16 +39,13 @@ and published such bugs.
 
 ## Rules for fast-mode programs
 
-Every instruction class was compared in fast and normal mode on the emulator.
-To reproduce: `uv run python tools/agentic/fastmode_matrix.py`.
-
 **Allowed:**
 
 - Number entry, all arithmetic and parentheses, and all functions.
 - STO, RCL, SUM, Prd and Exc, including their INV and Ind forms. Also HIR,
   CMs, CP, x⇄t, CE and CLR.
 - St flg, If flg, Fix, Eng, Deg, Rad and Grad.
-- Op 00–08, Op 10 and Op 16–39, and Prt, Adv and Pause. Op 09 was not tested.
+- Op 00–08, Op 10 and Op 16–39, and Prt, Adv and Pause.
 - Transfers to an absolute or Ind address: GTO, x=t, x≥t, If flg and Dsz.
   Dsz loops do work, despite the old advice not to use them.
 
@@ -152,5 +149,19 @@ module program:
   a value just shown by Pause or Prt is already in display format, so these
   endings are safe.
 
-The ROM sites and traces behind all this are in `rom/TI59-ROM-Guide.md`,
-§ "Fast mode".
+## How we came to these conclusions
+
+- **ROM reading.** The annotated ROM listing (`rom/TI59-commented.asm`) was
+  searched for every place that reads the program source digit. There are
+  seven, and each is listed with its address in `rom/TI59-ROM-Guide.md`,
+  § "Fast mode".
+- **Side-by-side runs.** On the emulator, which runs the original ROM
+  unmodified, each instruction class was run once in fast mode and once in
+  normal mode. X, the data registers, the printout and the display were then
+  compared. A second set of runs ended fast-mode programs in different ways
+  to find the endings that hang. To reproduce both:
+  `uv run python tools/agentic/fastmode_matrix.py`.
+- **Traces.** Where the results differed, instruction traces showed which of
+  the seven places caused it.
+- **Limits.** Everything was observed on the emulator, not on a real TI-59.
+  Op 09 and card reading or writing were not tested.
