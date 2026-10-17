@@ -158,7 +158,13 @@ SCENARIOS["list_labels"] = ([S("LRN","Lbl","A","STO","1","2","GTO","A","LRN","RS
 SCENARIOS["prt_lrn"] = ([S("LRN","5","+")], S("Prt"), {"printer": True})
 SCENARIOS["trace_run"] = ([S("LRN","5","+","3","=","R/S","LRN","RST")], S("R/S"), {"printer": True, "trace": True})
 SCENARIOS["pause_run"] = ([S("LRN","5","Pause","Pause","R/S","LRN","RST")], S("R/S"))
-SCENARIOS["write_card"] = ([S("LRN","5","LRN")], S("1", "Write"))
+SCENARIOS["write_card"] = ([S("LRN","5","+","3","=","LRN")], S("1", "Write"), {"card": "blank"})
+# a bank-1 image written by the scenario above (headless run): program 5 + 3 =
+_CARD = bytes.fromhex("161110000000005930582010" + "00" * 232 + "0808")
+SCENARIOS["read_card"] = ([], S(), {"card": _CARD})
+SCENARIOS["lib_return"] = ([S("Pgm","0","2","5")], S("C"))
+SCENARIOS["op09_copy"] = ([S("0","Op","1","7","CLR","Pgm","0","2")], S("Op", "0", "9"))
+SCENARIOS["op17_big"] = ([], S("1","3","Op","1","7"))
 SCENARIOS["ins_del"] = ([S("LRN","1","2","3","4","BST","BST")], S("Ins","Del","LRN"))
 SCENARIOS["cms_regs"] = ([S("5","STO","0","5")], S("CMs","RCL","0","5"))
 SCENARIOS["hir"] = ([], S("5","STO","0","5","CLR","RCL","0","5","x2","="))
@@ -183,16 +189,28 @@ def run(name: str, spec) -> set[int]:
     setup, keys = spec[0], spec[1]
     opts = spec[2] if len(spec) > 2 else {}
     m = Machine(printer=opts.get("printer", False))
+    run.last_card = b""
     if opts.get("trace"):
         from ti59 import LIB
         LIB.h_trace_sw(m.h, 1)
     for k in expand(setup):
         m.key(k)
     pcs: set[int] = set()
+    recs_all = []
     for k in expand(keys):
-        for r in m.key(k):
-            if not (IDLE_LO <= r.pc <= IDLE_HI and (r.flags & FLG_IDLE)):
-                pcs.add(r.pc)
+        recs_all += m.key(k)
+    card = opts.get("card")
+    if card is not None:          # feed a card: b"" = blank (write), bytes = read
+        m.card_insert(card if isinstance(card, bytes) else b"")
+        for _ in range(40):
+            recs_all += m.record(20000)
+            if not m.card_present():
+                break
+        recs_all += m.record(50000)
+        run.last_card = m.card_eject()
+    for r in recs_all:
+        if not (IDLE_LO <= r.pc <= IDLE_HI and (r.flags & FLG_IDLE)):
+            pcs.add(r.pc)
     run.last_display = m.display()
     run.last_printer = m.printer_lines()
     return pcs
