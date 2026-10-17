@@ -384,6 +384,12 @@ hierarchy register m = SCOM[m] (1–8, the AOS level rows): n = 0 STO, 1 RCL,
 3 SUM, 4 Prd, 5 INV SUM, 6 INV Prd (verified). The keycode ROM programs use
 HIR as scratch storage.
 
+The Ind forms come from LRN mode (`0D82`): when the operand after Ind is
+complete, an STO, RCL, SUM, Exc, Prd, Pgm, GTO or Op step recorded just
+before Ind is rewritten as 72, 73, 74, 63, 64, 62, 83 or 84 and the step
+counter moves back over it. Every other op keeps Ind as a step of its own
+(keycode 40): `Fix Ind 02` is 58 40 02 and `SBR Ind 22` is 71 40 22.
+
 ## Error conditions
 
 Every error sets fB[9]; the idle loop then blinks the display (`0641`) until
