@@ -6938,28 +6938,33 @@
 15E1: 1D9F  JC 1312
 15E2: 0099  SET fB[9]
 15E3: 1936  JC 167E
+; TRACE_OPERAND_LINE (0x15E4–0x15FA) — in TRACE mode an operation's operand
+; gets a line of its own, digits right-aligned with leading zeros suppressed
+; (loop until D = 0), and an Ind operand marked with '*' (code 41) to its
+; left. Trace-checked (PC-100, TRACE on): "STO 01" → "1", "Op 06" → "6",
+; "Pgm 19" → "19", "RCL Ind 01" → "*1".
 15E4: 0A98  PRT.STEP
 15E5: 0A0B  TST.BUSY
 15E6: 1005  JNC 15E4
 15E7: 0A88  PRT.CLR
-15E8: 0906  D=A MANT
-15E9: 0A0C  MOV KR,EXT[4..15]
+15E8: 0906  D=A MANT          ; D := operand digits
+15E9: 0A0C  MOV KR,EXT[4..15] ; next digit, rightmost first: code = digit + 1 …
 15EA: 0931  IO=D MANT
 15EB: 0A18  MOV KR[4..7],R5
 15EC: 0A04  INC KR
 15ED: 097E  D=SRD MANT
-15EE: 0A68  PRT.OUT
-15EF: 0939  IO=-D MANT
+15EE: 0A68  PRT.OUT           ; … printed
+15EF: 0939  IO=-D MANT        ; more digits?
 15F0: 100F  JNC 15E9
-15F1: 0070  TST fA[7]
+15F1: 0070  TST fA[7]         ; Ind?
 15F2: 00A2  CLR fA[10]
 15F3: 180C  JC 15F9
-15F4: 0A97  MOV R5,#9
+15F4: 0A97  MOV R5,#9         ; yes: '*' (9 + KR[9]·32 = 41)
 15F5: 0095  SET KR[9]
 15F6: 0A18  MOV KR[4..7],R5
 15F7: 0A68  PRT.OUT
 15F8: 00A1  SET fA[10]
-15F9: 0AA8  PRT.GO
+15F9: 0AA8  PRT.GO            ; print the line
 15FA: 1EEF  JC 1283
 15FB: 01D2  A<>B ALL
 15FC: 01B8  A=A-D ALL         ; register − old keycode
@@ -7020,21 +7025,21 @@
 1633: 00F8  TST fB[15]        ; sci …
 1634: 0078  TST fB[7]         ; … or eng display: print the exponent field
 1635: 100A  JNC 163A
-1636: 0709  IO=A-1 EXP1
+1636: 0709  IO=A-1 EXP1       ; (exponent field)
 1637: 1806  JC 163A
 1638: 0A78  PRT.FUNC
 1639: 181A  JC 1646
-163A: 0219  IO=-B DPT
+163A: 0219  IO=-B DPT         ; exponent digits, rightmost first (code = digit + 1)
 163B: 0648  A=SRA EXP
 163C: 0A18  MOV KR[4..7],R5
 163D: 0A04  INC KR
 163E: 0601  IO=A EXP
 163F: 0A68  PRT.OUT
 1640: 1009  JNC 163C
-1641: 0030  TST fA[3]
+1641: 0030  TST fA[3]         ; exponent negative?
 1642: 0A0C  MOV KR,EXT[4..15]
 1643: 1804  JC 1645
-1644: 0085  SET KR[8]
+1644: 0085  SET KR[8]         ; yes: '-' (code 16) in front, else blank: "1.5-03", "1.5 03"
 1645: 0A68  PRT.OUT
 1646: 0130  A=D ALL           ; digit loop over the display image (rightmost first):
 1647: 0308  A=A-1 DPT1        ; fraction digits left before the point …
