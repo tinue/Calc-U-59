@@ -1502,23 +1502,26 @@
 0477: 0153  B=SLB ALL
 0478: 05D3  B=LOAD LLSD1
 0479: 181D  JC 046B
+; Fix n (slot 00D6): SCOM[0] nibble 0 := n + 2 (0 for INV Fix and Fix 9),
+; then redisplay. Trace-confirmed (Fix 0/1/2/5/8, INV Fix).
 047A: 01D7  A<>E ALL
 047B: 02DE  D=0 DPT
-047C: 0500  A=A+1 LLSD1
+047C: 0500  A=A+1 LLSD1       ; n = 9 → floating …
 047D: 1006  JNC 0480
 047E: 02F0  A=R5 DPT
-047F: 0306  D=A+1 DPT1
+047F: 0306  D=A+1 DPT1        ; … else n + 2
 0480: 01D7  A<>E ALL
 0481: 02DB  B=0 DPT
-0482: 0A1F  RCLF
+0482: 0A1F  RCLF              ; SCOM[0] …
 0483: 0CD6  D=LOAD MAEX
 0484: 0A0F  STOF
-0485: 0131  IO=D ALL
+0485: 0131  IO=D ALL          ; … nibble 0 := Fix setting
 0486: 1812  JC 048F
 0487: 0A10  WAIT D1
 0488: 08FB  KEY [P]
 0489: 179C  JNC 0857
 048A: 1BC1  JC 02AA
+; INV EE (0115): leave scientific display and exponent entry.
 048B: 00FA  CLR fB[15]
 048C: 00F2  CLR fA[15]
 048D: 0058  TST fB[5]
@@ -2838,6 +2841,10 @@
 0859: 0AA7  MOV R5,#10
 085A: 1CC5  JC 05F8
 085B: 1F42  JC 0BFC
+; COND_TRANSFER body (0499): INV (fB[8]) inverts the test. True → read the
+; address operand and transfer (085E → LABEL_SEARCH 0BD2 for a label, or a
+; 3-digit step checked against the partition at 0864–086E → 0B0A on
+; overflow). False → skip the operand (0C19 → 089F).
 085C: 0088  TST fB[8]         ; INV?
 085D: 1778  JNC 0C19
 085E: 0000  TST fA[0]
@@ -2845,7 +2852,7 @@
 0860: 0A1F  RCLF
 0861: 09D3  B=LOAD MANT
 0862: 0002  CLR fA[0]
-0863: 16DE  JNC 0BD2
+0863: 16DE  JNC 0BD2          ; label → search
 0864: 0CF6  D=R5 MAEX
 0865: 01D5  C<>D ALL
 0866: 072B  B=C-1 EXP1
@@ -2855,8 +2862,8 @@
 086A: 0953  B=SLB MANT
 086B: 0953  B=SLB MANT
 086C: 0953  B=SLB MANT
-086D: 0989  IO=A-B MANT
-086E: 1D38  JC 0B0A
+086D: 0989  IO=A-B MANT       ; absolute step inside program memory?
+086E: 1D38  JC 0B0A           ; no → error
 ; ── Program-transfer target: split into register·offset, validate, commit ───
 ; Generic "transfer to step N" tail, shared by RAM-program transfers and
 ; ROM keycode sub-program launches. The divide-by-8 loop at 0871–0873
@@ -3964,7 +3971,7 @@
 0C16: 142E  JNC 0E2D          ; yes → LRN display
 0C17: 01D2  A<>B ALL
 0C18: 1FC3  JC 0837
-0C19: 0002  CLR fA[0]
+0C19: 0002  CLR fA[0]         ; condition false: no transfer, continue
 0C1A: 1EF7  JC 089F
 0C1B: 0148  A=SRA ALL
 0C1C: 01D2  A<>B ALL
@@ -4042,29 +4049,31 @@
 0C64: 0A08  MOV R5,KR[4..7]
 0C65: 02F4  C=R5 DPT
 0C66: 1D0D  JC 09E0           ; → y-step
+; If flg test (slot 00B8 → 04B3 → 08A0): read the flag bit (layout as at
+; FLAG_OP) into KR, fA[9] := flag set; INV (fB[8] → fA[8]) inverts later.
 0C67: 01D7  A<>E ALL
 0C68: 0086  MOV fA[8],fB[8]
 0C69: 0148  A=SRA ALL
 0C6A: 09D8  A=0 MANT
 0C6B: 0140  A=SLA ALL
-0C6C: 0B09  IO=A-5 MLSD5
+0C6C: 0B09  IO=A-5 MLSD5      ; flag ≥ 5 → bit 1 …
 0C6D: 1806  JC 0C70
 0C6E: 03D0  A=LOAD DPT1
 0C6F: 0B00  A=A+5 MLSD5
 0C70: 0D00  A=A+1 MLSD1
 0C71: 0D00  A=A+1 MLSD1
-0C72: 0A1F  RCLF
+0C72: 0A1F  RCLF              ; SCOM[0] flags …
 0C73: 09D6  D=LOAD MANT
-0C74: 097E  D=SRD MANT
+0C74: 097E  D=SRD MANT        ; … slid to the flag's nibble
 0C75: 0D08  A=A-1 MLSD1
 0C76: 1805  JC 0C74
 0C77: 0931  IO=D MANT
 0C78: 0A18  MOV KR[4..7],R5
-0C79: 0309  IO=A-1 DPT1
-0C7A: 1ADB  JC 0B0D
-0C7B: 0A55  TST KR[5]
+0C79: 0309  IO=A-1 DPT1       ; flag number > 9?
+0C7A: 1ADB  JC 0B0D           ; → error
+0C7B: 0A55  TST KR[5]         ; bit set?
 0C7C: 1004  JNC 0C7E
-0C7D: 0091  SET fA[9]
+0C7D: 0091  SET fA[9]         ; condition true
 0C7E: 01D7  A<>E ALL
 0C7F: 1D27  JC 09EC
 0C80: 165C  JNC 0FAE
@@ -4470,14 +4479,17 @@
 0DE2: 09F6  D=R5 MANT
 0DE3: 1280  JNC 0F23
 0DE4: 1F8E  JC 11AB           ; Op 09 → 11AB → OP09_DOWNLOAD 147D
+; RTN stack shift (from 14F9): drop level 1 — SCOM[15] levels 2–3 move down
+; one level (5 nibbles), level 4 comes back from SCOM[14], depth − 1; cache
+; reload (fB[11]). Trace-confirmed (nested SBR).
 0DE5: 032C  C=C-1 DPT1
 0DE6: 0121  IO=C ALL
-0DE7: 0A1F  RCLF
+0DE7: 0A1F  RCLF              ; D := SCOM[14] (levels 4–6) …
 0DE8: 01D6  D=LOAD ALL
 0DE9: 0C30  A=D MAEX
 0DEA: 0A47  MOV R5,#4
 0DEB: 02F4  C=R5 DPT
-0DEC: 0C7E  D=SRD MAEX
+0DEC: 0C7E  D=SRD MAEX        ; … shift both rows by one level (5 nibbles) …
 0DED: 0C5B  B=SRB MAEX
 0DEE: 0C40  A=SLA MAEX
 0DEF: 0C40  A=SLA MAEX
@@ -4485,13 +4497,13 @@
 0DF1: 180B  JC 0DEC
 0DF2: 0983  B=A+B MANT
 0DF3: 0121  IO=C ALL
-0DF4: 0A0F  STOF
+0DF4: 0A0F  STOF              ; SCOM[15] := levels 1–3 after the pop
 0DF5: 0111  IO=B ALL
 0DF6: 032C  C=C-1 DPT1
 0DF7: 0121  IO=C ALL
-0DF8: 0A0F  STOF
+0DF8: 0A0F  STOF              ; SCOM[14] := levels 4–6
 0DF9: 0131  IO=D ALL
-0DFA: 00B9  SET fB[11]
+0DFA: 00B9  SET fB[11]        ; program cache stale
 0DFB: 00D8  TST fB[13]
 0DFC: 1808  JC 0E00
 0DFD: 0308  A=A-1 DPT1
@@ -6139,6 +6151,11 @@
 1396: 0A08  MOV R5,KR[4..7]
 1397: 02F6  D=R5 DPT
 1398: 1DB3  JC 10BF           ; → scanner (0F4B)
+; PRT_CHAR_SLIDE (0x1399–0x13E5): INC KR chains that turn an entry depth into
+; a 6-bit PC-100 character code in KR[4..9]: 1399–13A8 codes 15…0, 13AB–13BA
+; 31…16 (+KR[8]), 13BE–13CC 47…32 (+KR[9]), 13DA–13E4 58…48 (+KR[8]+KR[9]),
+; each ending in PRT.OUT at 13BC. Entered from the mnemonic table (0x1000)
+; and the trace symbol queue (1422).
 1399: 0A04  INC KR
 139A: 0A04  INC KR
 139B: 0A04  INC KR
