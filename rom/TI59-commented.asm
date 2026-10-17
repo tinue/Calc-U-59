@@ -160,16 +160,16 @@
 0067: 1F18  JC 03F3           ; 2nd slot: Lbl (keycode 76)
 0068: 180C  JC 006E           ; 2nd slot: St flg (keycode 86)
 0069: 1FEC  JC 045F           ; 2nd slot: Write (keycode 96)
-006A: 0A47  MOV R5,#4
-006B: 18B7  JC 0010
+006A: 0A47  MOV R5,#4         ; Fix stub (from slot 0085): code 4 …
+006B: 18B7  JC 0010           ; … KR[8] bank → slot 00D4
 ; "=" (from slot 00EA): incoming precedence 0, so the reduce loop pops every
 ; entry, and 0204 repeats it for each paren level still open.
 006C: 09DB  B=0 MANT          ; incoming precedence 0
 006D: 19B4  JC 0147           ; → AOS reduce (0147)
-006E: 0AD7  MOV R5,#13
+006E: 0AD7  MOV R5,#13        ; St flg stub (from slot 0068): code 13 → slot 00CD
 006F: 19A4  JC 0141
-0070: 0AE7  MOV R5,#14
-0071: 1A1C  JC 017F
+0070: 0AE7  MOV R5,#14        ; x=t stub (from slot 0076): code 14 …
+0071: 1A1C  JC 017F           ; … bank 0x00B0 → slot 00BE
 0072: 1BEA  JC 0267           ; 2nd slot: (2nd INV) (keycode 27)
 0073: 1FDE  JC 0462           ; 2nd slot: "P/R" (2nd x⇄t) → KEY_PR — trace-confirmed
 0074: 1C20  JC 0284           ; 2nd slot: CMs (keycode 47)
@@ -177,8 +177,8 @@
 0076: 180D  JC 0070           ; 2nd slot: x=t (keycode 67)
 0077: 1A0E  JC 017E           ; 2nd slot: x≥t (keycode 77)
 0078: 1BF0  JC 0270           ; 2nd slot: If flg (keycode 87)
-0079: 0A37  MOV R5,#3         ; 2nd slot: Dsz (keycode 97)
-007A: 1C66  JC 02AD
+0079: 0A37  MOV R5,#3         ; Dsz (2nd slot 0079, inline): code 3 …
+007A: 1C66  JC 02AD           ; … KR[9]+KR[8] → slot 00F3
 ; "×"/"÷" push (from slot 00C7)
 007B: 0A47  MOV R5,#4         ; precedence 4
 007C: 1A30  JC 0194           ; → AOS_PUSH
@@ -186,8 +186,8 @@
 007D: 0022  CLR fA[2]
 007E: 002A  CLR fB[2]
 007F: 1B6C  JC 0235
-0080: 0AE7  MOV R5,#14
-0081: 1B1C  JC 020F
+0080: 0AE7  MOV R5,#14        ; Int stub (from slot 0095): fn 14 …
+0081: 1B1C  JC 020F           ; … FN_ENTRY_KR8 → slot 051E
 0082: 1832  JC 009B           ; 2nd slot: log (keycode 28)
 0083: 185C  JC 00B1           ; 2nd slot: sin (keycode 38)
 0084: 18B5  JC 002A           ; 2nd slot: Exc (keycode 48)
@@ -198,8 +198,8 @@
 ; KEY_ADV: 2nd-table slot of Adv (2nd .), shared with the printer's ADV button
 ; (remapped here at 0679–0688) → paper advance (0487).
 0089: 1FFC  JC 0487           ; 2nd slot: Adv (keycode 98)
-008A: 0A07  MOV R5,#0
-008B: 18F7  JC 0010
+008A: 0A07  MOV R5,#0         ; |x| stub (from slot 00A5): code 0 …
+008B: 18F7  JC 0010           ; … KR[8] bank → slot 00D0
 ; Prd step (slot 00E3): same for multiply; INV Prd divides.
 008C: 0CD2  A<>B MAEX
 008D: 0213  B=B DPT
@@ -252,7 +252,8 @@
 ; Trace-confirmed (headless harness, tools/headless/coverage.py).
 ; KEY_OP_ENTRY (0141) builds KR = 0x0C00 | tag | code<<4 and jumps through
 ; PREG to slot 0x00C0 + code (+0x10 if KR[8] was set by KEY_RET 0010, +0x20 if
-; KR[9] was set by 002B). A slot holds one JC to a subroutine; the routine
+; KR[9] was set by 002B). Entering at 0142 skips KR[10] (−0x40): 017F uses
+; that for bank 0x00B0 (KR[11]+KR[9]+KR[8]: If flg 00B6, x≥t 00BA, x=t 00BE). A slot holds one JC to a subroutine; the routine
 ; returns to the NEXT slot because NORM_CALL (041C) and the AOS reduce loop
 ; park KR+1 in SR, and routines end with SET KR[1] + SWAP KR,SR (02D1/02D2).
 ; An operation is therefore a run of consecutive slots, and a sequence that
@@ -536,10 +537,10 @@
 017B: 0153  B=SLB ALL
 017C: 0A37  MOV R5,#3
 017D: 1DDA  JC 046A
-017E: 0AA7  MOV R5,#10
-017F: 0095  SET KR[9]
+017E: 0AA7  MOV R5,#10        ; x≥t (from slot 0077): code 10, falls into …
+017F: 0095  SET KR[9]         ; bank 0x00B0: KR[11]+KR[9]+KR[8], entering KEY_OP_ENTRY at 0142
 0180: 0085  SET KR[8]
-0181: 187F  JC 0142
+0181: 187F  JC 0142           ; (skips KR[10]) → slot 0x00B0 + code
 ; x̄ key (2nd slot 0097 → 0182): clear SCOM[14] (return levels 4–6) for the
 ; sub-program, entry step 067 (x̄) or with INV 107 (σ).
 0182: 02DB  B=0 DPT
@@ -839,8 +840,8 @@
 026D: 0058  TST fB[5]         ; result on display?
 026E: 10E0  JNC 02DE          ; yes → redisplay it
 026F: 1AA9  JC 011B           ; entry in progress → redisplay the entry (via the EE room check)
-0270: 0A67  MOV R5,#6
-0271: 19E5  JC 017F
+0270: 0A67  MOV R5,#6         ; If flg (from slot 0078): code 6 …
+0271: 19E5  JC 017F           ; … bank 0x00B0 → slot 00B6
 0272: 0081  SET fA[8]         ; Del: fA[8] = delete, falls into Ins …
 0273: 0A17  MOV R5,#1         ; Ins / Del: code 1 in the 0x0B10 bank → slot 0B11 → INS_DEL 0E5A
 0274: 00A8  TST fB[10]
