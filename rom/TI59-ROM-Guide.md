@@ -323,11 +323,25 @@ flag, the digits after it the start step. Full walkthrough: `examples/fastmode.t
 
 `Write` (bank number in X) and an inserted card (idle-loop card-switch poll)
 both enter the card sequence; fB[8] selects read. A bank is 246 bytes:
-three header bytes (partition, "bank is program memory", 3·(bank−1), each
-with high nibble 1), a 0, 30 registers × 8 bytes, and a mod-16 nibble
-checksum in byte 244. Reading verifies header and checksum (error blink on
-mismatch); the registers are already stored by then. See `0x1680` in the
-listing.
+three header bytes (partition ÷ 10, "bank lies entirely in program memory",
+3·(bank−1), each with high nibble 1), a protect byte, 30 registers × 8 bytes,
+and a mod-16 nibble checksum in byte 244. See `0x1680` in the listing.
+
+All trace-confirmed with the headless harness:
+
+- **Read** (card inserted with no bank number given): any bank is accepted,
+  but the card's partition must equal the current one. On a mismatch the
+  card runs through unread and the display blinks; the calculator never
+  repartitions itself. The checksum is checked after the registers are
+  stored, so a bad checksum leaves the data in RAM and blinks. Afterwards X
+  shows the bank number.
+- **n INV Write**: read, but only a card whose header is exactly bank n's.
+  Any other card is refused.
+- **Protection**: `−n Write` sets the protect byte to 1. Reading such a card
+  sets SCOM[9] nibble 2. From then on LRN is refused and writing a bank that
+  lies entirely in program memory errors (`16A4`), while banks that are only
+  partly or not at all program memory stay writable. The bank shows as
+  negative. CP clears the protection.
 
 ## Printing
 

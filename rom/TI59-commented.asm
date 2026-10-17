@@ -7098,17 +7098,21 @@
 ; program restored; bit errors → error flag.
 ; Bank image, 246 bytes (two nibbles each, written high nibble first):
 ;   0  header: 1, partition (program registers ÷ 10)
-;   1  header: 1, 1 if the bank's first register is program memory else 0
+;   1  header: 1, 1 if the bank lies entirely in program memory else 0
 ;   2  header: 1, 3·(bank − 1)
-;   3  0
+;   3  protect: 1 if written as −n Write (reading it protects memory, 17F1)
 ;   4–243  30 registers × 8 bytes (bank n holds RAM registers 30(n−1)…+29)
 ;   244  low nibble = checksum: sum of the header low nibbles and all data
 ;        nibbles, mod 16 (verified: one flipped data bit → error)
 ;   245  not checked on read
 ; Header high nibbles are not checked. fB[8] = read. R/S held aborts (1799).
+; Read without a bank number accepts any bank of the current partition (a
+; different partition → error, card ignored); n INV Write accepts only bank n.
+; A protected memory refuses to write banks entirely in program memory (16A4),
+; but a bank that is only partly program memory is still written.
 ; ═══════════════════════════════════════════════════════════════════════════
-1680: 01D7  A<>E ALL
-1681: 0A45  TST KR[4]
+1680: 01D7  A<>E ALL          ; A := X (bank number in A[3]); fA[2] = X negative
+1681: 0A45  TST KR[4]         ; Op 16 / Op 17 (sequence code 9)?
 1682: 0A97  MOV R5,#9         ; SCOM[9]: partition, RAM chips
 1683: 02F3  B=R5 DPT
 1684: 0111  IO=B ALL
@@ -7116,15 +7120,15 @@
 1686: 01D3  B=LOAD ALL
 1687: 06F6  D=R5 EXP
 1688: 065B  B=SRB EXP
-1689: 1267  JNC 1556
+1689: 1267  JNC 1556          ; yes → PARTITION
 168A: 0AA0  WAIT D10          ; wait until R/S (row 9) is released …
 168B: 08FD  KEY [O]
 168C: 1005  JNC 168A
 168D: 0A0B  TST.BUSY
 168E: 116C  JNC 1744
-168F: 0619  IO=-B EXP
+168F: 0619  IO=-B EXP         ; SCOM[9] nibble 2: memory protected by a protected card?
 1690: 1804  JC 1692
-1691: 0031  SET fA[3]
+1691: 0031  SET fA[3]         ; yes → fA[3]
 1692: 0C48  A=SRA MAEX        ; bank number from X …
 1693: 0C48  A=SRA MAEX
 1694: 0A47  MOV R5,#4
@@ -7137,19 +7141,20 @@
 169B: 0694  C=C+B EXP
 169C: 0694  C=C+B EXP
 169D: 02DC  C=0 DPT
-169E: 06D5  C<>D EXP
-169F: 06A9  IO=C-D EXP        ; bank inside the program partition?
+169E: 06D5  C<>D EXP          ; C[1] := partition ÷ 10 (SCOM[9] nibble 0), D[1..2] := 3·bank
+169F: 06A9  IO=C-D EXP        ; bank entirely inside program memory (partition ≥ 3·bank)?
 16A0: 100C  JNC 16A6
-16A1: 03D4  C=LOAD DPT1
-16A2: 0088  TST fB[8]
+16A1: 03D4  C=LOAD DPT1       ; yes: header program flag := 1
+16A2: 0088  TST fB[8]         ; write …
 16A3: 1006  JNC 16A6
-16A4: 0030  TST fA[3]
-16A5: 120A  JNC 17AA
-16A6: 09DC  C=0 MANT
+16A4: 0030  TST fA[3]         ; … into protected program memory?
+16A5: 120A  JNC 17AA          ; yes → error (data banks stay writable)
+16A6: 09DC  C=0 MANT          ; expected header nibbles in D: [2] 3·(bank−1), [1] program flag,
+                              ;   [0] partition
 16A7: 0032  CLR fA[3]
 16A8: 0614  C=B EXP
-16A9: 0619  IO=-B EXP
-16AA: 19E8  JC 179E
+16A9: 0619  IO=-B EXP         ; bank 0 (card inserted without a bank number)?
+16AA: 19E8  JC 179E           ; yes → read any bank (179E)
 16AB: 072C  C=C-1 EXP1
 16AC: 0626  D=C EXP
 16AD: 06A4  C=C+D EXP
@@ -7207,11 +7212,11 @@
 16E0: 01AB  B=C-D ALL
 16E1: 0119  IO=-B ALL
 16E2: 1988  JC 17A6
-16E3: 0020  TST fA[2]
+16E3: 0020  TST fA[2]         ; n INV Write, header ≠ bank n's
 16E4: 1806  JC 16E7
 16E5: 0A85  TST KR[8]
 16E6: 182E  JC 16FD
-16E7: 0130  A=D ALL
+16E7: 0130  A=D ALL           ; header mismatch / error: X := header digits for the display
 16E8: 0A0C  MOV KR,EXT[4..15]
 16E9: 0099  SET fB[9]         ; mismatch → ERROR, let the card run out (16F0–16F3)
 16EA: 0AA0  WAIT D10
@@ -7220,20 +7225,21 @@
 16ED: 0AB0  WAIT D11
 16EE: 0A0B  TST.BUSY
 16EF: 100F  JNC 16E8
-16F0: 0A58  CRD.RD
+16F0: 0A58  CRD.RD            ; let the rest of the card run through unread
 16F1: 0A04  INC KR
 16F2: 0AC5  TST KR[12]
 16F3: 1807  JC 16F0
-16F4: 0048  TST fB[4]
+16F4: 0048  TST fB[4]         ; invalid bank (17AA)?
 16F5: 1146  JNC 1798
 16F6: 1890  JC 173E
-16F7: 0020  TST fA[2]         ; write: fourth header byte (0) …
+16F7: 0020  TST fA[2]         ; fourth header byte: 1 if the bank number was negative (protected
+                              ;   card), else 0
 16F8: 1804  JC 16FA
 16F9: 0085  SET KR[8]
 16FA: 0AC8  CRD.WR
 16FB: 0A38  CRD.OUT
 16FC: 1810  JC 1704
-16FD: 0C26  D=C MAEX
+16FD: 0C26  D=C MAEX          ; INV Write path: the header matched
 16FE: 03D6  D=LOAD DPT1
 16FF: 18BE  JC 175E
 1700: 0A77  MOV R5,#7         ; WRITE_LOOP: 8 bytes per register …
@@ -7243,7 +7249,7 @@
 1704: 0AF8  RAM.OP            ; read the next RAM register …
 1705: 01A1  IO=C+D ALL
 1706: 01D3  B=LOAD ALL
-1707: 0C7E  D=SRD MAEX
+1707: 0C7E  D=SRD MAEX        ; pacing: D's shifts leave nothing behind; R5 is set by B's
 1708: 095E  D=SRB MANT        ; … and shift it out two nibbles at a time (1708–172F)
 1709: 097E  D=SRD MANT
 170A: 097E  D=SRD MANT
@@ -7255,11 +7261,11 @@
 1710: 097E  D=SRD MANT
 1711: 097E  D=SRD MANT
 1712: 097E  D=SRD MANT
-1713: 0153  B=SLB ALL
+1713: 0153  B=SLB ALL         ; next byte from the register top …
 1714: 0153  B=SLB ALL
 1715: 0A0C  MOV KR,EXT[4..15]
 1716: 0931  IO=D MANT
-1717: 0A18  MOV KR[4..7],R5
+1717: 0A18  MOV KR[4..7],R5   ; … high nibble → KR[4..7], copied into KR[8..11] (1719–1724)
 1718: 02F3  B=R5 DPT
 1719: 0A45  TST KR[4]
 171A: 1804  JC 171C
@@ -7274,7 +7280,7 @@
 1723: 1804  JC 1725
 1724: 00B5  SET KR[11]
 1725: 0280  A=A+B DPT         ; checksum += nibble
-1726: 097E  D=SRD MANT
+1726: 097E  D=SRD MANT        ; low nibble → KR[4..7]
 1727: 0931  IO=D MANT
 1728: 0A18  MOV KR[4..7],R5
 1729: 02F3  B=R5 DPT
@@ -7296,22 +7302,22 @@
 1739: 0AC8  CRD.WR
 173A: 0A38  CRD.OUT
 173B: 0AC8  CRD.WR
-173C: 01D7  A<>E ALL
+173C: 01D7  A<>E ALL          ; display: X := bank number (header byte 2 ÷ 3 + 1)
 173D: 0C48  A=SRA MAEX
 173E: 0C03  B=A MAEX
 173F: 0C80  A=A+B MAEX
 1740: 0C80  A=A+B MAEX
 1741: 0C80  A=A+B MAEX
 1742: 06D8  A=0 EXP
-1743: 0D00  A=A+1 MLSD1
+1743: 0D00  A=A+1 MLSD1       ; (minus sign if protected, fA[2] from 17FE)
 1744: 0A48  CRD.OFF           ; transport off (card leaves the reader)
 1745: 1002  JNC 1746 ; clear COND
 1746: 004A  CLR fB[4]
 1747: 008A  CLR fB[8]
 1748: 0091  SET fA[9]
-1749: 02D8  A=0 DPT
+1749: 02D8  A=0 DPT           ; no decimals
 174A: 0098  TST fB[9]         ; error?
-174B: 1B45  JC 15A9
+174B: 1B45  JC 15A9           ; → show it
 174C: 000A  CLR fB[0]
 174D: 0A1F  RCLF
 174E: 09D4  C=LOAD MANT
@@ -7338,7 +7344,7 @@
 1763: 01D7  A<>E ALL
 1764: 0A77  MOV R5,#7
 1765: 06F0  A=R5 EXP
-1766: 0088  TST fB[8]
+1766: 0088  TST fB[8]         ; read or write?
 1767: 18E1  JC 16F7           ; write → 16F7
 1768: 0A58  CRD.RD            ; READ_LOOP: 8 bytes → B …
 1769: 0A28  CRD.IN
@@ -7348,7 +7354,7 @@
 176D: 02F3  B=R5 DPT
 176E: 0A07  MOV R5,#0
 176F: 0A18  MOV KR[4..7],R5
-1770: 0A85  TST KR[8]
+1770: 0A85  TST KR[8]         ; received byte: high nibble KR[8..11] → KR[4..7]
 1771: 1804  JC 1773
 1772: 0045  SET KR[4]
 1773: 0A95  TST KR[9]
@@ -7368,7 +7374,7 @@
 1781: 1002  JNC 1782 ; clear COND
 1782: 0708  A=A-1 EXP1
 1783: 1837  JC 1768
-1784: 0C64  C=SLC MAEX
+1784: 0C64  C=SLC MAEX        ; RAM address of the register …
 1785: 0AF8  RAM.OP            ; … write the register into RAM
 1786: 01A1  IO=C+D ALL
 1787: 0111  IO=B ALL
@@ -7376,35 +7382,35 @@
 1789: 0A58  CRD.RD
 178A: 0A28  CRD.IN
 178B: 0A0C  MOV KR,EXT[4..15]
-178C: 0724  C=C+1 EXP1
+178C: 0724  C=C+1 EXP1        ; next register
 178D: 0D08  A=A-1 MLSD1       ; next register, 30 per bank
 178E: 0A77  MOV R5,#7
 178F: 06F0  A=R5 EXP
 1790: 184B  JC 176B
-1791: 0A08  MOV R5,KR[4..7]
+1791: 0A08  MOV R5,KR[4..7]   ; checksum byte (244): its low nibble …
 1792: 02F3  B=R5 DPT
 1793: 028B  B=A-B DPT         ; computed checksum vs byte 244
 1794: 0219  IO=-B DPT
 1795: 0A48  CRD.OFF
-1796: 18B6  JC 17F1
-1797: 06DB  B=0 EXP
+1796: 18B6  JC 17F1           ; checksum OK → 17F1
+1797: 06DB  B=0 EXP           ; bad checksum →
 1798: 0099  SET fB[9]         ; abort / error: blink
 1799: 06D2  A<>B EXP
 179A: 09D8  A=0 MANT
 179B: 0C40  A=SLA MAEX
 179C: 0C40  A=SLA MAEX
 179D: 18B3  JC 1744
-179E: 0088  TST fB[8]
-179F: 1816  JC 17AA
-17A0: 070C  C=A-1 EXP1
+179E: 0088  TST fB[8]         ; bank 0: read accepts any bank …
+179F: 1816  JC 17AA           ; … write needs one → error
+17A0: 070C  C=A-1 EXP1        ; read: expected bank digits don't care, only the partition
 17A1: 19EB  JC 16AC
-17A2: 01A9  IO=C-D ALL
-17A3: 02AE  D=C-D DPT
+17A2: 01A9  IO=C-D ALL        ; card header vs expected:
+17A3: 02AE  D=C-D DPT         ; partition must match (no repartitioning) …
 17A4: 0239  IO=-D DPT
-17A5: 117D  JNC 16E7
-17A6: 0A85  TST KR[8]
+17A5: 117D  JNC 16E7          ; … else error, card not read
+17A6: 0A85  TST KR[8]         ; fourth header byte: protected card?
 17A7: 1953  JC 16FE
-17A8: 0031  SET fA[3]
+17A8: 0031  SET fA[3]         ; yes → fA[3]
 17A9: 1957  JC 16FE
 17AA: 0049  SET fB[4]         ; invalid bank → error path
 17AB: 1987  JC 16E8
@@ -7477,9 +7483,10 @@
 17EE: 186F  JC 17B7
 17EF: 0099  SET fB[9]
 17F0: 1CC5  JC 158E
-17F1: 0030  TST fA[3]
+17F1: 0030  TST fA[3]         ; protected card read?
 17F2: 196D  JC 173C
-17F3: 0A97  MOV R5,#9
+17F3: 0A97  MOV R5,#9         ; yes: SCOM[9] nibble 2 := 1 (memory protected: LRN refused,
+                              ;   program banks not writable; CP clears it) …
 17F4: 02F3  B=R5 DPT
 17F5: 0111  IO=B ALL
 17F6: 0A1F  RCLF
@@ -7490,5 +7497,5 @@
 17FB: 0111  IO=B ALL
 17FC: 0A0F  STOF
 17FD: 0131  IO=D ALL
-17FE: 0021  SET fA[2]
+17FE: 0021  SET fA[2]         ; … and the bank shows negative
 17FF: 1987  JC 173C
