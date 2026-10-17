@@ -151,15 +151,15 @@
 005F: 1BAC  JC 0235
 0060: 0A27  MOV R5,#2         ; ")" stub (from slot 0045): op code 2 …
 0061: 18A3  JC 0010           ;   … → KEY_RET (tag KR[8]) → KEY_OP_ENTRY
-0062: 1C0E  JC 0269
-0063: 1F1A  JC 03F0
+0062: 1C0E  JC 0269           ; 2nd slot: (2nd 2nd) (keycode 26)
+0063: 1F1A  JC 03F0           ; 2nd slot: Pgm (keycode 36)
 0064: 1C1E  JC 0273           ; 2nd slot: "Ins" (2nd SST) — trace-confirmed; op
                               ;   dispatch continues via KEY_OP_ENTRY chain → OP_INS 0B11
-0065: 1C1A  JC 0272
-0066: 1C40  JC 0286
-0067: 1F18  JC 03F3
-0068: 180C  JC 006E
-0069: 1FEC  JC 045F
+0065: 1C1A  JC 0272           ; 2nd slot: Del (keycode 56)
+0066: 1C40  JC 0286           ; 2nd slot: Pause (keycode 66)
+0067: 1F18  JC 03F3           ; 2nd slot: Lbl (keycode 76)
+0068: 180C  JC 006E           ; 2nd slot: St flg (keycode 86)
+0069: 1FEC  JC 045F           ; 2nd slot: Write (keycode 96)
 006A: 0A47  MOV R5,#4
 006B: 18B7  JC 0010
 ; "=" (from slot 00EA): incoming precedence 0, so the reduce loop pops every
@@ -170,14 +170,14 @@
 006F: 19A4  JC 0141
 0070: 0AE7  MOV R5,#14
 0071: 1A1C  JC 017F
-0072: 1BEA  JC 0267
+0072: 1BEA  JC 0267           ; 2nd slot: (2nd INV) (keycode 27)
 0073: 1FDE  JC 0462           ; 2nd slot: "P/R" (2nd x⇄t) → KEY_PR — trace-confirmed
-0074: 1C20  JC 0284
-0075: 1C0E  JC 027C
-0076: 180D  JC 0070
-0077: 1A0E  JC 017E
-0078: 1BF0  JC 0270
-0079: 0A37  MOV R5,#3
+0074: 1C20  JC 0284           ; 2nd slot: CMs (keycode 47)
+0075: 1C0E  JC 027C           ; 2nd slot: Eng (keycode 57)
+0076: 180D  JC 0070           ; 2nd slot: x=t (keycode 67)
+0077: 1A0E  JC 017E           ; 2nd slot: x≥t (keycode 77)
+0078: 1BF0  JC 0270           ; 2nd slot: If flg (keycode 87)
+0079: 0A37  MOV R5,#3         ; 2nd slot: Dsz (keycode 97)
 007A: 1C66  JC 02AD
 ; "×"/"÷" push (from slot 00C7)
 007B: 0A47  MOV R5,#4         ; precedence 4
@@ -188,16 +188,16 @@
 007F: 1B6C  JC 0235
 0080: 0AE7  MOV R5,#14
 0081: 1B1C  JC 020F
-0082: 1832  JC 009B
-0083: 185C  JC 00B1
-0084: 18B5  JC 002A
-0085: 1837  JC 006A
-0086: 1BC6  JC 0269
-0087: 1FD4  JC 0471
-0088: 19D4  JC 0172
+0082: 1832  JC 009B           ; 2nd slot: log (keycode 28)
+0083: 185C  JC 00B1           ; 2nd slot: sin (keycode 38)
+0084: 18B5  JC 002A           ; 2nd slot: Exc (keycode 48)
+0085: 1837  JC 006A           ; 2nd slot: Fix (keycode 58)
+0086: 1BC6  JC 0269           ; 2nd slot: Nop (keycode 68)
+0087: 1FD4  JC 0471           ; 2nd slot: Σ+ (keycode 78)
+0088: 19D4  JC 0172           ; 2nd slot: D.MS (keycode 88)
 ; KEY_ADV: 2nd-table slot of Adv (2nd .), shared with the printer's ADV button
 ; (remapped here at 0679–0688) → paper advance (0487).
-0089: 1FFC  JC 0487
+0089: 1FFC  JC 0487           ; 2nd slot: Adv (keycode 98)
 008A: 0A07  MOV R5,#0
 008B: 18F7  JC 0010
 ; Prd step (slot 00E3): same for multiply; INV Prd divides.
@@ -207,13 +207,13 @@
 008F: 0088  TST fB[8]         ; INV Prd?
 0090: 1E78  JC 03CC           ; no → MULDIV multiply
 0091: 167A  JNC 03CE          ; yes → divide
-0092: 1FFE  JC 0491
-0093: 183A  JC 00B0
-0094: 18ED  JC 001E
-0095: 182B  JC 0080
-0096: 1BEE  JC 028D
-0097: 19D6  JC 0182
-0098: 1F70  JC 0450
+0092: 1FFE  JC 0491           ; 2nd slot: CP (keycode 29)
+0093: 183A  JC 00B0           ; 2nd slot: cos (keycode 39)
+0094: 18ED  JC 001E           ; 2nd slot: Prd (keycode 49)
+0095: 182B  JC 0080           ; 2nd slot: Int (keycode 59)
+0096: 1BEE  JC 028D           ; 2nd slot: Op (keycode 69)
+0097: 19D6  JC 0182           ; 2nd slot: x̄ (keycode 79)
+0098: 1F70  JC 0450           ; 2nd slot: π (keycode 89)
 ; KEY_PRT: 2nd-table slot of Prt (2nd +/-), shared with the printer's PRINT
 ; button (remapped at 0679–0688): print X (fA[10] path, PRT_VALUE 152B).
 0099: 00A1  SET fA[10]        ; print the value through the trace-record machinery
@@ -225,13 +225,13 @@
 009F: 1AE0  JC 020F
 00A0: 0A27  MOV R5,#2         ; "+"/"−" stub (from slot 0058): op code 2 …
 00A1: 193E  JC 0140           ;   … → KEY_ARITH — trace-confirmed ("+")
-00A2: 1DFA  JC 039F
-00A3: 18C7  JC 0040
-00A4: 1E94  JC 03EE
-00A5: 1837  JC 008A
-00A6: 1C12  JC 02AF
-00A7: 1FF4  JC 04A1
-00A8: 1FF6  JC 04A3
+00A2: 1DFA  JC 039F           ; 2nd slot: (2nd CLR) (keycode 20)
+00A3: 18C7  JC 0040           ; 2nd slot: tan (keycode 30)
+00A4: 1E94  JC 03EE           ; 2nd slot: Ind (keycode 40)
+00A5: 1837  JC 008A           ; 2nd slot: |x| (keycode 50)
+00A6: 1C12  JC 02AF           ; 2nd slot: Deg (keycode 60)
+00A7: 1FF4  JC 04A1           ; 2nd slot: Rad (keycode 70)
+00A8: 1FF6  JC 04A3           ; 2nd slot: Grad (keycode 80)
 ; List (2nd =, slot 00A9): only with a printer (KEY [P] at D0); fB[10] =
 ; listing (borrowed, as in LRN, so the step fetch builds the LRN display),
 ; fn 7 in the KR[8]+KR[9] bank → slots 0537 (flush a pending trace line) and
