@@ -93,7 +93,7 @@ uint64_t EmulatorSession::setFrozenState(bool frozen, std::optional<FreezeOwner>
 // so the key sequencer never sees a stopped machine as running.
 void EmulatorSession::onFreezeFired(FreezeOwner owner) {
     uint64_t generation = setFrozenState(true, owner);
-    // CALCULATOR freezes at a PC change: prepare the next step's display state.
+    // CALCULATOR freezes at a step dispatch: prepare the next step's display state.
     if (owner == FreezeOwner::Calculator) m_machine->beginNextStep();
     m_listener.debugStateChanged();
     m_listener.frozenViewReady(generation, FrozenViewReason::FreezeFired);

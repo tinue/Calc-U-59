@@ -384,7 +384,7 @@ Solid-state (library module) programs are shown live in the PROGRAM STEPS view:
 - `ModuleImage::libraryStep()` maps the core's latched `libExecPC` (`0xFFFF` = none) to `(program, step, range)`. Steps are **program-relative**: step 000 = first keycode of that program.
 - Frozen view: the full listing of the program being run, rebuilt on every freeze and keycode step (`Shared/DebugModel`).
 - The current Pgm number also lives in SCOM[9] digits 4 (tens) / 3 (units); the latch-derived program is cross-checked against it (mismatches debug-logged).
-- **PRG SOURCE = 2** ("Solid State Return (PC Reload)"): a transitional state inside a RTN back into the module (16 instructions, seen only when frozen, because `stepUntilNextKeycode` stops at ROM 1192, where RTN writes SCOM[0]). The previous listing is kept and the highlight advances +1 onto the just-executed RTN (`DebugModel::frozenView`). During this step SCOM[0] nibbles 4–7 hold a raw CROM address, **not** a step number — never decode it as one.
+- **PRG SOURCE = 2** ("Solid State Return (PC Reload)"): a transitional state inside a RTN back into the module (16 instructions between ROM 1192, where RTN writes SCOM[0], and 1506). A debugger STEP stops only at the step dispatch, after it, so only a running snapshot can catch it; the previous listing is then kept (`DebugModel::rebuildLive`). During this step SCOM[0] nibbles 4–7 hold a raw CROM address, **not** a step number — never decode it as one.
 - Colors: solid-state steps highlight blue; return-stack levels with source 2 show purple, like library levels.
 
 ---

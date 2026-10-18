@@ -31,13 +31,15 @@ double decimalValue(const uint8_t* n, int exponent, bool negative) {
 
 bool decimalDigits(const uint8_t* n, int from) { return std::all_of(n + from, n + 16, [](uint8_t d) { return d <= 9; }); }
 
-/// X at a keystroke boundary (rom/TI59-ROM-Guide.md, "Number formats"; NUM_NORM at
+/// X between two steps (rom/TI59-ROM-Guide.md, "Number formats"; NUM_NORM at
 /// 0236). A result on display (fB[5]) is normalized in C, nibble 0 = 0xC, with its
 /// signs in fB[2]/fB[3]. A number being typed is the entry image in A: digits in
 /// nibbles 15–3, exponent in 2–1, digits after the point in 0, signs in fA[2]/fA[3].
-/// Its display form is shifted two places left while B's exponent field is set,
-/// which the ROM undoes at 0662. Anything else is shown raw.
-void decodeX(const CpuFrame& cpu, LiveDebugSnapshot& snap) {
+/// At idle that image is in display form, shifted two places left while B's
+/// exponent field is set, which the ROM undoes at 0662 (and at 07C1 before a
+/// program step, so at the step dispatch A is already realigned and B holds
+/// fetch data). Anything else is shown raw.
+void decodeX(const CpuFrame& cpu, bool atDispatch, LiveDebugSnapshot& snap) {
     snap.xValue = 0;
     snap.xRaw.clear();
     if (cpu.fB & (1u << 5)) {
@@ -54,7 +56,7 @@ void decodeX(const CpuFrame& cpu, LiveDebugSnapshot& snap) {
     }
     uint8_t a[16];
     std::copy(cpu.A, cpu.A + 16, a);
-    if (cpu.B[1] != 0 || cpu.B[2] != 0) {
+    if (!atDispatch && (cpu.B[1] != 0 || cpu.B[2] != 0)) {
         std::copy(a + 2, a + 16, a + 1);  // A=SRA MAEX
         a[15] = 0;
         std::copy(a + 4, a + 16, a + 3);  // A=SRA MANT
@@ -170,10 +172,12 @@ LiveDebugBuild buildLiveSnapshot(const TI59Machine& m, Model model, const Module
 
     const CpuFrame cpu = m.snapshotCPU();
     const auto& S = cpu.SCOM;
+    // Stopped by a STEP or a CALCULATOR freeze: about to execute a program byte.
+    const bool atDispatch = cpu.pc == m.stepDispatchPC();
 
     for (int h = 1; h <= 8; ++h) snap.hir[static_cast<size_t>(h - 1)] = TI59Machine::decodeBCD(S[h]);  // HIR n in SCOM[n]
     snap.tRegister = TI59Machine::decodeBCD(S[11]);
-    decodeX(cpu, snap);
+    decodeX(cpu, atDispatch, snap);
 
     snap.prSourceFlag = S[0][3];
     snap.programSource = programSourceFrom(snap.prSourceFlag, cpu.pc);
@@ -203,10 +207,12 @@ LiveDebugBuild buildLiveSnapshot(const TI59Machine& m, Model model, const Module
     snap.secondIndicator = (faNibble & 0x2) ? "2nd" : "";
     snap.engIndicator = (((cpu.fB >> 4) & 0xF) & 0x8) ? "Eng" : "";
 
-    // Current step = the next one to execute. Solid State: the library exec
-    // latch, the byte fetched for dispatch (the SCOM PC does not move during
-    // module execution). User programs and ROM: the SCOM PC, which at a step
-    // stop points at the byte about to be read, or at a jump's target.
+    // Current step = the next one to execute, as LRN shows it. Solid State: the
+    // library exec latch, the byte fetched for dispatch (the SCOM PC does not
+    // move during module execution). User programs and ROM: the SCOM PC. At the
+    // dispatch it names the fetched byte; between steps it names the last one,
+    // except after a jump or RST, which leave the target there with fB[11]
+    // (reload) set, so the next fetch reads it without advancing (08B9).
     std::optional<ModuleImage::LibStep> lib;
     if (snap.programSource == ProgramSource::SolidState) lib = module.libraryStep(m.libExecPC());
     if (lib) {
@@ -214,7 +220,8 @@ LiveDebugBuild buildLiveSnapshot(const TI59Machine& m, Model model, const Module
         int scomProgram = activeLibraryProgram(S[9]);
         if (scomProgram != lib->program) out.libProgramMismatch = std::make_pair(lib->program, scomProgram);
     } else if (stepsFromScomPC(snap.programSource)) {
-        snap.currentStep = decodeProgramCounter(cpu);
+        bool reload = (cpu.fB & (1u << 11)) != 0;
+        snap.currentStep = decodeProgramCounter(cpu) + (atDispatch || reload ? 0 : 1);
     }
 
     // Keycodes of the active source; operands are classified over the whole

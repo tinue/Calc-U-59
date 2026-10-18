@@ -102,6 +102,7 @@ TEST(freeze_on_pc_change_and_mutual_exclusion) {
     releaseMatrix(*m, 11);
     CHECK(r.stop == BatchResult::Stop::Freeze);
     CHECK(r.freezeOwner == FreezeOwner::Calculator);
+    CHECK_EQ(m->pc(), m->stepDispatchPC());  // before the first step executes, where STEP stops
 }
 
 TEST(calc_indicator_smoothing) {

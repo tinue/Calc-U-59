@@ -47,35 +47,67 @@ TEST(x_register_entry_and_result) {
 }
 
 namespace {
-/// The CALCULATOR tab's current step after each debugger STEP through
-/// LBL A, 1, +, GTO 00 17, Nop…, 2, =, R/S (GTO at 004, its operands at 005/006).
-std::vector<int> stepsThroughGto() {
-    auto m = testroms::makeMachine(Model::TI59);
-    testroms::runToScanLoop(*m, Model::TI59);
-    std::vector<uint8_t> prog = {76, 11, 1, 85, 61, 0, 17};
-    prog.resize(17, 68);
-    prog.insert(prog.end(), {2, 95, 91});
+/// The CALCULATOR tab's current step and X after each debugger STEP through
+/// `prog` (started with A, so it begins with LBL A), until step `last` is next.
+std::vector<std::string> stepThrough(const std::vector<uint8_t>& prog, int last, Model model = Model::TI59) {
+    auto m = testroms::makeMachine(model);
+    testroms::runToScanLoop(*m, model);
     m->writeProgram(prog.data(), prog.size());
     pressMatrix(*m, 11);  // A
     m->stepUntilNextKeycode();
     releaseMatrix(*m, 11);
     std::vector<uint8_t> romCache;
-    std::vector<int> steps;
+    std::vector<std::string> steps;
     for (int i = 0; i < 40; ++i) {
         m->stepUntilNextKeycode();
         m->beginNextStep();
-        int step = buildLiveSnapshot(*m, Model::TI59, ModuleImage{}, romCache).snap.currentStep;
-        steps.push_back(step);
-        if (step >= 19) break;
+        CHECK_EQ(m->pc(), m->stepDispatchPC());
+        auto snap = buildLiveSnapshot(*m, model, ModuleImage{}, romCache).snap;
+        steps.push_back(std::to_string(snap.currentStep) + " " + xRegisterLine(snap.xValue, snap.xRaw));
+        if (snap.currentStep >= last) break;
     }
     return steps;
 }
 } // namespace
 
-// Each STEP shows the next step, one byte at a time (operands included), as
-// LRN does after each SST; the GTO lands on its target, not one before it.
+// Each STEP stops at the step dispatch and shows the next step, one byte at a
+// time (operands included), as LRN does after each SST: the GTO completes in
+// its last byte and lands on its target, with X intact.
 TEST(step_shows_the_next_step) {
-    CHECK(stepsThroughGto() == (std::vector<int>{3, 4, 5, 6, 17, 18, 19}));
+    // LBL A, 1, +, GTO 00 17 (GTO at 004, operands at 005/006), Nop…, 2, =, R/S
+    std::vector<uint8_t> prog = {76, 11, 1, 85, 61, 0, 17};
+    prog.resize(17, 68);
+    prog.insert(prog.end(), {2, 95, 91});
+    CHECK(stepThrough(prog, 19) ==
+          (std::vector<std::string>{"3 X: 1", "4 X: 1", "5 X: 1", "6 X: 1", "17 X: 1", "18 X: 2", "19 X: 3"}));
+    // An entry with EE inside a program: A is realigned before each dispatch.
+    // LBL A, 1, ., 5, EE, 3, +, 2, =, R/S
+    CHECK(stepThrough({76, 11, 1, 93, 5, 52, 3, 85, 2, 95, 91}, 10) ==
+          (std::vector<std::string>{"3 X: 1", "4 X: 1", "5 X: 1.5", "6 X: 1.5", "7 X: 1500", "8 X: 1500", "9 X: 2",
+                                    "10 X: 1502"}));
+    // The TI-58C's ROM has its dispatch elsewhere (082B).
+    CHECK(stepThrough(prog, 19, Model::TI58C) ==
+          (std::vector<std::string>{"3 X: 1", "4 X: 1", "5 X: 1", "6 X: 1", "17 X: 1", "18 X: 2", "19 X: 3"}));
+}
+
+// At idle the cursor is what LRN shows after SST: the counter + 1, or the
+// counter itself after RST or a jump (fB[11]).
+TEST(idle_cursor_matches_lrn_after_sst) {
+    auto m = testroms::makeMachine(Model::TI59);
+    testroms::runToScanLoop(*m, Model::TI59);
+    std::vector<uint8_t> prog = {1, 85, 61, 0, 17};  // 1 + GTO 00 17 Nop… 2 = R/S
+    prog.resize(17, 68);
+    prog.insert(prog.end(), {2, 95, 91});
+    m->writeProgram(prog.data(), prog.size());
+    std::vector<uint8_t> romCache;
+    auto next = [&] { return buildLiveSnapshot(*m, Model::TI59, ModuleImage{}, romCache).snap.currentStep; };
+    testroms::tap(*m, Model::TI59, 81);  // RST
+    CHECK_EQ(next(), 0);
+    const int expected[] = {1, 2, 3, 4, 17, 18};
+    for (int e : expected) {
+        testroms::tap(*m, Model::TI59, 41);  // SST
+        CHECK_EQ(next(), e);
+    }
 }
 
 TEST(program_source_decoding) {

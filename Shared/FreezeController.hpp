@@ -3,12 +3,14 @@
 #include "MachineModelInfo.hpp"
 #include <atomic>
 #include <cstdint>
+#include <optional>
 
 // The debugger's armed freezes, checked from the run loop:
 //  - FREEZE ON START (CPU tab): fires when the CPU leaves the steady keyboard
 //    scan loop — a key press, or a reset (PC jumps to 0000) while running.
-//  - Freeze on next PC change (CALCULATOR tab): fires when the calculator PC
-//    (SCOM[0]) or the solid-state exec latch moves.
+//  - Freeze on next PC change (CALCULATOR tab): fires when the interpreter is
+//    about to execute the next program byte (TI59Machine::stepDispatchPC()),
+//    the same point a debugger STEP stops at.
 // The two are mutually exclusive: arming one disarms the other. Arming happens
 // on the UI thread, checking on the emulation thread.
 
@@ -23,7 +25,7 @@ public:
 
     /// FREEZE ON START. `currentPC` guards against an immediate re-trigger at 0000.
     void armScanLoopExit(uint16_t currentPC);
-    /// Freeze on the next calculator-PC change, from the current SCOM PC and exec latch.
+    /// Freeze before the next program byte executes (CALCULATOR FREEZE ON START).
     void armPcChange(const TI59Machine& m);
     void disarmScanLoopExit();
     void disarmPcChange();
@@ -31,13 +33,10 @@ public:
     bool scanLoopExitArmed() const { return m_scanArmed.load(); }
     bool pcChangeArmed() const { return m_pcArmed.load(); }
 
-    /// Per instruction (exact PC: a per-batch check lands hundreds of
-    /// instructions late after a reset clears the loop in one burst). True
-    /// when FREEZE ON START fires; it disarms itself.
-    bool checkStep(uint16_t pc);
-
-    /// Per batch. True when the PC-change freeze fires; it disarms itself.
-    bool checkBatch(const TI59Machine& m);
+    /// Per instruction, with the PC of the next one (a per-batch check lands
+    /// hundreds of instructions late). The panel whose armed freeze fires; it
+    /// disarms itself.
+    std::optional<FreezeOwner> checkStep(uint16_t pc);
 
 private:
     const PcRange m_scanLoop;
@@ -45,8 +44,7 @@ private:
     std::atomic<bool> m_seenLoop{false};
     std::atomic<uint16_t> m_armPC{0xFFFF};
     std::atomic<bool> m_pcArmed{false};
-    std::atomic<uint16_t> m_lastScomPC{0};
-    std::atomic<uint16_t> m_lastLibPC{0xFFFF};
+    std::atomic<uint16_t> m_dispatchPC{0xFFFF};
 };
 
 } // namespace cu59

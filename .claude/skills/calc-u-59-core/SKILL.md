@@ -64,7 +64,7 @@ unit, top RAM register and partition 13; return stack 14/15) is documented in
 
 ### Calculator PC Encoding (SCOM[0] nibbles 4–7)
 
-The user program step address (0–959) is encoded in nibbles 4–7 of SCOM[0] as step = n7×800 + n6×80 + n5×8 + n4 (BCD program-register number in n7..n5, byte 0–7 in n4). The ROM maintains it; the emulator never writes it (only `TI59Machine::stepUntilNextKeycode` reads it). Firmware details: `rom/TI59-ROM-Guide.md` § "Program memory".
+The user program step address (0–959) is encoded in nibbles 4–7 of SCOM[0] as step = n7×800 + n6×80 + n5×8 + n4 (BCD program-register number in n7..n5, byte 0–7 in n4). The ROM maintains it; the emulator never writes it (the debugger decodes it in `Shared/DebugSnapshots`). Firmware details: `rom/TI59-ROM-Guide.md` § "Program memory".
 
 ---
 

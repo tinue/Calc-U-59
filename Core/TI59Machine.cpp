@@ -279,23 +279,20 @@ uint32_t TI59Machine::stepN(uint32_t n, bool stopOnBreakpoint) {
 
 uint32_t TI59Machine::stepUntilNextKeycode(uint32_t maxCycles) {
     std::lock_guard<std::mutex> lock(m_keyMutex);
-    uint8_t n4 = m_cpu.scomNibble(0, 4);
-    uint8_t n5 = m_cpu.scomNibble(0, 5);
-    uint8_t n6 = m_cpu.scomNibble(0, 6);
-    uint8_t n7 = m_cpu.scomNibble(0, 7);
-    // Solid-state programs never move the SCOM[0] step counter; their
-    // per-step boundary is the library exec latch advancing instead.
-    uint16_t libPC = m_cpu.libExecPC();
+    const uint16_t dispatch = m_cpu.stepDispatchPC();
     uint32_t done = 0;
     while (done < maxCycles) {
         int w = m_cpu.step();          // returns 1 (active) or 4 (IDLE)
         done += static_cast<uint32_t>(w);
         if (m_cpu.consumeBreakpointHit()) { break; }
-        if (m_cpu.scomNibble(0, 4) != n4 || m_cpu.scomNibble(0, 5) != n5 ||
-            m_cpu.scomNibble(0, 6) != n6 || m_cpu.scomNibble(0, 7) != n7) { break; }
-        if (m_cpu.libExecPC() != libPC) { break; }
+        if (m_cpu.pc() == dispatch) { break; }
     }
     return done;
+}
+
+uint16_t TI59Machine::stepDispatchPC() const {
+    std::lock_guard<std::mutex> lock(m_keyMutex);
+    return m_cpu.stepDispatchPC();
 }
 
 uint16_t TI59Machine::pc() const {

@@ -121,7 +121,7 @@ public:
     void resume();
     /// Unfreeze without starting (the caller has stopped the loop to change state).
     void clearFreeze();
-    /// Freeze on the next calculator-PC change (CALCULATOR) or when the
+    /// Freeze before the next program byte executes (CALCULATOR) or when the
     /// keyboard scan loop exits (CPU); arming one disarms the other.
     void armPcChange();
     void armScanLoopExit();

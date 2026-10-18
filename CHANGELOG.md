@@ -7,6 +7,7 @@
 - **Debugger** The DEBUG row of the CALCULATOR tab now shows the whole status register (`HIR0:`, SCOM[0], 16 digits) instead of the IO and KEY fields.
 - **Debugger** The CALCULATOR tab shows X, the calculator's working value, with all 13 digits before T (`X:`). It is read from C after a result and from A while a number is typed. When that register holds no number, for example while single-stepping a fast-mode program, the raw register is shown in amber.
 - **Debugger** The CALCULATOR tab's program cursor now shows the next step to execute (`← next`), as the calculator's LRN display does after SST. It used to show the last executed step, worked out as "step counter − 1", which named the step before a jump's target, a step that never ran.
+- **Debugger** STEP in the CALCULATOR tab now advances exactly as SST does: one program byte per press, with a jump (GTO, SBR, RTN, conditionals) completed in the byte that causes it. It used to stop inside a jump, and inside each step's fetch, where X was not yet in place. The armed FREEZE ON START now stops at the same point, right before the first program step.
 - **Build** New CMake build with a C++ test suite (`ctest`), including checks of the moved code against the previous Swift implementation.
 - **License** Calc-U-59 is now free software under the GNU General Public License, version 3 (GPLv3), replacing the Polyform Noncommercial License. The Windows and Linux app uses Qt6 under the LGPLv3 (see `THIRD-PARTY-NOTICES.md`).
 

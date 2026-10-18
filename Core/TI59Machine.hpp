@@ -109,10 +109,15 @@ public:
     /// Stops early if a breakpoint is hit (when TRACE_BREAKPOINTS is set).
     uint32_t stepN(uint32_t n, bool stopOnBreakpoint = true);
 
-    /// Run until SCOM[0][4:7] changes (keycode boundary) or maxCycles cycle-equivalents
-    /// are consumed (IDLE steps count as 4, active steps count as 1).
-    /// Returns cycle-equivalents executed. Works for both RAM and master-library programs.
+    /// Run until the interpreter is about to execute the next program byte (the
+    /// CPU reaches stepDispatchPC()), a breakpoint, or maxCycles cycle-equivalents
+    /// (IDLE steps count as 4, active steps as 1) — e.g. when the program stops.
+    /// One call per keycode, as SST: a jump completes inside the byte that
+    /// causes it. Returns cycle-equivalents executed.
     uint32_t stepUntilNextKeycode(uint32_t maxCycles = 50000);
+
+    /// ROM address where the program interpreter dispatches a fetched keycode.
+    uint16_t stepDispatchPC() const;
 
     /// Current program counter (for CLI inspection between stepN calls).
     uint16_t pc() const;

@@ -152,7 +152,7 @@ call the controller (Swift: `EmulatorViewModel.freeze(from:)`, `unfreeze()`,
 |-------|-------------|
 | `frozen` | Emulation is halted |
 | `owner` | `FreezeOwner::Cpu` or `::Calculator` — the panel whose RESUME / STEP apply; empty when running |
-| `pcChangeArmed` | CALCULATOR "FREEZE ON START": freeze on the next calculator-PC change (SCOM[0] PC or the solid-state exec latch) |
+| `pcChangeArmed` | CALCULATOR "FREEZE ON START": freeze before the next program byte executes (the CPU reaches `stepDispatchPC()`, where a STEP stops too) |
 | `scanLoopExitArmed` | CPU "FREEZE ON START": freeze when the CPU leaves the keyboard scan loop (key press or reset) |
 | `generation` | Bumped on every freeze, resume and clear, so a view built for an earlier freeze can be recognised |
 
@@ -172,7 +172,7 @@ Swift copies it into `isFrozen`, `freezeOwner`, `pendingFreezeOnPCChange` and
 | `clearFreeze()` | Unfreeze without starting (caller stopped the loop to change state, e.g. a preset load) |
 | `armPcChange()` / `disarmPcChange()` | CALCULATOR armed freeze; checked by `FreezeController::checkBatch` per batch |
 | `armScanLoopExit()` / `disarmScanLoopExit()` | CPU armed freeze; checked by `FreezeController::checkStep` per instruction |
-| `stepKeycode()` | While frozen: `stepUntilNextKeycode()` + `beginNextStep()` → `frozenViewReady(StepKeycode)` |
+| `stepKeycode()` | While frozen: `stepUntilNextKeycode()` (runs to the next step dispatch, `TI59Machine::stepDispatchPC()`: one program byte per STEP, as SST; a jump completes in the byte that causes it) + `beginNextStep()` → `frozenViewReady(StepKeycode)` |
 | `stepInstruction()` | While frozen: one `step()`, repeated (≤ 32) while the PC stays put — a HOLD (`WAIT Dn`) — then `beginNextStep()` → `frozenViewReady(StepInstruction)` |
 | `setCpuPanelVisible(bool)` | The CPU panel needs the trace ring |
 
@@ -207,9 +207,10 @@ Swift copies it into `isFrozen`, `freezeOwner`, `pendingFreezeOnPCChange` and
 - CPU history (`inspectorHistory`) — always.
 - **SolidStateReturn rule:** if the program source is
   `ProgramSource::SolidStateReturn` (PRG SOURCE `2`: SCOM[0] holds a raw CROM
-  return address, not a step), the listing is kept, and its `isCurrent` marker
-  stays on the RTN that is executing. A listing is never rebuilt from a
-  SolidStateReturn snapshot.
+  return address, not a step), the listing is kept. A listing is never rebuilt
+  from a SolidStateReturn snapshot. (A STEP or CALCULATOR freeze stops at the
+  step dispatch, after the RTN has reset the source to 1, so it doesn't arise
+  there.)
 
 Showing the CALCULATOR panel while frozen rebuilds its snapshot at once
 (`DebugModel::rebuildLive`), since the frozen view may predate it.
@@ -226,10 +227,12 @@ next step to execute, marked `← next` when frozen (`← running` while running
 `cu59::currentStepMarker`). The registers, flags, X and T shown with it are
 the state before that step runs.
 
-- User programs and ROM keycode programs: the SCOM[0] step counter as it
-  stands. At a step stop it points at the byte about to be read (the ROM's
-  step advance at `0B93`), or at a jump's target (the jump writes it, and the
-  next fetch reads it without advancing).
+- User programs and ROM keycode programs: the SCOM[0] step counter. At the
+  step dispatch, where STEP and the CALCULATOR freezes stop (CPU PC =
+  `stepDispatchPC()`), it names the byte about to execute. Between steps (at
+  idle) it names the last one, so the next is counter + 1 — except after RST
+  or a jump, which leave the target in the counter with fB[11] (reload) set,
+  so the next fetch reads it without advancing (`08B9`).
 - Solid State: the library exec latch (`libExecPC`), the module byte fetched
   for dispatch at `LIB_EXEC_FETCH`. The chip's own address counter is not a
   program counter (one chip holds many programs; jumps and label searches

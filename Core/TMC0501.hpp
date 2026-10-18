@@ -245,6 +245,16 @@ public:
     /// searches — see the IN LIB handler for the latch rule.
     uint16_t libExecPC() const { return m_libExecPC; }
 
+    /// ROM address of STEP_DISPATCH, where the interpreter executes the keycode
+    /// it has just fetched — once per program byte (operands included), for RAM,
+    /// module and constant-ROM keycode programs alike. Here the step counter (or
+    /// the module fetch latch) names the step about to run, the previous step is
+    /// complete, and X is back in A/C (rom/TI59-commented.asm 0837; the TI-58C
+    /// ROM has it at 082B, 8 words after its LIB_EXEC_FETCH like the TI-59's).
+    uint16_t stepDispatchPC() const {
+        return m_variant == MachineVariant::TI58C ? 0x082B : 0x0837;
+    }
+
     static constexpr uint16_t kLibExecPCNone = 0xFFFF;
 
     /// Cumulative weighted step count since the last reset() — never drained (unlike
