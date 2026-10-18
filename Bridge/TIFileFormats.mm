@@ -1,9 +1,12 @@
 #import "TIFileFormats.h"
+#import "TI59MachineWrapper+Cpp.h"
 #include "../Shared/CardFile.hpp"
 #include "../Shared/ConstantMemory.hpp"
 #include "../Shared/ModuleCatalog.hpp"
 #include "../Shared/RomLoader.hpp"
+#include "../Shared/StateApplier.hpp"
 #include "../Shared/StateFile.hpp"
+#include <memory>
 
 namespace {
 
@@ -103,20 +106,7 @@ static TICueCard* _Nullable optionalCard(const std::optional<cu59::CueCardConten
 @implementation TIKeystrokeEvent
 @end
 
-@interface TIRegisterValue ()
-@property (nonatomic, readwrite) NSInteger regNum;
-@property (nonatomic, readwrite, copy) NSData *nibbles;
-@property (nonatomic, readwrite) BOOL isHidden;
-@end
-@implementation TIRegisterValue
-@end
-
 @interface TIStateFileResult ()
-@property (nonatomic, readwrite) NSInteger partitionMaxStep;
-@property (nonatomic, readwrite) BOOL partitionWasExplicit;
-@property (nonatomic, readwrite, copy) NSArray<NSNumber *> *programStepAddrs;
-@property (nonatomic, readwrite, copy) NSData *programStepKeycodes;
-@property (nonatomic, readwrite, copy) NSArray<TIRegisterValue *> *registers;
 @property (nonatomic, readwrite, copy) NSArray<TIKeystrokeEvent *> *keystrokes;
 @property (nonatomic, readwrite, nullable) TICueCard *cueCard;
 @property (nonatomic, readwrite, copy, nullable) NSString *solidStateModuleID;
@@ -125,7 +115,10 @@ static TICueCard* _Nullable optionalCard(const std::optional<cu59::CueCardConten
 @property (nonatomic, readwrite) BOOL skipReset;
 @property (nonatomic, readwrite, copy) NSArray<NSString *> *errors;
 @end
-@implementation TIStateFileResult
+@implementation TIStateFileResult {
+@public
+    std::shared_ptr<const cu59::LoadStateResult> _cpp;  // the parse, for the applier
+}
 @end
 
 @interface TICardFile ()
@@ -200,22 +193,6 @@ static TIModuleMetadata* metadataFrom(const cu59::ModuleMetadata& m) {
                  allowHiddenRegisters:(BOOL)allowHidden {
     cu59::LoadStateResult r = cu59::parseStateFile(cpp(text), static_cast<int>(maxStepAddr), allowHidden == YES);
     TIStateFileResult* t = [[TIStateFileResult alloc] init];
-    t.partitionMaxStep = r.partitionMaxStep;
-    t.partitionWasExplicit = r.partitionWasExplicit;
-    NSMutableArray* addrs = [NSMutableArray arrayWithCapacity:r.programSteps.size()];
-    std::vector<uint8_t> codes;
-    for (const auto& s : r.programSteps) { [addrs addObject:@(s.stepAddr)]; codes.push_back(s.keycode); }
-    t.programStepAddrs = addrs;
-    t.programStepKeycodes = nsData(codes);
-    NSMutableArray* regs = [NSMutableArray array];
-    for (const auto& g : r.registers) {
-        TIRegisterValue* v = [[TIRegisterValue alloc] init];
-        v.regNum = g.regNum;
-        v.nibbles = [NSData dataWithBytes:g.nibbles.data() length:16];
-        v.isHidden = g.isHidden;
-        [regs addObject:v];
-    }
-    t.registers = regs;
     NSMutableArray* keys = [NSMutableArray array];
     for (const auto& k : r.keystrokes) {
         TIKeystrokeEvent* e = [[TIKeystrokeEvent alloc] init];
@@ -234,7 +211,21 @@ static TIModuleMetadata* metadataFrom(const cu59::ModuleMetadata& m) {
     NSMutableArray* errors = [NSMutableArray array];
     for (const auto& e : r.errors) [errors addObject:ns(e)];
     t.errors = errors;
+    t->_cpp = std::make_shared<const cu59::LoadStateResult>(std::move(r));
     return t;
+}
+
++ (NSString *)partitionErrorFor:(TIStateFileResult *)result model:(NSInteger)model {
+    auto e = cu59::stateFilePartitionError(*result->_cpp, static_cast<cu59::Model>(model));
+    return e ? ns(*e) : nil;
+}
+
++ (void)applyState:(TIStateFileResult *)result to:(TI59MachineWrapper *)machine model:(NSInteger)model {
+    cu59::applyState(*machine.cppMachine, *result->_cpp, static_cast<cu59::Model>(model));
+}
+
++ (void)applySkipResetState:(TIStateFileResult *)result to:(TI59MachineWrapper *)machine model:(NSInteger)model {
+    cu59::applySkipResetState(*machine.cppMachine, *result->_cpp, static_cast<cu59::Model>(model));
 }
 
 + (NSInteger)prescanStateFile:(NSString *)text currentModel:(NSInteger)current skipReset:(BOOL *_Nullable)skipReset {

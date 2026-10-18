@@ -1,4 +1,5 @@
 #import <Foundation/Foundation.h>
+#import "TI59MachineWrapper.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -43,18 +44,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly, copy, nullable) NSString *traceName;
 @end
 
-@interface TIRegisterValue : NSObject
-@property (nonatomic, readonly) NSInteger regNum;
-@property (nonatomic, readonly, copy) NSData *nibbles;   ///< 16 bytes
-@property (nonatomic, readonly) BOOL isHidden;
-@end
-
+/// A parsed state file. Partition, program and registers are not exposed:
+/// they go back to Shared/StateApplier through applyState:to:model:.
 @interface TIStateFileResult : NSObject
-@property (nonatomic, readonly) NSInteger partitionMaxStep;
-@property (nonatomic, readonly) BOOL partitionWasExplicit;
-@property (nonatomic, readonly, copy) NSArray<NSNumber *> *programStepAddrs;
-@property (nonatomic, readonly, copy) NSData *programStepKeycodes;  ///< parallel to programStepAddrs
-@property (nonatomic, readonly, copy) NSArray<TIRegisterValue *> *registers;
 @property (nonatomic, readonly, copy) NSArray<TIKeystrokeEvent *> *keystrokes;
 @property (nonatomic, readonly, nullable) TICueCard *cueCard;
 @property (nonatomic, readonly, copy, nullable) NSString *solidStateModuleID;
@@ -102,6 +94,12 @@ typedef NSString *_Nullable (^TIResourceReader)(NSString *fileName);
 // ── State files ──────────────────────────────────────────────────────────────
 + (TIStateFileResult *)parseStateFile:(NSString *)text maxStepAddr:(NSInteger)maxStepAddr
                  allowHiddenRegisters:(BOOL)allowHidden;
+/// Why `result` can't be applied to `model`, or nil (Shared/StateApplier.hpp).
++ (nullable NSString *)partitionErrorFor:(TIStateFileResult *)result model:(NSInteger)model;
+/// Write a parsed file into the machine (full load / SKIP-RESET load). Run on
+/// the emulation queue with the run loop stopped.
++ (void)applyState:(TIStateFileResult *)result to:(TI59MachineWrapper *)machine model:(NSInteger)model;
++ (void)applySkipResetState:(TIStateFileResult *)result to:(TI59MachineWrapper *)machine model:(NSInteger)model;
 /// Target model (MachineModel raw value) and SKIP-RESET, read before parsing.
 + (NSInteger)prescanStateFile:(NSString *)text currentModel:(NSInteger)current skipReset:(BOOL *_Nullable)skipReset;
 

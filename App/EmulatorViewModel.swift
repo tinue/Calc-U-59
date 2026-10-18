@@ -1811,18 +1811,12 @@ class EmulatorViewModel {
             return
         }
 
-        // Validate and adjust partition using self.model, which is now guaranteed to reflect
+        // Validate the partition against self.model, which is now guaranteed to reflect
         // the target model (model switch via start(model:) completes before this is called).
-        var parsed = parsed
-        if !model.hasLargeMemory {
-            if parsed.partitionWasExplicit && parsed.partitionMaxStep > 479 {
-                errorTitle = "State file load error"
-                errorMessage = "State file partition (\(parsed.partitionMaxStep)) exceeds \(model.displayName) maximum (479) — load aborted."
-                return
-            }
-            if !parsed.partitionWasExplicit {
-                parsed.partitionMaxStep = 239
-            }
+        if let error = TIFileFormats.partitionError(for: parsed.parsed, model: model.rawValue) {
+            errorTitle = "State file load error"
+            errorMessage = error
+            return
         }
 
         isRunning = false
@@ -1834,61 +1828,14 @@ class EmulatorViewModel {
         emulQueue.sync {}
 
         guard let m = machine else { return }
-        m.reset()
 
         // Clear program state: when loading a state file, no program should be active.
         // This ensures that the loaded custom cue card (or nil) is displayed, not a leftover program card.
         activeProgramNumber = 0
 
-        // Run the ROM's power-on startup routine until it reaches idle mode.
-        // 300,000 instructions is a conservative upper bound; the actual startup
-        // (master-clear, display init) completes in well under 100k steps.
-        // Skipping this would leave SCOM in an uninitialised state that confuses
-        // the AOS stack and display driver when we write program/data below.
-        _ = emulQueue.sync { m.stepN(300_000) }
-
-        // Set partition directly in SCOM (SCOM[9][0] and SCOM[13][8..9]).
-        // For TI-58, programRegs capped at 60; for TI-58C at 64; rounding above ensures this.
-        let programRegs = (parsed.partitionMaxStep + 1) / 8
-        m.partitionProgramRegs = programRegs
-
-        // Clear RAM before loading new state, but preserve the TI-58C's extra
-        // registers (raw RAM 60-63, E000-E003 / H00-H03 — not normal registers
-        // "60"-"63"; see reference/CoreArchitecture.md's "TI-58C Extra
-        // (Constant Memory) Registers"). RAM[60] holds SCOM reconstruction
-        // data; clearing it triggers the ROM's memory-clear routine.
-        let zeroNibbles = Data(repeating: UInt8(0), count: 16)
-        let preserveExtraRegs = model.hasConstantMemory
-        let clearUpTo = preserveExtraRegs ? MachineModel.extraRegisterBase : 120
-        for regNum in 0..<clearUpTo {
-            m.setRawRegister(regNum, nibbles: zeroNibbles)
-        }
-
-        // Expand sparse steps into a full zero-padded array so unlisted steps are 00.
-        // Sized to the model's physical step capacity, not the (possibly rounded, or
-        // simply mismatched) PARTITION boundary — some listings deliberately load
-        // registers as programs and programs as registers (e.g.
-        // examples/calendar-05-vanderburgh.ti59), so PROGRAM:/REGISTERS: are trusted
-        // as written; only the physical capacity is an overflow limit.
-        let physicalMaxStep = model.hasLargeMemory ? 959 : 479
-        var programArray = [UInt8](repeating: 0, count: physicalMaxStep + 1)
-        for (addr, keycode) in parsed.programSteps where addr <= physicalMaxStep {
-            programArray[addr] = keycode
-        }
-        m.writeProgramSteps(Data(programArray))
-        for (regNum, nibbles, isHidden) in parsed.registers {
-            if isHidden {
-                // TI-58C extra registers (H00-H03): write directly to raw RAM
-                // slots 60-63 — these are never normal registers "60"-"99",
-                // which is why this branches on the explicit isHidden flag
-                // rather than regNum's range (a TI-59 file legitimately uses
-                // regNum up to 99 for ordinary registers).
-                m.setRawRegister(MachineModel.extraRegisterBase + regNum, nibbles: Data(nibbles))
-            } else {
-                // Normal data registers: use the reversed (top-down) mapping
-                m.writeDataRegister(regNum, nibbles: Data(nibbles))
-            }
-        }
+        // Reset, ROM power-on routine, partition, RAM, program, registers:
+        // Shared/StateApplier.cpp.
+        emulQueue.sync { TIFileFormats.applyState(parsed.parsed, to: m, model: model.rawValue) }
 
         // Fresh machine state → fresh heatmap (also skips the power-on walk above).
         resetHeatmapBaseline()
@@ -1941,33 +1888,9 @@ class EmulatorViewModel {
 
         guard let m = machine else { return }
 
-        // Apply PARTITION only if the file specified it explicitly; otherwise leave as-is.
-        if parsed.partitionWasExplicit {
-            let programRegs = (parsed.partitionMaxStep + 1) / 8
-            m.partitionProgramRegs = programRegs
-        }
-
-        // Apply PROGRAM if present (zero-padded full write, same as full-reset path).
-        // See the full-reset path above for why this is sized to the model's physical
-        // step capacity rather than the PARTITION boundary.
-        if !parsed.programSteps.isEmpty {
-            let physicalMaxStep = model.hasLargeMemory ? 959 : 479
-            var programArray = [UInt8](repeating: 0, count: physicalMaxStep + 1)
-            for (addr, keycode) in parsed.programSteps where addr <= physicalMaxStep {
-                programArray[addr] = keycode
-            }
-            m.writeProgramSteps(Data(programArray))
-        }
-
-        // Apply REGISTERS if present. See the full-reset path above for why
-        // this branches on isHidden rather than regNum's range.
-        for (regNum, nibbles, isHidden) in parsed.registers {
-            if isHidden {
-                m.setRawRegister(MachineModel.extraRegisterBase + regNum, nibbles: Data(nibbles))
-            } else {
-                m.writeDataRegister(regNum, nibbles: Data(nibbles))
-            }
-        }
+        // Partition (if explicit), program (if present) and registers only:
+        // Shared/StateApplier.cpp.
+        emulQueue.sync { TIFileFormats.applySkipResetState(parsed.parsed, to: m, model: model.rawValue) }
 
         startEmulationLoop()
 

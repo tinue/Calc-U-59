@@ -272,13 +272,15 @@ to RAM without simulating key presses (except for the optional `KEYSTROKES:` sec
 ```
 1. LoadStateResult(parsing:) → Shared/StateFile parseStateFile (partition, program steps, registers, keystrokes)
 2. Stop the emulation loop; drain emulQueue with sync{} to ensure no in-flight step.
-3. machine.reset()
-4. emulQueue.sync { m.stepN(300_000) }  ← run ROM's power-on startup routine to idle
-5. m.partitionProgramRegs = n           ← write partition directly into SCOM
-6. m.writeProgramSteps(data)            ← write BCD pairs into program RAM
-7. m.writeDataRegister(regNum, nibbles:) ← write each register
-8. startEmulationLoop()
-9. playKeystrokes() async (if KEYSTROKES: section present)
+3. emulQueue.sync { cu59::applyState(...) }  (Shared/StateApplier.cpp):
+   a. machine.reset()
+   b. stepN(300_000)                      ← run ROM's power-on startup routine to idle
+   c. setPartitionProgramRegs(n)          ← write partition directly into SCOM
+   d. clear RAM (TI-58C: keep extra registers 60–63)
+   e. writeProgram(data)                  ← zero-padded to the model's physical capacity
+   f. writeDataRegister / writeRAMReg     ← each register (H registers → raw RAM 60–63)
+4. startEmulationLoop()
+5. playKeystrokes() async (if KEYSTROKES: section present)
 ```
 
 Step 4 is necessary because the ROM's startup routine clears RAM and

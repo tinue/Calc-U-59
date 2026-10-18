@@ -32,17 +32,9 @@ enum KeystrokeEvent {
     }
 }
 
+/// What the view model handles itself; partition, program and registers stay
+/// in `parsed` and are written by Shared/StateApplier.
 struct LoadStateResult {
-    var partitionMaxStep: Int = 479
-    /// True when the file contained an explicit PARTITION: line; false = default was used.
-    var partitionWasExplicit: Bool = false
-    /// Sparse list of (stepAddress, keycode) pairs. Steps not listed default to 0x00.
-    var programSteps: [(stepAddr: Int, keycode: UInt8)] = []
-    /// `regNum` is the user-facing number as written in the file: 00–99 for a
-    /// normal register, 00–03 for an extra (H-prefixed, TI-58C-only) register.
-    /// `isHidden` disambiguates the two — do NOT infer it from `regNum`'s
-    /// range, since normal TI-59 registers legitimately go up to 99.
-    var registers: [(regNum: Int, nibbles: [UInt8], isHidden: Bool)] = []
     var keystrokes: [KeystrokeEvent] = []
     var cueCardContent: CueCardContent? = nil
     var solidStateModuleID: String? = nil
@@ -52,15 +44,14 @@ struct LoadStateResult {
     /// SKIP-RESET: on — skip machine reset; apply only PROGRAM/REGISTERS/PARTITION/CUECARD/KEYSTROKES.
     var skipReset: Bool = false
     var errors: [String] = []
+    /// The bridge result, handed back to Shared/StateApplier when the file is applied.
+    let parsed: TIStateFileResult
 
     /// Parse a state file. maxStepAddr bounds step-number prefixes;
     /// allowHiddenRegisters admits H00–H03 (TI-58C).
     init(parsing text: String, maxStepAddr: Int, allowHiddenRegisters: Bool) {
         let r = TIFileFormats.parseStateFile(text, maxStepAddr: maxStepAddr, allowHiddenRegisters: allowHiddenRegisters)
-        partitionMaxStep = r.partitionMaxStep
-        partitionWasExplicit = r.partitionWasExplicit
-        programSteps = zip(r.programStepAddrs, r.programStepKeycodes).map { (stepAddr: $0.intValue, keycode: $1) }
-        registers = r.registers.map { (regNum: $0.regNum, nibbles: [UInt8]($0.nibbles), isHidden: $0.isHidden) }
+        parsed = r
         keystrokes = r.keystrokes.map(KeystrokeEvent.init)
         cueCardContent = r.cueCard.swiftValue
         solidStateModuleID = r.solidStateModuleID
