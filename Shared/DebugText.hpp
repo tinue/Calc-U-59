@@ -28,6 +28,12 @@ std::string hirLine(int n, double value);
 /// "T: 2.71828".
 std::string tRegisterLine(double value);
 
+/// "X: 1.414213562373" (all 13 digits), or "X: C=…" when X's register holds no number.
+std::string xRegisterLine(double value, const std::string& raw);
+
+/// X's text colour: grey as T (dimmer at 0), amber when shown raw.
+uint32_t xRegisterColor(double value, const std::string& raw);
+
 /// Return-stack level colour by its source flag: green user RAM, purple
 /// module (2 = saved CROM return address), yellow ROM, grey otherwise;
 /// dimmer when the level's address is 0.

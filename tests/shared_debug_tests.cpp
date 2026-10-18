@@ -13,6 +13,39 @@
 
 using namespace cu59;
 
+namespace {
+/// X as the CALCULATOR tab shows it after tapping `keys` (matrix codes) on a fresh TI-59.
+std::string xAfter(std::initializer_list<int> keys) {
+    auto m = testroms::makeMachine(Model::TI59);
+    testroms::runToScanLoop(*m, Model::TI59);
+    for (int k : keys) testroms::tap(*m, Model::TI59, k);
+    std::vector<uint8_t> romCache;
+    auto s = buildLiveSnapshot(*m, Model::TI59, ModuleImage{}, romCache, false).snap;
+    return xRegisterLine(s.xValue, s.xRaw);
+}
+} // namespace
+
+// Matrix codes: digits 0 92, 1 82, 2 83, 3 84, 5 73, 7 62; . 93, +/- 94, EE 52,
+// INV 22, = 95, + 85, / 55, √x 34.
+TEST(x_register_entry_and_result) {
+    CHECK_EQ(xAfter({}), std::string("X: 0"));
+    // Number entry: the image in A.
+    CHECK_EQ(xAfter({82, 83, 93, 73}), std::string("X: 12.5"));
+    CHECK_EQ(xAfter({82, 83, 93, 73, 94}), std::string("X: -12.5"));
+    CHECK_EQ(xAfter({92, 93, 92, 92, 73}), std::string("X: 0.005"));
+    CHECK_EQ(xAfter({82, 93, 73, 52, 84}), std::string("X: 1500"));                 // EE display form
+    CHECK_EQ(xAfter({82, 83, 94, 52, 84, 94}), std::string("X: -0.012"));
+    CHECK_EQ(xAfter({82, 93, 73, 52, 84, 22, 52, 83}), std::string("X: 1520"));     // INV EE keeps the exponent
+    CHECK_EQ(xAfter({82, 85, 83}), std::string("X: 2"));
+    CHECK_EQ(xAfter({73, 94, 85, 84, 95, 62}), std::string("X: 7"));                // fB's stale minus is ignored
+    // Result on display: C, all 13 digits.
+    CHECK_EQ(xAfter({83, 34}), std::string("X: 1.414213562373"));
+    CHECK_EQ(xAfter({82, 55, 84, 95}), std::string("X: 0.3333333333333"));
+    CHECK_EQ(xAfter({82, 52, 73, 94, 95}), std::string("X: 1e-05"));
+    CHECK_EQ(xAfter({73, 94, 85, 84, 95}), std::string("X: -2"));
+    CHECK_EQ(xAfter({82, 55, 92, 95}), std::string("X: 9.999999999999e+99"));        // overflow clamp
+}
+
 TEST(program_source_decoding) {
     CHECK(programSourceFrom(0, 0x0100) == ProgramSource::UserProgram);
     CHECK(programSourceFrom(1, 0x0100) == ProgramSource::SolidState);
@@ -185,6 +218,9 @@ TEST(debug_panel_text) {
     CHECK_EQ(registerLine({2, 1731371734.99909, true}), std::string("H02 = 1731371734.999"));  // 13 digits
     CHECK_EQ(hirLine(1, 3.14159265), std::string("1: 3.1416"));
     CHECK_EQ(tRegisterLine(0), std::string("T: 0"));
+    CHECK_EQ(xRegisterLine(-2.5, ""), std::string("X: -2.5"));
+    CHECK_EQ(xRegisterLine(0, "C=000000000000000a"), std::string("X: C=000000000000000a"));
+    CHECK(xRegisterColor(0, "") != xRegisterColor(1, "") && xRegisterColor(1, "") != xRegisterColor(1, "A=f"));
     CHECK_EQ(returnLevelColor(0, false), 0x409940u);
     CHECK_EQ(returnLevelColor(2, true), returnLevelColor(1, true));
     CHECK_EQ(returnLevelColor(5, false), 0xCCCCCCu);

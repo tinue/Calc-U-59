@@ -5,6 +5,7 @@
 - **Architecture** All logic that isn't drawing — state files, cue cards, card files, ROM loading, the real-time run loop, key timing, KEYSTROKES playback, the debugger's snapshots, traces — moved from the Swift app into a shared C++ layer that both apps use, so the two behave identically. The Mac and iOS app is meant to work exactly as before.
 - **Full speed** Holding the display (or a KEYSTROKES `FullSpeed:` section) now also speeds up printing, e.g. a 2nd List or a calendar printout. Waits for a key or the card reader still run at regular speed, and the elapsed time a KEYSTROKES script reports is unchanged.
 - **Debugger** The DEBUG row of the CALCULATOR tab now shows the whole status register (`HIR0:`, SCOM[0], 16 digits) instead of the IO and KEY fields.
+- **Debugger** The CALCULATOR tab shows X, the calculator's working value, with all 13 digits before T (`X:`). It is read from C after a result and from A while a number is typed. When that register holds no number, for example while single-stepping a fast-mode program, the raw register is shown in amber.
 - **Build** New CMake build with a C++ test suite (`ctest`), including checks of the moved code against the previous Swift implementation.
 - **License** Calc-U-59 is now free software under the GNU General Public License, version 3 (GPLv3), replacing the Polyform Noncommercial License. The Windows and Linux app uses Qt6 under the LGPLv3 (see `THIRD-PARTY-NOTICES.md`).
 

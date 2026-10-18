@@ -517,6 +517,8 @@ struct LiveDebugSnapshot: Equatable {
 
     // T register (SCOM[11]; decoded as Double; stack top / last-X equivalent)
     var tRegister: Double = 0
+    var xValue: Double = 0
+    var xRaw: String = ""              // X's register as "C=…"/"A=…" when it holds no number
 
     // Calculator flags 0–9 (stored in SCOM; bit mapping TBD experimentally)
     var calcFlags: [Bool] = Array(repeating: false, count: 10)
@@ -572,6 +574,8 @@ extension LiveDebugSnapshot {
         currentStep = t.currentStep
         hir = t.hir.map(\.doubleValue)
         tRegister = t.tRegister
+        xValue = t.xValue
+        xRaw = t.xRaw
         calcFlags = t.calcFlags.map(\.boolValue)
         fixIndicator = t.fixIndicator
         statusRegister = t.statusRegister

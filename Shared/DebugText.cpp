@@ -49,6 +49,18 @@ std::string tRegisterLine(double value) {
     return buf;
 }
 
+std::string xRegisterLine(double value, const std::string& raw) {
+    if (!raw.empty()) return "X: " + raw;
+    char buf[40];
+    std::snprintf(buf, sizeof buf, "X: %.13g", value);
+    return buf;
+}
+
+uint32_t xRegisterColor(double value, const std::string& raw) {
+    if (!raw.empty()) return rgb(0.85, 0.6, 0.25);
+    return value == 0 ? rgb(0.6, 0.6, 0.6) : rgb(0.85, 0.85, 0.85);
+}
+
 uint32_t returnLevelColor(uint8_t sourceFlag, bool zero) {
     switch (sourceFlag) {
     case 0: return zero ? rgb(0.10, 0.30, 0.10) : rgb(0.25, 0.60, 0.25);

@@ -38,6 +38,8 @@
 @property (nonatomic, readwrite) NSInteger currentStep;
 @property (nonatomic, readwrite, copy) NSArray<NSNumber *> *hir;
 @property (nonatomic, readwrite) double tRegister;
+@property (nonatomic, readwrite) double xValue;
+@property (nonatomic, readwrite, copy) NSString *xRaw;
 @property (nonatomic, readwrite, copy) NSArray<NSNumber *> *calcFlags;
 @property (nonatomic, readwrite, copy) NSString *fixIndicator;
 @property (nonatomic, readwrite, copy) NSString *statusRegister;
@@ -114,6 +116,8 @@ TILiveDebugSnapshot* snapshotFrom(const cu59::LiveDebugSnapshot& s) {
     for (double v : s.hir) [hir addObject:@(v)];
     t.hir = hir;
     t.tRegister = s.tRegister;
+    t.xValue = s.xValue;
+    t.xRaw = ns(s.xRaw);
     NSMutableArray* flags = [NSMutableArray arrayWithCapacity:10];
     for (bool f : s.calcFlags) [flags addObject:@(f)];
     t.calcFlags = flags;

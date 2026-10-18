@@ -58,6 +58,8 @@ struct LiveDebugSnapshot {
 
     std::array<double, 8> hir{};        ///< HIR 1–8 (SCOM[1..8])
     double tRegister = 0;               ///< SCOM[11]
+    double xValue = 0;                  ///< X, the working value (decodeX)
+    std::string xRaw;                   ///< X's register as "C=…"/"A=…" when it holds no number, else ""
     std::array<bool, 10> calcFlags{};   ///< user flags 0–9
 
     std::string fixIndicator = "0";

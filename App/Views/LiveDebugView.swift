@@ -19,7 +19,7 @@ struct LiveDebugView: View {
                         returnAddressSection(baseFontSize: baseFontSize)
                         calcFlagsSection(baseFontSize: baseFontSize)
                         hirRegistersSection(baseFontSize: baseFontSize)
-                        tRegisterSection(baseFontSize: baseFontSize)
+                        xtRegisterSection(baseFontSize: baseFontSize)
                         dataRegistersSection(baseFontSize: baseFontSize)
                     }
                     .padding(4)
@@ -318,18 +318,23 @@ struct LiveDebugView: View {
         }
     }
 
-    // MARK: - T Register Section
+    // MARK: - X and T Register Section
 
-    private func tRegisterSection(baseFontSize: CGFloat) -> some View {
+    private func xtRegisterSection(baseFontSize: CGFloat) -> some View {
         let snap = vm.liveDebugSnapshot
         let isZero = snap.tRegister == 0
         let color = isZero ? Color(white: 0.6) : Color(white: 0.85)
         return SectionBox(title: "") {
-            Text(TIViewRules.tRegisterLine(snap.tRegister))
-                .font(.system(size: baseFontSize + 2, design: .monospaced))
-                .foregroundStyle(color)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
+            HStack(spacing: 12) {
+                Text(TIViewRules.xRegisterLine(snap.xValue, raw: snap.xRaw))
+                    .font(.system(size: baseFontSize + 2, design: .monospaced))
+                    .foregroundStyle(Color(rgb: TIViewRules.xRegisterColor(snap.xValue, raw: snap.xRaw)))
+                Text(TIViewRules.tRegisterLine(snap.tRegister))
+                    .font(.system(size: baseFontSize + 2, design: .monospaced))
+                    .foregroundStyle(color)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
         }
     }
 
@@ -464,6 +469,7 @@ private struct SectionBox<Content: View>: View {
             ]
             snap.hir = [3.141592653589, 2.718281828, 1.414213562, 1.732050808, 1.618033989, 0, 0, 0]
             snap.tRegister = 2.71828
+            snap.xValue = 1.414213562373
             snap.prSourceFlag = 0xA
             snap.programSource = ProgramSource(flag: 0xA, romPC: 0)
             snap.pendingOpsCount = 2

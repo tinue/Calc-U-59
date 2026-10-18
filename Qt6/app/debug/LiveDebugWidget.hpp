@@ -39,6 +39,6 @@ private:
     QLabel* m_returns;
     QLabel* m_flags;
     QLabel* m_hir;
-    QLabel* m_t;
+    QLabel* m_xt;
     QLabel* m_vars;
 };

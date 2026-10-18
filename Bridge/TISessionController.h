@@ -79,6 +79,8 @@ typedef NS_ENUM(NSInteger, TIFreezeOwner) {
 @property (nonatomic, readonly) NSInteger currentStep;
 @property (nonatomic, readonly, copy) NSArray<NSNumber *> *hir;          ///< HIR 1–8
 @property (nonatomic, readonly) double tRegister;
+@property (nonatomic, readonly) double xValue;
+@property (nonatomic, readonly, copy) NSString *xRaw;
 @property (nonatomic, readonly, copy) NSArray<NSNumber *> *calcFlags;    ///< 10 BOOLs
 @property (nonatomic, readonly, copy) NSString *fixIndicator;
 @property (nonatomic, readonly, copy) NSString *statusRegister;

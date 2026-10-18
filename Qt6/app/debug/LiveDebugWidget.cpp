@@ -119,7 +119,7 @@ LiveDebugWidget::LiveDebugWidget(EmulatorController& controller, QWidget* parent
     m_returns = section(sections, QStringLiteral("RETURN ADDRESS"), content);
     m_flags = section(sections, QStringLiteral("FLAGS"), content);
     m_hir = section(sections, QStringLiteral("HIR"), content);
-    m_t = section(sections, QString(), content);
+    m_xt = section(sections, QString(), content);
     m_vars = section(sections, QStringLiteral("VARIABLES"), content);
     sections->addStretch(1);
     scroll->setWidget(content);
@@ -217,7 +217,8 @@ void LiveDebugWidget::refresh() {
         hir += span(qs(cu59::hirLine(i + 1, v)), v == 0 ? 0.6 : 0.85) + (i == 3 ? QStringLiteral("<br>") : sp);
     }
     set(m_hir, hir);
-    set(m_t, span(qs(cu59::tRegisterLine(s.tRegister)), s.tRegister == 0 ? 0.6 : 0.85));
+    set(m_xt, spanColor(qs(cu59::xRegisterLine(s.xValue, s.xRaw)), ChromeStyle::fromRgb(cu59::xRegisterColor(s.xValue, s.xRaw))) + sp +
+                  span(qs(cu59::tRegisterLine(s.tRegister)), s.tRegister == 0 ? 0.6 : 0.85));
 
     if (s.nonZeroRegs.empty()) {
         set(m_vars, span(QStringLiteral("(all zero)"), 0.35));

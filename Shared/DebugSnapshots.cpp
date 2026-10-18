@@ -4,6 +4,7 @@
 #include "KeyNames.hpp"
 #include <algorithm>
 #include <cstdio>
+#include <cstdlib>
 
 namespace cu59 {
 
@@ -19,6 +20,54 @@ std::string stepMnemonic(uint8_t kc, bool isArgument) { return isArgument ? twoD
 
 /// Return-stack level: PRG SOURCE at `at`, then the Base-80 address read right to left.
 int base80(const uint8_t* n, int at) { return n[at + 4] * 800 + n[at + 3] * 80 + n[at + 2] * 8 + n[at + 1]; }
+
+/// "<digits>e<exponent>" through strtod, so the 13 mantissa digits come back exactly with %.13g.
+double decimalValue(const uint8_t* n, int exponent, bool negative) {
+    std::string digits;
+    for (int i = 15; i >= 3; --i) digits += static_cast<char>('0' + n[i]);
+    double v = std::strtod((digits + "e" + std::to_string(exponent)).c_str(), nullptr);
+    return negative && v != 0 ? -v : v;
+}
+
+bool decimalDigits(const uint8_t* n, int from) { return std::all_of(n + from, n + 16, [](uint8_t d) { return d <= 9; }); }
+
+/// X at a keystroke boundary (rom/TI59-ROM-Guide.md, "Number formats"; NUM_NORM at
+/// 0236). A result on display (fB[5]) is normalized in C, nibble 0 = 0xC, with its
+/// signs in fB[2]/fB[3]. A number being typed is the entry image in A: digits in
+/// nibbles 15–3, exponent in 2–1, digits after the point in 0, signs in fA[2]/fA[3].
+/// Its display form is shifted two places left while B's exponent field is set,
+/// which the ROM undoes at 0662. Anything else is shown raw.
+void decodeX(const CpuFrame& cpu, LiveDebugSnapshot& snap) {
+    snap.xValue = 0;
+    snap.xRaw.clear();
+    if (cpu.fB & (1u << 5)) {
+        const uint8_t* c = cpu.C;
+        bool zero = std::all_of(c + 3, c + 16, [](uint8_t d) { return d == 0; });
+        if (c[0] == 0xC && decimalDigits(c, 1) && (c[15] != 0 || zero)) {
+            int exponent = c[2] * 10 + c[1];
+            if (cpu.fB & (1u << 3)) exponent = -exponent;
+            snap.xValue = decimalValue(c, exponent - 12, (cpu.fB & (1u << 2)) != 0);
+        } else {
+            snap.xRaw = "C=" + nibbleHex(c, true);
+        }
+        return;
+    }
+    uint8_t a[16];
+    std::copy(cpu.A, cpu.A + 16, a);
+    if (cpu.B[1] != 0 || cpu.B[2] != 0) {
+        std::copy(a + 2, a + 16, a + 1);  // A=SRA MAEX
+        a[15] = 0;
+        std::copy(a + 4, a + 16, a + 3);  // A=SRA MANT
+        a[15] = 0;
+    }
+    if (decimalDigits(a, 1) && a[0] <= 10) {
+        int exponent = a[2] * 10 + a[1];
+        if (cpu.fA & (1u << 3)) exponent = -exponent;
+        snap.xValue = decimalValue(a, exponent - a[0], (cpu.fA & (1u << 2)) != 0);
+    } else {
+        snap.xRaw = "A=" + nibbleHex(cpu.A, true);
+    }
+}
 
 } // namespace
 
@@ -57,7 +106,7 @@ bool LiveDebugSnapshot::operator==(const LiveDebugSnapshot& o) const {
            statusRegister == o.statusRegister && fA == o.fA && fB == o.fB &&
            engIndicator == o.engIndicator && secondIndicator == o.secondIndicator && invIndicator == o.invIndicator &&
            angleMode == o.angleMode && prSourceFlag == o.prSourceFlag && programSource == o.programSource &&
-           pendingOpsCount == o.pendingOpsCount && scomRows == o.scomRows &&
+           pendingOpsCount == o.pendingOpsCount && xValue == o.xValue && xRaw == o.xRaw && scomRows == o.scomRows &&
            returnAddressSourceFlags == o.returnAddressSourceFlags && returnAddresses == o.returnAddresses;
 }
 
@@ -124,6 +173,7 @@ LiveDebugBuild buildLiveSnapshot(const TI59Machine& m, Model model, const Module
 
     for (int h = 1; h <= 8; ++h) snap.hir[static_cast<size_t>(h - 1)] = TI59Machine::decodeBCD(S[h]);  // HIR n in SCOM[n]
     snap.tRegister = TI59Machine::decodeBCD(S[11]);
+    decodeX(cpu, snap);
 
     snap.prSourceFlag = S[0][3];
     snap.programSource = programSourceFrom(snap.prSourceFlag, cpu.pc);
