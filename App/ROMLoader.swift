@@ -32,7 +32,7 @@ struct ROMLoader {
 
     /// Metadata for all solid-state modules, in menu order.
     static func loadAllModuleMetadata() -> [ModuleMetadata] {
-        TIFileFormats.allModuleMetadata(cuecardsText).map(ModuleMetadata.init)
+        TIFileFormats.allModuleMetadata(cuecardsText).map { ModuleMetadata($0) }
     }
 }
 

@@ -369,7 +369,7 @@ class EmulatorViewModel {
                 printerLines.append(contentsOf: controller.printerLines(from: printerLines.count))
             }
             if controller.printerCodeLineCount > printerCodeLines.count {
-                printerCodeLines.append(contentsOf: controller.printerCodeLines(from: printerCodeLines.count).map(PrinterCodeLine.init))
+                printerCodeLines.append(contentsOf: controller.printerCodeLines(from: printerCodeLines.count).map { PrinterCodeLine($0) })
             }
             if printerTrace != controller.printerTrace { printerTrace = controller.printerTrace }
             if printerConnected != controller.printerConnected { printerConnected = controller.printerConnected }
@@ -399,12 +399,12 @@ class EmulatorViewModel {
             if snap != liveDebugSnapshot { liveDebugSnapshot = snap }
         }
         if c.contains(.listing) {
-            programListing = controller.programListing.map(LiveDebugSnapshot.StepEntry.init)
+            programListing = controller.programListing.map { LiveDebugSnapshot.StepEntry($0) }
             programListingSource = ProgramSource(raw: controller.programListingSource)
             programListingCurrentIndex = controller.programListingCurrentIndex
         }
         if c.contains(.cpu) {
-            cpuHistory = controller.cpuHistory.map(InspectorSnapshot.init)
+            cpuHistory = controller.cpuHistory.map { InspectorSnapshot($0) }
             cpuHistoryUpdateID &+= 1
         }
         if c.contains(.heatmap) {
@@ -569,7 +569,7 @@ extension LiveDebugSnapshot {
         nonZeroRegs = t.nonZeroRegs.map { RegEntry(num: $0.num, value: $0.value, isHidden: $0.isHidden) }
         dataRegCount = t.dataRegCount
         programRegCount = t.programRegCount
-        programWindow = t.programWindow.map(StepEntry.init)
+        programWindow = t.programWindow.map { StepEntry($0) }
         currentStep = t.currentStep
         hir = t.hir.map(\.doubleValue)
         tRegister = t.tRegister

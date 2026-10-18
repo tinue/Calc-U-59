@@ -109,5 +109,5 @@ extension CueCardContent {
 }
 
 extension Optional where Wrapped == TICueCard {
-    var swiftValue: CueCardContent? { map(CueCardContent.init) }
+    var swiftValue: CueCardContent? { map { CueCardContent($0) } }
 }
