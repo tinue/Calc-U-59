@@ -188,11 +188,11 @@ Triggered by the user saying **"update documentation"** (or similar) after finis
    git log <base-commit>..HEAD --oneline
    git diff <base-commit>..HEAD --stat
    ```
-   Read the full diff for `Core/`, `App/`, `Bridge/`, and `roms/` — that's where documented facts live. Skip doc-only or test-only commits already made earlier in the same session.
+   Read the full diff for `Core/`, `Shared/`, `App/`, `Bridge/`, `Qt6/` and `roms/` — that's where documented facts live. Skip doc-only or test-only commits already made earlier in the same session.
 
 3. **Update `CHANGELOG.md`.** Confirm every user-facing change from step 2 has an entry under the current `[X.Y.Z] - work in progress` heading, in the existing style (bold **Area** prefix, `### Fixes` subsection for bug fixes). Don't add a release date — that happens at release time.
 
-4. **Update reference docs** (`reference/CoreArchitecture.md`, `reference/AppArchitecture.md`, `reference/DebugAPI.md`, `reference/StateFileFormat.md`) for anything the diff invalidated: register model, SCOM layout, PC encoding, machine variants, bridge/debug API surface, settings, file formats. Keep each file's provenance notice intact.
+4. **Update reference docs** (`reference/CoreArchitecture.md`, `reference/SharedArchitecture.md`, `reference/AppArchitecture.md`, `reference/DebugAPI.md`, `reference/StateFileFormat.md`, `reference/FrontendParity.md`) for anything the diff invalidated: register model, SCOM layout, PC encoding, machine variants, bridge/debug API surface, settings, file formats. Keep each file's provenance notice intact.
 
 5. **Update the help website** (`docs/Pages.jsx`, `docs/PlayCalculator.jsx`, etc.) if the change is user-facing — new settings, module behavior, install steps, state-file directives (mention the directive exists and link back to `reference/StateFileFormat.md` for the grammar, don't restate it). `docs/` is a separate git worktree with its own versioning (i.e. none) — a change only needing a website update, with nothing in `Core/`/`App/`/`roms/`, does not need a `CHANGELOG.md` entry. Commit `docs/` changes from inside `docs/`, not from the main repo (see above).
 

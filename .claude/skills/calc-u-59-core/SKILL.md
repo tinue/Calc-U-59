@@ -31,7 +31,12 @@ TI59Machine          (Core/TI59Machine.hpp/.cpp)   ← public façade
       └─ TraceTypes  (Core/TraceTypes.hpp)
 ```
 
-`TI59Machine` is the **only** public interface. Swift and CLI code call it exclusively — never touch `TMC0501` directly. All calls — including read accessors — go through `m_keyMutex` so the emulation thread and UI thread cannot race. Any new public accessor must take the lock too.
+`TI59Machine` is the **only** public interface. `Shared/`, Swift (via `Bridge/`) and CLI code call it exclusively — never touch `TMC0501` directly.
+
+**Core stays hardware-only.** Anything above the emulated hardware — file
+formats, run-loop pacing, key timing, debugger snapshots — belongs in
+`Shared/` (calc-u-59-shared skill), not here. A Core change must pass both the
+CMake build with its tests and the Xcode build (CLAUDE.md § "Frontend Parity"). All calls — including read accessors — go through `m_keyMutex` so the emulation thread and UI thread cannot race. Any new public accessor must take the lock too.
 
 ---
 

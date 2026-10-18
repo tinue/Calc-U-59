@@ -7,7 +7,9 @@ Invoke the right skill before starting work in each area:
 | Skill | Invoke for |
 |-------|-----------|
 | `calc-u-59-core` | C++ emulation core (`Core/`, `tools/`, ROM disassembly, trace infrastructure) |
+| `calc-u-59-shared` | Shared C++ layer (`Shared/`, `tests/`, root `CMakeLists.txt`, `tools/goldens/`) — non-GUI logic both frontends use |
 | `calc-u-59-swift` | Swift/SwiftUI app (`App/`, `App/Views/`, `Bridge/`) |
+| `calc-u-59-qt` | Qt6 desktop app (`Qt6/`, `.github/workflows/build.yml`, Qt packaging) |
 | `calc-u-59-docs` | Documentation and website (`docs/`, `reference/`, root markdown files) |
 | `calc-u-59-statefiles` | Writing `.ti59`/`.ti58`/`.ti58c` state files — format, matrix codes, KEYSTROKES sequences |
 | `calc-u-59-uitesting` | XCUITest UI tests (`Calc-U-59UITests/`) — file picker navigation, accessibility identifiers, orientation |
@@ -17,8 +19,10 @@ Invoke the right skill before starting work in each area:
 Architecture facts (register model, SCOM layout, PC encoding, machine variants, trace API) live in:
 
 - `reference/CoreArchitecture.md` — C++ emulation core
+- `reference/SharedArchitecture.md` — the shared C++ layer and its runtime threads
 - `reference/AppArchitecture.md` — Swift app and bridge layer
 - `reference/DebugAPI.md` — debug panel and bridge API
+- `reference/FrontendParity.md` — which feature lives where in the two GUIs
 
 Do not restate these facts in CLAUDE.md, skills, or memory files — link to the reference doc instead.
 
@@ -28,3 +32,32 @@ Do not restate these facts in CLAUDE.md, skills, or memory files — link to the
 `.ti59` programs headless (run a file, per-line print times, run time per
 key, hot steps, step costs, keycode disassembler/assembler). Read
 `tools/agentic/README.md` before measuring or comparing program speed.
+
+## Frontend Parity (Swift app ↔ Qt6 app)
+
+Two GUIs share `Core/` (hardware) and `Shared/` (everything else that isn't
+drawing): the Swift app (macOS, iOS — the Mac product, with iCloud) and the
+Qt6 app (Windows and Linux; its macOS build is for development only, never
+shipped and never built in CI). Keep them in step:
+
+- **Non-GUI logic goes in `Shared/` only** — parsing, file formats, timing,
+  key sequencing, snapshot building, layout rules and numbers both renderers
+  use. Never write such logic in `App/*.swift` or `Qt6/app/`; put it in
+  `Shared/` and call it (Bridge/ wrapper for Swift, directly from Qt).
+- **`Bridge/` and the Qt adapters translate types only.**
+- **`Shared/` never resolves locations.** It takes paths or a ResourceReader;
+  iCloud lives only in `App/CardStorage.swift` (and `AppSettings.traceDirectory()`).
+- **A user-visible change in one GUI needs the matching change in the other
+  on the same branch** — or a `Pending (Qt)` / `Pending (Swift)` row with a
+  reason in `reference/FrontendParity.md`. Update that table either way.
+  `tools/check_parity.sh` flags a branch that touches one GUI only.
+- **Every change to `Core/` or `Shared/` must pass both builds before committing:**
+  `cmake -S . -B build/cmake -G Ninja && cmake --build build/cmake && ctest --test-dir build/cmake --output-on-failure`
+  and `xcodebuild -project Calc-U-59.xcodeproj -scheme Calc-U-59 -destination platform=macOS build`.
+  `Shared/` stays C++17 and standard-library-only.
+- **Settings key names are identical** in `App/AppSettings.swift` and `Qt6/app/AppSettings.hpp`.
+- **Assets have one source:** ROMs in `roms/`, artwork in `App/Assets.xcassets`,
+  the icon in `App/AppIcon.icon` (`tools/gen_qt_icons.sh` derives the Qt icons).
+- **Version:** `MARKETING_VERSION` in the Xcode project is the only version;
+  the Qt build reads it.
+

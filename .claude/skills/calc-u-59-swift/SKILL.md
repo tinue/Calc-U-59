@@ -15,11 +15,14 @@ For TI-59 domain background (keycodes, SCOM layout, solid-state modules, program
 ## Architecture Overview
 
 ```
-EmulatorViewModel          (App/EmulatorViewModel.swift, 103 KB)
-  │  @Observable, runs the 60 Hz step loop, owns all UI state
+EmulatorViewModel          (App/EmulatorViewModel.swift)
+  │  @Observable, owns all UI state, polls the session at 60 Hz
   │
-  ├─ TI59MachineWrapper    (Bridge/TI59MachineWrapper.h + .mm)
-  │    ObjC++ shim — the only place Swift touches C++
+  ├─ TISession             (Bridge/ → Shared/EmulatorSession: run loop thread,
+  │    │                    freezes, key timing, frame sampler, trace writers)
+  │    └─ TI59MachineWrapper (Bridge/, shares the session's machine)
+  ├─ TIFileFormats, TIDebugModel, TISharedTables, TIViewRules, TITraceWriter
+  │    ObjC++ wrappers over Shared/ — the only places Swift touches C++
   │
   └─ App/Views/            (SwiftUI, thin bindings only)
        CalculatorView      main container
@@ -38,6 +41,13 @@ EmulatorViewModel          (App/EmulatorViewModel.swift, 103 KB)
 > **Note:** `CPUDebugView.swift` exists in the repository but is not embedded in the app (only referenced in its own SwiftUI preview). Do not wire it up or confuse it with `CPUInspectorView`.
 
 All UI state flows through `EmulatorViewModel`. Views are thin bindings — no business logic in views.
+
+**No non-GUI logic in Swift at all.** Parsing, file formats, timing, key
+sequencing, snapshot building and the numbers the views draw with live in
+`Shared/` (C++), shared with the Qt6 app — see the calc-u-59-shared skill and
+`reference/SharedArchitecture.md`. A user-visible change here needs the
+matching Qt change on the same branch, or a `Pending (Qt)` row in
+`reference/FrontendParity.md` (CLAUDE.md § "Frontend Parity").
 
 ---
 

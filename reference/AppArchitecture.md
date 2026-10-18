@@ -412,6 +412,12 @@ boundary.
 Active segments get two passes — a blurred glow and a sharper bloom — plus the
 final opaque fill, giving the characteristic LED phosphor appearance.
 
+The segment patterns (`Shared/SevenSegment.hpp`), the segment shapes of both
+styles, the decimal point, the slant, colours and glow radii
+(`Shared/LedGeometry.hpp`) are shared with the Qt6 app's `LedRenderer`, which
+draws the glow by box-blurring an offscreen layer; only the drawing calls
+differ.
+
 Zero suppression logic mirrors the hardware display driver: leading zeros are
 blanked unless the digit is immediately left of the decimal point (guarded by
 `dpPos`), or the digit position has a control nibble (`ctrl ≥ 8`) that forces
@@ -434,21 +440,21 @@ images, selected by `template`:
 
 Each template has its own set of fractional layout constants (title Y
 position, grid row Y positions, per-column X positions, font sizes) sized
-against the background image's own dimensions, defined in `CueCardView`'s
-`GridCardLayout` values — read those directly for exact numbers; they're
-implementation detail below the level this doc tracks.
+against the background image's own dimensions, defined in
+`Shared/CueCard.cpp` (`cueCardLayout`) and shared with the Qt6 app's
+`CueCardRenderer` — read those directly for exact numbers.
 
 Two title-independent algorithms drive the two content rows (label grid vs.
 free `Row1`/`Row2`/`Row2R` text, selected per the field grammar linked above):
 
-- **Column-span merging.** A grid row is 5 label cells. A cell holding the
+- **Column-span merging** (`Shared/CueCard` `labelSpans`, `dividersBetween`). A grid row is 5 label cells. A cell holding the
   `\blank` sentinel (a zero-width space) doesn't render on its own — it
   extends the *preceding* non-blank cell's span to cover it, so one label can
   visually occupy multiple key positions. `MagnetCard` always draws the full
   5-cell framework (with dividers) even when every cell is empty, since its
   card artwork shows that grid unconditionally; `SolidStateCard` only draws
   cells that end up with content.
-- **Shrink-to-fit font sizing.** Each grid row picks one font size shared by
+- **Shrink-to-fit font sizing** (`Shared/CueCard` `cellFittingFontSize`). Each grid row picks one font size shared by
   all its cells, shrunk down from the template's base size (never below 40%
   of it) just enough that the widest cell's text fits on one line — never
   wrapped, never overflowing into the next row. Free-text rows (`Row1`/`Row2`/
@@ -460,9 +466,8 @@ build (`docs/#play`) — worth reading as a second, independently-built example
 of these same rules, including the places it deliberately diverges (DOM-measured
 shrink-to-fit instead of Swift's analytic character-width formula, CSS ellipsis
 instead of `.lineLimit(1)`, and dropping `MagnetCard`'s bank badges as
-non-load-bearing). See `reference/NewGUIGuide.md` for why this exists as a
-second implementation rather than shared code, and what's worth changing
-about that going forward.
+non-load-bearing). The web build can't use `Shared/` (it is JavaScript), so it
+keeps its own port; see `reference/NewGUIGuide.md`.
 
 ---
 

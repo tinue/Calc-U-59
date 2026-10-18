@@ -1,6 +1,9 @@
 # Changelog
 
 ## [2.0.0] - work in progress
+- **Windows and Linux** New Qt6 desktop app for Windows (x64 and ARM64 installers) and Linux (x86_64 and aarch64 AppImages), with the Mac app's features: calculator with both LED styles and cue cards, physical keyboard, magnetic cards, presets with KEYSTROKES, the PC-100C printer with copy as text and image, and the full debugger (CALCULATOR, CPU with ROM heatmap and ASM overlay, LOG with binary traces). Cards and TI-58C constant memory are stored in a local folder (`Documents/Calc-U-59` by default, configurable) instead of iCloud.
+- **Architecture** All logic that isn't drawing — state files, cue cards, card files, ROM loading, the real-time run loop, key timing, KEYSTROKES playback, the debugger's snapshots, traces — moved from the Swift app into a shared C++ layer that both apps use, so the two behave identically. The Mac and iOS app is meant to work exactly as before.
+- **Build** New CMake build with a C++ test suite (`ctest`), including checks of the moved code against the previous Swift implementation.
 
 ## [1.7.0] - 2026-09-15
 - **Error messages** File-load error alerts now show a title that matches what actually failed (state file, card, or ASM load/save) instead of always saying "ROM load error". A state file that isn't valid UTF-8 (e.g. saved with a curly quote or em dash in a non-UTF-8 encoding) now gets a specific explanation instead of a generic "Cannot read file."
