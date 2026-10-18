@@ -162,8 +162,7 @@ void LiveDebugWidget::refresh() {
     const QString sp = QStringLiteral("&nbsp;&nbsp;&nbsp;");
 
     set(m_debug, span(QString::asprintf("FA:%04X", s.fA), 0.65) + sp + span(QString::asprintf("FB:%04X", s.fB), 0.65) + sp +
-                     span(QStringLiteral("IO:") + QString::fromStdString(s.ioUserFlags), 0.85) + sp +
-                     span(QStringLiteral("KEY:") + QString::fromStdString(s.lastKey), 0.85));
+                     span(QStringLiteral("HIR0:") + QString::fromStdString(s.statusRegister), 0.85));
 
     set(m_partition, span(qs(cu59::partitionLine(s.programRegCount, s.dataRegCount)), 0.75));
     set(m_source, span(QString::fromStdString(cu59::programSourceLabel(s.programSource, s.prSourceFlag)), 0.85));

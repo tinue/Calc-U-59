@@ -54,7 +54,7 @@ bool LiveDebugSnapshot::operator==(const LiveDebugSnapshot& o) const {
     return nonZeroRegs == o.nonZeroRegs && dataRegCount == o.dataRegCount && programRegCount == o.programRegCount &&
            programWindow == o.programWindow && currentStep == o.currentStep && hir == o.hir &&
            tRegister == o.tRegister && calcFlags == o.calcFlags && fixIndicator == o.fixIndicator &&
-           ioUserFlags == o.ioUserFlags && lastKey == o.lastKey && fA == o.fA && fB == o.fB &&
+           statusRegister == o.statusRegister && fA == o.fA && fB == o.fB &&
            engIndicator == o.engIndicator && secondIndicator == o.secondIndicator && invIndicator == o.invIndicator &&
            angleMode == o.angleMode && prSourceFlag == o.prSourceFlag && programSource == o.programSource &&
            pendingOpsCount == o.pendingOpsCount && scomRows == o.scomRows &&
@@ -140,14 +140,10 @@ LiveDebugBuild buildLiveSnapshot(const TI59Machine& m, Model model, const Module
     // User flags 0–9 in SCOM[0] nibbles 11–15: flag n is nibble 11 + n%5, bit 1 (n<5) or 2.
     for (int f = 0; f < 10; ++f) snap.calcFlags[static_cast<size_t>(f)] = (S[0][11 + f % 5] & (f < 5 ? 1 : 2)) != 0;
 
-    // FIX (nibble 0: 0 shows a dash, else (raw − 2) mod 10), IO user flags, last key.
+    // FIX (nibble 0: 0 shows a dash, else (raw − 2) mod 10) and the whole status register.
     int fixRaw = S[0][0];
     snap.fixIndicator = fixRaw == 0 ? "-" : std::to_string((((fixRaw - 2) % 10) + 10) % 10);
-    char buf[64];
-    std::snprintf(buf, sizeof buf, "%d%d%d%d%d", S[0][1], S[0][2], S[0][3], S[0][4], S[0][5]);
-    snap.ioUserFlags = buf;
-    std::snprintf(buf, sizeof buf, "%d%d", S[0][13], S[0][14]);
-    snap.lastKey = buf;
+    snap.statusRegister = nibbleHex(S[0], true);
 
     // 2nd/INV: fA nibble 2 (bits 11–8), bit 1 / bit 0. Eng: fB bits 7–4, bit 3.
     snap.fA = cpu.fA;

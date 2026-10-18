@@ -81,8 +81,7 @@ typedef NS_ENUM(NSInteger, TIFreezeOwner) {
 @property (nonatomic, readonly) double tRegister;
 @property (nonatomic, readonly, copy) NSArray<NSNumber *> *calcFlags;    ///< 10 BOOLs
 @property (nonatomic, readonly, copy) NSString *fixIndicator;
-@property (nonatomic, readonly, copy) NSString *ioUserFlags;
-@property (nonatomic, readonly, copy) NSString *lastKey;
+@property (nonatomic, readonly, copy) NSString *statusRegister;
 @property (nonatomic, readonly) uint16_t fA;
 @property (nonatomic, readonly) uint16_t fB;
 @property (nonatomic, readonly, copy) NSString *engIndicator;

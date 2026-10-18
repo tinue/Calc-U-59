@@ -61,8 +61,7 @@ struct LiveDebugSnapshot {
     std::array<bool, 10> calcFlags{};   ///< user flags 0–9
 
     std::string fixIndicator = "0";
-    std::string ioUserFlags = "00000";
-    std::string lastKey = "00";
+    std::string statusRegister = "0000000000000000";  ///< SCOM[0] (HIR 0), nibble 15 first
     uint16_t fA = 0, fB = 0;
     std::string engIndicator, secondIndicator, invIndicator;
 

@@ -40,8 +40,7 @@
 @property (nonatomic, readwrite) double tRegister;
 @property (nonatomic, readwrite, copy) NSArray<NSNumber *> *calcFlags;
 @property (nonatomic, readwrite, copy) NSString *fixIndicator;
-@property (nonatomic, readwrite, copy) NSString *ioUserFlags;
-@property (nonatomic, readwrite, copy) NSString *lastKey;
+@property (nonatomic, readwrite, copy) NSString *statusRegister;
 @property (nonatomic, readwrite) uint16_t fA;
 @property (nonatomic, readwrite) uint16_t fB;
 @property (nonatomic, readwrite, copy) NSString *engIndicator;
@@ -119,8 +118,7 @@ TILiveDebugSnapshot* snapshotFrom(const cu59::LiveDebugSnapshot& s) {
     for (bool f : s.calcFlags) [flags addObject:@(f)];
     t.calcFlags = flags;
     t.fixIndicator = ns(s.fixIndicator);
-    t.ioUserFlags = ns(s.ioUserFlags);
-    t.lastKey = ns(s.lastKey);
+    t.statusRegister = ns(s.statusRegister);
     t.fA = s.fA;
     t.fB = s.fB;
     t.engIndicator = ns(s.engIndicator);

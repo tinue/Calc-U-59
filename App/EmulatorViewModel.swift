@@ -523,8 +523,7 @@ struct LiveDebugSnapshot: Equatable {
 
     // SCOM[0] fields
     var fixIndicator: String = "0"      // Nibble 15 (FIX = value - 2 mod 10)
-    var ioUserFlags: String = "00000"   // Nibbles 14–10 (5 digits)
-    var lastKey: String = "00"          // Nibbles 2–1 (2 digits)
+    var statusRegister: String = "0000000000000000"  // Whole register (HIR 0), nibble 15 first
     var fA: UInt16 = 0                  // FA register (debug display)
     var fB: UInt16 = 0                  // FB register (debug display)
     var engIndicator: String = ""       // "Eng" if FB bit 3 (of 3rd digit) is set, else empty
@@ -575,8 +574,7 @@ extension LiveDebugSnapshot {
         tRegister = t.tRegister
         calcFlags = t.calcFlags.map(\.boolValue)
         fixIndicator = t.fixIndicator
-        ioUserFlags = t.ioUserFlags
-        lastKey = t.lastKey
+        statusRegister = t.statusRegister
         fA = t.fA
         fB = t.fB
         engIndicator = t.engIndicator

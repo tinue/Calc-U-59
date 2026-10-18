@@ -103,10 +103,7 @@ struct LiveDebugView: View {
                 Text(String(format: "FB:%04X", snap.fB))
                     .font(.system(size: baseFontSize + 2, design: .monospaced))
                     .foregroundStyle(Color(white: 0.65))
-                Text("IO:\(snap.ioUserFlags)")
-                    .font(.system(size: baseFontSize + 2, design: .monospaced))
-                    .foregroundStyle(Color(white: 0.85))
-                Text("KEY:\(snap.lastKey)")
+                Text("HIR0:\(snap.statusRegister)")
                     .font(.system(size: baseFontSize + 2, design: .monospaced))
                     .foregroundStyle(Color(white: 0.85))
             }
@@ -275,7 +272,7 @@ struct LiveDebugView: View {
         }
     }
 
-    // MARK: - SCOM Fields Section (IO User Flags, Last Key, Angle Mode)
+    // MARK: - SCOM Fields Section (FIX, Angle Mode, Eng/2nd/INV)
 
     private func scomFieldsSection(baseFontSize: CGFloat) -> some View {
         let snap = vm.liveDebugSnapshot
@@ -480,8 +477,7 @@ private struct SectionBox<Content: View>: View {
             snap.engIndicator = "Eng"
             snap.secondIndicator = "2nd"
             snap.invIndicator = "INV"
-            snap.ioUserFlags = "12345"
-            snap.lastKey = "67"
+            snap.statusRegister = "1324500000067009"
             snap.scomRows = Array(repeating: "0123456789abcdef", count: 16)
             vm.liveDebugSnapshot = snap
             return vm

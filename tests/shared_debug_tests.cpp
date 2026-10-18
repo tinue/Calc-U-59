@@ -73,6 +73,7 @@ TEST(live_snapshot_and_listing) {
         CHECK_EQ(s.nonZeroRegs[0].value, 2.5);
     }
     for (const auto& row : s.scomRows) CHECK_EQ(row.size(), size_t{16});
+    CHECK_EQ(s.statusRegister, std::string(s.scomRows[0].rbegin(), s.scomRows[0].rend()));  // SCOM[0], nibble 15 first
     CHECK(b.argSteps == (std::set<int>{3, 5, 7, 8}));
 
     auto listing = programListing(b.sourceKeycodes, b.argSteps, s.currentStep);

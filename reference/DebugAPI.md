@@ -301,8 +301,7 @@ Flag N → nibble (11 + N % 5), bit (1 if N < 5 else 2)
 | Field | Source | Description |
 |-------|--------|-------------|
 | `fixIndicator` | nibble 0 | `"-"` when raw == 0; otherwise `(raw − 2) % 10` as a decimal string |
-| `ioUserFlags` | nibbles 1–5 | Five IO user flag nibbles as a decimal string, e.g. `"00100"` |
-| `lastKey` | nibbles 13–14 | Last key pressed as two-digit decimal string, e.g. `"67"` |
+| `statusRegister` | nibbles 15–0 | The whole status register (HIR 0) as 16 lowercase hex digits, nibble 15 first; the DEBUG row shows it as `HIR0:` |
 | `fA` | FA register | FA register raw value (16-bit); bit 1 of nibble 1 = `2nd`, bit 0 = `INV` |
 | `fB` | FB register | FB register raw value (16-bit); bit 3 of nibble 2 = ENG mode |
 | `secondIndicator` | fA nibble 1 bit 1 | `"2nd"` when set, `""` otherwise |
