@@ -106,7 +106,8 @@ started with `session.start()`:
    the CPU is in the scan/key-detect range or the batch polled hardware.
 
 `step()` returns its cycle weight in bits 29:0, sets bit 30 for a confirmed
-hardware poll and bit 31 if a breakpoint was hit.  On a breakpoint, or when an
+hardware poll (a key or card-switch wait; not a printer-only BUSY wait, whose
+length is counted in emulated cycles, so full speed speeds up printing) and bit 31 if a breakpoint was hit.  On a breakpoint, or when an
 armed freeze (`Shared/FreezeController`) fires, the loop stops and the session
 reports it to the delegate.
 

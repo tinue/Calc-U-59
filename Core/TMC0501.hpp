@@ -120,7 +120,10 @@ public:
     /// TST.BUSY hardware poll (opcode 0x08xx, or TST BUSY: opcode & 0x0F0F ==
     /// 0x0A0B) executed the instruction immediately before it — i.e. a genuine
     /// ROM spin-wait on state whose real-world completion time doesn't depend on
-    /// CPU speed (a key release, a fixed-duration print step). Deliberately NOT
+    /// CPU speed (a key release, the card switch). A TST.BUSY retry counts only
+    /// when the KR line is active and the printer is not busy: a print wait is
+    /// timed in emulated cycles (m_prnBusyCycles), so full speed shortens it.
+    /// Deliberately NOT
     /// set on every occurrence of these opcodes — most executions fall through
     /// (poll succeeded) as part of otherwise-productive code and don't need
     /// throttling; only a confirmed retry does. The ROM re-implements this

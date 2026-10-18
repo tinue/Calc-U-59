@@ -884,8 +884,12 @@ int TMC0501::step() {
             if ((key[digit] & (1u << 4)) || (flags & FLG_BUSY))
                 flags &= ~FLG_COND;
             // Arm "this was a hardware poll" for the *next* step() to consume — see
-            // step()'s doc comment in TMC0501.hpp.
-            m_lastStepWasHWPoll = true;
+            // step()'s doc comment in TMC0501.hpp — but not while the printer is
+            // busy. A print wait ends after m_prnBusyCycles emulated cycles, so full
+            // speed may race through it (holding the display speeds up 2nd List and
+            // other printing); the KR line it may also see on the way (the card
+            // switch is high whenever no card is in) is incidental there.
+            if ((key[digit] & (1u << 4)) && !(flags & FLG_BUSY)) m_lastStepWasHWPoll = true;
             break;
 
         case 0xC:  // MOV KR,EXT[4..15] — load KR upper bits from card/library read
