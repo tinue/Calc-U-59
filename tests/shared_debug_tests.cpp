@@ -9,6 +9,7 @@
 #include "../Shared/DebugSnapshots.hpp"
 #include "../Shared/DebugText.hpp"
 #include "../Shared/RomHeatmap.hpp"
+#include <algorithm>
 #include <filesystem>
 
 using namespace cu59;
@@ -85,6 +86,12 @@ TEST(step_shows_the_next_step) {
     CHECK(stepThrough({76, 11, 1, 93, 5, 52, 3, 85, 2, 95, 91}, 10) ==
           (std::vector<std::string>{"3 X: 1", "4 X: 1", "5 X: 1.5", "6 X: 1.5", "7 X: 1500", "8 X: 1500", "9 X: 2",
                                     "10 X: 1502"}));
+    // P→R from a program runs a keycode sub-program from the constant ROM; its
+    // launch leaves X normalized in A for the sub-program's first step.
+    // LBL A, 3, x⇄t, 4, P→R, R/S
+    auto pr = stepThrough({76, 11, 3, 32, 4, 37, 91}, 285);
+    CHECK(std::find(pr.begin(), pr.end(), "284 X: 4") != pr.end());
+    CHECK(std::none_of(pr.begin(), pr.end(), [](const std::string& s) { return s.find("X: A=") != std::string::npos; }));
     // The TI-58C's ROM has its dispatch elsewhere (082B).
     CHECK(stepThrough(prog, 19, Model::TI58C) ==
           (std::vector<std::string>{"3 X: 1", "4 X: 1", "5 X: 1", "6 X: 1", "17 X: 1", "18 X: 2", "19 X: 3"}));

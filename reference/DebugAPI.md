@@ -297,7 +297,7 @@ format as data registers).
 | Field | SCOM row | Description |
 |-------|----------|-------------|
 | `tRegister` | SCOM[11] | Stack top / last-X equivalent; decoded as `Double` |
-| `xValue`, `xRaw` | C or A, fA/fB | X, the working value, at a keystroke boundary: with a result on display (fB[5]) C normalized (nibble 0 = 0xC), signs fB[2]/fB[3]; during number entry the image in A (digits 15–3, exponent 2–1, digits after the point in 0, signs fA[2]/fA[3]), shifted back two places when B's exponent field is set (ROM `0662`). Shown with all 13 digits before T as `X:`; when the register holds no number (mid-calculation, LRN mode, fast mode) `xRaw` is `"C=…"`/`"A=…"` (nibble 15 first) and the line is amber |
+| `xValue`, `xRaw` | C or A, fA/fB | X, the working value, at a keystroke boundary: with a result on display (fB[5]) C normalized (nibble 0 = 0xC), signs fB[2]/fB[3]; otherwise X is in A with signs fA[2]/fA[3]: normalized (nibble 0 = 0xC) at the first step of a keycode sub-program such as P→R, whose launch leaves NUM_NORM's working copy there; else the entry image of a number being typed (digits 15–3, exponent 2–1, digits after the point in 0), at idle shifted back two places when B's exponent field is set (ROM `0662`; at the step dispatch the run loop has already done so at `07C1`). Shown with all 13 digits before T as `X:`; when the register holds no number (mid-calculation, LRN mode, fast mode) `xRaw` is `"C=…"`/`"A=…"` (nibble 15 first) and the line is amber |
 
 ### Calculator flags (SCOM[0] nibbles 11–15)
 

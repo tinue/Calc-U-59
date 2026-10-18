@@ -31,10 +31,24 @@ double decimalValue(const uint8_t* n, int exponent, bool negative) {
 
 bool decimalDigits(const uint8_t* n, int from) { return std::all_of(n + from, n + 16, [](uint8_t d) { return d <= 9; }); }
 
+/// A normalized value (nibble 0 = 0xC, MSD in 15 unless zero, exponent in 2–1)
+/// with its signs from `flags` bits 2/3; false when `n` isn't one.
+bool normalizedValue(const uint8_t* n, uint16_t flags, double& value) {
+    bool zero = std::all_of(n + 3, n + 16, [](uint8_t d) { return d == 0; });
+    if (n[0] != 0xC || !decimalDigits(n, 1) || (n[15] == 0 && !zero)) return false;
+    int exponent = n[2] * 10 + n[1];
+    if (flags & (1u << 3)) exponent = -exponent;
+    value = decimalValue(n, exponent - 12, (flags & (1u << 2)) != 0);
+    return true;
+}
+
 /// X between two steps (rom/TI59-ROM-Guide.md, "Number formats"; NUM_NORM at
 /// 0236). A result on display (fB[5]) is normalized in C, nibble 0 = 0xC, with its
-/// signs in fB[2]/fB[3]. A number being typed is the entry image in A: digits in
-/// nibbles 15–3, exponent in 2–1, digits after the point in 0, signs in fA[2]/fA[3].
+/// signs in fB[2]/fB[3]. Otherwise X is in A with its signs in fA[2]/fA[3]:
+/// normalized (nibble 0 = 0xC, NUM_NORM's working copy) at the first step of a
+/// keycode sub-program such as P→R, which its launch leaves that way; else the
+/// entry image of a number being typed: digits in nibbles 15–3, exponent in 2–1,
+/// digits after the point (at most 10) in 0.
 /// At idle that image is in display form, shifted two places left while B's
 /// exponent field is set, which the ROM undoes at 0662 (and at 07C1 before a
 /// program step, so at the step dispatch A is already realigned and B holds
@@ -43,15 +57,11 @@ void decodeX(const CpuFrame& cpu, bool atDispatch, LiveDebugSnapshot& snap) {
     snap.xValue = 0;
     snap.xRaw.clear();
     if (cpu.fB & (1u << 5)) {
-        const uint8_t* c = cpu.C;
-        bool zero = std::all_of(c + 3, c + 16, [](uint8_t d) { return d == 0; });
-        if (c[0] == 0xC && decimalDigits(c, 1) && (c[15] != 0 || zero)) {
-            int exponent = c[2] * 10 + c[1];
-            if (cpu.fB & (1u << 3)) exponent = -exponent;
-            snap.xValue = decimalValue(c, exponent - 12, (cpu.fB & (1u << 2)) != 0);
-        } else {
-            snap.xRaw = "C=" + nibbleHex(c, true);
-        }
+        if (!normalizedValue(cpu.C, cpu.fB, snap.xValue)) snap.xRaw = "C=" + nibbleHex(cpu.C, true);
+        return;
+    }
+    if (cpu.A[0] == 0xC) {
+        if (!normalizedValue(cpu.A, cpu.fA, snap.xValue)) snap.xRaw = "A=" + nibbleHex(cpu.A, true);
         return;
     }
     uint8_t a[16];
