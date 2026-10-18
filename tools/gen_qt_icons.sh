@@ -5,6 +5,9 @@
 #   Qt6/resources/macos/AppIcon.icns      local macOS development bundle
 #   Qt6/resources/linux/calc-u-59.png     AppImage icon and window icon (256 px)
 #   Qt6/resources/windows/calc-u-59.ico   exe icon (PNG-compressed, 16–256 px)
+# The Linux and Windows icons are the flat layers on the full rounded square,
+# without macOS's transparent margin and shadow (as in Calc-U-1600). Needs
+# rsvg-convert (brew install librsvg).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 TMP="$(mktemp -d)"
@@ -14,12 +17,23 @@ xcrun actool "$ROOT/App/AppIcon.icon" --compile "$TMP" --app-icon AppIcon --plat
     --minimum-deployment-target 15.6 --target-device mac --output-partial-info-plist "$TMP/partial.plist" >/dev/null
 cp "$TMP/AppIcon.icns" "$ROOT/Qt6/resources/macos/AppIcon.icns"
 
-iconutil -c iconset "$TMP/AppIcon.icns" -o "$TMP/AppIcon.iconset"
-# The compiled icns tops out at 256 px (128@2x).
-cp "$TMP/AppIcon.iconset/icon_128x128@2x.png" "$ROOT/Qt6/resources/linux/calc-u-59.png"
+# Flat icon: icon.json's fill colour, then its layers bottom to top.
+python3 - "$ROOT/App/AppIcon.icon" > "$TMP/flat.svg" <<'PY'
+import json, re, sys
+src = sys.argv[1]
+spec = json.load(open(f"{src}/icon.json"))
+r, g, b = (round(float(v) * 255) for v in spec["fill"]["solid"].split(":")[1].split(",")[:3])
+print('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">')
+print(f'<rect width="1024" height="1024" rx="185" fill="rgb({r},{g},{b})"/>')
+for group in reversed(spec["groups"]):
+    for layer in reversed(group["layers"]):
+        print(re.sub(r"<\?xml[^>]*>", "", open(f"{src}/Assets/{layer['image-name']}").read()))
+print("</svg>")
+PY
+rsvg-convert -w 256 -h 256 "$TMP/flat.svg" -o "$ROOT/Qt6/resources/linux/calc-u-59.png"
 
 for size in 16 32 48 64 128 256; do
-    sips -z $size $size "$TMP/AppIcon.iconset/icon_128x128@2x.png" --out "$TMP/ico-$size.png" >/dev/null
+    rsvg-convert -w $size -h $size "$TMP/flat.svg" -o "$TMP/ico-$size.png"
 done
 python3 - "$TMP" "$ROOT/Qt6/resources/windows/calc-u-59.ico" <<'PY'
 import struct, sys
