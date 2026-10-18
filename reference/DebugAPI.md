@@ -214,6 +214,10 @@ Swift copies it into `isFrozen`, `freezeOwner`, `pendingFreezeOnPCChange` and
 Showing the CALCULATOR panel while frozen rebuilds its snapshot at once
 (`DebugModel::rebuildLive`), since the frozen view may predate it.
 
+The listing is built only while frozen (only a frozen panel shows it), and
+reported with its own change bit, `SessionController::ListingChanged`, so the
+60 Hz running snapshot never carries the whole program across the bridge.
+
 ### Frozen-display semantics
 
 When frozen, `currentStep` in `LiveDebugSnapshot` is the last executed step

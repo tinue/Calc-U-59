@@ -17,24 +17,14 @@
 @implementation TILabelSpan
 @end
 
-@interface TICueCardLayout ()
-@property (nonatomic, readwrite) CGFloat titleFontSize, gridFontSize, bankFontSize;
-@property (nonatomic, readwrite) CGFloat titleYFraction, titleWidthFraction, gridY0Fraction, gridY1Fraction;
-@property (nonatomic, readwrite, copy) NSArray<NSNumber *> *xFractions;
-@property (nonatomic, readwrite) CGFloat cellWidthFraction;
-@property (nonatomic, readwrite) BOOL drawsDividers;
-@property (nonatomic, readwrite) BOOL hasId;
-@property (nonatomic, readwrite) CGFloat referenceWidth;
-@end
-@implementation TICueCardLayout
-@end
-
 @interface TICueCardGeometry ()
 @property (nonatomic, readwrite) CGFloat titleFontSize, gridFontSize, bankFontSize;
 @property (nonatomic, readwrite) CGFloat titleY, gridY0, gridY1;
-@property (nonatomic, readwrite) CGFloat gridLeft, gridRight, gridCenter, gridWidth, titleWidth;
+@property (nonatomic, readwrite) CGFloat gridCenter, gridWidth, titleWidth;
 @property (nonatomic, readwrite) CGRect bankLeft, bankRight, row2Left, row2Right;
 @property (nonatomic, readwrite) CGFloat dividerHeight, washHeight, buttonPadX, buttonPadY;
+@property (nonatomic, readwrite) BOOL drawsDividers;
+@property (nonatomic, readwrite) BOOL hasId;
 @end
 @implementation TICueCardGeometry
 @end
@@ -85,24 +75,6 @@ static std::vector<cu59::LabelSpan> spansFrom(NSArray<TILabelSpan*>* spans) {
     return out;
 }
 
-+ (TICueCardLayout *)cueCardLayoutFor:(NSInteger)templateKind {
-    const cu59::CueCardLayout& l = cu59::cueCardLayout(static_cast<cu59::CueCardTemplate>(templateKind));
-    TICueCardLayout* t = [[TICueCardLayout alloc] init];
-    t.titleFontSize = l.titleFontSize;
-    t.gridFontSize = l.gridFontSize;
-    t.bankFontSize = l.bankFontSize;
-    t.titleYFraction = l.titleYFraction;
-    t.titleWidthFraction = l.titleWidthFraction;
-    t.gridY0Fraction = l.gridY0Fraction;
-    t.gridY1Fraction = l.gridY1Fraction;
-    t.xFractions = @[@(l.xFractions[0]), @(l.xFractions[1]), @(l.xFractions[2]), @(l.xFractions[3]), @(l.xFractions[4])];
-    t.cellWidthFraction = l.cellWidthFraction;
-    t.drawsDividers = l.drawsDividers;
-    t.hasId = l.hasId;
-    t.referenceWidth = l.referenceWidth;
-    return t;
-}
-
 + (CGFloat)cellFittingFontSize:(NSArray<TILabelSpan *> *)spans templateKind:(NSInteger)templateKind
                      cardWidth:(CGFloat)cardWidth scaledGridFontSize:(CGFloat)scaled {
     return cu59::cellFittingFontSize(spansFrom(spans), cu59::cueCardLayout(static_cast<cu59::CueCardTemplate>(templateKind)),
@@ -110,16 +82,19 @@ static std::vector<cu59::LabelSpan> spansFrom(NSArray<TILabelSpan*>* spans) {
 }
 
 + (TICueCardGeometry *)cueCardGeometry:(TICueCard *)card width:(CGFloat)width height:(CGFloat)height {
-    cu59::CueCardGeometry g = cu59::cueCardGeometry(CueCardFrom(card), width, height);
+    cu59::CueCardContent c = CueCardFrom(card);
+    cu59::CueCardGeometry g = cu59::cueCardGeometry(c, width, height);
+    const cu59::CueCardLayout& l = cu59::cueCardLayout(c.template_);
     TICueCardGeometry* t = [[TICueCardGeometry alloc] init];
     t.titleFontSize = g.titleFontSize; t.gridFontSize = g.gridFontSize; t.bankFontSize = g.bankFontSize;
     t.titleY = g.titleY; t.gridY0 = g.gridY0; t.gridY1 = g.gridY1;
-    t.gridLeft = g.gridLeft; t.gridRight = g.gridRight; t.gridCenter = g.gridCenter; t.gridWidth = g.gridWidth;
+    t.gridCenter = g.gridCenter; t.gridWidth = g.gridWidth;
     t.titleWidth = g.titleWidth;
     t.bankLeft = cgFrame(g.bankLeft); t.bankRight = cgFrame(g.bankRight);
     t.row2Left = cgFrame(g.row2Left); t.row2Right = cgFrame(g.row2Right);
     t.dividerHeight = g.dividerHeight; t.washHeight = g.washHeight;
     t.buttonPadX = g.buttonPadX; t.buttonPadY = g.buttonPadY;
+    t.drawsDividers = l.drawsDividers; t.hasId = l.hasId;
     return t;
 }
 
@@ -196,8 +171,8 @@ static std::vector<cu59::LabelSpan> spansFrom(NSArray<TILabelSpan*>* spans) {
 + (CGFloat)printerFeedHeightUnits { return cu59::PrinterGeometry::feedHeightUnits; }
 + (CGFloat)printerPaperPaddingX { return cu59::PrinterGeometry::paperPaddingX; }
 + (CGFloat)printerPaperPaddingY { return cu59::PrinterGeometry::paperPaddingY; }
-+ (CGFloat)printerLineHeightUnitsFeed:(BOOL)isFeed rowCount:(NSInteger)rowCount {
-    return cu59::PrinterGeometry::lineHeightUnits(isFeed == YES, static_cast<int>(rowCount));
++ (NSInteger)printerClampRowCount:(NSInteger)rowCount {
+    return cu59::PrinterGeometry::clampRowCount(static_cast<int>(rowCount));
 }
 + (CGFloat)printerCopyPixelsPerUnit:(CGFloat)stripHeightUnits {
     return cu59::PrinterGeometry::copyPixelsPerUnit(stripHeightUnits);

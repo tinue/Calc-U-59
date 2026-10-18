@@ -61,9 +61,14 @@ bool LiveDebugSnapshot::operator==(const LiveDebugSnapshot& o) const {
            returnAddressSourceFlags == o.returnAddressSourceFlags && returnAddresses == o.returnAddresses;
 }
 
-std::vector<CpuFrame> readTraceRing(const TI59Machine& m) {
-    std::vector<CpuFrame> frames(1024);
+void readTraceRing(const TI59Machine& m, std::vector<CpuFrame>& frames) {
+    frames.resize(1024);
     frames.resize(m.readCpuFrames(frames.data(), 1024));
+}
+
+std::vector<CpuFrame> readTraceRing(const TI59Machine& m) {
+    std::vector<CpuFrame> frames;
+    readTraceRing(m, frames);
     return frames;
 }
 

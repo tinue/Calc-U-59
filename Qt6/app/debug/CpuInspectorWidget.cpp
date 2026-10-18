@@ -76,7 +76,7 @@ CpuInspectorWidget::CpuInspectorWidget(EmulatorController& controller, QWidget* 
     m_resume = headerButton(QStringLiteral("RESUME"), QColor(255, 149, 0), header);
     connect(m_resume, &QToolButton::clicked, this, [this] { m_controller.unfreeze(); });
     m_freeze = headerButton(QStringLiteral("FREEZE"), Qt::white, header);
-    connect(m_freeze, &QToolButton::clicked, this, [this] { m_controller.freeze(EmulatorController::FreezePanel::Cpu); });
+    connect(m_freeze, &QToolButton::clicked, this, [this] { m_controller.freeze(cu59::FreezeOwner::Cpu); });
     m_freezeOnStart = headerButton(QStringLiteral("FREEZE ON START"), Qt::white, header);
     connect(m_freezeOnStart, &QToolButton::clicked, this, [this] { m_controller.freezeOnScanLoopExit(); });
     m_armed = headerButton(QStringLiteral("ARMED"), QColor(255, 204, 0), header);
@@ -155,7 +155,7 @@ void CpuInspectorWidget::refreshHeader() {
     bool narrow = baseFontSize() < 13;
     m_freezeOnStart->setText(narrow ? QStringLiteral("F.START") : QStringLiteral("FREEZE ON START"));
     bool frozen = m_controller.isFrozen();
-    bool owned = frozen && m_controller.freezeOwner() == EmulatorController::FreezePanel::Cpu;
+    bool owned = frozen && m_controller.freezeOwner() == cu59::FreezeOwner::Cpu;
     bool canFreeze = !frozen && !m_controller.pendingCpuScanLoopFreeze();
     m_resume->setEnabled(owned);
     m_freeze->setEnabled(canFreeze);

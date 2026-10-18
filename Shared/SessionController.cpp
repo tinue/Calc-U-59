@@ -2,6 +2,7 @@
 #include "AsmOverlay.hpp"
 #include "CardFile.hpp"
 #include "ConstantMemory.hpp"
+#include "PrinterFont.hpp"
 #include "StateApplier.hpp"
 #include "TextUtil.hpp"
 #include <cstring>
@@ -106,7 +107,6 @@ bool SessionController::startMachine(Model model) {
 
     // A new machine: running, nothing armed, TRACE latch released, no card.
     m_debugState = m_session->debugState();
-    m_printerTrace = false;
     m_userCueCard.reset();
     m_activeProgram = 0;
     m_cardState = CardState::NoCard;
@@ -144,8 +144,7 @@ bool SessionController::startMachine(Model model) {
     return true;
 }
 
-void SessionController::resetMachine() {
-    if (!m_session) return;
+void SessionController::beginReset() {
     m_session->cancelKeystrokes();
     resume();
     m_asmActive = false;
@@ -153,6 +152,11 @@ void SessionController::resetMachine() {
     m_userCueCard.reset();
     m_activeProgram = 0;
     refreshCueCard();
+}
+
+void SessionController::resetMachine() {
+    if (!m_session) return;
+    beginReset();
     // The printer's TRACE latch survives a reset, as on the hardware (the core keeps it).
     auto saved = info(m_model).hasConstantMemory ? loadConstantMemory() : std::nullopt;
     softReset(m_session->machine(), m_model, saved ? &*saved : nullptr);
@@ -163,13 +167,7 @@ void SessionController::resetMachine() {
 
 void SessionController::cleanResetMachine() {
     if (!m_session) return;
-    m_session->cancelKeystrokes();
-    resume();
-    m_asmActive = false;
-    m_cardState = CardState::NoCard;
-    m_userCueCard.reset();
-    m_activeProgram = 0;
-    refreshCueCard();
+    beginReset();
     cleanReset(m_session->machine());
     m_debug.resetHeatmapBaseline(m_session->machine());
     persistConstantMemory();  // the zeroed state, at once
@@ -205,6 +203,10 @@ bool SessionController::selectModule(const std::string& moduleID) {
     refreshCueCard();
     emitChanged(ModelChanged);
     return true;
+}
+
+void SessionController::changeModule(const std::string& moduleID) {
+    if (moduleID != m_moduleID && selectModule(moduleID)) resetMachine();
 }
 
 // ── TI-58C constant memory ───────────────────────────────────────────────────
@@ -262,6 +264,7 @@ void SessionController::tick(Clock::time_point now) {
     DebugModel::Update u = m_debug.tick(m_session->machine(), m_model, m_liveDebugEnabled, m_cpuDebugEnabled,
                                         m_debugState.frozen);
     if (u.live) changes |= LiveChanged;
+    if (u.listing) changes |= ListingChanged;
     if (u.cpu) changes |= CpuChanged;
     if (u.heatmap) changes |= HeatmapChanged;
     if (u.diagnostic) m_platform.diagnostic(*u.diagnostic);
@@ -286,7 +289,7 @@ void SessionController::tick(Clock::time_point now) {
         m_nextLogRefresh = now + 1s;
         refreshLog();
     }
-    if (changes) emitChanged(changes);
+    emitChanged(changes);
 }
 
 void SessionController::checkProgramNumber() {
@@ -324,19 +327,27 @@ void SessionController::setFullSpeed(bool on) {
 
 void SessionController::setPrinterConnected(bool connected) {
     m_printerConnected = connected;
-    m_printerTrace = false;  // attach/detach releases the TRACE latch (the core does too)
     if (m_session) m_session->machine().setPrinterConnected(connected);
     emitChanged(PrinterChanged);
 }
 
 void SessionController::togglePrinterTrace() {
-    m_printerTrace = !m_printerTrace;
-    if (m_session) m_session->machine().setPrinterTrace(m_printerTrace);
+    if (!m_session) return;
+    TI59Machine& m = m_session->machine();
+    m.setPrinterTrace(!m.printerTrace());
     emitChanged(PrinterChanged);
 }
 
 void SessionController::pressPrinterPrint(bool pressed) { if (m_session) m_session->machine().pressPrinterPrint(pressed); }
 void SessionController::pressPrinterAdv(bool pressed) { if (m_session) m_session->machine().pressPrinterAdv(pressed); }
+
+double SessionController::printerStripHeightUnits() const {
+    double units = 0;
+    for (size_t i = 0; i < m_printerLines.size(); ++i)
+        units += PrinterGeometry::lineHeightUnits(m_printerLines[i].empty(),
+                                                  i < m_printerCodeLines.size() ? m_printerCodeLines[i].rowCount : 7);
+    return units;
+}
 
 void SessionController::cutPaper() {
     m_printerLines.clear();
@@ -401,8 +412,6 @@ void SessionController::saveCard(const std::vector<uint8_t>& data, const std::st
     }
     m_cardFileName = std::filesystem::path(path).filename().string();
 }
-
-int SessionController::cardMode() const { return m_session ? m_session->machine().cardMode() : 0; }
 
 // ── State files (reference/AppArchitecture.md § "State File Loading") ───────
 
@@ -492,7 +501,8 @@ void SessionController::onFrozenView(uint64_t freezeGeneration, FrozenViewReason
     if (!m_debugState.frozen || m_debugState.generation != freezeGeneration) return;
     DebugModel::Update u = m_debug.frozenView(m_session->machine(), m_model, reason);
     if (u.diagnostic) m_platform.diagnostic(*u.diagnostic);
-    emitChanged((u.live ? LiveChanged : 0) | (u.cpu ? CpuChanged : 0) | RunStateChanged);
+    emitChanged((u.live ? LiveChanged : 0) | (u.listing ? ListingChanged : 0) | (u.cpu ? CpuChanged : 0) |
+                RunStateChanged);
 }
 
 void SessionController::setLiveDebugEnabled(bool on) {
@@ -500,7 +510,7 @@ void SessionController::setLiveDebugEnabled(bool on) {
     // Shown while frozen: the frozen view may predate it, so build it now.
     if (on && m_debugState.frozen && m_session) {
         DebugModel::Update u = m_debug.rebuildLive(m_session->machine(), m_model, true);
-        if (u.live) emitChanged(LiveChanged);
+        emitChanged((u.live ? LiveChanged : 0) | (u.listing ? ListingChanged : 0));
     }
 }
 
@@ -575,8 +585,6 @@ void SessionController::dumpStepCounterAnalysis() { if (m_session) log(cu59::dum
 
 // ── Traces ───────────────────────────────────────────────────────────────────
 
-bool SessionController::traceAvailable() { return m_platform.traceLocation().available; }
-
 void SessionController::configureTraceLocation() {
     if (!m_session) return;
     TraceLocation loc = m_platform.traceLocation();
@@ -590,11 +598,11 @@ void SessionController::setManualTrace(bool on) {
         return;
     }
     if (on) {
-        TraceLocation loc = m_platform.traceLocation();
-        if (!loc.available) {
+        if (!m_platform.traceAvailable()) {
             m_platform.error("Trace error", "The trace location is not available.");
             return;
         }
+        TraceLocation loc = m_platform.traceLocation();
         std::filesystem::path path = loc.dir / TraceWriter::baseFileName(m_model);
         if (!m_session->openManualTrace(path, loc.maxBytes)) {
             m_platform.error("Trace error", "Could not create " + path.string());
@@ -660,7 +668,7 @@ void SessionController::runAsm() {
             // FREEZE ON START was armed: freeze in place at the 0x1800 entry.
             m_session->freezeInPlace(FreezeOwner::Cpu);
             DebugModel::Update u = m_debug.frozenView(m_session->machine(), m_model, FrozenViewReason::Freeze);
-            changes |= (u.live ? LiveChanged : 0) | (u.cpu ? CpuChanged : 0);
+            changes |= (u.live ? LiveChanged : 0) | (u.listing ? ListingChanged : 0) | (u.cpu ? CpuChanged : 0);
         } else {
             m_session->start();
         }

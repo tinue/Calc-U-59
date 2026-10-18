@@ -14,8 +14,6 @@ typedef struct {
     uint16_t dpAfterglowMask; ///< Bitmask of positions with active afterglow: bit (pos-2) for pos 2..13.
                               ///<   Includes current dpPos. Zero when display is blanked.
     uint16_t suppressedMask;  ///< Zero-suppression circuit output: bit i suppresses display index i.
-    float    calcIndicator;   ///< fraction of last poll interval where C LED was driven (0.0–1.0)
-                              ///<   RUN mode: any fA≠0; IDLE mode: fA bit 14 only (SH pin)
 } TIDisplaySnapshot;
 
 /// One instruction's CPU state (Core CpuFrame).

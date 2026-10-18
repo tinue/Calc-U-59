@@ -78,8 +78,9 @@ presets, the TI-58C memory file, the card reader, the printer strip, the cue
 card shown, freeze and step, traces, the ASM overlay and the LOG tab.
 
 The app implements `SessionController::Platform`: `runOnUiThread`, reading
-and writing `ti58c.mem` and card files, the trace location, saving the last
-model and module, error alerts, and `changed(mask)` — the `Change` bits name
+and writing `ti58c.mem` and card files, the trace location (and whether it
+is available, asked only when a manual trace opens), saving the last model
+and module, error alerts, and `changed(mask)` — the `Change` bits name
 what to redraw. It calls `tick(now)` at 60 Hz; the slower checks (cue-card
 program 2 Hz, LOG text 1 Hz, TI-58C persist 0.5 s after a batch, written
 only when the contents changed) run inside it.

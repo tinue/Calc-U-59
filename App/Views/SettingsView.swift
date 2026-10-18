@@ -36,11 +36,7 @@ struct SettingsView: View {
                 allModules = ROMLoader.loadAllModuleMetadata()
                 pendingModuleID = viewModel.selectedModuleID
             }
-            .onDisappear {
-                if pendingModuleID != viewModel.selectedModuleID {
-                    viewModel.selectModule(id: pendingModuleID)
-                }
-            }
+            .onDisappear { viewModel.changeModule(id: pendingModuleID) }
         #else
         NavigationStack {
             settingsForm
@@ -58,11 +54,7 @@ struct SettingsView: View {
             allModules = ROMLoader.loadAllModuleMetadata()
             pendingModuleID = viewModel.selectedModuleID
         }
-        .onDisappear {
-            if pendingModuleID != viewModel.selectedModuleID {
-                viewModel.selectModule(id: pendingModuleID)
-            }
-        }
+        .onDisappear { viewModel.changeModule(id: pendingModuleID) }
         #endif
     }
 

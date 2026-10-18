@@ -1,6 +1,7 @@
 #pragma once
 #include <QColor>
 #include <QString>
+#include <cstdint>
 
 // Panel colours and control styles, matching the Swift app's dark chrome
 // (CalculatorView, PrinterView, DebugView, ChromeControlStyles.swift).
@@ -18,6 +19,13 @@ inline const QColor kPill = gray(0.25);                 ///< pill buttons
 inline const QColor kPaper = QColor::fromRgbF(0.96, 0.94, 0.88);
 
 inline QString rgb(const QColor& c) { return c.name(QColor::HexRgb); }
+
+/// A packed 0xRRGGBB colour from Shared/.
+inline QColor fromRgb(uint32_t c, double alpha = 1.0) {
+    QColor q(static_cast<int>(c >> 16 & 0xFF), static_cast<int>(c >> 8 & 0xFF), static_cast<int>(c & 0xFF));
+    q.setAlphaF(alpha);
+    return q;
+}
 
 /// Flat pill button ("PC-100C", "T", "TRACE", …).
 inline QString pillButton() {

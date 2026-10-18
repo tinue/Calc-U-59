@@ -14,7 +14,6 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (class, readonly) NSInteger startupLastUsed;
 @property (class, readonly) NSInteger defaultTraceMaxMB;
-@property (class, readonly) NSInteger defaultLedFontStyle;
 
 /// MachineModel raw value: the stored startup model if valid, else the last used, else TI-59.
 + (NSInteger)resolveStartupModel:(nullable NSNumber *)stored lastUsed:(nullable NSNumber *)lastUsed;

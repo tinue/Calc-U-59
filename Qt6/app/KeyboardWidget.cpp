@@ -32,7 +32,7 @@ KeyboardWidget::KeyboardWidget(EmulatorController& controller, QWidget* parent)
     // The display changes up to 60 times a second: repaint just the display.
     connect(&m_controller, &EmulatorController::displayChanged, this,
             [this] { update(norm(canvasRect(), cu59::kDisplayRect).toAlignedRect()); });
-    for (auto sig : {&EmulatorController::cueCardChanged, &EmulatorController::heldKeyChanged})
+    for (auto sig : {&EmulatorController::cueCardChanged, &EmulatorController::runStateChanged})
         connect(&m_controller, sig, this, qOverload<>(&QWidget::update));
 }
 

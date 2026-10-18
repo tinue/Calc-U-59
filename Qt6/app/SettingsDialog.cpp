@@ -134,9 +134,6 @@ void SettingsDialog::addFolderRow(QGridLayout* grid, const QString& label, const
 
 void SettingsDialog::done(int r) {
     QString module = m_module->currentData().toString();
-    if (!module.isEmpty() && module != m_controller.moduleID()) {
-        m_controller.selectModule(module);
-        m_controller.resetMachine();
-    }
+    if (!module.isEmpty()) m_controller.changeModule(module);
     QDialog::done(r);
 }

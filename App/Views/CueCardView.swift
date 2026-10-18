@@ -17,8 +17,6 @@ struct CueCardView: View, Equatable {
     // Geometry, inks, span merging, dividers and shrink-to-fit come from
     // Shared/CueCard (TIViewRules), shared with the Qt6 app.
 
-    private var layout: TICueCardLayout { TIViewRules.cueCardLayout(for: card.templateIndex) }
-
     // MARK: - Body
 
     var body: some View {
@@ -33,8 +31,9 @@ struct CueCardView: View, Equatable {
                         .resizable()
                         .frame(width: w, height: h)
 
-                    let g = TIViewRules.cueCardGeometry(card.bridged, width: w, height: h)
-                    cardContent(layout: layout, g: g, w: w)
+                    let bridged = card.bridged
+                    let g = TIViewRules.cueCardGeometry(bridged, width: w, height: h)
+                    cardContent(bridged, g: g, w: w)
 
                     // Top wash over the card's upper part.
                     Rectangle()
@@ -69,11 +68,6 @@ struct CueCardView: View, Equatable {
         }
     }
 
-    /// Label spans of one grid row (0 = A′–E′, 1 = A–E): Shared/CueCard labelSpans.
-    private func getColumnSpans(row: Int) -> [TILabelSpan] {
-        TIViewRules.labelSpans(of: card.bridged, row: row)
-    }
-
     @ViewBuilder
     private func dividerLine(dividerIndices: [Int], yPosition: CGFloat, height: CGFloat, w: CGFloat) -> some View {
         ForEach(dividerIndices, id: \.self) { i in
@@ -99,12 +93,12 @@ struct CueCardView: View, Equatable {
 
     /// One grid row (0 = A′–E′, 1 = A–E): dividers (SolidState) and shrink-to-fit labels.
     @ViewBuilder
-    private func gridRow(_ row: Int, y: CGFloat, layout: TICueCardLayout, g: TICueCardGeometry, w: CGFloat, color: Color) -> some View {
-        let spans = getColumnSpans(row: row)
+    private func gridRow(_ row: Int, of bridged: TICueCard, y: CGFloat, g: TICueCardGeometry, w: CGFloat, color: Color) -> some View {
+        let spans = TIViewRules.labelSpans(of: bridged, row: row)
         if !spans.isEmpty {
             let fontSize = TIViewRules.cellFittingFontSize(spans, templateKind: card.templateIndex,
                                                            cardWidth: w, scaledGridFontSize: g.gridFontSize)
-            if layout.drawsDividers {
+            if g.drawsDividers {
                 dividerLine(dividerIndices: TIViewRules.dividers(between: spans).map(\.intValue),
                             yPosition: y, height: g.dividerHeight, w: w)
             }
@@ -113,11 +107,11 @@ struct CueCardView: View, Equatable {
     }
 
     @ViewBuilder
-    private func cardContent(layout: TICueCardLayout, g: TICueCardGeometry, w: CGFloat) -> some View {
-        let inkColor = Color(rgb: TIViewRules.cueCardInk(card.bridged))
+    private func cardContent(_ bridged: TICueCard, g: TICueCardGeometry, w: CGFloat) -> some View {
+        let inkColor = Color(rgb: TIViewRules.cueCardInk(bridged))
 
         // TITLE ROW: Title (and ID if present)
-        if layout.hasId {
+        if g.hasId {
             titleAndIdRow(title: card.title, id: card.id, fontSize: g.titleFontSize, x: g.gridCenter, y: g.titleY,
                           width: g.gridWidth, color: inkColor)
         } else {
@@ -140,7 +134,7 @@ struct CueCardView: View, Equatable {
             alignedText(card.row1, fontSize: g.gridFontSize, align: card.row1Align,
                         x: g.gridCenter, y: g.gridY0, width: g.gridWidth, color: inkColor, g: g)
         } else {
-            gridRow(0, y: g.gridY0, layout: layout, g: g, w: w, color: inkColor)
+            gridRow(0, of: bridged, y: g.gridY0, g: g, w: w, color: inkColor)
         }
 
         // BOTTOM ROW (gridY1): Row2/Row2R text OR label grid (A-E)
@@ -155,7 +149,7 @@ struct CueCardView: View, Equatable {
                             x: g.row2Right.midX, y: g.row2Right.midY, width: g.row2Right.width, color: inkColor, g: g)
             }
         } else {
-            gridRow(1, y: g.gridY1, layout: layout, g: g, w: w, color: inkColor)
+            gridRow(1, of: bridged, y: g.gridY1, g: g, w: w, color: inkColor)
         }
     }
 

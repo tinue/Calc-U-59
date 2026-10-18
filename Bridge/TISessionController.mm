@@ -173,8 +173,9 @@ struct PlatformAdapter : cu59::SessionController::Platform {
     }
     cu59::SessionController::TraceLocation traceLocation() override {
         id<TIPlatform> p = platform;
-        return {std::filesystem::path(p.traceDirectory.fileSystemRepresentation), p.traceMaxBytes, p.traceAvailable == YES};
+        return {std::filesystem::path(p.traceDirectory.fileSystemRepresentation), p.traceMaxBytes};
     }
+    bool traceAvailable() override { return [platform traceAvailable] == YES; }
     void saveLastUsedModel(cu59::Model model) override { [platform saveLastUsedModel:static_cast<NSInteger>(model)]; }
     void saveModuleID(const std::string& moduleID) override { [platform saveModuleID:ns(moduleID)]; }
     void error(const std::string& title, const std::string& message) override {
@@ -209,12 +210,11 @@ struct PlatformAdapter : cu59::SessionController::Platform {
 - (NSInteger)model { return static_cast<NSInteger>(_c->model()); }
 - (void)resetMachine { _c->resetMachine(); }
 - (void)cleanResetMachine { _c->cleanResetMachine(); }
-- (void)persistConstantMemory { _c->persistConstantMemory(); }
 - (void)suspend { _c->suspend(); }
 - (void)resumeAfterSuspend { _c->resumeAfterSuspend(); }
 - (void)tick { _c->tick(std::chrono::steady_clock::now()); }
 - (NSString *)moduleID { return ns(_c->moduleID()); }
-- (BOOL)selectModule:(NSString *)moduleID { return _c->selectModule(cpp(moduleID)); }
+- (void)changeModule:(NSString *)moduleID { _c->changeModule(cpp(moduleID)); }
 
 // ── Display, keys, speed ─────────────────────────────────────────────────────
 
@@ -226,7 +226,6 @@ struct PlatformAdapter : cu59::SessionController::Platform {
     d.dpPos = s.dpPos;
     d.dpAfterglowMask = s.dpAfterglowMask;
     d.suppressedMask = s.suppressedMask;
-    d.calcIndicator = s.calcIndicator;
     return d;
 }
 - (double)calcIndicatorOpacity { return _c->calcIndicatorOpacity(); }
@@ -262,6 +261,7 @@ struct PlatformAdapter : cu59::SessionController::Platform {
     }
     return out;
 }
+- (double)printerStripHeightUnits { return _c->printerStripHeightUnits(); }
 - (BOOL)printerConnected { return _c->printerConnected(); }
 - (BOOL)printerTrace { return _c->printerTrace(); }
 - (void)setPrinterConnected:(BOOL)connected { _c->setPrinterConnected(connected == YES); }
@@ -274,7 +274,6 @@ struct PlatformAdapter : cu59::SessionController::Platform {
 
 - (BOOL)cardSwiping { return _c->cardState() == cu59::SessionController::CardState::Swiping; }
 - (NSString *)cardFileName { return ns(_c->cardFileName()); }
-- (NSInteger)cardMode { return _c->cardMode(); }
 - (void)insertCard:(NSData *)raw path:(NSString *)path fileName:(NSString *)fileName {
     _c->insertCard(optionalBytes(raw), cpp(path), cpp(fileName));
 }
@@ -292,14 +291,17 @@ struct PlatformAdapter : cu59::SessionController::Platform {
 - (void)setLiveDebugEnabled:(BOOL)on { _c->setLiveDebugEnabled(on == YES); }
 - (void)setCpuDebugEnabled:(BOOL)on { _c->setCpuDebugEnabled(on == YES); }
 - (BOOL)frozen { return _c->isFrozen(); }
-- (NSInteger)freezeOwner {
-    cu59::DebugState s = _c->debugState();
-    if (!s.frozen || !s.owner) return -1;
-    return *s.owner == cu59::FreezeOwner::Cpu ? 0 : 1;
+- (TIFreezeOwner)freezeOwner {
+    auto owner = _c->debugState().owner;
+    if (!owner) return TIFreezeOwnerNone;
+    return *owner == cu59::FreezeOwner::Cpu ? TIFreezeOwnerCpu : TIFreezeOwnerCalculator;
 }
 - (BOOL)pcChangeArmed { return _c->debugState().pcChangeArmed; }
 - (BOOL)scanLoopExitArmed { return _c->debugState().scanLoopExitArmed; }
-- (void)freeze:(NSInteger)owner { _c->freeze(owner == 0 ? cu59::FreezeOwner::Cpu : cu59::FreezeOwner::Calculator); }
+- (void)freeze:(TIFreezeOwner)owner {
+    if (owner != TIFreezeOwnerNone)
+        _c->freeze(owner == TIFreezeOwnerCpu ? cu59::FreezeOwner::Cpu : cu59::FreezeOwner::Calculator);
+}
 - (void)resume { _c->resume(); }
 - (void)armPcChange { _c->armPcChange(); }
 - (void)armScanLoopExit { _c->armScanLoopExit(); }
@@ -310,6 +312,7 @@ struct PlatformAdapter : cu59::SessionController::Platform {
 - (TILiveDebugSnapshot *)liveSnapshot { return snapshotFrom(_c->debug().live()); }
 - (NSArray<TIStepEntry *> *)programListing { return stepEntries(_c->debug().listing()); }
 - (NSInteger)programListingSource { return static_cast<NSInteger>(_c->debug().listingSource()); }
+- (NSInteger)programListingCurrentIndex { return _c->debug().listingCurrentIndex(); }
 - (NSArray<TIInspectorEntry *> *)cpuHistory { return inspectorEntries(_c->debug().cpuHistory()); }
 - (NSData *)heatmapCounts {
     const auto& c = _c->debug().heatmapCounts();

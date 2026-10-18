@@ -37,18 +37,18 @@ public:
         PaperCut = 1u << 4,         ///< the strip was cleared
         CardChanged = 1u << 5,      ///< card reader state or file name
         RunStateChanged = 1u << 6,  ///< freeze, armed freezes, full speed, playback, held key
-        LiveChanged = 1u << 7,      ///< CALCULATOR tab snapshot or listing
+        LiveChanged = 1u << 7,      ///< CALCULATOR tab snapshot
         CpuChanged = 1u << 8,       ///< CPU tab history
         HeatmapChanged = 1u << 9,
         LogChanged = 1u << 10,
         AsmChanged = 1u << 11,
         TraceChanged = 1u << 12,    ///< manual trace on/off
+        ListingChanged = 1u << 13,  ///< CALCULATOR tab program listing (rebuilt when frozen)
     };
 
     struct TraceLocation {
         std::filesystem::path dir;  ///< manual and scripted traces go here
         uint64_t maxBytes = 0;      ///< per trace session
-        bool available = true;      ///< false: e.g. iCloud is not reachable
     };
 
     /// Implemented by each frontend. All calls arrive on the UI thread except
@@ -63,6 +63,8 @@ public:
         /// A card file the machine wrote (path as given to insertCard / insertBlankCard).
         virtual bool writeCard(const std::string& path, const std::string& text) = 0;
         virtual TraceLocation traceLocation() = 0;
+        /// false: e.g. iCloud is not reachable (asked only when a manual trace opens).
+        virtual bool traceAvailable() { return true; }
         virtual void saveLastUsedModel(Model model) = 0;
         virtual void saveModuleID(const std::string& moduleID) = 0;
         virtual void error(const std::string& title, const std::string& message) = 0;
@@ -102,6 +104,8 @@ public:
     const std::string& moduleID() const { return m_moduleID; }
     /// Swap the solid-state module (no reset); false (and an error) if it can't be loaded.
     bool selectModule(const std::string& moduleID);
+    /// The Settings choice: swap to a different module, then soft-reset.
+    void changeModule(const std::string& moduleID);
     std::vector<ModuleMetadata> allModules() const { return allModuleMetadata(m_cuecards); }
 
     // ── Display, keys, speed ─────────────────────────────────────────────────
@@ -123,8 +127,10 @@ public:
     // ── Printer ──────────────────────────────────────────────────────────────
     const std::vector<std::string>& printerLines() const { return m_printerLines; }
     const std::vector<PrinterCodeLine>& printerCodeLines() const { return m_printerCodeLines; }
+    /// The strip's height in dot pitches (a text line without dot codes yet counts as complete).
+    double printerStripHeightUnits() const;
     bool printerConnected() const { return m_printerConnected; }
-    bool printerTrace() const { return m_printerTrace; }
+    bool printerTrace() const { return m_session && m_session->machine().printerTrace(); }
     void setPrinterConnected(bool connected);
     void togglePrinterTrace();
     void pressPrinterPrint(bool pressed);
@@ -138,7 +144,6 @@ public:
     void insertCard(const std::optional<std::vector<uint8_t>>& raw, const std::string& path, const std::string& fileName);
     void insertBlankCard(const std::string& savePath, const std::string& fileName);
     void ejectCard();
-    int cardMode() const;  ///< 0 none, 1 read, 2 write
 
     // ── State files ──────────────────────────────────────────────────────────
     /// A preset's bytes (nullopt: it could not be read).
@@ -170,7 +175,6 @@ public:
     void dumpMemory();
     void dumpStepCounterAnalysis();
 
-    bool traceAvailable();
     bool manualTrace() const { return m_manualTrace; }
     void setManualTrace(bool on);
 
@@ -186,7 +190,9 @@ public:
 
 private:
     struct Events;
-    void emitChanged(uint32_t c) { m_platform.changed(c); }
+    void emitChanged(uint32_t c) { if (c) m_platform.changed(c); }
+    /// Shared start of both resets: stop playback, unfreeze, drop the overlay, card and cue card.
+    void beginReset();
     void refreshCueCard();
     void checkProgramNumber();
     void refreshLog();
@@ -227,7 +233,6 @@ private:
     std::vector<std::string> m_printerLines;
     std::vector<PrinterCodeLine> m_printerCodeLines;
     bool m_printerConnected = true;
-    bool m_printerTrace = false;
 
     CardState m_cardState = CardState::NoCard;
     std::string m_cardFileName = "card.U59";

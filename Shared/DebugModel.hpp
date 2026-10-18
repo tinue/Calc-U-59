@@ -21,10 +21,11 @@ class DebugModel {
 public:
     /// What a call changed, for the panels to redraw.
     struct Update {
-        bool live = false, cpu = false, heatmap = false;
+        bool live = false, listing = false, cpu = false, heatmap = false;
         std::optional<std::string> diagnostic;  ///< developer log line
         Update& operator|=(const Update& o) {
             live |= o.live;
+            listing |= o.listing;
             cpu |= o.cpu;
             heatmap |= o.heatmap;
             if (o.diagnostic) diagnostic = o.diagnostic;
@@ -46,7 +47,8 @@ public:
     Update tick(const TI59Machine& m, Model model, bool livePanel, bool cpuPanel, bool frozen);
     /// The machine stopped at a point to show (freeze, armed freeze, step).
     Update frozenView(const TI59Machine& m, Model model, FrozenViewReason reason);
-    /// The CALCULATOR snapshot and listing now (panel shown while frozen).
+    /// The CALCULATOR snapshot now, and when frozen the listing (only a frozen
+    /// panel shows it).
     Update rebuildLive(const TI59Machine& m, Model model, bool frozen);
 
     void resetHeatmapBaseline(const TI59Machine& m);
@@ -55,7 +57,7 @@ public:
     RingLog& log() { return m_log; }
 
     const LiveDebugSnapshot& live() const { return m_live; }
-    /// The whole program of the source last shown (the frozen PROGRAM STEPS view).
+    /// The whole program of the source at the last freeze (the frozen PROGRAM STEPS view).
     const std::vector<StepEntry>& listing() const { return m_listing; }
     ProgramSource listingSource() const { return m_listingSource; }
     int listingCurrentIndex() const;
@@ -78,6 +80,7 @@ private:
     std::vector<StepEntry> m_listing;
     ProgramSource m_listingSource = ProgramSource::UserProgram;
     std::vector<InspectorEntry> m_cpuHistory;
+    std::vector<CpuFrame> m_frames;  ///< the 60 Hz trace-ring read, reused
     std::optional<uint32_t> m_cpuHistorySeqno;  ///< newest frame in a running history
     int m_lastLibMismatch = -1;
 };

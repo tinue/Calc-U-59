@@ -22,8 +22,6 @@ QString spanColor(const QString& text, const QColor& c) {
 
 QString qs(const std::string& s) { return QString::fromStdString(s); }
 
-QColor rgb(uint32_t c) { return QColor(static_cast<int>(c >> 16 & 0xFF), static_cast<int>(c >> 8 & 0xFF), static_cast<int>(c & 0xFF)); }
-
 /// A titled section: header strip and body label (SectionBox in the Swift app).
 QLabel* section(QVBoxLayout* into, const QString& title, QWidget* parent) {
     auto* box = new QWidget(parent);
@@ -72,7 +70,7 @@ LiveDebugWidget::LiveDebugWidget(EmulatorController& controller, QWidget* parent
     m_resume = headerButton(QStringLiteral("RESUME"), QColor(255, 149, 0), header);
     connect(m_resume, &QToolButton::clicked, this, [this] { m_controller.unfreeze(); });
     m_freeze = headerButton(QStringLiteral("FREEZE"), Qt::white, header);
-    connect(m_freeze, &QToolButton::clicked, this, [this] { m_controller.freeze(EmulatorController::FreezePanel::Calculator); });
+    connect(m_freeze, &QToolButton::clicked, this, [this] { m_controller.freeze(cu59::FreezeOwner::Calculator); });
     m_freezeOnStart = headerButton(QStringLiteral("FREEZE ON START"), Qt::white, header);
     connect(m_freezeOnStart, &QToolButton::clicked, this, [this] { m_controller.freezeOnNextPCChange(); });
     m_armed = headerButton(QStringLiteral("ARMED"), QColor(255, 204, 0), header);
@@ -146,7 +144,7 @@ void LiveDebugWidget::refreshHeader() {
     m_title->setText(narrow ? QStringLiteral("DEBUG") : QStringLiteral("CALCULATOR DEBUG"));
     m_freezeOnStart->setText(narrow ? QStringLiteral("F.START") : QStringLiteral("FREEZE ON START"));
     bool frozen = m_controller.isFrozen();
-    bool owned = frozen && m_controller.freezeOwner() == EmulatorController::FreezePanel::Calculator;
+    bool owned = frozen && m_controller.freezeOwner() == cu59::FreezeOwner::Calculator;
     bool canFreeze = !frozen && !m_controller.pendingFreezeOnPCChange();
     m_resume->setEnabled(owned);
     m_freeze->setEnabled(canFreeze);
@@ -173,7 +171,7 @@ void LiveDebugWidget::refresh() {
     // Program steps: the full listing when frozen, else ±5 around the current step.
     bool frozen = m_controller.isFrozen() && !m_controller.programListing().empty();
     const auto& entries = frozen ? m_controller.programListing() : s.programWindow;
-    QColor highlight = rgb(cu59::stepHighlightColor(frozen ? m_controller.programListingSource() : s.programSource));
+    QColor highlight = ChromeStyle::fromRgb(cu59::stepHighlightColor(frozen ? m_controller.programListingSource() : s.programSource));
     QFont mono(QStringLiteral("Menlo"));
     mono.setStyleHint(QFont::Monospace);
     mono.setPixelSize(fs);
@@ -203,7 +201,7 @@ void LiveDebugWidget::refresh() {
     auto level = [&](int i) {
         int a = s.returnAddresses[static_cast<size_t>(i)];
         return spanColor(QStringLiteral("L%1:%2").arg(i + 1).arg(a, 3, 10, QLatin1Char('0')),
-                         rgb(cu59::returnLevelColor(s.returnAddressSourceFlags[static_cast<size_t>(i)], a == 0)));
+                         ChromeStyle::fromRgb(cu59::returnLevelColor(s.returnAddressSourceFlags[static_cast<size_t>(i)], a == 0)));
     };
     set(m_returns, level(5) + sp + level(4) + sp + level(3) + QStringLiteral("<br>") + level(2) + sp + level(1) + sp + level(0));
 

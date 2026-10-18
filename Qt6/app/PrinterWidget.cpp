@@ -27,17 +27,9 @@ class PaperView : public QWidget {
 public:
     explicit PaperView(EmulatorController& c, QWidget* parent) : QWidget(parent), m_c(c) {}
 
-    /// Height for a width, in dot-pitch units scaled to that width.
-    static double heightUnits(const QStringList& lines, const QVector<PrinterCodeLine>& codes) {
-        double units = 0;
-        for (int i = 0; i < lines.size(); ++i)
-            units += PrinterGeometry::lineHeightUnits(lines[i].isEmpty(), i < codes.size() ? codes[i].rowCount : 7);
-        return units;
-    }
-
     /// Draw the strip into `p` with the given width and dot colour; only the
     /// lines overlapping [visibleTop, visibleBottom) (strip coordinates).
-    static void paintStrip(QPainter& p, double width, const QStringList& lines, const QVector<PrinterCodeLine>& codes,
+    static void paintStrip(QPainter& p, double width, const QStringList& lines, const std::vector<PrinterCodeLine>& codes,
                            const QColor& dot, double visibleTop = -1e18, double visibleBottom = 1e18) {
         const double pitch = width / PrinterGeometry::widthUnits;
         const double radius = pitch * PrinterGeometry::dotRadiusFraction;
@@ -45,13 +37,12 @@ public:
         p.setBrush(dot);
         double y = 0;
         for (int i = 0; i < lines.size() && y < visibleBottom; ++i) {
-            const double lineHeight =
-                PrinterGeometry::lineHeightUnits(lines[i].isEmpty(), i < codes.size() ? codes[i].rowCount : 7) * pitch;
+            const PrinterCodeLine* line = static_cast<size_t>(i) < codes.size() ? &codes[static_cast<size_t>(i)] : nullptr;
+            const double lineHeight = PrinterGeometry::lineHeightUnits(lines[i].isEmpty(), line ? line->rowCount : 7) * pitch;
             if (lines[i].isEmpty() || y + lineHeight < visibleTop) {
                 y += lineHeight;
                 continue;
             }
-            const PrinterCodeLine* line = i < codes.size() ? &codes[i] : nullptr;
             int rows = PrinterGeometry::clampRowCount(line ? line->rowCount : 7);
             for (int row = 0; row < rows; ++row) {
                 double cy = y + (row + 0.5) * pitch;
@@ -70,7 +61,7 @@ public:
     bool hasHeightForWidth() const override { return true; }
     int heightForWidth(int w) const override {
         double pitch = (w - 2 * PrinterGeometry::paperPaddingX) / PrinterGeometry::widthUnits;
-        return static_cast<int>(heightUnits(m_c.printerLines(), m_c.printerCodeLines()) * pitch) +
+        return static_cast<int>(m_c.printerStripHeightUnits() * pitch) +
                static_cast<int>(2 * PrinterGeometry::paperPaddingY);
     }
 
@@ -236,7 +227,7 @@ void PrinterWidget::resizeEvent(QResizeEvent* e) {
 void PrinterWidget::copyToClipboard() {
     const QStringList& lines = m_controller.printerLines();
     const auto& codes = m_controller.printerCodeLines();
-    double unitsHigh = PaperView::heightUnits(lines, codes);
+    double unitsHigh = m_controller.printerStripHeightUnits();
     double pxPerUnit = PrinterGeometry::copyPixelsPerUnit(unitsHigh);
     QImage image(QSize(static_cast<int>(PrinterGeometry::widthUnits * pxPerUnit),
                        std::max(1, static_cast<int>(unitsHigh * pxPerUnit))), QImage::Format_RGB32);

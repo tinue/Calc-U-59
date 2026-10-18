@@ -308,17 +308,12 @@ struct LiveDebugView: View {
         let snap = vm.liveDebugSnapshot
         return SectionBox(title: "HIR") {
             VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 12) {
-                    hirRow("1", snap.hir[0], baseFontSize: baseFontSize)
-                    hirRow("2", snap.hir[1], baseFontSize: baseFontSize)
-                    hirRow("3", snap.hir[2], baseFontSize: baseFontSize)
-                    hirRow("4", snap.hir[3], baseFontSize: baseFontSize)
-                }
-                HStack(spacing: 12) {
-                    hirRow("5", snap.hir[4], baseFontSize: baseFontSize)
-                    hirRow("6", snap.hir[5], baseFontSize: baseFontSize)
-                    hirRow("7", snap.hir[6], baseFontSize: baseFontSize)
-                    hirRow("8", snap.hir[7], baseFontSize: baseFontSize)
+                ForEach([0, 4], id: \.self) { first in
+                    HStack(spacing: 12) {
+                        ForEach(first..<first + 4, id: \.self) { i in
+                            hirRow(i + 1, snap.hir[i], baseFontSize: baseFontSize)
+                        }
+                    }
                 }
             }
             .padding(.horizontal, 8)
@@ -341,10 +336,10 @@ struct LiveDebugView: View {
         }
     }
 
-    private func hirRow(_ label: String, _ value: Double, baseFontSize: CGFloat) -> some View {
+    private func hirRow(_ number: Int, _ value: Double, baseFontSize: CGFloat) -> some View {
         let isZero = value == 0
         let color = isZero ? Color(white: 0.6) : Color(white: 0.85)
-        return Text(TIViewRules.hirLine(Int(label) ?? 0, value: value))
+        return Text(TIViewRules.hirLine(number, value: value))
             .font(.system(size: baseFontSize + 2, design: .monospaced))
             .foregroundStyle(color)
             .frame(maxWidth: .infinity, alignment: .leading)

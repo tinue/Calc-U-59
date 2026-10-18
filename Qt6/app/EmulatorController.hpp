@@ -15,9 +15,8 @@
 class EmulatorController : public QObject, private cu59::SessionController::Platform {
     Q_OBJECT
 public:
-    enum class CardState { NoCard, Swiping };
-    enum class DebugLevel { Off = 0, Info = 1, Debug = 2 };
-    enum class FreezePanel { None, Cpu, Calculator };
+    using CardState = cu59::SessionController::CardState;
+    using DebugLevel = cu59::SessionController::DebugLevel;
 
     explicit EmulatorController(QObject* parent = nullptr);
     ~EmulatorController() override;
@@ -29,15 +28,14 @@ public:
     void cleanResetMachine() { m_c->cleanResetMachine(); }
     void persistConstantMemory() { m_c->persistConstantMemory(); }
     QString moduleID() const { return QString::fromStdString(m_c->moduleID()); }
-    void selectModule(const QString& moduleID) { m_c->selectModule(moduleID.toStdString()); }
+    /// Swap to a different module and soft-reset (no-op if unchanged).
+    void changeModule(const QString& moduleID) { m_c->changeModule(moduleID.toStdString()); }
     QVector<cu59::ModuleMetadata> allModules() const;
 
     // ── Display ──────────────────────────────────────────────────────────────
     const DisplaySnapshot& display() const { return m_c->display(); }
     double calcIndicatorOpacity() const { return m_c->calcIndicatorOpacity(); }
     void setFullSpeed(bool on) { m_c->setFullSpeed(on); }
-    bool fullSpeed() const { return m_c->fullSpeed(); }
-    bool keystrokesPlaying() const { return m_c->keystrokesPlaying(); }
     const std::optional<cu59::CueCardContent>& cueCard() const { return m_c->cueCard(); }
 
     // ── Keys (0-based row 0–8, col 0–4, or matrix codes) ─────────────────────
@@ -50,7 +48,8 @@ public:
 
     // ── Printer ──────────────────────────────────────────────────────────────
     const QStringList& printerLines() const { return m_printerLines; }
-    const QVector<PrinterCodeLine>& printerCodeLines() const { return m_printerCodeLines; }
+    const std::vector<PrinterCodeLine>& printerCodeLines() const { return m_c->printerCodeLines(); }
+    double printerStripHeightUnits() const { return m_c->printerStripHeightUnits(); }
     bool printerConnected() const { return m_c->printerConnected(); }
     bool printerTrace() const { return m_c->printerTrace(); }
     void setPrinterConnected(bool connected) { m_c->setPrinterConnected(connected); }
@@ -60,7 +59,7 @@ public:
     void cutPaper() { m_c->cutPaper(); }
 
     // ── Card reader ──────────────────────────────────────────────────────────
-    CardState cardState() const;
+    CardState cardState() const { return m_c->cardState(); }
     QString cardFileName() const { return QString::fromStdString(m_c->cardFileName()); }
     void insertCard(const QString& path);
     void insertBlankCard(const QString& savePath);
@@ -73,10 +72,11 @@ public:
     void setLiveDebugEnabled(bool on) { m_c->setLiveDebugEnabled(on); }
     void setCpuDebugEnabled(bool on) { m_c->setCpuDebugEnabled(on); }
     bool isFrozen() const { return m_c->isFrozen(); }
-    FreezePanel freezeOwner() const;
+    /// The panel that owns the freeze (none while running).
+    std::optional<cu59::FreezeOwner> freezeOwner() const { return m_c->debugState().owner; }
     bool pendingFreezeOnPCChange() const { return m_c->debugState().pcChangeArmed; }
     bool pendingCpuScanLoopFreeze() const { return m_c->debugState().scanLoopExitArmed; }
-    void freeze(FreezePanel owner);
+    void freeze(cu59::FreezeOwner owner) { m_c->freeze(owner); }
     void unfreeze() { m_c->resume(); }
     void freezeOnNextPCChange() { m_c->armPcChange(); }
     void freezeOnScanLoopExit() { m_c->armScanLoopExit(); }
@@ -93,7 +93,7 @@ public:
     const std::vector<uint32_t>& heatmapCounts() const { return m_c->debug().heatmapCounts(); }
     void clearHeatmap() { m_c->clearHeatmap(); }
 
-    DebugLevel debugLevel() const { return static_cast<DebugLevel>(m_c->debugLevel()); }
+    DebugLevel debugLevel() const { return m_c->debugLevel(); }
     void cycleDebugLevel() { m_c->cycleDebugLevel(); }
     QString logText() const { return QString::fromStdString(m_c->logText()); }
     void clearLog() { m_c->clearLog(); }
@@ -102,7 +102,6 @@ public:
     void dumpProg() { m_c->dumpProg(); }
     void dumpMemory() { m_c->dumpMemory(); }
 
-    bool traceAvailable() const { return true; }
     bool manualTrace() const { return m_c->manualTrace(); }
     void setManualTrace(bool on) { m_c->setManualTrace(on); }
 
@@ -120,8 +119,7 @@ signals:
     void cueCardChanged();
     void printerChanged();
     void cardStateChanged();
-    void heldKeyChanged();
-    void runStateChanged();      ///< freeze, armed freezes, full speed, playback
+    void runStateChanged();      ///< freeze, armed freezes, full speed, playback, held key
     void liveSnapshotChanged();
     void cpuChanged();
     void heatmapChanged();
@@ -145,6 +143,5 @@ private:
 
     std::unique_ptr<cu59::SessionController> m_c;
     QTimer m_frameTimer;
-    QStringList m_printerLines;  ///< the controller's strip, as Qt types
-    QVector<PrinterCodeLine> m_printerCodeLines;
+    QStringList m_printerLines;  ///< the controller's text lines, as Qt types
 };

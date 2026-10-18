@@ -1,4 +1,5 @@
 #include "CueCardRenderer.hpp"
+#include "ChromeStyle.hpp"
 #include <QFont>
 #include <QFontMetricsF>
 #include <QHash>
@@ -9,12 +10,6 @@
 namespace CueCardRenderer {
 
 namespace {
-
-QColor rgb(uint32_t c, double alpha = 1.0) {
-    QColor q(static_cast<int>(c >> 16 & 0xFF), static_cast<int>(c >> 8 & 0xFF), static_cast<int>(c & 0xFF));
-    q.setAlphaF(alpha);
-    return q;
-}
 
 const QPixmap& artwork(cu59::CueCardTemplate t) {
     static QHash<int, QPixmap> cache;
@@ -75,7 +70,7 @@ void paint(QPainter& p, const QRectF& rect, const cu59::CueCardContent& card) {
     p.translate(rect.topLeft());
     const cu59::CueCardLayout& L = cu59::cueCardLayout(card.template_);
     const cu59::CueCardGeometry g = cu59::cueCardGeometry(card, w, h);
-    const QColor ink = rgb(cu59::cueCardInk(card));
+    const QColor ink = ChromeStyle::fromRgb(cu59::cueCardInk(card));
     const cu59::CueCardGeometry* boxed = card.style == cu59::CardButtonStyle::Button ? &g : nullptr;
 
     const QString title = QString::fromStdString(card.title);
@@ -99,7 +94,7 @@ void paint(QPainter& p, const QRectF& rect, const cu59::CueCardContent& card) {
         if (L.drawsDividers) {
             for (int i : cu59::dividersBetween(spans)) {
                 double x = cu59::cueCardDividerX(L, i, w);
-                p.fillRect(QRectF(x - 0.5, y - g.dividerHeight / 2, 1, g.dividerHeight), rgb(cu59::kCueCardDividerColor));
+                p.fillRect(QRectF(x - 0.5, y - g.dividerHeight / 2, 1, g.dividerHeight), ChromeStyle::fromRgb(cu59::kCueCardDividerColor));
             }
         }
         for (const auto& s : spans) {
@@ -127,7 +122,7 @@ void paint(QPainter& p, const QRectF& rect, const cu59::CueCardContent& card) {
         gridRow(1, g.gridY1);
     }
 
-    p.fillRect(QRectF(0, 0, w, g.washHeight), rgb(cu59::kCueCardWashColor, cu59::kCueCardWashAlpha));
+    p.fillRect(QRectF(0, 0, w, g.washHeight), ChromeStyle::fromRgb(cu59::kCueCardWashColor, cu59::kCueCardWashAlpha));
     p.restore();
 }
 

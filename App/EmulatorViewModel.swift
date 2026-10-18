@@ -12,20 +12,11 @@ enum FreezePanel { case cpu, calculator }
 /// selection survives navigation on iPhone (where DebugView is recreated).
 enum DebugTab { case live, cpu, log }
 
-enum DebugLevel: Int, Comparable {
+/// SessionController::DebugLevel (cycled there).
+enum DebugLevel: Int {
     case off   = 0
     case info  = 1
     case debug = 2
-
-    static func < (lhs: DebugLevel, rhs: DebugLevel) -> Bool { lhs.rawValue < rhs.rawValue }
-
-    mutating func cycle() {
-        self = switch self {
-        case .off:   .info
-        case .info:  .debug
-        case .debug: .off
-        }
-    }
 }
 
 /// Where the running program's steps come from, decoded from the PRG SOURCE
@@ -106,8 +97,8 @@ class EmulatorViewModel {
             if controller.manualTrace != cIndicatorDebug { cIndicatorDebug = controller.manualTrace }  // could not open
         }
     }
-    private var isTraceLocationAvailable = true
-    var isTraceAvailable: Bool { isTraceLocationAvailable }  // false if the trace location (e.g. iCloud) is unavailable
+    /// False if the trace location (e.g. iCloud) is unavailable at startup.
+    private(set) var isTraceAvailable = AppSettings.traceLocationAvailable()
 
     // ── Debug panel state ────────────────────────────────────────────────────
     var debugTab: DebugTab = .live   // persists tab selection across iPhone navigation
@@ -146,7 +137,7 @@ class EmulatorViewModel {
     /// The whole program of the source last shown (frozen PROGRAM STEPS view).
     var programListing: [LiveDebugSnapshot.StepEntry] = []
     var programListingSource: ProgramSource = .userProgram
-    var programListingCurrentIndex: Int { programListing.firstIndex(where: { $0.isCurrent }) ?? -1 }
+    private(set) var programListingCurrentIndex: Int = -1
 
     // ── CPU tab ──────────────────────────────────────────────────────────────
     struct InspectorSnapshot {
@@ -168,9 +159,7 @@ class EmulatorViewModel {
         case noCard      // Nothing selected
         case swiping     // Card is passing through; I/O in progress
     }
-    enum CardMode: Int { case none = 0, read = 1, write = 2 }
     var cardState: CardState = .noCard
-    var cardMode: CardMode { CardMode(rawValue: controller.cardMode) ?? .none }
     var cardPickerMode: CardPickerView.Mode? = nil
     /// `true` when a card file exists on disk.
     var hasCardFile: Bool = false
@@ -205,8 +194,6 @@ class EmulatorViewModel {
             options: [.userInitiated, .idleSystemSleepDisabled],
             reason: "TI-59 CPU emulation must keep running at real-time pace in the background"
         )
-        // Check trace availability at startup (for iOS/iPadOS iCloud detection, etc.)
-        isTraceLocationAvailable = AppSettings.traceLocationAvailable()
         Task { await self.start(model: AppSettings.resolvedStartupModel()) }
     }
 
@@ -272,13 +259,13 @@ class EmulatorViewModel {
     func togglePrinterTrace() { controller.togglePrinterTrace() }
     func setPrinterConnected(_ connected: Bool) { controller.setPrinterConnected(connected) }
     func cutPaper() { controller.cutPaper() }
+    /// The strip's height in dot pitches (Shared pairs text and dot lines).
+    var printerStripHeightUnits: Double { controller.printerStripHeightUnits }
 
     // MARK: - Module, reset
 
-    /// Change the solid-state module and perform a soft reset (preserves RAM).
-    func selectModule(id: String) {
-        if controller.selectModule(id) { resetMachine() }
-    }
+    /// Change the solid-state module and perform a soft reset (preserves RAM); no-op if unchanged.
+    func changeModule(id: String) { controller.changeModule(id) }
 
     func resetMachine() { controller.resetMachine() }
     /// Clean reset (all models): zero all RAM, then reset.
@@ -305,7 +292,7 @@ class EmulatorViewModel {
 
     // MARK: - Debugger
 
-    func freeze(from panel: FreezePanel) { controller.freeze(panel == .cpu ? 0 : 1) }
+    func freeze(from panel: FreezePanel) { controller.freeze(panel == .cpu ? .cpu : .calculator) }
     func unfreeze() { controller.resume() }
     func freezeOnNextPCChange() { controller.armPcChange() }
     func freezeOnScanLoopExit() { controller.armScanLoopExit() }
@@ -377,9 +364,7 @@ class EmulatorViewModel {
             printerClearID &+= 1
         }
         if c.contains(.printer) {
-            // Append what's new (text and dot codes arrive independently).
-            if controller.printerLineCount < printerLines.count { printerLines = [] }
-            if controller.printerCodeLineCount < printerCodeLines.count { printerCodeLines = [] }
+            // Append what's new (text and dot codes arrive independently; .paperCut cleared above).
             if controller.printerLineCount > printerLines.count {
                 printerLines.append(contentsOf: controller.printerLines(from: printerLines.count))
             }
@@ -396,7 +381,11 @@ class EmulatorViewModel {
         }
         if c.contains(.runState) {
             if isFrozen != controller.frozen { isFrozen = controller.frozen }
-            let owner: FreezePanel? = controller.freezeOwner == 0 ? .cpu : controller.freezeOwner == 1 ? .calculator : nil
+            let owner: FreezePanel? = switch controller.freezeOwner {
+            case .cpu: .cpu
+            case .calculator: .calculator
+            default: nil
+            }
             if freezeOwner != owner { freezeOwner = owner }
             if pendingFreezeOnPCChange != controller.pcChangeArmed { pendingFreezeOnPCChange = controller.pcChangeArmed }
             if pendingCPUScanLoopFreeze != controller.scanLoopExitArmed { pendingCPUScanLoopFreeze = controller.scanLoopExitArmed }
@@ -408,10 +397,11 @@ class EmulatorViewModel {
         if c.contains(.live) {
             let snap = LiveDebugSnapshot(controller.liveSnapshot)
             if snap != liveDebugSnapshot { liveDebugSnapshot = snap }
-            let listing = controller.programListing.map(LiveDebugSnapshot.StepEntry.init)
-            if listing != programListing { programListing = listing }
-            let source = ProgramSource(raw: controller.programListingSource)
-            if source != programListingSource { programListingSource = source }
+        }
+        if c.contains(.listing) {
+            programListing = controller.programListing.map(LiveDebugSnapshot.StepEntry.init)
+            programListingSource = ProgramSource(raw: controller.programListingSource)
+            programListingCurrentIndex = controller.programListingCurrentIndex
         }
         if c.contains(.cpu) {
             cpuHistory = controller.cpuHistory.map(InspectorSnapshot.init)

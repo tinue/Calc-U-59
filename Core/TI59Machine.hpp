@@ -77,6 +77,7 @@ public:
     void pressPrinterPrint(bool pressed);
     void pressPrinterAdv(bool pressed);
     void setPrinterTrace(bool enabled);
+    bool printerTrace() const { return m_printerTrace; }  ///< the TRACE latch
     void setPrinterConnected(bool connected);
     bool isPrinterConnected() const { return m_printerConnected; }
 

@@ -18,25 +18,16 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly, copy) NSString *label;
 @end
 
-/// Per-template cue-card geometry (fractions of the card; fonts at reference width).
-@interface TICueCardLayout : NSObject
-@property (nonatomic, readonly) CGFloat titleFontSize, gridFontSize, bankFontSize;
-@property (nonatomic, readonly) CGFloat titleYFraction, titleWidthFraction, gridY0Fraction, gridY1Fraction;
-@property (nonatomic, readonly, copy) NSArray<NSNumber *> *xFractions;   ///< 5 column centres
-@property (nonatomic, readonly) CGFloat cellWidthFraction;
-@property (nonatomic, readonly) BOOL drawsDividers;
-@property (nonatomic, readonly) BOOL hasId;
-@property (nonatomic, readonly) CGFloat referenceWidth;
-@end
-
 /// Text placement on a w × h card (Shared/CueCard.hpp CueCardGeometry).
 /// Frames: CGRect around the text's centre; height 0 = one text line.
 @interface TICueCardGeometry : NSObject
 @property (nonatomic, readonly) CGFloat titleFontSize, gridFontSize, bankFontSize;
 @property (nonatomic, readonly) CGFloat titleY, gridY0, gridY1;
-@property (nonatomic, readonly) CGFloat gridLeft, gridRight, gridCenter, gridWidth, titleWidth;
+@property (nonatomic, readonly) CGFloat gridCenter, gridWidth, titleWidth;
 @property (nonatomic, readonly) CGRect bankLeft, bankRight, row2Left, row2Right;
 @property (nonatomic, readonly) CGFloat dividerHeight, washHeight, buttonPadX, buttonPadY;
+@property (nonatomic, readonly) BOOL drawsDividers;   ///< the template's (Shared CueCardLayout)
+@property (nonatomic, readonly) BOOL hasId;
 @end
 
 /// LED style parameters (Shared/LedGeometry.hpp); style 0 modernized, 1 classic.
@@ -58,7 +49,6 @@ NS_ASSUME_NONNULL_BEGIN
 // ── Cue cards (Shared/CueCard.hpp) ───────────────────────────────────────────
 + (NSArray<TILabelSpan *> *)labelSpansOf:(TICueCard *)card row:(NSInteger)row;
 + (NSArray<NSNumber *> *)dividersBetween:(NSArray<TILabelSpan *> *)spans NS_SWIFT_NAME(dividers(between:));
-+ (TICueCardLayout *)cueCardLayoutFor:(NSInteger)templateKind;
 + (CGFloat)cellFittingFontSize:(NSArray<TILabelSpan *> *)spans templateKind:(NSInteger)templateKind
                      cardWidth:(CGFloat)cardWidth scaledGridFontSize:(CGFloat)scaled;
 + (TICueCardGeometry *)cueCardGeometry:(TICueCard *)card width:(CGFloat)width height:(CGFloat)height;
@@ -90,8 +80,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (class, readonly) CGFloat printerDotRadiusFraction;
 @property (class, readonly) CGFloat printerPaperPaddingX;
 @property (class, readonly) CGFloat printerPaperPaddingY;
-/// Height of a strip line: PRT_FEED blank, complete, or cut short (rowCount 1–6).
-+ (CGFloat)printerLineHeightUnitsFeed:(BOOL)isFeed rowCount:(NSInteger)rowCount;
+/// Dot rows drawn for a line's rowCount: 7 complete, 1–6 cut short.
++ (NSInteger)printerClampRowCount:(NSInteger)rowCount;
 /// Copy-as-image pixels per dot pitch: 600 dpi, capped at 16000 px for the whole strip.
 + (CGFloat)printerCopyPixelsPerUnit:(CGFloat)stripHeightUnits;
 

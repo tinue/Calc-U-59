@@ -31,7 +31,7 @@ struct FakePlatform : SessionController::Platform {
     std::optional<std::string> readConstantMemory() override { return mem; }
     void writeConstantMemory(const std::string& text) override { mem = text; ++memWrites; }
     bool writeCard(const std::string&, const std::string&) override { return true; }
-    SessionController::TraceLocation traceLocation() override { return {std::filesystem::temp_directory_path(), 1'000'000, true}; }
+    SessionController::TraceLocation traceLocation() override { return {std::filesystem::temp_directory_path(), 1'000'000}; }
     void saveLastUsedModel(Model) override {}
     void saveModuleID(const std::string&) override {}
     void error(const std::string& title, const std::string& message) override { errors.push_back(title + ": " + message); }

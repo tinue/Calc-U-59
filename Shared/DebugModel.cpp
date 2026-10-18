@@ -23,14 +23,14 @@ DebugModel::Update DebugModel::tick(const TI59Machine& m, Model model, bool live
     Update u;
     if (livePanel && !frozen) u |= rebuildLive(m, model, false);
     if (cpuPanel || frozen) {
-        std::vector<CpuFrame> frames = readTraceRing(m);
-        m_heatmap.ingest(frames.data(), frames.size());
+        readTraceRing(m, m_frames);
+        m_heatmap.ingest(m_frames.data(), m_frames.size());
         u.heatmap = m_heatmap.publishTick();
         // Running: rebuild the list only when new instructions ran.
-        uint32_t newest = frames.empty() ? 0 : frames.back().seqno;
+        uint32_t newest = m_frames.empty() ? 0 : m_frames.back().seqno;
         if (!frozen && newest != m_cpuHistorySeqno) {
             m_cpuHistorySeqno = newest;
-            m_cpuHistory = recentInstructions(frames);
+            m_cpuHistory = recentInstructions(m_frames);
             u.cpu = true;
         }
     }
@@ -43,7 +43,7 @@ DebugModel::Update DebugModel::frozenView(const TI59Machine& m, Model model, Fro
         CpuFrame cpu = m.snapshotCPU();
         if (programSourceFrom(cpu.SCOM[0][3], cpu.pc) == ProgramSource::SolidStateReturn) {
             advanceListingCurrent();
-            u.live = true;
+            u.listing = true;
         }
     }
     if (reason != FrozenViewReason::StepInstruction) u |= rebuildLive(m, model, true);
@@ -60,12 +60,12 @@ DebugModel::Update DebugModel::rebuildLive(const TI59Machine& m, Model model, bo
                        " but SCOM[9] says Pgm " + std::to_string(b.libProgramMismatch->second);
     }
     // solidStateReturn shows a raw CROM address: keep the listing (a keycode step advances it).
-    if (b.snap.programSource != ProgramSource::SolidStateReturn) {
+    if (frozen && b.snap.programSource != ProgramSource::SolidStateReturn) {
         auto listing = programListing(b.sourceKeycodes, b.argSteps, b.snap.currentStep);
         if (listing != m_listing || b.snap.programSource != m_listingSource) {
             m_listing = std::move(listing);
             m_listingSource = b.snap.programSource;
-            u.live = true;
+            u.listing = true;
         }
     }
     if (b.snap != m_live) {

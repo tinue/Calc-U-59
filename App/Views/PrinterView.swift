@@ -227,12 +227,8 @@ struct PrinterView: View {
 
         // 600 dpi, backed off for long tapes so the image fits the GPU texture limit
         // (Shared/PrinterFont.hpp copyPixelsPerUnit); cut-short lines count their rows only.
-        let stripUnits = lines.indices.reduce(0.0) { sum, i in
-            sum + TIViewRules.printerLineHeightUnitsFeed(lines[i].isEmpty,
-                                                         rowCount: i < codeLines.count ? codeLines[i].rowCount : 7)
-        }
         let renderer = ImageRenderer(content: strip)
-        renderer.scale = TIViewRules.printerCopyPixelsPerUnit(stripUnits) / dotPitchPt
+        renderer.scale = TIViewRules.printerCopyPixelsPerUnit(viewModel.printerStripHeightUnits) / dotPitchPt
 
         #if os(macOS)
         NSPasteboard.general.clearContents()
@@ -315,7 +311,7 @@ struct PrinterDotLine: View {
     private static let interLineGap      = TIViewRules.printerInterLineGap       // ≈ 3.18 dp stepper advance
 
     // 7 = complete line; 1–6 = aborted mid-stroke (partial dot-rows visible on paper).
-    private var rowCount: Int { max(1, min(7, line.rowCount)) }
+    private var rowCount: Int { TIViewRules.printerClampRowCount(line.rowCount) }
 
     // Dot-row model: each row is a separate Canvas with aspect ratio widthUnits:1
     // (one dot-pitch tall, full line width). This gives SwiftUI a concrete height per

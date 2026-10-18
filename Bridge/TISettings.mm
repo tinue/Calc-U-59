@@ -18,7 +18,6 @@ std::optional<int> opt(NSNumber* n) { return n ? std::optional<int>(n.intValue) 
 
 + (NSInteger)startupLastUsed { return s::kStartupLastUsed; }
 + (NSInteger)defaultTraceMaxMB { return s::kDefaultTraceMaxMB; }
-+ (NSInteger)defaultLedFontStyle { return s::kDefaultLedFontStyle; }
 
 + (NSInteger)resolveStartupModel:(NSNumber *)stored lastUsed:(NSNumber *)lastUsed {
     return static_cast<NSInteger>(s::resolveStartupModel(opt(stored), opt(lastUsed)));

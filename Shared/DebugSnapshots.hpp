@@ -111,6 +111,8 @@ std::vector<InspectorEntry> recentInstructions(const std::vector<CpuFrame>& fram
 
 /// The ring's frames, read without draining (up to 1024).
 std::vector<CpuFrame> readTraceRing(const TI59Machine& m);
+/// The same into `frames`, reusing its storage (the 60 Hz read).
+void readTraceRing(const TI59Machine& m, std::vector<CpuFrame>& frames);
 
 /// Build the live snapshot. `romCache` holds the 384 ROM keycodes once filled
 /// (constant per machine). `frozen` selects the frozen-step semantics

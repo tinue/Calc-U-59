@@ -24,6 +24,14 @@ typedef NS_OPTIONS(uint32_t, TIChange) {
     TIChangeLog       NS_SWIFT_NAME(log)       = 1u << 10,
     TIChangeAsm       NS_SWIFT_NAME(asm)       = 1u << 11,
     TIChangeTrace     NS_SWIFT_NAME(trace)     = 1u << 12,
+    TIChangeListing   NS_SWIFT_NAME(listing)   = 1u << 13,
+};
+
+/// The debug panel that owns a freeze (FreezeOwner; None when running).
+typedef NS_ENUM(NSInteger, TIFreezeOwner) {
+    TIFreezeOwnerNone = -1,
+    TIFreezeOwnerCpu = 0,
+    TIFreezeOwnerCalculator = 1,
 };
 
 /// SessionController::Platform, implemented by the app (main thread).
@@ -112,13 +120,13 @@ typedef NS_OPTIONS(uint32_t, TIChange) {
 @property (nonatomic, readonly) NSInteger model;
 - (void)resetMachine;
 - (void)cleanResetMachine;
-- (void)persistConstantMemory;
 - (void)suspend;
 - (void)resumeAfterSuspend;
 /// The 60 Hz frame.
 - (void)tick;
 @property (nonatomic, readonly) NSString *moduleID;
-- (BOOL)selectModule:(NSString *)moduleID;
+/// Swap to a different module and soft-reset (the Settings choice).
+- (void)changeModule:(NSString *)moduleID;
 
 // ── Display, keys, speed ─────────────────────────────────────────────────────
 @property (nonatomic, readonly) TIDisplaySnapshot display;
@@ -139,6 +147,8 @@ typedef NS_OPTIONS(uint32_t, TIChange) {
 - (NSArray<NSString *> *)printerLinesFrom:(NSInteger)start;
 @property (nonatomic, readonly) NSInteger printerCodeLineCount;
 - (NSArray<TIPrinterLine *> *)printerCodeLinesFrom:(NSInteger)start;
+/// The strip's height in dot pitches (for copy-as-image).
+@property (nonatomic, readonly) double printerStripHeightUnits;
 @property (nonatomic, readonly) BOOL printerConnected;
 @property (nonatomic, readonly) BOOL printerTrace;
 - (void)setPrinterConnected:(BOOL)connected;
@@ -150,7 +160,6 @@ typedef NS_OPTIONS(uint32_t, TIChange) {
 // ── Card reader ──────────────────────────────────────────────────────────────
 @property (nonatomic, readonly) BOOL cardSwiping;
 @property (nonatomic, readonly) NSString *cardFileName;
-@property (nonatomic, readonly) NSInteger cardMode;   ///< 0 none, 1 read, 2 write
 /// raw nil: the file could not be read.
 - (void)insertCard:(nullable NSData *)raw path:(NSString *)path fileName:(NSString *)fileName;
 - (void)insertBlankCard:(NSString *)savePath fileName:(NSString *)fileName;
@@ -163,10 +172,10 @@ typedef NS_OPTIONS(uint32_t, TIChange) {
 - (void)setLiveDebugEnabled:(BOOL)on;
 - (void)setCpuDebugEnabled:(BOOL)on;
 @property (nonatomic, readonly) BOOL frozen;
-@property (nonatomic, readonly) NSInteger freezeOwner;   ///< -1 none, 0 CPU, 1 CALCULATOR
+@property (nonatomic, readonly) TIFreezeOwner freezeOwner;
 @property (nonatomic, readonly) BOOL pcChangeArmed;
 @property (nonatomic, readonly) BOOL scanLoopExitArmed;
-- (void)freeze:(NSInteger)owner;                         ///< 0 CPU, 1 CALCULATOR
+- (void)freeze:(TIFreezeOwner)owner;
 - (void)resume;
 - (void)armPcChange;
 - (void)armScanLoopExit;
@@ -177,6 +186,7 @@ typedef NS_OPTIONS(uint32_t, TIChange) {
 @property (nonatomic, readonly) TILiveDebugSnapshot *liveSnapshot;
 @property (nonatomic, readonly) NSArray<TIStepEntry *> *programListing;
 @property (nonatomic, readonly) NSInteger programListingSource;
+@property (nonatomic, readonly) NSInteger programListingCurrentIndex;   ///< -1 none
 @property (nonatomic, readonly) NSArray<TIInspectorEntry *> *cpuHistory;
 @property (nonatomic, readonly) NSData *heatmapCounts;   ///< 0x1400 uint32 counts
 - (void)clearHeatmap;
