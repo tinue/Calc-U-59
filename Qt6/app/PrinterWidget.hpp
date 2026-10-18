@@ -18,6 +18,9 @@ class PrinterWidget : public QWidget {
 public:
     explicit PrinterWidget(EmulatorController& controller, QWidget* parent = nullptr);
 
+protected:
+    void resizeEvent(QResizeEvent* e) override;
+
 private:
     void refresh();
     void copyToClipboard();

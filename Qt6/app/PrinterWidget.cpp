@@ -105,7 +105,7 @@ PrinterWidget::PrinterWidget(EmulatorController& controller, QWidget* parent) : 
     QPalette pal = palette();
     pal.setColor(QPalette::Window, ChromeStyle::kPanel);
     setPalette(pal);
-    setMinimumWidth(220);
+    // Minimum width: whatever the button bar needs (Fixed-size pills), at least 220.
     setMaximumWidth(320);
 
     auto* col = new QVBoxLayout(this);
@@ -167,8 +167,8 @@ PrinterWidget::PrinterWidget(EmulatorController& controller, QWidget* parent) : 
     bar->setPalette(bp);
     bar->setFixedHeight(50);
     auto* brow = new QHBoxLayout(bar);
-    brow->setContentsMargins(12, 0, 12, 0);
-    brow->setSpacing(12);
+    brow->setContentsMargins(10, 0, 10, 0);
+    brow->setSpacing(8);
     m_print = pill(QStringLiteral("PRINT"), bar);
     connect(m_print, &QPushButton::pressed, this, [this] { m_controller.pressPrinterPrint(true); });
     connect(m_print, &QPushButton::released, this, [this] { m_controller.pressPrinterPrint(false); });
@@ -219,6 +219,11 @@ void PrinterWidget::refresh() {
         m_scroll->verticalScrollBar()->setValue(m_scroll->verticalScrollBar()->maximum());
         m_text->verticalScrollBar()->setValue(m_text->verticalScrollBar()->maximum());
     });
+}
+
+void PrinterWidget::resizeEvent(QResizeEvent* e) {
+    QWidget::resizeEvent(e);
+    m_print->setText(width() < 180 ? QStringLiteral("PRN") : QStringLiteral("PRINT"));
 }
 
 void PrinterWidget::copyToClipboard() {
