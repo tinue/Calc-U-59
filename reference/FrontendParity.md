@@ -25,7 +25,7 @@ tracked here (see `NewGUIGuide.md`).
 | Physical keyboard (26 keys, Shift = 2nd, min. hold) | `KeyboardView` | `KeyboardWidget` | `KeyboardMap`, `KeySequencer` | Both | macOS only in the Swift app |
 | LED display, Modernized / Classic styles | `LEDDisplayView` | `LedRenderer` | `SevenSegment`, `LedGeometry` | Both | Glow: SwiftUI blur / box-blur layers |
 | Decimal-point afterglow, "C" indicator fade | `LEDDisplayView` | `LedRenderer` | `FrameSampler` | Both | |
-| Cue card: 3 templates, `\blank` spans, shrink-to-fit, inks | `CueCardView` | `CueCardRenderer` | `CueCard` | Both | |
+| Cue card: 3 templates, `\blank` spans, shrink-to-fit, inks | `CueCardView` | `CueCardRenderer` | `CueCard` (layout, geometry, inks) | Both | |
 | Module program cards (SCOM[9]), user cards | `EmulatorViewModel` | `EmulatorController` | `CueCard` resolveCueCard | Both | |
 | Solid State module selection | `SettingsView` | `SettingsDialog` | `ModuleCatalog` | Both | soft reset on change |
 | Startup calculator (model / last used) | `SettingsView` | `SettingsDialog` | `SettingsKeys` | Both | |

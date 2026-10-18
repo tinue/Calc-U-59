@@ -98,6 +98,40 @@ const CueCardLayout& cueCardLayout(CueCardTemplate t);
 double cellFittingFontSize(const std::vector<LabelSpan>& spans, const CueCardLayout& layout, double cardWidth,
                            double scaledGridFontSize);
 
+/// A text frame by its centre, as both renderers position cue-card text.
+struct CueCardFrame { double cx, cy, width, height; };
+
+/// Everything a renderer needs to place a card's text on a w × h card,
+/// beyond the per-template CueCardLayout: scaled fonts, the grid's usable
+/// width (charW = 0.64 × grid font; ½ charW in from the left cell edge, one
+/// charW in from the right), the title frames, MagnetCard bank badges, the
+/// Row2 / Row2R 70 / 30 split, divider and top-wash heights.
+struct CueCardGeometry {
+    double titleFontSize, gridFontSize, bankFontSize;
+    double titleY, gridY0, gridY1;
+    double gridLeft, gridRight, gridCenter, gridWidth;
+    double titleWidth;                    ///< centred title (no id): its frame width, centred at w / 2
+    CueCardFrame bankLeft, bankRight;     ///< MagnetCard bank numbers (clip to the frame)
+    CueCardFrame row2Left, row2Right;     ///< Row2 + Row2R on one line (height 0: one text line)
+    double dividerHeight;                 ///< SolidState column dividers, centred on the row
+    double washHeight;                    ///< the dark wash over the top of the card
+    double buttonPadX, buttonPadY;        ///< Style: button box around row text
+};
+CueCardGeometry cueCardGeometry(const CueCardContent& card, double width, double height);
+
+/// x of the divider between grid columns i and i + 1.
+double cueCardDividerX(const CueCardLayout& layout, int i, double width);
+/// Frame of a label span centred on row y (height 0: one text line).
+CueCardFrame cueCardSpanFrame(const CueCardLayout& layout, const LabelSpan& span, double y, double width);
+
+/// Colours, packed 0xRRGGBB: the text ink (SolidState cards are printed gold;
+/// the others follow PencilColor:), the SolidState dividers and the top wash
+/// (drawn at kCueCardWashAlpha).
+uint32_t cueCardInk(const CueCardContent& card);
+inline constexpr uint32_t kCueCardDividerColor = 0xBC9D60;
+inline constexpr uint32_t kCueCardWashColor = 0x1A0505;
+inline constexpr double kCueCardWashAlpha = 0.4;
+
 /// Which cue card shows: the active library program's card, else a generic
 /// card titled with the module's metadata, else the user's card (file, preset,
 /// ti58c.mem), else none.

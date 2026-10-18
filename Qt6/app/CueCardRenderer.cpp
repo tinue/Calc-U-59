@@ -10,17 +10,10 @@ namespace CueCardRenderer {
 
 namespace {
 
-const QColor kGold(0xC4, 0x92, 0x23);       // printed SolidState ink
-const QColor kDivider(188, 157, 96);
-const QColor kSharpie(112, 42, 72);         // alternate inks (PencilColor:), distinct from
-const QColor kPencil(0x4A, 0x47, 0x44);     // the template's near-black divider lines
-
-QColor inkColor(cu59::CueCardInkColor c) {
-    switch (c) {
-    case cu59::CueCardInkColor::Pencil: return kPencil;
-    case cu59::CueCardInkColor::Sharpie: return kSharpie;
-    default: return Qt::black;
-    }
+QColor rgb(uint32_t c, double alpha = 1.0) {
+    QColor q(static_cast<int>(c >> 16 & 0xFF), static_cast<int>(c >> 8 & 0xFF), static_cast<int>(c & 0xFF));
+    q.setAlphaF(alpha);
+    return q;
 }
 
 const QPixmap& artwork(cu59::CueCardTemplate t) {
@@ -40,7 +33,7 @@ QFont boldFont(double pixelSize) {
 /// One line of text in a frame `width` wide centred at (cx, cy), elided like
 /// SwiftUI's lineLimit(1).
 void text(QPainter& p, const QString& s, double size, Qt::Alignment align, double cx, double cy, double width,
-          const QColor& color, bool boxed = false) {
+          const QColor& color, const cu59::CueCardGeometry* boxedBy = nullptr) {
     QFont f = boldFont(size);
     p.setFont(f);
     p.setPen(color);
@@ -48,10 +41,21 @@ void text(QPainter& p, const QString& s, double size, Qt::Alignment align, doubl
     QString shown = fm.elidedText(s, Qt::ElideRight, width);
     QRectF r(cx - width / 2, cy - fm.height() / 2, width, fm.height());
     p.drawText(r, align | Qt::AlignVCenter, shown);
-    if (boxed) {
+    if (boxedBy) {
         p.setBrush(Qt::NoBrush);
-        p.drawRect(r.adjusted(-4, -2, 4, 2));
+        p.drawRect(r.adjusted(-boxedBy->buttonPadX, -boxedBy->buttonPadY, boxedBy->buttonPadX, boxedBy->buttonPadY));
     }
+}
+
+/// A MagnetCard bank number, clipped to its badge frame.
+void badge(QPainter& p, int bank, const cu59::CueCardFrame& f, double size) {
+    QRectF r(f.cx - f.width / 2, f.cy - f.height / 2, f.width, f.height);
+    p.save();
+    p.setClipRect(r, Qt::IntersectClip);
+    p.setFont(boldFont(size));
+    p.setPen(Qt::black);
+    p.drawText(r, Qt::AlignCenter, QString::number(bank));
+    p.restore();
 }
 
 Qt::Alignment qtAlign(cu59::TextAlign a) {
@@ -70,74 +74,60 @@ void paint(QPainter& p, const QRectF& rect, const cu59::CueCardContent& card) {
     const double w = rect.width(), h = rect.height();
     p.translate(rect.topLeft());
     const cu59::CueCardLayout& L = cu59::cueCardLayout(card.template_);
-    const double titleY = h * L.titleYFraction, gridY0 = h * L.gridY0Fraction, gridY1 = h * L.gridY1Fraction;
-    const double scale = w / L.referenceWidth;
-    const double gridFS = L.gridFontSize * scale, titleFS0 = L.titleFontSize * scale, bankFS = L.bankFontSize * scale;
+    const cu59::CueCardGeometry g = cu59::cueCardGeometry(card, w, h);
+    const QColor ink = rgb(cu59::cueCardInk(card));
+    const cu59::CueCardGeometry* boxed = card.style == cu59::CardButtonStyle::Button ? &g : nullptr;
 
     const QString title = QString::fromStdString(card.title);
-    const double titleAvailW = w * L.titleWidthFraction;
-    const double titleFS = card.title.empty()
-        ? titleFS0
-        : std::min(titleFS0, titleAvailW / (cu59::displayLength(card.title) * 0.64));
-
-    // Content rows: geometry from the grid font size, independent of the title.
-    const double charW = gridFS * 0.64;
-    const double gridLeft = w * (L.xFractions[0] - L.cellWidthFraction / 2) + charW * 0.5;
-    const double gridRight = w * (L.xFractions[4] + L.cellWidthFraction / 2) - charW * 1.0;
-    const double gridWidth = gridRight - gridLeft, gridCenter = (gridLeft + gridRight) / 2;
-
-    // SolidState cards are printed (gold); CueCard/MagnetCard ink follows PencilColor:.
-    const QColor ink = L.drawsDividers ? kGold : inkColor(card.color);
-    const bool boxed = card.style == cu59::CardButtonStyle::Button;
-
     if (L.hasId) {
-        text(p, title, titleFS, Qt::AlignLeft, gridCenter, titleY, gridWidth, ink);
-        if (!card.id.empty()) text(p, QString::fromStdString(card.id), titleFS, Qt::AlignRight, gridCenter, titleY, gridWidth, ink);
+        text(p, title, g.titleFontSize, Qt::AlignLeft, g.gridCenter, g.titleY, g.gridWidth, ink);
+        if (!card.id.empty())
+            text(p, QString::fromStdString(card.id), g.titleFontSize, Qt::AlignRight, g.gridCenter, g.titleY, g.gridWidth, ink);
     } else {
-        text(p, title, titleFS, Qt::AlignHCenter, w / 2, titleY, titleAvailW, ink);
+        text(p, title, g.titleFontSize, Qt::AlignHCenter, w / 2, g.titleY, g.titleWidth, ink);
     }
 
     if (card.template_ == cu59::CueCardTemplate::MagnetCard) {
-        if (card.bankLeft) text(p, QString::number(*card.bankLeft), bankFS, Qt::AlignHCenter, w * 0.08, h * 0.14, w * 0.12, Qt::black);
-        if (card.bankRight) text(p, QString::number(*card.bankRight), bankFS, Qt::AlignHCenter, w * 0.92, h * 0.14, w * 0.12, Qt::black);
+        if (card.bankLeft) badge(p, *card.bankLeft, g.bankLeft, g.bankFontSize);
+        if (card.bankRight) badge(p, *card.bankRight, g.bankRight, g.bankFontSize);
     }
 
     auto gridRow = [&](int row, double y) {
         auto spans = cu59::labelSpans(card, row);
         if (spans.empty()) return;
-        double fs = cu59::cellFittingFontSize(spans, L, w, gridFS);
+        double fs = cu59::cellFittingFontSize(spans, L, w, g.gridFontSize);
         if (L.drawsDividers) {
             for (int i : cu59::dividersBetween(spans)) {
-                double x = w * (L.xFractions[i] + L.xFractions[i + 1]) / 2;
-                p.fillRect(QRectF(x - 0.5, y - h * 0.101, 1, h * 0.202), kDivider);
+                double x = cu59::cueCardDividerX(L, i, w);
+                p.fillRect(QRectF(x - 0.5, y - g.dividerHeight / 2, 1, g.dividerHeight), rgb(cu59::kCueCardDividerColor));
             }
         }
         for (const auto& s : spans) {
-            double cx = w * (L.xFractions[s.startCol] + L.xFractions[s.endCol]) / 2;
-            double spanW = w * L.cellWidthFraction * (s.endCol - s.startCol + 1);
-            text(p, QString::fromStdString(s.label), fs, Qt::AlignHCenter, cx, y, spanW, ink);
+            cu59::CueCardFrame f = cu59::cueCardSpanFrame(L, s, y, w);
+            text(p, QString::fromStdString(s.label), fs, Qt::AlignHCenter, f.cx, f.cy, f.width, ink);
         }
     };
 
     // Top row: Row1 text, or the A′–E′ grid.
-    if (!card.row1.empty()) text(p, QString::fromStdString(card.row1), gridFS, qtAlign(card.row1Align), gridCenter, gridY0, gridWidth, ink, boxed);
-    else gridRow(0, gridY0);
+    if (!card.row1.empty())
+        text(p, QString::fromStdString(card.row1), g.gridFontSize, qtAlign(card.row1Align), g.gridCenter, g.gridY0, g.gridWidth, ink, boxed);
+    else gridRow(0, g.gridY0);
 
     // Bottom row: Row2 / Row2R text, or the A–E grid.
     if (!card.row2.empty() || !card.row2R.empty()) {
         if (card.row2R.empty()) {
-            text(p, QString::fromStdString(card.row2), gridFS, qtAlign(card.row2Align), gridCenter, gridY1, gridWidth, ink, boxed);
+            text(p, QString::fromStdString(card.row2), g.gridFontSize, qtAlign(card.row2Align), g.gridCenter, g.gridY1, g.gridWidth, ink, boxed);
         } else {
-            double leftW = gridWidth * 0.70, rightW = gridWidth * 0.30;
-            text(p, QString::fromStdString(card.row2), gridFS, qtAlign(card.row2Align), gridLeft + leftW / 2, gridY1, leftW, ink, boxed);
-            text(p, QString::fromStdString(card.row2R), gridFS, qtAlign(card.row2RAlign), gridRight - rightW / 2, gridY1, rightW, ink, boxed);
+            text(p, QString::fromStdString(card.row2), g.gridFontSize, qtAlign(card.row2Align), g.row2Left.cx, g.row2Left.cy,
+                 g.row2Left.width, ink, boxed);
+            text(p, QString::fromStdString(card.row2R), g.gridFontSize, qtAlign(card.row2RAlign), g.row2Right.cx, g.row2Right.cy,
+                 g.row2Right.width, ink, boxed);
         }
     } else {
-        gridRow(1, gridY1);
+        gridRow(1, g.gridY1);
     }
 
-    // Top wash: 28 % of the card height.
-    p.fillRect(QRectF(0, 0, w, h * 0.28), QColor::fromRgbF(0.1, 0.02, 0.02, 0.4));
+    p.fillRect(QRectF(0, 0, w, g.washHeight), rgb(cu59::kCueCardWashColor, cu59::kCueCardWashAlpha));
     p.restore();
 }
 

@@ -293,3 +293,27 @@ TEST(settings_resolve) {
     CHECK_EQ(resolveModuleID(std::nullopt), std::string("ML"));
     CHECK_EQ(resolveModuleID(std::string("LE")), std::string("LE"));
 }
+
+TEST(cue_card_geometry) {
+    CueCardContent c;
+    c.template_ = CueCardTemplate::MagnetCard;
+    c.title = "Interest";
+    const double w = 800, h = 200;
+    const CueCardLayout& L = cueCardLayout(c.template_);
+    CueCardGeometry g = cueCardGeometry(c, w, h);
+    double charW = L.gridFontSize * 0.64;
+    CHECK_EQ(g.gridLeft, w * (L.xFractions[0] - L.cellWidthFraction / 2) + charW * 0.5);
+    CHECK_EQ(g.gridRight, w * (L.xFractions[4] + L.cellWidthFraction / 2) - charW);
+    CHECK_EQ(g.titleFontSize, L.titleFontSize);   // short title: no shrink
+    CHECK_EQ(g.bankLeft.cx, w * 0.08);
+    CHECK_EQ(g.bankRight.height, h * 0.15);
+    CHECK_EQ(g.row2Left.width + g.row2Right.width, g.gridWidth);
+    CHECK_EQ(g.washHeight, h * 0.28);
+    c.title = std::string(80, 'W');
+    CHECK(cueCardGeometry(c, w, h).titleFontSize < L.titleFontSize);
+    CHECK_EQ(cueCardInk(c), 0u);
+    c.color = CueCardInkColor::Sharpie;
+    CHECK_EQ(cueCardInk(c), 0x702A48u);
+    c.template_ = CueCardTemplate::SolidState;
+    CHECK_EQ(cueCardInk(c), 0xC49223u);   // printed gold whatever PencilColor says
+}

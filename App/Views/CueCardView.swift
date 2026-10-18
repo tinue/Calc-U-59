@@ -11,26 +11,11 @@ struct CueCardView: View, Equatable {
         content ?? CueCardContent.ml01Default
     }
 
-    private static let goldColor = Color(red: 0xC4/255, green: 0x92/255, blue: 0x23/255)
-    private static let dividerColor = Color(red: 188/255.0, green: 157/255.0, blue: 96/255.0)
-
-    // Alternate inks for CueCard/MagnetCard, selectable via the CUECARD "PencilColor:" field.
-    // Chosen to read as a distinct hue against the template's near-black divider lines,
-    // rather than a flat black-on-black merge, where labels cross those dividers.
-    private static let sharpieColor = Color(red: 112/255.0, green: 42/255.0, blue: 72/255.0)
-    private static let pencilColor = Color(red: 0x4A/255, green: 0x47/255, blue: 0x44/255)
-
-    private static func inkColor(for color: CueCardInkColor) -> Color {
-        switch color {
-        case .black: return .black
-        case .pencil: return pencilColor
-        case .sharpie: return sharpieColor
-        }
-    }
+    private static let dividerColor = Color(rgb: TIViewRules.cueCardDividerColor)
 
     // MARK: - Layout
-    // Per-template geometry, span merging, dividers and shrink-to-fit come from
-    // Shared/CueCard (TIViewRules), shared with the Qt6 app; colours stay here.
+    // Geometry, inks, span merging, dividers and shrink-to-fit come from
+    // Shared/CueCard (TIViewRules), shared with the Qt6 app.
 
     private var layout: TICueCardLayout { TIViewRules.cueCardLayout(for: card.templateIndex) }
 
@@ -48,13 +33,14 @@ struct CueCardView: View, Equatable {
                         .resizable()
                         .frame(width: w, height: h)
 
-                    cardContent(layout: layout, w: w, h: h)
+                    let g = TIViewRules.cueCardGeometry(card.bridged, width: w, height: h)
+                    cardContent(layout: layout, g: g, w: w)
 
-                    // Top-wash overlay: exactly 28% of card height, same as original
+                    // Top wash over the card's upper part.
                     Rectangle()
-                        .fill(Color(red: 0.1, green: 0.02, blue: 0.02).opacity(0.4))
-                        .frame(height: h * 0.28)
-                        .position(x: w / 2, y: h * 0.14)
+                        .fill(Color(rgb: TIViewRules.cueCardWashColor).opacity(TIViewRules.cueCardWashAlpha))
+                        .frame(height: g.washHeight)
+                        .position(x: w / 2, y: g.washHeight / 2)
                 }
             }
             .clipped()
@@ -89,144 +75,102 @@ struct CueCardView: View, Equatable {
     }
 
     @ViewBuilder
-    private func dividerLine(dividerIndices: [Int], yPosition: CGFloat, dividerColor: Color, dividerWidth: CGFloat, dividerHeight: CGFloat, layout: TICueCardLayout, w: CGFloat) -> some View {
+    private func dividerLine(dividerIndices: [Int], yPosition: CGFloat, height: CGFloat, w: CGFloat) -> some View {
         ForEach(dividerIndices, id: \.self) { i in
-            let x = w * ((layout.xFractions[i].doubleValue + layout.xFractions[i + 1].doubleValue) / 2)
             Rectangle()
-                .fill(dividerColor)
-                .frame(width: dividerWidth, height: dividerHeight)
-                .position(x: x, y: yPosition)
+                .fill(Self.dividerColor)
+                .frame(width: 1, height: height)
+                .position(x: TIViewRules.cueCardDividerX(i, templateKind: card.templateIndex, width: w), y: yPosition)
         }
     }
 
     @ViewBuilder
-    private func gridRowLabels(spans: [TILabelSpan], fontSize: CGFloat, yPosition: CGFloat, layout: TICueCardLayout, w: CGFloat, color: Color) -> some View {
+    private func gridRowLabels(spans: [TILabelSpan], fontSize: CGFloat, yPosition: CGFloat, w: CGFloat, color: Color) -> some View {
         ForEach(0..<spans.count, id: \.self) { spanIdx in
-            let span = spans[spanIdx]
-            let startX = w * layout.xFractions[span.startCol].doubleValue
-            let endX = w * layout.xFractions[span.endCol].doubleValue
-            let spanCenterX = (startX + endX) / 2
-            let spanWidth = w * layout.cellWidthFraction * CGFloat(span.endCol - span.startCol + 1)
-
-            Text(span.label)
+            let frame = TIViewRules.cueCardSpanFrame(spans[spanIdx], templateKind: card.templateIndex, y: yPosition, width: w)
+            Text(spans[spanIdx].label)
                 .font(.system(size: fontSize, weight: .bold))
                 .foregroundColor(color)
                 .lineLimit(1)
-                .frame(width: spanWidth, alignment: .center)
-                .position(x: spanCenterX, y: yPosition)
+                .frame(width: frame.width, alignment: .center)
+                .position(x: frame.midX, y: frame.midY)
+        }
+    }
+
+    /// One grid row (0 = A′–E′, 1 = A–E): dividers (SolidState) and shrink-to-fit labels.
+    @ViewBuilder
+    private func gridRow(_ row: Int, y: CGFloat, layout: TICueCardLayout, g: TICueCardGeometry, w: CGFloat, color: Color) -> some View {
+        let spans = getColumnSpans(row: row)
+        if !spans.isEmpty {
+            let fontSize = TIViewRules.cellFittingFontSize(spans, templateKind: card.templateIndex,
+                                                           cardWidth: w, scaledGridFontSize: g.gridFontSize)
+            if layout.drawsDividers {
+                dividerLine(dividerIndices: TIViewRules.dividers(between: spans).map(\.intValue),
+                            yPosition: y, height: g.dividerHeight, w: w)
+            }
+            gridRowLabels(spans: spans, fontSize: fontSize, yPosition: y, w: w, color: color)
         }
     }
 
     @ViewBuilder
-    private func cardContent(layout: TICueCardLayout, w: CGFloat, h: CGFloat) -> some View {
-        let titleY = h * layout.titleYFraction
-        let gridY0 = h * layout.gridY0Fraction
-        let gridY1 = h * layout.gridY1Fraction
-
-        let scaleFactor = w / layout.referenceWidth
-        let scaledGridFS = layout.gridFontSize * scaleFactor
-        let scaledTitleFS = layout.titleFontSize * scaleFactor
-        let scaledBankFS = layout.bankFontSize * scaleFactor
-
-        // Title row: shrink if title is too wide
-        let titleAvailW = w * layout.titleWidthFraction
-        let titleByWidth = card.title.isEmpty ? scaledTitleFS
-            : titleAvailW / (CGFloat(TIViewRules.displayLength(card.title)) * 0.64)
-        let titleFS = min(scaledTitleFS, titleByWidth)
-
-        // Divider-based geometry for content rows: calculated from grid font size, not title.
-        // This decouples grid sizing from title sizing, ensuring consistent grid rendering
-        // regardless of how much the title gets shrunk.
-        let charW = scaledGridFS * 0.64
-        let gridLeftX  = w * (layout.xFractions[0].doubleValue - layout.cellWidthFraction / 2) + charW * 0.5
-        let gridRightX = w * (layout.xFractions[4].doubleValue + layout.cellWidthFraction / 2) - charW * 1.0
-        let gridWidth  = gridRightX - gridLeftX
-        let gridCenterX = (gridLeftX + gridRightX) / 2
-
-        // Ink color: SolidState cards are printed (fixed gold); CueCard/MagnetCard are
-        // user-labeled, so their ink follows the CUECARD "PencilColor:" field (default black).
-        let inkColor = layout.drawsDividers ? Self.goldColor : Self.inkColor(for: card.color)
+    private func cardContent(layout: TICueCardLayout, g: TICueCardGeometry, w: CGFloat) -> some View {
+        let inkColor = Color(rgb: TIViewRules.cueCardInk(card.bridged))
 
         // TITLE ROW: Title (and ID if present)
         if layout.hasId {
-            titleAndIdRow(title: card.title, id: card.id, fontSize: titleFS, x: gridCenterX, y: titleY, width: gridWidth, color: inkColor)
+            titleAndIdRow(title: card.title, id: card.id, fontSize: g.titleFontSize, x: g.gridCenter, y: g.titleY,
+                          width: g.gridWidth, color: inkColor)
         } else {
             Text(card.title)
-                .font(.system(size: titleFS, weight: .bold))
+                .font(.system(size: g.titleFontSize, weight: .bold))
                 .foregroundColor(inkColor)
                 .lineLimit(1)
-                .frame(width: titleAvailW)
-                .position(x: w / 2, y: titleY)
+                .frame(width: g.titleWidth)
+                .position(x: w / 2, y: g.titleY)
         }
 
         // BANK BADGES (MagnetCard only)
         if card.template == .magnetCard {
-            if let leftBank = card.banks.0 {
-                Text("\(leftBank)")
-                    .font(.system(size: scaledBankFS, weight: .bold))
-                    .foregroundColor(.black)
-                    .frame(width: w * 0.12, height: h * 0.15)
-                    .clipped()
-                    .position(x: w * 0.08, y: h * 0.14)
-            }
-            if let rightBank = card.banks.1 {
-                Text("\(rightBank)")
-                    .font(.system(size: scaledBankFS, weight: .bold))
-                    .foregroundColor(.black)
-                    .frame(width: w * 0.12, height: h * 0.15)
-                    .clipped()
-                    .position(x: w * 0.92, y: h * 0.14)
-            }
+            if let leftBank = card.banks.0 { bankBadge(leftBank, frame: g.bankLeft, fontSize: g.bankFontSize) }
+            if let rightBank = card.banks.1 { bankBadge(rightBank, frame: g.bankRight, fontSize: g.bankFontSize) }
         }
 
         // TOP ROW (gridY0): Row1 text OR label grid (A'-E')
         if !card.row1.isEmpty {
-            alignedText(card.row1, fontSize: scaledGridFS, align: card.row1Align,
-                        x: gridCenterX, y: gridY0, width: gridWidth, color: inkColor)
+            alignedText(card.row1, fontSize: g.gridFontSize, align: card.row1Align,
+                        x: g.gridCenter, y: g.gridY0, width: g.gridWidth, color: inkColor, g: g)
         } else {
-            let row0Spans = getColumnSpans(row: 0)
-            if !row0Spans.isEmpty {
-                let fontSize0 = TIViewRules.cellFittingFontSize(row0Spans, templateKind: card.templateIndex,
-                                                                cardWidth: w, scaledGridFontSize: scaledGridFS)
-                if layout.drawsDividers {
-                    let row0Dividers = TIViewRules.dividers(between: row0Spans).map(\.intValue)
-                    dividerLine(dividerIndices: row0Dividers, yPosition: gridY0, dividerColor: Self.dividerColor, dividerWidth: 1, dividerHeight: h * 0.202, layout: layout, w: w)
-                }
-                gridRowLabels(spans: row0Spans, fontSize: fontSize0, yPosition: gridY0, layout: layout, w: w, color: inkColor)
-            }
+            gridRow(0, y: g.gridY0, layout: layout, g: g, w: w, color: inkColor)
         }
 
         // BOTTOM ROW (gridY1): Row2/Row2R text OR label grid (A-E)
         if !card.row2.isEmpty || !card.row2R.isEmpty {
             if card.row2R.isEmpty {
-                alignedText(card.row2, fontSize: scaledGridFS, align: card.row2Align,
-                            x: gridCenterX, y: gridY1, width: gridWidth, color: inkColor)
+                alignedText(card.row2, fontSize: g.gridFontSize, align: card.row2Align,
+                            x: g.gridCenter, y: g.gridY1, width: g.gridWidth, color: inkColor, g: g)
             } else {
-                let leftWidth = gridWidth * 0.70
-                let rightWidth = gridWidth * 0.30
-                let leftCenterX = gridLeftX + leftWidth / 2
-                let rightCenterX = gridRightX - rightWidth / 2
-                alignedText(card.row2, fontSize: scaledGridFS, align: card.row2Align,
-                            x: leftCenterX, y: gridY1, width: leftWidth, color: inkColor)
-                alignedText(card.row2R, fontSize: scaledGridFS, align: card.row2RAlign,
-                            x: rightCenterX, y: gridY1, width: rightWidth, color: inkColor)
+                alignedText(card.row2, fontSize: g.gridFontSize, align: card.row2Align,
+                            x: g.row2Left.midX, y: g.row2Left.midY, width: g.row2Left.width, color: inkColor, g: g)
+                alignedText(card.row2R, fontSize: g.gridFontSize, align: card.row2RAlign,
+                            x: g.row2Right.midX, y: g.row2Right.midY, width: g.row2Right.width, color: inkColor, g: g)
             }
         } else {
-            let row1Spans = getColumnSpans(row: 1)
-            if !row1Spans.isEmpty {
-                let fontSize1 = TIViewRules.cellFittingFontSize(row1Spans, templateKind: card.templateIndex,
-                                                                cardWidth: w, scaledGridFontSize: scaledGridFS)
-                if layout.drawsDividers {
-                    let row1Dividers = TIViewRules.dividers(between: row1Spans).map(\.intValue)
-                    dividerLine(dividerIndices: row1Dividers, yPosition: gridY1, dividerColor: Self.dividerColor, dividerWidth: 1, dividerHeight: h * 0.202, layout: layout, w: w)
-                }
-                gridRowLabels(spans: row1Spans, fontSize: fontSize1, yPosition: gridY1, layout: layout, w: w, color: inkColor)
-            }
+            gridRow(1, y: g.gridY1, layout: layout, g: g, w: w, color: inkColor)
         }
     }
 
+    private func bankBadge(_ bank: Int, frame: CGRect, fontSize: CGFloat) -> some View {
+        Text("\(bank)")
+            .font(.system(size: fontSize, weight: .bold))
+            .foregroundColor(.black)
+            .frame(width: frame.width, height: frame.height)
+            .clipped()
+            .position(x: frame.midX, y: frame.midY)
+    }
+
     @ViewBuilder
-    private func alignedText(_ text: String, fontSize: CGFloat, align: TextAlign, x: CGFloat, y: CGFloat, width: CGFloat, color: Color) -> some View {
+    private func alignedText(_ text: String, fontSize: CGFloat, align: TextAlign, x: CGFloat, y: CGFloat, width: CGFloat,
+                             color: Color, g: TICueCardGeometry) -> some View {
         let swiftAlign: Alignment = align == .right ? .trailing : (align == .center ? .center : .leading)
 
         if card.style == .button {
@@ -235,8 +179,8 @@ struct CueCardView: View, Equatable {
                 .foregroundColor(color)
                 .lineLimit(1)
                 .frame(width: width, alignment: swiftAlign)
-                .padding(.horizontal, 4)
-                .padding(.vertical, 2)
+                .padding(.horizontal, g.buttonPadX)
+                .padding(.vertical, g.buttonPadY)
                 .border(color, width: 1)
                 .position(x: x, y: y)
         } else {

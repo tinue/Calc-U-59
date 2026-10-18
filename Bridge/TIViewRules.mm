@@ -31,6 +31,20 @@
 @implementation TICueCardLayout
 @end
 
+@interface TICueCardGeometry ()
+@property (nonatomic, readwrite) CGFloat titleFontSize, gridFontSize, bankFontSize;
+@property (nonatomic, readwrite) CGFloat titleY, gridY0, gridY1;
+@property (nonatomic, readwrite) CGFloat gridLeft, gridRight, gridCenter, gridWidth, titleWidth;
+@property (nonatomic, readwrite) CGRect bankLeft, bankRight, row2Left, row2Right;
+@property (nonatomic, readwrite) CGFloat dividerHeight, washHeight, buttonPadX, buttonPadY;
+@end
+@implementation TICueCardGeometry
+@end
+
+static CGRect cgFrame(const cu59::CueCardFrame& f) {
+    return CGRectMake(f.cx - f.width / 2, f.cy - f.height / 2, f.width, f.height);
+}
+
 @interface TILedStyle ()
 @property (nonatomic, readwrite) CGFloat slant;
 @property (nonatomic, readwrite) CGFloat activeR, activeG, activeB;
@@ -123,7 +137,34 @@ static NSArray<TIInspectorEntry*>* entriesFrom(const std::vector<cu59::Inspector
                                      cardWidth, scaled);
 }
 
-+ (NSInteger)displayLength:(NSString *)text { return cu59::displayLength(cpp(text)); }
++ (TICueCardGeometry *)cueCardGeometry:(TICueCard *)card width:(CGFloat)width height:(CGFloat)height {
+    cu59::CueCardGeometry g = cu59::cueCardGeometry(CueCardFrom(card), width, height);
+    TICueCardGeometry* t = [[TICueCardGeometry alloc] init];
+    t.titleFontSize = g.titleFontSize; t.gridFontSize = g.gridFontSize; t.bankFontSize = g.bankFontSize;
+    t.titleY = g.titleY; t.gridY0 = g.gridY0; t.gridY1 = g.gridY1;
+    t.gridLeft = g.gridLeft; t.gridRight = g.gridRight; t.gridCenter = g.gridCenter; t.gridWidth = g.gridWidth;
+    t.titleWidth = g.titleWidth;
+    t.bankLeft = cgFrame(g.bankLeft); t.bankRight = cgFrame(g.bankRight);
+    t.row2Left = cgFrame(g.row2Left); t.row2Right = cgFrame(g.row2Right);
+    t.dividerHeight = g.dividerHeight; t.washHeight = g.washHeight;
+    t.buttonPadX = g.buttonPadX; t.buttonPadY = g.buttonPadY;
+    return t;
+}
+
++ (CGFloat)cueCardDividerX:(NSInteger)index templateKind:(NSInteger)templateKind width:(CGFloat)width {
+    return cu59::cueCardDividerX(cu59::cueCardLayout(static_cast<cu59::CueCardTemplate>(templateKind)),
+                                 static_cast<int>(index), width);
+}
+
++ (CGRect)cueCardSpanFrame:(TILabelSpan *)span templateKind:(NSInteger)templateKind y:(CGFloat)y width:(CGFloat)width {
+    cu59::LabelSpan s{static_cast<int>(span.startCol), static_cast<int>(span.endCol), cpp(span.label)};
+    return cgFrame(cu59::cueCardSpanFrame(cu59::cueCardLayout(static_cast<cu59::CueCardTemplate>(templateKind)), s, y, width));
+}
+
++ (uint32_t)cueCardInk:(TICueCard *)card { return cu59::cueCardInk(CueCardFrom(card)); }
++ (uint32_t)cueCardDividerColor { return cu59::kCueCardDividerColor; }
++ (uint32_t)cueCardWashColor { return cu59::kCueCardWashColor; }
++ (CGFloat)cueCardWashAlpha { return cu59::kCueCardWashAlpha; }
 
 + (TICueCard *)resolveCueCardForProgram:(NSInteger)program moduleCards:(NSDictionary<NSNumber *, TICueCard *> *)cards
                             moduleTitle:(NSString *)title moduleID:(NSString *)moduleID userCard:(TICueCard *)userCard {

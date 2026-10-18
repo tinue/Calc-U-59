@@ -316,6 +316,54 @@ const CueCardLayout& cueCardLayout(CueCardTemplate t) {
     return kCue;
 }
 
+CueCardGeometry cueCardGeometry(const CueCardContent& card, double w, double h) {
+    const CueCardLayout& L = cueCardLayout(card.template_);
+    const double scale = w / L.referenceWidth;
+    CueCardGeometry g{};
+    g.gridFontSize = L.gridFontSize * scale;
+    g.bankFontSize = L.bankFontSize * scale;
+    g.titleWidth = w * L.titleWidthFraction;
+    const double titleFS0 = L.titleFontSize * scale;
+    g.titleFontSize = card.title.empty() ? titleFS0
+                                         : std::min(titleFS0, g.titleWidth / (displayLength(card.title) * 0.64));
+    g.titleY = h * L.titleYFraction;
+    g.gridY0 = h * L.gridY0Fraction;
+    g.gridY1 = h * L.gridY1Fraction;
+    // Grid geometry follows the grid font, independent of how far the title shrank.
+    const double charW = g.gridFontSize * 0.64;
+    g.gridLeft = w * (L.xFractions[0] - L.cellWidthFraction / 2) + charW * 0.5;
+    g.gridRight = w * (L.xFractions[4] + L.cellWidthFraction / 2) - charW * 1.0;
+    g.gridWidth = g.gridRight - g.gridLeft;
+    g.gridCenter = (g.gridLeft + g.gridRight) / 2;
+    g.bankLeft = {w * 0.08, h * 0.14, w * 0.12, h * 0.15};
+    g.bankRight = {w * 0.92, h * 0.14, w * 0.12, h * 0.15};
+    const double leftW = g.gridWidth * 0.70, rightW = g.gridWidth * 0.30;
+    g.row2Left = {g.gridLeft + leftW / 2, g.gridY1, leftW, 0};
+    g.row2Right = {g.gridRight - rightW / 2, g.gridY1, rightW, 0};
+    g.dividerHeight = h * 0.202;
+    g.washHeight = h * 0.28;
+    g.buttonPadX = 4;
+    g.buttonPadY = 2;
+    return g;
+}
+
+double cueCardDividerX(const CueCardLayout& L, int i, double w) { return w * (L.xFractions[i] + L.xFractions[i + 1]) / 2; }
+
+CueCardFrame cueCardSpanFrame(const CueCardLayout& L, const LabelSpan& s, double y, double w) {
+    return {w * (L.xFractions[s.startCol] + L.xFractions[s.endCol]) / 2, y,
+            w * L.cellWidthFraction * (s.endCol - s.startCol + 1), 0};
+}
+
+uint32_t cueCardInk(const CueCardContent& card) {
+    if (cueCardLayout(card.template_).drawsDividers) return 0xC49223;  // printed gold
+    switch (card.color) {
+    case CueCardInkColor::Pencil: return 0x4A4744;
+    case CueCardInkColor::Sharpie: return 0x702A48;  // distinct from the template's near-black dividers
+    case CueCardInkColor::Black: break;
+    }
+    return 0x000000;
+}
+
 double cellFittingFontSize(const std::vector<LabelSpan>& spans, const CueCardLayout& layout, double cardWidth,
                            double scaledGridFontSize) {
     // As the Swift renderer: start from the unscaled grid size, then the result

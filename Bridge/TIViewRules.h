@@ -29,6 +29,16 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) CGFloat referenceWidth;
 @end
 
+/// Text placement on a w × h card (Shared/CueCard.hpp CueCardGeometry).
+/// Frames: CGRect around the text's centre; height 0 = one text line.
+@interface TICueCardGeometry : NSObject
+@property (nonatomic, readonly) CGFloat titleFontSize, gridFontSize, bankFontSize;
+@property (nonatomic, readonly) CGFloat titleY, gridY0, gridY1;
+@property (nonatomic, readonly) CGFloat gridLeft, gridRight, gridCenter, gridWidth, titleWidth;
+@property (nonatomic, readonly) CGRect bankLeft, bankRight, row2Left, row2Right;
+@property (nonatomic, readonly) CGFloat dividerHeight, washHeight, buttonPadX, buttonPadY;
+@end
+
 /// LED style parameters (Shared/LedGeometry.hpp); style 0 modernized, 1 classic.
 @interface TILedStyle : NSObject
 @property (nonatomic, readonly) CGFloat slant;
@@ -61,7 +71,14 @@ NS_ASSUME_NONNULL_BEGIN
 + (TICueCardLayout *)cueCardLayoutFor:(NSInteger)templateKind;
 + (CGFloat)cellFittingFontSize:(NSArray<TILabelSpan *> *)spans templateKind:(NSInteger)templateKind
                      cardWidth:(CGFloat)cardWidth scaledGridFontSize:(CGFloat)scaled;
-+ (NSInteger)displayLength:(NSString *)text;
++ (TICueCardGeometry *)cueCardGeometry:(TICueCard *)card width:(CGFloat)width height:(CGFloat)height;
++ (CGFloat)cueCardDividerX:(NSInteger)index templateKind:(NSInteger)templateKind width:(CGFloat)width;
++ (CGRect)cueCardSpanFrame:(TILabelSpan *)span templateKind:(NSInteger)templateKind y:(CGFloat)y width:(CGFloat)width;
+/// 0xRRGGBB: the card's ink, the SolidState dividers, the top wash (at cueCardWashAlpha).
++ (uint32_t)cueCardInk:(TICueCard *)card;
+@property (class, readonly) uint32_t cueCardDividerColor;
+@property (class, readonly) uint32_t cueCardWashColor;
+@property (class, readonly) CGFloat cueCardWashAlpha;
 /// The card to show (nil = none): the active program's, a generic module card, or the user's.
 + (nullable TICueCard *)resolveCueCardForProgram:(NSInteger)program
                                      moduleCards:(NSDictionary<NSNumber *, TICueCard *> *)cards

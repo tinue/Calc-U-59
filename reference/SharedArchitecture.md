@@ -41,7 +41,7 @@ Qt6/app/ (Qt Widgets) ───────────────┘
 | `Bcd.{hpp,cpp}` | Register BCD encoding, register lines | `TISharedTables` |
 | `StateFile.{hpp,cpp}` | `.ti59` parser and pre-scan (`StateFileFormat.md`) | `TIFileFormats` |
 | `StateApplier.{hpp,cpp}` | Writing a parsed file into the machine; Reset / clean reset | `TIFileFormats`, `TIViewRules` |
-| `CueCard.{hpp,cpp}` | Cue-card model, math tokens, encode/parse, spans, layout, shrink-to-fit, which card shows | `TIFileFormats`, `TIViewRules` |
+| `CueCard.{hpp,cpp}` | Cue-card model, math tokens, encode/parse, spans, layout and text geometry, inks, shrink-to-fit, which card shows | `TIFileFormats`, `TIViewRules` |
 | `ModuleCatalog.{hpp,cpp}` | `roms/solid-state/cuecards.txt` | `TIFileFormats` |
 | `RomLoader.{hpp,cpp}` | ROM / constants / module text dumps with sentinel checks | `TIFileFormats` |
 | `CardFile.{hpp,cpp}` | Magnetic card files (text, headered and legacy binary); which names the card pickers list | `TIFileFormats` |
