@@ -29,6 +29,7 @@ build/debug/
 
 # Trace files (debug artifacts)
 /*.txt
+!/CMakeLists.txt
 *.ans
 *.bin
 

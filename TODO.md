@@ -27,7 +27,6 @@ Unsorted collection of ideas, bugs, observations etc.
 ## Various
 - **Event callbacks** — push notifications for display updates and register changes, replacing the current polling model.
 - **Card stacking** — a queue of cards fed automatically on successive read/write requests, for programs that use multiple cards.
-- **CMake build** — standalone build targeting the C++ core, enabling headless use and non-macOS platforms. See `memory/headless.md` for a Python/CMake-based plan, and `reference/NewGUIGuide.md` for the WASM build's already-working precedent of building `Core/` standalone without CMake.
 - **Headless / REST API** — full GUI decoupling to enable scripted research workflows and alternative frontends. See `memory/headless.md` and `reference/NewGUIGuide.md`.
 - **Frozen** - Visually indicate when the calculator is frozen in one of the debuggers (mostly useful on iPhone, where only one panel is visible at a time)
 
