@@ -38,7 +38,8 @@ tracked here (see `NewGUIGuide.md`).
 | KEYSTROKES playback (Wait, FullSpeed, Trace, elapse) | `EmulatorViewModel` | `EmulatorController` | `KeySequencer` | Both | |
 | Drag-and-drop / open-with of state files | — | `MainWindow`, `main.cpp` | — | Qt only | Swift: file importer only |
 | Magnetic cards: read, write blank, eject, auto-eject | `CalculatorView`, `CardPickerView` | `ControlBar`, `CardPickerDialog` | `CardFile` | Both | TI-59 only |
-| Card and `ti58c.mem` location | iCloud Documents (`CardStorage`) | local folder (`AppPaths`) | — | Swift only / Qt only | Qt: configurable in Settings |
+| Card and `ti58c.mem` location | iCloud Documents (`CardStorage`) | `~/Calc-U-59` (`AppPaths`) | — | Swift only / Qt only | Qt: card folder in Settings |
+| Open Preset start folder | system file importer | last used, or fixed in Settings | — | Qt only | Calc-U-1600 layout |
 | TI-58C constant memory (save on change, restore) | `EmulatorViewModel` | `EmulatorController` | `ConstantMemory` | Both | |
 
 ## Printer
@@ -63,7 +64,7 @@ tracked here (see `NewGUIGuide.md`).
 | ASM overlay: select, run, clear | `DebugView` | `AsmOverlayBox` | `AsmOverlay` | Both | |
 | LOG tab: dumps, clear, log level | `DebugView` | `LogWidget` | `DebugLog` | Both | |
 | Binary trace (TRACE toggle), size limit | `DebugView`, `TraceWriter` | `LogWidget` | `TraceWriter` | Both | |
-| Trace location | Local / iCloud / custom | Local / custom | — | Both | iCloud: Swift only |
+| Trace location | Local / iCloud / custom | card folder, or trace folder in Settings | — | Both | iCloud: Swift only |
 | Breakpoints | — | — | Core API | — | no UI in either app |
 
 ## App
@@ -71,7 +72,7 @@ tracked here (see `NewGUIGuide.md`).
 | Feature | Swift | Qt | Shared | Status | Notes |
 |---|---|---|---|---|---|
 | About (version, links) | `AppInfo` | `AboutDialog` | — | Both | |
-| Settings | `SettingsView` | `SettingsDialog` | — | Both | Qt adds the documents folder |
+| Settings | `SettingsView` | `SettingsDialog` | — | Both | Qt: preset, card and trace folders instead of the trace location |
 | iOS layouts (portrait pages, iPhone), haptics, click sound | `CalculatorView`, `KeyboardView` | — | — | Swift only | |
 | UI test automation hooks | `CalculatorView` | — | — | Swift only | |
 | `--grab <png>` offscreen screenshot | — | `main.cpp` | — | Qt only | developer check |

@@ -1,7 +1,6 @@
 #include "AppPaths.hpp"
 #include "AppSettings.hpp"
 #include <QDir>
-#include <QStandardPaths>
 
 namespace AppPaths {
 
@@ -10,26 +9,26 @@ QString ensure(const QString& dir) {
     QDir().mkpath(dir);
     return dir;
 }
+
+QString overrideOr(const char* key, const QString& fallback) {
+    const QString dir = AppSettings::value<QString>(key, QString());
+    return dir.isEmpty() ? fallback : ensure(dir);
+}
 } // namespace
 
-QString documentsDir() {
-    QString dir = AppSettings::value<QString>(AppSettings::kDocumentsDir, QString());
-    if (dir.isEmpty())
-        dir = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation) + QStringLiteral("/Calc-U-59");
-    return ensure(dir);
-}
+QString defaultDir() { return ensure(QDir::homePath() + QStringLiteral("/Calc-U-59")); }
 
-// Cards live directly in the documents folder, as in the Swift app's iCloud folder.
-QString cardsDir() { return documentsDir(); }
+QString cardDir() { return overrideOr(AppSettings::kCardDirOverride, defaultDir()); }
 
-QString constantMemoryFile() { return documentsDir() + QStringLiteral("/ti58c.mem"); }
+QString constantMemoryFile() { return cardDir() + QStringLiteral("/ti58c.mem"); }
 
-QString traceDir() {
-    if (AppSettings::value<int>(AppSettings::kTraceLocation, 0) == 2) {
-        QString custom = AppSettings::value<QString>(AppSettings::kTraceCustomPath, QString());
-        if (!custom.isEmpty()) return ensure(custom);
-    }
-    return ensure(QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) + QStringLiteral("/Calc-U-59"));
+QString traceDir() { return overrideOr(AppSettings::kTraceDirOverride, cardDir()); }
+
+QString displayPath(const QString& path) {
+    const QString home = QDir::homePath();
+    if (path == home || path.startsWith(home + QLatin1Char('/')))
+        return QDir::toNativeSeparators(QStringLiteral("~") + path.mid(home.size()));
+    return QDir::toNativeSeparators(path);
 }
 
 std::filesystem::path toFsPath(const QString& path) {

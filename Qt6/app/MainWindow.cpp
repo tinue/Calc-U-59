@@ -18,7 +18,6 @@
 #include <QMessageBox>
 #include <QMimeData>
 #include <QSplitter>
-#include <QStandardPaths>
 #include <QUrl>
 
 namespace {
@@ -83,12 +82,11 @@ void MainWindow::buildMenus() {
 }
 
 void MainWindow::openPreset() {
-    QString dir = AppSettings::value<QString>(AppSettings::kLastPresetDir,
-                                              QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation));
-    QString path = QFileDialog::getOpenFileName(this, QStringLiteral("Select a .ti59, .ti58, or .ti58c state file"), dir,
+    QString path = QFileDialog::getOpenFileName(this, QStringLiteral("Select a .ti59, .ti58, or .ti58c state file"),
+                                                AppSettings::openStartDir(AppSettings::OpenFolder::Presets),
                                                 QStringLiteral("State files (*.ti59 *.ti58 *.ti58c);;All files (*)"));
     if (path.isEmpty()) return;
-    AppSettings::setValue(AppSettings::kLastPresetDir, QFileInfo(path).absolutePath());
+    AppSettings::rememberOpenFile(AppSettings::OpenFolder::Presets, path);
     openStateFile(path);
 }
 
@@ -96,22 +94,22 @@ void MainWindow::openStateFile(const QString& path) { m_controller.loadStateFile
 
 void MainWindow::loadCard() {
     if (!cu59::info(m_controller.model()).hasCardReader) return;
-    CardPickerDialog dialog(CardPickerDialog::Mode::Load, AppPaths::cardsDir(), m_controller.cardFileName(), this);
+    CardPickerDialog dialog(CardPickerDialog::Mode::Load, AppPaths::cardDir(), m_controller.cardFileName(), this);
     if (dialog.exec() == QDialog::Accepted) m_controller.insertCard(dialog.selectedPath());
 }
 
 void MainWindow::newCard() {
     if (!cu59::info(m_controller.model()).hasCardReader) return;
-    CardPickerDialog dialog(CardPickerDialog::Mode::Save, AppPaths::cardsDir(), m_controller.cardFileName(), this);
+    CardPickerDialog dialog(CardPickerDialog::Mode::Save, AppPaths::cardDir(), m_controller.cardFileName(), this);
     if (dialog.exec() == QDialog::Accepted) m_controller.insertBlankCard(dialog.selectedPath());
 }
 
 void MainWindow::selectAsmFile() {
-    QString dir = AppSettings::value<QString>(AppSettings::kLastAsmDir, QString());
-    QString path = QFileDialog::getOpenFileName(this, QStringLiteral("Select an ASM overlay"), dir,
+    QString path = QFileDialog::getOpenFileName(this, QStringLiteral("Select an ASM overlay"),
+                                                AppSettings::openStartDir(AppSettings::OpenFolder::AsmOverlays),
                                                 QStringLiteral("ASM files (*.asm);;All files (*)"));
     if (path.isEmpty()) return;
-    AppSettings::setValue(AppSettings::kLastAsmDir, QFileInfo(path).absolutePath());
+    AppSettings::rememberOpenFile(AppSettings::OpenFolder::AsmOverlays, path);
     m_controller.loadAsmFile(path);
 }
 

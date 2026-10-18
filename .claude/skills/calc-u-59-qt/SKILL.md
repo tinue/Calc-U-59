@@ -10,7 +10,9 @@ user-invocable: true
 `.github/workflows/build.yml`, released through `release.yaml`). The **macOS
 Qt build is local and for development only** — never shipped, never built in
 CI, never signed. On the Mac the Swift app is the product. The Qt app has no
-iCloud: cards and `ti58c.mem` live in a local documents folder.
+iCloud: cards, `ti58c.mem` and traces live in `~/Calc-U-59`, each folder (and
+where Open Preset starts) set in Settings, as in Calc-U-1600 (`AppPaths`,
+`AppSettings::OpenFolder`).
 
 Reference: Calc-U-59's sibling project Calc-U-1600 (`~/Development/sharp/Calc-U-1600/Qt6`)
 set the structure — Widgets, AUTOMOC/AUTORCC, no `.ui` files, QPainter rendering.

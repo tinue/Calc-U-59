@@ -1,12 +1,15 @@
 #pragma once
+#include <QDir>
+#include <QFileInfo>
 #include <QSettings>
 #include <QString>
 
 // Persistent settings. Key names are identical to the Swift app's
 // SettingsKey (App/AppSettings.swift) — keep them in sync (CLAUDE.md
-// § "Frontend Parity"). The iCloud trace location and the iOS-only keys
+// § "Frontend Parity"). The trace location keys and the iOS-only keys
 // (keyboard feedback, portrait debug page) have no Qt counterpart; the Qt
-// app adds the documents folder, where the Swift app has iCloud Documents.
+// app has its own folder keys instead (below, laid out as in Calc-U-1600),
+// where the Swift app has iCloud Documents and the system file importer.
 namespace AppSettings {
 
 inline QSettings store() { return QSettings(QStringLiteral("Calc-U-59"), QStringLiteral("Calc-U-59")); }
@@ -22,15 +25,52 @@ inline constexpr const char* kLastUsedModel = "lastUsedModel";          ///< Int
 inline constexpr const char* kSolidStateModuleID = "solidStateModuleID"; ///< String, default "ML"
 inline constexpr const char* kTraceMaxFileSizeMB = "traceMaxFileSizeMB"; ///< Int, default 50
 inline constexpr const char* kLedFontStyle = "ledFontStyle";             ///< Int: 0 modernized, 1 classic
-inline constexpr const char* kTraceLocation = "traceLocation";           ///< Int: 0 local (default), 2 custom
-inline constexpr const char* kTraceCustomPath = "traceCustomPath";       ///< String: custom trace folder
 
 // ── Qt only ──────────────────────────────────────────────────────────────────
-inline constexpr const char* kDocumentsDir = "documentsDir";  ///< String: cards and ti58c.mem; empty = default
-inline constexpr const char* kLastPresetDir = "lastPresetDir";
-inline constexpr const char* kLastAsmDir = "lastAsmDir";
+/// String: cards and ti58c.mem; empty = ~/Calc-U-59 (AppPaths::cardDir()).
+inline constexpr const char* kCardDirOverride = "storage/cardDirOverride";
+/// String: CALCU59_TRACE.bin and KEYSTROKES traces; empty = the card folder (AppPaths::traceDir()).
+inline constexpr const char* kTraceDirOverride = "trace/dirOverride";
 inline constexpr const char* kWindowGeometry = "windowGeometry";
 inline constexpr const char* kSplitterState = "splitterState";
+
+/// The folders the file-open dialogs start in, one per kind of file:
+///   Presets     -- "Open Preset…" (.ti59 / .ti58 / .ti58c), a row in Settings
+///   AsmOverlays -- the debugger's ASM overlay picker (last used only)
+enum class OpenFolder { Presets, AsmOverlays };
+
+inline QString openFolderKeyGroup(OpenFolder folder) {
+    return folder == OpenFolder::Presets ? QStringLiteral("preset/") : QStringLiteral("asm/");
+}
+
+/// "<group>openDir": a fixed start folder set in Settings. Empty -- the
+/// default, and what Reset restores -- means "<last used>".
+inline QString openDir(OpenFolder folder) {
+    return store().value(openFolderKeyGroup(folder) + QStringLiteral("openDir")).toString();
+}
+
+inline void setOpenDir(OpenFolder folder, const QString& dir) {
+    const QString key = openFolderKeyGroup(folder) + QStringLiteral("openDir");
+    if (dir.isEmpty()) store().remove(key);
+    else store().setValue(key, dir);
+}
+
+/// "<group>lastOpenDir": the folder of the file last picked in that dialog,
+/// recorded on every pick but only used while openDir() is unset.
+inline QString lastOpenDir(OpenFolder folder) {
+    return store().value(openFolderKeyGroup(folder) + QStringLiteral("lastOpenDir")).toString();
+}
+
+inline void rememberOpenFile(OpenFolder folder, const QString& filePath) {
+    store().setValue(openFolderKeyGroup(folder) + QStringLiteral("lastOpenDir"), QFileInfo(filePath).absolutePath());
+}
+
+/// The start folder of that dialog: the fixed one, else the last used, else home.
+inline QString openStartDir(OpenFolder folder) {
+    QString dir = openDir(folder);
+    if (dir.isEmpty()) dir = lastOpenDir(folder);
+    return dir.isEmpty() ? QDir::homePath() : dir;
+}
 
 /// Startup model: the stored one, or the last used (default TI-59).
 inline int resolvedStartupModel() {

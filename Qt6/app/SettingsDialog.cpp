@@ -5,12 +5,13 @@
 #include "Version.h"
 #include <QComboBox>
 #include <QDialogButtonBox>
-#include <QDir>
 #include <QFileDialog>
 #include <QFormLayout>
+#include <QGridLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QLineEdit>
 #include <QPushButton>
 #include <QSpinBox>
 #include <QVBoxLayout>
@@ -52,61 +53,83 @@ SettingsDialog::SettingsDialog(EmulatorController& controller, QWidget* parent) 
     df->addRow(QStringLiteral("Segment Style"), m_style);
     col->addWidget(display);
 
+    // Folders, as in Calc-U-1600: each row shows the folder in use; Reset
+    // returns to the default (cards: ~/Calc-U-59, traces: the card folder,
+    // presets: the folder a preset was last opened from).
     auto* files = new QGroupBox(QStringLiteral("Files"), this);
-    auto* ff = new QFormLayout(files);
-    auto* docsRow = new QHBoxLayout;
-    m_docsPath = new QLabel(files);
-    m_docsPath->setTextInteractionFlags(Qt::TextSelectableByMouse);
-    auto* docsChoose = new QPushButton(QStringLiteral("Choose…"), files);
-    connect(docsChoose, &QPushButton::clicked, this, [this] {
-        QString dir = QFileDialog::getExistingDirectory(this, QStringLiteral("Folder for cards and ti58c.mem"), AppPaths::documentsDir());
-        if (!dir.isEmpty()) AppSettings::setValue(AppSettings::kDocumentsDir, dir);
-        refreshPaths();
-    });
-    docsRow->addWidget(m_docsPath, 1);
-    docsRow->addWidget(docsChoose);
-    ff->addRow(QStringLiteral("Documents Folder"), docsRow);
-
-    m_traceLocation = new QComboBox(files);
-    m_traceLocation->addItem(QStringLiteral("Local (App Data)"), 0);
-    m_traceLocation->addItem(QStringLiteral("Custom Folder"), 2);
-    m_traceLocation->setCurrentIndex(AppSettings::value<int>(AppSettings::kTraceLocation, 0) == 2 ? 1 : 0);
-    connect(m_traceLocation, qOverload<int>(&QComboBox::activated), this, [this] {
-        AppSettings::setValue(AppSettings::kTraceLocation, m_traceLocation->currentData().toInt());
-        refreshPaths();
-    });
-    ff->addRow(QStringLiteral("Trace Save Location"), m_traceLocation);
-    auto* traceRow = new QHBoxLayout;
-    m_tracePath = new QLabel(files);
-    m_tracePath->setTextInteractionFlags(Qt::TextSelectableByMouse);
-    m_traceChoose = new QPushButton(QStringLiteral("Choose…"), files);
-    connect(m_traceChoose, &QPushButton::clicked, this, [this] {
-        QString dir = QFileDialog::getExistingDirectory(this, QStringLiteral("Choose a folder for CALCU59_TRACE.bin"), AppPaths::traceDir());
-        if (!dir.isEmpty()) AppSettings::setValue(AppSettings::kTraceCustomPath, dir);
-        refreshPaths();
-    });
-    traceRow->addWidget(m_tracePath, 1);
-    traceRow->addWidget(m_traceChoose);
-    ff->addRow(QString(), traceRow);
+    auto* grid = new QGridLayout(files);
+    grid->setColumnStretch(1, 1);
+    addFolderRow(grid, QStringLiteral("Preset Folder"), QStringLiteral("Folder Open Preset starts in"),
+                 [] {
+                     QString dir = AppSettings::openDir(AppSettings::OpenFolder::Presets);
+                     return dir.isEmpty() ? QStringLiteral("<last used>") : AppPaths::displayPath(dir);
+                 },
+                 [] { return AppSettings::openStartDir(AppSettings::OpenFolder::Presets); },
+                 [] { return !AppSettings::openDir(AppSettings::OpenFolder::Presets).isEmpty(); },
+                 [](const QString& dir) { AppSettings::setOpenDir(AppSettings::OpenFolder::Presets, dir); });
+    addFolderRow(grid, QStringLiteral("Card Folder"), QStringLiteral("Folder for cards and ti58c.mem"),
+                 [] { return AppPaths::displayPath(AppPaths::cardDir()); }, [] { return AppPaths::cardDir(); },
+                 [] { return !AppSettings::value<QString>(AppSettings::kCardDirOverride, QString()).isEmpty(); },
+                 [this](const QString& dir) {
+                     setOverride(AppSettings::kCardDirOverride, dir);
+                     m_controller.persistConstantMemory();  // the running TI-58C keeps its memory in the new folder
+                 });
+    addFolderRow(grid, QStringLiteral("Trace Folder"), QStringLiteral("Folder for CALCU59_TRACE.bin"),
+                 [] { return AppPaths::displayPath(AppPaths::traceDir()); }, [] { return AppPaths::traceDir(); },
+                 [] { return !AppSettings::value<QString>(AppSettings::kTraceDirOverride, QString()).isEmpty(); },
+                 [](const QString& dir) { setOverride(AppSettings::kTraceDirOverride, dir); });
     m_maxMB = new QSpinBox(files);
     m_maxMB->setRange(1, 100000);
     m_maxMB->setSuffix(QStringLiteral(" MB"));
     m_maxMB->setValue(AppSettings::resolvedTraceMaxMB());
     connect(m_maxMB, qOverload<int>(&QSpinBox::valueChanged), this, [](int v) { AppSettings::setValue(AppSettings::kTraceMaxFileSizeMB, v); });
-    ff->addRow(QStringLiteral("Maximum Trace File Size"), m_maxMB);
+    const int row = grid->rowCount();
+    grid->addWidget(new QLabel(QStringLiteral("Maximum Trace File Size"), files), row, 0);
+    grid->addWidget(m_maxMB, row, 1, Qt::AlignLeft);
     col->addWidget(files);
 
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, this);
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
     col->addWidget(buttons);
-    refreshPaths();
 }
 
-void SettingsDialog::refreshPaths() {
-    m_docsPath->setText(QDir::toNativeSeparators(AppPaths::documentsDir()));
-    bool custom = m_traceLocation->currentData().toInt() == 2;
-    m_tracePath->setText(QDir::toNativeSeparators(AppPaths::traceDir()));
-    m_traceChoose->setVisible(custom);
+void SettingsDialog::setOverride(const char* key, const QString& dir) {
+    if (dir.isEmpty()) AppSettings::store().remove(QLatin1String(key));
+    else AppSettings::setValue(key, dir);
+}
+
+void SettingsDialog::addFolderRow(QGridLayout* grid, const QString& label, const QString& dialogTitle,
+                                  std::function<QString()> display, std::function<QString()> startDir,
+                                  std::function<bool()> isOverridden, std::function<void(const QString&)> set) {
+    QWidget* parent = grid->parentWidget();
+    const int row = grid->rowCount();
+    auto* field = new QLineEdit(parent);
+    field->setReadOnly(true);
+    auto* change = new QPushButton(QStringLiteral("Change…"), parent);
+    auto* reset = new QPushButton(QStringLiteral("Reset"), parent);
+    reset->setToolTip(QStringLiteral("Revert to the default"));
+    grid->addWidget(new QLabel(label, parent), row, 0);
+    grid->addWidget(field, row, 1);
+    grid->addWidget(change, row, 2);
+    grid->addWidget(reset, row, 3);
+
+    auto refresh = [field, reset, display, isOverridden] {
+        field->setText(display());
+        field->setCursorPosition(0);
+        field->setToolTip(field->text());
+        reset->setEnabled(isOverridden());
+    };
+    refresh();
+    connect(change, &QPushButton::clicked, this, [this, dialogTitle, startDir, set, refresh] {
+        const QString dir = QFileDialog::getExistingDirectory(this, dialogTitle, startDir());
+        if (dir.isEmpty()) return;
+        set(dir);
+        refresh();
+    });
+    connect(reset, &QPushButton::clicked, this, [set, refresh] {
+        set(QString());
+        refresh();
+    });
 }
 
 void SettingsDialog::done(int r) {
