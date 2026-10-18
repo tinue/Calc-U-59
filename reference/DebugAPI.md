@@ -242,9 +242,11 @@ var frozenCachedCurrentIndex: Int                         // index of isCurrent 
 ## Live Debug Snapshot
 
 `LiveDebugSnapshot` is a value type (`struct`) that carries a complete point-in-time
-view of the calculator's user-visible and SCOM-derived state.  It is rebuilt by
-`buildLiveSnapshot()` at 60 Hz when `vm.liveDebugEnabled` is `true`, and is also
-captured once on each `freeze()` / `stepKeycode()` call.
+view of the calculator's user-visible and SCOM-derived state.  It is built in
+C++ by `cu59::buildLiveSnapshot` (`Shared/DebugSnapshots.cpp`, shared with the
+Qt6 app) and converted for SwiftUI by the view model's `buildLiveSnapshot()` —
+at 60 Hz when `vm.liveDebugEnabled` is `true`, and once on each `freeze()` /
+`stepKeycode()` call.
 
 The snapshot is stored in `vm.liveDebugSnapshot` and read by `LiveDebugView`.
 
@@ -272,7 +274,7 @@ The program source (RAM vs. ROM) is selected by `prSourceFlag`:
 | `prSourceFlag` | Source | Steps decoded from |
 |----------------|--------|--------------------|
 | `0` | User RAM | `machine.allProgramSteps()` |
-| `8` | Main ROM constants | `machine.romKeycode(at:)` (indices 0–383) |
+| `8` | Main ROM constants | `TI59Machine::readROMKeycode` (indices 0–383; `cu59::romKeycodes` in `Shared/DebugSnapshots.hpp`) |
 
 ### HIR registers (SCOM[1..8])
 

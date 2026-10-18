@@ -68,8 +68,7 @@ documented in `reference/AppArchitecture.md` § "Solid-State Program Display".
 
 ## Bridge Optimization
 
-- Fetching all 100 data registers individually per frame is too slow. Use `nonZeroDataRegisterIndices()` to get the set of non-zero registers in a single bridge call, then fetch only those.
-- Never make 100 individual bridge calls per 60 Hz frame.
+- Never make 100 individual bridge calls per 60 Hz frame. Per-frame work that walks registers or program memory (the live debug snapshot, listings, dumps) runs in C++ (`Shared/`) and crosses the bridge once as a finished result.
 
 ---
 

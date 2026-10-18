@@ -4,3 +4,4 @@
 #import "TISharedTables.h"
 #import "TIFileFormats.h"
 #import "TITraceWriter.h"
+#import "TIDebugModel.h"

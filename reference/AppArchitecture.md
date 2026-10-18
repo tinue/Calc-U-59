@@ -338,7 +338,7 @@ physical column → K-line bit via `kKBits[]`.
 
 `ProgramSource` (top of `EmulatorViewModel.swift`) decodes the firmware's PRG
 SOURCE flag (SCOM[0] nibble 3, see `reference/CoreArchitecture.md`) the way
-the ROM tests it, using the flag and the CPU PC (`ProgramSource(flag:romPC:)`):
+the ROM tests it, using the flag and the CPU PC (`cu59::programSourceFrom` in `Shared/ModuleImage.cpp`):
 bit 0 set → `solidState`; else bit 3 set → `rom`; 0 → `userProgram`; 2 with the
 CPU inside the RTN → LIB_RETURN window (ROM 1193–1194, 14F9–1506, the same on
 every variant) → `solidStateReturn`; any other 2, 4 or 6 → `fastMode`. The
@@ -348,8 +348,8 @@ undocumented values.
 
 Solid-state (library module) programs are shown live in the PROGRAM STEPS view:
 
-- `cacheModuleImage()` parses the module header into `moduleProgramRanges` (program *n*, 1-based = `ranges[n-1]`); it is called at both module-load sites.
-- `libraryProgramStep()` maps the core's latched `libExecPC` (bridge property; `0xFFFF` = none) to `(program, step, range)`. Steps are **program-relative**: step 000 = first keycode of that program.
+- `cu59::ModuleImage::parse` (`Shared/ModuleImage.cpp`) parses the module header into `programRanges` (program *n*, 1-based = `programRanges[n-1]`); the Swift app hands it the image at both module-load sites (`cacheModuleImage()`).
+- `ModuleImage::libraryStep()` maps the core's latched `libExecPC` (`0xFFFF` = none) to `(program, step, range)`. Steps are **program-relative**: step 000 = first keycode of that program.
 - Frozen view: `frozenLibCache` / `frozenLibProgram` mirror the RAM/ROM freeze caches and rebuild in `stepKeycode` when the Pgm number changes.
 - The current Pgm number also lives in SCOM[9] digits 4 (tens) / 3 (units); the latch-derived program is cross-checked against it (mismatches debug-logged).
 - **PRG SOURCE = 2** ("Solid State Return (PC Reload)"): a transitional state inside a RTN back into the module (16 instructions, seen only when frozen, because `stepUntilNextKeycode` stops at ROM 1192, where RTN writes SCOM[0]). The previous frozen cache is held and the highlight advances +1 onto the just-executed RTN (`advanceCachedProgramCurrent()`). During this step SCOM[0] nibbles 4–7 hold a raw CROM address, **not** a step number — never decode it as one.

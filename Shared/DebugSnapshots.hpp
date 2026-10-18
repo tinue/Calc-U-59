@@ -1,0 +1,103 @@
+#pragma once
+#include "../Core/TI59Machine.hpp"
+#include "MachineModelInfo.hpp"
+#include "ModuleImage.hpp"
+#include <array>
+#include <optional>
+#include <set>
+#include <string>
+#include <vector>
+
+// The CALCULATOR debug tab's data: a calculator-level view decoded from SCOM
+// and RAM (registers, flags, AOS/HIR state, return stack, the program steps
+// around the current one). Field meanings: reference/DebugAPI.md and
+// rom/TI59-ROM-Guide.md § "SCOM register map". Built at 60 Hz while the tab
+// is visible, so the frontends compare with operator== before redrawing.
+
+namespace cu59 {
+
+/// Calculator PC from SCOM[0] nibbles 4–7: n7×800 + n6×80 + n5×8 + n4.
+int decodeProgramCounter(const CpuFrame& cpu);
+
+/// Program steps of the current partition (clamped to physical RAM: the
+/// partition nibble can transiently claim more registers than exist).
+std::vector<uint8_t> programSteps(const TI59Machine& m);
+
+/// The 384 constant-ROM keycodes (PRG SOURCE = 8).
+std::vector<uint8_t> romKeycodes(const TI59Machine& m);
+
+struct StepEntry {
+    int stepNum;
+    uint8_t keycode;
+    std::string mnemonic;  ///< "STO", or "12" for an operand step
+    bool isCurrent;
+    bool operator==(const StepEntry& o) const {
+        return stepNum == o.stepNum && keycode == o.keycode && mnemonic == o.mnemonic && isCurrent == o.isCurrent;
+    }
+};
+
+/// Listing of `keycodes` with operands shown as numbers.
+std::vector<StepEntry> programListing(const std::vector<uint8_t>& keycodes, const std::set<int>& argSteps,
+                                      int currentStep);
+
+enum class AngleMode { Deg, Rad, Grad };
+
+struct LiveDebugSnapshot {
+    struct RegEntry {
+        int num;          ///< 0–99 for Rnn, 0–3 for Hnn
+        double value;
+        bool isHidden;    ///< TI-58C extra register
+        bool operator==(const RegEntry& o) const { return num == o.num && value == o.value && isHidden == o.isHidden; }
+    };
+    std::vector<RegEntry> nonZeroRegs;
+    int dataRegCount = 0;
+    int programRegCount = 0;            ///< the claimed partition, not clamped
+
+    std::vector<StepEntry> programWindow;  ///< ±5 steps around currentStep
+    int currentStep = -1;               ///< -1 = unknown
+    int nextStepNum = -1;               ///< frozen only: next step to execute
+    uint8_t nextStepKeycode = 0;
+    std::string nextStepMnemonic;
+
+    std::array<double, 8> hir{};        ///< HIR 1–8 (SCOM[1..8])
+    double tRegister = 0;               ///< SCOM[11]
+    std::array<bool, 10> calcFlags{};   ///< user flags 0–9
+
+    std::string fixIndicator = "0";
+    std::string ioUserFlags = "00000";
+    std::string lastKey = "00";
+    uint16_t fA = 0, fB = 0;
+    std::string engIndicator, secondIndicator, invIndicator;
+
+    std::optional<AngleMode> angleMode;
+    uint8_t prSourceFlag = 0;
+    ProgramSource programSource = ProgramSource::UserProgram;
+    int pendingOpsCount = 0;
+
+    std::array<std::string, 16> scomRows;   ///< nibbles 0→15 as lowercase hex
+    std::string returnAddress;              ///< "L6:… L1:… (count=n)"
+    std::array<uint8_t, 6> returnAddressSourceFlags{};  ///< L1–L6
+    std::array<int, 6> returnAddresses{};               ///< L1–L6
+
+    bool operator==(const LiveDebugSnapshot& o) const;
+    bool operator!=(const LiveDebugSnapshot& o) const { return !(*this == o); }
+};
+
+/// Result of one live build: the snapshot plus what the frontend needs for the
+/// full program listing.
+struct LiveDebugBuild {
+    LiveDebugSnapshot snap;
+    std::vector<uint8_t> sourceKeycodes;   ///< keycodes of the active program source
+    std::set<int> argSteps;                ///< operand steps within sourceKeycodes
+    /// Solid State: the program number from the library range disagreed with
+    /// the Pgm register in SCOM[9] — {range program, SCOM program}, for logging.
+    std::optional<std::pair<int, int>> libProgramMismatch;
+};
+
+/// Build the live snapshot. `romCache` holds the 384 ROM keycodes once filled
+/// (constant per machine). `frozen` selects the frozen-step semantics
+/// (current = last executed step, next = the one about to run).
+LiveDebugBuild buildLiveSnapshot(const TI59Machine& m, Model model, const ModuleImage& module,
+                                 std::vector<uint8_t>& romCache, bool frozen);
+
+} // namespace cu59

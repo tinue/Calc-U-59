@@ -1,9 +1,6 @@
-#import "TI59MachineWrapper.h"
-#include "../Core/TI59Machine.hpp"
+#import "TI59MachineWrapper+Cpp.h"
 #include "../Shared/KeyMatrix.hpp"
 #include <memory>
-
-// Physical col 1–5 → TMC0501 K-line bit index (KO=1 KP=2 KQ=3 KS=5 KT=6)
 
 @implementation TI59MachineWrapper {
     std::unique_ptr<TI59Machine> _machine;
@@ -324,28 +321,6 @@ static TICpuFrame marshalCpuFrame(const CpuFrame& f) {
     return data;
 }
 
-- (uint8_t)romKeycodeAt:(NSInteger)addr {
-    return _machine->readROMKeycode((int)addr);
-}
-
-- (NSIndexSet*)nonZeroDataRegisterIndices {
-    NSMutableIndexSet* result = [NSMutableIndexSet indexSet];
-    int programRegs = (int)_machine->partitionProgramRegs();
-    int totalRegs   = _machine->ramRegCount();
-    int dataRegCount = MAX(0, totalRegs - programRegs);
-    for (int regNum = 0; regNum < dataRegCount; regNum++) {
-        uint8_t n[16];
-        _machine->copyRAMReg(totalRegs - 1 - regNum, n);
-        for (int i = 0; i < 16; i++) {
-            if (n[i] != 0) {
-                [result addIndex:regNum];
-                break;
-            }
-        }
-    }
-    return result;
-}
-
 - (TICpuFrame)snapshotCPU {
     return marshalCpuFrame(_machine->snapshotCPU());
 }
@@ -383,4 +358,8 @@ static TICpuFrame marshalCpuFrame(const CpuFrame& f) {
     return [NSString stringWithUTF8String:s.c_str()];
 }
 
+@end
+
+@implementation TI59MachineWrapper (Cpp)
+- (TI59Machine *)cppMachine { return _machine.get(); }
 @end
