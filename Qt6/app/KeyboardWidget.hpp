@@ -1,4 +1,5 @@
 #pragma once
+#include "LedGeometry.hpp"
 #include <QPixmap>
 #include <QWidget>
 
@@ -17,6 +18,8 @@ public:
     bool hasHeightForWidth() const override { return true; }
     int heightForWidth(int w) const override;
     QSize sizeHint() const override;
+    /// Re-read the LED style (after the Settings dialog).
+    void reloadSettings();
 
 protected:
     void paintEvent(QPaintEvent* e) override;
@@ -36,6 +39,8 @@ private:
 
     EmulatorController& m_controller;
     QPixmap m_base;
+    QPixmap m_scaled;        ///< m_base at the canvas's device size
+    cu59::LedStyle m_ledStyle = cu59::LedStyle::Modernized;
     int m_pressedKey = -1;   ///< row × 5 + col held by the pointer
     bool m_displayPressed = false;
 };

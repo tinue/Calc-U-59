@@ -23,13 +23,23 @@ KeyboardWidget::KeyboardWidget(EmulatorController& controller, QWidget* parent)
     auto reload = [this] {
         bool ti59 = m_controller.model() == cu59::Model::TI59;
         m_base = QPixmap(ti59 ? QStringLiteral(":/img/ti59_base.png") : QStringLiteral(":/img/ti58_base.png"));
+        m_scaled = QPixmap();
         update();
     };
     reload();
+    reloadSettings();
     connect(&m_controller, &EmulatorController::modelChanged, this, reload);
-    for (auto sig : {&EmulatorController::displayChanged, &EmulatorController::cueCardChanged,
-                     &EmulatorController::heldKeyChanged})
+    // The display changes up to 60 times a second: repaint just the display.
+    connect(&m_controller, &EmulatorController::displayChanged, this,
+            [this] { update(norm(canvasRect(), cu59::kDisplayRect).toAlignedRect()); });
+    for (auto sig : {&EmulatorController::cueCardChanged, &EmulatorController::heldKeyChanged})
         connect(&m_controller, sig, this, qOverload<>(&QWidget::update));
+}
+
+void KeyboardWidget::reloadSettings() {
+    m_ledStyle = static_cast<cu59::LedStyle>(
+        AppSettings::value<int>(AppSettings::kLedFontStyle, cu59::settings::kDefaultLedFontStyle));
+    update();
 }
 
 int KeyboardWidget::heightForWidth(int w) const { return static_cast<int>(w / cu59::kCanvasAspect); }
@@ -44,15 +54,24 @@ QRectF KeyboardWidget::canvasRect() const {
     return QRectF((width() - w) / 2, (height() - h) / 2, w, h);
 }
 
-void KeyboardWidget::paintEvent(QPaintEvent*) {
+void KeyboardWidget::paintEvent(QPaintEvent* e) {
     QPainter p(this);
-    p.setRenderHint(QPainter::SmoothPixmapTransform);
     QRectF c = canvasRect();
-    p.drawPixmap(c, m_base, QRectF());
+    // The artwork scaled once per size (smooth scaling the 2064×4075 image is costly).
+    const qreal dpr = devicePixelRatioF();
+    const QSize pixels = (c.size() * dpr).toSize();
+    if (m_scaled.size() != pixels) {
+        m_scaled = m_base.scaled(pixels, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+        m_scaled.setDevicePixelRatio(dpr);
+    }
+    p.drawPixmap(c, m_scaled, QRectF());
 
-    auto style = static_cast<cu59::LedStyle>(AppSettings::value<int>(AppSettings::kLedFontStyle, cu59::settings::kDefaultLedFontStyle));
-    LedRenderer::paint(p, norm(c, cu59::kDisplayRect), m_controller.display(), m_controller.calcIndicatorOpacity(), style);
-    if (const auto& card = m_controller.cueCard()) CueCardRenderer::paint(p, norm(c, cu59::kCardRect), *card);
+    QRectF display = norm(c, cu59::kDisplayRect);
+    if (e->rect().intersects(display.toAlignedRect()))
+        LedRenderer::paint(p, display, m_controller.display(), m_controller.calcIndicatorOpacity(), m_ledStyle);
+    QRectF cardRect = norm(c, cu59::kCardRect);
+    if (const auto& card = m_controller.cueCard(); card && e->rect().intersects(cardRect.toAlignedRect()))
+        CueCardRenderer::paint(p, cardRect, *card);
 
     // Pressed key (pointer or physical keyboard): black out the key and draw
     // its artwork shifted 3 px down-right.

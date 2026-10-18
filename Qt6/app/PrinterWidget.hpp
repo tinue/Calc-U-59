@@ -37,6 +37,7 @@ private:
     QScrollArea* m_scroll;
     PaperView* m_paper;
     QPlainTextEdit* m_text;
+    int m_textLines = 0;  ///< printer lines already in m_text
     QLabel* m_toast;
     bool m_dotMode = true;
 };

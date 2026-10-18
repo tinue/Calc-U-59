@@ -6,6 +6,7 @@
 #include <QPolygonF>
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <vector>
 
 namespace LedRenderer {
@@ -49,7 +50,9 @@ struct Lit { QPainterPath path; double opacity; };
 
 } // namespace
 
-void paint(QPainter& p, const QRectF& rect, const DisplaySnapshot& d, double calcOpacity, cu59::LedStyle style) {
+namespace {
+
+void render(QPainter& p, const QRectF& rect, const DisplaySnapshot& d, double calcOpacity, cu59::LedStyle style) {
     const cu59::LedStyleParams& sp = cu59::ledStyleParams(style);
     p.fillRect(rect, rgba(cu59::kLedBackgroundR, cu59::kLedBackgroundG, cu59::kLedBackgroundB, 1));
     const double w = rect.width() / 12.0, h = rect.height();
@@ -147,6 +150,54 @@ void paint(QPainter& p, const QRectF& rect, const DisplaySnapshot& d, double cal
     p.setBrush(active);
     for (const auto& r : dps) p.drawEllipse(r);
     p.restore();
+}
+
+/// Rendered displays by everything they depend on. The blurred glow is the
+/// costly part; a static display, or a running program's C indicator cycling
+/// through its opacities, comes from here.
+struct CacheKey {
+    DisplaySnapshot display;
+    int opacityStep;   ///< C indicator opacity in 1/64 steps
+    int style;
+    QSize pixels;
+    bool operator==(const CacheKey& o) const {
+        return std::memcmp(&display.digits, &o.display.digits, sizeof display.digits) == 0 &&
+               std::memcmp(&display.ctrl, &o.display.ctrl, sizeof display.ctrl) == 0 &&
+               display.suppressedMask == o.display.suppressedMask && display.dpAfterglowMask == o.display.dpAfterglowMask &&
+               opacityStep == o.opacityStep && style == o.style && pixels == o.pixels;
+    }
+};
+
+struct CacheEntry { CacheKey key; QImage image; };
+
+std::vector<CacheEntry>& cache() {
+    static std::vector<CacheEntry> entries;  // most recently used last
+    return entries;
+}
+
+constexpr size_t kCacheSize = 24;
+
+} // namespace
+
+void paint(QPainter& p, const QRectF& rect, const DisplaySnapshot& d, double calcOpacity, cu59::LedStyle style) {
+    const qreal dpr = p.device() ? p.device()->devicePixelRatioF() : 1.0;
+    CacheKey key{d, static_cast<int>(std::lround(calcOpacity * 64)), static_cast<int>(style), (rect.size() * dpr).toSize()};
+    auto& entries = cache();
+    auto it = std::find_if(entries.begin(), entries.end(), [&](const CacheEntry& e) { return e.key == key; });
+    if (it == entries.end()) {
+        QImage img(key.pixels, QImage::Format_ARGB32_Premultiplied);
+        if (img.isNull()) return;
+        img.setDevicePixelRatio(dpr);
+        img.fill(Qt::transparent);
+        QPainter ip(&img);
+        render(ip, QRectF(QPointF(0, 0), rect.size()), d, key.opacityStep / 64.0, style);
+        ip.end();
+        if (entries.size() >= kCacheSize) entries.erase(entries.begin());
+        entries.push_back({key, std::move(img)});
+    } else if (it + 1 != entries.end()) {
+        std::rotate(it, it + 1, entries.end());  // most recently used last
+    }
+    p.drawImage(rect.topLeft(), entries.back().image);
 }
 
 } // namespace LedRenderer

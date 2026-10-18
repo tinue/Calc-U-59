@@ -2,6 +2,7 @@
 #include <QMainWindow>
 
 class EmulatorController;
+class KeyboardWidget;
 class QSplitter;
 
 // The window: calculator | printer | debug side by side (the Swift app's Mac
@@ -28,4 +29,5 @@ private:
 
     EmulatorController& m_controller;
     QSplitter* m_splitter;
+    KeyboardWidget* m_keyboard = nullptr;
 };

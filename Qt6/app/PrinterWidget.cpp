@@ -35,17 +35,20 @@ public:
         return units;
     }
 
-    /// Draw the strip into `p` with the given width and dot colour.
+    /// Draw the strip into `p` with the given width and dot colour; only the
+    /// lines overlapping [visibleTop, visibleBottom) (strip coordinates).
     static void paintStrip(QPainter& p, double width, const QStringList& lines, const QVector<PrinterCodeLine>& codes,
-                           const QColor& dot) {
+                           const QColor& dot, double visibleTop = -1e18, double visibleBottom = 1e18) {
         const double pitch = width / PrinterGeometry::widthUnits;
         const double radius = pitch * PrinterGeometry::dotRadiusFraction;
         p.setPen(Qt::NoPen);
         p.setBrush(dot);
         double y = 0;
-        for (int i = 0; i < lines.size(); ++i) {
-            if (lines[i].isEmpty()) {
-                y += PrinterGeometry::feedHeightUnits * pitch;
+        for (int i = 0; i < lines.size() && y < visibleBottom; ++i) {
+            const double lineHeight =
+                PrinterGeometry::lineHeightUnits(lines[i].isEmpty(), i < codes.size() ? codes[i].rowCount : 7) * pitch;
+            if (lines[i].isEmpty() || y + lineHeight < visibleTop) {
+                y += lineHeight;
                 continue;
             }
             const PrinterCodeLine* line = i < codes.size() ? &codes[i] : nullptr;
@@ -59,8 +62,7 @@ public:
                         if (bits & (0x10 >> col)) p.drawEllipse(QPointF(cx0 + (col + 0.5) * pitch, cy), radius, radius);
                 }
             }
-            // A complete line ends with the stepper's advance; a cut-short one doesn't.
-            y += PrinterGeometry::lineHeightUnits(false, rows) * pitch;
+            y += lineHeight;  // a complete line ends with the stepper's advance; a cut-short one doesn't
         }
     }
 
@@ -73,12 +75,14 @@ public:
     }
 
 protected:
-    void paintEvent(QPaintEvent*) override {
+    void paintEvent(QPaintEvent* e) override {
         QPainter p(this);
         p.setRenderHint(QPainter::Antialiasing);
         p.translate(PrinterGeometry::paperPaddingX, PrinterGeometry::paperPaddingY);
+        // A long tape is mostly scrolled out of view: draw the exposed lines only.
         paintStrip(p, width() - 2 * PrinterGeometry::paperPaddingX, m_c.printerLines(), m_c.printerCodeLines(),
-                   ChromeStyle::gray(0.12));
+                   ChromeStyle::gray(0.12), e->rect().top() - PrinterGeometry::paperPaddingY,
+                   e->rect().bottom() + 1 - PrinterGeometry::paperPaddingY);
     }
 
 private:
@@ -210,7 +214,13 @@ void PrinterWidget::refresh() {
     m_cut->setEnabled(!empty);
     m_paper->updateGeometry();
     m_paper->update();
-    m_text->setPlainText(m_controller.printerLines().join(QLatin1Char('\n')));
+    // Text view: append the new lines (a full reset per line is quadratic on a long listing).
+    const QStringList& lines = m_controller.printerLines();
+    if (lines.size() < m_textLines) {
+        m_text->clear();
+        m_textLines = 0;
+    }
+    for (; m_textLines < lines.size(); ++m_textLines) m_text->appendPlainText(lines[m_textLines]);
     // Keep the newest line in view.
     QTimer::singleShot(0, this, [this] {
         m_scroll->verticalScrollBar()->setValue(m_scroll->verticalScrollBar()->maximum());

@@ -54,7 +54,8 @@ MainWindow::MainWindow(EmulatorController& controller, QWidget* parent) : QMainW
     buildMenus();
     if (!restoreGeometry(AppSettings::value<QByteArray>(AppSettings::kWindowGeometry, QByteArray()))) resize(1280, 860);
     m_splitter->restoreState(AppSettings::value<QByteArray>(AppSettings::kSplitterState, QByteArray()));
-    calculator->keyboard()->setFocus();
+    m_keyboard = calculator->keyboard();
+    m_keyboard->setFocus();
 }
 
 void MainWindow::buildMenus() {
@@ -66,6 +67,7 @@ void MainWindow::buildMenus() {
     QAction* settings = file->addAction(QStringLiteral("Settings…"), QKeySequence::Preferences, this, [this] {
         SettingsDialog dialog(m_controller, this);
         dialog.exec();
+        m_keyboard->reloadSettings();
     });
     settings->setMenuRole(QAction::PreferencesRole);
     QAction* quit = file->addAction(QStringLiteral("Quit"), QKeySequence::Quit, this, &QWidget::close);
