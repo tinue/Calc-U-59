@@ -46,7 +46,7 @@ DebugModel::Update DebugModel::frozenView(const TI59Machine& m, Model model, Fro
 
 DebugModel::Update DebugModel::rebuildLive(const TI59Machine& m, Model model, bool frozen) {
     Update u;
-    LiveDebugBuild b = buildLiveSnapshot(m, model, m_module, m_romCache);
+    LiveDebugBuild b = buildLiveSnapshot(m, model, m_module, m_romCache, calcViewState(m));
     if (b.libProgramMismatch && b.libProgramMismatch->second != m_lastLibMismatch) {
         m_lastLibMismatch = b.libProgramMismatch->second;
         u.diagnostic = "Library exec PC resolves to Pgm " + std::to_string(b.libProgramMismatch->first) +

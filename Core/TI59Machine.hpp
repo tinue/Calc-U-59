@@ -16,8 +16,14 @@ public:
     void loadConstants(const uint8_t* data, size_t count);
     void reset();
 
-    /// Execute one CPU instruction.
+    /// Execute one CPU instruction. Returns TMC0501::step()'s weight and bits
+    /// (kStepBoundary: the next instruction is the step dispatch), plus
+    /// 0x8000'0000 when a breakpoint was hit.
     uint32_t step();
+    static constexpr uint32_t kStepBoundary = TMC0501::kStepBoundary;
+
+    /// The CPU state latched at the last step boundary or idle entry (count 0: none since reset).
+    TMC0501::StepBoundary lastStepBoundary() const;
 
     /// Key input — thread-safe.
     void pressKey(int row, int col);
@@ -109,15 +115,12 @@ public:
     /// Stops early if a breakpoint is hit (when TRACE_BREAKPOINTS is set).
     uint32_t stepN(uint32_t n, bool stopOnBreakpoint = true);
 
-    /// Run until the interpreter is about to execute the next program byte (the
-    /// CPU reaches stepDispatchPC()), a breakpoint, or maxCycles cycle-equivalents
+    /// Run until the interpreter is about to execute the next program byte (a
+    /// step boundary, see step()), a breakpoint, or maxCycles cycle-equivalents
     /// (IDLE steps count as 4, active steps as 1) — e.g. when the program stops.
     /// One call per keycode, as SST: a jump completes inside the byte that
     /// causes it. Returns cycle-equivalents executed.
     uint32_t stepUntilNextKeycode(uint32_t maxCycles = 50000);
-
-    /// ROM address where the program interpreter dispatches a fetched keycode.
-    uint16_t stepDispatchPC() const;
 
     /// Current program counter (for CLI inspection between stepN calls).
     uint16_t pc() const;

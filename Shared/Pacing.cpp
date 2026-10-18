@@ -11,8 +11,8 @@ BatchResult runBatch(TI59Machine& m, int32_t& carry, int32_t targetCycles, Freez
             return r;
         }
         if (result & 0x4000'0000u) r.polledHardware = true;
-        carry += static_cast<int32_t>(result & 0x3FFF'FFFFu);
-        if (auto owner = freeze.checkStep(m.pc())) {
+        carry += static_cast<int32_t>(result & 0xFFu);
+        if (auto owner = freeze.checkStep(m.pc(), (result & TI59Machine::kStepBoundary) != 0)) {
             r.stop = BatchResult::Stop::Freeze;
             r.freezeOwner = *owner;
             return r;

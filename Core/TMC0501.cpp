@@ -148,6 +148,7 @@ void TMC0501::reset() {
     KR = SR = fA = fB = EXT = PREG = m_libAddr = m_libAddrReadPos = 0;
     m_libAddrWasWriting = false;
     m_libExecPC = kLibExecPCNone;
+    m_stepBoundary.count = 0;
     R5 = digit = RAM_ADDR = RAM_OP = REG_ADDR = 0;
     addr  = 0;
     flags = FLG_COND;  // COND starts true; display active
@@ -559,6 +560,7 @@ int TMC0501::step() {
         // is looping back to retry it — a genuine spin-wait, not just an incidental
         // poll on the way through otherwise-productive code. See step()'s doc comment.
         if (wasHWPollLastStep && taken && backward) w |= 0x4000'0000;
+        w |= noteStepBoundary();
         return w;
     }
 
@@ -1002,7 +1004,14 @@ int TMC0501::step() {
         KR  &= ~static_cast<uint16_t>(0x2);
     }
 
-    return w;
+    return w | noteStepBoundary();
+}
+
+int TMC0501::noteStepBoundary() {
+    const bool atStep = addr == stepDispatchPC();
+    if (!atStep && addr != kIdleEntryPC) return 0;
+    m_stepBoundary = {snapshotCPU(), m_libExecPC, atStep, ++m_stepBoundaryCount};
+    return atStep ? kStepBoundary : 0;
 }
 
 // ── ALU opcode decoder ────────────────────────────────────────────────────────

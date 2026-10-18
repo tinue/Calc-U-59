@@ -9,9 +9,8 @@ void FreezeController::armScanLoopExit(uint16_t currentPC) {
     m_scanArmed = true;
 }
 
-void FreezeController::armPcChange(const TI59Machine& m) {
+void FreezeController::armPcChange() {
     disarmScanLoopExit();
-    m_dispatchPC = m.stepDispatchPC();
     m_pcArmed = true;
 }
 
@@ -22,8 +21,8 @@ void FreezeController::disarmScanLoopExit() {
 
 void FreezeController::disarmPcChange() { m_pcArmed = false; }
 
-std::optional<FreezeOwner> FreezeController::checkStep(uint16_t pc) {
-    if (m_pcArmed.load(std::memory_order_relaxed) && pc == m_dispatchPC.load(std::memory_order_relaxed)) {
+std::optional<FreezeOwner> FreezeController::checkStep(uint16_t pc, bool stepBoundary) {
+    if (stepBoundary && m_pcArmed.load(std::memory_order_relaxed)) {
         m_pcArmed = false;
         return FreezeOwner::Calculator;
     }

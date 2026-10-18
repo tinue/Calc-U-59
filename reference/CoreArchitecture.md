@@ -563,6 +563,10 @@ step dispatch, `TMC0501::stepDispatchPC()` — `0837` (TI-59/58), `082B`
 (TI-58C) — which every executed program byte passes once, from RAM, the
 module or the constant-ROM keycode table. There the latch (module) or the
 SCOM[0] step counter (RAM, keycode table) names the byte about to execute.
+`step()` flags that point with the return bit `kStepBoundary` and latches the
+CPU state there, and on idle entry (`0624`), for the CALCULATOR debug view
+(`TI59Machine::lastStepBoundary()`); see `reference/DebugAPI.md`
+§ "Frozen-display semantics".
 
 ### PRG SOURCE flag (SCOM[0] nibble 3)
 

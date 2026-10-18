@@ -152,7 +152,7 @@ call the controller (Swift: `EmulatorViewModel.freeze(from:)`, `unfreeze()`,
 |-------|-------------|
 | `frozen` | Emulation is halted |
 | `owner` | `FreezeOwner::Cpu` or `::Calculator` — the panel whose RESUME / STEP apply; empty when running |
-| `pcChangeArmed` | CALCULATOR "FREEZE ON START": freeze before the next program byte executes (the CPU reaches `stepDispatchPC()`, where a STEP stops too) |
+| `pcChangeArmed` | CALCULATOR "FREEZE ON START": freeze before the next program byte executes (at the next step boundary, `TI59Machine::kStepBoundary`, where a STEP stops too) |
 | `scanLoopExitArmed` | CPU "FREEZE ON START": freeze when the CPU leaves the keyboard scan loop (key press or reset) |
 | `generation` | Bumped on every freeze, resume and clear, so a view built for an earlier freeze can be recognised |
 
@@ -172,7 +172,7 @@ Swift copies it into `isFrozen`, `freezeOwner`, `pendingFreezeOnPCChange` and
 | `clearFreeze()` | Unfreeze without starting (caller stopped the loop to change state, e.g. a preset load) |
 | `armPcChange()` / `disarmPcChange()` | CALCULATOR armed freeze; checked by `FreezeController::checkBatch` per batch |
 | `armScanLoopExit()` / `disarmScanLoopExit()` | CPU armed freeze; checked by `FreezeController::checkStep` per instruction |
-| `stepKeycode()` | While frozen: `stepUntilNextKeycode()` (runs to the next step dispatch, `TI59Machine::stepDispatchPC()`: one program byte per STEP, as SST; a jump completes in the byte that causes it) + `beginNextStep()` → `frozenViewReady(StepKeycode)` |
+| `stepKeycode()` | While frozen: `stepUntilNextKeycode()` (runs to the next step boundary, `TI59Machine::kStepBoundary`: one program byte per STEP, as SST; a jump completes in the byte that causes it) + `beginNextStep()` → `frozenViewReady(StepKeycode)` |
 | `stepInstruction()` | While frozen: one `step()`, repeated (≤ 32) while the PC stays put — a HOLD (`WAIT Dn`) — then `beginNextStep()` → `frozenViewReady(StepInstruction)` |
 | `setCpuPanelVisible(bool)` | The CPU panel needs the trace ring |
 
@@ -227,12 +227,26 @@ next step to execute, marked `← next` when frozen (`← running` while running
 `cu59::currentStepMarker`). The registers, flags, X and T shown with it are
 the state before that step runs.
 
-- User programs and ROM keycode programs: the SCOM[0] step counter. At the
-  step dispatch, where STEP and the CALCULATOR freezes stop (CPU PC =
-  `stepDispatchPC()`), it names the byte about to execute. Between steps (at
-  idle) it names the last one, so the next is counter + 1 — except after RST
-  or a jump, which leave the target in the counter with fB[11] (reload) set,
-  so the next fetch reads it without advancing (`08B9`).
+The tab only ever shows calculator-level boundaries, running or frozen. The
+CPU latches its state at each one (`TMC0501::noteStepBoundary`,
+`TI59Machine::lastStepBoundary()`), and `cu59::calcViewState` hands the latest
+latch to `buildLiveSnapshot`, never the CPU mid-operation:
+
+- **step boundary**: the next instruction is the interpreter's step dispatch
+  (`0837` TI-59/58, `082B` TI-58C), once per executed program byte from RAM,
+  a module or the constant-ROM keycode table. `step()` reports it with the
+  bit `kStepBoundary`; STEP (`stepUntilNextKeycode`) and the armed CALCULATOR
+  freeze stop on that bit, the only place it is detected.
+- **idle entry**: `0624` in both ROMs, where the ROM falls into the idle loop
+  after a keyboard operation or when a program stops (latched, no bit).
+
+The CPU tab samples the CPU continuously, instruction by instruction.
+
+- User programs and ROM keycode programs: the SCOM[0] step counter. At a
+  step boundary it names the byte about to execute. At idle entry it names
+  the last one, so the next is counter + 1 — except after RST or a jump,
+  which leave the target in the counter with fB[11] (reload) set, so the
+  next fetch reads it without advancing (`08B9`).
 - Solid State: the library exec latch (`libExecPC`), the module byte fetched
   for dispatch at `LIB_EXEC_FETCH`. The chip's own address counter is not a
   program counter (one chip holds many programs; jumps and label searches
@@ -253,7 +267,8 @@ scrolls to the current entry (the next step to execute).
 view of the calculator's user-visible and SCOM-derived state.  It is built in
 C++ by `cu59::buildLiveSnapshot` (`Shared/DebugSnapshots.cpp`) and held by
 `DebugModel` (`live()`) — rebuilt at 60 Hz while running and the CALCULATOR
-panel is visible, and once per freeze / keycode step (see above). The Swift app
+panel is visible, and once per freeze / keycode step (see above), each time
+from the last latched boundary (`calcViewState`). The Swift app
 copies it (via `TILiveDebugSnapshot`) into `vm.liveDebugSnapshot` for
 `LiveDebugView`; the Qt app reads it from the controller.
 

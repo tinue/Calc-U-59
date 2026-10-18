@@ -279,20 +279,19 @@ uint32_t TI59Machine::stepN(uint32_t n, bool stopOnBreakpoint) {
 
 uint32_t TI59Machine::stepUntilNextKeycode(uint32_t maxCycles) {
     std::lock_guard<std::mutex> lock(m_keyMutex);
-    const uint16_t dispatch = m_cpu.stepDispatchPC();
     uint32_t done = 0;
     while (done < maxCycles) {
-        int w = m_cpu.step();          // returns 1 (active) or 4 (IDLE)
-        done += static_cast<uint32_t>(w);
+        int r = m_cpu.step();
+        done += static_cast<uint32_t>(r & 0xFF);  // weight: 1 active, 4 IDLE
         if (m_cpu.consumeBreakpointHit()) { break; }
-        if (m_cpu.pc() == dispatch) { break; }
+        if (r & TMC0501::kStepBoundary) { break; }
     }
     return done;
 }
 
-uint16_t TI59Machine::stepDispatchPC() const {
+TMC0501::StepBoundary TI59Machine::lastStepBoundary() const {
     std::lock_guard<std::mutex> lock(m_keyMutex);
-    return m_cpu.stepDispatchPC();
+    return m_cpu.lastStepBoundary();
 }
 
 uint16_t TI59Machine::pc() const {

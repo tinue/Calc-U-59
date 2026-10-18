@@ -91,7 +91,7 @@ TEST(freeze_on_pc_change_and_mutual_exclusion) {
     m->writeProgram(prog, sizeof prog);
     FreezeController freeze(Model::TI59);
     freeze.armScanLoopExit(m->pc());
-    freeze.armPcChange(*m);
+    freeze.armPcChange();
     CHECK(freeze.pcChangeArmed() && !freeze.scanLoopExitArmed());
     int32_t carry = 0;
     BatchResult r;
@@ -102,7 +102,7 @@ TEST(freeze_on_pc_change_and_mutual_exclusion) {
     releaseMatrix(*m, 11);
     CHECK(r.stop == BatchResult::Stop::Freeze);
     CHECK(r.freezeOwner == FreezeOwner::Calculator);
-    CHECK_EQ(m->pc(), m->stepDispatchPC());  // before the first step executes, where STEP stops
+    CHECK(m->lastStepBoundary().count > 0 && m->lastStepBoundary().cpu.pc == m->pc());  // where STEP stops
 }
 
 TEST(calc_indicator_smoothing) {

@@ -53,7 +53,7 @@ bool normalizedValue(const uint8_t* n, uint16_t flags, double& value) {
 /// exponent field is set, which the ROM undoes at 0662 (and at 07C1 before a
 /// program step, so at the step dispatch A is already realigned and B holds
 /// fetch data). Anything else is shown raw.
-void decodeX(const CpuFrame& cpu, bool atDispatch, LiveDebugSnapshot& snap) {
+void decodeX(const CpuFrame& cpu, bool atStepBoundary, LiveDebugSnapshot& snap) {
     snap.xValue = 0;
     snap.xRaw.clear();
     if (cpu.fB & (1u << 5)) {
@@ -66,7 +66,7 @@ void decodeX(const CpuFrame& cpu, bool atDispatch, LiveDebugSnapshot& snap) {
     }
     uint8_t a[16];
     std::copy(cpu.A, cpu.A + 16, a);
-    if (!atDispatch && (cpu.B[1] != 0 || cpu.B[2] != 0)) {
+    if (!atStepBoundary && (cpu.B[1] != 0 || cpu.B[2] != 0)) {
         std::copy(a + 2, a + 16, a + 1);  // A=SRA MAEX
         a[15] = 0;
         std::copy(a + 4, a + 16, a + 3);  // A=SRA MANT
@@ -158,8 +158,14 @@ std::vector<InspectorEntry> recentInstructions(const std::vector<CpuFrame>& fram
     return out;
 }
 
+TMC0501::StepBoundary calcViewState(const TI59Machine& m) {
+    TMC0501::StepBoundary latched = m.lastStepBoundary();
+    if (latched.count != 0) return latched;
+    return {m.snapshotCPU(), m.libExecPC(), false, 0};
+}
+
 LiveDebugBuild buildLiveSnapshot(const TI59Machine& m, Model model, const ModuleImage& module,
-                                 std::vector<uint8_t>& romCache) {
+                                 std::vector<uint8_t>& romCache, const TMC0501::StepBoundary& state) {
     LiveDebugBuild out;
     LiveDebugSnapshot& snap = out.snap;
     const int partitionProgramRegs = m.partitionProgramRegs();
@@ -180,14 +186,13 @@ LiveDebugBuild buildLiveSnapshot(const TI59Machine& m, Model model, const Module
         else snap.nonZeroRegs.push_back({ramIdx - displayableRegs, value, true});
     }
 
-    const CpuFrame cpu = m.snapshotCPU();
+    const CpuFrame& cpu = state.cpu;
     const auto& S = cpu.SCOM;
-    // Stopped by a STEP or a CALCULATOR freeze: about to execute a program byte.
-    const bool atDispatch = cpu.pc == m.stepDispatchPC();
+    const bool atStepBoundary = state.atStep;
 
     for (int h = 1; h <= 8; ++h) snap.hir[static_cast<size_t>(h - 1)] = TI59Machine::decodeBCD(S[h]);  // HIR n in SCOM[n]
     snap.tRegister = TI59Machine::decodeBCD(S[11]);
-    decodeX(cpu, atDispatch, snap);
+    decodeX(cpu, atStepBoundary, snap);
 
     snap.prSourceFlag = S[0][3];
     snap.programSource = programSourceFrom(snap.prSourceFlag, cpu.pc);
@@ -224,14 +229,14 @@ LiveDebugBuild buildLiveSnapshot(const TI59Machine& m, Model model, const Module
     // except after a jump or RST, which leave the target there with fB[11]
     // (reload) set, so the next fetch reads it without advancing (08B9).
     std::optional<ModuleImage::LibStep> lib;
-    if (snap.programSource == ProgramSource::SolidState) lib = module.libraryStep(m.libExecPC());
+    if (snap.programSource == ProgramSource::SolidState) lib = module.libraryStep(state.libExecPC);
     if (lib) {
         snap.currentStep = lib->step;
         int scomProgram = activeLibraryProgram(S[9]);
         if (scomProgram != lib->program) out.libProgramMismatch = std::make_pair(lib->program, scomProgram);
     } else if (stepsFromScomPC(snap.programSource)) {
         bool reload = (cpu.fB & (1u << 11)) != 0;
-        snap.currentStep = decodeProgramCounter(cpu) + (atDispatch || reload ? 0 : 1);
+        snap.currentStep = decodeProgramCounter(cpu) + (atStepBoundary || reload ? 0 : 1);
     }
 
     // Keycodes of the active source; operands are classified over the whole

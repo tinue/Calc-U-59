@@ -115,10 +115,15 @@ std::vector<CpuFrame> readTraceRing(const TI59Machine& m);
 /// The same into `frames`, reusing its storage (the 60 Hz read).
 void readTraceRing(const TI59Machine& m, std::vector<CpuFrame>& frames);
 
-/// Build the live snapshot. `romCache` holds the 384 ROM keycodes once filled
-/// (constant per machine). The current step is the next one to execute, as
-/// the calculator's LRN display shows it.
+/// The CPU state a CALCULATOR view is built from: the last step boundary
+/// (about to dispatch a program byte) or idle entry the CPU latched, never
+/// the middle of an operation; the live state only before the first one.
+TMC0501::StepBoundary calcViewState(const TI59Machine& m);
+
+/// Build the live snapshot from `state`. `romCache` holds the 384 ROM keycodes
+/// once filled (constant per machine). The current step is the next one to
+/// execute, as the calculator's LRN display shows it.
 LiveDebugBuild buildLiveSnapshot(const TI59Machine& m, Model model, const ModuleImage& module,
-                                 std::vector<uint8_t>& romCache);
+                                 std::vector<uint8_t>& romCache, const TMC0501::StepBoundary& state);
 
 } // namespace cu59

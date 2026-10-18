@@ -133,8 +133,23 @@ public:
     /// regardless of PC, or an unthrottled batch can spin through hundreds of
     /// thousands of iterations waiting for an event a real CPU would only need
     /// a handful of polls to observe.
+    /// Bit kStepBoundary (0x2000'0000) is set when the next instruction is the
+    /// interpreter's step dispatch (stepDispatchPC()): a program step boundary.
+    /// The CPU state there is latched (lastStepBoundary()), and also on entry to
+    /// the idle loop (kIdleEntryPC, no bit): the calculator-level boundaries.
     /// TI59Machine::step() ORs in a separate bit, 0x8000'0000, for "breakpoint hit".
     int step();
+    static constexpr int kStepBoundary = 0x2000'0000;
+
+    /// The CPU state at the last step boundary or idle entry, with the module
+    /// fetch latch of that moment and a count of boundaries (0 = none since reset).
+    struct StepBoundary {
+        CpuFrame cpu;
+        uint16_t libExecPC;
+        bool atStep;        ///< false: idle entry
+        uint64_t count;
+    };
+    const StepBoundary& lastStepBoundary() const { return m_stepBoundary; }
 
     /// Press / release a key by hardware matrix coordinates.
     /// row = K-line bit index (KO=1 KP=2 KQ=3 KS=5 KT=6)
@@ -254,6 +269,12 @@ public:
     uint16_t stepDispatchPC() const {
         return m_variant == MachineVariant::TI58C ? 0x082B : 0x0837;
     }
+
+    /// Where the ROM falls into the idle loop once nothing runs: after every
+    /// keyboard operation and when a program stops (the "program running?" test
+    /// at 0622/0623 branches to the run loop instead). Same address in both ROMs;
+    /// the loop itself returns to 0627, never here (rom/TI59-commented.asm 0624).
+    static constexpr uint16_t kIdleEntryPC = 0x0624;
 
     static constexpr uint16_t kLibExecPCNone = 0xFFFF;
 
@@ -435,6 +456,11 @@ private:
     // hardware poll; consumed (and cleared) by the very next step() to detect a
     // backward branch retrying it — see step()'s 0x4000'0000 return-bit doc comment.
     bool m_lastStepWasHWPoll{false};
+
+    // Latched at each step boundary and idle entry (see step()).
+    StepBoundary m_stepBoundary{};
+    uint64_t m_stepBoundaryCount{0};
+    int noteStepBoundary();
 
     static constexpr uint32_t kFrameRingSize = 1024u;
     static constexpr uint32_t kFrameRingMask = kFrameRingSize - 1u;

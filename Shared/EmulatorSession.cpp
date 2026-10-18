@@ -120,7 +120,7 @@ void EmulatorSession::resume() {
 void EmulatorSession::clearFreeze() { setFrozenState(false, std::nullopt); }
 
 void EmulatorSession::armPcChange() {
-    m_freeze.armPcChange(*m_machine);  // disarms the scan-loop exit
+    m_freeze.armPcChange();  // disarms the scan-loop exit
     {
         std::lock_guard<std::mutex> lock(m_stateMutex);
         m_state.pcChangeArmed = true;

@@ -21,7 +21,7 @@ std::string xAfter(std::initializer_list<int> keys) {
     testroms::runToScanLoop(*m, Model::TI59);
     for (int k : keys) testroms::tap(*m, Model::TI59, k);
     std::vector<uint8_t> romCache;
-    auto s = buildLiveSnapshot(*m, Model::TI59, ModuleImage{}, romCache).snap;
+    auto s = buildLiveSnapshot(*m, Model::TI59, ModuleImage{}, romCache, calcViewState(*m)).snap;
     return xRegisterLine(s.xValue, s.xRaw);
 }
 } // namespace
@@ -62,8 +62,9 @@ std::vector<std::string> stepThrough(const std::vector<uint8_t>& prog, int last,
     for (int i = 0; i < 40; ++i) {
         m->stepUntilNextKeycode();
         m->beginNextStep();
-        CHECK_EQ(m->pc(), m->stepDispatchPC());
-        auto snap = buildLiveSnapshot(*m, model, ModuleImage{}, romCache).snap;
+        auto state = calcViewState(*m);
+        CHECK(state.atStep && state.cpu.pc == m->pc());  // STEP stopped at the boundary
+        auto snap = buildLiveSnapshot(*m, model, ModuleImage{}, romCache, state).snap;
         steps.push_back(std::to_string(snap.currentStep) + " " + xRegisterLine(snap.xValue, snap.xRaw));
         if (snap.currentStep >= last) break;
     }
@@ -97,6 +98,32 @@ TEST(step_shows_the_next_step) {
           (std::vector<std::string>{"3 X: 1", "4 X: 1", "5 X: 1", "6 X: 1", "17 X: 1", "18 X: 2", "19 X: 3"}));
 }
 
+// While a program runs, the view is built from the last latched boundary, so
+// sampling at arbitrary instructions (as the 60 Hz refresh does) never shows X
+// mid-operation; the live CPU state at those samples often would.
+TEST(running_view_shows_only_step_boundaries) {
+    for (Model model : {Model::TI59, Model::TI58C}) {
+        auto m = testroms::makeMachine(model);
+        testroms::runToScanLoop(*m, model);
+        // LBL A, 2, √x, ×, 3, =, 1/x, +, 7, =, GTO 00 02
+        const uint8_t prog[] = {76, 11, 2, 34, 65, 3, 95, 35, 85, 7, 95, 61, 0, 2};
+        m->writeProgram(prog, sizeof prog);
+        pressMatrix(*m, 11);  // A
+        m->stepN(2000, false);
+        releaseMatrix(*m, 11);
+        std::vector<uint8_t> romCache;
+        int raw = 0, liveRaw = 0;
+        for (int i = 0; i < 3000; ++i) {
+            m->stepN(37, false);
+            raw += !buildLiveSnapshot(*m, model, ModuleImage{}, romCache, calcViewState(*m)).snap.xRaw.empty();
+            TMC0501::StepBoundary live{m->snapshotCPU(), m->libExecPC(), false, 0};
+            liveRaw += !buildLiveSnapshot(*m, model, ModuleImage{}, romCache, live).snap.xRaw.empty();
+        }
+        CHECK_EQ(raw, 0);
+        CHECK(liveRaw > 100);
+    }
+}
+
 // At idle the cursor is what LRN shows after SST: the counter + 1, or the
 // counter itself after RST or a jump (fB[11]).
 TEST(idle_cursor_matches_lrn_after_sst) {
@@ -107,7 +134,10 @@ TEST(idle_cursor_matches_lrn_after_sst) {
     prog.insert(prog.end(), {2, 95, 91});
     m->writeProgram(prog.data(), prog.size());
     std::vector<uint8_t> romCache;
-    auto next = [&] { return buildLiveSnapshot(*m, Model::TI59, ModuleImage{}, romCache).snap.currentStep; };
+    auto next = [&] {
+        return buildLiveSnapshot(*m, Model::TI59, ModuleImage{}, romCache, calcViewState(*m))
+            .snap.currentStep;
+    };
     testroms::tap(*m, Model::TI59, 81);  // RST
     CHECK_EQ(next(), 0);
     const int expected[] = {1, 2, 3, 4, 17, 18};
@@ -163,7 +193,7 @@ TEST(live_snapshot_and_listing) {
 
     std::vector<uint8_t> romCache;
     auto lib = ModuleImage::parse(*loadModule("TMC0541.txt", testroms::reader()));
-    auto b = buildLiveSnapshot(*m, Model::TI59, lib, romCache);
+    auto b = buildLiveSnapshot(*m, Model::TI59, lib, romCache, calcViewState(*m));
     const auto& s = b.snap;
     CHECK(s.programSource == ProgramSource::UserProgram);
     CHECK_EQ(s.currentStep, 0);
@@ -185,7 +215,7 @@ TEST(live_snapshot_and_listing) {
     CHECK(listing[0].isCurrent && !listing[1].isCurrent);
     CHECK_EQ(listing[7].mnemonic, std::string("01"));
     CHECK_EQ(listing[9].mnemonic, std::string("R/S"));
-    CHECK(buildLiveSnapshot(*m, Model::TI59, lib, romCache).snap == s);
+    CHECK(buildLiveSnapshot(*m, Model::TI59, lib, romCache, calcViewState(*m)).snap == s);
 }
 
 TEST(rom_heatmap_counts_new_frames_once) {
