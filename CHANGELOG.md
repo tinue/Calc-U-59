@@ -1,13 +1,12 @@
 # Changelog
 
 ## [2.0.0] - work in progress
+Supersedes 1.7.0, which was never released; its changes are included below.
 - **Windows and Linux** New Qt6 desktop app for Windows (x64 and ARM64 installers) and Linux (x86_64 and aarch64 AppImages), with the Mac app's features: calculator with both LED styles and cue cards, physical keyboard, magnetic cards, presets with KEYSTROKES, the PC-100C printer with copy as text and image, and the full debugger (CALCULATOR, CPU with ROM heatmap and ASM overlay, LOG with binary traces). Cards and TI-58C constant memory are stored in `~/Calc-U-59` instead of iCloud; Settings sets the card folder, the trace folder and the folder Open Preset starts in.
 - **Architecture** All logic that isn't drawing — state files, cue cards, card files, ROM loading, the real-time run loop, key timing, KEYSTROKES playback, the debugger's snapshots, traces — moved from the Swift app into a shared C++ layer that both apps use, so the two behave identically. The Mac and iOS app is meant to work exactly as before.
-- **Full speed** Holding the display (or a KEYSTROKES `FullSpeed:` section) now also speeds up printing, e.g. a 2nd List or a calendar printout. Waits for a key or the card reader still run at regular speed, and the elapsed time a KEYSTROKES script reports is unchanged.
+- **Full speed** While full speed is on (display held, or a KEYSTROKES `FullSpeed:` section), waits for a key or the card reader now run at regular speed, so the elapsed time a KEYSTROKES script reports matches regular speed. Computing and printing (e.g. a 2nd List) still run at full speed.
 - **Build** New CMake build with a C++ test suite (`ctest`), including checks of the moved code against the previous Swift implementation.
 - **License** Calc-U-59 is now free software under the GNU General Public License, version 3 (GPLv3), replacing the Polyform Noncommercial License. The Windows and Linux app uses Qt6 under the LGPLv3 (see `THIRD-PARTY-NOTICES.md`).
-
-## [1.7.0] - 2026-09-15
 - **Error messages** File-load error alerts now show a title that matches what actually failed (state file, card, or ASM load/save) instead of always saying "ROM load error". A state file that isn't valid UTF-8 (e.g. saved with a curly quote or em dash in a non-UTF-8 encoding) now gets a specific explanation instead of a generic "Cannot read file."
 - **State Files** New `PencilColor:` CUECARD keyword (`black` default, or `pencil`/`sharpie`) lets a CueCard or MagnetCard's title/row/label text use an ink color that contrasts against the template's printed divider lines instead of blending into them. SolidStateCard is unaffected — it always renders in its fixed printed gold.
 
