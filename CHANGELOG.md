@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.8.0] - work in progress
+## [2.0.0] - work in progress
 
 ## [1.7.0] - 2026-09-15
 - **Error messages** File-load error alerts now show a title that matches what actually failed (state file, card, or ASM load/save) instead of always saying "ROM load error". A state file that isn't valid UTF-8 (e.g. saved with a curly quote or em dash in a non-UTF-8 encoding) now gets a specific explanation instead of a generic "Cannot read file."
