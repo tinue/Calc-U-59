@@ -20,7 +20,7 @@ std::string xAfter(std::initializer_list<int> keys) {
     testroms::runToScanLoop(*m, Model::TI59);
     for (int k : keys) testroms::tap(*m, Model::TI59, k);
     std::vector<uint8_t> romCache;
-    auto s = buildLiveSnapshot(*m, Model::TI59, ModuleImage{}, romCache, false).snap;
+    auto s = buildLiveSnapshot(*m, Model::TI59, ModuleImage{}, romCache).snap;
     return xRegisterLine(s.xValue, s.xRaw);
 }
 } // namespace
@@ -44,6 +44,38 @@ TEST(x_register_entry_and_result) {
     CHECK_EQ(xAfter({82, 52, 73, 94, 95}), std::string("X: 1e-05"));
     CHECK_EQ(xAfter({73, 94, 85, 84, 95}), std::string("X: -2"));
     CHECK_EQ(xAfter({82, 55, 92, 95}), std::string("X: 9.999999999999e+99"));        // overflow clamp
+}
+
+namespace {
+/// The CALCULATOR tab's current step after each debugger STEP through
+/// LBL A, 1, +, GTO 00 17, Nop…, 2, =, R/S (GTO at 004, its operands at 005/006).
+std::vector<int> stepsThroughGto() {
+    auto m = testroms::makeMachine(Model::TI59);
+    testroms::runToScanLoop(*m, Model::TI59);
+    std::vector<uint8_t> prog = {76, 11, 1, 85, 61, 0, 17};
+    prog.resize(17, 68);
+    prog.insert(prog.end(), {2, 95, 91});
+    m->writeProgram(prog.data(), prog.size());
+    pressMatrix(*m, 11);  // A
+    m->stepUntilNextKeycode();
+    releaseMatrix(*m, 11);
+    std::vector<uint8_t> romCache;
+    std::vector<int> steps;
+    for (int i = 0; i < 40; ++i) {
+        m->stepUntilNextKeycode();
+        m->beginNextStep();
+        int step = buildLiveSnapshot(*m, Model::TI59, ModuleImage{}, romCache).snap.currentStep;
+        steps.push_back(step);
+        if (step >= 19) break;
+    }
+    return steps;
+}
+} // namespace
+
+// Each STEP shows the next step, one byte at a time (operands included), as
+// LRN does after each SST; the GTO lands on its target, not one before it.
+TEST(step_shows_the_next_step) {
+    CHECK(stepsThroughGto() == (std::vector<int>{3, 4, 5, 6, 17, 18, 19}));
 }
 
 TEST(program_source_decoding) {
@@ -92,7 +124,7 @@ TEST(live_snapshot_and_listing) {
 
     std::vector<uint8_t> romCache;
     auto lib = ModuleImage::parse(*loadModule("TMC0541.txt", testroms::reader()));
-    auto b = buildLiveSnapshot(*m, Model::TI59, lib, romCache, false);
+    auto b = buildLiveSnapshot(*m, Model::TI59, lib, romCache);
     const auto& s = b.snap;
     CHECK(s.programSource == ProgramSource::UserProgram);
     CHECK_EQ(s.currentStep, 0);
@@ -114,10 +146,7 @@ TEST(live_snapshot_and_listing) {
     CHECK(listing[0].isCurrent && !listing[1].isCurrent);
     CHECK_EQ(listing[7].mnemonic, std::string("01"));
     CHECK_EQ(listing[9].mnemonic, std::string("R/S"));
-
-    auto frozen = buildLiveSnapshot(*m, Model::TI59, lib, romCache, true);
-    CHECK_EQ(frozen.snap.currentStep, 0);  // frozen: the last executed step, clamped at 0
-    CHECK(buildLiveSnapshot(*m, Model::TI59, lib, romCache, false).snap == s);
+    CHECK(buildLiveSnapshot(*m, Model::TI59, lib, romCache).snap == s);
 }
 
 TEST(rom_heatmap_counts_new_frames_once) {
@@ -224,6 +253,7 @@ TEST(debug_panel_text) {
     CHECK_EQ(returnLevelColor(0, false), 0x409940u);
     CHECK_EQ(returnLevelColor(2, true), returnLevelColor(1, true));
     CHECK_EQ(returnLevelColor(5, false), 0xCCCCCCu);
+    CHECK_EQ(currentStepMarker(true), std::string("← next"));
     CHECK_EQ(stepHighlightColor(ProgramSource::FastMode), stepHighlightColor(ProgramSource::UserProgram));
     CHECK(condFlag(0x0800) && !condFlag(0x0001) && idleFlag(0x0001));
     uint8_t n[16] = {0x15, 0xA};  // high bits are masked

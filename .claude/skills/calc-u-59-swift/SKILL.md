@@ -68,7 +68,7 @@ Full file-by-file responsibility table: `reference/AppArchitecture.md` §
   `liveDebugSnapshot`, `programListing(+Source, CurrentIndex)`, `cpuHistory`
   (+ `cpuHistoryUpdateID`) and `romHitCount`.
 - Freeze/step semantics, threading and the frozen display (current step =
-  last executed step): `reference/DebugAPI.md` § "Freeze / Step Controls".
+  next step to execute, pre-execution): `reference/DebugAPI.md` § "Freeze / Step Controls".
 
 ---
 

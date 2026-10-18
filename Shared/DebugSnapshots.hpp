@@ -54,7 +54,7 @@ struct LiveDebugSnapshot {
     int programRegCount = 0;            ///< the claimed partition, not clamped
 
     std::vector<StepEntry> programWindow;  ///< ±5 steps around currentStep
-    int currentStep = -1;               ///< -1 = unknown
+    int currentStep = -1;               ///< the next step to execute; -1 = unknown
 
     std::array<double, 8> hir{};        ///< HIR 1–8 (SCOM[1..8])
     double tRegister = 0;               ///< SCOM[11]
@@ -116,9 +116,9 @@ std::vector<CpuFrame> readTraceRing(const TI59Machine& m);
 void readTraceRing(const TI59Machine& m, std::vector<CpuFrame>& frames);
 
 /// Build the live snapshot. `romCache` holds the 384 ROM keycodes once filled
-/// (constant per machine). `frozen` selects the frozen-step semantics
-/// (current = last executed step, next = the one about to run).
+/// (constant per machine). The current step is the next one to execute, as
+/// the calculator's LRN display shows it.
 LiveDebugBuild buildLiveSnapshot(const TI59Machine& m, Model model, const ModuleImage& module,
-                                 std::vector<uint8_t>& romCache, bool frozen);
+                                 std::vector<uint8_t>& romCache);
 
 } // namespace cu59

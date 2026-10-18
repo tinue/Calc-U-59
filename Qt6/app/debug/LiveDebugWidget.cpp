@@ -179,7 +179,7 @@ void LiveDebugWidget::refresh() {
     for (const auto& e : entries) {
         QString text = QStringLiteral("%1  %2  %3").arg(e.stepNum, 3, 10, QLatin1Char('0')).arg(e.keycode, 2, 10, QLatin1Char('0'))
                            .arg(QString::fromStdString(e.mnemonic));
-        if (e.isCurrent) text += frozen ? QStringLiteral("  ← frozen") : QStringLiteral("  ← running");
+        if (e.isCurrent) text += QStringLiteral("  ") + qs(cu59::currentStepMarker(frozen));
         auto* item = new QListWidgetItem(text, m_steps);
         item->setFont(mono);
         item->setForeground(e.isCurrent ? Qt::white : ChromeStyle::gray(0.6));

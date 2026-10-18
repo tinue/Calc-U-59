@@ -198,7 +198,7 @@ struct LiveDebugView: View {
                                     Text(entry.mnemonic)
                                         .foregroundStyle(entry.isCurrent ? .white : Color(white: 0.65))
                                     if entry.isCurrent {
-                                        Text("  ← frozen")
+                                        Text("  " + TIViewRules.currentStepMarker(true))
                                             .font(.system(size: baseFontSize, design: .monospaced))
                                             .foregroundStyle(Color.cyan)
                                     }
@@ -246,7 +246,7 @@ struct LiveDebugView: View {
                             Text(entry.mnemonic)
                                 .foregroundStyle(entry.isCurrent ? .white : Color(white: 0.65))
                             if entry.isCurrent {
-                                Text("  ← running")
+                                Text("  " + TIViewRules.currentStepMarker(false))
                                     .font(.system(size: baseFontSize, design: .monospaced))
                                     .foregroundStyle(Color.cyan)
                             }

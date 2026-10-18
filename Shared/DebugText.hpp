@@ -39,6 +39,10 @@ uint32_t xRegisterColor(double value, const std::string& raw);
 /// dimmer when the level's address is 0.
 uint32_t returnLevelColor(uint8_t sourceFlag, bool zeroAddress);
 
+/// Marker after the current program step: "← next" when frozen (the step
+/// about to execute), "← running" while running.
+std::string currentStepMarker(bool frozen);
+
 /// Background of the current program step: yellow ROM, blue module, green otherwise.
 uint32_t stepHighlightColor(ProgramSource source);
 

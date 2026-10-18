@@ -39,13 +39,6 @@ DebugModel::Update DebugModel::tick(const TI59Machine& m, Model model, bool live
 
 DebugModel::Update DebugModel::frozenView(const TI59Machine& m, Model model, FrozenViewReason reason) {
     Update u;
-    if (reason == FrozenViewReason::StepKeycode) {
-        CpuFrame cpu = m.snapshotCPU();
-        if (programSourceFrom(cpu.SCOM[0][3], cpu.pc) == ProgramSource::SolidStateReturn) {
-            advanceListingCurrent();
-            u.listing = true;
-        }
-    }
     if (reason != FrozenViewReason::StepInstruction) u |= rebuildLive(m, model, true);
     u |= captureInspector(m);
     return u;
@@ -53,13 +46,14 @@ DebugModel::Update DebugModel::frozenView(const TI59Machine& m, Model model, Fro
 
 DebugModel::Update DebugModel::rebuildLive(const TI59Machine& m, Model model, bool frozen) {
     Update u;
-    LiveDebugBuild b = buildLiveSnapshot(m, model, m_module, m_romCache, frozen);
+    LiveDebugBuild b = buildLiveSnapshot(m, model, m_module, m_romCache);
     if (b.libProgramMismatch && b.libProgramMismatch->second != m_lastLibMismatch) {
         m_lastLibMismatch = b.libProgramMismatch->second;
         u.diagnostic = "Library exec PC resolves to Pgm " + std::to_string(b.libProgramMismatch->first) +
                        " but SCOM[9] says Pgm " + std::to_string(b.libProgramMismatch->second);
     }
-    // solidStateReturn shows a raw CROM address: keep the listing (a keycode step advances it).
+    // solidStateReturn shows a raw CROM address: keep the listing, whose
+    // marker stays on the RTN until the module's next fetch.
     if (frozen && b.snap.programSource != ProgramSource::SolidStateReturn) {
         auto listing = programListing(b.sourceKeycodes, b.argSteps, b.snap.currentStep);
         if (listing != m_listing || b.snap.programSource != m_listingSource) {
@@ -81,13 +75,6 @@ DebugModel::Update DebugModel::captureInspector(const TI59Machine& m) {
     Update u;
     u.cpu = true;
     return u;
-}
-
-void DebugModel::advanceListingCurrent() {
-    auto it = std::find_if(m_listing.begin(), m_listing.end(), [](const StepEntry& e) { return e.isCurrent; });
-    if (it == m_listing.end() || it + 1 == m_listing.end()) return;
-    it->isCurrent = false;
-    (it + 1)->isCurrent = true;
 }
 
 int DebugModel::listingCurrentIndex() const {

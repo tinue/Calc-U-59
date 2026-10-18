@@ -213,6 +213,7 @@ static std::vector<cu59::LabelSpan> spansFrom(NSArray<TILabelSpan*>* spans) {
 + (NSString *)xRegisterLine:(double)value raw:(NSString *)raw { return ns(cu59::xRegisterLine(value, raw.UTF8String)); }
 + (uint32_t)xRegisterColor:(double)value raw:(NSString *)raw { return cu59::xRegisterColor(value, raw.UTF8String); }
 + (uint32_t)returnLevelColor:(uint8_t)sourceFlag zeroAddress:(BOOL)zero { return cu59::returnLevelColor(sourceFlag, zero == YES); }
++ (NSString *)currentStepMarker:(BOOL)frozen { return ns(cu59::currentStepMarker(frozen == YES)); }
 + (uint32_t)stepHighlightColor:(NSInteger)source { return cu59::stepHighlightColor(static_cast<cu59::ProgramSource>(source)); }
 + (BOOL)condFlag:(uint16_t)flags { return cu59::condFlag(flags); }
 + (BOOL)idleFlag:(uint16_t)flags { return cu59::idleFlag(flags); }

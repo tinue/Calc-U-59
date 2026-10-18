@@ -205,11 +205,11 @@ Swift copies it into `isFrozen`, `freezeOwner`, `pendingFreezeOnPCChange` and
 
 - CALCULATOR snapshot and program listing — except for `StepInstruction`.
 - CPU history (`inspectorHistory`) — always.
-- **SolidStateReturn rule:** on `StepKeycode`, if the program source is
+- **SolidStateReturn rule:** if the program source is
   `ProgramSource::SolidStateReturn` (PRG SOURCE `2`: SCOM[0] holds a raw CROM
-  return address, not a step), the listing is kept and its `isCurrent` marker
-  advances one entry onto the RTN just executed. A listing is never rebuilt
-  from a SolidStateReturn snapshot.
+  return address, not a step), the listing is kept, and its `isCurrent` marker
+  stays on the RTN that is executing. A listing is never rebuilt from a
+  SolidStateReturn snapshot.
 
 Showing the CALCULATOR panel while frozen rebuilds its snapshot at once
 (`DebugModel::rebuildLive`), since the frozen view may predate it.
@@ -220,15 +220,27 @@ reported with its own change bit, `SessionController::ListingChanged`, so the
 
 ### Frozen-display semantics
 
-When frozen, `currentStep` in `LiveDebugSnapshot` is the last executed step
-(`decodedPC − 1`, or the latched solid-state step); the next step to execute
-is the one after it in the listing.
+The CALCULATOR tab shows the program position **pre-execution**, as the
+calculator's LRN display does: `currentStep` in `LiveDebugSnapshot` is the
+next step to execute, marked `← next` when frozen (`← running` while running;
+`cu59::currentStepMarker`). The registers, flags, X and T shown with it are
+the state before that step runs.
+
+- User programs and ROM keycode programs: the SCOM[0] step counter as it
+  stands. At a step stop it points at the byte about to be read (the ROM's
+  step advance at `0B93`), or at a jump's target (the jump writes it, and the
+  next fetch reads it without advancing).
+- Solid State: the library exec latch (`libExecPC`), the module byte fetched
+  for dispatch at `LIB_EXEC_FETCH`. The chip's own address counter is not a
+  program counter (one chip holds many programs; jumps and label searches
+  reload it), so only the fetch is meaningful.
+
+(The CPU tab is instruction-level and stays post-execution, see below.)
 
 The frozen program window shows the whole listing of the current source
 (`DebugModel::listing()`, `listingSource()`, `listingCurrentIndex()`; Swift
 `programListing`, `programListingSource`, `programListingCurrentIndex`) and
-scrolls to the current entry. The "next" step is rendered below it with
-dimmed styling.
+scrolls to the current entry (the next step to execute).
 
 ---
 
@@ -254,7 +266,7 @@ copies it (via `TILiveDebugSnapshot`) into `vm.liveDebugSnapshot` for
 | Field | Type | Description |
 |-------|------|-------------|
 | `programWindow` | `[StepEntry]` | ±5 steps around `currentStep` when running; not used when frozen (the full listing is used instead) |
-| `currentStep` | `Int` | Decoded program counter; −1 = unknown.  When frozen: last executed step (decodedPC − 1) |
+| `currentStep` | `Int` | The next step to execute (decoded program counter, or the solid-state fetch latch); −1 = unknown |
 
 `StepEntry` fields: `stepNum: Int`, `keycode: UInt8`, `mnemonic: String`, `isCurrent: Bool`.
 

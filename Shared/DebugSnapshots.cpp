@@ -147,7 +147,7 @@ std::vector<InspectorEntry> recentInstructions(const std::vector<CpuFrame>& fram
 }
 
 LiveDebugBuild buildLiveSnapshot(const TI59Machine& m, Model model, const ModuleImage& module,
-                                 std::vector<uint8_t>& romCache, bool frozen) {
+                                 std::vector<uint8_t>& romCache) {
     LiveDebugBuild out;
     LiveDebugSnapshot& snap = out.snap;
     const int partitionProgramRegs = m.partitionProgramRegs();
@@ -203,19 +203,18 @@ LiveDebugBuild buildLiveSnapshot(const TI59Machine& m, Model model, const Module
     snap.secondIndicator = (faNibble & 0x2) ? "2nd" : "";
     snap.engIndicator = (((cpu.fB >> 4) & 0xF) & 0x8) ? "Eng" : "";
 
-    // Current step: Solid State from the library exec latch (the SCOM PC does
-    // not move during module execution); user programs and ROM from the SCOM PC.
-    const int decodedPC = decodeProgramCounter(cpu);
+    // Current step = the next one to execute. Solid State: the library exec
+    // latch, the byte fetched for dispatch (the SCOM PC does not move during
+    // module execution). User programs and ROM: the SCOM PC, which at a step
+    // stop points at the byte about to be read, or at a jump's target.
     std::optional<ModuleImage::LibStep> lib;
     if (snap.programSource == ProgramSource::SolidState) lib = module.libraryStep(m.libExecPC());
     if (lib) {
-        // The latch points at the byte being dispatched: already the "last
-        // executed" step when frozen, no −1 adjustment.
         snap.currentStep = lib->step;
         int scomProgram = activeLibraryProgram(S[9]);
         if (scomProgram != lib->program) out.libProgramMismatch = std::make_pair(lib->program, scomProgram);
     } else if (stepsFromScomPC(snap.programSource)) {
-        snap.currentStep = frozen ? std::max(0, decodedPC - 1) : decodedPC;
+        snap.currentStep = decodeProgramCounter(cpu);
     }
 
     // Keycodes of the active source; operands are classified over the whole

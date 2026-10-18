@@ -61,6 +61,8 @@ uint32_t xRegisterColor(double value, const std::string& raw) {
     return value == 0 ? rgb(0.6, 0.6, 0.6) : rgb(0.85, 0.85, 0.85);
 }
 
+std::string currentStepMarker(bool frozen) { return frozen ? "← next" : "← running"; }
+
 uint32_t returnLevelColor(uint8_t sourceFlag, bool zero) {
     switch (sourceFlag) {
     case 0: return zero ? rgb(0.10, 0.30, 0.10) : rgb(0.25, 0.60, 0.25);

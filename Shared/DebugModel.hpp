@@ -67,9 +67,6 @@ public:
 
 private:
     Update captureInspector(const TI59Machine& m);
-    /// solidStateReturn: SCOM[0] holds a raw CROM return address, so the
-    /// listing stays and its highlight moves onto the RTN just executed.
-    void advanceListingCurrent();
 
     ModuleImage m_module;
     std::string m_moduleError;

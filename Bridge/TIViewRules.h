@@ -109,6 +109,7 @@ NS_ASSUME_NONNULL_BEGIN
 + (uint32_t)xRegisterColor:(double)value raw:(NSString *)raw;
 + (uint32_t)returnLevelColor:(uint8_t)sourceFlag zeroAddress:(BOOL)zero;
 + (uint32_t)stepHighlightColor:(NSInteger)source;
++ (NSString *)currentStepMarker:(BOOL)frozen;
 + (BOOL)condFlag:(uint16_t)flags;
 + (BOOL)idleFlag:(uint16_t)flags;
 /// 16 nibbles, most significant first.
