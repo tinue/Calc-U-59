@@ -37,8 +37,6 @@ bool writeText(const QString& path, const std::string& text) {
 
 std::string cuecardsText() { return readResource(QStringLiteral(":/roms/cuecards.txt")).value_or(""); }
 
-uint8_t matrixCode(int row, int col) { return static_cast<uint8_t>((row + 1) * 10 + (col + 1)); }
-
 } // namespace
 
 EmulatorController::EmulatorController(QObject* parent) : QObject(parent) {
@@ -102,10 +100,8 @@ void EmulatorController::start(cu59::Model model) {
     TI59Machine& m = m_session->machine();
     m.setPrinterConnected(m_printerConnected);
     if (cu59::info(model).hasConstantMemory) {
-        // Run the ROM's startup once, then restore RAM (as the preset path does),
-        // so startup code can't overwrite freshly restored registers.
-        m.stepN(300'000);
-        if (auto saved = loadConstantMemory()) m.deserialiseRAM(saved->data());
+        auto saved = loadConstantMemory();
+        cu59::powerOn(m, model, saved ? &*saved : nullptr);
     }
     if (!m_asmWords.empty() && !m.loadDebugOverlay(m_asmWords.data(), m_asmWords.size())) {
         m_asmWords.clear();
@@ -167,7 +163,10 @@ void EmulatorController::persistConstantMemory() {
     if (!m_session || !cu59::info(m_model).hasConstantMemory) return;
     std::vector<uint8_t> ram(cu59::kConstantMemoryBytes);
     m_session->machine().serialiseRAM(ram.data());
-    writeText(AppPaths::constantMemoryFile(), cu59::encodeConstantMemory(ram, m_userCueCard ? &*m_userCueCard : nullptr));
+    // Persisting is requested after every batch; skip the file write while nothing changed.
+    std::string text = cu59::encodeConstantMemory(ram, m_userCueCard ? &*m_userCueCard : nullptr);
+    if (text == m_persistedText) return;
+    if (writeText(AppPaths::constantMemoryFile(), text)) m_persistedText = std::move(text);
 }
 
 std::optional<std::vector<uint8_t>> EmulatorController::loadConstantMemory() {
@@ -235,7 +234,10 @@ void EmulatorController::tick() {
         auto frames = cu59::readTraceRing(m_session->machine());
         m_heatmap.ingest(frames.data(), frames.size());
         if (m_heatmap.publishTick()) emit heatmapChanged();
-        if (!isFrozen()) {
+        // Rebuild the list only when new instructions ran.
+        uint32_t newest = frames.empty() ? 0 : frames.back().seqno;
+        if (!isFrozen() && newest != m_cpuHistorySeqno) {
+            m_cpuHistorySeqno = newest;
             m_cpuHistory = cu59::recentInstructions(frames);
             emit cpuChanged();
         }
@@ -283,11 +285,11 @@ void EmulatorController::setFullSpeed(bool on) {
 // ── Keys ─────────────────────────────────────────────────────────────────────
 
 void EmulatorController::pressKey(int row, int col) {
-    if (m_session) m_session->pressKey(matrixCode(row, col));
+    if (m_session) m_session->pressKey(cu59::matrixCode(row, col));
 }
 
 void EmulatorController::releaseKey(int row, int col) {
-    if (m_session) m_session->releaseKey(matrixCode(row, col));
+    if (m_session) m_session->releaseKey(cu59::matrixCode(row, col));
 }
 
 void EmulatorController::keyboardDown(const std::vector<uint8_t>& codes) {
@@ -406,7 +408,7 @@ void EmulatorController::loadStateFile(const QString& path) {
     // SKIP-RESET suppresses the model switch, so MODEL: is ignored for parsing too.
     cu59::StateFilePrescan pre = cu59::prescanStateFile(text, m_model);
     const cu59::ModelInfo& target = cu59::info(pre.targetModel);
-    cu59::LoadStateResult parsed = cu59::parseStateFile(text, target.hasLargeMemory ? 959 : 479, target.hasConstantMemory);
+    cu59::LoadStateResult parsed = cu59::parseStateFile(text, target.maxStep(), target.hasConstantMemory);
     if (!parsed.errors.empty()) {
         QStringList lines;
         for (const auto& e : parsed.errors) lines << qs(e);
@@ -523,6 +525,7 @@ void EmulatorController::buildLive() {
 void EmulatorController::captureInspector() {
     if (!m_session) return;
     m_cpuHistory = cu59::inspectorHistory(m_session->machine());
+    m_cpuHistorySeqno = 0;
     emit cpuChanged();
 }
 

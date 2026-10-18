@@ -57,15 +57,9 @@ std::optional<ConstantMemoryContents> decodeConstantMemory(std::string_view text
         if (parts.size() != 2) return std::nullopt;
         auto reg = parseDec(parts[0].substr(1));
         if (!reg || *reg < 0 || *reg >= 120) return std::nullopt;
-        auto tokens = splitWords(trim(parts[1]));
-        if (tokens.size() != 8) return std::nullopt;
-        std::array<uint8_t, 8> bytes{};
-        for (size_t i = 0; i < 8; ++i) {
-            auto v = parseHex(tokens[i]);
-            if (!v || *v > 0xFF) return std::nullopt;
-            bytes[i] = static_cast<uint8_t>(*v);
-        }
-        Nibbles16 nib = decodeRegisterLine(bytes);
+        auto bytes = parseRegisterLineHex(trim(parts[1]));
+        if (!bytes) return std::nullopt;
+        Nibbles16 nib = decodeRegisterLine(*bytes);
         std::copy(nib.begin(), nib.end(), c.ram.begin() + *reg * 16);
     }
     return c;

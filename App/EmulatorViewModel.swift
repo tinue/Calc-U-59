@@ -389,14 +389,9 @@ class EmulatorViewModel {
             moduleCueCards = cards
             moduleMetadata = metadata
 
-            if model.hasConstantMemory {
-                // Run ROM startup once, then restore RAM. This matches the preset-load
-                // path and avoids startup code mutating freshly restored registers.
-                _ = wrapper.stepN(300_000)
-                if let saved = loadConstantMemory() {
-                    wrapper.deserialiseRAM(saved)
-                }
-            }
+            // TI-58C: ROM startup, then restore RAM (Shared/StateApplier powerOn).
+            TIViewRules.powerOn(wrapper, model: model.rawValue,
+                                savedRam: model.hasConstantMemory ? loadConstantMemory() : nil)
 
             if !asmOverlayWords.isEmpty {
                 let data = asmOverlayWords.withUnsafeBufferPointer { Data(buffer: $0) }
@@ -428,9 +423,8 @@ class EmulatorViewModel {
 
     /// Where KEYSTROKES "Trace:" files go, and the session size limit.
     private func configureScriptedTraceLocation() {
-        let maxMB = UserDefaults.standard.integer(forKey: SettingsKey.traceMaxFileSizeMB)
         session?.setTraceDirectory(AppSettings.traceDirectory().path,
-                                   maxBytes: UInt64(maxMB > 0 ? maxMB : 50) * 1_000_000)
+                                   maxBytes: UInt64(AppSettings.resolvedTraceMaxMB()) * 1_000_000)
     }
 
     private func startDisplayRefresh() {
@@ -589,11 +583,11 @@ class EmulatorViewModel {
     // the physical keyboard's hold rules.
 
     func pressKey(row: Int, col: Int) {
-        session?.pressKey(UInt8((row + 1) * 10 + (col + 1)))
+        session?.pressKey(TISharedTables.matrixCode(row: row, col: col))
     }
 
     func releaseKey(row: Int, col: Int) {
-        session?.releaseKey(UInt8((row + 1) * 10 + (col + 1)))
+        session?.releaseKey(TISharedTables.matrixCode(row: row, col: col))
     }
 
     // MARK: - Physical keyboard input
@@ -1355,8 +1349,7 @@ class EmulatorViewModel {
         let targetRaw = TIFileFormats.prescanStateFile(text, currentModel: model.rawValue, skipReset: nil)
         let targetModel = MachineModel(rawValue: targetRaw) ?? model
 
-        let maxStepAddr = targetModel.hasLargeMemory ? 959 : 479
-        let parsed = LoadStateResult(parsing: text, maxStepAddr: maxStepAddr,
+        let parsed = LoadStateResult(parsing: text, maxStepAddr: targetModel.maxStep,
                                      allowHiddenRegisters: targetModel.hasConstantMemory)
         if !parsed.errors.isEmpty {
             errorTitle = "State file load error"
@@ -1433,7 +1426,7 @@ class EmulatorViewModel {
         self.userCueCardContent = parsed.cueCardContent
         self.cueCardContent = resolvedCueCard()
 
-        if !parsed.keystrokes.isEmpty {
+        if parsed.hasKeystrokes {
             playKeystrokes(parsed)
         }
     }
@@ -1475,7 +1468,7 @@ class EmulatorViewModel {
             self.cueCardContent = resolvedCueCard()
         }
 
-        if !parsed.keystrokes.isEmpty {
+        if parsed.hasKeystrokes {
             playKeystrokes(parsed)
         }
     }
@@ -1629,21 +1622,9 @@ struct LiveDebugSnapshot: Equatable {
     var programWindow: [StepEntry] = []
     var currentStep: Int = -1   // -1 = unknown (SCOM location TBD)
 
-    // When frozen: the last fully executed step and the next step to execute
-    var nextStepNum: Int = -1      // Step number of next instruction (from PC when frozen)
-    var nextStepKeycode: UInt8 = 0  // Keycode of next instruction
-    var nextStepMnemonic: String = ""  // Mnemonic of next instruction
-
     // HIR registers (stored in SCOM[1..8]; decoded as Double)
     // Each HIR is 16 BCD nibbles: bits 15–3 = mantissa, 2–1 = exponent, 0 = sign
-    var hir1: Double = 0
-    var hir2: Double = 0
-    var hir3: Double = 0
-    var hir4: Double = 0
-    var hir5: Double = 0
-    var hir6: Double = 0
-    var hir7: Double = 0
-    var hir8: Double = 0
+    var hir: [Double] = Array(repeating: 0, count: 8)  // HIR 1–8
 
     // T register (SCOM[11]; decoded as Double; stack top / last-X equivalent)
     var tRegister: Double = 0
@@ -1670,14 +1651,10 @@ struct LiveDebugSnapshot: Equatable {
     var programSource: ProgramSource = .userProgram  // prSourceFlag decoded (see ProgramSource)
     var pendingOpsCount: Int = 0  // Number of pending operations in hierarchy stack (SCOM 13)
 
-    // Printer SCOM rows 0–3
-    var printerSCOM: [String] = []
-
     // All 16 SCOM rows
     var scomRows: [String] = []
 
     // Return address stack (from SCOM[14:15]) — 6 levels of subroutine return addresses
-    var returnAddress: String = ""
     var returnAddressSourceFlags: [UInt8] = Array(repeating: 0, count: 6)  // PRG SOURCE for each level (L1-L6)
     var returnAddresses: [Int] = Array(repeating: 0, count: 6)  // Decoded address values for each level (L1-L6)
 
@@ -1706,11 +1683,7 @@ extension LiveDebugSnapshot {
         programRegCount = t.programRegCount
         programWindow = t.programWindow.map(StepEntry.init)
         currentStep = t.currentStep
-        nextStepNum = t.nextStepNum
-        nextStepKeycode = t.nextStepKeycode
-        nextStepMnemonic = t.nextStepMnemonic
-        let h = t.hir.map(\.doubleValue)
-        (hir1, hir2, hir3, hir4, hir5, hir6, hir7, hir8) = (h[0], h[1], h[2], h[3], h[4], h[5], h[6], h[7])
+        hir = t.hir.map(\.doubleValue)
         tRegister = t.tRegister
         calcFlags = t.calcFlags.map(\.boolValue)
         fixIndicator = t.fixIndicator
@@ -1726,8 +1699,6 @@ extension LiveDebugSnapshot {
         programSource = ProgramSource(raw: t.programSource)
         pendingOpsCount = t.pendingOpsCount
         scomRows = t.scomRows
-        printerSCOM = Array(scomRows.prefix(4))
-        returnAddress = t.returnAddress
         returnAddressSourceFlags = [UInt8](t.returnAddressSourceFlags)
         returnAddresses = t.returnAddresses.map(\.intValue)
     }

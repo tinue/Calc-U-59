@@ -13,16 +13,6 @@ using namespace std::chrono_literals;
 
 namespace {
 
-std::string displayText(const TI59Machine& m) {
-    DisplaySnapshot d = m.getDisplay();
-    std::string s;
-    for (int i = 11; i >= 0; --i) {
-        if (d.suppressedMask & (1u << i)) continue;
-        if (d.ctrl[i] == 0 || d.ctrl[i] == 1 || d.ctrl[i] == 8 || d.ctrl[i] == 9) s += static_cast<char>('0' + (d.digits[i] & 0xF) % 10);
-    }
-    return s;
-}
-
 template <class F> bool waitFor(F cond, std::chrono::milliseconds timeout) {
     auto end = std::chrono::steady_clock::now() + timeout;
     while (std::chrono::steady_clock::now() < end) {
@@ -152,7 +142,7 @@ TEST(session_plays_keystrokes_in_real_time) {
     auto r = parseStateFile("KEYSTROKES:\n25 83 85 84 95\nZeroElapseTime:\nWait: 50ms\nReportElapseTime:\n");
     session.playKeystrokes(r.keystrokes);
     CHECK(waitFor([&] { return listener.playbackDone.load() == 1; }, 8000ms));
-    CHECK_EQ(displayText(session.machine()), std::string("5"));
+    CHECK_EQ(testroms::displayText(session.machine()), std::string("5"));
     {
         std::lock_guard<std::mutex> lock(listener.mutex);
         CHECK_EQ(listener.logs.size(), size_t{1});

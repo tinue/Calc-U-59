@@ -1,4 +1,6 @@
 #include "DebugSnapshots.hpp"
+#include "Bcd.hpp"
+#include "CueCard.hpp"
 #include "KeyNames.hpp"
 #include <algorithm>
 #include <cstdio>
@@ -50,13 +52,12 @@ std::vector<StepEntry> programListing(const std::vector<uint8_t>& keycodes, cons
 
 bool LiveDebugSnapshot::operator==(const LiveDebugSnapshot& o) const {
     return nonZeroRegs == o.nonZeroRegs && dataRegCount == o.dataRegCount && programRegCount == o.programRegCount &&
-           programWindow == o.programWindow && currentStep == o.currentStep && nextStepNum == o.nextStepNum &&
-           nextStepKeycode == o.nextStepKeycode && nextStepMnemonic == o.nextStepMnemonic && hir == o.hir &&
+           programWindow == o.programWindow && currentStep == o.currentStep && hir == o.hir &&
            tRegister == o.tRegister && calcFlags == o.calcFlags && fixIndicator == o.fixIndicator &&
            ioUserFlags == o.ioUserFlags && lastKey == o.lastKey && fA == o.fA && fB == o.fB &&
            engIndicator == o.engIndicator && secondIndicator == o.secondIndicator && invIndicator == o.invIndicator &&
            angleMode == o.angleMode && prSourceFlag == o.prSourceFlag && programSource == o.programSource &&
-           pendingOpsCount == o.pendingOpsCount && scomRows == o.scomRows && returnAddress == o.returnAddress &&
+           pendingOpsCount == o.pendingOpsCount && scomRows == o.scomRows &&
            returnAddressSourceFlags == o.returnAddressSourceFlags && returnAddresses == o.returnAddresses;
 }
 
@@ -160,12 +161,10 @@ LiveDebugBuild buildLiveSnapshot(const TI59Machine& m, Model model, const Module
         // The latch points at the byte being dispatched: already the "last
         // executed" step when frozen, no −1 adjustment.
         snap.currentStep = lib->step;
-        snap.nextStepNum = frozen ? lib->step + 1 : -1;
-        int scomProgram = S[9][4] * 10 + S[9][3];
+        int scomProgram = activeLibraryProgram(S[9]);
         if (scomProgram != lib->program) out.libProgramMismatch = std::make_pair(lib->program, scomProgram);
     } else if (stepsFromScomPC(snap.programSource)) {
         snap.currentStep = frozen ? std::max(0, decodedPC - 1) : decodedPC;
-        snap.nextStepNum = frozen ? decodedPC : -1;
     }
 
     // Keycodes of the active source; operands are classified over the whole
@@ -197,12 +196,6 @@ LiveDebugBuild buildLiveSnapshot(const TI59Machine& m, Model model, const Module
         }
     }
 
-    if (frozen && snap.nextStepNum >= 0 && snap.nextStepNum < static_cast<int>(out.sourceKeycodes.size())) {
-        uint8_t kc = out.sourceKeycodes[static_cast<size_t>(snap.nextStepNum)];
-        snap.nextStepKeycode = kc;
-        snap.nextStepMnemonic = stepMnemonic(kc, out.argSteps.count(snap.nextStepNum) > 0);
-    }
-
     // Return stack: SCOM[15] nibble 0 = count; levels 1–3 in SCOM[15], 4–6 in
     // SCOM[14], 5 nibbles each (PRG SOURCE + Base-80 address).
     uint8_t n15[16], n14[16];
@@ -213,17 +206,8 @@ LiveDebugBuild buildLiveSnapshot(const TI59Machine& m, Model model, const Module
         snap.returnAddressSourceFlags[static_cast<size_t>(l)] = row[levelAt[l]];
         snap.returnAddresses[static_cast<size_t>(l)] = base80(row, levelAt[l]);
     }
-    const auto& ra = snap.returnAddresses;
-    std::snprintf(buf, sizeof buf, "L6:%03d L5:%03d L4:%03d L3:%03d L2:%03d L1:%03d (count=%d)",
-                  ra[5], ra[4], ra[3], ra[2], ra[1], ra[0], n15[0]);
-    snap.returnAddress = buf;
 
-    static const char* kHex = "0123456789abcdef";
-    for (int r = 0; r < 16; ++r) {
-        std::string row;
-        for (int i = 0; i < 16; ++i) row += kHex[S[r][i] & 0xF];
-        snap.scomRows[static_cast<size_t>(r)] = row;
-    }
+    for (int r = 0; r < 16; ++r) snap.scomRows[static_cast<size_t>(r)] = nibbleHex(S[r]);
     return out;
 }
 

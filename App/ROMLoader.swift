@@ -3,10 +3,8 @@ import os
 
 struct ModuleMetadata {
     var title: String = ""
-    var sort: String = ""
     var id: String = ""
     var menuTitle: String = ""
-    var menuSort: Int = 0
 }
 
 /// Bundle access for the ROM text dumps (roms/calculator, roms/solid-state)
@@ -56,6 +54,6 @@ struct ROMLoader {
 
 extension ModuleMetadata {
     init(_ m: TIModuleMetadata) {
-        self.init(title: m.title, sort: m.sort, id: m.moduleID, menuTitle: m.menuTitle, menuSort: m.menuSort)
+        self.init(title: m.title, id: m.moduleID, menuTitle: m.menuTitle)
     }
 }

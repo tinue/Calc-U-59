@@ -10,13 +10,6 @@ namespace {
 
 bool allZero(const uint8_t* n) { return std::all_of(n, n + 16, [](uint8_t v) { return v == 0; }); }
 
-std::string hexRow(const uint8_t* row) {
-    static const char* kHex = "0123456789abcdef";
-    std::string s;
-    for (int i = 0; i < 16; ++i) s += kHex[row[i] & 0xF];
-    return s;
-}
-
 } // namespace
 
 void RingLog::write(std::string line) {
@@ -85,14 +78,11 @@ std::vector<std::string> dumpVars(const TI59Machine& m, Model model) {
 }
 
 std::vector<std::string> dumpScom(const TI59Machine& m) {
-    static const char* kHex = "0123456789abcdef";
     CpuFrame cpu = m.snapshotCPU();
     std::vector<std::string> lines{"── SCOM ──"};
     char buf[32];
     for (int s = 0; s < 16; ++s) {
-        std::string nib;
-        for (int i = 15; i >= 0; --i) nib += kHex[cpu.SCOM[s][i] & 0xF];
-        std::snprintf(buf, sizeof buf, "S%02d %s", s, nib.c_str());
+        std::snprintf(buf, sizeof buf, "S%02d %s", s, nibbleHex(cpu.SCOM[s], true).c_str());
         lines.emplace_back(buf);
     }
     return lines;
@@ -140,12 +130,12 @@ std::vector<std::string> dumpStepCounterAnalysis(const TI59Machine& m) {
     return {
         "── Step Counter Analysis (SCOM) ──",
         "SCOM[0]  (positions 0–15):",
-        "values:  " + hexRow(cpu.SCOM[0]),
+        "values:  " + nibbleHex(cpu.SCOM[0]),
         "pos:     0123456789abcdef",
         "note:    ----VARYING---",
         std::string("SCOM[15][0]: ") + kHex[cpu.SCOM[15][0] & 0xF] + " (expected: 0=PC=0, 9=PC>0)",
-        "SCOM[10]: " + hexRow(cpu.SCOM[10]),
-        "SCOM[13]: " + hexRow(cpu.SCOM[13]),
+        "SCOM[10]: " + nibbleHex(cpu.SCOM[10]),
+        "SCOM[13]: " + nibbleHex(cpu.SCOM[13]),
         "",
         "Known mappings (for reference):",
         "PC=100 → SCOM[0] pos 4-6 = '421'",

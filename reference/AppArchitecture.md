@@ -52,7 +52,7 @@ Shared/ (C++, used by this app via Bridge/ and by the Qt6 app):
 | `EmulatorViewModel.swift` | Central `@Observable` view model; owns the emulation loop, 60 Hz timer, and all I/O state |
 | `ROMLoader.swift` | Supplies the bundled ROM / module `.txt` files and `cuecards.txt` to `Shared/RomLoader` and `Shared/ModuleCatalog` |
 | `CardStorage.swift` | Resolves the card file URL in the iCloud container (or local Documents) and provides atomic read/write |
-| `StateFileResult.swift` | `LoadStateResult` / `KeystrokeEvent` value types, filled from `Shared/StateFile` via `Bridge/TIFileFormats` |
+| `StateFileResult.swift` | `LoadStateResult` value type, filled from `Shared/StateFile` via `Bridge/TIFileFormats` |
 | `CueCardContent.swift` | SwiftUI-facing cue card value type and its `TICueCard` conversion (parsing/encoding: `Shared/CueCard`) |
 | `Bridge/TI59MachineWrapper.h` | ObjC header: C-struct display/trace types visible to Swift; method declarations |
 | `Bridge/TI59MachineWrapper.mm` | ObjC++ implementation: thin wrapper mapping Swift/ObjC types to C++ calls |
@@ -140,7 +140,7 @@ Three coordinate spaces are involved; each layer translates between them:
 | Layer | Coordinate meaning |
 |---|---|
 | `KeyboardView` | Visual row 0–8, col 0–4 (0-indexed from top-left of image) |
-| `EmulatorViewModel.pressKey(row:col:)` | Adds 1 to each: `pressMatrixKey((row+1)*10 + (col+1))` |
+| `EmulatorViewModel.pressKey(row:col:)` | Adds 1 to each: `cu59::matrixCode(row, col)` = `(row+1)*10 + (col+1)`, sent to the session |
 | `cu59::pressMatrix` (`Shared/KeyMatrix.hpp`) | Matrix code = row×10 + col (range 11–95); decodes back to row/col |
 | `TI59Machine.pressKey(kbit, digitSlot)` | kbit = K-line bit index (`kKBits[]` table); digitSlot = digit-counter column |
 | `TMC0501.key[]` | `key[digitSlot] \|= (1 << kbit)` — the final hardware bitmask |
@@ -331,21 +331,21 @@ Hard reset:      delete ti58c.mem + deserialiseRAM(zeros) + reset()
 `TI59MachineWrapper` is a pure thin wrapper with no logic beyond type
 translation.  Notable mappings:
 
-**Display snapshot** — `TIDisplaySnapshot` mirrors `DisplaySnapshot` exactly;
-field-by-field `memcpy` with `_Static_assert` size checks.
+**Display snapshot** — `TIDisplaySnapshot` mirrors `DisplaySnapshot`; `TISession`
+fills it from each frame update.
 
-**Trace events** — `TITraceEvent` and `TICPUSnapshot` are ObjC structs with the
-same field layout as the C++ originals.  They are boxed in `NSValue` for
-transmission to Swift (Swift cannot hold C++ structs directly through the bridge).
-The field-by-field copy in `drainTraceEventsMax:snapshots:` makes the layout
-independence explicit and avoids UB from type-punning.
+**CPU frames** — `TICpuFrame` mirrors `CpuFrame` field for field; the layout is
+`static_assert`ed in `Bridge/BridgeConvert.h` (with the shared `ns`/`cpp`/`bytes`
+helpers), so a frame converts with one `memcpy`. Frames are boxed in `NSValue`
+for transmission to Swift (Swift cannot hold C++ structs directly through the bridge).
 
-**Matrix key decode** — `pressMatrixKey:` calls `cu59::pressMatrix`
+**Matrix key decode** — the session's key input calls `cu59::pressMatrix`
 (`Shared/KeyMatrix.hpp`): `code / 10` → digit-counter slot, `code % 10` →
 physical column → K-line bit via `kKBits[]`.
 
 **RAM serialisation** — `serialiseRAM` returns a 1920-byte `NSData`
-(120 regs × 16 nibbles); `deserialiseRAM` validates the length before writing.
+(120 regs × 16 nibbles); restoring it goes through `cu59::powerOn` /
+`cu59::softReset` (`Shared/StateApplier.hpp`).
 
 ---
 

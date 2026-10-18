@@ -75,9 +75,9 @@ void EmulatorSession::setTraceLocation(const std::filesystem::path& dir, uint64_
 EmulatorSession::DrainResult EmulatorSession::drainTrace() {
     std::lock_guard<std::mutex> lock(m_traceMutex);
     DrainResult r;
-    std::vector<CpuFrame> frames(1024);
+    auto& frames = m_drainBuf;
     uint32_t lost = 0;
-    uint32_t n = m_machine->drainCpuFrames(frames.data(), 1024, &lost);
+    uint32_t n = m_machine->drainCpuFrames(frames.data(), static_cast<uint32_t>(frames.size()), &lost);
     if (lost) {
         m_manualTrace.writeLostGap(lost);
         m_scriptedTrace.writeLostGap(lost);

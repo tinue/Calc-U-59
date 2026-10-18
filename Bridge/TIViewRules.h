@@ -105,6 +105,9 @@ NS_ASSUME_NONNULL_BEGIN
 + (NSArray<TIInspectorEntry *> *)recentInstructions:(NSArray<NSValue *> *)frames count:(NSInteger)count;
 
 // ── Reset (Shared/StateApplier.hpp) ──────────────────────────────────────────
+/// Fresh machine: TI-58C runs the ROM startup, then restores `savedRam` (nil = none).
++ (void)powerOn:(TI59MachineWrapper *)machine model:(NSInteger)model savedRam:(nullable NSData *)savedRam
+    NS_SWIFT_NAME(powerOn(_:model:savedRam:));
 /// Reset button: TI-58C restores `savedRam` (nil = none); others clear registers past the partition.
 + (void)softReset:(TI59MachineWrapper *)machine model:(NSInteger)model savedRam:(nullable NSData *)savedRam;
 + (void)cleanReset:(TI59MachineWrapper *)machine;

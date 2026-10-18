@@ -57,6 +57,9 @@ struct ModelInfo {
 
     const char* romFiles[3];    ///< Concatenated in order into the 6144-word image.
     const char* constFiles[2];  ///< CONST-K files, 32 rows each.
+
+    /// Highest program step the RAM can hold (all registers partitioned to program).
+    int maxStep() const { return hasLargeMemory ? 959 : 479; }
 };
 
 inline constexpr int kExtraRegisterBase = 60;

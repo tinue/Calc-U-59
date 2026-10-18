@@ -62,7 +62,6 @@ TEST(live_snapshot_and_listing) {
     const auto& s = b.snap;
     CHECK(s.programSource == ProgramSource::UserProgram);
     CHECK_EQ(s.currentStep, 0);
-    CHECK_EQ(s.nextStepNum, -1);
     CHECK_EQ(static_cast<int>(s.programWindow.size()), 6);  // steps 0–5
     CHECK_EQ(s.programWindow[1].mnemonic, std::string("A"));
     CHECK_EQ(s.programWindow[3].mnemonic, std::string("12"));  // STO operand
@@ -82,9 +81,7 @@ TEST(live_snapshot_and_listing) {
     CHECK_EQ(listing[9].mnemonic, std::string("R/S"));
 
     auto frozen = buildLiveSnapshot(*m, Model::TI59, lib, romCache, true);
-    CHECK_EQ(frozen.snap.nextStepNum, 0);
-    CHECK_EQ(frozen.snap.nextStepMnemonic, std::string("LBL"));
-    CHECK(frozen.snap != s);
+    CHECK_EQ(frozen.snap.currentStep, 0);  // frozen: the last executed step, clamped at 0
     CHECK(buildLiveSnapshot(*m, Model::TI59, lib, romCache, false).snap == s);
 }
 

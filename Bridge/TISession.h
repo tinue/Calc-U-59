@@ -81,7 +81,6 @@ NS_ASSUME_NONNULL_BEGIN
 // ── Frames and traces ────────────────────────────────────────────────────────
 - (TIFrameUpdate *)tickWithDebugLevel:(NSInteger)level cardSwiping:(BOOL)cardSwiping;
 @property (nonatomic, readonly) TITraceWriter *manualTrace;
-@property (nonatomic, readonly) TITraceWriter *scriptedTrace;
 - (void)setTraceDirectory:(NSString *)path maxBytes:(uint64_t)maxBytes;
 /// Drain the trace ring into the open writers; reports writers that hit their size limit.
 - (void)drainTraceManualLimit:(BOOL *_Nullable)manualLimit scriptedLimit:(BOOL *_Nullable)scriptedLimit;

@@ -16,7 +16,7 @@ constexpr uint32_t kStartupSteps = 300'000;
 /// and programs as registers (examples/calendar-05-vanderburgh.ti59), so
 /// PROGRAM: and REGISTERS: are trusted as written.
 void writeProgram(TI59Machine& m, const LoadStateResult& r, Model model) {
-    int physicalMaxStep = info(model).hasLargeMemory ? 959 : 479;
+    int physicalMaxStep = info(model).maxStep();
     std::vector<uint8_t> program(static_cast<size_t>(physicalMaxStep + 1), 0);
     for (const auto& s : r.programSteps)
         if (s.stepAddr >= 0 && s.stepAddr <= physicalMaxStep) program[static_cast<size_t>(s.stepAddr)] = s.keycode;
@@ -38,9 +38,10 @@ void setPartition(TI59Machine& m, int partitionMaxStep) { m.setPartitionProgramR
 } // namespace
 
 std::optional<std::string> stateFilePartitionError(const LoadStateResult& r, Model model) {
-    if (!info(model).hasLargeMemory && r.partitionWasExplicit && r.partitionMaxStep > 479) {
+    const ModelInfo& mi = info(model);
+    if (r.partitionWasExplicit && r.partitionMaxStep > mi.maxStep()) {
         return "State file partition (" + std::to_string(r.partitionMaxStep) + ") exceeds " +
-               info(model).displayName + " maximum (479) — load aborted.";
+               mi.displayName + " maximum (" + std::to_string(mi.maxStep()) + ") — load aborted.";
     }
     return std::nullopt;
 }
@@ -69,6 +70,12 @@ void applySkipResetState(TI59Machine& m, const LoadStateResult& r, Model model) 
     if (r.partitionWasExplicit) setPartition(m, r.partitionMaxStep);
     if (!r.programSteps.empty()) writeProgram(m, r, model);
     writeRegisters(m, r);
+}
+
+void powerOn(TI59Machine& m, Model model, const std::vector<uint8_t>* savedRam) {
+    if (!info(model).hasConstantMemory) return;
+    m.stepN(kStartupSteps);
+    if (savedRam && savedRam->size() >= 120 * 16) m.deserialiseRAM(savedRam->data());
 }
 
 void softReset(TI59Machine& m, Model model, const std::vector<uint8_t>* savedRam) {

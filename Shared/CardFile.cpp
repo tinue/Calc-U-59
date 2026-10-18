@@ -10,19 +10,6 @@ namespace {
 
 enum class Section { None, CueCard, Header, Data };
 
-/// Exactly `count` space-separated hex bytes, or nullopt.
-std::optional<std::array<uint8_t, 8>> parseHex8(std::string_view s) {
-    auto tokens = splitWords(s);
-    if (tokens.size() != 8) return std::nullopt;
-    std::array<uint8_t, 8> out{};
-    for (size_t i = 0; i < 8; ++i) {
-        auto v = parseHex(tokens[i]);
-        if (!v || *v > 0xFF) return std::nullopt;
-        out[i] = static_cast<uint8_t>(*v);
-    }
-    return out;
-}
-
 std::string hex2(unsigned v) {
     char b[8];
     std::snprintf(b, sizeof b, "%02X", v & 0xFF);
@@ -89,7 +76,7 @@ std::optional<CardFileResult> parseCardText(std::string_view text) {
             if (line[0] != 'R') return std::nullopt;
             size_t colon = line.find(':');
             if (colon == std::string_view::npos) return std::nullopt;
-            auto fileBytes = parseHex8(trim(line.substr(colon + 1)));
+            auto fileBytes = parseRegisterLineHex(trim(line.substr(colon + 1)));
             if (!fileBytes) return std::nullopt;
             // Card files reverse the bytes relative to ti58c.mem.
             std::array<uint8_t, 8> reversed{};

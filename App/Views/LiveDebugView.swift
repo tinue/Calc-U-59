@@ -332,16 +332,16 @@ struct LiveDebugView: View {
         return SectionBox(title: "HIR") {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 12) {
-                    hirRow("1", snap.hir1, baseFontSize: baseFontSize)
-                    hirRow("2", snap.hir2, baseFontSize: baseFontSize)
-                    hirRow("3", snap.hir3, baseFontSize: baseFontSize)
-                    hirRow("4", snap.hir4, baseFontSize: baseFontSize)
+                    hirRow("1", snap.hir[0], baseFontSize: baseFontSize)
+                    hirRow("2", snap.hir[1], baseFontSize: baseFontSize)
+                    hirRow("3", snap.hir[2], baseFontSize: baseFontSize)
+                    hirRow("4", snap.hir[3], baseFontSize: baseFontSize)
                 }
                 HStack(spacing: 12) {
-                    hirRow("5", snap.hir5, baseFontSize: baseFontSize)
-                    hirRow("6", snap.hir6, baseFontSize: baseFontSize)
-                    hirRow("7", snap.hir7, baseFontSize: baseFontSize)
-                    hirRow("8", snap.hir8, baseFontSize: baseFontSize)
+                    hirRow("5", snap.hir[4], baseFontSize: baseFontSize)
+                    hirRow("6", snap.hir[5], baseFontSize: baseFontSize)
+                    hirRow("7", snap.hir[6], baseFontSize: baseFontSize)
+                    hirRow("8", snap.hir[7], baseFontSize: baseFontSize)
                 }
             }
             .padding(.horizontal, 8)
@@ -514,14 +514,7 @@ private struct SectionBox<Content: View>: View {
                 .init(stepNum: 46, keycode: 55, mnemonic: "+", isCurrent: false),
                 .init(stepNum: 47, keycode: 57, mnemonic: "=", isCurrent: false),
             ]
-            snap.hir1 = 3.141592653589
-            snap.hir2 = 2.718281828
-            snap.hir3 = 1.414213562
-            snap.hir4 = 1.732050808
-            snap.hir5 = 1.618033989
-            snap.hir6 = 0
-            snap.hir7 = 0
-            snap.hir8 = 0
+            snap.hir = [3.141592653589, 2.718281828, 1.414213562, 1.732050808, 1.618033989, 0, 0, 0]
             snap.tRegister = 2.71828
             snap.prSourceFlag = 0xA
             snap.programSource = ProgramSource(flag: 0xA, romPC: 0)
@@ -538,7 +531,6 @@ private struct SectionBox<Content: View>: View {
             snap.invIndicator = "INV"
             snap.ioUserFlags = "12345"
             snap.lastKey = "67"
-            snap.printerSCOM = ["0000000000000000", "0000000000000000", "0000000000000000", "0000000000000000"]
             snap.scomRows = Array(repeating: "0123456789abcdef", count: 16)
             vm.liveDebugSnapshot = snap
             return vm

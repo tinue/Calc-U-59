@@ -1,5 +1,6 @@
 #import "TIViewRules.h"
 #import "TI59MachineWrapper+Cpp.h"
+#import "BridgeConvert.h"
 #import "TIFileFormats+Cpp.h"
 #include "../Shared/DebugSnapshots.hpp"
 #include "../Shared/LedGeometry.hpp"
@@ -7,17 +8,7 @@
 #include "../Shared/PrinterFont.hpp"
 #include "../Shared/RomHeatmap.hpp"
 #include "../Shared/StateApplier.hpp"
-#include <cstring>
 
-namespace {
-NSString* ns(const std::string& s) { return [[NSString alloc] initWithBytes:s.data() length:s.size() encoding:NSUTF8StringEncoding] ?: @""; }
-std::string cpp(NSString* s) { return s ? std::string(s.UTF8String) : std::string(); }
-CpuFrame cpuFrame(const TICpuFrame& f) {
-    CpuFrame c;
-    std::memcpy(&c, &f, sizeof c);  // layouts checked in TITraceWriter.mm
-    return c;
-}
-} // namespace
 
 @interface TILabelSpan ()
 @property (nonatomic, readwrite) NSInteger startCol;
@@ -79,9 +70,7 @@ static NSArray<TIInspectorEntry*>* entriesFrom(const std::vector<cu59::Inspector
         t.pc = e.pc;
         t.opcode = e.opcode;
         t.disasm = ns(e.disasm);
-        TICpuFrame f;
-        std::memcpy(&f, &e.frame, sizeof f);
-        t.frame = f;
+        t.frame = tiCpuFrame(e.frame);
         t.isHistory = e.isHistory;
         t.isCurrent = e.isCurrent;
         [out addObject:t];
@@ -223,22 +212,20 @@ static NSArray<TIInspectorEntry*>* entriesFrom(const std::vector<cu59::Inspector
 }
 
 + (NSArray<TIInspectorEntry *> *)recentInstructions:(NSArray<NSValue *> *)frames count:(NSInteger)count {
-    std::vector<CpuFrame> v;
-    v.reserve(frames.count);
-    for (NSValue* value in frames) {
-        TICpuFrame f;
-        [value getValue:&f size:sizeof f];
-        v.push_back(cpuFrame(f));
-    }
+    // Only the newest `count` frames are listed; unbox just those.
+    const NSUInteger first = frames.count > static_cast<NSUInteger>(count) ? frames.count - count : 0;
+    std::vector<CpuFrame> v(frames.count - first);
+    for (NSUInteger i = first; i < frames.count; ++i) [frames[i] getValue:&v[i - first] size:sizeof(CpuFrame)];
     return entriesFrom(cu59::recentInstructions(v, static_cast<size_t>(count)));
 }
 
++ (void)powerOn:(TI59MachineWrapper *)machine model:(NSInteger)model savedRam:(NSData *)savedRam {
+    std::vector<uint8_t> ram = savedRam ? bytes(savedRam) : std::vector<uint8_t>();
+    cu59::powerOn(*machine.cppMachine, static_cast<cu59::Model>(model), savedRam ? &ram : nullptr);
+}
+
 + (void)softReset:(TI59MachineWrapper *)machine model:(NSInteger)model savedRam:(NSData *)savedRam {
-    std::vector<uint8_t> ram;
-    if (savedRam) {
-        const auto* p = static_cast<const uint8_t*>(savedRam.bytes);
-        ram.assign(p, p + savedRam.length);
-    }
+    std::vector<uint8_t> ram = savedRam ? bytes(savedRam) : std::vector<uint8_t>();
     cu59::softReset(*machine.cppMachine, static_cast<cu59::Model>(model), savedRam ? &ram : nullptr);
 }
 

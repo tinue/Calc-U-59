@@ -27,9 +27,6 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) NSInteger programRegCount;
 @property (nonatomic, readonly, copy) NSArray<TIStepEntry *> *programWindow;
 @property (nonatomic, readonly) NSInteger currentStep;
-@property (nonatomic, readonly) NSInteger nextStepNum;
-@property (nonatomic, readonly) uint8_t nextStepKeycode;
-@property (nonatomic, readonly, copy) NSString *nextStepMnemonic;
 @property (nonatomic, readonly, copy) NSArray<NSNumber *> *hir;          ///< HIR 1–8
 @property (nonatomic, readonly) double tRegister;
 @property (nonatomic, readonly, copy) NSArray<NSNumber *> *calcFlags;    ///< 10 BOOLs
@@ -46,7 +43,6 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) NSInteger programSource;
 @property (nonatomic, readonly) NSInteger pendingOpsCount;
 @property (nonatomic, readonly, copy) NSArray<NSString *> *scomRows;
-@property (nonatomic, readonly, copy) NSString *returnAddress;
 @property (nonatomic, readonly, copy) NSData *returnAddressSourceFlags;  ///< 6 bytes, L1–L6
 @property (nonatomic, readonly, copy) NSArray<NSNumber *> *returnAddresses;
 @end
@@ -70,14 +66,11 @@ NS_ASSUME_NONNULL_BEGIN
 + (NSInteger)programSourceForFlag:(uint8_t)flag romPC:(uint16_t)romPC;
 /// Parse the module image (nil = none). Returns an error message, or nil.
 - (nullable NSString *)setModuleImage:(nullable NSData *)raw;
-/// Forget the ROM keycode cache (new machine).
-- (void)resetRomCache;
 
 // ── Live snapshot ────────────────────────────────────────────────────────────
 - (TILiveDebugBuild *)buildLiveSnapshotFor:(TI59MachineWrapper *)machine frozen:(BOOL)frozen;
 + (NSArray<TIStepEntry *> *)programListing:(NSData *)keycodes argSteps:(NSIndexSet *)argSteps
                                currentStep:(NSInteger)currentStep;
-+ (NSInteger)decodeProgramCounter:(TICpuFrame)frame;
 
 // ── ROM heatmap ──────────────────────────────────────────────────────────────
 - (void)heatmapIngest:(NSArray<NSValue *> *)frames;

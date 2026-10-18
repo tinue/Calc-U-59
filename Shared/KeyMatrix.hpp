@@ -13,13 +13,12 @@ namespace cu59 {
 /// K-line bit for each physical column; index 0 unused.
 inline constexpr int kKBits[6] = {0, 1, 2, 3, 5, 6};
 
-struct RowCol { int row, col; };
-
 inline constexpr bool isValidMatrixCode(int code) {
     return code / 10 >= 1 && code / 10 <= 9 && code % 10 >= 1 && code % 10 <= 5;
 }
 
-inline constexpr RowCol toRowCol(int code) { return {code / 10, code % 10}; }
+/// Matrix code of the key at 0-based (row, col) — KeyboardLayout's key grid.
+inline constexpr uint8_t matrixCode(int row, int col) { return static_cast<uint8_t>((row + 1) * 10 + (col + 1)); }
 
 /// TI59Machine::pressKey takes (kBit, digitSlot): the digit slot is the row,
 /// which equals the digit-counter column for that keyboard row.

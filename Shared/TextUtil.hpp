@@ -88,12 +88,6 @@ inline std::vector<std::string_view> splitOn(std::string_view s, std::string_vie
     }
 }
 
-/// Everything after the first separator, re-joined (parts[1...].joined(separator:)).
-inline std::string_view afterFirst(std::string_view s, char sep) {
-    size_t p = s.find(sep);
-    return p == std::string_view::npos ? std::string_view() : s.substr(p + 1);
-}
-
 /// Text before the first '#', trimmed (the state-file inline-comment rule).
 inline std::string_view stripInlineComment(std::string_view line) {
     return trim(line.substr(0, line.find('#')));

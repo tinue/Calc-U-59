@@ -27,7 +27,6 @@ public:
     void armPcChange(const TI59Machine& m);
     void disarmScanLoopExit();
     void disarmPcChange();
-    void disarmAll();
 
     bool scanLoopExitArmed() const { return m_scanArmed.load(); }
     bool pcChangeArmed() const { return m_pcArmed.load(); }

@@ -1,10 +1,5 @@
 import Foundation
 
-/// Zero-width space marking a grid cell as merged into the preceding label's span.
-/// Written to `\blank` on disk (see Shared/CueCard.hpp) since the raw character
-/// does not survive whitespace-trimming on a round trip through a file.
-let cueCardInvisibleMarker = TICueCard.invisibleMarker()
-
 // Cue card parsing, encoding and the math-token table live in Shared/CueCard.cpp;
 // this file holds the SwiftUI-facing value type and its bridge conversion.
 

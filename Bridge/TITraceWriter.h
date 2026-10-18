@@ -7,9 +7,6 @@ NS_ASSUME_NONNULL_BEGIN
 /// translation only. Thread-safe.
 @interface TITraceWriter : NSObject
 
-/// model = MachineModel raw value.
-- (instancetype)initWithModel:(NSInteger)model;
-
 /// CALCU59_TRACE.bin / CALCU58_TRACE.bin / CALCU58C_TRACE.bin.
 + (NSString *)baseFileNameForModel:(NSInteger)model;
 
@@ -18,11 +15,6 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)close;
 @property (readonly) BOOL isOpen;
 
-/// NO if this frame reached the size limit and the session was closed.
-- (BOOL)writeFrame:(TICpuFrame)frame;
-- (void)writeLostGap:(uint32_t)count;
-- (void)writeKeyDownRow:(uint8_t)row col:(uint8_t)col;
-- (void)writeKeyUpRow:(uint8_t)row col:(uint8_t)col;
 - (void)writeCardInsert;
 - (void)writeCardEject;
 

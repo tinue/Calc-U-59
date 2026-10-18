@@ -83,7 +83,7 @@ TEST(apply_every_example_file) {
         auto text = testroms::readFile(e.path().string());
         auto pre = prescanStateFile(*text, ext == ".ti58" ? Model::TI58 : ext == ".ti58c" ? Model::TI58C : Model::TI59);
         Model model = pre.targetModel;
-        auto r = parseStateFile(*text, info(model).hasLargeMemory ? 959 : 479, info(model).hasConstantMemory);
+        auto r = parseStateFile(*text, info(model).maxStep(), info(model).hasConstantMemory);
         if (stateFilePartitionError(r, model)) continue;
         auto m = testroms::makeMachine(model);
         if (r.skipReset) {

@@ -26,6 +26,11 @@ void applyState(TI59Machine& m, const LoadStateResult& r, Model model);
 /// program only if it has one, and the registers — nothing else is touched.
 void applySkipResetState(TI59Machine& m, const LoadStateResult& r, Model model);
 
+/// A fresh machine's power-on. TI-58C: run the ROM's startup once, then
+/// restore its constant memory from `savedRam` (if given), so startup code
+/// can't overwrite the restored registers. Other models: nothing to do.
+void powerOn(TI59Machine& m, Model model, const std::vector<uint8_t>* savedRam);
+
 /// The Reset button: reset the CPU (the printer's TRACE latch survives, as on
 /// the hardware). TI-58C: restore its constant memory if `savedRam` is given;
 /// other models: clear the registers beyond the current data partition.

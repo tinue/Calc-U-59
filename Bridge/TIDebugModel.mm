@@ -1,18 +1,12 @@
 #import "TIDebugModel.h"
 #import "TI59MachineWrapper+Cpp.h"
+#import "BridgeConvert.h"
 #include "../Shared/AsmOverlay.hpp"
 #include "../Shared/DebugLog.hpp"
 #include "../Shared/DebugSnapshots.hpp"
 #include "../Shared/RomHeatmap.hpp"
-#include <cstring>
 
 namespace {
-NSString* ns(const std::string& s) { return [[NSString alloc] initWithBytes:s.data() length:s.size() encoding:NSUTF8StringEncoding] ?: @""; }
-std::string cpp(NSString* s) { return s ? std::string(s.UTF8String) : std::string(); }
-std::vector<uint8_t> bytes(NSData* d) {
-    const auto* p = static_cast<const uint8_t*>(d.bytes);
-    return std::vector<uint8_t>(p, p + d.length);
-}
 NSArray<NSString*>* lines(const std::vector<std::string>& v) {
     NSMutableArray* a = [NSMutableArray arrayWithCapacity:v.size()];
     for (const auto& l : v) [a addObject:ns(l)];
@@ -61,9 +55,6 @@ static NSArray<TIStepEntry*>* stepEntries(const std::vector<cu59::StepEntry>& v)
 @property (nonatomic, readwrite) NSInteger programRegCount;
 @property (nonatomic, readwrite, copy) NSArray<TIStepEntry *> *programWindow;
 @property (nonatomic, readwrite) NSInteger currentStep;
-@property (nonatomic, readwrite) NSInteger nextStepNum;
-@property (nonatomic, readwrite) uint8_t nextStepKeycode;
-@property (nonatomic, readwrite, copy) NSString *nextStepMnemonic;
 @property (nonatomic, readwrite, copy) NSArray<NSNumber *> *hir;
 @property (nonatomic, readwrite) double tRegister;
 @property (nonatomic, readwrite, copy) NSArray<NSNumber *> *calcFlags;
@@ -80,7 +71,6 @@ static NSArray<TIStepEntry*>* stepEntries(const std::vector<cu59::StepEntry>& v)
 @property (nonatomic, readwrite) NSInteger programSource;
 @property (nonatomic, readwrite) NSInteger pendingOpsCount;
 @property (nonatomic, readwrite, copy) NSArray<NSString *> *scomRows;
-@property (nonatomic, readwrite, copy) NSString *returnAddress;
 @property (nonatomic, readwrite, copy) NSData *returnAddressSourceFlags;
 @property (nonatomic, readwrite, copy) NSArray<NSNumber *> *returnAddresses;
 @end
@@ -112,9 +102,6 @@ static TILiveDebugSnapshot* snapshotFrom(const cu59::LiveDebugSnapshot& s) {
     t.programRegCount = s.programRegCount;
     t.programWindow = stepEntries(s.programWindow);
     t.currentStep = s.currentStep;
-    t.nextStepNum = s.nextStepNum;
-    t.nextStepKeycode = s.nextStepKeycode;
-    t.nextStepMnemonic = ns(s.nextStepMnemonic);
     NSMutableArray* hir = [NSMutableArray arrayWithCapacity:8];
     for (double v : s.hir) [hir addObject:@(v)];
     t.hir = hir;
@@ -137,7 +124,6 @@ static TILiveDebugSnapshot* snapshotFrom(const cu59::LiveDebugSnapshot& s) {
     NSMutableArray* rows = [NSMutableArray arrayWithCapacity:16];
     for (const auto& r : s.scomRows) [rows addObject:ns(r)];
     t.scomRows = rows;
-    t.returnAddress = ns(s.returnAddress);
     t.returnAddressSourceFlags = [NSData dataWithBytes:s.returnAddressSourceFlags.data() length:6];
     NSMutableArray* ra = [NSMutableArray arrayWithCapacity:6];
     for (int a : s.returnAddresses) [ra addObject:@(a)];
@@ -169,8 +155,6 @@ static TILiveDebugSnapshot* snapshotFrom(const cu59::LiveDebugSnapshot& s) {
     return error.empty() ? nil : ns(error);
 }
 
-- (void)resetRomCache { _romCache.clear(); }
-
 - (TILiveDebugBuild *)buildLiveSnapshotFor:(TI59MachineWrapper *)machine frozen:(BOOL)frozen {
     auto b = cu59::buildLiveSnapshot(*machine.cppMachine, _model, _module, _romCache, frozen == YES);
     TILiveDebugBuild* t = [[TILiveDebugBuild alloc] init];
@@ -187,12 +171,6 @@ static TILiveDebugSnapshot* snapshotFrom(const cu59::LiveDebugSnapshot& s) {
 + (NSArray<TIStepEntry *> *)programListing:(NSData *)keycodes argSteps:(NSIndexSet *)argSteps
                                currentStep:(NSInteger)currentStep {
     return stepEntries(cu59::programListing(bytes(keycodes), indexSet(argSteps), static_cast<int>(currentStep)));
-}
-
-+ (NSInteger)decodeProgramCounter:(TICpuFrame)frame {
-    CpuFrame f;
-    std::memcpy(&f, &frame, sizeof f);  // layouts checked in TITraceWriter.mm
-    return cu59::decodeProgramCounter(f);
 }
 
 - (void)heatmapIngest:(NSArray<NSValue *> *)frames {

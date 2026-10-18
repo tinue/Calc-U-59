@@ -84,6 +84,25 @@ std::string registerLineHex(const Nibbles16& nibbles) {
     return out;
 }
 
+std::optional<std::array<uint8_t, 8>> parseRegisterLineHex(std::string_view s) {
+    auto tokens = splitWords(s);
+    if (tokens.size() != 8) return std::nullopt;
+    std::array<uint8_t, 8> out{};
+    for (size_t i = 0; i < 8; ++i) {
+        auto v = parseHex(tokens[i]);
+        if (!v || *v > 0xFF) return std::nullopt;
+        out[i] = static_cast<uint8_t>(*v);
+    }
+    return out;
+}
+
+std::string nibbleHex(const uint8_t* nibbles, bool msdFirst) {
+    static const char* kHex = "0123456789abcdef";
+    std::string s(16, '0');
+    for (int i = 0; i < 16; ++i) s[static_cast<size_t>(msdFirst ? 15 - i : i)] = kHex[nibbles[i] & 0xF];
+    return s;
+}
+
 Nibbles16 decodeRegisterLine(const std::array<uint8_t, 8>& bytes) {
     Nibbles16 n{};
     for (size_t i = 0; i < 8; ++i) {

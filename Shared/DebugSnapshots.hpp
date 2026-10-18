@@ -55,9 +55,6 @@ struct LiveDebugSnapshot {
 
     std::vector<StepEntry> programWindow;  ///< ±5 steps around currentStep
     int currentStep = -1;               ///< -1 = unknown
-    int nextStepNum = -1;               ///< frozen only: next step to execute
-    uint8_t nextStepKeycode = 0;
-    std::string nextStepMnemonic;
 
     std::array<double, 8> hir{};        ///< HIR 1–8 (SCOM[1..8])
     double tRegister = 0;               ///< SCOM[11]
@@ -75,7 +72,6 @@ struct LiveDebugSnapshot {
     int pendingOpsCount = 0;
 
     std::array<std::string, 16> scomRows;   ///< nibbles 0→15 as lowercase hex
-    std::string returnAddress;              ///< "L6:… L1:… (count=n)"
     std::array<uint8_t, 6> returnAddressSourceFlags{};  ///< L1–L6
     std::array<int, 6> returnAddresses{};               ///< L1–L6
 

@@ -14,8 +14,6 @@ import Foundation
 
 final class TraceWriter {
 
-    private static let defaultMaxFileSizeMB = 50
-
     var isOpen: Bool { writer.isOpen }
     private(set) var isAvailable = true  // false if iCloud/storage is unavailable
     private var currentTraceURL: URL?  // Track the URL for security-scoped resource cleanup
@@ -60,9 +58,7 @@ final class TraceWriter {
             print("[TraceWriter] open(): trace location is not available — no file will be written")
             return false
         }
-        // integer(forKey:) returns 0 when unset; any positive user value is honoured.
-        let maxMB = UserDefaults.standard.integer(forKey: SettingsKey.traceMaxFileSizeMB)
-        sessionMaxBytes = UInt64(maxMB > 0 ? maxMB : Self.defaultMaxFileSizeMB) * 1_000_000
+        sessionMaxBytes = UInt64(AppSettings.resolvedTraceMaxMB()) * 1_000_000
         guard writer.open(atPath: url.path, maxBytes: sessionMaxBytes) else {
             print("[TraceWriter] open(): could not create trace file at \(url.path)")
             return false

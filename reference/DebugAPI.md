@@ -165,7 +165,7 @@ Exponent is stored as an unsigned magnitude (0–99); the sign is encoded in nib
 All-zero encodes 0.0.
 
 Helpers: `cu59::encodeBcd(double)` / `cu59::encodeBcd(std::string_view)` (in `Shared/Bcd.hpp`)
-and `TI59MachineWrapper.decodeBCD(_ nibbles16: Data) → Double`.
+and `TI59Machine::decodeBCD`.
 
 ---
 
@@ -218,13 +218,9 @@ Advances one keycode boundary while frozen.  After the step:
 
 ### Frozen-display semantics
 
-When frozen, `currentStep` and `nextStepNum` in `LiveDebugSnapshot` use the
-following convention:
-
-```
-currentStep = decodedPC − 1   (last fully executed step)
-nextStepNum = decodedPC       (next step to execute, from PC)
-```
+When frozen, `currentStep` in `LiveDebugSnapshot` is the last fully executed
+step (`decodedPC − 1`); the next step to execute is the one after it in the
+listing.
 
 The frozen program window shows the full program listing (built once on freeze) and
 scrolls to `currentStep` automatically.  The "next" step is rendered below the
@@ -263,9 +259,6 @@ The snapshot is stored in `vm.liveDebugSnapshot` and read by `LiveDebugView`.
 |-------|------|-------------|
 | `programWindow` | `[StepEntry]` | ±5 steps around `currentStep` when running; not used when frozen (full cache used instead) |
 | `currentStep` | `Int` | Decoded program counter; −1 = unknown.  When frozen: last executed step (decodedPC − 1) |
-| `nextStepNum` | `Int` | Step number of next-to-execute instruction (from PC when frozen); −1 when running |
-| `nextStepKeycode` | `UInt8` | Keycode at `nextStepNum` |
-| `nextStepMnemonic` | `String` | Mnemonic of `nextStepNum` |
 
 `StepEntry` fields: `stepNum: Int`, `keycode: UInt8`, `mnemonic: String`, `isCurrent: Bool`.
 
@@ -283,7 +276,7 @@ BCD representation in SCOM rows 1–8.
 
 | Field | SCOM row | Description |
 |-------|----------|-------------|
-| `hir1`–`hir8` | SCOM[1]–SCOM[8] | Hierarchy registers 1–8 |
+| `hir[0]`–`hir[7]` | SCOM[1]–SCOM[8] | Hierarchy registers 1–8 |
 
 Each HIR nibble layout: bits 15–3 = mantissa, 2–1 = exponent, 0 = sign (same
 format as data registers).
@@ -353,7 +346,6 @@ just-executed RTN.
 | Field | Type | Description |
 |-------|------|-------------|
 | `scomRows` | `[String]` | All 16 SCOM rows as 16-character lowercase hex strings (nibble[0] first) |
-| `printerSCOM` | `[String]` | First 4 rows of `scomRows` (SCOM[0]–SCOM[3], the printer region) |
 
 ### Return address stack (SCOM[14:15])
 

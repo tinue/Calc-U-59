@@ -1,5 +1,6 @@
 #import "TISession.h"
 #import "TI59MachineWrapper+Cpp.h"
+#import "BridgeConvert.h"
 #import "TIFileFormats+Cpp.h"
 #import "TITraceWriter+Cpp.h"
 #include "../Shared/EmulatorSession.hpp"
@@ -7,13 +8,11 @@
 
 namespace {
 
-NSString* ns(const std::string& s) { return [[NSString alloc] initWithBytes:s.data() length:s.size() encoding:NSUTF8StringEncoding] ?: @""; }
-
 cu59::ResourceReader readerFrom(TIResourceReader block) {
     return [block](const std::string& name) -> std::optional<std::string> {
         NSString* text = block(ns(name));
         if (!text) return std::nullopt;
-        return std::string(text.UTF8String);
+        return cpp(text);
     };
 }
 
@@ -54,7 +53,6 @@ struct DelegateListener : cu59::EmulatorSession::Listener {
     std::unique_ptr<cu59::EmulatorSession> _session;
     TI59MachineWrapper* _machine;
     TITraceWriter* _manualTrace;
-    TITraceWriter* _scriptedTrace;
 }
 
 - (instancetype)initWithModel:(NSInteger)model reader:(TIResourceReader)reader
@@ -74,7 +72,6 @@ struct DelegateListener : cu59::EmulatorSession::Listener {
     }
     _machine = [[TI59MachineWrapper alloc] initWithSharedMachine:_session->sharedMachine()];
     _manualTrace = [[TITraceWriter alloc] initWithWriter:&_session->manualTrace()];
-    _scriptedTrace = [[TITraceWriter alloc] initWithWriter:&_session->scriptedTrace()];
     return self;
 }
 
@@ -150,7 +147,6 @@ struct DelegateListener : cu59::EmulatorSession::Listener {
 }
 
 - (TITraceWriter *)manualTrace { return _manualTrace; }
-- (TITraceWriter *)scriptedTrace { return _scriptedTrace; }
 - (void)setTraceDirectory:(NSString *)path maxBytes:(uint64_t)maxBytes {
     _session->setTraceLocation(std::filesystem::path(path.fileSystemRepresentation), maxBytes);
 }

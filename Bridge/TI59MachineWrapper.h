@@ -48,25 +48,11 @@ typedef struct {
 
 @interface TI59MachineWrapper : NSObject
 
-- (instancetype)initWithModel:(NSInteger)model;
-
-/// Load ROM words (NSData containing uint16_t little-endian array).
-- (void)loadROM:(NSData*)romData;
-
-/// Load Library module (NSData containing 5000 uint8_t bytes).
-- (void)loadLibrary:(NSData*)libData;
-
-/// Load constants (NSData containing 64×16 uint8_t constant rows).
-- (void)loadConstants:(NSData*)constData;
-
 /// Reset the CPU to power-on state (PC=0, registers cleared, card absent).
 - (void)reset;
 
 /// Execute one CPU instruction. Returns cycle count.
 - (uint32_t)step;
-
-/// Execute up to n CPU instructions under a single mutex lock. Returns count executed.
-- (uint32_t)stepN:(uint32_t)n;
 
 /// Execute steps until the program-step counter (SCOM[0][4:7]) changes (keycode boundary).
 /// Returns cycle-equivalents executed (IDLE steps count as 4, active steps as 1).
@@ -78,36 +64,13 @@ typedef struct {
 - (void)pressKeyRow:(int)row col:(int)col;
 - (void)releaseKeyRow:(int)row col:(int)col;
 
-/// Read current display state.
-- (TIDisplaySnapshot)getDisplay;
-
-/// TI-58C: serialise/deserialise RAM (returns/accepts 1920-byte NSData).
+/// TI-58C: serialise RAM (1920-byte NSData).
 - (NSData*)serialiseRAM;
-- (void)deserialiseRAM:(NSData*)data;
 
 // ── State file load helpers ───────────────────────────────────────────────────
 
-/// Write program steps (one byte per step, keycode 0–99) starting at step 0.
-- (void)writeProgramSteps:(NSData*)keycodes;
-
-/// Write a data register (regNum 00–58) from exactly 16 nibble bytes.
-- (void)writeDataRegister:(NSInteger)regNum nibbles:(NSData*)nibbles16;
-
 /// Current program register count (= data register base index).
 @property NSInteger partitionProgramRegs;
-
-/// The solid-state module currently inserted, derived from SCOM[9] nibbles 3 and 4.
-/// Returns 0 when no module is present. Returns N where N = nibble4*10 + nibble3 for ML01–ML30.
-@property (readonly) NSInteger insertedModuleNumber;
-
-/// Latched solid-state library execution address: module byte address (0–4999)
-/// of the keycode most recently dispatched by the program interpreter.
-/// 0xFFFF until a module keycode executes (also after reset / module change).
-@property (readonly) uint16_t libExecPC;
-
-/// Cumulative weighted instruction-step count since the last reset. Divide by the
-/// machine's active-mode instruction rate to get elapsed wall-clock seconds.
-@property (readonly) uint64_t elapsedTicks;
 
 // ── Magnetic card reader ─────────────────────────────────────────────────────
 
@@ -118,9 +81,6 @@ typedef struct {
 /// Eject the card; returns bytes captured by OUT CRD (empty for read swipes).
 - (NSData*)cardEject;
 
-/// YES while the card is physically passing through the reader slot.
-@property (readonly) BOOL isCardPresent;
-
 /// YES while the ROM is polling TST BUSY waiting for a card to be inserted.
 @property (readonly) BOOL isWaitingForCard;
 
@@ -128,12 +88,6 @@ typedef struct {
 @property (readonly) NSInteger cardMode;
 
 // ── Printer ───────────────────────────────────────────────────────────────────
-
-/// Drain all pending printer output lines (call at 60 Hz from the UI thread).
-- (NSArray<NSString*>*)drainPrinterLines;
-/// Drain raw 6-bit character codes for dot-matrix rendering, parallel to drainPrinterLines.
-/// Each NSData is 20 bytes (code 0–63 per column). Feed lines are 20 zero bytes.
-- (NSArray<NSData*>*)drainPrinterCodeLines;
 
 /// Simulate pressing/releasing the PRINT button on the PC-100A.
 - (void)pressPrinterPrint:(BOOL)pressed;
@@ -152,12 +106,8 @@ typedef struct {
 // ── Trace / debug API ─────────────────────────────────────────────────────────
 
 /// Set the debug event level. 0 = off, 1 = INFO, 2 = DEBUG.
-/// When non-zero, the CPU emits DebugEvents for write operations;
-/// drain them via -drainDebugMessages at 60 Hz.
+/// When non-zero, the CPU emits DebugEvents for write operations.
 - (void)setDebugLevel:(uint8_t)level;
-
-/// Drain pending debug messages as level-prefixed strings ("I:…" or "D:…").
-- (NSArray<NSString*>*)drainDebugMessages;
 
 @property (nonatomic) TITraceFlags traceFlags;
 @property (readonly)  uint16_t currentPC;
@@ -173,18 +123,6 @@ typedef struct {
 /// Clear all debug overlay words from 0x1800-0x1FFF.
 - (void)clearDebugOverlay;
 
-/// Force execution entry at startAddr. Returns YES when entry succeeded.
-- (BOOL)runDebugOverlayAt:(uint16_t)startAddr
-                 maxSteps:(uint32_t)maxSteps
-                    steps:(uint32_t*)outSteps;
-
-/// Drain up to `max` CPU frames into an array. If ring overflow occurred,
-/// *outLost is set to the count of frames that were overwritten. Returns
-/// an array of TICpuFrame NSValues.
-- (NSArray<NSValue*>*)drainCpuFramesMax:(NSUInteger)max
-                                   lost:(NSUInteger*)outLost
-    NS_SWIFT_NAME(drainCpuFrames(max:lost:));
-
 /// Read (without draining) up to `max` most recent CPU frames. Does not remove
 /// frames from the ring buffer; safe to call repeatedly.
 - (NSArray<NSValue*>*)readCpuFramesMax:(NSUInteger)max
@@ -195,13 +133,6 @@ typedef struct {
 + (NSString*)disassemblePC:(uint16_t)pc opcode:(uint16_t)opcode;
 
 // ── Calculator-level API ──────────────────────────────────────────────────────
-
-/// Press/release a key by matrix code: row*10 + col,
-/// row 1–9 (top→bottom), col 1–5 (left→right). Invalid codes are ignored.
-- (void)pressMatrixKey:(uint8_t)matrixCode
-    NS_SWIFT_NAME(pressMatrixKey(_:));
-- (void)releaseMatrixKey:(uint8_t)matrixCode
-    NS_SWIFT_NAME(releaseMatrixKey(_:));
 
 /// Read data register regNum (0–58) decoded as a Double.
 - (double)dataRegister:(NSInteger)regNum
@@ -216,10 +147,6 @@ typedef struct {
 
 /// Pre-execution phase for the next instruction. Call after freeze or after step() in debugger.
 - (void)beginNextStep;
-
-/// Decode a 16-nibble BCD register to a Double (pure, no machine state needed).
-+ (double)decodeBCDNibbles:(NSData*)nibbles16
-    NS_SWIFT_NAME(decodeBCD(_:));
 
 // ── Raw RAM access ────────────────────────────────────────────────────────────
 

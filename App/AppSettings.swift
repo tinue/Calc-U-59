@@ -113,6 +113,12 @@ enum AppSettings {
         return MachineModel(rawValue: raw) ?? .ti59
     }
 
+    /// Maximum trace file size in MB; 50 when unset or not positive.
+    static func resolvedTraceMaxMB() -> Int {
+        let mb = UserDefaults.standard.integer(forKey: SettingsKey.traceMaxFileSizeMB)
+        return mb > 0 ? mb : 50
+    }
+
     /// Returns the solid-state module ID from UserDefaults.
     /// Defaults to "ML" if not set.
     static func resolvedSolidStateModuleID() -> String {

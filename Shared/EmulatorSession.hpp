@@ -14,6 +14,7 @@
 #include <mutex>
 #include <optional>
 #include <string>
+#include <vector>
 
 // One running calculator: the machine plus the runtime around it that both
 // frontends share — the paced run loop and its thread, armed freezes, timed
@@ -141,6 +142,7 @@ private:
     std::mutex m_traceMutex;           ///< serialises drainTrace with scripted open/close
     std::filesystem::path m_traceDir;
     uint64_t m_traceMaxBytes = 50'000'000;
+    std::vector<CpuFrame> m_drainBuf = std::vector<CpuFrame>(1024);  ///< drainTrace scratch, under m_traceMutex
     std::atomic<bool> m_frozen{false};
     std::atomic<uint64_t> m_elapseBaseline{0};
     std::unique_ptr<EmulationRunner> m_runner;

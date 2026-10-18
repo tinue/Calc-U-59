@@ -3,20 +3,10 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-/// Swift face of the Shared/ data tables (key names, keyboard map, 7-segment
+/// Swift face of the Shared/ data tables (keyboard map, 7-segment
 /// patterns, printer font, canvas/key layout, per-model facts). Type
 /// translation only — the tables and rules live in Shared/.
 @interface TISharedTables : NSObject
-
-// ── Program keycodes (Shared/KeyNames.hpp) ──────────────────────────────────
-+ (NSString *)mnemonicForKeycode:(uint8_t)keycode;
-+ (NSInteger)stepsAfterKeycode:(uint8_t)keycode;
-/// Indices of steps that are operands of a preceding opcode.
-+ (NSIndexSet *)argumentStepsIn:(NSData *)keycodes;
-
-// ── Register lines (Shared/Bcd.hpp) ──────────────────────────────────────────
-/// 16 register nibbles as "17 20 63 00 00 00 00 00".
-+ (NSString *)registerLineHex:(NSData *)nibbles;
 
 // ── Physical keyboard (Shared/KeyboardMap.hpp) ──────────────────────────────
 /// One or two matrix codes for a key press; empty if unbound.
@@ -40,15 +30,14 @@ NS_ASSUME_NONNULL_BEGIN
 @property (class, readonly) CGFloat keyboardYScale;
 /// Key rect in keyboard-image space; row 0–8, col 0–4.
 + (CGRect)keyRectAtRow:(NSInteger)row col:(NSInteger)col NS_SWIFT_NAME(keyRect(row:col:));
+/// Matrix code (state-file key code) of the key at row 0–8, col 0–4.
++ (uint8_t)matrixCodeAtRow:(NSInteger)row col:(NSInteger)col NS_SWIFT_NAME(matrixCode(row:col:));
 /// row×5 + col of the key whose widened hit rect contains the point, or -1.
 + (NSInteger)keyIndexAtX:(CGFloat)nx y:(CGFloat)ny NS_SWIFT_NAME(keyIndex(x:y:));
 
 // ── Per-model facts (Shared/MachineModelInfo.hpp); model = MachineModel raw value
-+ (double)instructionHzForModel:(NSInteger)model;
-/// Steady-state keyboard scan loop (FREEZE ON START).
-+ (NSRange)scanLoopRangeForModel:(NSInteger)model;
-/// Full scan/detect cycle (full-speed throttle, KEYSTROKES pacing).
-+ (NSRange)idleAndKeyDetectRangeForModel:(NSInteger)model;
+/// Highest program step the RAM can hold (959 or 479).
++ (NSInteger)maxStepForModel:(NSInteger)model;
 
 @end
 

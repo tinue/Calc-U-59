@@ -188,6 +188,7 @@ private:
 
     QTimer m_frameTimer, m_programTimer, m_logTimer, m_persistTimer;
     std::atomic<bool> m_persistPending{false};
+    std::string m_persistedText;  ///< last ti58c.mem contents written
 
     DisplaySnapshot m_display{};
     double m_calcOpacity = 0;
@@ -220,6 +221,7 @@ private:
     cu59::ProgramSource m_listingSource = cu59::ProgramSource::UserProgram;
     int m_lastLibMismatch = -1;
     std::vector<cu59::InspectorEntry> m_cpuHistory;
+    uint32_t m_cpuHistorySeqno = 0;  ///< newest trace seqno in m_cpuHistory
     cu59::RomHeatmap m_heatmap;
 
     DebugLevel m_debugLevel = DebugLevel::Off;

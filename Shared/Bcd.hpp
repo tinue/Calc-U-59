@@ -1,6 +1,7 @@
 #pragma once
 #include <array>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -39,5 +40,11 @@ Nibbles16 decodeRegisterLine(const std::array<uint8_t, 8>& bytes);
 
 /// encodeRegisterLine as "17 20 63 00 00 00 00 00" (ti58c.mem and the RAM dump).
 std::string registerLineHex(const Nibbles16& nibbles);
+
+/// Exactly 8 space-separated hex bytes ("17 20 63 00 00 00 00 00"), or nullopt.
+std::optional<std::array<uint8_t, 8>> parseRegisterLineHex(std::string_view s);
+
+/// 16 nibbles as lowercase hex digits, nibble 0 first (msdFirst: nibble 15 first).
+std::string nibbleHex(const uint8_t* nibbles, bool msdFirst = false);
 
 } // namespace cu59

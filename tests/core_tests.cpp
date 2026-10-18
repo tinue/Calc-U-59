@@ -9,23 +9,6 @@ using cu59::Model;
 
 namespace {
 
-/// Display as text, leftmost digit first, using the LED decode rules
-/// (ctrl 0/1/8/9 = digit, 5/6 = minus/degree, others blank).
-std::string displayText(const TI59Machine& m) {
-    DisplaySnapshot d = m.getDisplay();
-    std::string s;
-    for (int i = 11; i >= 0; --i) {
-        if (d.suppressedMask & (1u << i)) continue;
-        switch (d.ctrl[i]) {
-        case 0: case 1: case 8: case 9: s += static_cast<char>('0' + (d.digits[i] & 0xF) % 10); break;
-        case 5: s += d.digits[i] == 0 ? '-' : 'o'; break;
-        case 6: s += '-'; break;
-        default: break;
-        }
-    }
-    return s;
-}
-
 // Matrix codes (reference/StateFileFormat.md): 2 = 83, 3 = 84, + = 85, = = 95, CLR = 25.
 constexpr int kKey2 = 83, kKey3 = 84, kPlus = 85, kEquals = 95, kClr = 25;
 
@@ -61,7 +44,7 @@ TEST(boot_reaches_scan_loop_all_models) {
     for (Model model : {Model::TI59, Model::TI58, Model::TI58C}) {
         auto m = testroms::makeMachine(model);
         CHECK(testroms::runToScanLoop(*m, model));
-        CHECK_EQ(displayText(*m), std::string("0"));
+        CHECK_EQ(testroms::displayText(*m), std::string("0"));
     }
 }
 
@@ -70,7 +53,7 @@ TEST(two_plus_three_equals_five) {
         auto m = testroms::makeMachine(model);
         testroms::runToScanLoop(*m, model);
         for (int k : {kClr, kKey2, kPlus, kKey3, kEquals}) testroms::tap(*m, model, k);
-        CHECK_EQ(displayText(*m), std::string("5"));
+        CHECK_EQ(testroms::displayText(*m), std::string("5"));
     }
 }
 

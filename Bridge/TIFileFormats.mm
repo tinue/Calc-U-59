@@ -1,37 +1,12 @@
 #import "TIFileFormats+Cpp.h"
 #import "TI59MachineWrapper+Cpp.h"
+#import "BridgeConvert.h"
 #include "../Shared/CardFile.hpp"
 #include "../Shared/ConstantMemory.hpp"
 #include "../Shared/ModuleCatalog.hpp"
-#include "../Shared/RomLoader.hpp"
 #include "../Shared/StateApplier.hpp"
 #include "../Shared/StateFile.hpp"
 #include <memory>
-
-namespace {
-
-NSString* ns(const std::string& s) { return [[NSString alloc] initWithBytes:s.data() length:s.size() encoding:NSUTF8StringEncoding] ?: @""; }
-std::string cpp(NSString* s) { return s ? std::string(s.UTF8String) : std::string(); }
-NSData* nsData(const std::vector<uint8_t>& v) { return [NSData dataWithBytes:v.data() length:v.size()]; }
-std::vector<uint8_t> bytes(NSData* d) {
-    const auto* p = static_cast<const uint8_t*>(d.bytes);
-    return std::vector<uint8_t>(p, p + d.length);
-}
-
-cu59::ResourceReader readerFrom(TIResourceReader block) {
-    return [block](const std::string& name) -> std::optional<std::string> {
-        NSString* text = block(ns(name));
-        if (!text) return std::nullopt;
-        return cpp(text);
-    };
-}
-
-NSError* romError(const std::exception& e) {
-    return [NSError errorWithDomain:@"Calc-U-59.ROMLoader" code:1
-                           userInfo:@{NSLocalizedDescriptionKey: [NSString stringWithUTF8String:e.what()]}];
-}
-
-} // namespace
 
 // ── Cue card conversion ──────────────────────────────────────────────────────
 
@@ -45,8 +20,6 @@ NSError* romError(const std::exception& e) {
     return self;
 }
 + (TICueCard *)ml01Default { return TICueCardFrom(cu59::CueCardContent::ml01Default()); }
-+ (NSString *)expandMathTokens:(NSString *)input { return ns(cu59::expandMathTokens(cpp(input))); }
-+ (NSString *)invisibleMarker { return ns(cu59::kCueCardInvisibleMarker); }
 @end
 
 TICueCard* TICueCardFrom(const cu59::CueCardContent& c) {
@@ -95,17 +68,8 @@ static TICueCard* _Nullable optionalCard(const std::optional<cu59::CueCardConten
 
 // ── Result objects ───────────────────────────────────────────────────────────
 
-@interface TIKeystrokeEvent ()
-@property (nonatomic, readwrite) NSInteger kind;
-@property (nonatomic, readwrite) uint8_t code;
-@property (nonatomic, readwrite) double seconds;
-@property (nonatomic, readwrite, copy, nullable) NSString *traceName;
-@end
-@implementation TIKeystrokeEvent
-@end
-
 @interface TIStateFileResult ()
-@property (nonatomic, readwrite, copy) NSArray<TIKeystrokeEvent *> *keystrokes;
+@property (nonatomic, readwrite) BOOL hasKeystrokes;
 @property (nonatomic, readwrite, nullable) TICueCard *cueCard;
 @property (nonatomic, readwrite, copy, nullable) NSString *solidStateModuleID;
 @property (nonatomic, readwrite, copy, nullable) NSNumber *printerConnected;
@@ -138,10 +102,8 @@ static TICueCard* _Nullable optionalCard(const std::optional<cu59::CueCardConten
 
 @interface TIModuleMetadata ()
 @property (nonatomic, readwrite, copy) NSString *title;
-@property (nonatomic, readwrite, copy) NSString *sort;
 @property (nonatomic, readwrite, copy) NSString *moduleID;
 @property (nonatomic, readwrite, copy) NSString *menuTitle;
-@property (nonatomic, readwrite) NSInteger menuSort;
 @end
 @implementation TIModuleMetadata
 @end
@@ -149,10 +111,8 @@ static TICueCard* _Nullable optionalCard(const std::optional<cu59::CueCardConten
 static TIModuleMetadata* metadataFrom(const cu59::ModuleMetadata& m) {
     TIModuleMetadata* t = [[TIModuleMetadata alloc] init];
     t.title = ns(m.title);
-    t.sort = ns(m.sort);
     t.moduleID = ns(m.id);
     t.menuTitle = ns(m.menuTitle);
-    t.menuSort = m.menuSort;
     return t;
 }
 
@@ -167,41 +127,11 @@ static TIModuleMetadata* metadataFrom(const cu59::ModuleMetadata& m) {
 
 @implementation TIFileFormats
 
-+ (void)cueCard:(TICueCard *)card parseLine:(NSString *)line {
-    cu59::CueCardContent c = CueCardFrom(card);
-    c.parseLine(cpp(line));
-    TICueCard* updated = TICueCardFrom(c);
-    card.templateKind = updated.templateKind; card.title = updated.title;
-    card.bankLeft = updated.bankLeft; card.bankRight = updated.bankRight;
-    card.cardID = updated.cardID; card.labels = updated.labels;
-    card.row1 = updated.row1; card.row1Align = updated.row1Align;
-    card.row2 = updated.row2; card.row2Align = updated.row2Align;
-    card.row2R = updated.row2R; card.row2RAlign = updated.row2RAlign;
-    card.style = updated.style; card.color = updated.color;
-}
-
-+ (NSArray<NSString *> *)encodeCueCard:(TICueCard *)card template:(NSInteger)templateKind {
-    std::optional<cu59::CueCardTemplate> t;
-    if (templateKind >= 0) t = static_cast<cu59::CueCardTemplate>(templateKind);
-    NSMutableArray* out = [NSMutableArray array];
-    for (const auto& l : CueCardFrom(card).encodeToLines(t)) [out addObject:ns(l)];
-    return out;
-}
-
 + (TIStateFileResult *)parseStateFile:(NSString *)text maxStepAddr:(NSInteger)maxStepAddr
                  allowHiddenRegisters:(BOOL)allowHidden {
     cu59::LoadStateResult r = cu59::parseStateFile(cpp(text), static_cast<int>(maxStepAddr), allowHidden == YES);
     TIStateFileResult* t = [[TIStateFileResult alloc] init];
-    NSMutableArray* keys = [NSMutableArray array];
-    for (const auto& k : r.keystrokes) {
-        TIKeystrokeEvent* e = [[TIKeystrokeEvent alloc] init];
-        e.kind = static_cast<NSInteger>(k.kind);
-        e.code = k.code;
-        e.seconds = k.seconds;
-        e.traceName = k.traceName ? ns(*k.traceName) : nil;
-        [keys addObject:e];
-    }
-    t.keystrokes = keys;
+    t.hasKeystrokes = !r.keystrokes.empty();
     t.cueCard = optionalCard(r.cueCard);
     t.solidStateModuleID = r.solidStateModuleID ? ns(*r.solidStateModuleID) : nil;
     t.printerConnected = r.printerConnected ? @(*r.printerConnected) : nil;
@@ -262,30 +192,6 @@ static TIModuleMetadata* metadataFrom(const cu59::ModuleMetadata& m) {
     t.ram = nsData(r->ram);
     t.cueCard = optionalCard(r->cueCard);
     return t;
-}
-
-+ (NSData *)loadRomForModel:(NSInteger)model reader:(TIResourceReader)reader error:(NSError **)error {
-    try {
-        auto words = cu59::loadRom(static_cast<cu59::Model>(model), readerFrom(reader));
-        return [NSData dataWithBytes:words.data() length:words.size() * sizeof(uint16_t)];
-    } catch (const std::exception& e) {
-        if (error) *error = romError(e);
-        return nil;
-    }
-}
-
-+ (NSData *)loadConstantsForModel:(NSInteger)model reader:(TIResourceReader)reader error:(NSError **)error {
-    try {
-        return nsData(cu59::loadConstants(static_cast<cu59::Model>(model), readerFrom(reader)));
-    } catch (const std::exception& e) {
-        if (error) *error = romError(e);
-        return nil;
-    }
-}
-
-+ (NSData *)loadModuleRom:(NSString *)romFile reader:(TIResourceReader)reader {
-    auto lib = cu59::loadModule(cpp(romFile), readerFrom(reader));
-    return lib ? nsData(*lib) : nil;
 }
 
 + (NSArray<TIModuleMetadata *> *)allModuleMetadata:(NSString *)cuecardsTxt {

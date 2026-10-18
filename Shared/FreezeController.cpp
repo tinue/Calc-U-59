@@ -24,11 +24,6 @@ void FreezeController::disarmScanLoopExit() {
 
 void FreezeController::disarmPcChange() { m_pcArmed = false; }
 
-void FreezeController::disarmAll() {
-    disarmPcChange();
-    disarmScanLoopExit();
-}
-
 bool FreezeController::checkStep(uint16_t pc) {
     if (!m_scanArmed.load(std::memory_order_relaxed)) return false;
     if (m_scanLoop.contains(pc)) {

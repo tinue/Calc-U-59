@@ -4,9 +4,9 @@
 NS_ASSUME_NONNULL_BEGIN
 
 // Swift face of the Shared/ file formats: cue cards, state files, card files,
-// ti58c.mem, ROM text dumps and cuecards.txt. Type translation only — the
+// ti58c.mem and cuecards.txt. Type translation only — the
 // formats live in Shared/ (CueCard, StateFile, CardFile, ConstantMemory,
-// RomLoader, ModuleCatalog).
+// ModuleCatalog).
 
 /// A cue card (Shared/CueCard.hpp). Enum-valued properties use the C++
 /// enumerator order: template 0 CueCard, 1 MagnetCard, 2 SolidStateCard;
@@ -30,24 +30,12 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) NSInteger color;
 
 + (TICueCard *)ml01Default;
-+ (NSString *)expandMathTokens:(NSString *)input;
-+ (NSString *)invisibleMarker;
-@end
-
-/// One KEYSTROKES event (Shared/StateFile.hpp KeystrokeEvent::Kind order:
-/// 0 key, 1 toggleTrace, 2 wait, 3 waitFullSpeed, 4 trace, 5 fullSpeed,
-/// 6 regularSpeed, 7 zeroElapseTime, 8 reportElapseTime).
-@interface TIKeystrokeEvent : NSObject
-@property (nonatomic, readonly) NSInteger kind;
-@property (nonatomic, readonly) uint8_t code;
-@property (nonatomic, readonly) double seconds;
-@property (nonatomic, readonly, copy, nullable) NSString *traceName;
 @end
 
 /// A parsed state file. Partition, program and registers are not exposed:
 /// they go back to Shared/StateApplier through applyState:to:model:.
 @interface TIStateFileResult : NSObject
-@property (nonatomic, readonly, copy) NSArray<TIKeystrokeEvent *> *keystrokes;
+@property (nonatomic, readonly) BOOL hasKeystrokes;
 @property (nonatomic, readonly, nullable) TICueCard *cueCard;
 @property (nonatomic, readonly, copy, nullable) NSString *solidStateModuleID;
 @property (nonatomic, readonly, copy, nullable) NSNumber *printerConnected;  ///< BOOL
@@ -70,10 +58,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface TIModuleMetadata : NSObject
 @property (nonatomic, readonly, copy) NSString *title;
-@property (nonatomic, readonly, copy) NSString *sort;
 @property (nonatomic, readonly, copy) NSString *moduleID;
 @property (nonatomic, readonly, copy) NSString *menuTitle;
-@property (nonatomic, readonly) NSInteger menuSort;
 @end
 
 @interface TIModuleCards : NSObject
@@ -85,11 +71,6 @@ NS_ASSUME_NONNULL_BEGIN
 typedef NSString *_Nullable (^TIResourceReader)(NSString *fileName);
 
 @interface TIFileFormats : NSObject
-
-// ── Cue cards ────────────────────────────────────────────────────────────────
-+ (void)cueCard:(TICueCard *)card parseLine:(NSString *)line;
-/// templateKind -1 = no "Template:" line.
-+ (NSArray<NSString *> *)encodeCueCard:(TICueCard *)card template:(NSInteger)templateKind;
 
 // ── State files ──────────────────────────────────────────────────────────────
 + (TIStateFileResult *)parseStateFile:(NSString *)text maxStepAddr:(NSInteger)maxStepAddr
@@ -109,14 +90,7 @@ typedef NSString *_Nullable (^TIResourceReader)(NSString *fileName);
 + (NSString *)encodeConstantMemory:(NSData *)ram cueCard:(nullable TICueCard *)cueCard;
 + (nullable TIConstantMemory *)decodeConstantMemory:(NSString *)text;
 
-// ── ROM text dumps and cuecards.txt ──────────────────────────────────────────
-/// 6144 13-bit words, little-endian uint16. nil + error on failure.
-+ (nullable NSData *)loadRomForModel:(NSInteger)model reader:(TIResourceReader)reader
-                               error:(NSError *_Nullable *_Nullable)error;
-/// 64 × 16 constant nibbles. nil + error on failure.
-+ (nullable NSData *)loadConstantsForModel:(NSInteger)model reader:(TIResourceReader)reader
-                                     error:(NSError *_Nullable *_Nullable)error;
-+ (nullable NSData *)loadModuleRom:(NSString *)romFile reader:(TIResourceReader)reader;
+// ── cuecards.txt ─────────────────────────────────────────────────────────────
 + (NSArray<TIModuleMetadata *> *)allModuleMetadata:(NSString *)cuecardsTxt;
 + (nullable NSString *)moduleRomFile:(NSString *)cuecardsTxt moduleID:(NSString *)moduleID;
 + (TIModuleCards *)moduleCards:(NSString *)cuecardsTxt moduleID:(NSString *)moduleID;
