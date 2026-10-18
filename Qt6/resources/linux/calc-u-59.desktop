@@ -4,6 +4,6 @@ Name=Calc-U-59
 Comment=TI-59, TI-58 and TI-58C calculator emulator
 Exec=Calc-U-59 %f
 Icon=calc-u-59
-Categories=Utility;Calculator;Education;
+Categories=Utility;Calculator;
 MimeType=application/x-calcu59-state;
 Terminal=false
