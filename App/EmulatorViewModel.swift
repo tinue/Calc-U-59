@@ -871,7 +871,7 @@ class EmulatorViewModel {
     private var keyboardTask: Task<Void, Never>? = nil
 
     /// Handle a physical key going down, resolved to one or two matrix codes by
-    /// `TI59KeyboardMap`.
+    /// `Shared/KeyboardMap.cpp`.
     ///
     /// A single code follows the hardware's level semantics: it goes down now and
     /// comes back up in `keyboardKeyUp()`, subject to the minimum hold. A pair
@@ -1442,26 +1442,23 @@ class EmulatorViewModel {
         pendingCPUScanLoopFreeze = false
     }
 
+    /// Steady-state keyboard scan loop (FREEZE ON START); see Shared/MachineModelInfo.hpp.
     private var cpuScanLoopRange: ClosedRange<UInt16>? {
-        switch model {
-        case .ti59, .ti58: return 0x063C...0x0658
-        case .ti58c:       return 0x063D...0x0A2E
-        }
+        Self.closedRange(TISharedTables.scanLoopRange(forModel: model.rawValue))
     }
 
     /// PC range covering the FULL keyboard scan/detect cycle — release-gate spin
-    /// (0x0627, where a still-held key parks after its press is processed) through
-    /// key acceptance (0x0661: CLR.IDLE, where the CPU returns to full speed and
-    /// decode/dispatch begins). See rom/TI59-commented.asm (0x0620-0x0661) and
-    /// ideas/KeypressLatch.md. Wider than `cpuScanLoopRange` above (used only by FREEZE ON
+    /// through key acceptance. Wider than `cpuScanLoopRange` above (used only by FREEZE ON
     /// START, which cares about the steady-state cycle, not the release gates) —
     /// this one is used anywhere a held key or full-speed racing must not be allowed
     /// to blow past real "the calculator is still just scanning/debouncing" time.
+    /// Addresses and sources: Shared/MachineModelInfo.hpp.
     private var cpuIdleAndKeyDetectRange: ClosedRange<UInt16>? {
-        switch model {
-        case .ti59, .ti58: return 0x0627...0x0660
-        case .ti58c:       return 0x0627...0x0A2E
-        }
+        Self.closedRange(TISharedTables.idleAndKeyDetectRange(forModel: model.rawValue))
+    }
+
+    private static func closedRange(_ r: NSRange) -> ClosedRange<UInt16> {
+        UInt16(r.location)...UInt16(r.location + r.length - 1)
     }
 
     /// Poll until the CPU reaches the keyboard-scan idle loop. Used as the default
@@ -1572,7 +1569,7 @@ class EmulatorViewModel {
                         sourceKeycodes = libInfo.map { Array(self.moduleKeycodes[$0.range]) } ?? []
                         effectiveStep = currentStep
                     }
-                    let argSteps = TI59KeyNames.argumentSteps(in: sourceKeycodes)
+                    let argSteps = TISharedTables.argumentSteps(in: Data(sourceKeycodes))
                     self.refreshProgramListing(machine: m, source: source,
                                               currentStep: effectiveStep,
                                               sourceKeycodes: sourceKeycodes, argSteps: argSteps)
@@ -1645,12 +1642,12 @@ class EmulatorViewModel {
     /// For solidStateReturn call advanceProgramListingCurrent() instead —
     /// that source's SCOM PC is a raw return address, not a step number.
     private func refreshProgramListing(machine m: TI59MachineWrapper, source: ProgramSource, currentStep: Int,
-                                       sourceKeycodes: [UInt8], argSteps: Set<Int>) {
+                                       sourceKeycodes: [UInt8], argSteps: IndexSet) {
         guard !sourceKeycodes.isEmpty else { programListing = []; return }
         programListingSource = source
         programListing = sourceKeycodes.enumerated().map { i, kc in
             .init(stepNum: i, keycode: kc,
-                  mnemonic: argSteps.contains(i) ? String(format: "%02d", kc) : TI59KeyNames.mnemonic(for: kc),
+                  mnemonic: argSteps.contains(i) ? String(format: "%02d", kc) : TISharedTables.mnemonic(forKeycode: kc),
                   isCurrent: i == currentStep)
         }
     }
@@ -1994,7 +1991,7 @@ class EmulatorViewModel {
         case .solidState:             sourceKeycodes = libInfo.map { Array(moduleKeycodes[$0.range]) } ?? []
         case .solidStateReturn:       sourceKeycodes = []
         }
-        let argSteps = TI59KeyNames.argumentSteps(in: sourceKeycodes)
+        let argSteps = TISharedTables.argumentSteps(in: Data(sourceKeycodes))
 
         // Program window: ±5 steps around the current step
         if !sourceKeycodes.isEmpty {
@@ -2004,7 +2001,7 @@ class EmulatorViewModel {
             if lo <= hi {
                 for i in lo...hi {
                     let kc = sourceKeycodes[i]
-                    let mnemonic = argSteps.contains(i) ? String(format: "%02d", kc) : TI59KeyNames.mnemonic(for: kc)
+                    let mnemonic = argSteps.contains(i) ? String(format: "%02d", kc) : TISharedTables.mnemonic(forKeycode: kc)
                     snap.programWindow.append(.init(
                         stepNum: i,
                         keycode: kc,
@@ -2028,7 +2025,7 @@ class EmulatorViewModel {
             let nextKeycode = sourceKeycodes[snap.nextStepNum]
             snap.nextStepKeycode = nextKeycode
             let isArgument = argSteps.contains(snap.nextStepNum)
-            snap.nextStepMnemonic = isArgument ? String(format: "%02d", nextKeycode) : TI59KeyNames.mnemonic(for: nextKeycode)
+            snap.nextStepMnemonic = isArgument ? String(format: "%02d", nextKeycode) : TISharedTables.mnemonic(forKeycode: nextKeycode)
         }
 
         // Return address stack (SCOM[14:15]) — 6 levels of subroutine return addresses

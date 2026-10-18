@@ -365,7 +365,7 @@ struct PrinterDotLine: View {
             let dotY     = size.height * 0.5  // vertically centred in the one-row canvas
 
             for charIdx in 0..<min(codes.count, 20) {
-                let bits = pc100cFont[Int(codes[charIdx])][rowIdx]
+                let bits = TISharedTables.printerFontRow(forCode: codes[charIdx], row: rowIdx)
                 let charX = Double(charIdx) * charStep
                 for colIdx in 0..<5 {
                     guard bits & (0x10 >> colIdx) != 0 else { continue }

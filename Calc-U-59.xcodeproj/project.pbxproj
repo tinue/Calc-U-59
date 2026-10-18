@@ -92,6 +92,11 @@
 			path = Bridge;
 			sourceTree = "<group>";
 		};
+		8C7285722F69626400D5F025 /* Shared */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Shared;
+			sourceTree = "<group>";
+		};
 		8C7473C32FE5638A009DC59A /* Calc-U-59UITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = "Calc-U-59UITests";
@@ -132,6 +137,7 @@
 				8C72855B2F69626400D5F025 /* App */,
 				8C7285702F69626400D5F025 /* Core */,
 				8C7285712F69626400D5F025 /* Bridge */,
+				8C7285722F69626400D5F025 /* Shared */,
 				067A301B08617C3C718CAD6B /* roms/calculator/TMC0582.txt */,
 				922A6D0E64ED7C6A5E52CCD5 /* roms/calculator/TMC0583.txt */,
 				4E36B672AB3C06A1BC192AA5 /* roms/calculator/TMC0571B.txt */,
@@ -191,6 +197,7 @@
 				8C72855B2F69626400D5F025 /* App */,
 				8C7285702F69626400D5F025 /* Core */,
 				8C7285712F69626400D5F025 /* Bridge */,
+				8C7285722F69626400D5F025 /* Shared */,
 			);
 			name = "Calc-U-59";
 			packageProductDependencies = (
@@ -503,7 +510,7 @@
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_OBJC_BRIDGING_HEADER = "$(SRCROOT)/Bridge/TI59MachineWrapper.h";
+				SWIFT_OBJC_BRIDGING_HEADER = "$(SRCROOT)/Bridge/Calc-U-59-Bridging-Header.h";
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -564,7 +571,7 @@
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_OBJC_BRIDGING_HEADER = "$(SRCROOT)/Bridge/TI59MachineWrapper.h";
+				SWIFT_OBJC_BRIDGING_HEADER = "$(SRCROOT)/Bridge/Calc-U-59-Bridging-Header.h";
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";

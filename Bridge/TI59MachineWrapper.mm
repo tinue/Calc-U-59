@@ -1,9 +1,9 @@
 #import "TI59MachineWrapper.h"
 #include "../Core/TI59Machine.hpp"
+#include "../Shared/KeyMatrix.hpp"
 #include <memory>
 
 // Physical col 1–5 → TMC0501 K-line bit index (KO=1 KP=2 KQ=3 KS=5 KT=6)
-static const int kbits[] = {0, 1, 2, 3, 5, 6};  // index 0 unused; index col
 
 @implementation TI59MachineWrapper {
     std::unique_ptr<TI59Machine> _machine;
@@ -302,21 +302,11 @@ static TICpuFrame marshalCpuFrame(const CpuFrame& f) {
 // ── Calculator-level API ──────────────────────────────────────────────────────
 
 - (void)pressMatrixKey:(uint8_t)matrixCode {
-    // Matrix code = row×10 + col (row 1–9 top→bottom, col 1–5 left→right).
-    // TI59Machine::pressKey takes (kBit, digitSlot):
-    //   kBit       = K-line bit index from kbits[], maps physical col → hardware line
-    //   digitSlot  = row, which equals the digit-counter column for that keyboard row
-    int row = matrixCode / 10;   // digit counter 1–9
-    int col = matrixCode % 10;   // physical col 1–5
-    if (col < 1 || col > 5 || row < 1 || row > 9) return;
-    _machine->pressKey(kbits[col], row);
+    cu59::pressMatrix(*_machine, matrixCode);  // matrix code → (K-line bit, digit slot): Shared/KeyMatrix.hpp
 }
 
 - (void)releaseMatrixKey:(uint8_t)matrixCode {
-    int row = matrixCode / 10;
-    int col = matrixCode % 10;
-    if (col < 1 || col > 5 || row < 1 || row > 9) return;
-    _machine->releaseKey(kbits[col], row);
+    cu59::releaseMatrix(*_machine, matrixCode);
 }
 
 - (double)dataRegister:(NSInteger)regNum {

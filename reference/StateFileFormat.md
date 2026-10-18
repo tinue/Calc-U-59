@@ -213,7 +213,7 @@ These are **only relevant in the PROGRAM section**. In KEYSTROKES you must alway
 | `84` | OP\* (Op Ind) | `21 64` `21 45` | Op (2nd+9) with indirect register |
 | `92` | RTN | `22 71` | INV SBR; saves one program step vs storing INV + SBR separately |
 
-All indirect codes (`62–64`, `72–74`, `83–84`) take one additional operand byte (the register number) — see `stepsAfterTable` in `TI59KeyNames.swift`.
+All indirect codes (`62–64`, `72–74`, `83–84`) take one additional operand byte (the register number) — see `stepsAfter()` in `Shared/KeyNames.cpp`.
 
 The IND key itself is entered as **`21 45`** (2nd + y^x).
 

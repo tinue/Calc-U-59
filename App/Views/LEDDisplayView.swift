@@ -26,12 +26,11 @@ struct LEDDisplayView: View, Equatable {
                 let segs: UInt8
                 let cOpacity: Double   // 1.0 for normal segments; fades for "C" afterglow
                 if i == 11 && calcIndicatorOpacity > 0 {
-                    segs = segmentsC
+                    segs = TISharedTables.segmentsC
                     cOpacity = calcIndicatorOpacity
                 } else {
                     let isSuppressed = ((suppressedMask >> i) & 1) == 1
-                    let ch = isSuppressed ? DisplayChar.space : displayChar(digit: digits[i], ctrl: ctrl[i])
-                    segs = segmentMask(for: ch)
+                    segs = TISharedTables.segments(forDigit: digits[i], ctrl: ctrl[i], suppressed: isSuppressed)
                     cOpacity = 1.0
                 }
 
@@ -58,52 +57,8 @@ struct LEDDisplayView: View, Equatable {
 
     // MARK: - Display character decode (B-register table)
 
-    enum DisplayChar: Equatable {
-        case digit(UInt8)
-        case minus
-        case degree
-        case space
-        case blank
-    }
-
-    private func displayChar(digit: UInt8, ctrl: UInt8) -> DisplayChar {
-        switch ctrl {
-        case 0, 1, 8, 9: return .digit(digit & 0xF)
-        case 2, 3, 4:     return .space   // '"', positive sign, apostrophe
-        case 5:           return digit == 0 ? .minus : .degree
-        case 6:           return .minus
-        case 7:           return .blank
-        default:          return .blank
-        }
-    }
-
-    // MARK: - 7-segment bitmasks
-    // Segments: bit 0=A(top) 1=B(upper-right) 2=C(lower-right)
-    //           3=D(bottom) 4=E(lower-left) 5=F(upper-left) 6=G(middle)
-
-    private static let digitSegments: [UInt8] = [
-        0b0111111, // 0: A B C D E F
-        0b0000110, // 1: B C
-        0b1011011, // 2: A B D E G
-        0b1001111, // 3: A B C D G
-        0b1100110, // 4: B C F G
-        0b1101101, // 5: A C D F G
-        0b1111101, // 6: A C D E F G
-        0b0000111, // 7: A B C
-        0b1111111, // 8: all
-        0b1101111, // 9: A B C D F G
-    ]
-
-    private let segmentsC: UInt8 = 0b0111001  // A F E D — "C" shape
-
-    private func segmentMask(for ch: DisplayChar) -> UInt8 {
-        switch ch {
-        case .digit(let v): return LEDDisplayView.digitSegments[Int(v) % 10]
-        case .minus:        return 0b1000000 // G only
-        case .degree:       return 0b1100011 // A B F G
-        case .space, .blank: return 0b0000000
-        }
-    }
+    // Segment patterns (bit 0=A top … 6=G middle) come from
+    // Shared/SevenSegment.hpp — never from a font.
 
     // MARK: - Drawing
 

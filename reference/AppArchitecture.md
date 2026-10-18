@@ -31,8 +31,11 @@ Support files:
 ├─ MachineModel.swift        (enum: TI-59 / TI-58 / TI-58C variant)
 ├─ ROMLoader.swift           (bundle asset loading, hex decode, checksum)
 ├─ CardStorage.swift         (iCloud / local card file storage)
-├─ StateFileLoader.swift     (.ti59 file parser, BCD encoder)
-└─ PC100CFont.swift          (64-char 5×7 dot-matrix font for printer)
+└─ StateFileLoader.swift     (.ti59 file parser, BCD encoder)
+
+Shared/ (C++, used by this app via Bridge/ and by the Qt6 app):
+└─ data tables — key names, keyboard map, 7-segment patterns, PC-100C font,
+   canvas/key layout, per-model facts (see SharedArchitecture.md)
 ```
 
 ---
@@ -47,9 +50,10 @@ Support files:
 | `ROMLoader.swift` | Loads per-chip `.txt` ROM files and module library `.hex` files from the app bundle into `[UInt16]` word arrays |
 | `CardStorage.swift` | Resolves the card file URL in the iCloud container (or local Documents) and provides atomic read/write |
 | `StateFileLoader.swift` | Parses `.ti59`/`.ti58` state files; encodes `Double` values to TI-59 BCD nibble format |
-| `PC100CFont.swift` | 64-entry × 7-row dot-matrix bitmaps for the PC-100C printer character set |
 | `Bridge/TI59MachineWrapper.h` | ObjC header: C-struct display/trace types visible to Swift; method declarations |
 | `Bridge/TI59MachineWrapper.mm` | ObjC++ implementation: thin wrapper mapping Swift/ObjC types to C++ calls |
+| `Bridge/TISharedTables.{h,mm}` | ObjC++ face of the `Shared/` data tables (key names, keyboard map, 7-segment patterns, printer font, key layout, model facts) |
+| `Bridge/Calc-U-59-Bridging-Header.h` | Swift bridging header; imports every wrapper |
 | `Views/CalculatorView.swift` | Root view; adaptive layout (portrait/landscape/macOS); card picker sheet; state file import |
 | `Views/KeyboardView.swift` | Overlays a `DragGesture` on the calculator image; normalised-coordinate hit testing; haptics |
 | `Views/LEDDisplayView.swift` | Renders 12 7-segment digits via SwiftUI `Canvas`; applies glow/bloom and an 8° slant |
@@ -119,11 +123,11 @@ Three coordinate spaces are involved; each layer translates between them:
 |---|---|
 | `KeyboardView` | Visual row 0–8, col 0–4 (0-indexed from top-left of image) |
 | `EmulatorViewModel.pressKey(row:col:)` | Adds 1 to each: `pressMatrixKey((row+1)*10 + (col+1))` |
-| `TI59MachineWrapper.pressMatrixKey(_:)` | Matrix code = row×10 + col (range 11–95); decodes back to row/col |
-| `TI59Machine.pressKey(kbit, digitSlot)` | kbit = K-line bit index (kbits[] table); digitSlot = digit-counter column |
+| `cu59::pressMatrix` (`Shared/KeyMatrix.hpp`) | Matrix code = row×10 + col (range 11–95); decodes back to row/col |
+| `TI59Machine.pressKey(kbit, digitSlot)` | kbit = K-line bit index (`kKBits[]` table); digitSlot = digit-counter column |
 | `TMC0501.key[]` | `key[digitSlot] \|= (1 << kbit)` — the final hardware bitmask |
 
-The `kbits` table in `TI59MachineWrapper.mm` maps physical column (1–5) to
+The `kKBits` table in `Shared/KeyMatrix.hpp` maps physical column (1–5) to
 K-line bit index: `{0, 1, 2, 3, 5, 6}` (skipping bit 4 which is the
 card-detect line, and bit 0 which is unused — hardware layout).
 
@@ -132,8 +136,8 @@ card-detect line, and bit 0 which is unused — hardware layout).
 ## Physical Keyboard Mapping
 
 Computer keyboards drive the calculator on the two computer-facing builds: the
-macOS app (`App/TI59KeyboardMap.swift` + `KeyboardView`'s
-`PhysicalKeyboardModifier`) and the embedded web calculator at `docs/#play`
+macOS app (`Shared/KeyboardMap.cpp` + `KeyboardView`'s
+`PhysicalKeyboardModifier`), the Qt6 desktop app (the same `Shared/KeyboardMap.cpp`) and the embedded web calculator at `docs/#play`
 (`docs/keyboard-map.js` + `docs/PlayCalculator.jsx`). **iOS/iPadOS, and the
 standalone web app at `docs/app/`, deliberately have no keyboard input.** The
 debugger and printer panels have none either — on macOS all panels are visible
@@ -318,8 +322,9 @@ transmission to Swift (Swift cannot hold C++ structs directly through the bridge
 The field-by-field copy in `drainTraceEventsMax:snapshots:` makes the layout
 independence explicit and avoids UB from type-punning.
 
-**Matrix key decode** — `pressMatrixKey:` decodes `code / 10` → digit-counter
-slot, `code % 10` → physical column → K-line bit via `kbits[]`.
+**Matrix key decode** — `pressMatrixKey:` calls `cu59::pressMatrix`
+(`Shared/KeyMatrix.hpp`): `code / 10` → digit-counter slot, `code % 10` →
+physical column → K-line bit via `kKBits[]`.
 
 **RAM serialisation** — `serialiseRAM` returns a 1920-byte `NSData`
 (120 regs × 16 nibbles); `deserialiseRAM` validates the length before writing.
@@ -449,7 +454,7 @@ about that going forward.
 `PrinterView` has two display modes toggled by the header button:
 
 - **Dot mode** (`PrinterDotLine`): renders each character as a 5×7 dot grid
-  using `pc100cFont`, scaled to physically accurate PC-100C dimensions
+  using `kPC100CFont` (`Shared/PrinterFont.hpp`), scaled to physically accurate PC-100C dimensions
   (dot pitch ≈ 0.430 mm).  The geometry is derived from measurements of a real
   unit and documented in `PrinterView.swift`.
 

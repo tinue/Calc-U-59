@@ -59,14 +59,6 @@ enum MachineModel: Int, CaseIterable, Identifiable {
     /// instructions (not by STO/RCL, which only ever reach 00–59 on this variant).
     static let extraRegisterBase = 60
 
-    /// Instructions/sec in active (RUN) mode: TI-59 = 455kHz crystal ÷ 2 (two-phase)
-    /// ÷ 16 (digit-serial); TI-58/58C = 384kHz ÷ 2 ÷ 16. IDLE mode divides this
-    /// further by 4 (except on TI-58C, which runs at constant speed) — see
-    /// TMC0501::getStepWeight() in Core/TMC0501.cpp.
-    var instructionHz: Double {
-        switch self {
-        case .ti59:         return 14218.75
-        case .ti58, .ti58c: return 12000.0
-        }
-    }
+    /// Instructions/sec in active (RUN) mode — see Shared/MachineModelInfo.hpp.
+    var instructionHz: Double { TISharedTables.instructionHz(forModel: rawValue) }
 }
