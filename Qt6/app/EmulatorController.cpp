@@ -208,11 +208,12 @@ void EmulatorController::tick() {
     if (!m_session) return;
     cu59::FrameUpdate f = m_session->tick(static_cast<int>(m_debugLevel), m_cardState == CardState::Swiping);
     if (f.cardAutoEjected) ejectCard();  // the core ejected at CRD_OFF: save written data
-    if (!f.printerLines.empty()) {
-        for (const auto& l : f.printerLines) m_printerLines << qs(l);
-        for (const auto& c : f.printerCodeLines) m_printerCodeLines << c;
-        emit printerChanged();
-    }
+    // Text and dot lines arrive independently: the core commits a line's text
+    // at PRT_PRINT but its dot codes only when the print finishes, often a
+    // frame later — so a frame can carry codes without text.
+    for (const auto& l : f.printerLines) m_printerLines << qs(l);
+    for (const auto& c : f.printerCodeLines) m_printerCodeLines << c;
+    if (!f.printerLines.empty() || !f.printerCodeLines.empty()) emit printerChanged();
     if (!f.logLines.empty()) {
         for (const auto& l : f.logLines) m_log.write(l);
     }
