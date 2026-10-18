@@ -1,7 +1,7 @@
 #!/usr/bin/env zsh
 # Capture App Store screenshots on the two target simulators.
 #
-# Output follows the naming convention required by bin/release-ios --release:
+# Output follows the naming convention required by `release ios --release`:
 #   iphone-NN-<name>.png   (APP_IPHONE_67,         1320 × 2868 px)
 #   ipad-NN-<name>.png     (APP_IPAD_PRO_3GEN_129, 2752 × 2064 px)
 #

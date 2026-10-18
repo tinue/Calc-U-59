@@ -1,0 +1,32 @@
+# Release configuration for ReleaseIt's `release` command
+# (https://github.com/tinue/ReleaseIt).
+#
+#   release                 macOS pre-release v<version>-pre (also writes
+#                           appstore/whatsnew.txt from the CHANGELOG)
+#   release --rc            release candidate (dates the CHANGELOG entry)
+#   release --release       promote to v<version> in place
+#   release --next          start the next dev branch
+#   release ios             iOS TestFlight upload
+#   release ios --release   App Store Connect: metadata, screenshots, build
+#
+# The Swift macOS app is built, Developer-ID-signed, notarized and stapled
+# locally. Once the Qt6 Windows/Linux GitHub workflow exists, add it here as
+# a second build step (kind: github-dispatch); its artifacts then go into the
+# same pre-release as the DMG.
+
+name: Calc-U-59
+
+version:
+  preset: xcode
+  file: Calc-U-59.xcodeproj/project.pbxproj
+
+build:
+  - kind: xcode-dmg
+    project: Calc-U-59.xcodeproj
+    scheme: Calc-U-59
+    export_options: bin/ExportOptions.plist
+
+appstore:
+  worktree: appstore
+  bundle_id: ch.erzberger.calcu59
+  export_options: bin/AppStoreExportOptions.plist
