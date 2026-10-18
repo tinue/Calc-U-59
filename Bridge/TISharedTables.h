@@ -4,7 +4,7 @@
 NS_ASSUME_NONNULL_BEGIN
 
 /// Swift face of the Shared/ data tables (keyboard map, 7-segment
-/// patterns, printer font, canvas/key layout, per-model facts). Type
+/// patterns, printer font, canvas/key layout, matrix codes). Type
 /// translation only — the tables and rules live in Shared/.
 @interface TISharedTables : NSObject
 
@@ -34,10 +34,6 @@ NS_ASSUME_NONNULL_BEGIN
 + (uint8_t)matrixCodeAtRow:(NSInteger)row col:(NSInteger)col NS_SWIFT_NAME(matrixCode(row:col:));
 /// row×5 + col of the key whose widened hit rect contains the point, or -1.
 + (NSInteger)keyIndexAtX:(CGFloat)nx y:(CGFloat)ny NS_SWIFT_NAME(keyIndex(x:y:));
-
-// ── Per-model facts (Shared/MachineModelInfo.hpp); model = MachineModel raw value
-/// Highest program step the RAM can hold (959 or 479).
-+ (NSInteger)maxStepForModel:(NSInteger)model;
 
 @end
 

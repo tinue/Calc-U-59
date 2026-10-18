@@ -24,10 +24,15 @@ template <class F> bool waitFor(F cond, std::chrono::milliseconds timeout) {
 
 struct RecordingListener : EmulatorSession::Listener {
     std::atomic<int> freezes{0}, playbackDone{0};
-    std::atomic<FreezeOwner> owner{FreezeOwner::Calculator};
+    std::atomic<bool> frozenWhenFired{false};
+    EmulatorSession* session = nullptr;
     std::mutex mutex;
     std::vector<std::string> logs;
-    void freezeFired(FreezeOwner o) override { owner = o; ++freezes; }
+    void frozenViewReady(uint64_t, FrozenViewReason reason) override {
+        // The freeze is applied before any listener runs.
+        if (reason == FrozenViewReason::FreezeFired && session) frozenWhenFired = session->frozen();
+        ++freezes;
+    }
     void playbackFinished() override { ++playbackDone; }
     void logLine(const std::string& l) override { std::lock_guard<std::mutex> lock(mutex); logs.push_back(l); }
 };
@@ -154,15 +159,50 @@ TEST(session_plays_keystrokes_in_real_time) {
 TEST(session_freeze_fires_through_listener) {
     RecordingListener listener;
     EmulatorSession session(Model::TI59, testroms::reader(), std::nullopt, listener);
+    listener.session = &session;
     session.setFullSpeed(true);
     session.start();
     CHECK(waitFor([&] { return info(Model::TI59).scanLoop.contains(session.machine().pc()); }, 5000ms));
-    session.freezeControl().armScanLoopExit(session.machine().pc());
+    session.armScanLoopExit();
+    CHECK(session.debugState().scanLoopExitArmed);
+    CHECK(session.machine().traceFlags() != TRACE_NONE);  // an armed freeze needs the trace ring
     session.keyboardDown({83});
     CHECK(waitFor([&] { return listener.freezes.load() == 1; }, 2000ms));
-    CHECK(listener.owner.load() == FreezeOwner::Cpu);
+    CHECK(listener.frozenWhenFired.load());
+    DebugState s = session.debugState();
+    CHECK(s.frozen && s.owner == FreezeOwner::Cpu && !s.scanLoopExitArmed);
     CHECK(!session.isRunning());
     session.keyboardRelease();
+    session.resume();
+    CHECK(!session.debugState().frozen && session.isRunning());
+    CHECK_EQ(session.machine().traceFlags(), static_cast<uint32_t>(TRACE_NONE));
+    session.stop();
+}
+
+TEST(session_steps_only_when_frozen_and_arms_exclude) {
+    RecordingListener listener;
+    EmulatorSession session(Model::TI59, testroms::reader(), std::nullopt, listener);
+    session.stepKeycode();  // not frozen: nothing posted
+    session.sync([] {});
+    CHECK_EQ(listener.freezes.load(), 0);
+    session.armPcChange();
+    session.armScanLoopExit();
+    CHECK(session.debugState().scanLoopExitArmed && !session.debugState().pcChangeArmed);
+    session.armPcChange();
+    CHECK(!session.debugState().scanLoopExitArmed && session.debugState().pcChangeArmed);
+    session.start();
+    session.freeze(FreezeOwner::Calculator);
+    CHECK(waitFor([&] { return listener.freezes.load() == 1; }, 2000ms));
+    DebugState s = session.debugState();
+    CHECK(s.frozen && s.owner == FreezeOwner::Calculator && !s.pcChangeArmed);
+    session.stepInstruction();
+    session.stepKeycode();
+    CHECK(waitFor([&] { return listener.freezes.load() == 3; }, 2000ms));
+    CHECK(!session.isRunning());
+    uint64_t before = session.debugState().generation;
+    session.resume();
+    CHECK(session.debugState().generation != before);  // views built for the freeze are now stale
+    session.stop();
 }
 
 TEST(trace_flags_for_consumers) {

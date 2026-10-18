@@ -31,7 +31,4 @@ enum MachineModel: Int, CaseIterable, Identifiable {
 
     /// Only the TI-59 has a magnetic card reader slot.
     var hasCardReader: Bool { self == .ti59 }
-
-    /// Highest program step the RAM can hold — see Shared/MachineModelInfo.hpp.
-    var maxStep: Int { TISharedTables.maxStep(forModel: rawValue) }
 }

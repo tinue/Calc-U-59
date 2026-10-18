@@ -2,13 +2,11 @@
 #include "../Shared/KeyMatrix.hpp"
 #include "../Shared/KeyboardLayout.hpp"
 #include "../Shared/KeyboardMap.hpp"
-#include "../Shared/MachineModelInfo.hpp"
 #include "../Shared/PrinterFont.hpp"
 #include "../Shared/SevenSegment.hpp"
 
 namespace {
 CGRect toCG(const cu59::NRect& r) { return CGRectMake(r.x, r.y, r.w, r.h); }
-const cu59::ModelInfo& modelInfo(NSInteger model) { return cu59::info(static_cast<cu59::Model>(model)); }
 }
 
 @implementation TISharedTables
@@ -50,6 +48,5 @@ const cu59::ModelInfo& modelInfo(NSInteger model) { return cu59::info(static_cas
     return cu59::keyAt(nx, ny, hit) ? hit.row * 5 + hit.col : -1;
 }
 
-+ (NSInteger)maxStepForModel:(NSInteger)model { return modelInfo(model).maxStep(); }
 
 @end

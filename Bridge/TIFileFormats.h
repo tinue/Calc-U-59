@@ -1,12 +1,11 @@
 #import <Foundation/Foundation.h>
-#import "TI59MachineWrapper.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
-// Swift face of the Shared/ file formats: cue cards, state files, card files,
-// ti58c.mem and cuecards.txt. Type translation only — the
-// formats live in Shared/ (CueCard, StateFile, CardFile, ConstantMemory,
-// ModuleCatalog).
+// Swift face of the Shared/ formats the views use directly: the cue-card
+// model, cuecards.txt's module list and the card pickers' file names. Type
+// translation only — the formats live in Shared/ (CueCard, ModuleCatalog,
+// CardFile); everything else goes through TISessionController.
 
 /// A cue card (Shared/CueCard.hpp). Enum-valued properties use the C++
 /// enumerator order: template 0 CueCard, 1 MagnetCard, 2 SolidStateCard;
@@ -32,39 +31,10 @@ NS_ASSUME_NONNULL_BEGIN
 + (TICueCard *)ml01Default;
 @end
 
-/// A parsed state file. Partition, program and registers are not exposed:
-/// they go back to Shared/StateApplier through applyState:to:model:.
-@interface TIStateFileResult : NSObject
-@property (nonatomic, readonly) BOOL hasKeystrokes;
-@property (nonatomic, readonly, nullable) TICueCard *cueCard;
-@property (nonatomic, readonly, copy, nullable) NSString *solidStateModuleID;
-@property (nonatomic, readonly, copy, nullable) NSNumber *printerConnected;  ///< BOOL
-@property (nonatomic, readonly) NSInteger model;      ///< MachineModel raw value, -1 = not given
-@property (nonatomic, readonly) BOOL skipReset;
-@property (nonatomic, readonly, copy) NSArray<NSString *> *errors;
-@end
-
-@interface TICardFile : NSObject
-@property (nonatomic, readonly, copy, nullable) NSData *data;   ///< bank image; nil on error
-@property (nonatomic, readonly, nullable) TICueCard *cueCard;
-@property (nonatomic, readonly) BOOL isText;
-@property (nonatomic, readonly, copy) NSString *error;          ///< empty on success
-@end
-
-@interface TIConstantMemory : NSObject
-@property (nonatomic, readonly, copy) NSData *ram;              ///< 1920 bytes
-@property (nonatomic, readonly, nullable) TICueCard *cueCard;
-@end
-
 @interface TIModuleMetadata : NSObject
 @property (nonatomic, readonly, copy) NSString *title;
 @property (nonatomic, readonly, copy) NSString *moduleID;
 @property (nonatomic, readonly, copy) NSString *menuTitle;
-@end
-
-@interface TIModuleCards : NSObject
-@property (nonatomic, readonly, copy) NSDictionary<NSNumber *, TICueCard *> *cards;
-@property (nonatomic, readonly) TIModuleMetadata *metadata;
 @end
 
 /// Returns a bundled resource's text by bare file name, or nil.
@@ -72,23 +42,6 @@ typedef NSString *_Nullable (^TIResourceReader)(NSString *fileName);
 
 @interface TIFileFormats : NSObject
 
-// ── State files ──────────────────────────────────────────────────────────────
-+ (TIStateFileResult *)parseStateFile:(NSString *)text maxStepAddr:(NSInteger)maxStepAddr
-                 allowHiddenRegisters:(BOOL)allowHidden;
-/// Why `result` can't be applied to `model`, or nil (Shared/StateApplier.hpp).
-+ (nullable NSString *)partitionErrorFor:(TIStateFileResult *)result model:(NSInteger)model;
-/// Write a parsed file into the machine (full load / SKIP-RESET load). Run on
-/// the emulation queue with the run loop stopped.
-+ (void)applyState:(TIStateFileResult *)result to:(TI59MachineWrapper *)machine model:(NSInteger)model;
-+ (void)applySkipResetState:(TIStateFileResult *)result to:(TI59MachineWrapper *)machine model:(NSInteger)model;
-/// Target model (MachineModel raw value) and SKIP-RESET, read before parsing.
-+ (NSInteger)prescanStateFile:(NSString *)text currentModel:(NSInteger)current skipReset:(BOOL *_Nullable)skipReset;
-
-// ── Card files and ti58c.mem ─────────────────────────────────────────────────
-+ (TICardFile *)decodeCardFile:(NSData *)raw fileName:(NSString *)fileName;
-+ (NSString *)encodeCardText:(NSData *)bank cueCard:(nullable TICueCard *)cueCard;
-+ (NSString *)encodeConstantMemory:(NSData *)ram cueCard:(nullable TICueCard *)cueCard;
-+ (nullable TIConstantMemory *)decodeConstantMemory:(NSString *)text;
 /// Card pickers list only these (.u59 / .bin in any case, not hidden).
 + (BOOL)isCardFileName:(NSString *)name;
 /// ".U59" appended when the name has no extension.
@@ -96,8 +49,6 @@ typedef NSString *_Nullable (^TIResourceReader)(NSString *fileName);
 
 // ── cuecards.txt ─────────────────────────────────────────────────────────────
 + (NSArray<TIModuleMetadata *> *)allModuleMetadata:(NSString *)cuecardsTxt;
-+ (nullable NSString *)moduleRomFile:(NSString *)cuecardsTxt moduleID:(NSString *)moduleID;
-+ (TIModuleCards *)moduleCards:(NSString *)cuecardsTxt moduleID:(NSString *)moduleID;
 
 @end
 

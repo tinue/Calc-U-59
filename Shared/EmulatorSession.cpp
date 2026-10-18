@@ -27,8 +27,8 @@ EmulatorSession::EmulatorSession(Model model, const ResourceReader& roms, const 
     m_machine->loadConstants(constants.data(), constants.size());
 
     EmulationRunner::Callbacks cb;
-    cb.freezeFired = [this](FreezeOwner owner) { m_listener.freezeFired(owner); };
-    cb.batchDone = [this] { m_listener.batchDone(); };
+    cb.freezeFired = [this](FreezeOwner owner) { onFreezeFired(owner); };
+    cb.batchDone = [this] { m_ramDirty = true; };
     m_runner = std::make_unique<EmulationRunner>(*m_machine, model, m_freeze, std::move(cb));
     m_keys = std::make_unique<KeySequencer>(model, static_cast<KeySequencer::Host&>(*this));
 }
@@ -64,6 +64,156 @@ void EmulatorSession::releaseKey(uint8_t matrixCode) {
     releaseMatrix(*m_machine, matrixCode);
 }
 
+// ── Debugger ─────────────────────────────────────────────────────────────────
+
+DebugState EmulatorSession::debugState() const {
+    std::lock_guard<std::mutex> lock(m_stateMutex);
+    return m_state;
+}
+
+uint64_t EmulatorSession::setFrozenState(bool frozen, std::optional<FreezeOwner> owner) {
+    if (frozen) {
+        m_freeze.disarmPcChange();
+        m_freeze.disarmScanLoopExit();
+    }
+    uint64_t generation;
+    {
+        std::lock_guard<std::mutex> lock(m_stateMutex);
+        m_state.frozen = frozen;
+        m_state.owner = frozen ? owner : std::nullopt;
+        if (frozen) m_state.pcChangeArmed = m_state.scanLoopExitArmed = false;
+        generation = ++m_state.generation;
+        m_frozen = frozen;
+    }
+    applyTraceFlags();
+    return generation;
+}
+
+// The loop has exited; the freeze is applied here, before any listener runs,
+// so the key sequencer never sees a stopped machine as running.
+void EmulatorSession::onFreezeFired(FreezeOwner owner) {
+    uint64_t generation = setFrozenState(true, owner);
+    // CALCULATOR freezes at a PC change: prepare the next step's display state.
+    if (owner == FreezeOwner::Calculator) m_machine->beginNextStep();
+    m_listener.debugStateChanged();
+    m_listener.frozenViewReady(generation, FrozenViewReason::FreezeFired);
+}
+
+void EmulatorSession::freeze(FreezeOwner owner) {
+    stop();
+    uint64_t generation = setFrozenState(true, owner);
+    // Runs after the loop has exited (the job queue is serial).
+    post([this, generation] {
+        m_machine->stepUntilNextKeycode();
+        m_machine->beginNextStep();
+        m_listener.frozenViewReady(generation, FrozenViewReason::Freeze);
+    });
+}
+
+void EmulatorSession::freezeInPlace(FreezeOwner owner) { setFrozenState(true, owner); }
+
+void EmulatorSession::resume() {
+    setFrozenState(false, std::nullopt);
+    start();
+}
+
+void EmulatorSession::clearFreeze() { setFrozenState(false, std::nullopt); }
+
+void EmulatorSession::armPcChange() {
+    m_freeze.armPcChange(*m_machine);  // disarms the scan-loop exit
+    {
+        std::lock_guard<std::mutex> lock(m_stateMutex);
+        m_state.pcChangeArmed = true;
+        m_state.scanLoopExitArmed = false;
+    }
+    applyTraceFlags();
+}
+
+void EmulatorSession::armScanLoopExit() {
+    m_freeze.armScanLoopExit(m_machine->pc());  // disarms the PC change
+    {
+        std::lock_guard<std::mutex> lock(m_stateMutex);
+        m_state.scanLoopExitArmed = true;
+        m_state.pcChangeArmed = false;
+    }
+    applyTraceFlags();
+}
+
+void EmulatorSession::disarmPcChange() {
+    m_freeze.disarmPcChange();
+    {
+        std::lock_guard<std::mutex> lock(m_stateMutex);
+        m_state.pcChangeArmed = false;
+    }
+    applyTraceFlags();
+}
+
+void EmulatorSession::disarmScanLoopExit() {
+    m_freeze.disarmScanLoopExit();
+    {
+        std::lock_guard<std::mutex> lock(m_stateMutex);
+        m_state.scanLoopExitArmed = false;
+    }
+    applyTraceFlags();
+}
+
+void EmulatorSession::stepKeycode() {
+    DebugState s = debugState();
+    if (!s.frozen) return;
+    post([this, generation = s.generation] {
+        m_machine->stepUntilNextKeycode();
+        m_machine->beginNextStep();
+        m_listener.frozenViewReady(generation, FrozenViewReason::StepKeycode);
+    });
+}
+
+void EmulatorSession::stepInstruction() {
+    DebugState s = debugState();
+    if (!s.frozen) return;
+    post([this, generation = s.generation] {
+        uint16_t prior = m_machine->pc();
+        m_machine->step();
+        // HOLD (WAIT Dn): the PC didn't advance — step until it does.
+        for (int limit = 32; m_machine->pc() == prior && limit > 0; --limit) m_machine->step();
+        m_machine->beginNextStep();
+        m_listener.frozenViewReady(generation, FrozenViewReason::StepInstruction);
+    });
+}
+
+void EmulatorSession::setCpuPanelVisible(bool visible) {
+    {
+        std::lock_guard<std::mutex> lock(m_stateMutex);
+        m_cpuPanelVisible = visible;
+    }
+    applyTraceFlags();
+}
+
+// The one place the core's trace flags are set; any thread.
+void EmulatorSession::applyTraceFlags() {
+    std::lock_guard<std::mutex> lock(m_stateMutex);
+    TraceConsumers c;
+    c.cpuPanelVisible = m_cpuPanelVisible;
+    c.frozen = m_state.frozen;
+    c.freezeArmed = m_state.pcChangeArmed || m_state.scanLoopExitArmed;
+    c.manualTrace = m_manualTrace.isOpen();
+    c.scriptedTrace = m_scriptedTrace.isOpen();
+    uint32_t flags = traceFlagsFor(c);
+    if (m_machine->traceFlags() != flags) m_machine->setTraceFlags(flags);
+}
+
+bool EmulatorSession::openManualTrace(const std::filesystem::path& path, uint64_t maxBytes) {
+    bool ok = m_manualTrace.open(path, maxBytes);
+    applyTraceFlags();
+    return ok;
+}
+
+void EmulatorSession::closeManualTrace() {
+    if (!m_manualTrace.isOpen()) return;
+    drainTrace();
+    m_manualTrace.close();
+    applyTraceFlags();
+}
+
 void EmulatorSession::setTraceLocation(const std::filesystem::path& dir, uint64_t maxBytes) {
     std::lock_guard<std::mutex> lock(m_traceMutex);
     m_traceDir = dir;
@@ -86,6 +236,7 @@ EmulatorSession::DrainResult EmulatorSession::drainTrace() {
         if (manual && !m_manualTrace.write(frames[i])) r.manualLimit = true;
         if (scripted && !m_scriptedTrace.write(frames[i])) r.scriptedLimit = true;
     }
+    if (r.manualLimit || r.scriptedLimit) applyTraceFlags();  // a writer closed itself
     return r;
 }
 
@@ -119,7 +270,7 @@ void EmulatorSession::scriptedTrace(const std::optional<std::string>& fileName) 
         opened = m_scriptedTrace.open(dir / *fileName, maxBytes);
         if (!opened) m_listener.scriptedTraceFailed(*fileName);
     }
-    m_listener.scriptedTraceChanged(opened);
+    applyTraceFlags();
 }
 
 // A script always ends at regular speed, and never leaves a scripted trace
@@ -129,7 +280,7 @@ void EmulatorSession::playbackFinished() {
     if (m_scriptedTrace.isOpen()) {
         drainTrace();
         m_scriptedTrace.close();
-        m_listener.scriptedTraceChanged(false);
+        applyTraceFlags();
     }
     m_listener.playbackFinished();
 }

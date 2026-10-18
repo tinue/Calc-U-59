@@ -31,7 +31,7 @@ Qt6/app/ (Qt Widgets) ───────────────┘
 | Module | What it does | Swift wrapper |
 |---|---|---|
 | `MachineModelInfo.hpp` | Per-model facts: instruction rate, RAM, card reader, ROM file names, scan-loop and key-detect PC ranges | `TISharedTables` |
-| `KeyMatrix.hpp` | Matrix code (row×10+col) → K-line bit and digit slot | `TI59MachineWrapper` |
+| `KeyMatrix.hpp` | Matrix code (row×10+col) ↔ key grid, K-line bit and digit slot | `TISharedTables` |
 | `KeyboardLayout.hpp` | Canvas geometry, key rects, widened hit test | `TISharedTables` |
 | `KeyboardMap.{hpp,cpp}` | Computer keyboard → matrix codes (26 keys, Shift-as-2nd) | `TISharedTables` |
 | `KeyNames.{hpp,cpp}` | Keycode mnemonics, operand-step grammar | `TISharedTables` |
@@ -46,30 +46,63 @@ Qt6/app/ (Qt Widgets) ───────────────┘
 | `RomLoader.{hpp,cpp}` | ROM / constants / module text dumps with sentinel checks | `TIFileFormats` |
 | `CardFile.{hpp,cpp}` | Magnetic card files (text, headered and legacy binary); which names the card pickers list | `TIFileFormats` |
 | `ConstantMemory.{hpp,cpp}` | `ti58c.mem` | `TIFileFormats` |
-| `TraceWriter.{hpp,cpp}` | Binary trace format v2 (`DebugAPI.md`) | `TITraceWriter` |
-| `ModuleImage.{hpp,cpp}` | PRG SOURCE decoding, module program table, source labels | `TIDebugModel`, `TIViewRules` |
-| `DebugSnapshots.{hpp,cpp}` | CALCULATOR tab snapshot and listing; CPU inspector history | `TIDebugModel`, `TIViewRules` |
+| `TraceWriter.{hpp,cpp}` | Binary trace format v2 (`DebugAPI.md`) | — |
+| `ModuleImage.{hpp,cpp}` | PRG SOURCE decoding, module program table, source labels | `TIViewRules` |
+| `DebugSnapshots.{hpp,cpp}` | CALCULATOR tab snapshot and listing; CPU inspector history | `TIViewRules` |
 | `DebugText.{hpp,cpp}` | The debug panels' shared text and colours (partition line, registers, HIR, return-level and step colours, CPU flags, font size) | `TIViewRules` |
-| `RomHeatmap.{hpp,cpp}` | Execution counts, heat steps and colours | `TIDebugModel`, `TIViewRules` |
-| `AsmOverlay.{hpp,cpp}` | ASM overlay parser and entry | `TIDebugModel` |
-| `DebugLog.{hpp,cpp}` | LOG tab ring buffer and dumps | `TIDebugModel` |
+| `RomHeatmap.{hpp,cpp}` | Execution counts, heat steps and colours | `TIViewRules` |
+| `AsmOverlay.{hpp,cpp}` | ASM overlay parser and entry | — |
+| `DebugLog.{hpp,cpp}` | LOG tab ring buffer and dumps | — |
 | `Pacing.{hpp,cpp}` | 20 ms cycle-weighted batches with carry; full-speed sleep rule | — |
 | `FreezeController.{hpp,cpp}` | FREEZE ON START and next-PC-change freezes | — |
 | `EmulationRunner.{hpp,cpp}` | The emulation thread: paced loop plus posted jobs | — |
 | `FrameSampler.{hpp,cpp}` | The 60 Hz frame: printer, log, auto-eject, display hold, C indicator | — |
 | `KeySequencer.{hpp,cpp}` | 100 ms taps with scan-loop wait, physical-key holds, KEYSTROKES playback | — |
-| `EmulatorSession.{hpp,cpp}` | One running calculator: machine + all of the above + trace writers | `TISession` |
+| `EmulatorSession.{hpp,cpp}` | One running calculator: machine + all of the above + trace writers; the debugger's freeze state, stepping and trace flags | — |
+| `DebugModel.{hpp,cpp}` | The debug panels' data: CALCULATOR snapshot and listing, CPU history, ROM heatmap, LOG ring | `TISessionController` |
+| `SessionController.{hpp,cpp}` | Everything a frontend does with a calculator that isn't drawing (see below) | `TISessionController` |
 | `TextUtil.hpp` | Foundation-compatible string helpers (trim, split, number parsing) | — |
 | `SettingsKeys.hpp` | The settings both apps store: key names, defaults, how a stored value resolves | `TISettings` |
 
 The Qt app calls these directly; the Swift app goes through the ObjC++
 wrappers in `Bridge/`, which only translate types.
 
+## `SessionController`
+
+Each app owns one `SessionController` on its UI thread and is otherwise a
+renderer: the Qt app's `EmulatorController`, the Swift app's
+`EmulatorViewModel` (through `Bridge/TISessionController`). The controller
+owns the `EmulatorSession` (rebuilt on a model switch) and the `DebugModel`,
+and runs the flows both apps share: starting and switching machines,
+presets, the TI-58C memory file, the card reader, the printer strip, the cue
+card shown, freeze and step, traces, the ASM overlay and the LOG tab.
+
+The app implements `SessionController::Platform`: `runOnUiThread`, reading
+and writing `ti58c.mem` and card files, the trace location, saving the last
+model and module, error alerts, and `changed(mask)` — the `Change` bits name
+what to redraw. It calls `tick(now)` at 60 Hz; the slower checks (cue-card
+program 2 Hz, LOG text 1 Hz, TI-58C persist 0.5 s after a batch, written
+only when the contents changed) run inside it.
+
+Session events hop to the UI thread through `Platform::runOnUiThread` and
+are dropped there if their session has since been replaced (each session
+has a generation) or the controller is gone.
+
 ## The runtime (`EmulatorSession`)
 
-A frontend owns one `EmulatorSession` per machine (a model switch builds a
-new one), forwards user actions to it, calls `tick()` at 60 Hz and receives
-events through `EmulatorSession::Listener`.
+`SessionController` owns one `EmulatorSession` per machine (a model switch
+builds a new one), forwards user actions to it, calls `tick()` at 60 Hz and
+receives events through `EmulatorSession::Listener`.
+
+The session owns the debugger's freeze state (`DebugState`: frozen, owner,
+both armed freezes, a generation that changes on every freeze and resume)
+and the core's trace flags, recomputed whenever a consumer changes (CPU
+panel, freeze, armed freeze, manual or scripted trace). An armed freeze is
+applied on the emulation thread before any listener runs. FREEZE and STEP
+run on the emulation thread up to `beginNextStep()`, then report
+`frozenViewReady(generation, reason)`; the controller builds the panels on
+the UI thread only if the generation is still current, so a RESUME pressed
+in between never shows a stale view or reads a running machine.
 
 | Thread | What runs there |
 |---|---|
@@ -78,14 +111,12 @@ events through `EmulatorSession::Listener`.
 | Key sequencer lanes (`KeySequencer`) | KEYSTROKES playback and physical-keyboard taps, two independent lanes (a key press never cancels a script) |
 | Key sequencer timer | Deferred releases (a key let go before its 100 ms minimum hold) |
 
-**Listener callbacks arrive on the emulation or sequencer threads.** The
-Swift app hops to the main queue (`SessionEventForwarder` →
-`DispatchQueue.main.async`); the Qt app re-posts with
-`QMetaObject::invokeMethod(..., Qt::QueuedConnection)`.
+**Listener callbacks arrive on the emulation or sequencer threads**;
+`SessionController` hops them to the UI thread.
 
 `sync()` waits for the job; call `stop()` first, or it waits for the run
-loop. The frontend tells the session when it freezes (`setFrozen`) so key
-playback stops waiting for an idle CPU that will never come.
+loop. Key playback reads the session's frozen state, so it stops waiting for
+an idle CPU that will never come.
 
 ## Tests and goldens
 

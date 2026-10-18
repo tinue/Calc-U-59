@@ -1,6 +1,6 @@
 ---
 name: calc-u-59-qt
-description: Use this skill when working on the Qt6 desktop app of Calc-U-59 (Qt6/, Qt6/app/, Qt6/resources/, .github/workflows/build.yml, tools/build_qt.sh, build_and_run.sh, tools/gen_qt_icons.sh). Covers the class map against the Swift views, threading (session events re-posted to the GUI thread), building, packaging for Windows and Linux, and the parity rule with the Swift app. Trigger on any task that touches Qt6/ or the Qt CI workflow.
+description: Use this skill when working on the Qt6 desktop app of Calc-U-59 (Qt6/, Qt6/app/, Qt6/resources/, .github/workflows/build.yml, tools/build_qt.sh, build_and_run.sh, tools/gen_qt_icons.sh). Covers the class map against the Swift views, threading (the SessionController Platform's GUI-thread queue), building, packaging for Windows and Linux, and the parity rule with the Swift app. Trigger on any task that touches Qt6/ or the Qt CI workflow.
 user-invocable: true
 ---
 
@@ -25,11 +25,14 @@ set the structure — Widgets, AUTOMOC/AUTORCC, no `.ui` files, QPainter renderi
    Update the table either way.
 2. **No logic in `Qt6/app/`.** Anything that isn't Qt widgets, painting or
    file dialogs belongs in `Shared/` (calc-u-59-shared skill) so the Swift app
-   gets it too. `EmulatorController` adapts `cu59::EmulatorSession` to Qt
-   signals and nothing more.
-3. **Session events arrive on the session's threads.** Re-post them with
-   `onGui(...)` (`QMetaObject::invokeMethod(..., Qt::QueuedConnection)`)
-   before touching any controller state — see `EmulatorController::SessionListener`.
+   gets it too. `EmulatorController` is a thin QObject adapter over
+   `cu59::SessionController` (the same orchestrator the Swift app uses): it
+   forwards actions and turns `changed(mask)` into Qt signals, nothing more.
+3. **Threading is the controller's.** `EmulatorController` implements
+   `SessionController::Platform` privately; its `runOnUiThread` queues jobs
+   with `QMetaObject::invokeMethod(..., Qt::QueuedConnection)`, and the
+   controller hops every session event to the GUI thread itself (see
+   `reference/SharedArchitecture.md` § "SessionController").
 4. **Assets have one source:** ROMs from `roms/` and artwork from
    `App/Assets.xcassets` are compiled in as Qt resources by `Qt6/CMakeLists.txt`;
    icons come from `App/AppIcon.icon` via `tools/gen_qt_icons.sh`. Never copy them.

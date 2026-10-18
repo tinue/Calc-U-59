@@ -22,23 +22,25 @@ Calc-U-59App                 (app entry point, scene lifecycle)
     └─ DebugView             (register/SCOM/program dump panel)
 
 EmulatorViewModel (@Observable)
-├─ TISession                 (ObjC++ bridge → Shared/EmulatorSession: run loop thread,
-│   │                         freezes, key sequencer, frame sampler, trace writers)
-│   └─ TI59MachineWrapper    (ObjC++ bridge object sharing the session's machine)
+├─ TISessionController       (ObjC++ bridge → Shared/SessionController: machine,
+│   │                         presets, cards, printer, cue card, debugger, traces)
+│   └─ EmulatorSession       (C++: run loop thread, freezes, key sequencer,
+│       │                     frame sampler, trace writers)
 │       └─ TI59Machine       (C++ core, see CoreArchitecture.md)
-└─ displayTimer              (60 Hz main-thread Timer)
+├─ PlatformForwarder         (TIPlatform: main thread, ti58c.mem, card files,
+│                             trace location, settings, alerts, changes)
+└─ displayTimer              (60 Hz main-thread Timer → controller.tick())
 
 Support files:
 ├─ MachineModel.swift        (enum: TI-59 / TI-58 / TI-58C variant)
-├─ ROMLoader.swift           (bundle file access for Shared/RomLoader + ModuleCatalog)
-├─ CardStorage.swift         (iCloud / local card file storage)
-└─ StateFileResult.swift     (state-file result types, filled from Shared/StateFile)
+├─ ROMLoader.swift           (bundle file access: ROM text dumps, cuecards.txt)
+└─ CardStorage.swift         (iCloud / local card file storage)
 
 Shared/ (C++, used by this app via Bridge/ and by the Qt6 app):
-├─ data tables — key names, keyboard map, 7-segment patterns, PC-100C font,
-│  canvas/key layout, per-model facts
-└─ file formats — state files, cue cards, card files, ti58c.mem, ROM text
-   dumps, cuecards.txt, BCD (see SharedArchitecture.md)
+├─ SessionController — everything that isn't drawing (see SharedArchitecture.md)
+├─ data tables — keyboard map, 7-segment patterns, PC-100C font,
+│  canvas/key layout, per-model facts, settings keys
+└─ view rules — cue-card geometry, LED geometry, printer geometry, debug text
 ```
 
 ---
@@ -49,15 +51,17 @@ Shared/ (C++, used by this app via Bridge/ and by the Qt6 app):
 |---|---|
 | `Calc-U-59App.swift` | App entry; persists TI-58C constant memory on scene background/inactive |
 | `MachineModel.swift` | Variant enum with hardware-specific metadata (card-switch col, RAM limits) |
-| `EmulatorViewModel.swift` | Central `@Observable` view model; owns the emulation loop, 60 Hz timer, and all I/O state |
-| `ROMLoader.swift` | Supplies the bundled ROM / module `.txt` files and `cuecards.txt` to `Shared/RomLoader` and `Shared/ModuleCatalog` |
+| `EmulatorViewModel.swift` | The `@Observable` face of `Shared/SessionController`: implements its platform, runs the 60 Hz timer, copies changes into observable properties |
+| `ROMLoader.swift` | Supplies the bundled ROM / module `.txt` files and `cuecards.txt` |
 | `CardStorage.swift` | Resolves the card file URL in the iCloud container (or local Documents) and provides atomic read/write |
-| `StateFileResult.swift` | `LoadStateResult` value type, filled from `Shared/StateFile` via `Bridge/TIFileFormats` |
 | `CueCardContent.swift` | SwiftUI-facing cue card value type and its `TICueCard` conversion (parsing/encoding: `Shared/CueCard`) |
-| `Bridge/TI59MachineWrapper.h` | ObjC header: C-struct display/trace types visible to Swift; method declarations |
-| `Bridge/TI59MachineWrapper.mm` | ObjC++ implementation: thin wrapper mapping Swift/ObjC types to C++ calls |
-| `Bridge/TISharedTables.{h,mm}` | ObjC++ face of the `Shared/` data tables (key names, keyboard map, 7-segment patterns, printer font, key layout, model facts) |
-| `Bridge/TIFileFormats.{h,mm}` | ObjC++ face of the `Shared/` file formats (state files, cue cards, card files, ti58c.mem, ROM text, cuecards.txt) |
+| `Bridge/TISessionController.{h,mm}` | ObjC++ face of `Shared/SessionController`, its `TIPlatform` protocol and the debug panels' value objects |
+| `Bridge/TITypes.h` | C mirrors of the Core display snapshot and CPU frame |
+| `Bridge/BridgeConvert.h` | ObjC++-only string/data/frame conversions shared by the wrappers |
+| `Bridge/TISharedTables.{h,mm}` | ObjC++ face of the `Shared/` data tables (keyboard map, 7-segment patterns, printer font, key layout, model facts) |
+| `Bridge/TIFileFormats.{h,mm}` | ObjC++ face of the cue-card model, cuecards.txt's module list and the card pickers' file names |
+| `Bridge/TIViewRules.{h,mm}` | ObjC++ face of the `Shared/` view rules (cue-card, LED and printer geometry, heatmap colours, debug text) |
+| `Bridge/TISettings.{h,mm}` | ObjC++ face of `Shared/SettingsKeys.hpp` |
 | `Bridge/Calc-U-59-Bridging-Header.h` | Swift bridging header; imports every wrapper |
 | `Views/CalculatorView.swift` | Root view; adaptive layout (portrait/landscape/macOS); card picker sheet; state file import |
 | `Views/KeyboardView.swift` | Overlays a `DragGesture` on the calculator image; normalised-coordinate hit testing; haptics |
@@ -72,15 +76,16 @@ Shared/ (C++, used by this app via Bridge/ and by the Qt6 app):
 
 | Thread | What runs there |
 |---|---|
-| **Main thread** | SwiftUI rendering, `tick()` timer callbacks (60 Hz), all mutations to `@Observable` properties |
-| **Emulation thread** (`Shared/EmulationRunner`, one per session) | The paced run loop, plus every job posted with `session.post` / `session.sync` — freeze-to-keycode, single steps, state-file application, ASM overlay entry — always after the loop has exited |
+| **Main thread** | SwiftUI rendering, the 60 Hz `controller.tick()`, every `SessionController` call, all mutations to `@Observable` properties |
+| **Emulation thread** (`Shared/EmulationRunner`, one per session) | The paced run loop, plus every job the session posts — freeze-to-keycode, single steps, state-file application, ASM overlay entry — always after the loop has exited |
 | **Key sequencer threads** (`Shared/KeySequencer`) | KEYSTROKES playback and physical-keyboard taps (two independent lanes), deferred key releases |
 | **global/utility** | `CardStorage.warmUp()` — `url(forUbiquityContainerIdentifier:)` blocks and returns nil if called on the main thread |
 
-Session events (freeze fired, held key, full speed, playback
-start/end, scripted trace, log lines) arrive through `TISessionDelegate` on the
-session's threads; `SessionEventForwarder` hands them to the view model, which
-hops to the main thread before touching observable state.
+Session events (freeze fired, frozen view ready, held key, full speed,
+playback start/end, log lines) arrive on the session's threads;
+`SessionController` hops them to the main thread (`dispatch_async` in
+`TISessionController`), where they reach the view model as `changed(_:)`.
+`ti58c.mem` is encoded on the main thread and written on a background queue.
 
 `TI59Machine`'s `m_keyMutex` makes C++ state thread-safe; the Swift layer does
 not need its own lock.  Display snapshots and printer output each have their own
@@ -97,7 +102,7 @@ Batch:   ~284 cycles every 20 ms     (targetHz × batchMs)
 ```
 
 The run loop is shared C++ (`Shared/EmulationRunner.cpp` + `Shared/Pacing.cpp`),
-started with `session.start()`:
+started by the session:
 
 1. Call `step()` repeatedly, accumulating the returned cycle weights.
 2. When accumulated weight ≥ 284 cycles, subtract 284 (carry over overshoot to
@@ -109,27 +114,29 @@ started with `session.start()`:
 hardware poll (a key or card-switch wait; not a printer-only BUSY wait, whose
 length is counted in emulated cycles, so full speed speeds up printing) and bit 31 if a breakpoint was hit (Core breakpoints are set only by the headless
 tools; the loop just stops).  When an armed freeze (`Shared/FreezeController`)
-fires, the loop stops and the session reports it to the delegate.
+fires, the loop stops and the session applies the freeze before reporting it.
 
 ---
 
 ## 60 Hz Display Refresh (tick)
 
-`startDisplayRefresh` creates a `Timer` on the main run loop.  Every 16 ms:
+`startDisplayRefresh` creates a `Timer` on the main run loop that calls
+`controller.tick()` (`Shared/SessionController.cpp`) every 16 ms. One tick:
 
-`session.tick` (`Shared/FrameSampler.cpp`) returns one frame:
+1. **Frame** (`Shared/FrameSampler.cpp`): the display snapshot (held while the
+   display is lit but the CPU is not IDLE), the C indicator's smoothed
+   opacity, printer text and dot lines, core log messages at or below the
+   debug level, and card auto-eject (the core executed `CRD_OFF`; written
+   data is saved).
+2. **Debugger** (`Shared/DebugModel.cpp`): the CALCULATOR snapshot while its
+   panel shows and the machine runs; the heatmap and running CPU history
+   while the CPU panel shows (or frozen).
+3. **Traces**: the trace ring drained into the open writers.
+4. **Slower checks**: the cue card's library program (2 Hz), the LOG text
+   (1 Hz), the TI-58C persist (0.5 s after a batch ran).
 
-1. **Auto-eject detection**: the card was swiping but `isCardPresent` is now
-   false — the core executed `CRD_OFF`; `ejectCard()` saves any written data.
-2. **Printer and log drain**: text lines and raw code lines from the printer
-   queue; core debug messages at or below the debug level.
-3. **Display update**: the display snapshot, held while the display is lit but
-   the CPU is not IDLE; assigned to `@Observable` properties only when the
-   value actually changed (guarding prevents 60 Hz re-renders).
-4. **C indicator**: the smoothed opacity.
-
-The view model then builds the debug snapshots for visible panels and drains
-the trace ring into the open trace writers (`session.drainTrace`).
+The controller then reports what changed; the view model assigns only the
+values that actually changed (guarding prevents 60 Hz re-renders).
 
 ---
 
@@ -261,14 +268,14 @@ Keys are only claimed while the calculator has focus, on both platforms.
 1. User presses "2nd Read" or "2nd Write" on the calculator keyboard.
 2. ROM enters a TST BUSY polling loop; C++ sets isWaitingForCard = true.
 3. The UI shows the card picker (load) or inserts a blank card (write).
-4. EmulatorViewModel.insertCard(from:) or insertBlankCard(savingTo:) calls
-   machine.insertCard(data) — this releases the card-switch key in C++,
-   waking the ROM from its wait loop.
+4. EmulatorViewModel.insertCard(from:) or insertBlankCard(savingTo:) hands
+   the file to SessionController, which calls machine.insertCard(data) —
+   this releases the card-switch key in C++, waking the ROM from its wait loop.
 5. ROM executes CRD_READ + IN CRD (read) or CRD_WRITE + OUT CRD (write).
 6. At the end of the pass, ROM executes CRD_OFF — C++ auto-ejects the card
    (sets isCardPresent = false, restores card-switch key).
-7. tick() detects isCardPresent == false while cardState == .swiping and
-   calls ejectCard(), which collects any written bytes and saves to disk.
+7. tick() sees the auto-eject and calls ejectCard(), which collects any
+   written bytes and saves them through the platform's writeCard.
 ```
 
 Card file format (`.U59`): written as text ("Calc-U-59 Card 1.0", see
@@ -279,27 +286,35 @@ Card file format (`.U59`): written as text ("Calc-U-59 Card 1.0", see
 
 ## State File Loading (`.ti59` / `.ti58`)
 
-`loadStateFile` performs a **non-interactive load** — it writes state directly
-to RAM without simulating key presses (except for the optional `KEYSTROKES:` section):
+`SessionController::loadStateFile` performs a **non-interactive load** — it
+writes state directly to RAM without simulating key presses (except for the
+optional `KEYSTROKES:` section):
 
 ```
-1. LoadStateResult(parsing:) → Shared/StateFile parseStateFile (partition, program steps, registers, keystrokes)
-2. Stop the emulation loop; session.sync {} waits until no step is in flight.
-3. session.sync { cu59::applyState(...) }  (Shared/StateApplier.cpp):
+1. UTF-8 check; prescanStateFile (MODEL:, SKIP-RESET:); parseStateFile with the
+   target model's limits — parse errors are reported, the load continues.
+2. MODEL: names another model → startMachine(target) first (synchronous).
+3. Partition check (stateFilePartitionError).
+4. Stop the loop, clearFreeze(), session.sync { cu59::applyState(...) }
+   (Shared/StateApplier.cpp):
    a. machine.reset()
    b. stepN(300_000)                      ← run ROM's power-on startup routine to idle
    c. setPartitionProgramRegs(n)          ← write partition directly into SCOM
    d. clear RAM (TI-58C: keep extra registers 60–63)
    e. writeProgram(data)                  ← zero-padded to the model's physical capacity
    f. writeDataRegister / writeRAMReg     ← each register (H registers → raw RAM 60–63)
-4. startEmulationLoop()
-5. playKeystrokes() async (if KEYSTROKES: section present)
+5. Heatmap baseline, start the loop, cut the paper.
+6. SOLID-STATE-MODULE:, PRINTER:, the cue card — then persist ti58c.mem.
+7. Play KEYSTROKES: (if present).
 ```
 
-Step 4 is necessary because the ROM's startup routine clears RAM and
-initialises SCOM.  Skipping it leaves stale flags that confuse display and AOS.
-`stepN(300_000)` is a conservative upper bound; the startup routine always
-completes well within this.
+SKIP-RESET: writes only the partition (if explicit), program and registers,
+and logs the sections it ignores (MODEL:, SOLID-STATE-MODULE:, PRINTER:) to
+the LOG tab.
+
+The ROM's startup routine clears RAM and initialises SCOM; skipping it leaves
+stale flags that confuse display and AOS. `stepN(300_000)` is a conservative
+upper bound; the startup routine always completes well within this.
 
 `Shared/Bcd.hpp`'s `encodeBcd` converts a `REGISTERS:` literal to the
 16-nibble TI-59 BCD register format (see `CoreArchitecture.md` for the layout).
@@ -313,39 +328,41 @@ emulates this by serialising the full 120×16-byte RAM to a file (`ti58c.mem`)
 in the same iCloud/local directory as card files.
 
 ```
-App launch:      loadConstantMemory() → deserialiseRAM(data)
-                 (before emulation starts, so ROM sees warm-start flag)
+Machine start:   ROM power-on routine, then the saved RAM restored
+                 (cu59::powerOn), so startup code can't overwrite it.
 
-Scene background / inactive:
-                 persistConstantMemory() → serialiseRAM() → write to file
-                 (triggered by scenePhase change in Calc-U-59App)
+While running:   0.5 s after a run-loop batch, ti58c.mem is rewritten if its
+                 contents (RAM and the user's cue card) changed.
 
-Hard reset:      delete ti58c.mem + deserialiseRAM(zeros) + reset()
-                 (zeros ensure ROM's startup sees no valid warm-start marker)
+Scene background / inactive, model switch, preset load:
+                 written at once.
+
+Clean reset:     RAM zeroed, reset, written at once.
 ```
 
 ---
 
-## Bridge Layer (TI59MachineWrapper)
+## Bridge Layer
 
-`TI59MachineWrapper` is a pure thin wrapper with no logic beyond type
-translation.  Notable mappings:
+The wrappers are thin: no logic beyond type translation.  Notable mappings:
 
-**Display snapshot** — `TIDisplaySnapshot` mirrors `DisplaySnapshot`; `TISession`
-fills it from each frame update.
+**Session controller** — `TISessionController` owns a `cu59::SessionController`
+and adapts its `Platform` to the Swift `TIPlatform` protocol (held weakly).
+Its value objects (`TILiveDebugSnapshot`, `TIStepEntry`, `TIInspectorEntry`,
+`TIPrinterLine`) are built on demand when the view model reads them after a
+change.
+
+**Display snapshot** — `TIDisplaySnapshot` (`Bridge/TITypes.h`) mirrors
+`DisplaySnapshot`.
 
 **CPU frames** — `TICpuFrame` mirrors `CpuFrame` field for field; the layout is
 `static_assert`ed in `Bridge/BridgeConvert.h` (with the shared `ns`/`cpp`/`bytes`
-helpers), so a frame converts with one `memcpy`. Frames are boxed in `NSValue`
-for transmission to Swift (Swift cannot hold C++ structs directly through the bridge).
+helpers), so a frame converts with one `memcpy`.
 
 **Matrix key decode** — the session's key input calls `cu59::pressMatrix`
 (`Shared/KeyMatrix.hpp`): `code / 10` → digit-counter slot, `code % 10` →
 physical column → K-line bit via `kKBits[]`.
 
-**RAM serialisation** — `serialiseRAM` returns a 1920-byte `NSData`
-(120 regs × 16 nibbles); restoring it goes through `cu59::powerOn` /
-`cu59::softReset` (`Shared/StateApplier.hpp`).
 
 ---
 
@@ -363,11 +380,11 @@ undocumented values.
 
 Solid-state (library module) programs are shown live in the PROGRAM STEPS view:
 
-- `cu59::ModuleImage::parse` (`Shared/ModuleImage.cpp`) parses the module header into `programRanges` (program *n*, 1-based = `programRanges[n-1]`); the Swift app hands it the image at both module-load sites (`cacheModuleImage()`).
+- `cu59::ModuleImage::parse` (`Shared/ModuleImage.cpp`) parses the module header into `programRanges` (program *n*, 1-based = `programRanges[n-1]`); `Shared/DebugModel` re-parses it whenever the machine or module changes.
 - `ModuleImage::libraryStep()` maps the core's latched `libExecPC` (`0xFFFF` = none) to `(program, step, range)`. Steps are **program-relative**: step 000 = first keycode of that program.
-- Frozen view: `frozenLibCache` / `frozenLibProgram` mirror the RAM/ROM freeze caches and rebuild in `stepKeycode` when the Pgm number changes.
+- Frozen view: the full listing of the program being run, rebuilt on every freeze and keycode step (`Shared/DebugModel`).
 - The current Pgm number also lives in SCOM[9] digits 4 (tens) / 3 (units); the latch-derived program is cross-checked against it (mismatches debug-logged).
-- **PRG SOURCE = 2** ("Solid State Return (PC Reload)"): a transitional state inside a RTN back into the module (16 instructions, seen only when frozen, because `stepUntilNextKeycode` stops at ROM 1192, where RTN writes SCOM[0]). The previous frozen cache is held and the highlight advances +1 onto the just-executed RTN (`advanceCachedProgramCurrent()`). During this step SCOM[0] nibbles 4–7 hold a raw CROM address, **not** a step number — never decode it as one.
+- **PRG SOURCE = 2** ("Solid State Return (PC Reload)"): a transitional state inside a RTN back into the module (16 instructions, seen only when frozen, because `stepUntilNextKeycode` stops at ROM 1192, where RTN writes SCOM[0]). The previous listing is kept and the highlight advances +1 onto the just-executed RTN (`DebugModel::frozenView`). During this step SCOM[0] nibbles 4–7 hold a raw CROM address, **not** a step number — never decode it as one.
 - Colors: solid-state steps highlight blue; return-stack levels with source 2 show purple, like library levels.
 
 ---

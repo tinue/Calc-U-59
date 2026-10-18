@@ -16,8 +16,8 @@ tracked here (see `NewGUIGuide.md`).
 
 | Feature | Swift | Qt | Shared | Status | Notes |
 |---|---|---|---|---|---|
-| Model picker TI-59 / TI-58 / TI-58C | `CalculatorView` | `ControlBar` | `MachineModelInfo` | Both | |
-| Reset; clean reset (Cmd/Ctrl held, red "Clean") | `CalculatorView` | `ControlBar` | `StateApplier` softReset/cleanReset | Both | iOS: 1 s long press |
+| Model picker TI-59 / TI-58 / TI-58C | `CalculatorView` | `ControlBar` | `SessionController` startMachine, `MachineModelInfo` | Both | |
+| Reset; clean reset (Cmd/Ctrl held, red "Clean") | `CalculatorView` | `ControlBar` | `SessionController`, `StateApplier` softReset/cleanReset | Both | iOS: 1 s long press |
 | Calculator artwork, key hit test (widened rects) | `KeyboardView` | `KeyboardWidget` | `KeyboardLayout` | Both | |
 | Pressed-key effect (blacked out, shifted 3 px) | `KeyboardView` | `KeyboardWidget` | — | Both | |
 | One key at a time; release on focus loss / teardown | `KeyboardView` | `KeyboardWidget` | — | Both | |
@@ -26,7 +26,7 @@ tracked here (see `NewGUIGuide.md`).
 | LED display, Modernized / Classic styles | `LEDDisplayView` | `LedRenderer` | `SevenSegment`, `LedGeometry` | Both | Glow: SwiftUI blur / box-blur layers |
 | Decimal-point afterglow, "C" indicator fade | `LEDDisplayView` | `LedRenderer` | `FrameSampler` | Both | |
 | Cue card: 3 templates, `\blank` spans, shrink-to-fit, inks | `CueCardView` | `CueCardRenderer` | `CueCard` (layout, geometry, inks) | Both | |
-| Module program cards (SCOM[9]), user cards | `EmulatorViewModel` | `EmulatorController` | `CueCard` resolveCueCard | Both | |
+| Module program cards (SCOM[9]), user cards | `EmulatorViewModel` | `EmulatorController` | `SessionController`, `CueCard` resolveCueCard | Both | |
 | Solid State module selection | `SettingsView` | `SettingsDialog` | `ModuleCatalog` | Both | soft reset on change |
 | Startup calculator (model / last used) | `SettingsView` | `SettingsDialog` | `SettingsKeys` | Both | |
 
@@ -34,36 +34,37 @@ tracked here (see `NewGUIGuide.md`).
 
 | Feature | Swift | Qt | Shared | Status | Notes |
 |---|---|---|---|---|---|
-| Open preset `.ti59` / `.ti58` / `.ti58c` | `CalculatorView` | `MainWindow` | `StateFile`, `StateApplier` | Both | |
-| KEYSTROKES playback (Wait, FullSpeed, Trace, elapse) | `EmulatorViewModel` | `EmulatorController` | `KeySequencer` | Both | |
+| Open preset `.ti59` / `.ti58` / `.ti58c` | `CalculatorView` | `MainWindow` | `SessionController` loadStateFile, `StateFile`, `StateApplier` | Both | |
+| KEYSTROKES playback (Wait, FullSpeed, Trace, elapse) | `EmulatorViewModel` | `EmulatorController` | `EmulatorSession`, `KeySequencer` | Both | |
 | Drag-and-drop / open-with of state files | — | `MainWindow`, `main.cpp` | — | Qt only | Swift: file importer only |
-| Magnetic cards: read, write blank, eject, auto-eject | `CalculatorView`, `CardPickerView` | `ControlBar`, `CardPickerDialog` | `CardFile` (format, listed names) | Both | TI-59 only |
+| Magnetic cards: read, write blank, eject, auto-eject | `CalculatorView`, `CardPickerView` | `ControlBar`, `CardPickerDialog` | `SessionController` (card reader), `CardFile` (format, listed names) | Both | TI-59 only |
 | Card and `ti58c.mem` location | iCloud Documents (`CardStorage`) | `~/Calc-U-59` (`AppPaths`) | — | Swift only / Qt only | Qt: card folder in Settings |
 | Open Preset start folder | system file importer | last used, or fixed in Settings | — | Qt only | Calc-U-1600 layout |
-| TI-58C constant memory (save on change, restore) | `EmulatorViewModel` | `EmulatorController` | `ConstantMemory` | Both | |
+| TI-58C constant memory (save on change, restore) | `EmulatorViewModel` | `EmulatorController` | `SessionController` (debounced persist), `ConstantMemory` | Both | |
 
 ## Printer
 
 | Feature | Swift | Qt | Shared | Status | Notes |
 |---|---|---|---|---|---|
-| PC-100C connect toggle (resets) | `PrinterView` | `PrinterWidget` | — | Both | |
+| PC-100C connect toggle (resets) | `PrinterView` | `PrinterWidget` | `SessionController` | Both | |
 | Dot view at PC-100C proportions; text view | `PrinterView` | `PrinterWidget` | `PrinterFont` PrinterGeometry | Both | |
-| PRINT / ADV (hold), T (TRACE latch) | `PrinterView` | `PrinterWidget` | — | Both | |
-| Copy (text + 600 dpi image), cut | `PrinterView` | `PrinterWidget` | `PrinterFont` PrinterGeometry (strip height, copy scale) | Both | |
+| PRINT / ADV (hold), T (TRACE latch) | `PrinterView` | `PrinterWidget` | `SessionController` | Both | |
+| Copy (text + 600 dpi image), cut | `PrinterView` | `PrinterWidget` | `SessionController` (strip, cut), `PrinterFont` PrinterGeometry (strip height, copy scale) | Both | |
 
 ## Debugger
 
 | Feature | Swift | Qt | Shared | Status | Notes |
 |---|---|---|---|---|---|
-| CALCULATOR tab: registers, flags, HIR, T, return stack, partition, source | `LiveDebugView` | `LiveDebugWidget` | `DebugSnapshots`, `DebugText`, `ModuleImage` | Both | |
-| Program steps ±5 running / full listing frozen | `LiveDebugView` | `LiveDebugWidget` | `DebugSnapshots` | Both | |
-| FREEZE, FREEZE ON START (next PC change), ARMED, RESUME, STEP (hold to repeat) | `LiveDebugView` | `LiveDebugWidget` | `FreezeController` | Both | |
-| CPU tab: history, registers, control registers, display state | `CPUInspectorView` | `CpuInspectorWidget` | `DebugSnapshots`, `DebugText` | Both | |
-| CPU FREEZE ON START (scan-loop exit), STEP | `CPUInspectorView` | `CpuInspectorWidget` | `FreezeController` | Both | |
-| ROM heatmap with hover address, CLR | `CPUInspectorView` | `RomHeatmapWidget` | `RomHeatmap` | Both | |
-| ASM overlay: select, run, clear | `DebugView` | `AsmOverlayBox` | `AsmOverlay` | Both | |
-| LOG tab: dumps, clear, log level | `DebugView` | `LogWidget` | `DebugLog` | Both | |
-| Binary trace (TRACE toggle), size limit | `DebugView`, `TraceWriter` | `LogWidget` | `TraceWriter` | Both | |
+| CALCULATOR tab: registers, flags, HIR, T, return stack, partition, source | `LiveDebugView` | `LiveDebugWidget` | `DebugModel`, `DebugSnapshots`, `DebugText`, `ModuleImage` | Both | |
+| Program steps ±5 running / full listing frozen | `LiveDebugView` | `LiveDebugWidget` | `DebugModel` (listing, SolidStateReturn advance), `DebugSnapshots` | Both | |
+| FREEZE, FREEZE ON START (next PC change), ARMED, RESUME, STEP (hold to repeat) | `LiveDebugView` | `LiveDebugWidget` | `EmulatorSession` (DebugState, freeze/step), `SessionController`, `FreezeController` | Both | |
+| CPU tab: history, registers, control registers, display state | `CPUInspectorView` | `CpuInspectorWidget` | `DebugModel` (cpuHistory), `DebugSnapshots`, `DebugText` | Both | |
+| CPU FREEZE ON START (scan-loop exit), STEP | `CPUInspectorView` | `CpuInspectorWidget` | `EmulatorSession` (DebugState, stepInstruction), `SessionController`, `FreezeController` | Both | |
+| ROM heatmap with hover address, CLR | `CPUInspectorView` | `RomHeatmapWidget` | `DebugModel`, `RomHeatmap` | Both | |
+| ASM overlay: select, run, clear | `DebugView` | `AsmOverlayBox` | `SessionController` loadAsm/runAsm/clearAsm, `AsmOverlay` | Both | |
+| LOG tab: dumps, clear, log level | `DebugView` | `LogWidget` | `SessionController` (dumps, level), `DebugModel` (RingLog), `DebugLog` | Both | |
+| LOG kept across model switch | `DebugView` | `LogWidget` | `DebugModel` (the LOG survives `attach`) | Both | |
+| Binary trace (TRACE toggle), size limit | `DebugView` | `LogWidget` | `SessionController` setManualTrace, `EmulatorSession` (manual / scripted writers), `TraceWriter` | Both | |
 | Trace location | Local / iCloud / custom | card folder, or trace folder in Settings | — | Both | iCloud: Swift only |
 | Breakpoints | — | — | Core API only (headless tools) | — | no UI in either app; the session ignores them |
 

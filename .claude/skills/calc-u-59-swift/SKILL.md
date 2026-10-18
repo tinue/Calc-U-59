@@ -16,13 +16,14 @@ For TI-59 domain background (keycodes, SCOM layout, solid-state modules, program
 
 ```
 EmulatorViewModel          (App/EmulatorViewModel.swift)
-  │  @Observable, owns all UI state, polls the session at 60 Hz
+  │  @Observable adapter: forwards actions, ticks the controller at 60 Hz,
+  │  copies state in apply(_ changes:) when the controller reports TIChange
   │
-  ├─ TISession             (Bridge/ → Shared/EmulatorSession: run loop thread,
-  │    │                    freezes, key timing, frame sampler, trace writers)
-  │    └─ TI59MachineWrapper (Bridge/, shares the session's machine)
-  ├─ TIFileFormats, TIDebugModel, TISharedTables, TIViewRules, TITraceWriter
-  │    ObjC++ wrappers over Shared/ — the only places Swift touches C++
+  ├─ TISessionController   (Bridge/ → Shared/SessionController: machine, presets,
+  │                         card reader, printer, freeze/step, traces, ASM, LOG;
+  │                         PlatformForwarder implements its TIPlatform protocol)
+  ├─ TITypes, TIFileFormats, TISharedTables, TIViewRules, TISettings
+  │    ObjC++ type translation over Shared/ — the only places Swift touches C++
   │
   └─ App/Views/            (SwiftUI, thin bindings only)
        CalculatorView      main container
@@ -58,19 +59,26 @@ Full file-by-file responsibility table: `reference/AppArchitecture.md` §
 
 ## 60 Hz Loop and Value Timing
 
-- `EmulatorViewModel` runs a 60 Hz display-link loop.
-- **All register values shown in the debug panel are pre-execution** — what exists before the current instruction runs.
-- **Frozen display**: when frozen, `current step = decodedPC − 1` (last executed instruction); registers show post-execution state of that instruction.
-- **Next statement**: shows the ROM address and mnemonic of the not-yet-executed instruction; register fields are empty/blank.
+- `EmulatorViewModel`'s 60 Hz timer calls `controller.tick()`; what changed
+  arrives through `TIPlatform.changed(_:)` and is copied into the observable
+  properties (each write guarded — `@Observable` notifies even on equal values).
+- Freeze state is the controller's: `isFrozen`, `freezeOwner`,
+  `pendingFreezeOnPCChange`, `pendingCPUScanLoopFreeze` are read-only mirrors
+  (setting a pending flag to false disarms). The debugger's data is
+  `liveDebugSnapshot`, `programListing(+Source, CurrentIndex)`, `cpuHistory`
+  (+ `cpuHistoryUpdateID`) and `romHitCount`.
+- Freeze/step semantics, threading and the frozen display (current step =
+  last executed step): `reference/DebugAPI.md` § "Freeze / Step Controls".
 
 ---
 
 ## Program Sources and the Solid-State Display Path
 
 How the PROGRAM STEPS view resolves and highlights solid-state (library
-module) addresses — `ProgramSource`, `cacheModuleImage()`,
-`libraryProgramStep()`, the PRG SOURCE=2 transitional-return case — is
-documented in `reference/AppArchitecture.md` § "Solid-State Program Display".
+module) addresses — `ProgramSource`, `ModuleImage`, the PRG SOURCE=2
+transitional-return case — is built in `Shared/` (`DebugSnapshots`,
+`DebugModel`) and documented in `reference/AppArchitecture.md` §
+"Solid-State Program Display" and `reference/DebugAPI.md`.
 
 ---
 

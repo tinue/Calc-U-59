@@ -79,24 +79,8 @@ struct CPUInspectorView: View {
     @StateObject private var heatmapRenderer = HeatmapRenderer()
     @State private var heatmapHoveredAddress: Int? = nil
 
-    // Unified instruction list — live from cpuDebugSnapshot when running, cpuInspectorHistory when frozen.
-    private var displayHistory: [EmulatorViewModel.InspectorSnapshot] {
-        if vm.isFrozen {
-            return vm.cpuInspectorHistory
-        } else {
-            let instrs = vm.cpuDebugSnapshot.recentInstructions
-            return instrs.enumerated().map { idx, instr in
-                EmulatorViewModel.InspectorSnapshot(
-                    pc: instr.pc,
-                    opcode: instr.opcode,
-                    disasm: instr.disasm,
-                    frame: instr.frame,
-                    isHistory: true,
-                    isCurrent: idx == instrs.count - 1
-                )
-            }
-        }
-    }
+    // Running: the newest instructions (the last is current); frozen: the trace ring plus the next.
+    private var displayHistory: [EmulatorViewModel.InspectorSnapshot] { vm.cpuHistory }
 
     var body: some View {
         GeometryReader { geo in
@@ -149,25 +133,25 @@ struct CPUInspectorView: View {
                                 }
                             }
                         }
-                        .onChange(of: vm.cpuInspectorUpdateID) { _, _ in
-                            // Freeze or step: auto-select and scroll to current instruction.
-                            if let currentIdx = vm.cpuInspectorHistory.firstIndex(where: { $0.isCurrent }) {
-                                selectedIndex = currentIdx
-                                withAnimation(.easeInOut(duration: 0.1)) {
-                                    proxy.scrollTo(currentIdx, anchor: .center)
+                        .onChange(of: vm.cpuHistoryUpdateID) { _, _ in
+                            if vm.isFrozen {
+                                // Freeze or step: auto-select and scroll to the current instruction.
+                                if let currentIdx = vm.cpuHistory.firstIndex(where: { $0.isCurrent }) {
+                                    selectedIndex = currentIdx
+                                    withAnimation(.easeInOut(duration: 0.1)) {
+                                        proxy.scrollTo(currentIdx, anchor: .center)
+                                    }
                                 }
+                            } else {
+                                let last = displayHistory.count - 1
+                                guard last >= 0 else { return }
+                                selectedIndex = last
+                                proxy.scrollTo(last, anchor: .bottom)
                             }
-                        }
-                        .onChange(of: vm.cpuDebugSnapshot) { _, _ in
-                            guard !vm.isFrozen else { return }
-                            let last = displayHistory.count - 1
-                            guard last >= 0 else { return }
-                            selectedIndex = last
-                            proxy.scrollTo(last, anchor: .bottom)
                         }
                         .onAppear {
                             if vm.isFrozen {
-                                if let currentIdx = vm.cpuInspectorHistory.firstIndex(where: { $0.isCurrent }) {
+                                if let currentIdx = vm.cpuHistory.firstIndex(where: { $0.isCurrent }) {
                                     selectedIndex = currentIdx
                                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                                         proxy.scrollTo(currentIdx, anchor: .center)
@@ -395,8 +379,7 @@ struct CPUInspectorView: View {
     // MARK: - ROM Heatmap Section
 
     private func romHeatmapSection(width: CGFloat) -> some View {
-        // Use the same isCurrent entry that highlights the instruction list row —
-        // cpuDebugSnapshot.currentPC is the *next* (pre-fetch) PC, which is one ahead.
+        // The same isCurrent entry that highlights the instruction list row.
         let currentPC = displayHistory.first(where: { $0.isCurrent }).map { Int($0.pc) } ?? -1
         let cols      = CGFloat(HeatmapRenderer.cols)
         let rows      = CGFloat(HeatmapRenderer.rows)

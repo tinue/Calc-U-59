@@ -17,13 +17,12 @@
 #include <vector>
 
 // One running calculator: the machine plus the runtime around it that both
-// frontends share — the paced run loop and its thread, armed freezes, timed
-// key input and KEYSTROKES playback, the 60 Hz frame sampler and the two
-// binary trace writers (manual and scripted). A frontend owns one session per
-// machine (a model switch builds a new one), forwards user actions to it,
-// calls tick() at 60 Hz, and receives asynchronous events through Listener —
-// on the session's threads, so it hops to its UI thread itself.
-// See reference/SharedArchitecture.md.
+// frontends share — the paced run loop and its thread, the debugger's freeze
+// state (frozen, owner, armed freezes, stepping), the trace flags, timed key
+// input and KEYSTROKES playback, the 60 Hz frame sampler and the two binary
+// trace writers (manual and scripted). One session per machine (a model
+// switch builds a new one); SessionController owns it. Listener events come
+// on the session's threads. See reference/SharedArchitecture.md.
 
 namespace cu59 {
 
@@ -36,6 +35,28 @@ struct TraceConsumers {
     bool scriptedTrace = false;
 };
 
+/// The debugger's freeze state. `generation` changes on every freeze, resume
+/// and clear, so a view built for an earlier freeze can be recognised.
+struct DebugState {
+    bool frozen = false;
+    std::optional<FreezeOwner> owner;   ///< the panel whose RESUME / STEP apply
+    bool pcChangeArmed = false;         ///< CALCULATOR: FREEZE ON START (next PC change)
+    bool scanLoopExitArmed = false;     ///< CPU: FREEZE ON START (scan-loop exit)
+    uint64_t generation = 0;
+    bool operator==(const DebugState& o) const {
+        return frozen == o.frozen && owner == o.owner && pcChangeArmed == o.pcChangeArmed &&
+               scanLoopExitArmed == o.scanLoopExitArmed && generation == o.generation;
+    }
+};
+
+/// Why a frozen machine is ready to be shown.
+enum class FrozenViewReason {
+    Freeze,           ///< FREEZE: at the next keycode boundary
+    FreezeFired,      ///< an armed freeze fired
+    StepKeycode,      ///< STEP in the CALCULATOR panel
+    StepInstruction,  ///< STEP in the CPU panel
+};
+
 /// The trace flags for those consumers; with none active the core runs on its
 /// TRACE_NONE fast path.
 uint32_t traceFlagsFor(const TraceConsumers& c);
@@ -44,7 +65,11 @@ class EmulatorSession : private KeySequencer::Host {
 public:
     struct Listener {
         virtual ~Listener() = default;
-        virtual void freezeFired(FreezeOwner) {}
+        /// debugState() changed off the caller's thread (an armed freeze fired).
+        virtual void debugStateChanged() {}
+        /// The machine is stopped at a point to show (after beginNextStep); on
+        /// the emulation thread. Ignore it if debugState().generation moved on.
+        virtual void frozenViewReady(uint64_t /*generation*/, FrozenViewReason) {}
         virtual void heldKeyChanged(int /*highlightID*/) {}
         virtual void fullSpeedChanged(bool) {}
         virtual void playbackStarted() {}
@@ -53,9 +78,6 @@ public:
         virtual void logLine(const std::string&) {}
         /// A scripted "Trace:" file could not be created.
         virtual void scriptedTraceFailed(const std::string& /*fileName*/) {}
-        /// The session's scripted trace opened or closed (trace flags may change).
-        virtual void scriptedTraceChanged(bool /*open*/) {}
-        virtual void batchDone() {}
     };
 
     /// Build the machine from ROM text files: the model's ROM and constants
@@ -84,10 +106,33 @@ public:
     void setFullSpeed(bool on) override;
     bool isFullSpeed() const { return m_runner->fullSpeed(); }
 
-    /// The frontend's freeze state (key playback stops waiting when frozen).
-    void setFrozen(bool frozen) { m_frozen = frozen; }
+    /// Since the last call: a batch ran (TI-58C RAM may have changed).
+    bool takeRamDirty() { return m_ramDirty.exchange(false); }
+
+    // ── Debugger: freeze and step (UI thread) ────────────────────────────────
+    DebugState debugState() const;
     bool frozen() const { return m_frozen.load(); }
-    FreezeController& freezeControl() { return m_freeze; }
+    /// Stop, freeze for `owner`, disarm both armed freezes; the machine runs on
+    /// to the next keycode boundary, then frozenViewReady(Freeze).
+    void freeze(FreezeOwner owner);
+    /// Freeze where the machine stands (stopped already), no step.
+    void freezeInPlace(FreezeOwner owner);
+    /// Unfreeze and start the run loop.
+    void resume();
+    /// Unfreeze without starting (the caller has stopped the loop to change state).
+    void clearFreeze();
+    /// Freeze on the next calculator-PC change (CALCULATOR) or when the
+    /// keyboard scan loop exits (CPU); arming one disarms the other.
+    void armPcChange();
+    void armScanLoopExit();
+    void disarmPcChange();
+    void disarmScanLoopExit();
+    /// While frozen: one keycode (→ StepKeycode) or one instruction, stepping
+    /// through a HOLD (WAIT Dn) of up to 32 instructions (→ StepInstruction).
+    void stepKeycode();
+    void stepInstruction();
+    /// The CPU panel is visible (it needs the trace ring).
+    void setCpuPanelVisible(bool visible);
 
     // ── Keys ─────────────────────────────────────────────────────────────────
     /// Press / release a matrix code (logged to the manual trace).
@@ -106,6 +151,12 @@ public:
     // ── Traces ───────────────────────────────────────────────────────────────
     TraceWriter& manualTrace() { return m_manualTrace; }
     TraceWriter& scriptedTrace() { return m_scriptedTrace; }
+    /// The manual ("C" indicator) trace: a fresh file at `path`.
+    bool openManualTrace(const std::filesystem::path& path, uint64_t maxBytes);
+    /// Drain what is left and close it.
+    void closeManualTrace();
+    /// A trace writer is open: drainTrace() at 60 Hz.
+    bool needsDrain() const { return m_manualTrace.isOpen() || m_scriptedTrace.isOpen(); }
     /// Where scripted "Trace:" files go, and the session size limit.
     void setTraceLocation(const std::filesystem::path& dir, uint64_t maxBytes);
     /// Move the core's trace ring into the open writers (both share the one
@@ -125,6 +176,10 @@ private:
     void togglePrinterTrace() override { m_listener.togglePrinterTrace(); }
     void scriptedTrace(const std::optional<std::string>& fileName) override;
     void zeroElapseTime() override { m_elapseBaseline = m_machine->elapsedTicks(); }
+    void onFreezeFired(FreezeOwner owner);       // emulation thread
+    /// Set the frozen state (and owner, generation); disarms both armed freezes when freezing.
+    uint64_t setFrozenState(bool frozen, std::optional<FreezeOwner> owner);
+    void applyTraceFlags();
     void reportElapseTime() override { m_listener.logLine(elapsedReport()); }
     void playbackStarted() override { m_listener.playbackStarted(); }
     void playbackFinished() override;
@@ -141,7 +196,11 @@ private:
     std::filesystem::path m_traceDir;
     uint64_t m_traceMaxBytes = 50'000'000;
     std::vector<CpuFrame> m_drainBuf = std::vector<CpuFrame>(1024);  ///< drainTrace scratch, under m_traceMutex
-    std::atomic<bool> m_frozen{false};
+    mutable std::mutex m_stateMutex;   ///< m_state, m_cpuPanelVisible, trace-flag updates
+    DebugState m_state;
+    bool m_cpuPanelVisible = false;
+    std::atomic<bool> m_frozen{false};  ///< m_state.frozen, for the key sequencer
+    std::atomic<bool> m_ramDirty{false};
     std::atomic<uint64_t> m_elapseBaseline{0};
     std::unique_ptr<EmulationRunner> m_runner;
     std::unique_ptr<KeySequencer> m_keys;   ///< last: its threads stop first

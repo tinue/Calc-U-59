@@ -2,13 +2,18 @@
 
 This document describes the two-layer debug API available in the TI-59 emulator.
 
-- **Layer 1 — CPU / trace API**: instruction-level tracing, breakpoints, disassembler.
+- **Layer 1 — CPU / trace API**: instruction-level tracing, disassembler (and core
+  breakpoints, used only by the headless tools).
   Operates at the TMC0501 CPU level; useful for ROM debugging.
 - **Layer 2 — Calculator API**: read/write data registers, program steps, and internal
   state at the TI-59 user level; useful for debugging calculator programs.
 
-Both layers are thread-safe. All Swift entry points live in `EmulatorViewModel`;
-the underlying C++ is in `TI59Machine` and `TMC0501`.
+Both layers are thread-safe. The underlying C++ is in `TI59Machine` and
+`TMC0501`; the debugger built on them — freeze/step, the panels' data, the LOG
+— is in `Shared/` (`EmulatorSession`, `SessionController`, `DebugModel`) and
+used by both apps: the Swift app through `EmulatorViewModel` →
+`Bridge/TISessionController`, the Qt app through `Qt6/app/EmulatorController`.
+See `reference/SharedArchitecture.md`.
 
 This reference is API-focused. For user-facing debug-pane behavior (LIVE/CPU/LOG, controls, workflows), see the user guide: https://www.calcu59.ch
 
@@ -72,77 +77,39 @@ by diffing SCOM across multiple `n OP 17` operations):
 | SCOM[13][8]| `(programRAMregs / 10) % 10` (BCD LSD) |
 | SCOM[13][9]| `(programRAMregs / 10) / 10` (BCD MSD) |
 
-Reading or writing `m.partitionProgramRegs` (Swift/ObjC) accesses these SCOM
-nibbles directly — no key simulation required.
+`TI59Machine::partitionProgramRegs()` / `setPartitionProgramRegs()` read and write
+these SCOM nibbles directly — no key simulation required.
 
 ---
 
 ## Calculator-Level API (Layer 2)
 
+These are `TI59Machine` (Core) and Shared helper functions; neither app
+exposes them to its GUI code directly — the debug panels read what
+`DebugModel` builds from them (see below).
+
 ### Reading state
 
-#### `getCalcSnapshot() → CalcSnapshot?`
-
-Returns a point-in-time snapshot of the calculator's user-visible state.
-Returns `nil` if the machine has not yet started.
-
-```swift
-struct CalcSnapshot {
-    var registers:    [Double]      // R00…Rnn per current partition
-    var programSteps: [UInt8]       // keycodes 0–99; length = totalSteps
-    var printerBuffer: String       // characters not yet committed to a line
-    var cpu:          TICpuFrame    // raw CPU register state (unified frame struct)
-}
-```
-
-#### `rawRegister(_ reg: Int) → [UInt8]?`
-
-Read a raw 16-nibble RAM register. `reg` is the **physical** RAM index (0–119),
-not the user-visible register number. Use `119 − nn` to address data register Rnn.
-
-#### `machine.dataRegister(_ regNum: Int) → Double`  *(ObjC bridge)*
-
-Read data register Rnn decoded as a Double. Equivalent to `RCL nn` on the keyboard.
-
-#### `machine.allProgramSteps() → Data`  *(ObjC bridge)*
-
-Read all program steps as raw keycodes. Length = `partitionProgramRegs × 8`.
-
-#### `machine.snapshotCPU() → TICpuFrame`  *(ObjC bridge)*
-
-Capture a unified snapshot of all CPU registers (A–E, SCOM, KR, SR, fA, fB, …) at the
-current instant. Safe to call while the emulation loop is running. Returns the same
-`TICpuFrame` struct used in the trace ring buffer, with identity fields (pc, opcode, seqno)
-set to zero (not meaningful for standalone snapshots).
-
-#### `machine.printerBufferContent → String`  *(ObjC bridge)*
-
-Characters currently in the 20-character printer accumulator (not yet flushed
-to a print line). Empty string when the buffer has been committed or is blank.
+| Call | Returns |
+|------|---------|
+| `TI59Machine::copyRAMReg(reg, out16)` | A raw 16-nibble RAM register. `reg` is the **physical** index (0 … `ramRegCount()` − 1); data register Rnn is `119 − nn` on the TI-59 |
+| `TI59Machine::readProgramStep(step)` | One program-step keycode |
+| `cu59::programSteps(m)` (`Shared/DebugSnapshots.hpp`) | All steps of the current partition (clamped to physical RAM) |
+| `TI59Machine::partitionProgramRegs()` | RAM registers allocated to program storage (SCOM[9][0] × 10) |
+| `TI59Machine::snapshotCPU()` | A `CpuFrame` of all CPU registers (A–E, SCOM, KR, SR, fA, fB, …) at this instant; safe while the run loop runs. Identity fields (pc, opcode, seqno) are not meaningful here |
+| `TI59Machine::printerBufferContent()` | Characters in the 20-character printer accumulator not yet printed |
 
 ### Writing state
 
-#### `setRawRegister(_ reg: Int, nibbles: [UInt8])`
+| Call | Effect |
+|------|--------|
+| `TI59Machine::writeRAMReg(reg, nibbles16)` | Write a raw 16-nibble RAM register (physical index) |
+| `TI59Machine::writeProgram(keycodes, count)` | Write program steps from step 0 (one byte per step, 0–99) |
+| `TI59Machine::writeDataRegister(regNum, nibbles16)` | Write data register Rnn; encode values with `cu59::encodeBcd` (`Shared/Bcd.hpp`) |
+| `TI59Machine::setPartitionProgramRegs(n)` | Set the partition by writing the SCOM nibbles; `n` is a multiple of 10 in [0, 120] |
 
-Write a raw 16-nibble RAM register. `reg` is the physical index (0–119).
-`nibbles` must be exactly 16 bytes.
-
-#### `machine.writeProgramSteps(_ keycodes: Data)`  *(ObjC bridge)*
-
-Write program steps from a byte array (one byte per step, value 0–99) starting
-at step 0. Typically called after `stepN(300_000)` to let the ROM complete its
-master-clear before overwriting program RAM.
-
-#### `machine.writeDataRegister(_ regNum: Int, nibbles: Data)`  *(ObjC bridge)*
-
-Write data register Rnn from 16 BCD nibbles. Use `cu59::encodeBcd` in
-`Shared/Bcd.hpp` to encode a value.
-
-#### `machine.partitionProgramRegs` (read/write)  *(ObjC bridge)*
-
-Get or set the program/data partition boundary by reading/writing the SCOM
-nibbles directly. Value is the number of RAM registers allocated to program
-storage; must be a multiple of 10 in [0, 120].
+Writes are made with the run loop stopped (`EmulatorSession::sync`), as
+`Shared/StateApplier.cpp` does.
 
 ### BCD encoding
 
@@ -171,66 +138,93 @@ and `TI59Machine::decodeBCD`.
 
 ## Freeze / Step Controls
 
-The live debug panel can pause the emulator at a keycode boundary, letting you
-inspect and single-step through program execution.
+The debug panels can pause the emulator at a keycode boundary (CALCULATOR) or
+an instruction (CPU), letting you inspect and single-step program execution.
+The freeze state lives in `Shared/EmulatorSession`; `Shared/SessionController`
+wraps it for the apps and rebuilds the panels' data (`DebugModel`). Both apps
+call the controller (Swift: `EmulatorViewModel.freeze(from:)`, `unfreeze()`,
+`freezeOnNextPCChange()`, `freezeOnScanLoopExit()`, `stepKeycode()`,
+`stepFrozen()`; Qt: `EmulatorController`).
 
-### State properties (`EmulatorViewModel`)
+### `DebugState` (`EmulatorSession::debugState()`)
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `isFrozen` | `Bool` | `true` when emulation is halted |
-| `pendingFreezeOnPCChange` | `Bool` | `true` when "FREEZE ON START" is armed; auto-clears on first PC change |
+| Field | Description |
+|-------|-------------|
+| `frozen` | Emulation is halted |
+| `owner` | `FreezeOwner::Cpu` or `::Calculator` — the panel whose RESUME / STEP apply; empty when running |
+| `pcChangeArmed` | CALCULATOR "FREEZE ON START": freeze on the next calculator-PC change (SCOM[0] PC or the solid-state exec latch) |
+| `scanLoopExitArmed` | CPU "FREEZE ON START": freeze when the CPU leaves the keyboard scan loop (key press or reset) |
+| `generation` | Bumped on every freeze, resume and clear, so a view built for an earlier freeze can be recognised |
 
-### Methods
+The two armed freezes are mutually exclusive (arming one disarms the other);
+freezing disarms both. The controller mirrors the state
+(`SessionController::debugState()`) and reports changes as `RunStateChanged`;
+Swift copies it into `isFrozen`, `freezeOwner`, `pendingFreezeOnPCChange` and
+`pendingCPUScanLoopFreeze`.
 
-#### `freeze(reason: FreezeReason = .manual)`
+### Methods (`EmulatorSession`, UI thread)
 
-Stops the emulation loop and waits (on the emulation thread) for the CPU to reach the next
-keycode boundary.  On return, `isFrozen` is `true` and the following caches are
-built once for the frozen view:
+| Method | Effect |
+|--------|--------|
+| `freeze(owner)` | Stop the loop, mark frozen; then on the emulation thread `stepUntilNextKeycode()` + `beginNextStep()` → `frozenViewReady(Freeze)` |
+| `freezeInPlace(owner)` | Mark frozen where the stopped machine stands, no step (used by the ASM overlay's FREEZE ON START) |
+| `resume()` | Unfreeze and start the run loop |
+| `clearFreeze()` | Unfreeze without starting (caller stopped the loop to change state, e.g. a preset load) |
+| `armPcChange()` / `disarmPcChange()` | CALCULATOR armed freeze; checked by `FreezeController::checkBatch` per batch |
+| `armScanLoopExit()` / `disarmScanLoopExit()` | CPU armed freeze; checked by `FreezeController::checkStep` per instruction |
+| `stepKeycode()` | While frozen: `stepUntilNextKeycode()` + `beginNextStep()` → `frozenViewReady(StepKeycode)` |
+| `stepInstruction()` | While frozen: one `step()`, repeated (≤ 32) while the PC stays put — a HOLD (`WAIT Dn`) — then `beginNextStep()` → `frozenViewReady(StepInstruction)` |
+| `setCpuPanelVisible(bool)` | The CPU panel needs the trace ring |
 
-- `frozenRAMCache` — full user-RAM program listing with `isCurrent` markers
-- `frozenROMCache` — full main-ROM listing (when `prSourceFlag == 8`)
-- `cachedPrSourceFlag` — which cache is currently valid
+`SessionController` has the same calls (`freeze`, `resume`, `armPcChange`,
+`armScanLoopExit`, `disarm…`, `stepKeycode`, `stepInstruction`) plus
+`setLiveDebugEnabled` / `setCpuDebugEnabled` for panel visibility.
 
-#### `unfreeze()`
+### Threading
 
-Clears `freezeReason` and all program caches, then restarts the emulation and
-display refresh loops.
+- Freezes and steps run on the emulation thread as posted jobs (the job queue
+  is serial, so they run after the loop has exited).
+- An armed freeze fires in the run loop; `EmulatorSession` applies it
+  (frozen, owner, new generation; for a CALCULATOR freeze also
+  `beginNextStep()`) on the emulation thread **before** any listener runs, so
+  the key sequencer never sees a stopped machine as running. Then
+  `Listener::debugStateChanged()` and `frozenViewReady(generation, FreezeFired)`.
+- `frozenViewReady` hops to the UI thread (`Platform::runOnUiThread`).
+  `SessionController::onFrozenView` builds the view (`DebugModel::frozenView`)
+  only if the session is still frozen with the same `generation` — a RESUME or
+  new freeze that came first makes the view stale and it is dropped (the
+  machine may already be running). Events from a replaced session (model
+  switch) are dropped too.
+- Trace flags are computed inside the session by `traceFlagsFor(TraceConsumers)`
+  (CPU panel visible, frozen, an armed freeze, manual or scripted trace →
+  `TRACE_PC | TRACE_REGS_FULL`, otherwise `TRACE_NONE`) and set on every change.
 
-#### `freezeOnNextPCChange()`
+### What a frozen view rebuilds
 
-Arms a one-shot freeze that fires as soon as the decoded program counter (from
-SCOM[0] nibbles 4–7) changes.  The current decoded PC is recorded in
-`lastObservedPC`; `pendingFreezeOnPCChange` is set to `true`.  The check runs
-inside the 60 Hz tick loop.
+`DebugModel::frozenView(m, model, reason)`:
 
-#### `stepKeycode()`
+- CALCULATOR snapshot and program listing — except for `StepInstruction`.
+- CPU history (`inspectorHistory`) — always.
+- **SolidStateReturn rule:** on `StepKeycode`, if the program source is
+  `ProgramSource::SolidStateReturn` (PRG SOURCE `2`: SCOM[0] holds a raw CROM
+  return address, not a step), the listing is kept and its `isCurrent` marker
+  advances one entry onto the RTN just executed. A listing is never rebuilt
+  from a SolidStateReturn snapshot.
 
-Advances one keycode boundary while frozen.  After the step:
-
-1. Rebuilds live debug and CPU inspector snapshots.
-2. If `prSourceFlag` changed (e.g. a library call), the appropriate program cache
-   is rebuilt and the other cache is cleared.
-3. If `prSourceFlag` is unchanged, only the `isCurrent` markers are updated
-   in-place (cheaper than a full rebuild).
+Showing the CALCULATOR panel while frozen rebuilds its snapshot at once
+(`DebugModel::rebuildLive`), since the frozen view may predate it.
 
 ### Frozen-display semantics
 
-When frozen, `currentStep` in `LiveDebugSnapshot` is the last fully executed
-step (`decodedPC − 1`); the next step to execute is the one after it in the
-listing.
+When frozen, `currentStep` in `LiveDebugSnapshot` is the last executed step
+(`decodedPC − 1`, or the latched solid-state step); the next step to execute
+is the one after it in the listing.
 
-The frozen program window shows the full program listing (built once on freeze) and
-scrolls to `currentStep` automatically.  The "next" step is rendered below the
-current step with dimmed styling.
-
-### Frozen program cache access
-
-```swift
-var frozenCachedProgram: [LiveDebugSnapshot.StepEntry]?  // nil when not frozen
-var frozenCachedCurrentIndex: Int                         // index of isCurrent entry, or -1
-```
+The frozen program window shows the whole listing of the current source
+(`DebugModel::listing()`, `listingSource()`, `listingCurrentIndex()`; Swift
+`programListing`, `programListingSource`, `programListingCurrentIndex`) and
+scrolls to the current entry. The "next" step is rendered below it with
+dimmed styling.
 
 ---
 
@@ -238,12 +232,11 @@ var frozenCachedCurrentIndex: Int                         // index of isCurrent 
 
 `LiveDebugSnapshot` is a value type (`struct`) that carries a complete point-in-time
 view of the calculator's user-visible and SCOM-derived state.  It is built in
-C++ by `cu59::buildLiveSnapshot` (`Shared/DebugSnapshots.cpp`, shared with the
-Qt6 app) and converted for SwiftUI by the view model's `buildLiveSnapshot()` —
-at 60 Hz when `vm.liveDebugEnabled` is `true`, and once on each `freeze()` /
-`stepKeycode()` call.
-
-The snapshot is stored in `vm.liveDebugSnapshot` and read by `LiveDebugView`.
+C++ by `cu59::buildLiveSnapshot` (`Shared/DebugSnapshots.cpp`) and held by
+`DebugModel` (`live()`) — rebuilt at 60 Hz while running and the CALCULATOR
+panel is visible, and once per freeze / keycode step (see above). The Swift app
+copies it (via `TILiveDebugSnapshot`) into `vm.liveDebugSnapshot` for
+`LiveDebugView`; the Qt app reads it from the controller.
 
 ### Partition fields
 
@@ -256,7 +249,7 @@ The snapshot is stored in `vm.liveDebugSnapshot` and read by `LiveDebugView`.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `programWindow` | `[StepEntry]` | ±5 steps around `currentStep` when running; not used when frozen (full cache used instead) |
+| `programWindow` | `[StepEntry]` | ±5 steps around `currentStep` when running; not used when frozen (the full listing is used instead) |
 | `currentStep` | `Int` | Decoded program counter; −1 = unknown.  When frozen: last executed step (decodedPC − 1) |
 
 `StepEntry` fields: `stepNum: Int`, `keycode: UInt8`, `mnemonic: String`, `isCurrent: Bool`.
@@ -265,7 +258,7 @@ The program source (RAM vs. ROM) is selected by `prSourceFlag`:
 
 | `prSourceFlag` | Source | Steps decoded from |
 |----------------|--------|--------------------|
-| `0` | User RAM | `machine.allProgramSteps()` |
+| `0` | User RAM | `cu59::programSteps(m)` |
 | `8` | Main ROM constants | `TI59Machine::readROMKeycode` (indices 0–383; `cu59::romKeycodes` in `Shared/DebugSnapshots.hpp`) |
 
 ### HIR registers (SCOM[1..8])
@@ -336,8 +329,8 @@ level whose source nibble is the literal `2` (ROM 0DA9). The RTN handler (ROM
 address → nibbles 4–7 (plain BCD, *not* a step number). On the next dispatch
 the firmware sees `2`, reloads the CROM PC from those nibbles via `OUT LIB_PC`,
 and rewrites the flag to `1`. While `2` is active the debug panel keeps showing
-the previously displayed program (held frozen cache) with the highlight on the
-just-executed RTN.
+the previously displayed listing with the highlight on the just-executed RTN
+(see "What a frozen view rebuilds").
 | `pendingOpsCount` | SCOM[13][0] | Number of pending operations in hierarchy stack (exact bit position TBD) |
 
 ### SCOM display
@@ -388,42 +381,42 @@ address = n[5]×800 + n[4]×80 + n[3]×8 + n[2]
 
 ---
 
-### Debug output API (ViewModel)
+### Debug output API (LOG tab)
 
-These append formatted lines to `vm.debugLines` (displayed in the LOG tab). Each
-call accepts an implicit `level:` parameter (default `.info`); output is suppressed
-when `vm.debugLevel < level`.
+The LOG is a `RingLog` (`Shared/DebugLog.hpp`, 2000 lines) held by
+`DebugModel`; it is kept across model switches. `SessionController` writes
+the dumps into it and refreshes `logText()` at 1 Hz (Swift:
+`vm.debugDisplayText`).
 
-| Function | Description |
-|----------|-------------|
-| `debugDumpVars()` | Non-zero data registers within the current partition, shown as `R00 = 3.14159…` |
-| `debugDumpSCOM()` | All 16 SCOM rows as hex nibble strings (`S00 0000000000000000`), nibble[15] first |
-| `debugDumpProg()` | Program RAM registers R00–Rnn as raw nibble pairs in storage order (`R00: 67 11 24 00…`); length = `partitionProgramRegs` |
-| `debugDumpMemory()` | Entire RAM: non-zero registers only, using physical indices (`R000:`, `R001:`, …); same format as `ti58c.mem` |
-| `toggleDebug()` / `clearDebug()` | Cycle debug level (OFF→INFO→DEBUG→OFF); clear the log |
+| `SessionController` (Swift `EmulatorViewModel`) | Shared formatter | Output |
+|---------------|------------------|--------|
+| `dumpVars()` (`debugDumpVars()`) | `cu59::dumpVars` | Non-zero data registers within the current partition |
+| `dumpScom()` (`debugDumpSCOM()`) | `cu59::dumpScom` | All 16 SCOM rows as hex nibble strings (`S00 0000000000000000`), nibble[15] first |
+| `dumpProg()` (`debugDumpProg()`) | `cu59::dumpProg` | Program RAM registers as raw nibble pairs in storage order (`R00: 67 11 24 00…`) |
+| `dumpMemory()` (`debugDumpMemory()`) | `cu59::dumpMemory` | Entire RAM: non-zero registers only, physical indices (`R000:`, …); same format as `ti58c.mem` |
+| `dumpStepCounterAnalysis()` (`debugDumpStepCounterAnalysis()`) | `cu59::dumpStepCounterAnalysis` | Step-counter analysis |
+| `cycleDebugLevel()` / `clearLog()` (`toggleDebug()` / `clearDebug()`) | — | Cycle debug level (OFF→INFO→DEBUG→OFF); clear the log |
 
-`vm.debugLevel: DebugLevel` — current level (`.off`, `.info`, `.debug`).
-`vm.debugEnabled: Bool` — convenience; `true` when level ≠ OFF.
-
-When adding new Swift-side debug output, call `debugAppend([...], level: .info)` or
-`debugAppend([...], level: .debug)` as appropriate.
+`debugLevel()` is `DebugLevel::Off`, `Info` or `Debug`; it is passed to the
+core (`TI59Machine::setDebugLevel`). New output from Shared code goes through
+`SessionController::log(lines)` (or `EmulatorSession::Listener::logLine`).
 
 ---
 
 ### C-core debug events
 
-The CPU core (`TMC0501`) can emit `DebugEvent` messages that are drained by
-`tick()` at 60 Hz and forwarded to the debug panel — no manual polling required.
+The CPU core (`TMC0501`) can emit `DebugEvent` messages that are drained in
+the 60 Hz frame and appended to the LOG — no manual polling required.
 
 #### Mechanism
 
 1. `TMC0501::emitDebug(level, fmt, ...)` — appends a `DebugEvent` to an internal
    vector.  The call is a no-op when `level > m_debugLevel`, so there is zero
    overhead when the panel is OFF or at a lower level.
-2. `TI59Machine::drainDebugEvents()` — called by the Swift tick loop under
-   `m_keyMutex`; swaps and returns the accumulated events.
-3. `tick()` in `EmulatorViewModel` decodes the level prefix and calls
-   `debugAppend` with the matching `DebugLevel`.
+2. `TI59Machine::drainDebugEvents()` — called by `FrameSampler::tick`
+   (`EmulatorSession::tick`); swaps and returns the accumulated events, keeping
+   those at or below the current level.
+3. `SessionController::tick` writes the lines into the LOG ring.
 
 #### Levels
 
@@ -448,8 +441,8 @@ emitDebug(2, "MY_OP target=%d value=%s", addr, fmtNibs(data, buf));
   Pass `reverse = true` to print nibble[15] first (MSD-first, as used for SCOM).
 - The message buffer is 80 characters; `vsnprintf` silently truncates longer strings.
 - `emitDebug` may only be called from `TMC0501` member functions — it is private.
-  To emit events from `TI59Machine` or the Obj-C wrapper, add a public helper or
-  call through `m_cpu`.
+  To emit events from `TI59Machine`, add a public helper or call through `m_cpu`;
+  Shared code logs through `SessionController` instead.
 
 #### Current DEBUG-level events
 
@@ -466,17 +459,17 @@ emitDebug(2, "MY_OP target=%d value=%s", addr, fmtNibs(data, buf));
 
 ### Trace flags
 
-Set via `machine.traceFlags` property. The UI manages this automatically when
-the trace window is opened/closed and when the full-registers toggle is clicked.
+Set with `TI59Machine::setTraceFlags` (`Core/TraceTypes.hpp`). In the apps only
+`EmulatorSession` sets them, from `traceFlagsFor(TraceConsumers)`: any consumer
+(CPU panel visible, frozen, an armed freeze, manual or scripted trace) gives
+`TRACE_PC | TRACE_REGS_FULL`, none gives `TRACE_NONE` (the fast path).
 
-| Flag | Swift name | Cost | Records |
-|------|------------|------|---------|
-| `TRACE_PC` | `.pc` | Low | pc, opcode, digit, cycleWeight, seqno |
-| `TRACE_REGS_LIGHT` | `.regsLight` | Medium | adds KR, SR, fA, fB, R5, cpuFlags |
-| `TRACE_REGS_FULL` | `.regsFull` | High | adds A–E, SCOM[16][16], Sout |
-| `TRACE_BREAKPOINTS` | `.breakpoints` | Low | armed breakpoint check per step |
-
-Flags are combined: `[.pc, .regsLight]` is the default when tracing is enabled.
+| Flag | Cost | Records |
+|------|------|---------|
+| `TRACE_PC` | Low | pc, opcode, digit, cycleWeight, seqno |
+| `TRACE_REGS_LIGHT` | Medium | adds KR, SR, fA, fB, R5, cpuFlags |
+| `TRACE_REGS_FULL` | High | adds A–E, SCOM[16][16], Sout |
+| `TRACE_BREAKPOINTS` | Low | armed breakpoint check per step (headless tools only) |
 
 ### CpuFrame fields
 
@@ -527,60 +520,41 @@ sets them; the run loop just stops if one is hit.
 
 ### CPU Inspector
 
-The CPU inspector provides a deep view of instruction-level execution history with
-post-execution register snapshots.  It is active when the **CPU** tab is selected
-and the emulator is frozen.
+The CPU tab shows instruction-level execution history with post-execution
+register snapshots. One list, `DebugModel::cpuHistory()`, serves both modes:
 
-#### `CPUDebugSnapshot`
+- **Running** (CPU panel visible): the newest 32 instructions,
+  `cu59::recentInstructions(readTraceRing(m))`, the last one current —
+  rebuilt in the 60 Hz frame only when the ring's newest `seqno` changed.
+- **Frozen**: `cu59::inspectorHistory(m)` on every freeze and step — every
+  frame still in the trace ring (read, not drained, up to 1024) plus the
+  certain next instruction (`isHistory = false`, zeroed frame), shown even at
+  the same PC (WAIT/KEY loops re-execute one instruction).
 
-Stored in `vm.cpuDebugSnapshot`; rebuilt by `buildCPUDebugSnapshot()` at 60 Hz
-when the CPU tab is active and the emulator is **running**.
+Both are in `Shared/DebugSnapshots.hpp`:
 
-```swift
-struct CPUDebugSnapshot {
-    struct Instruction {
-        var pc:     UInt16    // ROM address
-        var opcode: UInt16    // 13-bit instruction word
-        var disasm: String    // disassembly mnemonic
-    var frame:  TICpuFrame  // CPU state AFTER this instruction executed
-    }
-    var recentInstructions: [Instruction]  // last ≤32 instructions
-    var currentPC:  UInt16
-    var isPaused:   Bool
-    var pausedPC:   UInt16?
-}
+```cpp
+struct InspectorEntry {
+    uint16_t pc;
+    uint16_t opcode;
+    std::string disasm;
+    CpuFrame frame;   // state AFTER the instruction (zeroed for the next one)
+    bool isHistory;   // executed; false for the next instruction
+    bool isCurrent;   // the last executed instruction
+};
 ```
 
-Trace flags `[.pc, .regsFull]` are automatically enabled when this snapshot is
-being built.
-
-#### `InspectorSnapshot`
-
-Used by `CPUInspectorView` (frozen mode only).  Stored in `vm.cpuInspectorHistory`.
-
-```swift
-struct InspectorSnapshot {
-    var pc:        UInt16
-    var opcode:    UInt16
-    var disasm:    String
-    var frame:     TICpuFrame  // CPU state AFTER this instruction (empty for speculative future)
-    var isHistory: Bool        // true = executed; false = speculative look-ahead
-    var isCurrent: Bool        // true = the instruction frozen at
-}
-```
-
-Built by `captureInspectorSnapshot()`, which is called on every `freeze()`,
-`stepKeycode()`, and `singleStep()`.  It reads (without draining) up to 1024 frames
-from the ring buffer via `readCpuFrames(max: 1024)`, then appends a speculative
-"next instruction" entry derived from `snapshotCPU().opcode`.
-
-`vm.cpuInspectorUpdateID` is incremented each time a new inspector snapshot is
-captured; views observe this to trigger a scroll-to-current update.
+The Swift app receives them as `TIInspectorEntry` (`Bridge/TISessionController.h`,
+frame as `TICpuFrame` from `Bridge/TITypes.h`) and copies them into
+`vm.cpuHistory` (`[InspectorSnapshot]`); `vm.cpuHistoryUpdateID` is
+incremented on every change, which `CPUInspectorView` observes to scroll to
+the current entry. The ROM heatmap (`DebugModel::heatmapCounts()`, Swift
+`vm.romHitCount`) is fed from the same ring reads.
 
 ### Disassembler
 
-```swift
-TI59MachineWrapper.disassemblePC(_ pc: UInt16, opcode: UInt16) → String
+```cpp
+static std::string TI59Machine::disassemble(uint16_t pc, uint16_t opcode);
 ```
 
 Pure function — requires no machine state. Returns a mnemonic string for any
@@ -591,9 +565,12 @@ Pure function — requires no machine state. Returns a mnemonic string for any
 Injects raw TMC0501 machine code into a debug-only ROM region and executes it
 in a single synchronous burst — intended for ROM-level experimentation:
 testing small snippets, probing CPU behavior, or exercising the emulator with
-precisely crafted instruction sequences. Bridge entry points:
-`loadDebugOverlayWords:` / `clearDebugOverlay` / `runDebugOverlayAt:maxSteps:steps:`
-(see `Bridge/TI59MachineWrapper.h`).
+precisely crafted instruction sequences. Core entry points:
+`TI59Machine::loadDebugOverlay` / `clearDebugOverlay` / `runDebugOverlay`;
+the shared flow is `cu59::parseAsmWords` and `cu59::runAsmOverlay`
+(`Shared/AsmOverlay.hpp`) driven by `SessionController::loadAsm` / `runAsm` /
+`clearAsm`. If the CPU's FREEZE ON START is armed, Run freezes in place at
+the `0x1800` entry (`freezeInPlace(FreezeOwner::Cpu)`) instead of running.
 
 **Address range.** The overlay occupies ROM addresses `0x1800–0x1FFF` (2048
 words), outside the TI-59's normal ROM and reserved for debug use. 16-bit
@@ -864,31 +841,39 @@ instruction count across gaps.
 The file format grammar (sections, PARTITION formula and per-model defaults,
 PROGRAM/REGISTERS notation, matrix codes, CUECARD fields) is documented in
 `reference/StateFileFormat.md` — that document, not this one, is the format
-reference. What's unique to this API doc is the exact bridge/Swift call
-sequence `EmulatorViewModel.loadStateFile` uses to apply a parsed file to a
-live `TI59Machine`:
+reference. What's unique to this API doc is the exact call sequence
+`SessionController::loadStateFile` (both apps) uses to apply a parsed file to
+a live `TI59Machine`. It stops the run loop, clears any freeze
+(`EmulatorSession::clearFreeze`), switches model first if the file asks for
+another, and runs `cu59::applyState` (`Shared/StateApplier.cpp`) on the
+emulation thread:
 
-1. `machine.reset()` — clears CPU state
-2. `machine.stepN(300_000)` — lets the ROM complete its master-clear routine
-3. `machine.partitionProgramRegs = …` — sets partition via SCOM
-4. `machine.writeProgramSteps(…)` — writes zero-padded step array
-5. Per register: normal registers via `machine.writeDataRegister(…)`; the TI-58C's
+1. `reset()` — clears CPU state
+2. `stepN(300'000)` — lets the ROM complete its power-on / master-clear routine
+3. `setPartitionProgramRegs(…)` — sets the partition via SCOM (default 239 on
+   the TI-58/58C when the file gives none)
+4. RAM cleared with `writeRAMReg` — on the TI-58C keeping the extra registers
+   (raw RAM 60–63), whose RAM[60] the ROM needs
+5. `writeProgram(…)` — the program zero-padded to the model's physical capacity
+6. Per register: normal registers via `writeDataRegister(…)`; the TI-58C's
    4 extra registers (H00–H03 — not normal registers "60"–"63", see
    `reference/CoreArchitecture.md` § "TI-58C Extra (Constant Memory) Registers")
-   via `machine.setRawRegister(MachineModel.extraRegisterBase + regNum, …)` to
-   bypass the reversed data-register mapping entirely — the branch is driven by
-   an explicit `isHidden` flag carried alongside each parsed register, never by
-   testing whether `regNum >= 60` (ordinary TI-59 registers legitimately reach 99)
-6. Out-of-range data registers (those that fall inside the program area for the loaded
-   partition) are zeroed via `machine.setRawRegister(…)` to prevent stale-state corruption
-7. KEYSTROKES played back asynchronously via `playKeystrokes(_:)` — 0.5 s per key
+   via `writeRAMReg(kExtraRegisterBase + regNum, …)` to bypass the reversed
+   data-register mapping — the branch is driven by an explicit `isHidden` flag
+   carried alongside each parsed register, never by testing whether
+   `regNum >= 60` (ordinary TI-59 registers legitimately reach 99)
+
+Then the controller restarts the loop, cuts the paper, applies module,
+printer and cue card, persists TI-58C memory, and plays KEYSTROKES
+asynchronously (`EmulatorSession::playKeystrokes`, `Shared/KeySequencer`).
+`SKIP-RESET` files use `applySkipResetState` instead.
 
 ---
 
 ## TI-58C Constant Memory File Format (`ti58c.mem`)
 
 The TI-58C emulator persists RAM contents between sessions in a human-readable text file called `ti58c.mem`.
-This file is stored in the app's Application Support directory and is automatically loaded on startup.
+`SessionController` loads it when a TI-58C machine starts and writes it (debounced) when RAM changes, through `Platform::readConstantMemory` / `writeConstantMemory`; each app chooses the location (Swift: next to the cards, `CardStorage.directoryURL`).
 
 **Format:**
 ```

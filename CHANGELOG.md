@@ -8,6 +8,10 @@
 - **License** Calc-U-59 is now free software under the GNU General Public License, version 3 (GPLv3), replacing the Polyform Noncommercial License. The Windows and Linux app uses Qt6 under the LGPLv3 (see `THIRD-PARTY-NOTICES.md`).
 
 ### Fixes
+- **TI-58C** Loading a preset with a cue card now stores that card in the constant memory file, so it comes back after a restart (it used to keep the previous card).
+- **Calculator switch** Switching between TI-59, TI-58 and TI-58C now keeps the printer connected or disconnected as set, empties the card reader, and no longer carries a debugger freeze or an armed FREEZE ON START over to the new calculator. The LOG tab keeps its contents, and the debug level carries over. If the new calculator's ROM can't be loaded, the previous one keeps running.
+- **State Files** A `SOLID-STATE-MODULE:` that can't be loaded now shows an error and keeps the current module. Under `SKIP-RESET:`, the ignored `MODEL:`, `SOLID-STATE-MODULE:` and `PRINTER:` lines are listed in the LOG tab.
+- **Debugger** A trace file that can't be created, or that reaches its size limit, now shows an alert instead of only stopping. Pressing RESUME right after FREEZE or STEP no longer briefly shows a stale frozen view.
 - **Printer** Copy as image now sizes long tapes by their real height, counting cut-short (printer-interrupt) lines by the rows they printed, so such copies keep the full 600 dpi when they fit.
 - **Settings** A stored startup calculator that no longer names a model now falls back to the last used one instead of the TI-59.
 

@@ -1,13 +1,13 @@
 #import <Foundation/Foundation.h>
 #import <CoreGraphics/CoreGraphics.h>
-#import "TI59MachineWrapper.h"
+#import "TITypes.h"
 #import "TIFileFormats.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
-// Swift face of the Shared/ view rules both frontends follow: cue-card spans
-// and layout, LED segment geometry, PC-100C paper geometry, heatmap colours,
-// program-source labels, CPU inspector history and the reset helpers. The
+// Swift face of the Shared/ view rules both frontends follow: cue-card spans,
+// layout and geometry, LED segment geometry, PC-100C paper geometry, heatmap
+// colours, program-source decoding and labels, the debug panels' text. The
 // drawing stays in SwiftUI; these give it the same shapes and numbers as the
 // Qt6 app. Type translation only.
 
@@ -53,16 +53,6 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) CGFloat radius;
 @end
 
-/// One CPU-inspector row (frame: TICpuFrame in an NSValue; zeroed for the next instruction).
-@interface TIInspectorEntry : NSObject
-@property (nonatomic, readonly) uint16_t pc;
-@property (nonatomic, readonly) uint16_t opcode;
-@property (nonatomic, readonly, copy) NSString *disasm;
-@property (nonatomic, readonly) TICpuFrame frame;
-@property (nonatomic, readonly) BOOL isHistory;
-@property (nonatomic, readonly) BOOL isCurrent;
-@end
-
 @interface TIViewRules : NSObject
 
 // ── Cue cards (Shared/CueCard.hpp) ───────────────────────────────────────────
@@ -79,14 +69,6 @@ NS_ASSUME_NONNULL_BEGIN
 @property (class, readonly) uint32_t cueCardDividerColor;
 @property (class, readonly) uint32_t cueCardWashColor;
 @property (class, readonly) CGFloat cueCardWashAlpha;
-/// The card to show (nil = none): the active program's, a generic module card, or the user's.
-+ (nullable TICueCard *)resolveCueCardForProgram:(NSInteger)program
-                                     moduleCards:(NSDictionary<NSNumber *, TICueCard *> *)cards
-                                     moduleTitle:(NSString *)title moduleID:(NSString *)moduleID
-                                        userCard:(nullable TICueCard *)userCard;
-/// Library program number from SCOM[9] digits 4 and 3 (0 = none).
-+ (NSInteger)activeLibraryProgram:(TICpuFrame)frame;
-
 // ── LED (Shared/LedGeometry.hpp, Shared/SevenSegment.hpp) ───────────────────
 + (TILedStyle *)ledStyle:(NSInteger)style;
 /// Modernized: seven closed polygons (segments A–G) in a w × h digit cell.
@@ -121,6 +103,8 @@ NS_ASSUME_NONNULL_BEGIN
 + (uint32_t)heatColor:(uint8_t)step;
 
 // ── Debugger (Shared/ModuleImage.hpp, Shared/DebugSnapshots.hpp) ────────────
+/// ProgramSource raw value (C++ enumerator order) for a PRG SOURCE flag.
++ (NSInteger)programSourceForFlag:(uint8_t)flag romPC:(uint16_t)romPC;
 + (NSString *)programSourceLabel:(NSInteger)source flag:(uint8_t)flag;
 
 // ── Debug-panel text and colours (Shared/DebugText.hpp); colours 0xRRGGBB ───
@@ -138,19 +122,6 @@ NS_ASSUME_NONNULL_BEGIN
 /// 16 nibbles, most significant first.
 + (NSString *)registerNibbles:(NSData *)nibbles;
 + (NSString *)hexBin16:(uint16_t)value;
-/// Frozen CPU view: the trace ring plus the next instruction.
-+ (NSArray<TIInspectorEntry *> *)inspectorHistory:(TI59MachineWrapper *)machine;
-/// Running CPU view: the newest `count` of `frames` (TICpuFrame NSValues).
-+ (NSArray<TIInspectorEntry *> *)recentInstructions:(NSArray<NSValue *> *)frames count:(NSInteger)count;
-
-// ── Reset (Shared/StateApplier.hpp) ──────────────────────────────────────────
-/// Fresh machine: TI-58C runs the ROM startup, then restores `savedRam` (nil = none).
-+ (void)powerOn:(TI59MachineWrapper *)machine model:(NSInteger)model savedRam:(nullable NSData *)savedRam
-    NS_SWIFT_NAME(powerOn(_:model:savedRam:));
-/// Reset button: TI-58C restores `savedRam` (nil = none); others clear registers past the partition.
-+ (void)softReset:(TI59MachineWrapper *)machine model:(NSInteger)model savedRam:(nullable NSData *)savedRam;
-+ (void)cleanReset:(TI59MachineWrapper *)machine;
-
 @end
 
 NS_ASSUME_NONNULL_END

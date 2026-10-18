@@ -120,9 +120,26 @@ enum AppSettings {
         TISettings.resolveModuleID(UserDefaults.standard.string(forKey: SettingsKey.solidStateModuleID))
     }
 
-    /// Returns the directory URL where the trace file should be written.
-    /// For custom paths on macOS, uses a security-scoped bookmark to gain file access.
-    /// The caller (TraceWriter.open) is responsible for creating the directory if needed.
+    /// Whether the trace location is reachable (iCloud signed in, directory creatable).
+    static func traceLocationAvailable() -> Bool {
+        #if !os(macOS)
+        if resolvedTraceLocation() == .iCloud && FileManager.default.ubiquityIdentityToken == nil {
+            return false
+        }
+        #endif
+        let traceDir = traceDirectory()
+        do {
+            try FileManager.default.createDirectory(at: traceDir, withIntermediateDirectories: true)
+            return true
+        } catch {
+            print("[AppSettings] trace directory \(traceDir.path) is not available: \(error)")
+            return false
+        }
+    }
+
+    /// Returns the directory URL where trace files are written (manual and
+    /// KEYSTROKES "Trace:"). For custom paths on macOS, uses a security-scoped
+    /// bookmark to gain file access.
     static func traceDirectory() -> URL {
         let location = resolvedTraceLocation()
         switch location {

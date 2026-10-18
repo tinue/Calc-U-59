@@ -1,5 +1,4 @@
 #import "TIViewRules.h"
-#import "TI59MachineWrapper+Cpp.h"
 #import "BridgeConvert.h"
 #import "TIFileFormats+Cpp.h"
 #include "../Shared/DebugSnapshots.hpp"
@@ -8,7 +7,6 @@
 #include "../Shared/ModuleImage.hpp"
 #include "../Shared/PrinterFont.hpp"
 #include "../Shared/RomHeatmap.hpp"
-#include "../Shared/StateApplier.hpp"
 
 
 @interface TILabelSpan ()
@@ -61,35 +59,9 @@ static CGRect cgFrame(const cu59::CueCardFrame& f) {
 @implementation TILedDotSegment
 @end
 
-@interface TIInspectorEntry ()
-@property (nonatomic, readwrite) uint16_t pc;
-@property (nonatomic, readwrite) uint16_t opcode;
-@property (nonatomic, readwrite, copy) NSString *disasm;
-@property (nonatomic, readwrite) TICpuFrame frame;
-@property (nonatomic, readwrite) BOOL isHistory;
-@property (nonatomic, readwrite) BOOL isCurrent;
-@end
-@implementation TIInspectorEntry
-@end
-
 static std::vector<cu59::LabelSpan> spansFrom(NSArray<TILabelSpan*>* spans) {
     std::vector<cu59::LabelSpan> out;
     for (TILabelSpan* s in spans) out.push_back({static_cast<int>(s.startCol), static_cast<int>(s.endCol), cpp(s.label)});
-    return out;
-}
-
-static NSArray<TIInspectorEntry*>* entriesFrom(const std::vector<cu59::InspectorEntry>& v) {
-    NSMutableArray* out = [NSMutableArray arrayWithCapacity:v.size()];
-    for (const auto& e : v) {
-        TIInspectorEntry* t = [[TIInspectorEntry alloc] init];
-        t.pc = e.pc;
-        t.opcode = e.opcode;
-        t.disasm = ns(e.disasm);
-        t.frame = tiCpuFrame(e.frame);
-        t.isHistory = e.isHistory;
-        t.isCurrent = e.isCurrent;
-        [out addObject:t];
-    }
     return out;
 }
 
@@ -166,18 +138,6 @@ static NSArray<TIInspectorEntry*>* entriesFrom(const std::vector<cu59::Inspector
 + (uint32_t)cueCardWashColor { return cu59::kCueCardWashColor; }
 + (CGFloat)cueCardWashAlpha { return cu59::kCueCardWashAlpha; }
 
-+ (TICueCard *)resolveCueCardForProgram:(NSInteger)program moduleCards:(NSDictionary<NSNumber *, TICueCard *> *)cards
-                            moduleTitle:(NSString *)title moduleID:(NSString *)moduleID userCard:(TICueCard *)userCard {
-    std::map<int, cu59::CueCardContent> moduleCards;
-    for (NSNumber* n in cards) moduleCards[n.intValue] = CueCardFrom(cards[n]);
-    std::optional<cu59::CueCardContent> user;
-    if (userCard) user = CueCardFrom(userCard);
-    auto r = cu59::resolveCueCard(static_cast<int>(program), moduleCards, cpp(title), cpp(moduleID), user);
-    return r ? TICueCardFrom(*r) : nil;
-}
-
-+ (NSInteger)activeLibraryProgram:(TICpuFrame)frame { return cu59::activeLibraryProgram(frame.SCOM[9]); }
-
 + (TILedStyle *)ledStyle:(NSInteger)style {
     const cu59::LedStyleParams& p = cu59::ledStyleParams(static_cast<cu59::LedStyle>(style));
     TILedStyle* t = [[TILedStyle alloc] init];
@@ -253,6 +213,10 @@ static NSArray<TIInspectorEntry*>* entriesFrom(const std::vector<cu59::Inspector
     return (static_cast<uint32_t>(c.r) << 16) | (static_cast<uint32_t>(c.g) << 8) | c.b;
 }
 
++ (NSInteger)programSourceForFlag:(uint8_t)flag romPC:(uint16_t)romPC {
+    return static_cast<NSInteger>(cu59::programSourceFrom(flag, romPC));
+}
+
 + (NSString *)programSourceLabel:(NSInteger)source flag:(uint8_t)flag {
     return ns(cu59::programSourceLabel(static_cast<cu59::ProgramSource>(source), flag));
 }
@@ -281,29 +245,5 @@ static NSArray<TIInspectorEntry*>* entriesFrom(const std::vector<cu59::Inspector
     return ns(cu59::registerNibbles(n));
 }
 + (NSString *)hexBin16:(uint16_t)value { return ns(cu59::hexBin16(value)); }
-
-+ (NSArray<TIInspectorEntry *> *)inspectorHistory:(TI59MachineWrapper *)machine {
-    return entriesFrom(cu59::inspectorHistory(*machine.cppMachine));
-}
-
-+ (NSArray<TIInspectorEntry *> *)recentInstructions:(NSArray<NSValue *> *)frames count:(NSInteger)count {
-    // Only the newest `count` frames are listed; unbox just those.
-    const NSUInteger first = frames.count > static_cast<NSUInteger>(count) ? frames.count - count : 0;
-    std::vector<CpuFrame> v(frames.count - first);
-    for (NSUInteger i = first; i < frames.count; ++i) [frames[i] getValue:&v[i - first] size:sizeof(CpuFrame)];
-    return entriesFrom(cu59::recentInstructions(v, static_cast<size_t>(count)));
-}
-
-+ (void)powerOn:(TI59MachineWrapper *)machine model:(NSInteger)model savedRam:(NSData *)savedRam {
-    std::vector<uint8_t> ram = savedRam ? bytes(savedRam) : std::vector<uint8_t>();
-    cu59::powerOn(*machine.cppMachine, static_cast<cu59::Model>(model), savedRam ? &ram : nullptr);
-}
-
-+ (void)softReset:(TI59MachineWrapper *)machine model:(NSInteger)model savedRam:(NSData *)savedRam {
-    std::vector<uint8_t> ram = savedRam ? bytes(savedRam) : std::vector<uint8_t>();
-    cu59::softReset(*machine.cppMachine, static_cast<cu59::Model>(model), savedRam ? &ram : nullptr);
-}
-
-+ (void)cleanReset:(TI59MachineWrapper *)machine { cu59::cleanReset(*machine.cppMachine); }
 
 @end

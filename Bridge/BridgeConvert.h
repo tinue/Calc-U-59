@@ -1,7 +1,7 @@
 // ObjC++-only conversions shared by the Bridge/ wrappers. Never import from
 // the Swift bridging header.
 #import <Foundation/Foundation.h>
-#import "TI59MachineWrapper.h"
+#import "TITypes.h"
 #include "../Core/TraceTypes.hpp"
 #include <cstddef>
 #include <cstdint>

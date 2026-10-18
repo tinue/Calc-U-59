@@ -1,6 +1,6 @@
 ---
 name: calc-u-59-shared
-description: Use this skill when working on the shared C++ layer of Calc-U-59 (Shared/, tests/, the root CMakeLists.txt, tools/goldens/) — the non-GUI logic both the Swift app and the Qt6 app use: file formats, state files, cue cards, the emulator runtime (session, run loop, freezes, key sequencing, frame sampling), debug snapshots, trace writer, view rules. Also trigger when adding a Bridge/ wrapper for a Shared module, or when logic is about to be written in App/*.swift or Qt6/app/ that isn't drawing.
+description: Use this skill when working on the shared C++ layer of Calc-U-59 (Shared/, tests/, the root CMakeLists.txt, tools/goldens/) — the non-GUI logic both the Swift app and the Qt6 app use: file formats, state files, cue cards, the UI-thread orchestrator (SessionController), the emulator runtime (session, run loop, freeze state, key sequencing, frame sampling), the debugger model (DebugModel), debug snapshots, trace writer, view rules. Also trigger when adding a Bridge/ wrapper for a Shared module, or when logic is about to be written in App/*.swift or Qt6/app/ that isn't drawing.
 user-invocable: true
 ---
 
@@ -34,11 +34,12 @@ Architecture, module list and the runtime's threads:
    what it is and where its format/rules are documented. CMake picks up new
    `.cpp` files by glob; the Xcode project by its synchronized `Shared` folder.
 2. A test in `tests/`.
-3. Swift access: an ObjC++ wrapper in `Bridge/` (type translation only),
-   imported from `Bridge/Calc-U-59-Bridging-Header.h`. Wrappers that need the
-   C++ object behind another wrapper use the `+Cpp.h` categories
-   (`TI59MachineWrapper+Cpp.h`, `TIFileFormats+Cpp.h`, `TITraceWriter+Cpp.h`);
-   never import those from the bridging header.
+3. Swift access: usually through `SessionController` and its Bridge wrapper
+   `Bridge/TISessionController`; a standalone module gets an ObjC++ wrapper in
+   `Bridge/` (type translation only), imported from
+   `Bridge/Calc-U-59-Bridging-Header.h`. C++-only helpers live in
+   `Bridge/TIFileFormats+Cpp.h` and `Bridge/BridgeConvert.h` (struct/string
+   conversions); never import those from the bridging header.
 4. Qt access: call it directly.
 5. Add the module to `reference/SharedArchitecture.md`.
 
