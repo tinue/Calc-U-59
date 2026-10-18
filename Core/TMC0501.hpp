@@ -410,7 +410,11 @@ private:
     // ── Debug event log ───────────────────────────────────────────────
     uint8_t m_debugLevel{0};
     std::vector<DebugEvent> m_debugEvents;
-    void emitDebug(uint8_t level, const char* fmt, ...) __attribute__((format(printf, 3, 4)));
+    void emitDebug(uint8_t level, const char* fmt, ...)
+#if defined(__GNUC__) || defined(__clang__)
+        __attribute__((format(printf, 3, 4)))  // MSVC has no format-check attribute
+#endif
+        ;
 
     // ── Trace / debug state ───────────────────────────────────────────
     std::atomic<uint32_t> m_traceFlags{TRACE_NONE};
