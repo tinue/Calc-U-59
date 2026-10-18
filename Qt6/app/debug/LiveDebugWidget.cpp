@@ -1,5 +1,6 @@
 #include "LiveDebugWidget.hpp"
 #include "ChromeStyle.hpp"
+#include "DebugText.hpp"
 #include "EmulatorController.hpp"
 #include "HoldRepeatButton.hpp"
 #include <QHBoxLayout>
@@ -19,7 +20,9 @@ QString spanColor(const QString& text, const QColor& c) {
     return QStringLiteral("<span style='color:%1'>%2</span>").arg(c.name(), text.toHtmlEscaped());
 }
 
-QString fmt(const char* f, double v) { return QString::asprintf(f, v); }
+QString qs(const std::string& s) { return QString::fromStdString(s); }
+
+QColor rgb(uint32_t c) { return QColor(static_cast<int>(c >> 16 & 0xFF), static_cast<int>(c >> 8 & 0xFF), static_cast<int>(c & 0xFF)); }
 
 /// A titled section: header strip and body label (SectionBox in the Swift app).
 QLabel* section(QVBoxLayout* into, const QString& title, QWidget* parent) {
@@ -38,24 +41,6 @@ QLabel* section(QVBoxLayout* into, const QString& title, QWidget* parent) {
     col->addWidget(body);
     into->addWidget(box);
     return body;
-}
-
-/// Highlight of the current step by program source (yellow ROM, blue module, green RAM).
-QColor sourceHighlight(cu59::ProgramSource s) {
-    if (s == cu59::ProgramSource::Rom) return QColor::fromRgbF(0.35, 0.28, 0.10);
-    if (s == cu59::ProgramSource::SolidState) return QColor::fromRgbF(0.10, 0.24, 0.35);
-    return QColor::fromRgbF(0.10, 0.30, 0.10);
-}
-
-/// Return-stack level colour by source: green RAM, purple module (2 = saved
-/// CROM return address), yellow ROM; dimmer when the address is 0.
-QColor levelColor(uint8_t source, bool zero) {
-    switch (source) {
-    case 0: return zero ? QColor::fromRgbF(0.10, 0.30, 0.10) : QColor::fromRgbF(0.25, 0.60, 0.25);
-    case 1: case 2: return zero ? QColor::fromRgbF(0.30, 0.10, 0.30) : QColor::fromRgbF(0.60, 0.25, 0.60);
-    case 8: return zero ? QColor::fromRgbF(0.35, 0.28, 0.10) : QColor::fromRgbF(0.70, 0.60, 0.25);
-    default: return ChromeStyle::gray(zero ? 0.6 : 0.8);
-    }
 }
 
 QToolButton* headerButton(const QString& text, const QColor& color, QWidget* parent) {
@@ -148,10 +133,7 @@ LiveDebugWidget::LiveDebugWidget(EmulatorController& controller, QWidget* parent
     refresh();
 }
 
-int LiveDebugWidget::baseFontSize() const {
-    int w = width();
-    return w < 350 ? 9 : w < 500 ? 11 : 13;  // compact / normal / large
-}
+int LiveDebugWidget::baseFontSize() const { return cu59::debugPanelFontSize(width()); }
 
 void LiveDebugWidget::resizeEvent(QResizeEvent* e) {
     QWidget::resizeEvent(e);
@@ -185,16 +167,13 @@ void LiveDebugWidget::refresh() {
                      span(QStringLiteral("IO:") + QString::fromStdString(s.ioUserFlags), 0.85) + sp +
                      span(QStringLiteral("KEY:") + QString::fromStdString(s.lastKey), 0.85));
 
-    int totalSteps = s.programRegCount * 8;
-    int lastStep = totalSteps > 0 ? totalSteps - 1 : 0;
-    QString part = s.dataRegCount > 0 ? QStringLiteral("(%1.%2)").arg(lastStep).arg(s.dataRegCount - 1) : QStringLiteral("(%1.)").arg(lastStep);
-    set(m_partition, span(QStringLiteral("Steps: %1, Registers: %2 %3").arg(totalSteps).arg(s.dataRegCount).arg(part), 0.75));
+    set(m_partition, span(qs(cu59::partitionLine(s.programRegCount, s.dataRegCount)), 0.75));
     set(m_source, span(QString::fromStdString(cu59::programSourceLabel(s.programSource, s.prSourceFlag)), 0.85));
 
     // Program steps: the full listing when frozen, else ±5 around the current step.
     bool frozen = m_controller.isFrozen() && !m_controller.programListing().empty();
     const auto& entries = frozen ? m_controller.programListing() : s.programWindow;
-    QColor highlight = sourceHighlight(frozen ? m_controller.programListingSource() : s.programSource);
+    QColor highlight = rgb(cu59::stepHighlightColor(frozen ? m_controller.programListingSource() : s.programSource));
     QFont mono(QStringLiteral("Menlo"));
     mono.setStyleHint(QFont::Monospace);
     mono.setPixelSize(fs);
@@ -215,9 +194,7 @@ void LiveDebugWidget::refresh() {
     if (current >= 0) m_steps->scrollToItem(m_steps->item(current), QAbstractItemView::PositionAtCenter);
 
     auto dim = [](bool on) { return on ? 0.85 : 0.4; };
-    QString angle = !s.angleMode ? span(QStringLiteral("?"), 0.4)
-                    : span(*s.angleMode == cu59::AngleMode::Deg ? QStringLiteral("DEG")
-                           : *s.angleMode == cu59::AngleMode::Rad ? QStringLiteral("RAD") : QStringLiteral("GRAD"), 0.85);
+    QString angle = span(qs(cu59::angleModeLabel(s.angleMode)), s.angleMode ? 0.85 : 0.4);
     set(m_fields, span(QStringLiteral("FIX:") + QString::fromStdString(s.fixIndicator), 0.85) + sp + angle + sp +
                       span(QStringLiteral("Eng"), dim(!s.engIndicator.empty())) + sp +
                       span(QStringLiteral("2nd"), dim(!s.secondIndicator.empty())) + sp +
@@ -226,7 +203,7 @@ void LiveDebugWidget::refresh() {
     auto level = [&](int i) {
         int a = s.returnAddresses[static_cast<size_t>(i)];
         return spanColor(QStringLiteral("L%1:%2").arg(i + 1).arg(a, 3, 10, QLatin1Char('0')),
-                         levelColor(s.returnAddressSourceFlags[static_cast<size_t>(i)], a == 0));
+                         rgb(cu59::returnLevelColor(s.returnAddressSourceFlags[static_cast<size_t>(i)], a == 0)));
     };
     set(m_returns, level(5) + sp + level(4) + sp + level(3) + QStringLiteral("<br>") + level(2) + sp + level(1) + sp + level(0));
 
@@ -240,18 +217,16 @@ void LiveDebugWidget::refresh() {
     QString hir;
     for (int i = 0; i < 8; ++i) {
         double v = s.hir[static_cast<size_t>(i)];
-        hir += span(QStringLiteral("%1: ").arg(i + 1) + fmt("%.5g", v), v == 0 ? 0.6 : 0.85) + (i == 3 ? QStringLiteral("<br>") : sp);
+        hir += span(qs(cu59::hirLine(i + 1, v)), v == 0 ? 0.6 : 0.85) + (i == 3 ? QStringLiteral("<br>") : sp);
     }
     set(m_hir, hir);
-    set(m_t, span(fmt("T: %.13g", s.tRegister), s.tRegister == 0 ? 0.6 : 0.85));
+    set(m_t, span(qs(cu59::tRegisterLine(s.tRegister)), s.tRegister == 0 ? 0.6 : 0.85));
 
     if (s.nonZeroRegs.empty()) {
         set(m_vars, span(QStringLiteral("(all zero)"), 0.35));
     } else {
-        // Full 13-digit mantissa, not the display's 10 digits: hiding digits can mask stored-value bugs.
         QStringList lines;
-        for (const auto& r : s.nonZeroRegs)
-            lines << span(QString::asprintf("%c%02d = %.13g", r.isHidden ? 'H' : 'R', r.num, r.value), 0.85);
+        for (const auto& r : s.nonZeroRegs) lines << span(qs(cu59::registerLine(r)), 0.85);
         set(m_vars, lines.join(QStringLiteral("<br>")));
     }
 }

@@ -3,6 +3,7 @@
 #import "BridgeConvert.h"
 #import "TIFileFormats+Cpp.h"
 #include "../Shared/DebugSnapshots.hpp"
+#include "../Shared/DebugText.hpp"
 #include "../Shared/LedGeometry.hpp"
 #include "../Shared/ModuleImage.hpp"
 #include "../Shared/PrinterFont.hpp"
@@ -206,6 +207,31 @@ static NSArray<TIInspectorEntry*>* entriesFrom(const std::vector<cu59::Inspector
 + (NSString *)programSourceLabel:(NSInteger)source flag:(uint8_t)flag {
     return ns(cu59::programSourceLabel(static_cast<cu59::ProgramSource>(source), flag));
 }
+
++ (CGFloat)debugPanelFontSize:(CGFloat)width { return cu59::debugPanelFontSize(width); }
++ (NSString *)partitionLineProgramRegs:(NSInteger)programRegs dataRegs:(NSInteger)dataRegs {
+    return ns(cu59::partitionLine(static_cast<int>(programRegs), static_cast<int>(dataRegs)));
+}
++ (NSString *)angleModeLabel:(NSInteger)mode {
+    std::optional<cu59::AngleMode> m;
+    if (mode >= 0 && mode <= 2) m = static_cast<cu59::AngleMode>(mode);
+    return ns(cu59::angleModeLabel(m));
+}
++ (NSString *)registerLine:(NSInteger)num value:(double)value hidden:(BOOL)hidden {
+    return ns(cu59::registerLine({static_cast<int>(num), value, hidden == YES}));
+}
++ (NSString *)hirLine:(NSInteger)n value:(double)value { return ns(cu59::hirLine(static_cast<int>(n), value)); }
++ (NSString *)tRegisterLine:(double)value { return ns(cu59::tRegisterLine(value)); }
++ (uint32_t)returnLevelColor:(uint8_t)sourceFlag zeroAddress:(BOOL)zero { return cu59::returnLevelColor(sourceFlag, zero == YES); }
++ (uint32_t)stepHighlightColor:(NSInteger)source { return cu59::stepHighlightColor(static_cast<cu59::ProgramSource>(source)); }
++ (BOOL)condFlag:(uint16_t)flags { return cu59::condFlag(flags); }
++ (BOOL)idleFlag:(uint16_t)flags { return cu59::idleFlag(flags); }
++ (NSString *)registerNibbles:(NSData *)nibbles {
+    uint8_t n[16] = {};
+    memcpy(n, nibbles.bytes, MIN(nibbles.length, sizeof n));
+    return ns(cu59::registerNibbles(n));
+}
++ (NSString *)hexBin16:(uint16_t)value { return ns(cu59::hexBin16(value)); }
 
 + (NSArray<TIInspectorEntry *> *)inspectorHistory:(TI59MachineWrapper *)machine {
     return entriesFrom(cu59::inspectorHistory(*machine.cppMachine));

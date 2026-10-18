@@ -50,7 +50,7 @@ void KeyboardWidget::paintEvent(QPaintEvent*) {
     QRectF c = canvasRect();
     p.drawPixmap(c, m_base, QRectF());
 
-    auto style = static_cast<cu59::LedStyle>(AppSettings::value<int>(AppSettings::kLedFontStyle, 0));
+    auto style = static_cast<cu59::LedStyle>(AppSettings::value<int>(AppSettings::kLedFontStyle, cu59::settings::kDefaultLedFontStyle));
     LedRenderer::paint(p, norm(c, cu59::kDisplayRect), m_controller.display(), m_controller.calcIndicatorOpacity(), style);
     if (const auto& card = m_controller.cueCard()) CueCardRenderer::paint(p, norm(c, cu59::kCardRect), *card);
 

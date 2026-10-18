@@ -36,13 +36,7 @@ struct LiveDebugView: View {
     // MARK: - Adaptive Font Sizing
 
     private func adaptiveFontSize(width: CGFloat) -> CGFloat {
-        if width < 350 {
-            return 9      // iPad Mini: compact
-        } else if width < 500 {
-            return 11     // iPad Air: normal
-        } else {
-            return 13     // Mac: large
-        }
+        TIViewRules.debugPanelFontSize(width)  // compact / normal / large
     }
 
     // MARK: - Header
@@ -147,16 +141,8 @@ struct LiveDebugView: View {
     private func levelWithColor(_ label: String, _ index: Int, _ snap: LiveDebugSnapshot) -> some View {
         let sourceFlag = index < snap.returnAddressSourceFlags.count ? snap.returnAddressSourceFlags[index] : 0
         let address = index < snap.returnAddresses.count ? snap.returnAddresses[index] : 0
-        let isZero = address == 0
-        let color: Color
-        switch sourceFlag {
-        case 0: color = isZero ? Color(red: 0.10, green: 0.30, blue: 0.10) : Color(red: 0.25, green: 0.60, blue: 0.25)    // Green for RAM
-        case 1, 2: color = isZero ? Color(red: 0.30, green: 0.10, blue: 0.30) : Color(red: 0.60, green: 0.25, blue: 0.60) // Purple for library (2 = saved CROM return address)
-        case 8: color = isZero ? Color(red: 0.35, green: 0.28, blue: 0.10) : Color(red: 0.70, green: 0.60, blue: 0.25)    // Yellow for ROM
-        default: color = isZero ? Color(white: 0.6) : Color(white: 0.8)                                                    // Gray for unknown
-        }
         return Text("\(label):\(String(format: "%03d", address))")
-            .foregroundStyle(color)
+            .foregroundStyle(Color(rgb: TIViewRules.returnLevelColor(sourceFlag, zeroAddress: address == 0)))
     }
 
     // MARK: - Data Registers Section (Variables)
@@ -174,10 +160,7 @@ struct LiveDebugView: View {
             } else {
                 LazyVStack(alignment: .leading, spacing: 2) {
                     ForEach(Array(snap.nonZeroRegs.enumerated()), id: \.offset) { _, entry in
-                        let label = entry.isHidden ? String(format: "H%02d", entry.num) : String(format: "R%02d", entry.num)
-                        // Full 13-digit mantissa precision, not the calculator's 10-digit
-                        // display rounding — hiding digits here can mask stored-value bugs.
-                        Text(String(format: "%@ = %.13g", label, entry.value))
+                        Text(TIViewRules.registerLine(entry.num, value: entry.value, hidden: entry.isHidden))
                             .font(.system(size: baseFontSize + 2, design: .monospaced))
                             .foregroundStyle(Color(white: 0.85))
                     }
@@ -301,15 +284,9 @@ struct LiveDebugView: View {
                 Text("FIX:\(snap.fixIndicator)")
                     .font(.system(size: baseFontSize + 2, design: .monospaced))
                     .foregroundStyle(Color(white: 0.85))
-                if let mode = snap.angleMode {
-                    Text(modeStr(mode))
-                        .font(.system(size: baseFontSize + 2, design: .monospaced))
-                        .foregroundStyle(Color(white: 0.85))
-                } else {
-                    Text("?")
-                        .font(.system(size: baseFontSize + 2, design: .monospaced))
-                        .foregroundStyle(Color(white: 0.4))
-                }
+                Text(TIViewRules.angleModeLabel(snap.angleMode))
+                    .font(.system(size: baseFontSize + 2, design: .monospaced))
+                    .foregroundStyle(Color(white: snap.angleMode < 0 ? 0.4 : 0.85))
                 Text("Eng")
                     .font(.system(size: baseFontSize + 2, design: .monospaced))
                     .foregroundStyle(snap.engIndicator.isEmpty ? Color(white: 0.4) : Color(white: 0.85))
@@ -356,7 +333,7 @@ struct LiveDebugView: View {
         let isZero = snap.tRegister == 0
         let color = isZero ? Color(white: 0.6) : Color(white: 0.85)
         return SectionBox(title: "") {
-            Text(String(format: "T: %.13g", snap.tRegister))
+            Text(TIViewRules.tRegisterLine(snap.tRegister))
                 .font(.system(size: baseFontSize + 2, design: .monospaced))
                 .foregroundStyle(color)
                 .padding(.horizontal, 8)
@@ -367,7 +344,7 @@ struct LiveDebugView: View {
     private func hirRow(_ label: String, _ value: Double, baseFontSize: CGFloat) -> some View {
         let isZero = value == 0
         let color = isZero ? Color(white: 0.6) : Color(white: 0.85)
-        return Text("\(label): \(String(format: "%.5g", value))")
+        return Text(TIViewRules.hirLine(Int(label) ?? 0, value: value))
             .font(.system(size: baseFontSize + 2, design: .monospaced))
             .foregroundStyle(color)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -396,40 +373,17 @@ struct LiveDebugView: View {
         }
     }
 
-    private func flagIndicator(num: Int, state: Bool?, baseFontSize: CGFloat) -> some View {
-        let stateStr = state == nil ? "?" : (state! ? "1" : "0")
-        let color = state == nil ? Color(white: 0.4) : (state! ? Color(white: 0.85) : Color(white: 0.6))
-        return Text(String(format: "F%d:%@", num, stateStr))
-            .foregroundStyle(color)
-    }
-
-    private func modeStr(_ mode: LiveDebugSnapshot.AngleMode) -> String {
-        switch mode {
-        case .deg: return "DEG"
-        case .rad: return "RAD"
-        case .grad: return "GRAD"
-        }
+    private func flagIndicator(num: Int, state: Bool, baseFontSize: CGFloat) -> some View {
+        Text("F\(num):\(state ? 1 : 0)")
+            .foregroundStyle(Color(white: state ? 0.85 : 0.6))
     }
 
     // MARK: - Partition Section
 
     private func partitionSection(baseFontSize: CGFloat) -> some View {
         let snap = vm.liveDebugSnapshot
-        let totalSteps = snap.programRegCount * 8
-        let dataRegs = snap.dataRegCount
-
-        // Format partition as (lastStep.lastDataReg)
-        let lastStep = totalSteps > 0 ? totalSteps - 1 : 0
-        let partitionStr: String
-        if dataRegs > 0 {
-            let lastDataReg = dataRegs - 1
-            partitionStr = "(\(lastStep).\(lastDataReg))"
-        } else {
-            partitionStr = "(\(lastStep).)"
-        }
-
         return SectionBox(title: "PARTITION") {
-            Text("Steps: \(totalSteps), Registers: \(dataRegs) \(partitionStr)")
+            Text(TIViewRules.partitionLineProgramRegs(snap.programRegCount, dataRegs: snap.dataRegCount))
                 .font(.system(size: baseFontSize + 2, design: .monospaced))
                 .foregroundStyle(Color(white: 0.75))
                 .padding(.horizontal, 8)
@@ -459,16 +413,18 @@ struct LiveDebugView: View {
 
     /// Returns the highlight color for the current step in the program window based on program source.
     private func programSourceHighlightColor(_ source: ProgramSource) -> Color {
-        switch source {
-        case .rom:
-            return Color(red: 0.35, green: 0.28, blue: 0.10)  // Yellow for ROM
-        case .solidState:
-            return Color(red: 0.10, green: 0.24, blue: 0.35)  // Blue for Solid State module
-        default:
-            return Color(red: 0.10, green: 0.30, blue: 0.10)  // Green for User Program (incl. fast mode) and others
-        }
+        Color(rgb: TIViewRules.stepHighlightColor(source.raw))
     }
 
+}
+
+// MARK: - Colours
+
+extension Color {
+    /// A packed 0xRRGGBB colour from Shared/ (TIViewRules).
+    init(rgb: UInt32) {
+        self.init(red: Double(rgb >> 16 & 0xFF) / 255, green: Double(rgb >> 8 & 0xFF) / 255, blue: Double(rgb & 0xFF) / 255)
+    }
 }
 
 // MARK: - Section Container
@@ -519,10 +475,10 @@ private struct SectionBox<Content: View>: View {
             snap.prSourceFlag = 0xA
             snap.programSource = ProgramSource(flag: 0xA, romPC: 0)
             snap.pendingOpsCount = 2
-            snap.angleMode = .deg
+            snap.angleMode = 0  // DEG
             snap.dataRegCount = 60
             snap.programRegCount = 60
-            snap.calcFlags = [false, true, nil, false, true, nil, false, nil, true, nil]
+            snap.calcFlags = [false, true, false, false, true, false, false, false, true, false]
             snap.fixIndicator = "-"
             snap.fA = 0x0340
             snap.fB = 0x08E0

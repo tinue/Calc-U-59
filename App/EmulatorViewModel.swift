@@ -1502,7 +1502,7 @@ struct LiveDebugSnapshot: Equatable {
     var tRegister: Double = 0
 
     // Calculator flags 0–9 (stored in SCOM; bit mapping TBD experimentally)
-    var calcFlags: [Bool?] = Array(repeating: nil, count: 10)
+    var calcFlags: [Bool] = Array(repeating: false, count: 10)
 
     // SCOM[0] fields
     var fixIndicator: String = "0"      // Nibble 15 (FIX = value - 2 mod 10)
@@ -1515,8 +1515,7 @@ struct LiveDebugSnapshot: Equatable {
     var invIndicator: String = ""       // "INV" if FA bit 0 is set, else empty
 
     // Calculator-level status (from SCOM)
-    var angleMode: AngleMode? = nil
-    enum AngleMode: Equatable { case deg, rad, grad }
+    var angleMode: Int = -1  // TILiveDebugSnapshot.angleMode: -1 unknown, 0 DEG, 1 RAD, 2 GRAD
 
     // SCOM-derived control state
     var prSourceFlag: UInt8 = 0   // Program Source Flag (SCOM[0] nibble 3)
@@ -1566,7 +1565,7 @@ extension LiveDebugSnapshot {
         engIndicator = t.engIndicator
         secondIndicator = t.secondIndicator
         invIndicator = t.invIndicator
-        angleMode = [AngleMode.deg, .rad, .grad].indices.contains(t.angleMode) ? [AngleMode.deg, .rad, .grad][t.angleMode] : nil
+        angleMode = t.angleMode
         prSourceFlag = t.prSourceFlag
         programSource = ProgramSource(raw: t.programSource)
         pendingOpsCount = t.pendingOpsCount

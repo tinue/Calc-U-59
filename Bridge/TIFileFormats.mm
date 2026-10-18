@@ -194,6 +194,9 @@ static TIModuleMetadata* metadataFrom(const cu59::ModuleMetadata& m) {
     return t;
 }
 
++ (BOOL)isCardFileName:(NSString *)name { return cu59::isCardFileName(cpp(name)); }
++ (NSString *)withDefaultCardExtension:(NSString *)name { return ns(cu59::withDefaultCardExtension(cpp(name))); }
+
 + (NSArray<TIModuleMetadata *> *)allModuleMetadata:(NSString *)cuecardsTxt {
     NSMutableArray* out = [NSMutableArray array];
     for (const auto& m : cu59::allModuleMetadata(cpp(cuecardsTxt))) [out addObject:metadataFrom(m)];

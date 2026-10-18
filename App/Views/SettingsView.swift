@@ -11,10 +11,10 @@ struct SettingsView: View {
     var viewModel: EmulatorViewModel
 
     // -1 = last used; 0/1/2 = specific MachineModel.rawValue
-    @AppStorage(SettingsKey.startupModel)    private var startupModelRaw: Int = -1
+    @AppStorage(SettingsKey.startupModel)    private var startupModelRaw: Int = TISettings.startupLastUsed
     @AppStorage(SettingsKey.traceLocation)   private var traceLocationRaw: Int = TraceLocation.iCloud.rawValue
     @AppStorage(SettingsKey.traceCustomPath) private var traceCustomPath: String = ""
-    @AppStorage(SettingsKey.traceMaxFileSizeMB) private var traceMaxFileSizeMB: Int = 50
+    @AppStorage(SettingsKey.traceMaxFileSizeMB) private var traceMaxFileSizeMB: Int = TISettings.defaultTraceMaxMB
     @AppStorage(SettingsKey.keyboardFeedback) private var keyboardFeedbackRaw: Int = KeyboardFeedbackType.off.rawValue
     @AppStorage(SettingsKey.ledFontStyle) private var ledFontStyleRaw: Int = LEDFontStyle.modernized.rawValue
     #if os(iOS)

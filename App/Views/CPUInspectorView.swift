@@ -209,15 +209,15 @@ struct CPUInspectorView: View {
                             }
 
                             inspectorSection(title: "CONTROL REGISTERS") {
-                                let cond = (cpu.flags & 0x0800) != 0 ? 1 : 0
-                                let idle = (cpu.flags & 0x0001) != 0 ? 1 : 0
+                                let cond = TIViewRules.condFlag(cpu.flags) ? 1 : 0
+                                let idle = TIViewRules.idleFlag(cpu.flags) ? 1 : 0
                                 let postDigit = Int(cpu.postDigit)
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text("KR: \(String(format: "%04X", cpu.KR)) [\(bin16(cpu.KR))]")
+                                    Text("KR: \(TIViewRules.hexBin16(cpu.KR))")
                                         .foregroundStyle(.white.opacity(0.85))
-                                    Text("fA: \(String(format: "%04X", cpu.fA)) [\(bin16(cpu.fA))]")
+                                    Text("fA: \(TIViewRules.hexBin16(cpu.fA))")
                                         .foregroundStyle(.white.opacity(0.85))
-                                    Text("fB: \(String(format: "%04X", cpu.fB)) [\(bin16(cpu.fB))]")
+                                    Text("fB: \(TIViewRules.hexBin16(cpu.fB))")
                                         .foregroundStyle(.white.opacity(0.85))
                                     HStack(spacing: 16) {
                                         Text("SR: \(String(format: "%04X", cpu.SR))")
@@ -377,9 +377,7 @@ struct CPUInspectorView: View {
     // MARK: - Register Row
 
     private func registerDisplay(_ label: String, _ nibbles: (UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8), baseFontSize: CGFloat) -> some View {
-        let array = [nibbles.0, nibbles.1, nibbles.2, nibbles.3, nibbles.4, nibbles.5, nibbles.6, nibbles.7,
-                     nibbles.8, nibbles.9, nibbles.10, nibbles.11, nibbles.12, nibbles.13, nibbles.14, nibbles.15]
-        let nibbleString = array.reversed().map { String(format: "%X", $0) }.joined()
+        let nibbleString = TIViewRules.registerNibbles(withUnsafeBytes(of: nibbles) { Data($0) })
         return HStack(spacing: 4) {
             Text(label)
                 .font(.system(size: baseFontSize + 2, weight: .bold, design: .monospaced))
@@ -487,16 +485,7 @@ struct CPUInspectorView: View {
 
     // MARK: - Helpers
 
-    private func bin16(_ v: UInt16) -> String {
-        let bits = (0..<16).map { i in (v >> (15 - i)) & 1 }
-        return stride(from: 0, to: 16, by: 4)
-            .map { g in bits[g..<g+4].map { String($0) }.joined() }
-            .joined(separator: " ")
-    }
-
     private func adaptiveFontSize(width: CGFloat) -> CGFloat {
-        if width < 350 { return 9 }
-        else if width < 500 { return 11 }
-        else { return 13 }
+        TIViewRules.debugPanelFontSize(width)
     }
 }

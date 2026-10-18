@@ -1,5 +1,6 @@
 #include "CpuInspectorWidget.hpp"
 #include "ChromeStyle.hpp"
+#include "DebugText.hpp"
 #include "EmulatorController.hpp"
 #include "HoldRepeatButton.hpp"
 #include "RomHeatmapWidget.hpp"
@@ -46,20 +47,9 @@ QWidget* sectionBox(const QString& title, QLabel*& body, QWidget* parent, QWidge
     return box;
 }
 
-QString nibbles(const uint8_t* n) {
-    QString s;
-    for (int i = 15; i >= 0; --i) s += QString::number(n[i] & 0xF, 16).toUpper();
-    return s;
-}
+QString nibbles(const uint8_t* n) { return QString::fromStdString(cu59::registerNibbles(n)); }
 
-QString bin16(uint16_t v) {
-    QString s;
-    for (int i = 15; i >= 0; --i) {
-        s += QChar((v >> i) & 1 ? '1' : '0');
-        if (i % 4 == 0 && i) s += QLatin1Char(' ');
-    }
-    return s;
-}
+QString hexBin16(uint16_t v) { return QString::fromStdString(cu59::hexBin16(v)); }
 
 QString c(const QString& text, const QString& color) {
     return QStringLiteral("<span style='color:%1'>%2</span>").arg(color, text.toHtmlEscaped());
@@ -153,10 +143,7 @@ CpuInspectorWidget::CpuInspectorWidget(EmulatorController& controller, QWidget* 
     refreshList();
 }
 
-int CpuInspectorWidget::baseFontSize() const {
-    int w = width();
-    return w < 350 ? 9 : w < 500 ? 11 : 13;
-}
+int CpuInspectorWidget::baseFontSize() const { return cu59::debugPanelFontSize(width()); }
 
 void CpuInspectorWidget::resizeEvent(QResizeEvent* e) {
     QWidget::resizeEvent(e);
@@ -225,10 +212,10 @@ void CpuInspectorWidget::refreshDetails() {
     for (const auto& [name, n] : rows) regs << QStringLiteral("<b>%1</b> %2").arg(c(QLatin1String(name), label), c(nibbles(n), value));
     set(m_registers, regs.join(QStringLiteral("<br>")));
 
-    int cond = (f.flags & 0x0800) ? 1 : 0, idle = (f.flags & 0x0001) ? 1 : 0;
-    set(m_control, c(QString::asprintf("KR: %04X [", f.KR) + bin16(f.KR) + QStringLiteral("]"), value) + QStringLiteral("<br>") +
-                       c(QString::asprintf("fA: %04X [", f.fA) + bin16(f.fA) + QStringLiteral("]"), value) + QStringLiteral("<br>") +
-                       c(QString::asprintf("fB: %04X [", f.fB) + bin16(f.fB) + QStringLiteral("]"), value) + QStringLiteral("<br>") +
+    int cond = cu59::condFlag(f.flags) ? 1 : 0, idle = cu59::idleFlag(f.flags) ? 1 : 0;
+    set(m_control, c(QStringLiteral("KR: ") + hexBin16(f.KR), value) + QStringLiteral("<br>") +
+                       c(QStringLiteral("fA: ") + hexBin16(f.fA), value) + QStringLiteral("<br>") +
+                       c(QStringLiteral("fB: ") + hexBin16(f.fB), value) + QStringLiteral("<br>") +
                        c(QString::asprintf("SR: %04X", f.SR), value) + QStringLiteral("&nbsp;&nbsp;&nbsp;&nbsp;") +
                        c(QStringLiteral("R5: %1").arg(f.R5), value) + QStringLiteral("<br>") +
                        c(QStringLiteral("COND: %1").arg(cond), cond ? QStringLiteral("rgba(255,204,0,0.4)") : QStringLiteral("#ffcc00")) +

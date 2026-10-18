@@ -1,4 +1,5 @@
 #include "CardPickerDialog.hpp"
+#include "CardFile.hpp"
 #include <QDir>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -50,8 +51,9 @@ CardPickerDialog::CardPickerDialog(Mode mode, const QString& directory, const QS
 
 void CardPickerDialog::reload() {
     QDir().mkpath(m_dir);
-    QStringList files = QDir(m_dir).entryList({QStringLiteral("*.u59"), QStringLiteral("*.U59"), QStringLiteral("*.bin")},
-                                              QDir::Files | QDir::NoDotAndDotDot, QDir::Name);
+    QStringList files;
+    for (const QString& f : QDir(m_dir).entryList(QDir::Files | QDir::NoDotAndDotDot, QDir::Name))
+        if (cu59::isCardFileName(f.toStdString())) files << f;
     m_list->clear();
     if (files.isEmpty()) {
         auto* item = new QListWidgetItem(m_mode == Mode::Load ? QStringLiteral("No cards found") : QStringLiteral("No existing cards"));
@@ -66,7 +68,7 @@ void CardPickerDialog::accept() {
     if (m_mode == Mode::Save) {
         QString name = m_name->text().trimmed();
         if (name.isEmpty()) return;
-        if (!name.contains(QLatin1Char('.'))) name += QStringLiteral(".U59");
+        name = QString::fromStdString(cu59::withDefaultCardExtension(name.toStdString()));
         m_selected = QDir(m_dir).filePath(name);
     } else {
         QListWidgetItem* item = m_list->currentItem();

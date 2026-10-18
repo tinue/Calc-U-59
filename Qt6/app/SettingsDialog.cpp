@@ -29,7 +29,7 @@ SettingsDialog::SettingsDialog(EmulatorController& controller, QWidget* parent) 
     m_startup->addItem(QStringLiteral("TI-58C"), 2);
     m_startup->insertSeparator(3);
     m_startup->addItem(QStringLiteral("Last Used"), -1);
-    m_startup->setCurrentIndex(m_startup->findData(AppSettings::value<int>(AppSettings::kStartupModel, -1)));
+    m_startup->setCurrentIndex(m_startup->findData(AppSettings::value<int>(AppSettings::kStartupModel, cu59::settings::kStartupLastUsed)));
     connect(m_startup, qOverload<int>(&QComboBox::activated), this,
             [this] { AppSettings::setValue(AppSettings::kStartupModel, m_startup->currentData().toInt()); });
     gf->addRow(QStringLiteral("Startup Calculator"), m_startup);
@@ -47,7 +47,7 @@ SettingsDialog::SettingsDialog(EmulatorController& controller, QWidget* parent) 
     m_style = new QComboBox(display);
     m_style->addItem(QStringLiteral("Modernized"), 0);
     m_style->addItem(QStringLiteral("Classic"), 1);
-    m_style->setCurrentIndex(AppSettings::value<int>(AppSettings::kLedFontStyle, 0) == 1 ? 1 : 0);
+    m_style->setCurrentIndex(AppSettings::value<int>(AppSettings::kLedFontStyle, cu59::settings::kDefaultLedFontStyle) == 1 ? 1 : 0);
     connect(m_style, qOverload<int>(&QComboBox::activated), this,
             [this] { AppSettings::setValue(AppSettings::kLedFontStyle, m_style->currentData().toInt()); });
     df->addRow(QStringLiteral("Segment Style"), m_style);

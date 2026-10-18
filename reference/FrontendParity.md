@@ -28,7 +28,7 @@ tracked here (see `NewGUIGuide.md`).
 | Cue card: 3 templates, `\blank` spans, shrink-to-fit, inks | `CueCardView` | `CueCardRenderer` | `CueCard` | Both | |
 | Module program cards (SCOM[9]), user cards | `EmulatorViewModel` | `EmulatorController` | `CueCard` resolveCueCard | Both | |
 | Solid State module selection | `SettingsView` | `SettingsDialog` | `ModuleCatalog` | Both | soft reset on change |
-| Startup calculator (model / last used) | `SettingsView` | `SettingsDialog` | — | Both | |
+| Startup calculator (model / last used) | `SettingsView` | `SettingsDialog` | `SettingsKeys` | Both | |
 
 ## Files
 
@@ -37,7 +37,7 @@ tracked here (see `NewGUIGuide.md`).
 | Open preset `.ti59` / `.ti58` / `.ti58c` | `CalculatorView` | `MainWindow` | `StateFile`, `StateApplier` | Both | |
 | KEYSTROKES playback (Wait, FullSpeed, Trace, elapse) | `EmulatorViewModel` | `EmulatorController` | `KeySequencer` | Both | |
 | Drag-and-drop / open-with of state files | — | `MainWindow`, `main.cpp` | — | Qt only | Swift: file importer only |
-| Magnetic cards: read, write blank, eject, auto-eject | `CalculatorView`, `CardPickerView` | `ControlBar`, `CardPickerDialog` | `CardFile` | Both | TI-59 only |
+| Magnetic cards: read, write blank, eject, auto-eject | `CalculatorView`, `CardPickerView` | `ControlBar`, `CardPickerDialog` | `CardFile` (format, listed names) | Both | TI-59 only |
 | Card and `ti58c.mem` location | iCloud Documents (`CardStorage`) | `~/Calc-U-59` (`AppPaths`) | — | Swift only / Qt only | Qt: card folder in Settings |
 | Open Preset start folder | system file importer | last used, or fixed in Settings | — | Qt only | Calc-U-1600 layout |
 | TI-58C constant memory (save on change, restore) | `EmulatorViewModel` | `EmulatorController` | `ConstantMemory` | Both | |
@@ -55,10 +55,10 @@ tracked here (see `NewGUIGuide.md`).
 
 | Feature | Swift | Qt | Shared | Status | Notes |
 |---|---|---|---|---|---|
-| CALCULATOR tab: registers, flags, HIR, T, return stack, partition, source | `LiveDebugView` | `LiveDebugWidget` | `DebugSnapshots`, `ModuleImage` | Both | |
+| CALCULATOR tab: registers, flags, HIR, T, return stack, partition, source | `LiveDebugView` | `LiveDebugWidget` | `DebugSnapshots`, `DebugText`, `ModuleImage` | Both | |
 | Program steps ±5 running / full listing frozen | `LiveDebugView` | `LiveDebugWidget` | `DebugSnapshots` | Both | |
 | FREEZE, FREEZE ON START (next PC change), ARMED, RESUME, STEP (hold to repeat) | `LiveDebugView` | `LiveDebugWidget` | `FreezeController` | Both | |
-| CPU tab: history, registers, control registers, display state | `CPUInspectorView` | `CpuInspectorWidget` | `DebugSnapshots` | Both | |
+| CPU tab: history, registers, control registers, display state | `CPUInspectorView` | `CpuInspectorWidget` | `DebugSnapshots`, `DebugText` | Both | |
 | CPU FREEZE ON START (scan-loop exit), STEP | `CPUInspectorView` | `CpuInspectorWidget` | `FreezeController` | Both | |
 | ROM heatmap with hover address, CLR | `CPUInspectorView` | `RomHeatmapWidget` | `RomHeatmap` | Both | |
 | ASM overlay: select, run, clear | `DebugView` | `AsmOverlayBox` | `AsmOverlay` | Both | |

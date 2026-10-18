@@ -99,6 +99,22 @@ NS_ASSUME_NONNULL_BEGIN
 
 // ── Debugger (Shared/ModuleImage.hpp, Shared/DebugSnapshots.hpp) ────────────
 + (NSString *)programSourceLabel:(NSInteger)source flag:(uint8_t)flag;
+
+// ── Debug-panel text and colours (Shared/DebugText.hpp); colours 0xRRGGBB ───
++ (CGFloat)debugPanelFontSize:(CGFloat)width;
++ (NSString *)partitionLineProgramRegs:(NSInteger)programRegs dataRegs:(NSInteger)dataRegs;
+/// mode: TILiveDebugSnapshot.angleMode (-1 = unknown).
++ (NSString *)angleModeLabel:(NSInteger)mode;
++ (NSString *)registerLine:(NSInteger)num value:(double)value hidden:(BOOL)hidden;
++ (NSString *)hirLine:(NSInteger)n value:(double)value;
++ (NSString *)tRegisterLine:(double)value;
++ (uint32_t)returnLevelColor:(uint8_t)sourceFlag zeroAddress:(BOOL)zero;
++ (uint32_t)stepHighlightColor:(NSInteger)source;
++ (BOOL)condFlag:(uint16_t)flags;
++ (BOOL)idleFlag:(uint16_t)flags;
+/// 16 nibbles, most significant first.
++ (NSString *)registerNibbles:(NSData *)nibbles;
++ (NSString *)hexBin16:(uint16_t)value;
 /// Frozen CPU view: the trace ring plus the next instruction.
 + (NSArray<TIInspectorEntry *> *)inspectorHistory:(TI59MachineWrapper *)machine;
 /// Running CPU view: the newest `count` of `frames` (TICpuFrame NSValues).

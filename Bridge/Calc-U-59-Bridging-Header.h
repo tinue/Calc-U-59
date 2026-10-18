@@ -7,3 +7,4 @@
 #import "TIDebugModel.h"
 #import "TISession.h"
 #import "TIViewRules.h"
+#import "TISettings.h"

@@ -44,11 +44,12 @@ Qt6/app/ (Qt Widgets) ───────────────┘
 | `CueCard.{hpp,cpp}` | Cue-card model, math tokens, encode/parse, spans, layout, shrink-to-fit, which card shows | `TIFileFormats`, `TIViewRules` |
 | `ModuleCatalog.{hpp,cpp}` | `roms/solid-state/cuecards.txt` | `TIFileFormats` |
 | `RomLoader.{hpp,cpp}` | ROM / constants / module text dumps with sentinel checks | `TIFileFormats` |
-| `CardFile.{hpp,cpp}` | Magnetic card files (text, headered and legacy binary) | `TIFileFormats` |
+| `CardFile.{hpp,cpp}` | Magnetic card files (text, headered and legacy binary); which names the card pickers list | `TIFileFormats` |
 | `ConstantMemory.{hpp,cpp}` | `ti58c.mem` | `TIFileFormats` |
 | `TraceWriter.{hpp,cpp}` | Binary trace format v2 (`DebugAPI.md`) | `TITraceWriter` |
 | `ModuleImage.{hpp,cpp}` | PRG SOURCE decoding, module program table, source labels | `TIDebugModel`, `TIViewRules` |
 | `DebugSnapshots.{hpp,cpp}` | CALCULATOR tab snapshot and listing; CPU inspector history | `TIDebugModel`, `TIViewRules` |
+| `DebugText.{hpp,cpp}` | The debug panels' shared text and colours (partition line, registers, HIR, return-level and step colours, CPU flags, font size) | `TIViewRules` |
 | `RomHeatmap.{hpp,cpp}` | Execution counts, heat steps and colours | `TIDebugModel`, `TIViewRules` |
 | `AsmOverlay.{hpp,cpp}` | ASM overlay parser and entry | `TIDebugModel` |
 | `DebugLog.{hpp,cpp}` | LOG tab ring buffer and dumps | `TIDebugModel` |
@@ -59,6 +60,7 @@ Qt6/app/ (Qt Widgets) ───────────────┘
 | `KeySequencer.{hpp,cpp}` | 100 ms taps with scan-loop wait, physical-key holds, KEYSTROKES playback | — |
 | `EmulatorSession.{hpp,cpp}` | One running calculator: machine + all of the above + trace writers | `TISession` |
 | `TextUtil.hpp` | Foundation-compatible string helpers (trim, split, number parsing) | — |
+| `SettingsKeys.hpp` | The settings both apps store: key names, defaults, how a stored value resolves | `TISettings` |
 
 The Qt app calls these directly; the Swift app goes through the ObjC++
 wrappers in `Bridge/`, which only translate types.

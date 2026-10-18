@@ -53,4 +53,11 @@ struct CardDecodeResult {
 };
 CardDecodeResult decodeCardFile(const std::vector<uint8_t>& raw, const std::string& fileName);
 
+/// A file the card pickers list: extension .u59 or .bin in any case; not a
+/// hidden file (which also skips iCloud's ".name.u59.icloud" placeholders).
+bool isCardFileName(std::string_view name);
+
+/// The name a new card is saved under: ".U59" appended when it has no extension.
+std::string withDefaultCardExtension(std::string name);
+
 } // namespace cu59

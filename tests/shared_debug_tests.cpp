@@ -7,6 +7,7 @@
 #include "../Shared/Bcd.hpp"
 #include "../Shared/DebugLog.hpp"
 #include "../Shared/DebugSnapshots.hpp"
+#include "../Shared/DebugText.hpp"
 #include "../Shared/RomHeatmap.hpp"
 #include <filesystem>
 
@@ -169,4 +170,26 @@ TEST(debug_dumps) {
     CHECK(mem.size() >= 2);
     CHECK_EQ(dumpStepCounterAnalysis(*m).size(), size_t{15});
     CHECK(dumpProg(*m)[0].rfind("── Prog P000–P", 0) == 0);
+}
+
+TEST(debug_panel_text) {
+    CHECK_EQ(debugPanelFontSize(300), 9);
+    CHECK_EQ(debugPanelFontSize(400), 11);
+    CHECK_EQ(debugPanelFontSize(800), 13);
+    CHECK_EQ(partitionLine(60, 60), std::string("Steps: 480, Registers: 60 (479.59)"));
+    CHECK_EQ(partitionLine(120, 0), std::string("Steps: 960, Registers: 0 (959.)"));
+    CHECK_EQ(angleModeLabel(std::nullopt), std::string("?"));
+    CHECK_EQ(angleModeLabel(AngleMode::Grad), std::string("GRAD"));
+    CHECK_EQ(registerLine({5, 2.5, false}), std::string("R05 = 2.5"));
+    CHECK_EQ(registerLine({2, 1731371734.99909, true}), std::string("H02 = 1731371734.999"));  // 13 digits
+    CHECK_EQ(hirLine(1, 3.14159265), std::string("1: 3.1416"));
+    CHECK_EQ(tRegisterLine(0), std::string("T: 0"));
+    CHECK_EQ(returnLevelColor(0, false), 0x409940u);
+    CHECK_EQ(returnLevelColor(2, true), returnLevelColor(1, true));
+    CHECK_EQ(returnLevelColor(5, false), 0xCCCCCCu);
+    CHECK_EQ(stepHighlightColor(ProgramSource::FastMode), stepHighlightColor(ProgramSource::UserProgram));
+    CHECK(condFlag(0x0800) && !condFlag(0x0001) && idleFlag(0x0001));
+    uint8_t n[16] = {0x15, 0xA};  // high bits are masked
+    CHECK_EQ(registerNibbles(n), std::string("00000000000000A5"));
+    CHECK_EQ(hexBin16(0x1F0A), std::string("1F0A [0001 1111 0000 1010]"));
 }

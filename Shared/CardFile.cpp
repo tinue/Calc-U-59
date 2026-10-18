@@ -186,4 +186,17 @@ CardDecodeResult decodeCardFile(const std::vector<uint8_t>& raw, const std::stri
     return r;
 }
 
+bool isCardFileName(std::string_view name) {
+    if (name.empty() || name.front() == '.') return false;
+    size_t dot = name.rfind('.');
+    if (dot == std::string_view::npos) return false;
+    std::string ext = toLower(name.substr(dot + 1));
+    return ext == "u59" || ext == "bin";
+}
+
+std::string withDefaultCardExtension(std::string name) {
+    if (name.find('.') == std::string::npos) name += ".U59";
+    return name;
+}
+
 } // namespace cu59

@@ -89,6 +89,10 @@ typedef NSString *_Nullable (^TIResourceReader)(NSString *fileName);
 + (NSString *)encodeCardText:(NSData *)bank cueCard:(nullable TICueCard *)cueCard;
 + (NSString *)encodeConstantMemory:(NSData *)ram cueCard:(nullable TICueCard *)cueCard;
 + (nullable TIConstantMemory *)decodeConstantMemory:(NSString *)text;
+/// Card pickers list only these (.u59 / .bin in any case, not hidden).
++ (BOOL)isCardFileName:(NSString *)name;
+/// ".U59" appended when the name has no extension.
++ (NSString *)withDefaultCardExtension:(NSString *)name;
 
 // ── cuecards.txt ─────────────────────────────────────────────────────────────
 + (NSArray<TIModuleMetadata *> *)allModuleMetadata:(NSString *)cuecardsTxt;

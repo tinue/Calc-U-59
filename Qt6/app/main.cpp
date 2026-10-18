@@ -62,7 +62,7 @@ int main(int argc, char* argv[]) {
     EmulatorController controller;
     MainWindow window(controller);
     app.window = &window;
-    controller.start(static_cast<cu59::Model>(AppSettings::resolvedStartupModel()));
+    controller.start(AppSettings::resolvedStartupModel());
     window.show();
 
     // Developer option: --grab <file.png> [--after <ms>] saves a screenshot of the

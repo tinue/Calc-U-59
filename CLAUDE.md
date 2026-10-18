@@ -55,7 +55,8 @@ shipped and never built in CI). Keep them in step:
   `cmake -S . -B build/cmake -G Ninja && cmake --build build/cmake && ctest --test-dir build/cmake --output-on-failure`
   and `xcodebuild -project Calc-U-59.xcodeproj -scheme Calc-U-59 -destination platform=macOS build`.
   `Shared/` stays C++17 and standard-library-only.
-- **Settings key names are identical** in `App/AppSettings.swift` and `Qt6/app/AppSettings.hpp`.
+- **Settings both apps store** (key names, defaults, resolution) live in
+  `Shared/SettingsKeys.hpp`; `App/AppSettings.swift` and `Qt6/app/AppSettings.hpp` use them.
 - **Assets have one source:** ROMs in `roms/`, artwork in `App/Assets.xcassets`,
   the icon in `App/AppIcon.icon` (`tools/gen_qt_icons.sh` derives the Qt icons).
 - **Version:** `MARKETING_VERSION` in the Xcode project is the only version;

@@ -1,12 +1,13 @@
 #pragma once
+#include "SettingsKeys.hpp"
 #include <QDir>
 #include <QFileInfo>
 #include <QSettings>
 #include <QString>
+#include <optional>
 
-// Persistent settings. Key names are identical to the Swift app's
-// SettingsKey (App/AppSettings.swift) — keep them in sync (CLAUDE.md
-// § "Frontend Parity"). The trace location keys and the iOS-only keys
+// Persistent settings. The keys both apps store, their defaults and how they
+// resolve live in Shared/SettingsKeys.hpp. The trace location keys and the iOS-only keys
 // (keyboard feedback, portrait debug page) have no Qt counterpart; the Qt
 // app has its own folder keys instead (below, laid out as in Calc-U-1600),
 // where the Swift app has iCloud Documents and the system file importer.
@@ -20,11 +21,11 @@ template <class T> T value(const char* key, const T& fallback) {
 template <class T> void setValue(const char* key, const T& v) { store().setValue(QLatin1String(key), v); }
 
 // ── Keys shared with the Swift app ───────────────────────────────────────────
-inline constexpr const char* kStartupModel = "startupModel";            ///< Int: model raw value, -1 = last used
-inline constexpr const char* kLastUsedModel = "lastUsedModel";          ///< Int: model raw value
-inline constexpr const char* kSolidStateModuleID = "solidStateModuleID"; ///< String, default "ML"
-inline constexpr const char* kTraceMaxFileSizeMB = "traceMaxFileSizeMB"; ///< Int, default 50
-inline constexpr const char* kLedFontStyle = "ledFontStyle";             ///< Int: 0 modernized, 1 classic
+using cu59::settings::kLastUsedModel;
+using cu59::settings::kLedFontStyle;
+using cu59::settings::kSolidStateModuleID;
+using cu59::settings::kStartupModel;
+using cu59::settings::kTraceMaxFileSizeMB;
 
 // ── Qt only ──────────────────────────────────────────────────────────────────
 /// String: cards and ti58c.mem; empty = ~/Calc-U-59 (AppPaths::cardDir()).
@@ -72,18 +73,22 @@ inline QString openStartDir(OpenFolder folder) {
     return dir.isEmpty() ? QDir::homePath() : dir;
 }
 
-/// Startup model: the stored one, or the last used (default TI-59).
-inline int resolvedStartupModel() {
-    int raw = value<int>(kStartupModel, -1);
-    if (raw < 0 || raw > 2) raw = value<int>(kLastUsedModel, 0);
-    return (raw >= 0 && raw <= 2) ? raw : 0;
+template <class T> std::optional<T> stored(const char* key) {
+    QVariant v = store().value(QLatin1String(key));
+    if (!v.isValid()) return std::nullopt;
+    return v.value<T>();
 }
 
-inline QString resolvedSolidStateModuleID() { return value<QString>(kSolidStateModuleID, QStringLiteral("ML")); }
-
-inline int resolvedTraceMaxMB() {
-    int mb = value<int>(kTraceMaxFileSizeMB, 50);
-    return mb > 0 ? mb : 50;
+/// Startup model: the stored one, else the last used, else TI-59.
+inline cu59::Model resolvedStartupModel() {
+    return cu59::settings::resolveStartupModel(stored<int>(kStartupModel), stored<int>(kLastUsedModel));
 }
+
+inline QString resolvedSolidStateModuleID() {
+    auto id = stored<QString>(kSolidStateModuleID);
+    return QString::fromStdString(cu59::settings::resolveModuleID(id ? std::optional<std::string>(id->toStdString()) : std::nullopt));
+}
+
+inline int resolvedTraceMaxMB() { return cu59::settings::resolveTraceMaxMB(stored<int>(kTraceMaxFileSizeMB)); }
 
 } // namespace AppSettings
