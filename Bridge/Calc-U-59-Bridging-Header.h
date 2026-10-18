@@ -3,3 +3,4 @@
 #import "TI59MachineWrapper.h"
 #import "TISharedTables.h"
 #import "TIFileFormats.h"
+#import "TITraceWriter.h"

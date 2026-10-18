@@ -68,7 +68,16 @@ if(NOT MSVC)
 endif()
 
 enable_testing()
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/build)  # scratch files written by the tests
 add_test(NAME CalcU59Tests COMMAND CalcU59Tests WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+# tools/read_trace.py must read the trace CalcU59Tests wrote with Shared/TraceWriter.
+find_package(Python3 COMPONENTS Interpreter)
+if(Python3_FOUND)
+  add_test(NAME CalcU59TraceReader
+           COMMAND ${Python3_EXECUTABLE} tools/read_trace.py --json build/trace-test.bin
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  set_tests_properties(CalcU59TraceReader PROPERTIES DEPENDS CalcU59Tests)
+endif()
 
 # -----------------------------------------------------------------------------
 # Qt6 desktop app (optional: Core/Shared/tests build without Qt)
