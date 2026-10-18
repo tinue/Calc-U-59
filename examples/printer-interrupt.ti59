@@ -1,0 +1,118 @@
+# printer-interrupt.ti59
+#
+# The TI-59 "printer interrupt" in its smallest form. The program prints
+# "A0" (at the right end of the line) twice: once normally, and once cut off
+# after the first 2 of its 7 dot rows. rom/printerinterrupt.md explains the hack;
+# examples/texas-print.ti59 and examples/printer-quirks.ti59 are the 1982
+# PPX Exchange programs that use it.
+#
+# Loading the file runs everything automatically (KEYSTROKES below). By hand:
+#
+#   1 + 48 EE 12 +/- =     X := 1.000000000048 exactly
+#   GTO 012  SST  0  STO   fast-mode hack: Prg Src := 8, stop at step 007
+#   LRN  2nd Ins  LRN      step 008 becomes the pseudo-code 1F, 009 RTN
+#   CLR  RST               back to normal (Prg Src 0)
+#   GTO 017  R/S           run the program
+#
+# No Master Library module and no special partition are needed. The method
+# replaces the article's [9] [Op] [17] [Pgm] [12] [SBR] [444] [R/S] [P/R]
+# sequence and gives the same 1F and RTN (headless check, also on
+# texas-print.ti59, whose printout stays the same).
+#
+# HOW THE CODE IS MADE
+#
+# 1. St flg at 012 is the fast-mode hack (rom/fastmode.md): SST runs it, the
+#    digit 0 and STO end its operand early, and X is copied into the status
+#    register. X = 1.000000000048 sets Prg Src 8 and step 004. Its leading 1
+#    sets flag 4; a leading 4, 5, 8 or 9 would make LRN and Ins print junk
+#    lines.
+# 2. A non-zero Prg Src starts a run. The step buffer still holds 008-015,
+#    positioned at 012, so steps 005-007 run 013-015: 013 is swallowed, 014
+#    types 0, 015 is R/S. The run stops at step 007 with Prg Src still 8.
+# 3. LRN advances to 008. That starts a new block, so the buffer is reloaded,
+#    and with Prg Src 8 it comes from ROM constant row 17 (04 65 43 01 ...)
+#    instead of RAM.
+# 4. Ins computes (RAM - buffer) + (buffer shifted up one step). Digit 0 of
+#    the register is hexadecimal in the CPU, so step 008 = 23 (lnx) - 04 =
+#    1F, and step 009 = 53 (() - 65 - borrow + 04 = 92 (RTN). Steps 010-015
+#    get garbage, step 016 receives the R/S, and everything from 016 on
+#    moves up one step (the listing below shows memory BEFORE the Ins).
+#
+# HOW THE INTERRUPT WORKS
+#
+# A = 0 Op 05 1F: Op 05 starts printing the line, and the printer prints
+# its 7 dot rows on its own for about 0.2 s. Meanwhile step 008 executes.
+# The keycode dispatcher (ROM 0F53) turns the two digits of 1F into a jump
+# to 0EF1 without checking them. 0EF1 is the tail of the number-print
+# routine, three instructions before PRT.GO (0EFC), the "line finished,
+# advance paper" signal. PRT.GO arriving while the printer is busy stops it:
+# 1020 of 2808 instruction cycles have passed, so 2 rows are on paper. The
+# code then continues at step 000 (INV SBR), which returns to 009 (RTN),
+# which returns from A. In the app the second line shows only 2 of its 7
+# dot rows; the text in a headless printout is always complete.
+#
+# The article's rules follow from this: the code only goes at steps 8k
+# (only digit 0 of a register is hexadecimal), 000 must hold INV SBR, X
+# must be 0 without EE when it runs (here: the 0 at 005; CLR ends the EE
+# mode of the hack constant), and all labels must come before it.
+
+MODEL: TI-59
+PRINTER: on
+
+PROGRAM:
+000  92  INV SBR   # the interrupt continues here: return to 009
+001  00  0
+002  00  0
+003  76  Lbl
+004  11  A
+005  00  0         # display must be 0
+006  69  Op
+007  05  05        # start printing the line …
+008  23  lnx       # … becomes 1F: the interrupt
+009  53  (         # becomes 92 RTN
+010  00  0
+011  00  0
+012  86  St flg    # hack trigger (overwritten by the Ins)
+013  00  0         # swallowed by the hack
+014  00  0         # makes X displayable before the R/S
+015  91  R/S       # stops the hack's run (moves to 016)
+# From here on, each step moves up one during the Ins: 016 runs as 017.
+016  01  1         # 1301 = codes 13 01 = "A0"
+017  03  3
+018  00  0
+019  01  1
+020  69  Op
+021  04  04        # into the last 5 columns of the line
+022  69  Op
+023  05  05        # print the line in full
+024  11  A         # print it again, interrupted
+025  98  Adv
+026  91  R/S
+
+KEYSTROKES:
+82          # 1
+85          # +
+72          # 4
+63          # 8
+52          # EE
+82          # 1
+83          # 2
+94          # +/-
+95          # =      X = 1.000000000048
+61          # GTO
+92          # 0
+82          # 1
+83          # 2      → step 012
+41          # SST    St flg executes, operand pending
+92          # 0      first operand digit
+42          # STO    ends it: Prg Src 8, run stops at 007
+31          # LRN    008, buffer loaded from ROM row 17
+21 41       # Ins    008 := 1F, 009 := RTN
+31          # LRN
+25          # CLR
+81          # RST    Prg Src 0
+61          # GTO
+92          # 0
+82          # 1
+62          # 7      → step 017
+91          # R/S    print both lines
