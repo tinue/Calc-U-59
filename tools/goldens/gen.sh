@@ -21,11 +21,21 @@ gen() {  # gen <name> <driver> <git ref> <repo-relative swift sources...>
         files+=("$src/$(basename "$f")")
     done
     swiftc -O -o "$OUT/$name" "${files[@]}"
-    "$OUT/$name" > "$ROOT/tests/golden/$name.txt"
+    "$OUT/$name" "${GEN_ARGS[@]+"${GEN_ARGS[@]}"}" > "$ROOT/tests/golden/$name.txt"
     echo "wrote tests/golden/$name.txt"
 }
 want() { [ "${1:-}" = "$SEL" ] || [ "$SEL" = all ]; }
 SEL="${1:-all}"
 
+GEN_ARGS=()
 want keynames && gen keynames keynames_main.swift 66537d3 App/TI59KeyNames.swift
+
+# Inputs: every example state file plus the edge-case fixtures, sorted so the
+# golden is stable.
+GEN_ARGS=()
+while IFS= read -r f; do GEN_ARGS+=("$f"); done < <(
+    find "$ROOT/examples" "$ROOT/tests/fixtures/statefiles" "$ROOT/tests/fixtures/cards" \
+        -type f \( -name '*.ti59' -o -name '*.ti58' -o -name '*.ti58c' -o -name '*.u59' \) | LC_ALL=C sort)
+want formats && gen formats formats_main.swift 66537d3 \
+    App/StateFileLoader.swift App/CueCardContent.swift App/RegisterLineHelpers.swift App/MachineModel.swift
 true

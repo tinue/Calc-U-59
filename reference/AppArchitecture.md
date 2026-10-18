@@ -29,13 +29,15 @@ EmulatorViewModel (@Observable)
 
 Support files:
 ├─ MachineModel.swift        (enum: TI-59 / TI-58 / TI-58C variant)
-├─ ROMLoader.swift           (bundle asset loading, hex decode, checksum)
+├─ ROMLoader.swift           (bundle file access for Shared/RomLoader + ModuleCatalog)
 ├─ CardStorage.swift         (iCloud / local card file storage)
-└─ StateFileLoader.swift     (.ti59 file parser, BCD encoder)
+└─ StateFileResult.swift     (state-file result types, filled from Shared/StateFile)
 
 Shared/ (C++, used by this app via Bridge/ and by the Qt6 app):
-└─ data tables — key names, keyboard map, 7-segment patterns, PC-100C font,
-   canvas/key layout, per-model facts (see SharedArchitecture.md)
+├─ data tables — key names, keyboard map, 7-segment patterns, PC-100C font,
+│  canvas/key layout, per-model facts
+└─ file formats — state files, cue cards, card files, ti58c.mem, ROM text
+   dumps, cuecards.txt, BCD (see SharedArchitecture.md)
 ```
 
 ---
@@ -47,12 +49,14 @@ Shared/ (C++, used by this app via Bridge/ and by the Qt6 app):
 | `Calc-U-59App.swift` | App entry; persists TI-58C constant memory on scene background/inactive |
 | `MachineModel.swift` | Variant enum with hardware-specific metadata (card-switch col, RAM limits) |
 | `EmulatorViewModel.swift` | Central `@Observable` view model; owns the emulation loop, 60 Hz timer, and all I/O state |
-| `ROMLoader.swift` | Loads per-chip `.txt` ROM files and module library `.hex` files from the app bundle into `[UInt16]` word arrays |
+| `ROMLoader.swift` | Supplies the bundled ROM / module `.txt` files and `cuecards.txt` to `Shared/RomLoader` and `Shared/ModuleCatalog` |
 | `CardStorage.swift` | Resolves the card file URL in the iCloud container (or local Documents) and provides atomic read/write |
-| `StateFileLoader.swift` | Parses `.ti59`/`.ti58` state files; encodes `Double` values to TI-59 BCD nibble format |
+| `StateFileResult.swift` | `LoadStateResult` / `KeystrokeEvent` value types, filled from `Shared/StateFile` via `Bridge/TIFileFormats` |
+| `CueCardContent.swift` | SwiftUI-facing cue card value type and its `TICueCard` conversion (parsing/encoding: `Shared/CueCard`) |
 | `Bridge/TI59MachineWrapper.h` | ObjC header: C-struct display/trace types visible to Swift; method declarations |
 | `Bridge/TI59MachineWrapper.mm` | ObjC++ implementation: thin wrapper mapping Swift/ObjC types to C++ calls |
 | `Bridge/TISharedTables.{h,mm}` | ObjC++ face of the `Shared/` data tables (key names, keyboard map, 7-segment patterns, printer font, key layout, model facts) |
+| `Bridge/TIFileFormats.{h,mm}` | ObjC++ face of the `Shared/` file formats (state files, cue cards, card files, ti58c.mem, ROM text, cuecards.txt) |
 | `Bridge/Calc-U-59-Bridging-Header.h` | Swift bridging header; imports every wrapper |
 | `Views/CalculatorView.swift` | Root view; adaptive layout (portrait/landscape/macOS); card picker sheet; state file import |
 | `Views/KeyboardView.swift` | Overlays a `DragGesture` on the calculator image; normalised-coordinate hit testing; haptics |
@@ -266,7 +270,7 @@ Card file format (`.U59`):
 to RAM without simulating key presses (except for the optional `KEYSTROKES:` section):
 
 ```
-1. parseStateFile() → LoadStateResult (partition, program steps, registers, keystrokes)
+1. LoadStateResult(parsing:) → Shared/StateFile parseStateFile (partition, program steps, registers, keystrokes)
 2. Stop the emulation loop; drain emulQueue with sync{} to ensure no in-flight step.
 3. machine.reset()
 4. emulQueue.sync { m.stepN(300_000) }  ← run ROM's power-on startup routine to idle
@@ -282,9 +286,8 @@ initialises SCOM.  Skipping it leaves stale flags that confuse display and AOS.
 `stepN(300_000)` is a conservative upper bound; the startup routine always
 completes well within this.
 
-The `StateFileLoader.swift` module also contains `encodeTI59BCD(_:)`, which
-converts a Swift `Double` to the 16-nibble TI-59 BCD register format (see
-`CoreArchitecture.md` for the layout).
+`Shared/Bcd.hpp`'s `encodeBcd` converts a `REGISTERS:` literal to the
+16-nibble TI-59 BCD register format (see `CoreArchitecture.md` for the layout).
 
 ---
 
@@ -359,7 +362,7 @@ Solid-state (library module) programs are shown live in the PROGRAM STEPS view:
 `ROMLoader` loads the ROM from individual chip `.txt` files bundled with the app.
 Each file has a plain-text header block terminated by `---`, followed by data lines
 in the format `AAAA: WWWW WWWW …` (4-digit hex address, then 13-bit opcode words).
-`ROMLoader.parseRomTxt` strips the header, parses the data lines, and masks each
+`parseRomTxt` (`Shared/RomLoader.cpp`) strips the header, parses the data lines, and masks each
 word to 13 bits (`& 0x1FFF`).
 
 | Model | Chip files | Address range |

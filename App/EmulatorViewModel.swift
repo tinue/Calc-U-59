@@ -345,8 +345,6 @@ class EmulatorViewModel {
         }
     }
 
-    private static let cardFileHeader = Data("Calc-U-59-CRD".utf8)
-
     private var machine: TI59MachineWrapper?
     private let emulQueue = DispatchQueue(label: "calc-u-59.emulation", qos: .userInteractive)
     private var displayTimer: Timer?
@@ -425,10 +423,7 @@ class EmulatorViewModel {
         do {
             let words = try ROMLoader.load(model: model)
             let wrapper = TI59MachineWrapper(model: model.rawValue)
-            words.withUnsafeBufferPointer { buf in
-                let data = Data(buffer: buf)
-                wrapper.loadROM(data)
-            }
+            wrapper.loadROM(words)
 
             // Load solid-state library module
             if let libData = ROMLoader.loadModuleLibrary(moduleID: self.selectedModuleID) {
@@ -1079,38 +1074,16 @@ class EmulatorViewModel {
             errorMessage = "Could not read card file."
             return
         }
-        let data: Data
-        if let text = String(data: raw, encoding: .utf8), text.hasPrefix("Calc-U-59 Card ") {
-            guard let result = parseCardFile(text) else {
-                errorTitle = "Card load error"
-                errorMessage = "Card file \"\(url.lastPathComponent)\" could not be parsed."
-                return
-            }
-            userCueCardContent = result.cueCard
-            cueCardContent = resolvedCueCard()
-            cardFileName = url.lastPathComponent
-            pendingSaveURL = url
-            beginSwipe(data: result.data)
+        // Text, headered binary and legacy layouts: Shared/CardFile.cpp.
+        let decoded = TIFileFormats.decodeCardFile(raw, fileName: url.lastPathComponent)
+        guard let data = decoded.data else {
+            errorTitle = "Card load error"
+            errorMessage = decoded.error
             return
         }
-        let hdr = Self.cardFileHeader
-        if raw.prefix(hdr.count) == hdr {
-            // New format: strip header, then expect exactly 246 bytes of card data.
-            let payload = raw.dropFirst(hdr.count)
-            guard payload.count == 246 else {
-                errorTitle = "Card load error"
-                errorMessage = "Card file \"\(url.lastPathComponent)\" has wrong size (\(payload.count) bytes after header; expected 246)."
-                return
-            }
-            data = Data(payload)
-        } else {
-            // Legacy format: accept 246-byte (single bank) or 984-byte (four banks).
-            guard raw.count == 246 || raw.count == 984 else {
-                errorTitle = "Card load error"
-                errorMessage = "Card file \"\(url.lastPathComponent)\" has unrecognised size (\(raw.count) bytes)."
-                return
-            }
-            data = raw
+        if decoded.isText {
+            userCueCardContent = decoded.cueCard.swiftValue
+            cueCardContent = resolvedCueCard()
         }
         cardFileName = url.lastPathComponent
         pendingSaveURL = url          // write-back if machine writes during this swipe
@@ -1129,7 +1102,7 @@ class EmulatorViewModel {
     }
 
     func saveCard(_ data: Data, to url: URL) {
-        let text = encodeCardFileToText(data, cueCard: cueCardContent)
+        let text = TIFileFormats.encodeCardText(data, cueCard: cueCardContent?.bridged)
         guard let fileData = text.data(using: .utf8) else {
             errorTitle = "Card save error"
             errorMessage = "Card save failed: UTF-8 encoding error."
@@ -1158,7 +1131,7 @@ class EmulatorViewModel {
 
     func persistConstantMemory() {
         guard model.hasConstantMemory, let data = machine?.serialiseRAM() else { return }
-        let text = encodeConstantMemoryToText(data, cueCard: userCueCardContent)
+        let text = TIFileFormats.encodeConstantMemory(data, cueCard: userCueCardContent?.bridged)
         let url = Self.constantMemoryURL
         try? text.write(to: url, atomically: true, encoding: .utf8)
     }
@@ -1181,163 +1154,16 @@ class EmulatorViewModel {
         guard let rawData = rawFileData else { return nil }
 
         // Decode text format; invalid files are treated as load failure.
-        if let text = String(data: rawData, encoding: .utf8) {
-            let (data, cueCard) = decodeConstantMemoryFromText(text)
-            if let data = data {
-                self.userCueCardContent = cueCard
-                self.cueCardContent = resolvedCueCard()
-                return data
-            }
+        if let text = String(data: rawData, encoding: .utf8),
+           let decoded = TIFileFormats.decodeConstantMemory(text) {
+            self.userCueCardContent = decoded.cueCard.swiftValue
+            self.cueCardContent = resolvedCueCard()
+            return decoded.ram
         }
 
         // Silently fail; caller resets RAM to zeros.
         return nil
     }
-
-    /// Encode card data (246-byte bank) as human-readable text .U59 format.
-    private func encodeCardFileToText(_ data: Data, cueCard: CueCardContent?) -> String {
-        var lines: [String] = []
-        lines.append("Calc-U-59 Card 1.0")
-
-        if let card = cueCard {
-            lines.append("")
-            lines.append("CUECARD:")
-            lines.append(contentsOf: card.encodeToLines(writeTemplate: .magnetCard))
-        }
-
-        let partition  = data.count > 0 ? data[0] : 0
-        let dataType   = data.count > 1 ? data[1] : 0x11
-        let pageByte   = data.count > 2 ? data[2] : 0x10
-        let protection = data.count > 3 ? data[3] : 0x00
-        let checksum   = data.count > 244 ? data[244] : 0x00
-        let bankNum    = Int((pageByte & 0x0F) / 3) + 1
-        let dataTypeStr   = dataType == 0x11 ? "program" : "data"
-        let protectionStr = protection == 0x10 ? "yes" : "no"
-
-        lines.append("")
-        lines.append("HEADER:")
-        lines.append(String(format: "Partition: %02X", partition))
-        lines.append("DataType: \(dataTypeStr)")
-        lines.append("Bank: \(bankNum)")
-        lines.append("Protection: \(protectionStr)")
-        lines.append(String(format: "Checksum: %02X", checksum))
-
-        lines.append("")
-        lines.append("DATA:")
-        // 30 registers per bank, 8 bytes (16 nibbles) each. Same format as ti58c.mem.
-        // Bank 0 → R000-R029, Bank 1 → R030-R059, Bank 2 → R060-R089, Bank 3 → R090-R119.
-        // Swap nibbles within each byte, then reverse byte order.
-        // data is guaranteed 246 bytes; bank bytes 4–243 always in bounds.
-        let startReg = (bankNum - 1) * 30
-        for row in 0..<30 {
-            let bankOffset = 4 + row * 8
-            let raw: [UInt8] = (0..<8).map { data[bankOffset + $0] }
-            let nibbles: [UInt8] = raw.flatMap { b in [b >> 4, b & 0x0F] }
-            // Card files reverse the bytes compared to ti58c.mem format
-            let encoded = encodeRegisterLine(nibbles)
-            let bytes = Array(encoded.reversed())
-            let hex = bytes.map { String(format: "%02X", $0) }.joined(separator: " ")
-            lines.append(String(format: "R%03d: %@", startReg + row, hex as NSString))
-        }
-
-        return lines.joined(separator: "\n")
-    }
-
-    private func parseHexBytes(_ hexString: String, count: Int) -> [UInt8]? {
-        let tokens = hexString.components(separatedBy: " ").filter { !$0.isEmpty }
-        guard tokens.count == count else { return nil }
-        let bytes = tokens.compactMap { UInt8($0, radix: 16) }
-        return bytes.count == count ? bytes : nil
-    }
-
-    /// Encode RAM data (120 regs × 16 nibbles) as human-readable text.
-    /// Only includes non-zero registers. Optionally includes CUECARD section if provided.
-    private func encodeConstantMemoryToText(_ data: Data, cueCard: CueCardContent? = nil) -> String {
-        var lines: [String] = []
-
-        // Include CUECARD section if present
-        if let card = cueCard {
-            lines.append("CUECARD:")
-            lines.append(contentsOf: card.encodeToLines(writeTemplate: .cueCard))
-            lines.append("")
-        }
-
-        lines.append("── Registers (raw values) ──")
-
-        for regNum in 0..<120 {
-            let offset = regNum * 16
-            guard offset + 16 <= data.count else { break }
-
-            let nibbles = Array(data.subdata(in: offset..<(offset + 16)))
-
-            // Check if register is all zeros
-            if nibbles.allSatisfy({ $0 == 0 }) { continue }
-
-            let bytes = encodeRegisterLine(nibbles)
-            let hexBytes = bytes.map { String(format: "%02X", $0) }.joined(separator: " ")
-            lines.append(String(format: "R%03d: %@", regNum, hexBytes as NSString))
-        }
-
-        return lines.joined(separator: "\n")
-    }
-
-    /// Decode human-readable text format back to RAM data (120 regs × 16 nibbles) and optional CUECARD.
-    /// Format: optional CUECARD section, then non-zero registers with 8 hex byte pairs each (reversed order).
-    /// Returns (Data, CueCardContent?) tuple; returns (nil, nil) on parse error.
-    private func decodeConstantMemoryFromText(_ text: String) -> (Data?, CueCardContent?) {
-        var resultBytes = [UInt8](repeating: 0, count: 120 * 16)
-        var cueCard: CueCardContent?
-        var inCueCardSection = false
-
-        for line in text.components(separatedBy: .newlines) {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-
-            // Skip empty lines
-            if trimmed.isEmpty { continue }
-
-            // Check for section headers
-            if trimmed.hasPrefix("CUECARD:") {
-                inCueCardSection = true
-                cueCard = CueCardContent()
-                continue
-            }
-
-            if trimmed.hasPrefix("──") {
-                inCueCardSection = false
-                continue
-            }
-
-            // Parse CUECARD section
-            if inCueCardSection {
-                cueCard?.parseLine(trimmed)
-                continue
-            }
-
-            // Parse registers
-            if trimmed.hasPrefix("R") {
-                let parts = trimmed.components(separatedBy: ":")
-                guard parts.count == 2 else { return (nil, nil) }
-
-                let regStr = String(parts[0].dropFirst())
-                guard let regNum = Int(regStr), regNum >= 0, regNum < 120 else { return (nil, nil) }
-
-                // Parse 8 hex byte pairs
-                let hexPart = parts[1].trimmingCharacters(in: .whitespaces)
-                guard let fileBytes = parseHexBytes(hexPart, count: 8) else { return (nil, nil) }
-
-                let nibbles = decodeRegisterLine(fileBytes)
-                let offset = regNum * 16
-                for (i, nibble) in nibbles.enumerated() {
-                    guard offset + i < resultBytes.count else { break }
-                    resultBytes[offset + i] = nibble
-                }
-            }
-        }
-
-        return (Data(resultBytes), cueCard)
-    }
-
-
 
     // MARK: - Trace / debug
 
@@ -2505,7 +2331,7 @@ class EmulatorViewModel {
             let n = Array(m.rawRegister(reg) as Data)
             if n.allSatisfy({ $0 == 0 }) { continue }
             // Intentional: display program nibbles in storage order (units-tens pairs),
-            // NOT the display format used by encodeRegisterLine (which reverses bytes).
+            // NOT the register-line display format (which reverses bytes).
             let pairs = stride(from: 0, to: 16, by: 2)
                 .map { String(format: "%X%X", n[$0 + 1], n[$0]) }
                 .joined(separator: " ")
@@ -2528,8 +2354,7 @@ class EmulatorViewModel {
             // Skip if all zeros
             if nibbles.allSatisfy({ $0 == 0 }) { continue }
 
-            let bytes = encodeRegisterLine(nibbles)
-            let hex = bytes.map { String(format: "%02X", $0) }.joined(separator: " ")
+            let hex = TISharedTables.registerLineHex(Data(nibbles))
             lines.append(String(format: "R%03d: %@", reg, hex as NSString))
         }
         ringWriteAll(lines)
@@ -2613,22 +2438,12 @@ class EmulatorViewModel {
 
         // Pre-scan for SKIP-RESET and MODEL: to use correct parsing parameters.
         // SKIP-RESET suppresses the model switch, so MODEL: is ignored for parsing too.
-        var isSkipReset = false
-        var targetModel = model
-        for raw in text.components(separatedBy: .newlines) {
-            let line = (raw.components(separatedBy: "#").first ?? "").trimmingCharacters(in: .whitespaces)
-            let upper = line.uppercased()
-            if upper.hasPrefix("SKIP-RESET:") {
-                let val = String(line.dropFirst("SKIP-RESET:".count)).trimmingCharacters(in: .whitespaces).lowercased()
-                isSkipReset = (val == "on" || val == "true" || val == "1")
-            } else if !isSkipReset, upper.hasPrefix("MODEL:") {
-                let val = String(line.dropFirst("MODEL:".count)).trimmingCharacters(in: .whitespaces).uppercased()
-                targetModel = MachineModel.allCases.first(where: { $0.displayName == val }) ?? model
-            }
-        }
+        let targetRaw = TIFileFormats.prescanStateFile(text, currentModel: model.rawValue, skipReset: nil)
+        let targetModel = MachineModel(rawValue: targetRaw) ?? model
 
         let maxStepAddr = targetModel.hasLargeMemory ? 959 : 479
-        let parsed = parseStateFile(text, maxStepAddr: maxStepAddr, allowHiddenRegisters: targetModel.hasConstantMemory)
+        let parsed = LoadStateResult(parsing: text, maxStepAddr: maxStepAddr,
+                                     allowHiddenRegisters: targetModel.hasConstantMemory)
         if !parsed.errors.isEmpty {
             errorTitle = "State file load error"
             errorMessage = parsed.errors.joined(separator: "\n")

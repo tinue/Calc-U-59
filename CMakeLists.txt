@@ -20,7 +20,8 @@ set(CORE_ROOT   ${CMAKE_CURRENT_SOURCE_DIR}/Core)
 set(SHARED_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/Shared)
 
 if(MSVC)
-  set(CALCU59_WARNINGS /W4)
+  # /utf-8: Shared/ has UTF-8 string literals (cue-card math tokens, mnemonics).
+  set(CALCU59_WARNINGS /W4 /utf-8)
 else()
   set(CALCU59_WARNINGS -Wall -Wextra)
 endif()

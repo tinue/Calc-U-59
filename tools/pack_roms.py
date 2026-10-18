@@ -4,9 +4,10 @@ docs/wasm/roms/, for the web calculator (docs/#play).
 
 Re-runnable any time roms/*.txt changes (e.g. fixing a module ROM error) —
 the .txt files stay the editable source of truth; this script never reads
-its own output. Mirrors the parsing rules in App/ROMLoader.swift exactly
-(parseRomTxt, parseTMCTxt, parseConstantsTxt, parseCueCardFile) so the two
-loaders agree on layout without sharing code.
+its own output. Mirrors the parsing rules in Shared/RomLoader.cpp and
+Shared/ModuleCatalog.cpp exactly (parseRomTxt, parseModuleTxt,
+parseConstantsTxt, moduleCards) so the loaders agree on layout without
+sharing code.
 
 Output is JSON with base64-encoded binary payloads rather than a bespoke
 binary container: it's one file per ROM/module (mitigates plaintext,
@@ -37,7 +38,7 @@ SENTINEL_LAST = 0x1987
 
 
 def parse_rom_txt(text: str) -> list[int]:
-    """Port of ROMLoader.parseRomTxt: header block terminated by '---',
+    """Port of Shared/RomLoader.cpp parseRomTxt: header block terminated by '---',
     then 'AAAA: WWWW WWWW ...' lines. Each word is masked to 13 bits."""
     words: list[int] = []
     in_data = False
@@ -61,7 +62,7 @@ def parse_rom_txt(text: str) -> list[int]:
 
 
 def parse_tmc_txt(text: str) -> bytes:
-    """Port of ROMLoader.parseTMCTxt: header block terminated by '---',
+    """Port of Shared/RomLoader.cpp parseModuleTxt: header block terminated by '---',
     optional 'ADDR: ... DATA' header, then 'AAAA: xx xx ...' rows where
     AAAA is decimal and xx are 2-hex-digit BCD-as-hex bytes."""
     buf = bytearray(5000)
@@ -95,7 +96,7 @@ def parse_tmc_txt(text: str) -> bytes:
 
 
 def parse_constants_txt(text: str) -> list[bytes]:
-    """Port of ROMLoader.parseConstantsTxt: 32 rows of 16 nibbles under the
+    """Port of Shared/RomLoader.cpp parseConstantsTxt: 32 rows of 16 nibbles under the
     'CONSTANT ROM (NUMBER)' section, nibbles reversed to hardware order."""
     rows: list[bytes] = []
     in_number_section = False
@@ -234,7 +235,7 @@ def _align(value: str) -> str:
 
 
 def parse_cuecards_file(text: str) -> list[dict]:
-    """Port of ROMLoader.parseCueCardFile, but collects every module in one
+    """Port of Shared/ModuleCatalog.cpp moduleCards, but collects every module in one
     pass instead of filtering to a single target ID (we pack all of them)."""
     modules: list[dict] = []
     current_module: dict | None = None

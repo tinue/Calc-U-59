@@ -1,4 +1,5 @@
 #import "TISharedTables.h"
+#include "../Shared/Bcd.hpp"
 #include "../Shared/KeyNames.hpp"
 #include "../Shared/KeyboardLayout.hpp"
 #include "../Shared/KeyboardMap.hpp"
@@ -28,6 +29,12 @@ const cu59::ModelInfo& modelInfo(NSInteger model) { return cu59::info(static_cas
     NSMutableIndexSet* set = [NSMutableIndexSet indexSet];
     for (int i : cu59::argumentSteps(steps)) [set addIndex:static_cast<NSUInteger>(i)];
     return set;
+}
+
++ (NSString *)registerLineHex:(NSData *)nibbles {
+    cu59::Nibbles16 n{};
+    memcpy(n.data(), nibbles.bytes, MIN(nibbles.length, n.size()));
+    return [NSString stringWithUTF8String:cu59::registerLineHex(n).c_str()];
 }
 
 + (NSData *)matrixCodesForKey:(uint32_t)key produced:(uint32_t)produced

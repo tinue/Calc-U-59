@@ -135,8 +135,8 @@ master-clear before overwriting program RAM.
 
 #### `machine.writeDataRegister(_ regNum: Int, nibbles: Data)`  *(ObjC bridge)*
 
-Write data register Rnn from 16 BCD nibbles. Use `encodeTI59BCD(_:)` in
-`StateFileLoader.swift` to encode a Double.
+Write data register Rnn from 16 BCD nibbles. Use `cu59::encodeBcd` in
+`Shared/Bcd.hpp` to encode a value.
 
 #### `machine.partitionProgramRegs` (read/write)  *(ObjC bridge)*
 
@@ -164,7 +164,7 @@ nibble[15]   mantissa MSD
 Exponent is stored as an unsigned magnitude (0–99); the sign is encoded in nibble[0] bit 2.
 All-zero encodes 0.0.
 
-Swift helpers: `encodeTI59BCD(_ value: Double) → [UInt8]` (in `StateFileLoader.swift`)
+Helpers: `cu59::encodeBcd(double)` / `cu59::encodeBcd(std::string_view)` (in `Shared/Bcd.hpp`)
 and `TI59MachineWrapper.decodeBCD(_ nibbles16: Data) → Double`.
 
 ---

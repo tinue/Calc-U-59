@@ -2,3 +2,4 @@
 // wrappers translate types only; the logic lives in Core/ and Shared/.
 #import "TI59MachineWrapper.h"
 #import "TISharedTables.h"
+#import "TIFileFormats.h"

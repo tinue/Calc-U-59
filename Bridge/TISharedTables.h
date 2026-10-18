@@ -14,6 +14,10 @@ NS_ASSUME_NONNULL_BEGIN
 /// Indices of steps that are operands of a preceding opcode.
 + (NSIndexSet *)argumentStepsIn:(NSData *)keycodes;
 
+// ── Register lines (Shared/Bcd.hpp) ──────────────────────────────────────────
+/// 16 register nibbles as "17 20 63 00 00 00 00 00".
++ (NSString *)registerLineHex:(NSData *)nibbles;
+
 // ── Physical keyboard (Shared/KeyboardMap.hpp) ──────────────────────────────
 /// One or two matrix codes for a key press; empty if unbound.
 /// `command` = any of Command / Control / Option held.

@@ -1,10 +1,10 @@
 # `.ti59` / `.ti58` / `.ti58c` State File Format
 
 > **Provenance notice.** This document consolidates format facts that were
-> previously split across `App/StateFileLoader.swift`'s header comment, the
+> previously split across the Swift parser's header comment, the
 > `calc-u-59-statefiles` skill, and a section of `reference/DebugAPI.md`, into
-> one place. The authoritative parser is `App/StateFileLoader.swift` — when in
-> doubt, that file wins over this document.
+> one place. The authoritative parser is `Shared/StateFile.cpp` (shared by the
+> Swift and Qt6 apps) — when in doubt, that file wins over this document.
 
 State files are plain UTF-8 text that encode a full or partial calculator
 state: program steps, data registers, an inserted module, and a scripted key
@@ -395,7 +395,7 @@ Row1: i: \to x_{i} | \to A^{-1}
 token-expansion pass before rendering. The full token table (Greek letters,
 overline variables like `\xbar`, arrows, `\sqrt`/`\sum`/`\integral` etc., and
 LaTeX-style `^{...}`/`_{...}` super/subscripts) is authored once in
-`App/CueCardContent.swift`'s `mathTokens` array — treat that array as the
+`Shared/CueCard.cpp`'s `kMathTokens` array — treat that array as the
 single source of truth; `docs/cuecard-data.js`'s `MATH_TOKENS` must be kept
 byte-for-byte identical to it (see `reference/NewGUIGuide.md`'s "Future Work"
 appendix for the case to stop hand-syncing this a third time when a new GUI

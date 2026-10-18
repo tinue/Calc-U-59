@@ -14,9 +14,9 @@ PROGRAM/REGISTERS notation, the matrix-code vs. keycode distinction, the
 lives in **`reference/StateFileFormat.md`**. Read that document before
 writing or editing a state file; nothing here duplicates it.
 
-The authoritative parser is `App/StateFileLoader.swift`; that file's own
-header comment is the ground truth if this skill or the reference doc ever
-disagree with it.
+The authoritative parser is `Shared/StateFile.cpp` (used by both the Swift
+and the Qt6 app); the code is the ground truth if this skill or the reference
+doc ever disagree with it.
 
 ---
 
@@ -40,7 +40,7 @@ just save a round trip for the two mistakes that come up most:
   is single-shot and unaffected.
 - **CUECARD math tokens** (`\lambda`, `^{2}`, `_{i}`, etc.) are documented in
   `reference/StateFileFormat.md`; the canonical token table itself lives in
-  `App/CueCardContent.swift`, not in any markdown file.
+  `Shared/CueCard.cpp` (`kMathTokens`), not in any markdown file.
 
 ## PC-100/PC-100A printer character-code table
 

@@ -1,0 +1,53 @@
+# Edge cases for the state-file parser (tests/golden/statefile.txt)
+MODEL: ti-59
+SOLID-STATE-MODULE:   ST
+PRINTER: TRUE
+partition: 239.29
+Program:
+76 11 42 00 # inline comment
+002  61 GTO
+473 00 0
+...
+  9 99 100 -1 abc 05
+0480 12
+1000 13
+REGISTERS:
+00 = 3641003032
+01 = -1.5e-3
+02 = 7.77E22
+03 = 0
+04 = -0000
+05 = 1234567890123456
+06 = 9.9999999999995e8
+07 = nonsense
+H00 = 1
+99 = 1e-99
+08 = 2 = 3
+KEYSTROKES:
+Trace: my trace.bin
+21 84 65 83 95   # [2nd][pi] x 2 =
+Wait: 1.5s
+Wait: 250ms
+WaitFullSpeed: 2S
+FullSpeed:
+RegularSpeed:
+ZeroElapseTime:
+ReportElapseTime:
+99 10 96 11
+Trace: Off
+Trace:
+Trace: a/b.bin
+CUECARD:
+Template: MagnetCard
+Title: \lambda^{2} \to \xbar
+Banks: 1, 2
+A: x_{1}
+B': \blank
+e′: \sqrt y
+Row1: one: two
+Row1Align: RIGHT
+Row2Align: center
+Row2R: r
+Row2RAlign: right
+Style: Button
+PencilColor: Pencil
