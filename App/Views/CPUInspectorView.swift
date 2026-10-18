@@ -6,8 +6,8 @@ import Combine
 /// Off-screen 80×64 pixel buffer for the ROM heatmap.
 /// Cells are only repainted when their heat step increases — steps are monotonically non-decreasing.
 private final class HeatmapRenderer: ObservableObject {
-    static let cols = 80
-    static let rows = 64
+    static let cols = TIViewRules.heatmapCols   // 80 × 64 cells: Shared/RomHeatmap.hpp
+    static let rows = TIViewRules.heatmapRows
     static let cellCount = cols * rows  // 5 120
 
     @Published private(set) var cgImage: CGImage? = nil
@@ -18,7 +18,7 @@ private final class HeatmapRenderer: ObservableObject {
         var anyChanged = false
         for addr in 0..<Self.cellCount {
             let count   = addr < hitCount.count ? hitCount[addr] : 0
-            let newStep = heatStep(count)
+            let newStep = TIViewRules.heatStep(count)
             guard newStep != cellSteps[addr] else { continue }
             cellSteps[addr] = newStep
             setPixel(addr: addr, step: newStep)
@@ -33,18 +33,8 @@ private final class HeatmapRenderer: ObservableObject {
         cgImage = makeImage()
     }
 
-    // Fixed absolute thresholds: first hit → step 1 (immediately visible, dark amber).
-    // Steps only increase — enables incremental repaint.
-    private func heatStep(_ count: UInt32) -> UInt8 {
-        switch count {
-        case 0:         return 0
-        case 1...2:     return 1
-        case 3...9:     return 2
-        case 10...49:   return 3
-        case 50...249:  return 4
-        default:        return 5
-        }
-    }
+    // Heat steps (fixed thresholds; they only grow, so repaints are incremental)
+    // and their colours come from Shared/RomHeatmap.hpp.
 
     private func setPixel(addr: Int, step: UInt8) {
         let (r, g, b) = rgb(for: step)
@@ -55,16 +45,9 @@ private final class HeatmapRenderer: ObservableObject {
         pixelBuf[base+3] = 255
     }
 
-    // Pre-computed RGB for each step (HSB → RGB: hue 0.06–0.14, sat 0.9–1.0, bri 0.35–1.0).
     private func rgb(for step: UInt8) -> (UInt8, UInt8, UInt8) {
-        switch step {
-        case 0:  return (46,  46,  46)   // dark gray  (cold)
-        case 1:  return (89,  38,   9)   // very dark amber
-        case 2:  return (140, 67,   0)   // dark amber
-        case 3:  return (191, 115,  0)   // amber
-        case 4:  return (230, 165,  0)   // light amber
-        default: return (255, 214,  0)   // bright yellow
-        }
+        let c = TIViewRules.heatColor(step)
+        return (UInt8(c >> 16 & 0xFF), UInt8(c >> 8 & 0xFF), UInt8(c & 0xFF))
     }
 
     private func makeImage() -> CGImage? {

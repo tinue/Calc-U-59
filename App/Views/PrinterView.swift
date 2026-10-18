@@ -298,39 +298,23 @@ struct PrinterView: View {
 struct PrinterDotLine: View {
     let codes: [UInt8]  // 20 raw character codes (0–63)
 
-    // Physical model — derived from measured PC-100C print head:
-    //   total span (first dot centre → last dot centre) = 55 mm
-    //   5-dot character span (col 0 → col 4 centre)     = 1.9 mm  → 4 × dotPitch
-    //   inter-char gap (col 4 centre → col 0 centre)    = 1.2 mm  → (1 + charGap) × dotPitch
-    //
-    //   Raw: dotPitch = 1.9/4 = 0.475 mm, charGap = 1.2/0.475 − 1 = 1.526
-    //   Local measurements give total = 60.8 mm; scale dotPitch down to match 55 mm:
-    //   dotPitchMM = 55 / (99 + 19 × 1.526) = 0.430 mm  (charGap ratio preserved)
-    //
-    //   widthUnits: canvas width expressed in dotPitch units (includes half-pitch margins)
-    //   The rightmost dot centre is at (99 + 19×charGap) × dotPitch; canvas adds 0.5 dp margin
-    //   each side → widthUnits = 100 + 19 × charGap.
-    //
-    //   Vertical pitch — from 10-line measurement top-pixel to bottom-pixel = 42.3 mm:
-    //   lineHeight_mm = (6.88 − 0.12) × dotPitchMM = 2.906 mm  (first/last dot outer edges)
-    //   linePitch_mm  = (42.3 − 2.906) / 9 = 4.377 mm = 10.18 × dotPitchMM
-    //   heightUnits   = 10.18  (7 dot rows + 3.18 dp inter-line gap baked in below)
-    static let charGap     = 1.53
-    static let dotPitchMM  = 55.0 / (99.0 + 19.0 * charGap)   // 0.430 mm — for physical-size copy
-    static let widthUnits  = 100.0 + 19.0 * charGap            // ≈ 129.1 dp
-    static let heightUnits = 10.18                              // 7 dot rows + inter-line gap
+    // Physical model of the PC-100C print head (measured; derivation in
+    // Shared/PrinterFont.hpp PrinterGeometry, shared with the Qt6 app). Units
+    // are dot pitches (dp): widthUnits includes ½ dp margins each side;
+    // heightUnits is the full line pitch (7 dot rows + the stepper gap).
+    static let charGap     = TIViewRules.printerCharGap
+    static let dotPitchMM  = TIViewRules.printerDotPitchMM   // ≈ 0.430 mm — for physical-size copy
+    static let widthUnits  = TIViewRules.printerWidthUnits   // ≈ 129.1 dp
+    static let heightUnits = TIViewRules.printerHeightUnits  // 10.18 dp
     static let aspectRatio = widthUnits / heightUnits
 
-    // A PRT_FEED blank line (one ROM-level ADV; the physical ADV key issues two)
-    // is not simply half the full line pitch — a laser-printed copy of the
-    // clipboard export measured 4 dp too little gap across an ADV keypress
-    // (two PRT_FEED opcodes), i.e. 2 dp per opcode. Add that on top of the
-    // naive half-pitch value.
-    static let feedHeightUnits = heightUnits / 2.0 + 2.0
+    // A PRT_FEED blank line (one ROM-level ADV; the physical key issues two):
+    // half a line plus 2 dp, as measured on a laser-printed copy.
+    static let feedHeightUnits = TIViewRules.printerFeedHeightUnits
 
     var dotColor: Color = Color(white: 0.12)
-    private static let dotRadiusFraction = 0.38   // dot radius as fraction of dotPitch
-    private static let interLineGap      = heightUnits - 7.0  // ≈ 3.18 dp — stepper advance gap
+    private static let dotRadiusFraction = TIViewRules.printerDotRadiusFraction  // of the dot pitch
+    private static let interLineGap      = TIViewRules.printerInterLineGap       // ≈ 3.18 dp stepper advance
 
     // Byte 20, when present, carries the rowCount from the C++ PrinterCodeLine struct.
     // 7 = complete line; 1–6 = aborted mid-stroke (partial dot-rows visible on paper).

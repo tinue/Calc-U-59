@@ -6,3 +6,4 @@
 #import "TITraceWriter.h"
 #import "TIDebugModel.h"
 #import "TISession.h"
+#import "TIViewRules.h"

@@ -73,6 +73,9 @@ private let styles: [CardButtonStyle] = [.none, .button]
 private let colors: [CueCardInkColor] = [.black, .pencil, .sharpie]
 
 extension CueCardContent {
+    /// The template as the C++ enumerator index (TIViewRules, TICueCard).
+    var templateIndex: Int { templates.firstIndex(of: template)! }
+
     init(_ t: TICueCard) {
         self.init()
         template = templates[t.templateKind]

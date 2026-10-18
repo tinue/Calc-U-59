@@ -451,17 +451,10 @@ struct LiveDebugView: View {
         }
     }
 
-    /// Undocumented flag values that decode like an official one (3, 5, 7, 9 →
-    /// Solid State; A, C, E → ROM) show the raw value; fast mode always does,
-    /// since it has no flag value of its own (2, 4 or 6).
+    /// "Prg Source: …" label (Shared/ModuleImage programSourceLabel): undocumented
+    /// values that decode like an official one show the raw flag, as fast mode does.
     private func resolvedProgramSource(_ source: ProgramSource, flag: UInt8) -> String {
-        switch source {
-        case .userProgram:      return "Prg Source: User Program"
-        case .solidState:       return "Prg Source: Solid State Program" + (flag == 1 ? "" : String(format: " (%X)", flag))
-        case .solidStateReturn: return "Prg Source: Solid State Return (PC Reload)"
-        case .fastMode:         return String(format: "Prg Source: User Program (Fast Mode, %X)", flag)
-        case .rom:              return "Prg Source: ROM Program" + (flag == 8 ? "" : String(format: " (%X)", flag))
-        }
+        TIViewRules.programSourceLabel(source.raw, flag: flag)
     }
 
     /// Returns the highlight color for the current step in the program window based on program source.

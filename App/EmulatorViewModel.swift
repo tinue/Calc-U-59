@@ -66,6 +66,7 @@ enum ProgramSource: Equatable {
 
     /// TIDebugModel / TILiveDebugSnapshot raw values follow the C++ enumerator order.
     init(raw: Int) { self = Self.cases[raw] }
+    var raw: Int { Self.cases.firstIndex(of: self)! }
     private static let cases: [ProgramSource] = [.userProgram, .solidState, .solidStateReturn, .fastMode, .rom]
 }
 
@@ -228,7 +229,6 @@ class EmulatorViewModel {
 
     // ── Live CPU view state (60 Hz real-time, runs while emulating) ────────────
     var cpuDebugSnapshot: CPUDebugSnapshot = .empty
-    private var cpuFrameWindow: [TICpuFrame] = []  // rolling window of recent instructions
 
     // ── ROM Heatmap (5 120 code addresses 0x0000–0x13FF) ─────────────────────
     // Observable published at ~10 Hz to avoid flooding SwiftUI render pipeline.
@@ -272,7 +272,7 @@ class EmulatorViewModel {
         var isHistory: Bool  // true = executed, false = speculative (future ROM)
         var isCurrent: Bool  // true = this is where it froze
     }
-    var cpuInspectorHistory: [InspectorSnapshot] = []  // 32 history + 1 current + 5 future
+    var cpuInspectorHistory: [InspectorSnapshot] = []  // the trace ring + the next instruction
     var cpuInspectorUpdateID: Int = 0  // incremented every captureInspectorSnapshot call
 
     // ── Trace / debug state ──────────────────────────────────────────────────
@@ -339,25 +339,14 @@ class EmulatorViewModel {
         Task { await self.start(model: AppSettings.resolvedStartupModel()) }
     }
 
-    /// Resolve which cue card to display based on current program number.
+    /// Which cue card shows (Shared/CueCard resolveCueCard): the active library
+    /// program's card, a generic card with the module's metadata, or the user's.
     private func resolvedCueCard() -> CueCardContent? {
-        if activeProgramNumber > 0 {
-            // Try to find the specific program card
-            if let card = moduleCueCards[activeProgramNumber] {
-                return card
-            }
-            // Fallback: if card not found but a program is active, show default with module metadata
-            if !moduleMetadata.title.isEmpty || !moduleMetadata.id.isEmpty {
-                return CueCardContent(
-                    template: .solidState,
-                    title: moduleMetadata.title,
-                    id: moduleMetadata.id,
-                    labels: Array(repeating: "", count: 10)
-                )
-            }
-            return nil
-        }
-        return userCueCardContent  // nil when no user card loaded → blank
+        var cards: [NSNumber: TICueCard] = [:]
+        for (n, card) in moduleCueCards { cards[NSNumber(value: n)] = card.bridged }
+        return TIViewRules.resolveCueCard(forProgram: activeProgramNumber, moduleCards: cards,
+                                          moduleTitle: moduleMetadata.title, moduleID: moduleMetadata.id,
+                                          userCard: userCueCardContent?.bridged).swiftValue
     }
 
     func start(model: MachineModel) async {
@@ -475,8 +464,7 @@ class EmulatorViewModel {
 
     private func checkProgramNumber() {
         guard let machine else { return }
-        let cpuFrame = machine.snapshotCPU()
-        let detectedProgram = Int(cpuFrame.SCOM.9.4) * 10 + Int(cpuFrame.SCOM.9.3)
+        let detectedProgram = TIViewRules.activeLibraryProgram(machine.snapshotCPU())
         if detectedProgram != activeProgramNumber {
             activeProgramNumber = detectedProgram
             cueCardContent = resolvedCueCard()
@@ -689,27 +677,13 @@ class EmulatorViewModel {
         // The printer's TRACE button is a physical hardware latch — a calculator
         // reset does not release it.  The core preserves it across reset(); it is
         // released only on printer attach/detach or model change.
-        machine?.reset()
+        // Reset; TI-58C restores its persisted memory, the others clear the
+        // registers past the partition (Shared/StateApplier softReset).
+        if let m = machine {
+            let saved = model.hasConstantMemory ? loadConstantMemory() : nil
+            TIViewRules.softReset(m, model: model.rawValue, savedRam: saved)
+        }
         resetHeatmapBaseline()
-
-        // TI-58C: restore persisted memory after reset
-        if model.hasConstantMemory {
-            if let saved = loadConstantMemory() {
-                machine?.deserialiseRAM(saved)
-            }
-            debugModel.logWrite("Calculator Reset")
-            return
-        }
-
-        // Clear out-of-range registers for the current model
-        let programRegs  = Int(machine?.partitionProgramRegs ?? 60)
-        let totalRegs    = Int(machine?.ramRegisterCount ?? (model.hasLargeMemory ? 120 : model.hasConstantMemory ? 64 : 60))
-        let dataRegCount = max(0, totalRegs - programRegs)
-        let zeroNibbles  = Array(repeating: UInt8(0), count: 16)
-        for regNum in dataRegCount..<totalRegs {
-            machine?.setRawRegister(regNum, nibbles: Data(zeroNibbles))
-        }
-
         debugModel.logWrite("Calculator Reset")
     }
 
@@ -719,13 +693,13 @@ class EmulatorViewModel {
         session?.cancelKeystrokes()
         unfreeze()  // exit freeze mode when resetting
         asmOverlayActive = false
-        machine?.deserialiseRAM(Data(repeating: 0, count: 120 * 16))
         cardState = .noCard
         userCueCardContent = nil
         activeProgramNumber = 0
         cueCardContent = resolvedCueCard()
-        // TRACE is a physical latch — preserved across reset by the core (see resetMachine).
-        machine?.reset()
+        // Zero all RAM, then reset (Shared/StateApplier cleanReset). TRACE is a
+        // physical latch — the core preserves it across reset.
+        if let m = machine { TIViewRules.cleanReset(m) }
         resetHeatmapBaseline()
         // Write zeroed state for TI-58C immediately
         persistConstantMemory()
@@ -1022,48 +996,9 @@ class EmulatorViewModel {
     /// Capture the current CPU state and last 32 executed instructions for the frozen inspector view.
     /// Reads (without draining) the ring buffer to preserve history across steps.
     private func captureInspectorSnapshot(machine m: TI59MachineWrapper) {
-        // Read (without draining) all available frames from the ring buffer
-        let framesNS = m.readCpuFrames(max: 1024)
-        let frames = (framesNS as [NSValue]).map { v -> TICpuFrame in
-            var f = TICpuFrame()
-            v.getValue(&f)
-            return f
-        }
-
-        cpuInspectorHistory = []
-        let currentPC = m.currentPC
-
-        // Get program source to determine if we can read ahead
-        let cpu = m.snapshotCPU()
-
-        // Add history: all executed instructions from the ring buffer (up to 1024)
-        for i in 0..<frames.count {
-            let frame = frames[i]
-            let disasm = TI59MachineWrapper.disassemblePC(frame.pc, opcode: frame.opcode)
-            let isLastInstruction = (i == frames.count - 1)
-            cpuInspectorHistory.append(InspectorSnapshot(
-                pc: frame.pc,
-                opcode: frame.opcode,
-                disasm: disasm,
-                frame: frame,
-                isHistory: true,
-                isCurrent: isLastInstruction
-            ))
-        }
-
-        // Certain next instruction — always show, even when same PC (WAIT/KEY loops on same instruction)
-        // cpu.opcode is now the real next opcode from snapshotCPU()
-        let nextOpcode = cpu.opcode
-        let disasm = TI59MachineWrapper.disassemblePC(currentPC, opcode: nextOpcode)
-        let emptyFrame = TICpuFrame()
-        cpuInspectorHistory.append(InspectorSnapshot(
-            pc: currentPC,
-            opcode: nextOpcode,
-            disasm: disasm,
-            frame: emptyFrame,
-            isHistory: false,
-            isCurrent: false
-        ))
+        // The trace ring (read, not drained) plus the certain next instruction —
+        // shown even at the same PC (WAIT/KEY loops): Shared/DebugSnapshots.
+        cpuInspectorHistory = TIViewRules.inspectorHistory(m).map(InspectorSnapshot.init)
 
         // Signal that the inspector snapshot has been updated (fires onChange observers)
         cpuInspectorUpdateID &+= 1
@@ -1198,14 +1133,6 @@ class EmulatorViewModel {
 
         // Read (without draining) all recent frames from the ring buffer
         let framesNS = m.readCpuFrames(max: 1024)
-        let newFrames = (framesNS as [NSValue]).map { v -> TICpuFrame in
-            var f = TICpuFrame()
-            v.getValue(&f)
-            return f
-        }
-
-        // Store frames in the rolling window
-        cpuFrameWindow = newFrames
 
         // Accumulate ROM heatmap hits into the local buffer (every tick, cheap).
         // seqno prevents double-counting frames across non-destructive readCpuFrames calls.
@@ -1215,18 +1142,9 @@ class EmulatorViewModel {
             romHitCount = debugModel.heatmapCounts.withUnsafeBytes { Array($0.bindMemory(to: UInt32.self)) }
         }
 
-        // Build recent instructions from the accumulated window (show last 32)
-        let instructionsToShow = min(32, cpuFrameWindow.count)
-        snap.recentInstructions = []
-        for i in (cpuFrameWindow.count - instructionsToShow)..<cpuFrameWindow.count {
-            let frame = cpuFrameWindow[i]
-            let disasm = TI59MachineWrapper.disassemblePC(frame.pc, opcode: frame.opcode)
-            snap.recentInstructions.append(CPUDebugSnapshot.Instruction(
-                pc: frame.pc,
-                opcode: frame.opcode,
-                disasm: disasm,
-                frame: frame
-            ))
+        // The last 32 instructions (Shared/DebugSnapshots recentInstructions).
+        snap.recentInstructions = TIViewRules.recentInstructions(framesNS, count: 32).map {
+            CPUDebugSnapshot.Instruction(pc: $0.pc, opcode: $0.opcode, disasm: $0.disasm, frame: $0.frame)
         }
 
         return snap
@@ -1767,6 +1685,12 @@ struct LiveDebugSnapshot: Equatable {
 }
 
 // MARK: - Bridge conversion (Shared/DebugSnapshots.hpp → SwiftUI view model)
+
+extension EmulatorViewModel.InspectorSnapshot {
+    init(_ e: TIInspectorEntry) {
+        self.init(pc: e.pc, opcode: e.opcode, disasm: e.disasm, frame: e.frame, isHistory: e.isHistory, isCurrent: e.isCurrent)
+    }
+}
 
 extension LiveDebugSnapshot.StepEntry {
     init(_ e: TIStepEntry) {

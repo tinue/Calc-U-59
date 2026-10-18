@@ -35,8 +35,6 @@ NSError* romError(const std::exception& e) {
 
 // ── Cue card conversion ──────────────────────────────────────────────────────
 
-static TICueCard* TICueCardFrom(const cu59::CueCardContent& c);
-
 @implementation TICueCard
 - (instancetype)init {
     if ((self = [super init])) {
@@ -51,7 +49,7 @@ static TICueCard* TICueCardFrom(const cu59::CueCardContent& c);
 + (NSString *)invisibleMarker { return ns(cu59::kCueCardInvisibleMarker); }
 @end
 
-static TICueCard* TICueCardFrom(const cu59::CueCardContent& c) {
+TICueCard* TICueCardFrom(const cu59::CueCardContent& c) {
     TICueCard* t = [[TICueCard alloc] init];
     t.templateKind = static_cast<NSInteger>(c.template_);
     t.title = ns(c.title);
@@ -72,7 +70,7 @@ static TICueCard* TICueCardFrom(const cu59::CueCardContent& c) {
     return t;
 }
 
-static cu59::CueCardContent CueCardFrom(TICueCard* t) {
+cu59::CueCardContent CueCardFrom(TICueCard* t) {
     cu59::CueCardContent c;
     c.template_ = static_cast<cu59::CueCardTemplate>(t.templateKind);
     c.title = cpp(t.title);
