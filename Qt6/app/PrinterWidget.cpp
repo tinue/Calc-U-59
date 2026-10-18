@@ -25,7 +25,14 @@ using cu59::PrinterGeometry;
 /// partial lines (row count < 7) where printing was cut short.
 class PaperView : public QWidget {
 public:
-    explicit PaperView(EmulatorController& c, QWidget* parent) : QWidget(parent), m_c(c) {}
+    explicit PaperView(EmulatorController& c, QWidget* parent) : QWidget(parent), m_c(c) {
+        // QScrollArea reads height-for-width from the size policy, not from
+        // hasHeightForWidth(): without it the strip is squeezed to the viewport
+        // and there is nothing to scroll.
+        QSizePolicy policy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+        policy.setHeightForWidth(true);
+        setSizePolicy(policy);
+    }
 
     /// Draw the strip into `p` with the given width and dot colour; only the
     /// lines overlapping [visibleTop, visibleBottom) (strip coordinates).
@@ -136,12 +143,14 @@ PrinterWidget::PrinterWidget(EmulatorController& controller, QWidget* parent) : 
     m_scroll = new QScrollArea(m_stack);
     m_scroll->setWidgetResizable(true);
     m_scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_scroll->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);  // wheel / touchpad still scroll
     m_scroll->setStyleSheet(QStringLiteral("QScrollArea { %1 } QScrollArea > QWidget > QWidget { background: %2; }")
                                 .arg(paperCss, ChromeStyle::rgb(ChromeStyle::kPaper)));
     m_paper = new PaperView(m_controller, m_scroll);
     m_scroll->setWidget(m_paper);
     m_text = new QPlainTextEdit(m_stack);
     m_text->setReadOnly(true);
+    m_text->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     QFont mono(QStringLiteral("Menlo"));
     mono.setStyleHint(QFont::Monospace);
     mono.setPixelSize(13);
