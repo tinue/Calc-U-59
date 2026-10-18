@@ -69,9 +69,14 @@ See [CHANGELOG.md](CHANGELOG.md) for version history and release notes. This cov
 
 ## License
 
-Copyright © Martin Erzberger. Licensed under the [Polyform Noncommercial License 1.0.0](LICENSE).
+Copyright (C) 2026 Martin Erzberger. Calc-U-59 is free software, licensed
+under the [GNU General Public License, version 3](LICENSE) (GPLv3); see
+[NOTICE](NOTICE) for the full copyright notice.
 
-Free to use, modify, and redistribute — including to build ports for other platforms (Android, Windows, etc.) — for any noncommercial purpose. Commercial use requires separate written permission from the author.
+The Windows and Linux app is built on [Qt6](https://www.qt.io/), used under
+the LGPLv3 — see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) for Qt and
+for the `roms/` ROM images, which are third-party copyrighted material not
+covered by this project's license.
 
 ## Acknowledgements
 
@@ -98,14 +103,15 @@ isn't duplicated in this repository.
 | [`README.md`](README.md) | This file — project overview, features, limitations, and this index. |
 | [`CLAUDE.md`](CLAUDE.md) | Skill-routing table and pointers to the architecture reference docs, for AI coding agents working in this repo. |
 | [`CHANGELOG.md`](CHANGELOG.md) | Version history, one heading per release. |
-| [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) | Qt6 (LGPLv3) notice for the Windows/Linux app. |
+| [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) | Qt6 (LGPLv3) notice for the Windows/Linux app; status of the `roms/` ROM images. |
 | [`TODO.md`](TODO.md) | Unsorted backlog of ideas, bugs, and observations across the core, settings, and UI. |
 | [`PRIVACY.md`](PRIVACY.md) | App Store privacy policy — Calc-U-59 collects no data and makes no network connections. |
 | [`ideas/Redesign.md`](ideas/Redesign.md) | Findings from a full-codebase review flagging items that need a design decision or coordinated refactor rather than a spot fix (e.g. `EmulatorViewModel`'s threading model). |
 | [`ideas/KeypressLatch.md`](ideas/KeypressLatch.md) | Unimplemented design proposal for latching keypresses while the debugger is frozen. |
 | [`ideas/Pico.md`](ideas/Pico.md) | Feasibility analysis for running the core on a Raspberry Pi Pico wired to a real TI-59's keyboard, display, and card reader. |
 | [`ideas/CardRecovery.md`](ideas/CardRecovery.md) | Signal-chain analysis and breadboard circuit design for a standalone Pico-based magnetic-card reader, aimed at recovering cards a stock TI-59 fails to read. |
-| [`LICENSE`](LICENSE) | Polyform Noncommercial License 1.0.0 — free for noncommercial use and for building ports to other platforms; commercial use needs the author's written permission. |
+| [`LICENSE`](LICENSE) | GNU General Public License, version 3 (GPLv3). |
+| [`NOTICE`](NOTICE) | Copyright notice for the GPLv3 license. |
 
 ### `reference/` — architecture reference
 

@@ -140,7 +140,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path Qt6/dist | Out-Null
           Copy-Item Qt6/build/Calc-U-59.exe Qt6/dist/
-          Copy-Item LICENSE, THIRD-PARTY-NOTICES.md Qt6/dist/
+          Copy-Item LICENSE, NOTICE, THIRD-PARTY-NOTICES.md Qt6/dist/
           Copy-Item licenses Qt6/dist/licenses -Recurse
           windeployqt --release --compiler-runtime Qt6/dist/Calc-U-59.exe
       - name: Install Inno Setup

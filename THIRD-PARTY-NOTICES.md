@@ -22,3 +22,10 @@ The builds published by this project's CI record the exact Qt version in the
 GitHub Actions run log (`.github/workflows/build.yml`).
 
 The Swift app for macOS and iOS does not use Qt.
+
+## ROM images
+
+The ROM images under `roms/` are third-party copyrighted firmware belonging
+to Texas Instruments. They are **not** covered by this project's GPLv3
+license — see [LICENSE](LICENSE) for Calc-U-59's own code, and treat
+`roms/` as a separate, unlicensed-by-us inclusion.
