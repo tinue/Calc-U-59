@@ -1,0 +1,2 @@
+// Embeds the app icon in Calc-U-59.exe (Explorer, Start menu, taskbar before launch).
+IDI_ICON1 ICON "calc-u-59.ico"
