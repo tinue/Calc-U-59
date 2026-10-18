@@ -151,18 +151,35 @@ from here on every step takes the fast path, and the fetch still reads RAM.
 **Why the program starts at step 008.** The RAM chips transfer only whole
 registers of 16 digits. A register is either one data register or 8 program
 steps (000–007, 008–015, …). The firmware therefore copies a whole block of
-8 steps into a buffer, takes the steps out one by one, and reads memory again
-only when the next block begins.
+8 steps into a buffer, a shift register with the current step at the
+bottom. Within a block it only shifts the buffer down by one step; it reads
+memory only when the step counter moves on to the next block. Each shift
+moves an empty step (keycode 00) in at the top. Each regular jump (GTO, RST,
+SBR, BST, label search) marks the buffer stale, so counter and buffer always
+agree. The next fetch reads the target's block and shifts it down until the
+target step is at the bottom. After `GTO 007`, for example, the buffer holds
+step 007 and seven empty steps above it.
 
-The hack sets the step counter to 000 but leaves the buffer alone. Steps
-001–007 come from the leftovers of St flg's own block, minus the step after
-St flg, which held the place of its flag number:
+HIR STO knows nothing about the buffer. The hack sets the counter to 000
+but leaves the buffer as it was, at the step that held St flg's flag number.
+Until the counter leaves block 000–007, the two disagree:
 
-- **St flg on step 007:** nothing is left. Steps 001–007 run as empty steps,
-  each typing a harmless 0, and the real program starts when block 008–015
-  is read from memory.
-- **St flg on, say, step 004:** steps 006 and 007 run first, in place of 001
-  and 002. It works, but it is hard to follow.
+- Steps 001–007 run the steps that follow in the old block, then the empty
+  steps that the shifts moved in. Each empty step types a harmless 0.
+- The first of these steps is swallowed. With `SUM 06` there, the SUM has
+  no effect and the 06 types a 6.
+- Step 008 is the first read from memory. From there on, counter and buffer
+  agree again.
+
+St flg therefore goes on the last step of a block: 007, 015, … (8k+7). Then
+nothing is left over: `GTO 007` already filled the buffer with empty steps
+above St flg, so steps 001–007 are all empty, and the real program starts at
+008. With St flg on step 003 and `1 2 3 4` on steps 004–007, the
+run types 234000 before step 008.
+
+Acosta's "hi2" reads the flag number from the program. With St flg at 135
+(8·16+7), that read already moves into the block 136–143. Steps 001–007
+then run 137–143, and Acosta puts `GTO 062` there.
 
 Steps 000–006 are never read during the run, so they can hold anything.
 
