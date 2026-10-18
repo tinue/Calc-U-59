@@ -87,11 +87,16 @@ class EmulatorViewModel {
 
     // ── Display interaction state ────────────────────────────────────────────────
     var isDisplayPressed: Bool = false
-    var isFullSpeedMode: Bool = false  // true when user is pressing display; emulation runs unrestricted
+    /// True while the user presses the display or a KEYSTROKES FullSpeed: window is
+    /// open; emulation runs unrestricted (Shared/Pacing.cpp shouldSleep). Mirrors the
+    /// session, which also changes it during playback (sessionFullSpeedChanged).
+    var isFullSpeedMode: Bool = false {
+        didSet {
+            guard isFullSpeedMode != oldValue, session?.fullSpeed != isFullSpeedMode else { return }
+            session?.fullSpeed = isFullSpeedMode
+        }
+    }
     var isKeystrokesPlaying: Bool = false
-    /// Baseline core elapsed-tick count, snapshotted by the KEYSTROKES ".zeroElapseTime" event.
-    private var elapseTimeBaseline: UInt64 = 0
-    private var keystrokeTask: Task<Void, Never>?
 
     // ── Printer state ────────────────────────────────────────────────────────
     var printerLines: [String] = []
@@ -108,7 +113,7 @@ class EmulatorViewModel {
                 // TRACE ENABLED
                 // a) Open or create file
                 _ = AppSettings.traceDirectory()
-                let success = traceWriter.open()
+                let success = traceWriter?.open() ?? false
 
                 // If open failed (e.g., iCloud unavailable), disable immediately
                 if !success {
@@ -124,36 +129,25 @@ class EmulatorViewModel {
                 // c) Start draining via tick() calls (happens automatically at 60 Hz)
             } else {
                 // TRACE DISABLED
-                guard let m = machine else { return }
+                guard machine != nil else { return }
 
                 // a) Stop generating events (unless another consumer still needs them)
                 updateDebugTraceFlags()
 
                 // b) Drain remaining buffer on main thread immediately
-                drainTraceEvents(machine: m)
+                drainTraceEvents()
 
                 // c) Close file
-                traceWriter.close()
+                traceWriter?.close()
             }
         }
     }
-    private var cZeroFrames: Int = 0   // consecutive frames where fA was zero the entire frame
-    private var traceWriter: TraceWriter!  // initialized in init, updated when model changes
-    var isTraceAvailable: Bool { traceWriter?.isAvailable ?? true }  // false if trace location (e.g., iCloud) unavailable
-
-    // Scripted CPU trace (KEYSTROKES "Trace:" directive) — independent of the
-    // manual "C" indicator toggle above: its own writer, own filename, own
-    // session lifecycle. Both may be open simultaneously; drainTraceEvents()
-    // fans each drained frame out to whichever of the two is currently open.
-    private var scriptedTraceWriter: TraceWriter!
-
-    private func configureTraceWriter() {
-        traceWriter.onSizeLimitReached = { [weak self] in
-            // Called on the main thread from inside drainTraceEvents().
-            // Defer to avoid reentrance in the drain loop.
-            DispatchQueue.main.async { self?.cIndicatorDebug = false }
-        }
-    }
+    /// The manual trace (the "C" indicator toggle): its location; the session writes it.
+    /// The scripted KEYSTROKES "Trace:" capture is the session's own second writer.
+    private var traceWriter: TraceWriter?
+    private var isTraceLocationAvailable = true
+    var isTraceAvailable: Bool { traceWriter?.isAvailable ?? isTraceLocationAvailable }  // false if trace location (e.g., iCloud) unavailable
+    private var isScriptedTraceOpen = false
 
     // ── Debug panel state ────────────────────────────────────────────────────
     var debugTab: DebugTab = .live   // persists tab selection across iPhone navigation
@@ -198,29 +192,32 @@ class EmulatorViewModel {
     }
     var liveDebugSnapshot: LiveDebugSnapshot = .empty
     var freezeReason: FreezeReason? = nil {
-        didSet { updateDebugTraceFlags() }
-    }
-    var isFrozen: Bool { freezeReason != nil }
-    var freezeOwner: FreezePanel? = nil  // set on freeze entry, cleared on unfreeze
-    var pendingFreezeOnPCChange: Bool = false {  // Freeze as soon as PC changes (first instruction)
         didSet {
-            guard pendingFreezeOnPCChange != oldValue else { return }
+            session?.frozen = freezeReason != nil
             updateDebugTraceFlags()
         }
     }
-    private var lastObservedPC: UInt16 = 0     // Track PC to detect changes
-    private var lastObservedLibPC: UInt16 = 0xFFFF  // Track library exec PC (solid-state programs don't move the SCOM PC)
+    var isFrozen: Bool { freezeReason != nil }
+    var freezeOwner: FreezePanel? = nil  // set on freeze entry, cleared on unfreeze
+    /// Freeze as soon as the calculator PC changes. Armed in the session's
+    /// FreezeController (Shared/); this mirrors it for the UI.
+    var pendingFreezeOnPCChange: Bool = false {
+        didSet {
+            guard pendingFreezeOnPCChange != oldValue else { return }
+            if !pendingFreezeOnPCChange { session?.disarmPcChange() }
+            updateDebugTraceFlags()
+        }
+    }
 
     // CPU-tab "Freeze on Start": fires when the keyboard scan loop exits (key press or reset).
     // Distinct from pendingFreezeOnPCChange (CALCULATOR tab: fires on any PC change).
     var pendingCPUScanLoopFreeze: Bool = false {
         didSet {
             guard pendingCPUScanLoopFreeze != oldValue else { return }
+            if !pendingCPUScanLoopFreeze { session?.disarmScanLoopExit() }
             updateDebugTraceFlags()
         }
     }
-    private var _cpuFreezeSeenLoop = false   // have we entered the scan loop since arming?
-    private var _cpuFreezeArmPC: UInt16 = 0xFFFF  // PC at arm time (guards against immediate 0000 re-trigger)
 
     // Full program listing — always kept current (not just when frozen).
     // Updated at 60 Hz by buildLiveSnapshot when running, and after each STEP/freeze-entry when frozen.
@@ -260,14 +257,9 @@ class EmulatorViewModel {
     /// With no consumer active the core runs with TRACE_NONE — its fast path.
     private func updateDebugTraceFlags() {
         guard let m = machine else { return }
-        var flags: TITraceFlags = []
-        if cpuDebugEnabled || isFrozen || cIndicatorDebug || pendingFreezeOnPCChange || pendingCPUScanLoopFreeze
-            || scriptedTraceWriter.isOpen {
-            flags.insert([.pc, .regsFull])
-        }
-        if !breakpoints.isEmpty {
-            flags.insert(.breakpoints)
-        }
+        let flags = TISession.traceFlags(forCpuPanel: cpuDebugEnabled, frozen: isFrozen, manualTrace: cIndicatorDebug,
+                                         freezeArmed: pendingFreezeOnPCChange || pendingCPUScanLoopFreeze,
+                                         scriptedTrace: isScriptedTraceOpen, breakpoints: !breakpoints.isEmpty)
         if m.traceFlags != flags { m.traceFlags = flags }
     }
 
@@ -316,13 +308,15 @@ class EmulatorViewModel {
         }
     }
 
-    private var machine: TI59MachineWrapper?
-    private let emulQueue = DispatchQueue(label: "calc-u-59.emulation", qos: .userInteractive)
+    /// The running calculator and its runtime (run loop, freezes, keys, frames,
+    /// traces): Shared/EmulatorSession via Bridge/TISession. One per machine.
+    private var session: TISession?
+    private var machine: TI59MachineWrapper? { session?.machine }
+    @ObservationIgnored private lazy var sessionEvents = SessionEventForwarder(self)
     private var displayTimer: Timer?
-    private var isRunning = false
     /// Held for the app's lifetime so macOS never App-Naps the background emulation
     /// queue while the window is unfocused/occluded — App Nap can otherwise stall
-    /// emulQueue's step() loop entirely, freezing currentPC and making any PC-range
+    /// emulation thread's step() loop entirely, freezing currentPC and making any PC-range
     /// wait (e.g. waitForScanLoopIdle) return immediately instead of actually waiting.
     private var appNapActivityToken: NSObjectProtocol?
     private var suspendedByLifecycle = false
@@ -330,7 +324,7 @@ class EmulatorViewModel {
     private static var constantMemoryURL: URL {
         CardStorage.directoryURL.appendingPathComponent(constantMemoryFileName)
     }
-    private var persistPending = false
+    @ObservationIgnored private var persistPending = false  // set from the emulation thread
     private var persistDebounceTimer: Timer?
     private var programCheckTimer: Timer?
     private var debugDisplayTimer: Timer?
@@ -340,12 +334,8 @@ class EmulatorViewModel {
             options: [.userInitiated, .idleSystemSleepDisabled],
             reason: "TI-59 CPU emulation must keep running at real-time pace in the background"
         )
-        // Initialize traceWriter with default model
-        traceWriter = TraceWriter(model: model)
-        configureTraceWriter()
         // Check trace availability at startup (for iOS/iPadOS iCloud detection, etc.)
-        traceWriter.checkAvailability()
-        scriptedTraceWriter = TraceWriter(model: model)
+        isTraceLocationAvailable = TraceWriter.checkAvailability()
         Task { await self.start(model: AppSettings.resolvedStartupModel()) }
     }
 
@@ -373,7 +363,8 @@ class EmulatorViewModel {
     func start(model: MachineModel) async {
         persistConstantMemory()  // save TI-58C RAM before switching away
         stop()
-        await drainEmulQueue()   // ensure old loop has exited before starting the new one
+        await drainEmulation()   // ensure old loop has exited before starting the new one
+        cIndicatorDebug = false  // the manual trace belongs to the old session
         self.model = model
         // A fresh machine is created below; the printer's TRACE latch is released
         // on a model change (the new core instance starts with it off).
@@ -381,9 +372,6 @@ class EmulatorViewModel {
         userCueCardContent = nil
         activeProgramNumber = 0
         cueCardContent = nil  // clear cuecard when switching models
-        traceWriter = TraceWriter(model: model)
-        configureTraceWriter()  // reinitialize with new model for correct trace filename
-        scriptedTraceWriter = TraceWriter(model: model)
         UserDefaults.standard.set(model.rawValue, forKey: SettingsKey.lastUsedModel)
         await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .utility).async {
@@ -392,27 +380,25 @@ class EmulatorViewModel {
             }
         }
         do {
-            let words = try ROMLoader.load(model: model)
-            let wrapper = TI59MachineWrapper(model: model.rawValue)
-            wrapper.loadROM(words)
+            // ROM, constants and the solid-state module: Shared/EmulatorSession.
+            let moduleFile = ROMLoader.moduleRomFile(moduleID: selectedModuleID)
+            let newSession = try TISession(model: model.rawValue, reader: ROMLoader.bundleReader,
+                                           moduleRomFile: moduleFile, delegate: sessionEvents)
+            let wrapper = newSession.machine
+            session = newSession
+            traceWriter = TraceWriter(model: model, writer: newSession.manualTrace)
+            configureScriptedTraceLocation()
 
             debugModel = TIDebugModel(model: model.rawValue)
-
-            // Load solid-state library module
-            if let libData = ROMLoader.loadModuleLibrary(moduleID: self.selectedModuleID) {
-                wrapper.loadLibrary(libData)
-                cacheModuleImage(libData)
-            } else {
+            if moduleFile == nil || newSession.moduleImage.isEmpty {
                 Self.logger.error("Solid-state module library was not loaded; continuing without library data")
                 cacheModuleImage(nil)
+            } else {
+                cacheModuleImage(newSession.moduleImage)
             }
             let (cards, metadata) = ROMLoader.loadModuleCardsAndMetadata(moduleID: self.selectedModuleID)
             moduleCueCards = cards
             moduleMetadata = metadata
-
-            if let constData = try? ROMLoader.loadConstants(model: model) {
-                wrapper.loadConstants(constData)
-            }
 
             if model.hasConstantMemory {
                 // Run ROM startup once, then restore RAM. This matches the preset-load
@@ -433,7 +419,6 @@ class EmulatorViewModel {
                 }
             }
 
-            self.machine = wrapper
             updateDebugTraceFlags()   // new wrapper starts with TRACE_NONE; re-apply consumer state
             // New machine restarts frame seqnos at 0; without a reset the
             // `seqno > romHeatmapLastSeqno` filter would reject all new frames.
@@ -447,127 +432,16 @@ class EmulatorViewModel {
         }
     }
 
+    /// Start the paced run loop (Shared/EmulationRunner).
     private func startEmulationLoop() {
-        isRunning = true
-        guard let m = machine else { return }
-        emulQueue.async { [weak self, m] in
-            guard let self else { return }
-            var cyclesDone: Int32 = 0
-            // Idle mode runs at ÷4 (step() returns 4 instead of 1, except TI-58C constant speed),
-            // so the loop naturally slows down when the calculator is waiting for a keypress.
-            let targetHz: Double = model.instructionHz
-            let batchMs: Double = 0.020  // 20 ms batches keep latency low
-            let targetBatchCycles = Int32(targetHz * batchMs) // ≈ 284
+        session?.start()
+    }
 
-            while self.isRunning {
-                let start = DispatchTime.now()
-                // Set when any step this batch was a *confirmed* spin-wait retrying a
-                // keyboard-matrix scan or printer/peripheral BUSY test — real-world state
-                // whose completion doesn't depend on CPU speed (see TMC0501::step()'s
-                // 0x4000_0000 return bit doc: only a backward branch that retries such a
-                // poll sets it, not every occurrence, so an incidental check on the way
-                // through productive code doesn't force throttling). Forces the throttle
-                // below regardless of PC, since the ROM re-implements this spin idiom at
-                // multiple addresses (e.g. fast mode's print dispatcher has its own copy
-                // outside the normal keyboard-scan idle loop that cpuIdleAndKeyDetectRange
-                // covers) — see calendar-08-acosta.ti59.
-                var polledHardwareState = false
-                while cyclesDone < targetBatchCycles {
-                    let result = m.step()
-                    if result & 0x8000_0000 != 0 {
-                        // Breakpoint hit — pause the emulation loop.
-                        self.isRunning = false
-                        let hitPC = m.currentPC
-                        DispatchQueue.main.async { self.onBreakpointHit(pc: hitPC) }
-                        return
-                    }
-                    if result & 0x4000_0000 != 0 { polledHardwareState = true }
-                    cyclesDone += Int32(result & 0x3FFF_FFFF)
-
-                    // Per-step scan loop exit check (must be inside the step loop for
-                    // exact PC precision — a post-batch check lands hundreds of
-                    // instructions late after reset clears the loop in one burst).
-                    if self.pendingCPUScanLoopFreeze, let range = self.cpuScanLoopRange {
-                        let pc = m.currentPC
-                        if range.contains(pc) {
-                            self._cpuFreezeSeenLoop = true
-                        } else if self._cpuFreezeSeenLoop || (pc == 0x0000 && self._cpuFreezeArmPC != 0x0000) {
-                            self.freezeOwner = .cpu
-                            self.isRunning = false
-                            self.freezeReason = .manual
-                            self.pendingCPUScanLoopFreeze = false
-                            self._cpuFreezeSeenLoop = false
-                            DispatchQueue.main.async { [weak self] in
-                                guard let self else { return }
-                                if self.liveDebugEnabled {
-                                    self.liveDebugSnapshot = self.buildLiveSnapshot(machine: m)
-                                }
-                                self.captureInspectorSnapshot(machine: m)
-                            }
-                            return
-                        }
-                    }
-                }
-                // Subtract rather than reset to zero: carry the overshoot into
-                // the next batch so long-term average speed stays exact.
-                cyclesDone -= targetBatchCycles
-
-                // Check if pending freeze on PC change should activate
-                if self.pendingFreezeOnPCChange {
-                    // Get the user-visible PC (decoded from SCOM), not the raw CPU PC
-                    let cpu = m.snapshotCPU()
-                    let currentPC = TIDebugModel.decodeProgramCounter(cpu)
-
-                    // Check if either PC has changed from when we armed the
-                    // freeze. Solid-state programs never move the SCOM PC, so
-                    // the library exec latch is watched as a second trigger.
-                    if UInt16(currentPC) != self.lastObservedPC || m.libExecPC != self.lastObservedLibPC {
-                        // PC has changed — freeze now.  Set freezeReason before
-                        // clearing the armed flag so updateDebugTraceFlags()
-                        // (fired by both didSets) keeps tracing enabled throughout.
-                        self.freezeOwner = .calculator
-                        self.isRunning = false
-                        self.freezeReason = .manual
-                        self.pendingFreezeOnPCChange = false
-                        DispatchQueue.main.async { [weak self] in
-                            guard let self else { return }
-                            m.beginNextStep()
-                            self.liveDebugSnapshot = self.buildLiveSnapshot(machine: m)
-                            self.captureInspectorSnapshot(machine: m)
-                        }
-                        return
-                    }
-                }
-
-                // Skip timing throttle when in full-speed mode (user pressing display, or a
-                // KEYSTROKES FullSpeed:/WaitFullSpeed: window) — EXCEPT while the CPU is
-                // currently sitting in the keyboard-scan idle loop, or this batch polled
-                // hardware state (polledHardwareState, set above). Full speed always paces
-                // those portions at regular speed instead of racing unthrottled: otherwise the
-                // batch loop below never sleeps, so it can execute an enormous, real-time-
-                // unbounded number of idle-loop/poll iterations before whatever polls
-                // currentPC (e.g. waitForScanLoopIdle) next samples it and notices the CPU is
-                // idle — wildly inflating any elapsed-tick measurement taken across that
-                // window. cpuIdleAndKeyDetectRange is PC-range based (not FLG_IDLE) because
-                // the TI-58C is only partially idle while in its scan loop; polledHardwareState
-                // catches the same class of spin at ROM addresses outside that range (e.g.
-                // fast mode's own print-dispatch key/BUSY wait — see calendar-08-acosta.ti59).
-                let inScanLoop = (self.cpuIdleAndKeyDetectRange?.contains(m.currentPC) ?? false) || polledHardwareState
-                if !self.isFullSpeedMode || inScanLoop {
-                    let end = DispatchTime.now()
-                    let elapsed = Double(end.uptimeNanoseconds - start.uptimeNanoseconds) / 1e9
-                    let remaining = batchMs - elapsed
-                    if remaining > 0 {
-                        Thread.sleep(forTimeInterval: remaining)
-                    }
-                }
-
-                // Mark TI-58C state for persist (debounced, non-blocking)
-                if self.model.hasConstantMemory {
-                    self.persistPending = true
-                }
-            }
-        }
+    /// Where KEYSTROKES "Trace:" files go, and the session size limit.
+    private func configureScriptedTraceLocation() {
+        let maxMB = UserDefaults.standard.integer(forKey: SettingsKey.traceMaxFileSizeMB)
+        session?.setTraceDirectory(AppSettings.traceDirectory().path,
+                                   maxBytes: UInt64(maxMB > 0 ? maxMB : 50) * 1_000_000)
     }
 
     private func startDisplayRefresh() {
@@ -610,28 +484,22 @@ class EmulatorViewModel {
     }
 
     private func tick() {
-        guard let machine else { return }
+        guard let session, let machine else { return }
 
-        // Detect auto-eject: C++ ejects the card at CRD_OFF (matching physical hardware
-        // where the card exits the reader after each pass).  Save any written data.
-        if cardState == .swiping && !machine.isCardPresent {
+        // Printer, core log, card auto-eject, display hold rule and the C indicator:
+        // Shared/FrameSampler.cpp.
+        let frame = session.tick(withDebugLevel: debugLevel.rawValue, cardSwiping: cardState == .swiping)
+
+        // Auto-eject: the core ejects the card at CRD_OFF (as the real card leaves the
+        // reader after each pass).  Save any written data.
+        if frame.cardAutoEjected {
             ejectCard()
         }
-
-        let lines = machine.drainPrinterLines()
-        if !lines.isEmpty {
-            printerLines.append(contentsOf: lines)
+        if !frame.printerLines.isEmpty {
+            printerLines.append(contentsOf: frame.printerLines)
         }
-
-        // Drain C-core debug messages into the ring buffer (O(1) per message, no trimming).
-        if debugLevel != .off {
-            let dbgMsgs = machine.drainDebugMessages()
-            for msg in dbgMsgs {
-                guard msg.count >= 2 else { continue }
-                let msgLevel: DebugLevel = (msg.first! == "I") ? .info : .debug
-                guard debugLevel >= msgLevel else { continue }
-                debugModel.logWrite(String(msg.dropFirst(2)))
-            }
+        if !frame.logLines.isEmpty {
+            debugModel.logWriteAll(frame.logLines)
         }
 
         // Debounce TI-58C persist: schedule write if pending and timer not already running
@@ -642,37 +510,26 @@ class EmulatorViewModel {
             }
         }
 
-        let codes = machine.drainPrinterCodeLines()
-        if !codes.isEmpty {
-            printerCodeLines.append(contentsOf: codes)
+        if !frame.printerCodeLines.isEmpty {
+            printerCodeLines.append(contentsOf: frame.printerCodeLines)
         }
 
-        let snap = machine.getDisplay()
-        var d = [UInt8](repeating: 0, count: 12)
-        var c = [UInt8](repeating: 0, count: 12)
-        withUnsafeBytes(of: snap.digits) { b in for i in 0..<12 { d[i] = b[i] } }
-        withUnsafeBytes(of: snap.ctrl)   { b in for i in 0..<12 { c[i] = b[i] } }
-
-        // Display content freeze: while display is ON (afterglow) but IDLE is 0 (RUN mode),
-        // do not update display content. This prevents stale values (e.g., R5) from appearing
-        // after exiting IDLE, while still showing the last captured display state.
-        let cpuFrame = machine.snapshotCPU()
-        let isIdle = (cpuFrame.flags & 0x0001) != 0          // FLG_IDLE
-        let displayOn = cpuFrame.displayOn != 0               // One or more digits/dots currently visible
-        let shouldFreeze = displayOn && !isIdle               // Afterglow with RUN mode
-
-
-        // Guard each assignment: @Observable only notifies SwiftUI when a property
-        // is actually written, but the write itself counts as a change even if the
-        // value is identical.  The guards prevent 60 Hz spurious re-renders when
-        // the display is static (e.g. calculator idle showing a number).
-        if !shouldFreeze {
+        // Guard each assignment: @Observable notifies on every write, even of an
+        // identical value; the guards prevent 60 Hz re-renders of a static display.
+        if frame.displayUpdated {
+            let snap = frame.display
+            var d = [UInt8](repeating: 0, count: 12)
+            var c = [UInt8](repeating: 0, count: 12)
+            withUnsafeBytes(of: snap.digits) { b in for i in 0..<12 { d[i] = b[i] } }
+            withUnsafeBytes(of: snap.ctrl)   { b in for i in 0..<12 { c[i] = b[i] } }
             if displayDigits    != d               { displayDigits    = d }
             if displayCtrl      != c               { displayCtrl      = c }
             if displaySuppressedMask != snap.suppressedMask { displaySuppressedMask = snap.suppressedMask }
             if dpPos            != snap.dpPos      { dpPos            = snap.dpPos }
             if dpAfterglowMask  != snap.dpAfterglowMask { dpAfterglowMask = snap.dpAfterglowMask }
         }
+        if calcIndicatorOpacity != frame.calcIndicatorOpacity { calcIndicatorOpacity = frame.calcIndicatorOpacity }
+
         // Live debug snapshot — sampled at 60 Hz when the panel is open (unless frozen).
         if liveDebugEnabled && !isFrozen {
             let s = buildLiveSnapshot(machine: machine)
@@ -685,52 +542,10 @@ class EmulatorViewModel {
             if s != cpuDebugSnapshot { cpuDebugSnapshot = s }
         }
 
-        if cIndicatorDebug || scriptedTraceWriter.isOpen {
-            // Drain trace events directly on main thread (tick() is already on main).
-            // The emulation loop runs on the serial emulQueue, so async dispatches would
-            // never execute until the loop exits — we drain here at 60 Hz instead.
-            // Must also run for the scripted (KEYSTROKES "Trace:") writer: without this,
-            // frames only get drained at the Trace:/Trace: Off calls in playKeystrokes,
-            // letting the 1024-frame ring buffer overflow and silently lose most of a
-            // session that runs for more than an instant (e.g. spans a Wait:/WaitFullSpeed:).
-            drainTraceEvents(machine: machine)
-        }
-
-        // C indicator opacity driven by the integrated duty cycle from the C++ core.
-        //
-        // Hardware model (per Sladký 2014 HW guide):
-        //   • IDLE mode: C driven by fA[14] only (other fA bits = display state)
-        //   • RUN mode:  C driven by any fA bit
-        //
-        // 60 Hz aliasing: the ROM's IDLE display-update scan lasts ~4.5 ms
-        // (16 IDLE steps × 281 µs/step).  The 60 Hz poll (16.7 ms window) can
-        // capture the entire IDLE phase as a single zero-duty frame even though
-        // the real C darkness is <4.5 ms.  On hardware that gap is imperceptible.
-        //
-        // Three-mode update:
-        //   • target > current  → instant rise
-        //   • target = 0, first zero frame → hold (aliasing artefact; see below)
-        //   • target = 0, frame 2+         → rapid decay (genuine dark phase)
-        //   • 0 < target < current → proportional-alpha fall
-        let target = Double(snap.calcIndicator) * 0.65
-        if target < 0.001 {
-            cZeroFrames += 1
-            if cZeroFrames >= 2 {
-                // Genuine sustained dark phase (error blink, computation with fA
-                // cleared).  Decay rapidly — hardware LED has near-zero persistence.
-                let decay = min(0.65, 0.35 * Double(cZeroFrames - 1))
-                calcIndicatorOpacity = max(0.0, calcIndicatorOpacity - decay)
-            }
-            // cZeroFrames == 1: hold opacity unchanged.  A single zero frame is
-            // a 60 Hz aliasing artefact of the ~4.5 ms IDLE scan (fA[14]=0 for
-            // one digit cycle) — too brief to perceive on real hardware.
-        } else if target >= calcIndicatorOpacity {
-            cZeroFrames = 0
-            calcIndicatorOpacity = target
-        } else {
-            cZeroFrames = 0
-            let alpha = min(0.5, target / max(0.001, calcIndicatorOpacity))
-            calcIndicatorOpacity += alpha * (target - calcIndicatorOpacity)
+        // Drain the trace ring here at 60 Hz for both writers (the 1024-frame ring
+        // would otherwise overflow during a scripted Trace: spanning a Wait:).
+        if cIndicatorDebug || isScriptedTraceOpen {
+            drainTraceEvents()
         }
     }
 
@@ -744,7 +559,7 @@ class EmulatorViewModel {
     }
 
     func stop() {
-        isRunning = false
+        session?.stop()
         invalidateAllTimers()
     }
 
@@ -753,8 +568,8 @@ class EmulatorViewModel {
     /// Does not destroy machine state — resumeFromBackground() will restart both.
     func suspendForBackground() {
         persistConstantMemory()
-        suspendedByLifecycle = isRunning
-        isRunning = false
+        suspendedByLifecycle = session?.isRunning ?? false
+        session?.stop()
         invalidateAllTimers()
     }
 
@@ -772,60 +587,26 @@ class EmulatorViewModel {
 
     /// Wait for any in-flight emulation batch to finish.
     /// Must be called after stop() before starting a new loop.
-    private func drainEmulQueue() async {
+    private func drainEmulation() async {
+        guard let session else { return }
         await withCheckedContinuation { continuation in
-            emulQueue.async { continuation.resume() }
+            session.post { continuation.resume() }
         }
     }
 
     // MARK: - Key input
 
+    // Keys go through the session (Shared/EmulatorSession, KeySequencer): it logs
+    // them to the manual trace and owns the timed input — KEYSTROKES playback and
+    // the physical keyboard's hold rules.
+
     func pressKey(row: Int, col: Int) {
-        traceWriter.writeKeyDown(row: UInt8(row), col: UInt8(col))
-        machine?.pressMatrixKey(UInt8((row + 1) * 10 + (col + 1)))
+        session?.pressKey(UInt8((row + 1) * 10 + (col + 1)))
     }
 
     func releaseKey(row: Int, col: Int) {
-        traceWriter.writeKeyUp(row: UInt8(row), col: UInt8(col))
-        machine?.releaseMatrixKey(UInt8((row + 1) * 10 + (col + 1)))
+        session?.releaseKey(UInt8((row + 1) * 10 + (col + 1)))
     }
-
-    /// Matrix code (11–95) → the 0-based (row, col) `pressKey`/`releaseKey` take.
-    private static func rowCol(forMatrix code: UInt8) -> (row: Int, col: Int) {
-        (row: Int(code / 10) - 1, col: Int(code % 10) - 1)
-    }
-
-    private func pressMatrix(_ code: UInt8) {
-        let (row, col) = Self.rowCol(forMatrix: code)
-        pressKey(row: row, col: col)
-    }
-
-    private func releaseMatrix(_ code: UInt8) {
-        let (row, col) = Self.rowCol(forMatrix: code)
-        releaseKey(row: row, col: col)
-    }
-
-    /// Press a key, hold it long enough for the ROM to accept it, release, then
-    /// wait until the keyboard-scan idle loop is reached again.
-    ///
-    /// The 100 ms hold is comfortably longer than the ROM's worst-case debounce
-    /// window (~3 sweeps to arm + confirm, see `ideas/KeypressLatch.md`) while short
-    /// enough that a "repeat while held" key (e.g. Adv/PRT_FEED, gated by real
-    /// busy time — see the printer busy-cycle comments in `TMC0501.cpp`) only
-    /// fires a couple of times per keystroke at regular speed, matching
-    /// real-hardware button feel.
-    ///
-    /// Shared by KEYSTROKES script playback and by physical-keyboard input, so
-    /// both feed the core with the same, proven timing.
-    private func tapMatrixKey(_ code: UInt8) async {
-        pressMatrix(code)
-        try? await Task.sleep(nanoseconds: Self.keyHoldNanoseconds)
-        releaseMatrix(code)
-        await waitForScanLoopIdle()
-    }
-
-    /// Minimum time a key stays electrically down. See `tapMatrixKey`.
-    private static let keyHoldNanoseconds: UInt64 = 100_000_000
 
     // MARK: - Physical keyboard input
 
@@ -834,84 +615,21 @@ class EmulatorViewModel {
     /// does for a pointer press. Nil when no keyboard key is down.
     var keyboardHeldKey: Int? = nil
 
-    private var keyboardHeldCode: UInt8? = nil
-    private var keyboardPressedAt: Date? = nil
-    private var keyboardTask: Task<Void, Never>? = nil
-
-    /// Handle a physical key going down, resolved to one or two matrix codes by
-    /// `Shared/KeyboardMap.cpp`.
-    ///
-    /// A single code follows the hardware's level semantics: it goes down now and
-    /// comes back up in `keyboardKeyUp()`, subject to the minimum hold. A pair
-    /// (2nd + key, e.g. Shift+A for A′) is one logical action and is played back
-    /// as two full taps instead — key-up is ignored for it, because the ROM needs
-    /// 2nd to be released and re-scanned before the second key can be accepted.
+    /// A physical key went down, resolved to one or two matrix codes by
+    /// `Shared/KeyboardMap.cpp`. A single code is held until `keyboardKeyUp()`
+    /// (at least 100 ms); a 2nd + key pair plays as two taps.
     func keyboardKeyDown(_ codes: [UInt8]) {
-        guard let last = codes.last else { return }
-        // The hardware rejects chords, and only one key can be held at a time —
-        // mirrors KeyboardView.releaseHeldKey() for pointer input.
-        keyboardKeyUp()
-        keyboardTask?.cancel()
-
-        if codes.count == 1 {
-            keyboardHeldCode = last
-            keyboardPressedAt = Date()
-            keyboardHeldKey = Self.highlightID(forMatrix: last)
-            pressMatrix(last)
-            return
-        }
-
-        keyboardTask = Task { [weak self] in
-            for code in codes {
-                guard !Task.isCancelled, let self else { return }
-                self.keyboardHeldKey = Self.highlightID(forMatrix: code)
-                await self.tapMatrixKey(code)
-            }
-            self?.keyboardHeldKey = nil
-        }
+        session?.keyboardDown(Data(codes))
     }
 
-    /// Handle a physical key going up. No-op unless a single-code press is held.
-    ///
-    /// Releasing earlier than `keyHoldNanoseconds` after the press would let the
-    /// ROM discard the key as bounce (`ideas/KeypressLatch.md` constraint 3), which is
-    /// exactly what fast typing produces — so a too-early release is deferred to
-    /// the end of the hold window rather than applied.
     func keyboardKeyUp() {
-        guard let code = keyboardHeldCode else { return }
-        keyboardHeldCode = nil
-        keyboardHeldKey = nil
-
-        let held = Date().timeIntervalSince(keyboardPressedAt ?? .distantPast)
-        keyboardPressedAt = nil
-        let remaining = Double(Self.keyHoldNanoseconds) / 1_000_000_000 - held
-        guard remaining > 0 else {
-            releaseMatrix(code)
-            return
-        }
-        Task { [weak self] in
-            try? await Task.sleep(nanoseconds: UInt64(remaining * 1_000_000_000))
-            self?.releaseMatrix(code)
-        }
+        session?.keyboardUp()
     }
 
     /// Force-release whatever the keyboard is holding — used when the calculator
     /// view loses focus or is torn down, so a matrix bit can't stay stuck set.
     func keyboardRelease() {
-        keyboardTask?.cancel()
-        keyboardTask = nil
-        if let code = keyboardHeldCode {
-            keyboardHeldCode = nil
-            keyboardPressedAt = nil
-            releaseMatrix(code)
-        }
-        keyboardHeldKey = nil
-    }
-
-    /// Matrix code → the `row * 5 + col` identifier `KeyboardView` highlights by.
-    private static func highlightID(forMatrix code: UInt8) -> Int {
-        let (row, col) = rowCol(forMatrix: code)
-        return row * 5 + col
+        session?.keyboardRelease()
     }
 
     // MARK: - Printer
@@ -935,13 +653,12 @@ class EmulatorViewModel {
     /// Load ROM and cue cards for the specified module without resetting.
     /// Used by both selectModule and loadStateFile.
     private func applyModule(id: String) {
-        guard let m = machine else {
+        guard let session else {
             Self.logger.error("Cannot apply module \(id, privacy: .public): machine is not initialized")
             return
         }
-        if let libData = ROMLoader.loadModuleLibrary(moduleID: id) {
-            m.loadLibrary(libData)
-            cacheModuleImage(libData)
+        if let file = ROMLoader.moduleRomFile(moduleID: id), session.loadModule(file, reader: ROMLoader.bundleReader) {
+            cacheModuleImage(session.moduleImage)
         } else {
             Self.logger.error("Failed to load module ROM: \(id, privacy: .public)")
             cacheModuleImage(nil)
@@ -962,7 +679,7 @@ class EmulatorViewModel {
     // MARK: - Reset
 
     func resetMachine() {
-        keystrokeTask?.cancel()
+        session?.cancelKeystrokes()
         unfreeze()  // exit freeze mode when resetting
         asmOverlayActive = false
         cardState = .noCard
@@ -999,7 +716,7 @@ class EmulatorViewModel {
     /// Clean reset (all models): zero all RAM, then reset.
     /// For TI-58C, writes the zeroed state immediately to the save file.
     func cleanResetMachine() {
-        keystrokeTask?.cancel()
+        session?.cancelKeystrokes()
         unfreeze()  // exit freeze mode when resetting
         asmOverlayActive = false
         machine?.deserialiseRAM(Data(repeating: 0, count: 120 * 16))
@@ -1024,7 +741,7 @@ class EmulatorViewModel {
     private func beginSwipe(data: Data) {
         guard let machine, cardState == .noCard else { return }
         cardState = .swiping
-        traceWriter.writeCardInsert()
+        traceWriter?.writeCardInsert()
         machine.insertCard(data)
     }
 
@@ -1065,7 +782,7 @@ class EmulatorViewModel {
 
     func ejectCard() {
         guard let machine, cardState == .swiping else { cardState = .noCard; return }
-        traceWriter.writeCardEject()
+        traceWriter?.writeCardEject()
         let written = machine.cardEject() as Data
         cardState = .noCard
         guard !written.isEmpty else { return }
@@ -1161,8 +878,8 @@ class EmulatorViewModel {
 
     func singleStep() {
         guard isFrozen else { return }
-        guard let m = machine else { return }
-        emulQueue.async { [weak self, m] in
+        guard let session, let m = machine else { return }
+        session.post { [weak self, m] in
             guard let self else { return }
             let result = m.step()
             if result & 0x8000_0000 != 0 {
@@ -1176,8 +893,8 @@ class EmulatorViewModel {
     /// If the instruction has HOLD set (WAIT Dn), auto-steps until the PC advances.
     func stepFrozen() {
         guard isFrozen else { return }
-        guard let m = machine else { return }
-        emulQueue.async { [weak self, m] in
+        guard let session, let m = machine else { return }
+        session.post { [weak self, m] in
             guard let self else { return }
             let priorPC = m.currentPC
             var result = m.step()
@@ -1216,11 +933,8 @@ class EmulatorViewModel {
         // library exec latch, which is the PC for solid-state programs
         // Mutex: disarm CPU scan-loop freeze if active
         disarmCPUScanLoopFreeze()
+        session?.armPcChange()
         pendingFreezeOnPCChange = true
-        guard let m = machine else { return }
-        let cpu = m.snapshotCPU()
-        lastObservedPC = UInt16(TIDebugModel.decodeProgramCounter(cpu))
-        lastObservedLibPC = m.libExecPC
     }
 
     /// Arm the CPU-tab "Freeze on Start": fires when the keyboard scan loop exits.
@@ -1231,71 +945,12 @@ class EmulatorViewModel {
     func freezeOnScanLoopExit() {
         // Mutex: disarm CALCULATOR any-PC-change freeze if active
         pendingFreezeOnPCChange = false
-        _cpuFreezeSeenLoop = false
-        _cpuFreezeArmPC = machine?.currentPC ?? 0xFFFF
+        session?.armScanLoopExit()
         pendingCPUScanLoopFreeze = true
     }
 
     func disarmCPUScanLoopFreeze() {
-        _cpuFreezeSeenLoop = false
         pendingCPUScanLoopFreeze = false
-    }
-
-    /// Steady-state keyboard scan loop (FREEZE ON START); see Shared/MachineModelInfo.hpp.
-    private var cpuScanLoopRange: ClosedRange<UInt16>? {
-        Self.closedRange(TISharedTables.scanLoopRange(forModel: model.rawValue))
-    }
-
-    /// PC range covering the FULL keyboard scan/detect cycle — release-gate spin
-    /// through key acceptance. Wider than `cpuScanLoopRange` above (used only by FREEZE ON
-    /// START, which cares about the steady-state cycle, not the release gates) —
-    /// this one is used anywhere a held key or full-speed racing must not be allowed
-    /// to blow past real "the calculator is still just scanning/debouncing" time.
-    /// Addresses and sources: Shared/MachineModelInfo.hpp.
-    private var cpuIdleAndKeyDetectRange: ClosedRange<UInt16>? {
-        Self.closedRange(TISharedTables.idleAndKeyDetectRange(forModel: model.rawValue))
-    }
-
-    private static func closedRange(_ r: NSRange) -> ClosedRange<UInt16> {
-        UInt16(r.location)...UInt16(r.location + r.length - 1)
-    }
-
-    /// Poll until the CPU reaches the keyboard-scan idle loop. Used as the default
-    /// inter-keystroke gap during KEYSTROKES playback so a script never sends its next
-    /// key before the calculator can actually accept it — independent of the "FREEZE ON
-    /// START" armed state (pendingCPUScanLoopFreeze etc.), which it neither reads nor sets.
-    /// No timeout: a scenario that never reaches idle will hang playback indefinitely —
-    /// except that a freeze (e.g. FREEZE ON START firing on the keypress just sent) stops
-    /// the CPU outright, so PC will never enter the scan loop again; return immediately
-    /// once frozen instead of spinning forever.
-    ///
-    /// Deliberately uses the NARROW `cpuScanLoopRange`, not `cpuIdleAndKeyDetectRange`:
-    /// the wide range also covers states reached while still debouncing/confirming the
-    /// key just pressed (release gates, arming/confirmation scans before 0x0661 accept).
-    /// Using it here would let this return before that key is actually fully accepted,
-    /// so the NEXT key could fire mid-debounce and get discarded as bounce — the narrow
-    /// range is specifically the steady "nothing pending" cycle, the correct "safe for a
-    /// new keypress" signal.
-    private func waitForScanLoopIdle() async {
-        guard let range = cpuScanLoopRange else { return }
-        while !Task.isCancelled {
-            if isFrozen { return }
-            if let pc = machine?.currentPC, range.contains(pc) { return }
-            try? await Task.sleep(nanoseconds: 1_500_000) // ~1.5ms poll
-        }
-    }
-
-    /// Report elapsed time since the last ".zeroElapseTime" (or since reset, if none), to
-    /// the debug log — unconditionally, regardless of the debug level setting.
-    private func reportElapseTime() {
-        let current = machine?.elapsedTicks ?? 0
-        let deltaTicks = current >= elapseTimeBaseline ? current - elapseTimeBaseline : 0
-        let seconds = Double(deltaTicks) / model.instructionHz
-        let totalMs = Int((seconds * 1000).rounded())
-        let minutes = totalMs / 60_000
-        let secs = (totalMs / 1000) % 60
-        let ms = totalMs % 1000
-        ringWriteAll([String(format: "Elapsed: %d:%02d.%03d", minutes, secs, ms)])
     }
 
     /// Freeze with an explicit panel owner (called by the FREEZE button in each panel).
@@ -1305,16 +960,15 @@ class EmulatorViewModel {
     }
 
     func freeze(reason: FreezeReason = .manual, waitForKeycode: Bool = true) {
-        isRunning = false
+        session?.stop()
         freezeReason = reason
         asmOverlayActive = false
         pendingFreezeOnPCChange = false   // Cancel any pending CALCULATOR freeze
         pendingCPUScanLoopFreeze = false  // Cancel any pending CPU scan-loop freeze
-        _cpuFreezeSeenLoop = false
-        guard let m = machine else { return }
-        // Advance to the next keycode boundary on the emulation queue (runs after the
-        // running loop exits, since emulQueue is serial). Then capture state.
-        emulQueue.async { [weak self, m] in
+        guard let session, let m = machine else { return }
+        // Advance to the next keycode boundary on the emulation thread (runs after the
+        // running loop exits: the session's job queue is serial). Then capture state.
+        session.post { [weak self, m] in
             if waitForKeycode {
                 _ = m.stepUntilNextKeycode()  // advance to program-step boundary
             }
@@ -1335,8 +989,8 @@ class EmulatorViewModel {
     /// caches if Prg Source changed, and re-centers current step.
     func stepKeycode() {
         guard isFrozen else { return }
-        guard let m = machine else { return }
-        emulQueue.async { [weak self, m] in
+        guard let session, let m = machine else { return }
+        session.post { [weak self, m] in
             guard let self else { return }
             _ = m.stepUntilNextKeycode()
             DispatchQueue.main.async { [weak self] in
@@ -1667,13 +1321,12 @@ class EmulatorViewModel {
             return
         }
 
-        isRunning = false
+        session?.stop()
         isPausedOnBreakpoint = false
         breakpointPC = nil
         pendingFreezeOnPCChange = false
         let freezeOnASMStart = pendingCPUScanLoopFreeze  // capture before clearing
         pendingCPUScanLoopFreeze = false
-        _cpuFreezeSeenLoop = false
         clearFrozenState()
 
         var steps: UInt32 = 0
@@ -1683,7 +1336,7 @@ class EmulatorViewModel {
         // Wait until any in-flight step batch finishes, then run the injection
         // (park at a keycode boundary, load, enter at 0x1800: Shared/AsmOverlay.cpp).
         let data = asmOverlayWords.withUnsafeBufferPointer { Data(buffer: $0) }
-        emulQueue.sync {
+        session?.sync {
             ok = TIDebugModel.runAsmOverlay(m, words: data, loaded: &loaded, steps: &steps)
         }
 
@@ -1696,7 +1349,7 @@ class EmulatorViewModel {
             asmOverlayActive = true
             if freezeOnASMStart {
                 // FREEZE ON START was armed — freeze in-place at the 0x1800 entry point.
-                // emulQueue.sync above already completed; no running loop to drain.
+                // session.sync above already completed; no running loop to drain.
                 freezeOwner = .cpu
                 freezeReason = .manual
                 DispatchQueue.main.async { [weak self] in
@@ -1819,13 +1472,13 @@ class EmulatorViewModel {
             return
         }
 
-        isRunning = false
+        session?.stop()
         // Clear freeze state without restarting the loop
         clearFrozenState()
         // Synchronous dispatch ensures the emulation loop has fully exited
         // before we touch RAM or SCOM.  Without this, a step() in-flight on
-        // emulQueue could write stale values after our state-file writes.
-        emulQueue.sync {}
+        // the emulation thread could write stale values after our state-file writes.
+        session?.sync {}
 
         guard let m = machine else { return }
 
@@ -1835,7 +1488,7 @@ class EmulatorViewModel {
 
         // Reset, ROM power-on routine, partition, RAM, program, registers:
         // Shared/StateApplier.cpp.
-        emulQueue.sync { TIFileFormats.applyState(parsed.parsed, to: m, model: model.rawValue) }
+        session?.sync { TIFileFormats.applyState(parsed.parsed, to: m, model: self.model.rawValue) }
 
         // Fresh machine state → fresh heatmap (also skips the power-on walk above).
         resetHeatmapBaseline()
@@ -1863,7 +1516,7 @@ class EmulatorViewModel {
         self.cueCardContent = resolvedCueCard()
 
         if !parsed.keystrokes.isEmpty {
-            keystrokeTask = Task { await playKeystrokes(parsed.keystrokes) }
+            playKeystrokes(parsed)
         }
     }
 
@@ -1882,15 +1535,15 @@ class EmulatorViewModel {
         }
 
         // Pause the emulation loop long enough to write program/registers safely.
-        isRunning = false
+        session?.stop()
         clearFrozenState()
-        emulQueue.sync {}
+        session?.sync {}
 
         guard let m = machine else { return }
 
         // Partition (if explicit), program (if present) and registers only:
         // Shared/StateApplier.cpp.
-        emulQueue.sync { TIFileFormats.applySkipResetState(parsed.parsed, to: m, model: model.rawValue) }
+        session?.sync { TIFileFormats.applySkipResetState(parsed.parsed, to: m, model: self.model.rawValue) }
 
         startEmulationLoop()
 
@@ -1905,102 +1558,130 @@ class EmulatorViewModel {
         }
 
         if !parsed.keystrokes.isEmpty {
-            keystrokeTask = Task { await playKeystrokes(parsed.keystrokes) }
+            playKeystrokes(parsed)
         }
     }
 
     // MARK: - Keystroke playback
 
-    /// Play back a KEYSTROKES sequence asynchronously after a preset loads.
-    ///
-    /// Keys are held 100 ms then released, after which playback waits for the CPU to
-    /// actually reach the keyboard-scan idle loop before the next event — this guarantees
-    /// no keystroke is lost to a still-computing calculator, regardless of how long the
-    /// preceding computation takes.  Use `.waitFullSpeed(t)` events to run the emulator at
-    /// full speed for a fixed interval between keystrokes (e.g. while a program computes);
-    /// full speed is restored to its previous state after each such wait.  `.fullSpeed`/
-    /// `.regularSpeed` toggle full speed persistently instead (no auto-revert) — speed is
-    /// always reset to regular when the script ends, even if it omitted `.regularSpeed`.
-    private func playKeystrokes(_ events: [KeystrokeEvent]) async {
-        isKeystrokesPlaying = true
-        defer {
-            isKeystrokesPlaying = false
-            isFullSpeedMode = false  // always end a script at regular speed
-            // Auto-stop a scripted trace left running past the end of the script,
-            // so no session is ever left dangling without a matching "Trace: Off".
-            if scriptedTraceWriter.isOpen, let m = machine {
-                drainTraceEvents(machine: m)
-                scriptedTraceWriter.close()
-                updateDebugTraceFlags()
-            }
-        }
+    /// Play back a KEYSTROKES sequence after a preset loads (Shared/KeySequencer):
+    /// keys held 100 ms, each waiting for the CPU to reach the keyboard-scan idle
+    /// loop; Wait:/WaitFullSpeed:/FullSpeed:/Trace:/elapse events. Progress comes
+    /// back through the TISessionDelegate methods below.
+    private func playKeystrokes(_ parsed: LoadStateResult) {
+        configureScriptedTraceLocation()
+        session?.playKeystrokes(of: parsed.parsed)
+    }
 
-        for event in events {
-            guard !Task.isCancelled else { return }
-            switch event {
-            case .key(let matrixCode):
-                await tapMatrixKey(matrixCode)
-            case .toggleTrace:
-                togglePrinterTrace()
-            case .wait(let t):
-                try? await Task.sleep(nanoseconds: UInt64(t * 1_000_000_000))
-            case .waitFullSpeed(let t):
-                let previous = isFullSpeedMode
-                isFullSpeedMode = true
-                try? await Task.sleep(nanoseconds: UInt64(t * 1_000_000_000))
-                isFullSpeedMode = previous
-            case .fullSpeed:
-                isFullSpeedMode = true
-            case .regularSpeed:
-                isFullSpeedMode = false
-            case .zeroElapseTime:
-                elapseTimeBaseline = machine?.elapsedTicks ?? 0
-            case .reportElapseTime:
-                reportElapseTime()
-            case .trace(let name):
-                // Switching files (or turning off) first flushes and closes whatever
-                // scripted session is currently open, for a clean SESSION_END.
-                if scriptedTraceWriter.isOpen, let m = machine {
-                    drainTraceEvents(machine: m)
-                    scriptedTraceWriter.close()
-                }
-                if let name {
-                    let opened = scriptedTraceWriter.open(fileName: name)
-                    if !opened {
-                        print("[EmulatorViewModel] KEYSTROKES \"Trace: \(name)\" failed to open trace file — see TraceWriter/AppSettings logs above for the reason")
-                    }
-                }
-                updateDebugTraceFlags()
+    // ── Binary trace files ───────────────────────────────────────────────────
+    // The session drains the CPU ring into both writers (manual and scripted).
+    // Called from tick() (main thread, 60 Hz) and when the manual trace stops.
+
+    private func drainTraceEvents() {
+        var manualLimit: ObjCBool = false
+        var scriptedLimit: ObjCBool = false
+        session?.drainTraceManualLimit(&manualLimit, scriptedLimit: &scriptedLimit)
+        if manualLimit.boolValue {
+            traceWriter?.didReachSizeLimit()
+            // Defer to avoid reentrance via cIndicatorDebug's didSet.
+            DispatchQueue.main.async { [weak self] in self?.cIndicatorDebug = false }
+        }
+        if scriptedLimit.boolValue {
+            print("WARNING: scripted trace reached its size limit — trace stopped.")
+            isScriptedTraceOpen = false
+            updateDebugTraceFlags()
+        }
+    }
+}
+
+// MARK: - Session events (session threads → main)
+
+/// TISessionDelegate needs an NSObject; @Observable classes can't be one.
+/// Forwards to the view model, which the session never retains.
+final class SessionEventForwarder: NSObject, TISessionDelegate {
+    weak var target: EmulatorViewModel?
+    init(_ target: EmulatorViewModel) { self.target = target }
+    func sessionBreakpointHit(_ pc: UInt16) { target?.sessionBreakpointHit(pc) }
+    func sessionFreezeFired(_ owner: Int) { target?.sessionFreezeFired(owner) }
+    func sessionHeldKeyChanged(_ highlightID: Int) { target?.sessionHeldKeyChanged(highlightID) }
+    func sessionFullSpeedChanged(_ on: Bool) { target?.sessionFullSpeedChanged(on) }
+    func sessionPlaybackStarted() { target?.sessionPlaybackStarted() }
+    func sessionPlaybackFinished() { target?.sessionPlaybackFinished() }
+    func sessionTogglePrinterTrace() { target?.sessionTogglePrinterTrace() }
+    func sessionLogLine(_ line: String) { target?.sessionLogLine(line) }
+    func sessionScriptedTraceFailed(_ fileName: String) { target?.sessionScriptedTraceFailed(fileName) }
+    func sessionScriptedTraceChanged(_ open: Bool) { target?.sessionScriptedTraceChanged(open) }
+    func sessionBatchDone() { target?.sessionBatchDone() }
+}
+
+extension EmulatorViewModel {
+    func sessionBreakpointHit(_ pc: UInt16) {
+        DispatchQueue.main.async { [weak self] in self?.onBreakpointHit(pc: pc) }
+    }
+
+    /// An armed freeze fired; the run loop has stopped. Owner 0 = CPU panel
+    /// (FREEZE ON START), 1 = CALCULATOR panel (next PC change).
+    func sessionFreezeFired(_ owner: Int) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self, let m = self.machine else { return }
+            self.freezeOwner = owner == 0 ? .cpu : .calculator
+            // Set freezeReason before clearing the armed flags so updateDebugTraceFlags()
+            // keeps tracing enabled throughout.
+            self.freezeReason = .manual
+            self.pendingCPUScanLoopFreeze = false
+            self.pendingFreezeOnPCChange = false
+            if owner == 0 {
+                if self.liveDebugEnabled { self.liveDebugSnapshot = self.buildLiveSnapshot(machine: m) }
+            } else {
+                m.beginNextStep()
+                self.liveDebugSnapshot = self.buildLiveSnapshot(machine: m)
             }
+            self.captureInspectorSnapshot(machine: m)
         }
     }
 
-    // ── Binary trace file (TI59_TRACE.bin) ───────────────────────────────────
-    // Drain the CPU ring buffer and forward frames to TraceWriter.
-    // Called from tick() (main thread, 60 Hz) and from the emulQueue close path.
+    func sessionHeldKeyChanged(_ highlightID: Int) {
+        DispatchQueue.main.async { [weak self] in self?.keyboardHeldKey = highlightID >= 0 ? highlightID : nil }
+    }
 
-    private func drainTraceEvents(machine m: TI59MachineWrapper) {
-        var lost: UInt = 0
-        let framesNS = m.drainCpuFrames(max: 1024, lost: &lost)
-
-        // Write gap record if ring overflow occurred, to whichever writer(s) are open.
-        if lost > 0 {
-            traceWriter.writeLostGap(count: UInt32(lost))
-            scriptedTraceWriter.writeLostGap(count: UInt32(lost))
+    func sessionFullSpeedChanged(_ on: Bool) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.isFullSpeedMode != on else { return }
+            self.isFullSpeedMode = on
         }
+    }
 
-        guard !framesNS.isEmpty else { return }
+    func sessionPlaybackStarted() {
+        DispatchQueue.main.async { [weak self] in self?.isKeystrokesPlaying = true }
+    }
 
-        // There is a single consuming ring-buffer cursor (drainCpuFrames above), so both
-        // writers — the manual "C" indicator toggle and the scripted Trace: directive —
-        // share this one drain and independently choose whether to persist each frame.
-        for frameVal in framesNS {
-            guard traceWriter.isOpen || scriptedTraceWriter.isOpen else { break }
-            var frame = TICpuFrame()
-            frameVal.getValue(&frame)
-            if traceWriter.isOpen { traceWriter.write(frame: frame) }
-            if scriptedTraceWriter.isOpen { scriptedTraceWriter.write(frame: frame) }
+    func sessionPlaybackFinished() {
+        DispatchQueue.main.async { [weak self] in self?.isKeystrokesPlaying = false }
+    }
+
+    func sessionTogglePrinterTrace() {
+        DispatchQueue.main.async { [weak self] in self?.togglePrinterTrace() }
+    }
+
+    func sessionLogLine(_ line: String) {
+        DispatchQueue.main.async { [weak self] in self?.ringWriteAll([line]) }
+    }
+
+    func sessionScriptedTraceFailed(_ fileName: String) {
+        print("[EmulatorViewModel] KEYSTROKES \"Trace: \(fileName)\" failed to open trace file in \(AppSettings.traceDirectory().path)")
+    }
+
+    func sessionScriptedTraceChanged(_ open: Bool) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.isScriptedTraceOpen = open
+            self.updateDebugTraceFlags()
         }
+    }
+
+    /// After every run-loop batch: mark TI-58C state for the debounced persist.
+    func sessionBatchDone() {
+        if model.hasConstantMemory { persistPending = true }
     }
 }
 

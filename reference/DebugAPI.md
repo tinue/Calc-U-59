@@ -186,7 +186,7 @@ inspect and single-step through program execution.
 
 #### `freeze(reason: FreezeReason = .manual)`
 
-Stops the emulation loop and waits (on `emulQueue`) for the CPU to reach the next
+Stops the emulation loop and waits (on the emulation thread) for the CPU to reach the next
 keycode boundary.  On return, `isFrozen` is `true` and the following caches are
 built once for the frozen view:
 

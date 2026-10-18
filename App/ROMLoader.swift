@@ -16,7 +16,7 @@ struct ROMLoader {
     private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "Calc-U-59", category: "ROMLoader")
 
     /// Text of a bundled resource by bare file name ("TMC0582.txt").
-    private static let bundleReader: TIResourceReader = { fileName in
+    static let bundleReader: TIResourceReader = { fileName in
         let name = (fileName as NSString).deletingPathExtension
         let ext = (fileName as NSString).pathExtension
         guard let url = Bundle.main.url(forResource: name, withExtension: ext) else { return nil }
@@ -31,32 +31,18 @@ struct ROMLoader {
         return text
     }
 
-    /// The model's 6144 13-bit ROM words as little-endian UInt16 data.
-    static func load(model: MachineModel) throws -> Data {
-        try TIFileFormats.loadRom(forModel: model.rawValue, reader: bundleReader)
-    }
-
-    /// The model's 64 × 16 constant nibbles.
-    static func loadConstants(model: MachineModel) throws -> Data {
-        try TIFileFormats.loadConstants(forModel: model.rawValue, reader: bundleReader)
-    }
-
     /// Metadata for all solid-state modules, in menu order.
     static func loadAllModuleMetadata() -> [ModuleMetadata] {
         TIFileFormats.allModuleMetadata(cuecardsText).map(ModuleMetadata.init)
     }
 
-    /// Library image of the module with the given ID.
-    static func loadModuleLibrary(moduleID: String) -> Data? {
+    /// The ROM file (MODULE-ROM) of the module with the given ID.
+    static func moduleRomFile(moduleID: String) -> String? {
         guard let file = TIFileFormats.moduleRomFile(cuecardsText, moduleID: moduleID) else {
             logger.error("No MODULE-ROM entry found for module ID \(moduleID, privacy: .public)")
             return nil
         }
-        guard let data = TIFileFormats.loadModuleRom(file, reader: bundleReader) else {
-            logger.error("Failed to load solid-state ROM \(file, privacy: .public)")
-            return nil
-        }
-        return data
+        return file
     }
 
     /// Per-program cue cards (program number → card) and metadata of one module.

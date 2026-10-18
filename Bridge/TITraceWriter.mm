@@ -1,4 +1,4 @@
-#import "TITraceWriter.h"
+#import "TITraceWriter+Cpp.h"
 #include "../Shared/TraceWriter.hpp"
 #include <cstddef>
 #include <cstring>
@@ -16,11 +16,20 @@ SAME_OFFSET(m_libAddrReadPos); SAME_OFFSET(displayOn); SAME_OFFSET(maxDigitDecay
 #undef SAME_OFFSET
 
 @implementation TITraceWriter {
-    std::unique_ptr<cu59::TraceWriter> _writer;
+    std::unique_ptr<cu59::TraceWriter> _owned;
+    cu59::TraceWriter* _writer;
 }
 
 - (instancetype)initWithModel:(NSInteger)model {
-    if ((self = [super init])) _writer = std::make_unique<cu59::TraceWriter>(static_cast<cu59::Model>(model));
+    if ((self = [super init])) {
+        _owned = std::make_unique<cu59::TraceWriter>(static_cast<cu59::Model>(model));
+        _writer = _owned.get();
+    }
+    return self;
+}
+
+- (instancetype)initWithWriter:(cu59::TraceWriter *)writer {
+    if ((self = [super init])) _writer = writer;
     return self;
 }
 

@@ -5,3 +5,4 @@
 #import "TIFileFormats.h"
 #import "TITraceWriter.h"
 #import "TIDebugModel.h"
+#import "TISession.h"

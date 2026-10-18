@@ -22,9 +22,10 @@ Calc-U-59App                 (app entry point, scene lifecycle)
     └─ DebugView             (register/SCOM/program dump panel)
 
 EmulatorViewModel (@Observable)
-├─ TI59MachineWrapper        (ObjC++ bridge object)
-│   └─ TI59Machine           (C++ core, see CoreArchitecture.md)
-├─ emulQueue                 (serial DispatchQueue — CPU thread)
+├─ TISession                 (ObjC++ bridge → Shared/EmulatorSession: run loop thread,
+│   │                         freezes, key sequencer, frame sampler, trace writers)
+│   └─ TI59MachineWrapper    (ObjC++ bridge object sharing the session's machine)
+│       └─ TI59Machine       (C++ core, see CoreArchitecture.md)
 └─ displayTimer              (60 Hz main-thread Timer)
 
 Support files:
@@ -72,8 +73,14 @@ Shared/ (C++, used by this app via Bridge/ and by the Qt6 app):
 | Thread | What runs there |
 |---|---|
 | **Main thread** | SwiftUI rendering, `tick()` timer callbacks (60 Hz), all mutations to `@Observable` properties |
-| **emulQueue** (serial, `.userInteractive`) | Emulation loop (`startEmulationLoop`), `emulQueue.sync {}` drains in `loadStateFile` |
+| **Emulation thread** (`Shared/EmulationRunner`, one per session) | The paced run loop, plus every job posted with `session.post` / `session.sync` — freeze-to-keycode, single steps, state-file application, ASM overlay entry — always after the loop has exited |
+| **Key sequencer threads** (`Shared/KeySequencer`) | KEYSTROKES playback and physical-keyboard taps (two independent lanes), deferred key releases |
 | **global/utility** | `CardStorage.warmUp()` — `url(forUbiquityContainerIdentifier:)` blocks and returns nil if called on the main thread |
+
+Session events (breakpoint, freeze fired, held key, full speed, playback
+start/end, scripted trace, log lines) arrive through `TISessionDelegate` on the
+session's threads; `SessionEventForwarder` hands them to the view model, which
+hops to the main thread before touching observable state.
 
 `TI59Machine`'s `m_keyMutex` makes C++ state thread-safe; the Swift layer does
 not need its own lock.  Display snapshots and printer output each have their own
@@ -89,16 +96,19 @@ Target:  14,218.75 instructions/sec  (455 kHz ÷ 2 ÷ 16, same as hardware)
 Batch:   ~284 cycles every 20 ms     (targetHz × batchMs)
 ```
 
-`startEmulationLoop` runs a `while isRunning` loop on `emulQueue`:
+The run loop is shared C++ (`Shared/EmulationRunner.cpp` + `Shared/Pacing.cpp`),
+started with `session.start()`:
 
 1. Call `step()` repeatedly, accumulating the returned cycle weights.
 2. When accumulated weight ≥ 284 cycles, subtract 284 (carry over overshoot to
    the next batch rather than resetting to zero — this prevents long-term drift).
-3. Sleep for the remainder of the 20 ms window.
+3. Sleep for the remainder of the 20 ms window — skipped at full speed unless
+   the CPU is in the scan/key-detect range or the batch polled hardware.
 
-`step()` returns its cycle weight in bits 30:0 and sets bit 31 if a breakpoint
-was hit.  On a breakpoint hit the loop sets `isRunning = false` and posts a
-`onBreakpointHit` call to the main thread.
+`step()` returns its cycle weight in bits 29:0, sets bit 30 for a confirmed
+hardware poll and bit 31 if a breakpoint was hit.  On a breakpoint, or when an
+armed freeze (`Shared/FreezeController`) fires, the loop stops and the session
+reports it to the delegate.
 
 ---
 
@@ -106,16 +116,19 @@ was hit.  On a breakpoint hit the loop sets `isRunning = false` and posts a
 
 `startDisplayRefresh` creates a `Timer` on the main run loop.  Every 16 ms:
 
-1. **Auto-eject detection**: if `cardState == .swiping` but `isCardPresent` is
-   now false, the C++ layer has executed `CRD_OFF`; call `ejectCard()` to save
-   any written card data.
-2. **Printer drain**: collect text lines and raw code lines from the C++ printer
-   queue into `printerLines` / `printerCodeLines`.
-3. **Trace drain**: if tracing is enabled, pull up to 512 `TITraceEvent`s and
-   append to `traceEvents` (capped at a sliding window of 512).
-4. **Display update**: call `getDisplay()`, copy into local arrays, and assign
-   to `@Observable` properties only when the value actually changed — guarding
-   assignments prevents unnecessary SwiftUI re-renders on every tick.
+`session.tick` (`Shared/FrameSampler.cpp`) returns one frame:
+
+1. **Auto-eject detection**: the card was swiping but `isCardPresent` is now
+   false — the core executed `CRD_OFF`; `ejectCard()` saves any written data.
+2. **Printer and log drain**: text lines and raw code lines from the printer
+   queue; core debug messages at or below the debug level.
+3. **Display update**: the display snapshot, held while the display is lit but
+   the CPU is not IDLE; assigned to `@Observable` properties only when the
+   value actually changed (guarding prevents 60 Hz re-renders).
+4. **C indicator**: the smoothed opacity.
+
+The view model then builds the debug snapshots for visible panels and drains
+the trace ring into the open trace writers (`session.drainTrace`).
 
 ---
 
@@ -205,7 +218,7 @@ apart. A release that lands too early is discarded as bounce.
 
 - A press is held a **minimum** hold time even if key-up arrives sooner — the
   release is deferred, not dropped. Without this, fast typing loses keys.
-  100 ms in the app (`EmulatorViewModel.tapMatrixKey`, shared with KEYSTROKES
+  100 ms in the apps (`Shared/KeySequencer.cpp`, shared with KEYSTROKES
   script playback); 80 ms hold + 120 ms gap on the web, matching
   `calc-engine-worker.js`'s KEYSTROKES replay.
 - **One key at a time.** A key-down while another is held releases the previous
@@ -257,10 +270,9 @@ Keys are only claimed while the calculator has focus, on both platforms.
    calls ejectCard(), which collects any written bytes and saves to disk.
 ```
 
-Card file format (`.U59`):
-- Header: 13 bytes `Calc-U-59-CRD` (ASCII)
-- Payload: 246 bytes (one bank, exactly what `OUT CRD` produced)
-- Legacy files (246 or 984 bytes, no header) are still accepted on load.
+Card file format (`.U59`): written as text ("Calc-U-59 Card 1.0", see
+`Shared/CardFile.hpp`). Still read: the binary layout with the 13-byte
+`Calc-U-59-CRD` header + 246 bytes, and legacy headerless 246 / 984-byte files.
 
 ---
 
@@ -271,8 +283,8 @@ to RAM without simulating key presses (except for the optional `KEYSTROKES:` sec
 
 ```
 1. LoadStateResult(parsing:) → Shared/StateFile parseStateFile (partition, program steps, registers, keystrokes)
-2. Stop the emulation loop; drain emulQueue with sync{} to ensure no in-flight step.
-3. emulQueue.sync { cu59::applyState(...) }  (Shared/StateApplier.cpp):
+2. Stop the emulation loop; session.sync {} waits until no step is in flight.
+3. session.sync { cu59::applyState(...) }  (Shared/StateApplier.cpp):
    a. machine.reset()
    b. stepN(300_000)                      ← run ROM's power-on startup routine to idle
    c. setPartitionProgramRegs(n)          ← write partition directly into SCOM

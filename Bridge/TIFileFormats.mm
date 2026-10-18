@@ -1,4 +1,4 @@
-#import "TIFileFormats.h"
+#import "TIFileFormats+Cpp.h"
 #import "TI59MachineWrapper+Cpp.h"
 #include "../Shared/CardFile.hpp"
 #include "../Shared/ConstantMemory.hpp"
@@ -117,8 +117,9 @@ static TICueCard* _Nullable optionalCard(const std::optional<cu59::CueCardConten
 @end
 @implementation TIStateFileResult {
 @public
-    std::shared_ptr<const cu59::LoadStateResult> _cpp;  // the parse, for the applier
+    std::shared_ptr<const cu59::LoadStateResult> _cpp;  // the parse, for the applier and playback
 }
+- (const cu59::LoadStateResult &)cppResult { return *_cpp; }
 @end
 
 @interface TICardFile ()

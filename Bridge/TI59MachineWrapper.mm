@@ -3,7 +3,7 @@
 #include <memory>
 
 @implementation TI59MachineWrapper {
-    std::unique_ptr<TI59Machine> _machine;
+    std::shared_ptr<TI59Machine> _machine;
 }
 
 - (instancetype)initWithModel:(NSInteger)model {
@@ -15,7 +15,7 @@
             case 2:  v = MachineVariant::TI58C; break;
             default: v = MachineVariant::TI59;  break;
         }
-        _machine = std::make_unique<TI59Machine>(v);
+        _machine = std::make_shared<TI59Machine>(v);
     }
     return self;
 }
@@ -361,5 +361,9 @@ static TICpuFrame marshalCpuFrame(const CpuFrame& f) {
 @end
 
 @implementation TI59MachineWrapper (Cpp)
+- (instancetype)initWithSharedMachine:(std::shared_ptr<TI59Machine>)machine {
+    if ((self = [super init])) _machine = std::move(machine);
+    return self;
+}
 - (TI59Machine *)cppMachine { return _machine.get(); }
 @end
