@@ -10,9 +10,9 @@
 #   release ios --release   App Store Connect: metadata, screenshots, build
 #
 # The Swift macOS app is built, Developer-ID-signed, notarized and stapled
-# locally. Once the Qt6 Windows/Linux GitHub workflow exists, add it here as
-# a second build step (kind: github-dispatch); its artifacts then go into the
-# same pre-release as the DMG.
+# locally. The Qt6 Windows and Linux builds come from
+# .github/workflows/build.yml (dispatched, no publish job of its own); their
+# artifacts go into the same pre-release as the DMG. There is no Mac Qt build.
 
 name: Calc-U-59
 
@@ -20,11 +20,26 @@ version:
   preset: xcode
   file: Calc-U-59.xcodeproj/project.pbxproj
 
+release:
+  # GitHub Releases doesn't keep Unix file permissions on uploaded assets.
+  notes_suffix: >-
+    **Linux**: the downloaded .AppImage needs its executable bit set before it
+    will run — GitHub Releases doesn't preserve file permissions on uploaded
+    assets. Run `chmod +x Calc-U-59-*.AppImage` once after downloading, then
+    launch it directly. **Windows**: the installer is unsigned.
+
 build:
   - kind: xcode-dmg
     project: Calc-U-59.xcodeproj
     scheme: Calc-U-59
     export_options: bin/ExportOptions.plist
+  - kind: github-dispatch
+    workflow: build.yml
+    artifacts:
+      - { artifact: Calc-U-59-linux-x86_64,   file: "Calc-U-59-*.AppImage",       as: Calc-U-59-linux-x86_64.AppImage, executable: true }
+      - { artifact: Calc-U-59-linux-aarch64,  file: "Calc-U-59-*.AppImage",       as: Calc-U-59-linux-aarch64.AppImage, executable: true }
+      - { artifact: Calc-U-59-windows-x86_64, file: Calc-U-59-Setup.exe,          as: Calc-U-59-windows-x86_64.exe }
+      - { artifact: Calc-U-59-windows-arm64,  file: Calc-U-59-Setup-arm64.exe,    as: Calc-U-59-windows-arm64.exe }
 
 appstore:
   worktree: appstore

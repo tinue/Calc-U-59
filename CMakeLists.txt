@@ -82,7 +82,17 @@ endif()
 # -----------------------------------------------------------------------------
 # Qt6 desktop app (optional: Core/Shared/tests build without Qt)
 # -----------------------------------------------------------------------------
+# Qt6/CMakeLists.txt stays the release entry point (CI configures -S Qt6);
+# this only pulls the same directory in for IDEs and local development.
 option(CALCU59_BUILD_QT "Build the Qt6 desktop app when Qt6 is available" ON)
-if(CALCU59_BUILD_QT AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/Qt6/CMakeLists.txt)
-  add_subdirectory(Qt6)
+if(CALCU59_BUILD_QT)
+  if(APPLE AND NOT DEFINED CMAKE_PREFIX_PATH AND EXISTS /opt/homebrew/opt/qt)
+    list(APPEND CMAKE_PREFIX_PATH /opt/homebrew/opt/qt)
+  endif()
+  find_package(Qt6 QUIET COMPONENTS Widgets)
+  if(Qt6_FOUND)
+    add_subdirectory(Qt6)
+  else()
+    message(STATUS "Qt6 not found: building Core, Shared and the tests only")
+  endif()
 endif()

@@ -1,0 +1,157 @@
+# Calc-U-59 Qt6 builds for Windows and Linux, plus the C++ test suite.
+#
+# Run by hand (workflow_dispatch) — ReleaseIt's `release` dispatches it for a
+# pre-release and attaches the artifacts (release.yaml). There is no macOS Qt
+# job on purpose: on the Mac the Swift app (built locally) is the product, and
+# the Mac Qt build is for development only (tools/build_qt.sh).
+#
+# ROMs are committed under roms/ and compiled into the app as Qt resources,
+# so no fetch step is needed.
+
+name: Build
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  core-tests:
+    # Core/ + Shared/ + tests from the root CMakeLists.txt, without Qt.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake ninja-build python3
+      - name: Configure
+        run: cmake -S . -B build/cmake -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCALCU59_BUILD_QT=OFF
+      - name: Build
+        run: cmake --build build/cmake
+      - name: Run tests
+        run: ctest --test-dir build/cmake --output-on-failure
+
+  linux:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install Qt6 + build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake ninja-build patchelf \
+            qt6-base-dev qt6-base-dev-tools qt6-wayland libgl1-mesa-dev qt6-gtk-platformtheme qt6ct
+      - name: Configure
+        run: cmake -S Qt6 -B Qt6/build -G Ninja -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build Qt6/build
+      - name: Build AppImage
+        env:
+          QMAKE: /usr/lib/qt6/bin/qmake6
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+          # Wayland sessions (the default on current desktops) need these on top
+          # of the xcb plugin linuxdeploy-plugin-qt deploys by default.
+          EXTRA_PLATFORM_PLUGINS: "libqwayland-egl.so;libqwayland-generic.so"
+        run: |
+          set -euo pipefail
+          mkdir -p AppDir/usr/bin
+          cp Qt6/build/Calc-U-59 AppDir/usr/bin/
+          curl -fsSL -o linuxdeploy.AppImage \
+            https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${{ matrix.arch }}.AppImage
+          curl -fsSL -o linuxdeploy-plugin-qt.AppImage \
+            https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-${{ matrix.arch }}.AppImage
+          chmod +x linuxdeploy.AppImage linuxdeploy-plugin-qt.AppImage
+          export PATH="$PWD:$PATH"
+          ./linuxdeploy.AppImage --appdir=AppDir --executable=AppDir/usr/bin/Calc-U-59 \
+            --desktop-file=Qt6/resources/linux/calc-u-59.desktop \
+            --icon-file=Qt6/resources/linux/calc-u-59.png --plugin=qt
+          QT_PLUGINS_DIR=$("$QMAKE" -query QT_INSTALL_PLUGINS)
+          # Wayland EGL rendering and the desktop's platform theme (dark/light, dialogs).
+          for dir in wayland-graphics-integration-client platformthemes styles; do
+            if [ -d "$QT_PLUGINS_DIR/$dir" ]; then
+              cp -r "$QT_PLUGINS_DIR/$dir" AppDir/usr/plugins/
+              ./linuxdeploy.AppImage --appdir=AppDir --deploy-deps-only=AppDir/usr/plugins/$dir
+            else
+              echo "::warning::$dir plugins not found in $QT_PLUGINS_DIR"
+            fi
+          done
+          # Default to the GTK platform theme unless the user picked one.
+          mv AppDir/AppRun AppDir/AppRun.qt
+          printf '%s\n' '#!/bin/sh' \
+            'export QT_QPA_PLATFORMTHEME="${QT_QPA_PLATFORMTHEME:-gtk3}"' \
+            'HERE="$(dirname "$(readlink -f "$0")")"' \
+            'exec "$HERE/AppRun.qt" "$@"' > AppDir/AppRun
+          chmod +x AppDir/AppRun
+          ./linuxdeploy.AppImage --appdir=AppDir --output=appimage
+      - name: Upload artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: Calc-U-59-linux-${{ matrix.arch }}
+          path: Calc-U-59-*.AppImage
+          if-no-files-found: error
+
+  windows:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: windows-latest
+            qt-host: windows
+            qt-arch: win64_msvc2022_64
+            msvc-arch: x64
+            iss-arch: x64
+            installer: Calc-U-59-Setup.exe
+          - arch: arm64
+            runner: windows-11-arm
+            qt-host: windows_arm64
+            qt-arch: win64_msvc2022_arm64
+            msvc-arch: arm64
+            iss-arch: arm64
+            installer: Calc-U-59-Setup-arm64.exe
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install Qt6 (MSVC)
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.2'
+          host: ${{ matrix.qt-host }}
+          target: 'desktop'
+          arch: ${{ matrix.qt-arch }}
+      - name: Set up MSVC dev environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.msvc-arch }}
+      - name: Install Ninja
+        uses: seanmiddleditch/gha-setup-ninja@v6
+      - name: Configure
+        run: cmake -S Qt6 -B Qt6/build -G Ninja -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build Qt6/build
+      - name: Stage the app folder
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path Qt6/dist | Out-Null
+          Copy-Item Qt6/build/Calc-U-59.exe Qt6/dist/
+          Copy-Item LICENSE, THIRD-PARTY-NOTICES.md Qt6/dist/
+          Copy-Item licenses Qt6/dist/licenses -Recurse
+          windeployqt --release --compiler-runtime Qt6/dist/Calc-U-59.exe
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup -y
+      - name: Build installer
+        shell: pwsh
+        run: ISCC.exe /DAPP_ARCH=${{ matrix.iss-arch }} Qt6\resources\windows\calc-u-59.iss
+      - name: Upload artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: Calc-U-59-windows-${{ matrix.arch }}
+          path: ${{ matrix.installer }}
+          if-no-files-found: error
