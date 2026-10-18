@@ -21,12 +21,16 @@ std::string stepMnemonic(uint8_t kc, bool isArgument) { return isArgument ? twoD
 /// Return-stack level: PRG SOURCE at `at`, then the Base-80 address read right to left.
 int base80(const uint8_t* n, int at) { return n[at + 4] * 800 + n[at + 3] * 80 + n[at + 2] * 8 + n[at + 1]; }
 
-/// "<digits>e<exponent>" through strtod, so the 13 mantissa digits come back exactly with %.13g.
-double decimalValue(const uint8_t* n, int exponent, bool negative) {
+/// Digits 15–3 with the exponent in 2–1, less `pointShift` places, and the signs
+/// in `flags` bits 2 (mantissa) and 3 (exponent). Through strtod, so the 13
+/// mantissa digits come back exactly with %.13g.
+double decimalValue(const uint8_t* n, uint16_t flags, int pointShift) {
     std::string digits;
     for (int i = 15; i >= 3; --i) digits += static_cast<char>('0' + n[i]);
-    double v = std::strtod((digits + "e" + std::to_string(exponent)).c_str(), nullptr);
-    return negative && v != 0 ? -v : v;
+    int exponent = n[2] * 10 + n[1];
+    if (flags & (1u << 3)) exponent = -exponent;
+    double v = std::strtod((digits + "e" + std::to_string(exponent - pointShift)).c_str(), nullptr);
+    return (flags & (1u << 2)) && v != 0 ? -v : v;
 }
 
 bool decimalDigits(const uint8_t* n, int from) { return std::all_of(n + from, n + 16, [](uint8_t d) { return d <= 9; }); }
@@ -36,9 +40,7 @@ bool decimalDigits(const uint8_t* n, int from) { return std::all_of(n + from, n 
 bool normalizedValue(const uint8_t* n, uint16_t flags, double& value) {
     bool zero = std::all_of(n + 3, n + 16, [](uint8_t d) { return d == 0; });
     if (n[0] != 0xC || !decimalDigits(n, 1) || (n[15] == 0 && !zero)) return false;
-    int exponent = n[2] * 10 + n[1];
-    if (flags & (1u << 3)) exponent = -exponent;
-    value = decimalValue(n, exponent - 12, (flags & (1u << 2)) != 0);
+    value = decimalValue(n, flags, 12);
     return true;
 }
 
@@ -72,13 +74,8 @@ void decodeX(const CpuFrame& cpu, bool atStepBoundary, LiveDebugSnapshot& snap) 
         std::copy(a + 4, a + 16, a + 3);  // A=SRA MANT
         a[15] = 0;
     }
-    if (decimalDigits(a, 1) && a[0] <= 10) {
-        int exponent = a[2] * 10 + a[1];
-        if (cpu.fA & (1u << 3)) exponent = -exponent;
-        snap.xValue = decimalValue(a, exponent - a[0], (cpu.fA & (1u << 2)) != 0);
-    } else {
-        snap.xRaw = "A=" + nibbleHex(cpu.A, true);
-    }
+    if (decimalDigits(a, 1) && a[0] <= 10) snap.xValue = decimalValue(a, cpu.fA, a[0]);
+    else snap.xRaw = "A=" + nibbleHex(cpu.A, true);
 }
 
 } // namespace

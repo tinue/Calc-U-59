@@ -57,7 +57,7 @@ tracked here (see `NewGUIGuide.md`).
 |---|---|---|---|---|---|
 | CALCULATOR tab: registers, flags, HIR, T, return stack, partition, source | `LiveDebugView` | `LiveDebugWidget` | `DebugModel`, `DebugSnapshots`, `DebugText`, `ModuleImage` | Both | |
 | Program steps ±5 running / full listing frozen | `LiveDebugView` | `LiveDebugWidget` | `DebugModel` (listing, SolidStateReturn advance), `DebugSnapshots` | Both | |
-| FREEZE, FREEZE ON START (next PC change), ARMED, RESUME, STEP (hold to repeat) | `LiveDebugView` | `LiveDebugWidget` | `EmulatorSession` (DebugState, freeze/step), `SessionController`, `FreezeController` | Both | |
+| FREEZE, FREEZE ON START (next step), ARMED, RESUME, STEP (hold to repeat) | `LiveDebugView` | `LiveDebugWidget` | `EmulatorSession` (DebugState, freeze/step), `SessionController`, `FreezeController` | Both | |
 | CPU tab: history, registers, control registers, display state | `CPUInspectorView` | `CpuInspectorWidget` | `DebugModel` (cpuHistory), `DebugSnapshots`, `DebugText` | Both | |
 | CPU FREEZE ON START (scan-loop exit), STEP | `CPUInspectorView` | `CpuInspectorWidget` | `EmulatorSession` (DebugState, stepInstruction), `SessionController`, `FreezeController` | Both | |
 | ROM heatmap with hover address, CLR | `CPUInspectorView` | `RomHeatmapWidget` | `DebugModel`, `RomHeatmap` | Both | |

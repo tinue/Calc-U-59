@@ -111,12 +111,12 @@ public:
     /// Execute one instruction at the current program counter.
     ///
     /// Returns the cycle weight of this instruction for emulation pacing in the
-    /// low bits:
+    /// low bits (kWeightMask):
     ///   1 — normal instruction (active / computing mode)
     ///   4 — normal instruction while FLG_IDLE is set (idle/display mode runs
     ///       at 1/4 clock speed, matching the hardware's power-saving divider)
     ///
-    /// Bit 0x4000'0000 is set on a backward branch that retries a KEY-scan or
+    /// Bit kPolledHardware is set on a backward branch that retries a KEY-scan or
     /// TST.BUSY hardware poll (opcode 0x08xx, or TST BUSY: opcode & 0x0F0F ==
     /// 0x0A0B) executed the instruction immediately before it — i.e. a genuine
     /// ROM spin-wait on state whose real-world completion time doesn't depend on
@@ -137,9 +137,11 @@ public:
     /// interpreter's step dispatch (stepDispatchPC()): a program step boundary.
     /// The CPU state there is latched (lastStepBoundary()), and also on entry to
     /// the idle loop (kIdleEntryPC, no bit): the calculator-level boundaries.
-    /// TI59Machine::step() ORs in a separate bit, 0x8000'0000, for "breakpoint hit".
+    /// TI59Machine::step() ORs in a separate bit, kBreakpointHit, for "breakpoint hit".
     int step();
+    static constexpr int kWeightMask = 0xFF;
     static constexpr int kStepBoundary = 0x2000'0000;
+    static constexpr int kPolledHardware = 0x4000'0000;
 
     /// The CPU state at the last step boundary or idle entry, with the module
     /// fetch latch of that moment and a count of boundaries (0 = none since reset).
@@ -266,9 +268,7 @@ public:
     /// the module fetch latch) names the step about to run, the previous step is
     /// complete, and X is back in A/C (rom/TI59-commented.asm 0837; the TI-58C
     /// ROM has it at 082B, 8 words after its LIB_EXEC_FETCH like the TI-59's).
-    uint16_t stepDispatchPC() const {
-        return m_variant == MachineVariant::TI58C ? 0x082B : 0x0837;
-    }
+    uint16_t stepDispatchPC() const { return libExecFetchPC() + 8; }
 
     /// Where the ROM falls into the idle loop once nothing runs: after every
     /// keyboard operation and when a program stops (the "program running?" test
@@ -454,12 +454,11 @@ private:
 
     // Set by step() when the just-executed instruction was a KEY-scan or TST.BUSY
     // hardware poll; consumed (and cleared) by the very next step() to detect a
-    // backward branch retrying it — see step()'s 0x4000'0000 return-bit doc comment.
+    // backward branch retrying it — see step()'s kPolledHardware doc comment.
     bool m_lastStepWasHWPoll{false};
 
     // Latched at each step boundary and idle entry (see step()).
     StepBoundary m_stepBoundary{};
-    uint64_t m_stepBoundaryCount{0};
     int noteStepBoundary();
 
     static constexpr uint32_t kFrameRingSize = 1024u;

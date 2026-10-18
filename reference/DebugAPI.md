@@ -170,7 +170,7 @@ Swift copies it into `isFrozen`, `freezeOwner`, `pendingFreezeOnPCChange` and
 | `freezeInPlace(owner)` | Mark frozen where the stopped machine stands, no step (used by the ASM overlay's FREEZE ON START) |
 | `resume()` | Unfreeze and start the run loop |
 | `clearFreeze()` | Unfreeze without starting (caller stopped the loop to change state, e.g. a preset load) |
-| `armPcChange()` / `disarmPcChange()` | CALCULATOR armed freeze; checked by `FreezeController::checkBatch` per batch |
+| `armPcChange()` / `disarmPcChange()` | CALCULATOR armed freeze; fires at the next step boundary; checked by `FreezeController::checkStep` per instruction |
 | `armScanLoopExit()` / `disarmScanLoopExit()` | CPU armed freeze; checked by `FreezeController::checkStep` per instruction |
 | `stepKeycode()` | While frozen: `stepUntilNextKeycode()` (runs to the next step boundary, `TI59Machine::kStepBoundary`: one program byte per STEP, as SST; a jump completes in the byte that causes it) + `beginNextStep()` → `frozenViewReady(StepKeycode)` |
 | `stepInstruction()` | While frozen: one `step()`, repeated (≤ 32) while the PC stays put — a HOLD (`WAIT Dn`) — then `beginNextStep()` → `frozenViewReady(StepInstruction)` |

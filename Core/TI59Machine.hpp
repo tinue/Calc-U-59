@@ -18,9 +18,12 @@ public:
 
     /// Execute one CPU instruction. Returns TMC0501::step()'s weight and bits
     /// (kStepBoundary: the next instruction is the step dispatch), plus
-    /// 0x8000'0000 when a breakpoint was hit.
+    /// kBreakpointHit when a breakpoint was hit.
     uint32_t step();
+    static constexpr uint32_t kWeightMask = TMC0501::kWeightMask;
     static constexpr uint32_t kStepBoundary = TMC0501::kStepBoundary;
+    static constexpr uint32_t kPolledHardware = TMC0501::kPolledHardware;
+    static constexpr uint32_t kBreakpointHit = 0x8000'0000u;
 
     /// The CPU state latched at the last step boundary or idle entry (count 0: none since reset).
     TMC0501::StepBoundary lastStepBoundary() const;

@@ -1,5 +1,4 @@
 #pragma once
-#include "../Core/TI59Machine.hpp"
 #include "MachineModelInfo.hpp"
 #include <atomic>
 #include <cstdint>
@@ -8,7 +7,7 @@
 // The debugger's armed freezes, checked from the run loop:
 //  - FREEZE ON START (CPU tab): fires when the CPU leaves the steady keyboard
 //    scan loop — a key press, or a reset (PC jumps to 0000) while running.
-//  - Freeze on next PC change (CALCULATOR tab): fires at the next step
+//  - Freeze on the next step (CALCULATOR tab): fires at the next step
 //    boundary (TI59Machine::kStepBoundary), where a debugger STEP stops too.
 // The two are mutually exclusive: arming one disarms the other. Arming happens
 // on the UI thread, checking on the emulation thread.

@@ -46,7 +46,7 @@ uint32_t TI59Machine::step() {
     std::lock_guard<std::mutex> lock(m_keyMutex);
     auto r = static_cast<uint32_t>(m_cpu.step());
     if (m_cpu.consumeBreakpointHit()) {
-        r |= 0x8000'0000U;
+        r |= kBreakpointHit;
     }
     return r;
 }
@@ -282,7 +282,7 @@ uint32_t TI59Machine::stepUntilNextKeycode(uint32_t maxCycles) {
     uint32_t done = 0;
     while (done < maxCycles) {
         int r = m_cpu.step();
-        done += static_cast<uint32_t>(r & 0xFF);  // weight: 1 active, 4 IDLE
+        done += static_cast<uint32_t>(r & TMC0501::kWeightMask);  // weight: 1 active, 4 IDLE
         if (m_cpu.consumeBreakpointHit()) { break; }
         if (r & TMC0501::kStepBoundary) { break; }
     }

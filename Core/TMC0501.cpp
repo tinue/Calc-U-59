@@ -559,7 +559,7 @@ int TMC0501::step() {
         // A backward branch immediately after a KEY-scan/TST.BUSY poll means the ROM
         // is looping back to retry it — a genuine spin-wait, not just an incidental
         // poll on the way through otherwise-productive code. See step()'s doc comment.
-        if (wasHWPollLastStep && taken && backward) w |= 0x4000'0000;
+        if (wasHWPollLastStep && taken && backward) w |= kPolledHardware;
         w |= noteStepBoundary();
         return w;
     }
@@ -1010,7 +1010,7 @@ int TMC0501::step() {
 int TMC0501::noteStepBoundary() {
     const bool atStep = addr == stepDispatchPC();
     if (!atStep && addr != kIdleEntryPC) return 0;
-    m_stepBoundary = {snapshotCPU(), m_libExecPC, atStep, ++m_stepBoundaryCount};
+    m_stepBoundary = {snapshotCPU(), m_libExecPC, atStep, m_stepBoundary.count + 1};
     return atStep ? kStepBoundary : 0;
 }
 

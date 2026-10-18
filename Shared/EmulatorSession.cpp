@@ -130,7 +130,7 @@ void EmulatorSession::armPcChange() {
 }
 
 void EmulatorSession::armScanLoopExit() {
-    m_freeze.armScanLoopExit(m_machine->pc());  // disarms the PC change
+    m_freeze.armScanLoopExit(m_machine->pc());  // disarms the step-boundary freeze
     {
         std::lock_guard<std::mutex> lock(m_stateMutex);
         m_state.scanLoopExitArmed = true;

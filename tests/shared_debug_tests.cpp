@@ -80,8 +80,8 @@ TEST(step_shows_the_next_step) {
     std::vector<uint8_t> prog = {76, 11, 1, 85, 61, 0, 17};
     prog.resize(17, 68);
     prog.insert(prog.end(), {2, 95, 91});
-    CHECK(stepThrough(prog, 19) ==
-          (std::vector<std::string>{"3 X: 1", "4 X: 1", "5 X: 1", "6 X: 1", "17 X: 1", "18 X: 2", "19 X: 3"}));
+    const std::vector<std::string> gto = {"3 X: 1", "4 X: 1", "5 X: 1", "6 X: 1", "17 X: 1", "18 X: 2", "19 X: 3"};
+    CHECK(stepThrough(prog, 19) == gto);
     // An entry with EE inside a program: A is realigned before each dispatch.
     // LBL A, 1, ., 5, EE, 3, +, 2, =, R/S
     CHECK(stepThrough({76, 11, 1, 93, 5, 52, 3, 85, 2, 95, 91}, 10) ==
@@ -94,8 +94,7 @@ TEST(step_shows_the_next_step) {
     CHECK(std::find(pr.begin(), pr.end(), "284 X: 4") != pr.end());
     CHECK(std::none_of(pr.begin(), pr.end(), [](const std::string& s) { return s.find("X: A=") != std::string::npos; }));
     // The TI-58C's ROM has its dispatch elsewhere (082B).
-    CHECK(stepThrough(prog, 19, Model::TI58C) ==
-          (std::vector<std::string>{"3 X: 1", "4 X: 1", "5 X: 1", "6 X: 1", "17 X: 1", "18 X: 2", "19 X: 3"}));
+    CHECK(stepThrough(prog, 19, Model::TI58C) == gto);
 }
 
 // While a program runs, the view is built from the last latched boundary, so

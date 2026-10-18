@@ -124,7 +124,7 @@ class EmulatorViewModel {
     var liveDebugSnapshot: LiveDebugSnapshot = .empty
     private(set) var isFrozen: Bool = false
     private(set) var freezeOwner: FreezePanel? = nil
-    /// CALCULATOR "FREEZE ON START": freeze on the next PC change. Setting it to
+    /// CALCULATOR "FREEZE ON START": freeze before the next program step. Setting it to
     /// false (the ARMED button) disarms it.
     var pendingFreezeOnPCChange: Bool = false {
         didSet { if !pendingFreezeOnPCChange && controller.pcChangeArmed { controller.disarmPcChange() } }

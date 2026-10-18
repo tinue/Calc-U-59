@@ -40,7 +40,7 @@ struct TraceConsumers {
 struct DebugState {
     bool frozen = false;
     std::optional<FreezeOwner> owner;   ///< the panel whose RESUME / STEP apply
-    bool pcChangeArmed = false;         ///< CALCULATOR: FREEZE ON START (next PC change)
+    bool pcChangeArmed = false;         ///< CALCULATOR: FREEZE ON START (next step boundary)
     bool scanLoopExitArmed = false;     ///< CPU: FREEZE ON START (scan-loop exit)
     uint64_t generation = 0;
     bool operator==(const DebugState& o) const {
