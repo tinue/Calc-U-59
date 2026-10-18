@@ -31,6 +31,11 @@ enum class ProgramSource {
 
 ProgramSource programSourceFrom(uint8_t flag, uint16_t romPC);
 
+/// Debugger label, e.g. "Prg Source: ROM Program". Undocumented flag values
+/// that decode like an official one (3, 5, 7, 9 → Solid State; A, C, E → ROM)
+/// show the raw value; fast mode always does (it has no value of its own).
+std::string programSourceLabel(ProgramSource source, uint8_t flag);
+
 /// Steps are fetched from program RAM.
 inline bool isUserProgram(ProgramSource s) { return s == ProgramSource::UserProgram || s == ProgramSource::FastMode; }
 

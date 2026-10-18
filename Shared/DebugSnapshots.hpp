@@ -94,6 +94,28 @@ struct LiveDebugBuild {
     std::optional<std::pair<int, int>> libProgramMismatch;
 };
 
+// ── CPU tab ──────────────────────────────────────────────────────────────────
+
+struct InspectorEntry {
+    uint16_t pc;
+    uint16_t opcode;
+    std::string disasm;
+    CpuFrame frame;     ///< state after the instruction (zeroed for the not-yet-executed one)
+    bool isHistory;     ///< executed; false for the next instruction
+    bool isCurrent;     ///< the last executed instruction
+};
+
+/// Frozen CPU view: every frame still in the trace ring (read, not drained),
+/// then the certain next instruction — shown even at the same PC (WAIT/KEY
+/// loops re-execute one instruction).
+std::vector<InspectorEntry> inspectorHistory(const TI59Machine& m);
+
+/// Running CPU view: the newest `count` of `frames`, the last one current.
+std::vector<InspectorEntry> recentInstructions(const std::vector<CpuFrame>& frames, size_t count = 32);
+
+/// The ring's frames, read without draining (up to 1024).
+std::vector<CpuFrame> readTraceRing(const TI59Machine& m);
+
 /// Build the live snapshot. `romCache` holds the 384 ROM keycodes once filled
 /// (constant per machine). `frozen` selects the frozen-step semantics
 /// (current = last executed step, next = the one about to run).

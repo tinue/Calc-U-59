@@ -26,4 +26,12 @@ void applyState(TI59Machine& m, const LoadStateResult& r, Model model);
 /// program only if it has one, and the registers — nothing else is touched.
 void applySkipResetState(TI59Machine& m, const LoadStateResult& r, Model model);
 
+/// The Reset button: reset the CPU (the printer's TRACE latch survives, as on
+/// the hardware). TI-58C: restore its constant memory if `savedRam` is given;
+/// other models: clear the registers beyond the current data partition.
+void softReset(TI59Machine& m, Model model, const std::vector<uint8_t>* savedRam);
+
+/// Clean reset (all models): zero all RAM, then reset.
+void cleanReset(TI59Machine& m);
+
 } // namespace cu59

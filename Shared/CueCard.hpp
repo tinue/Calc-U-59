@@ -1,5 +1,7 @@
 #pragma once
 #include <array>
+#include <cstdint>
+#include <map>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -59,5 +61,51 @@ struct CueCardContent {
     bool operator==(const CueCardContent& o) const;
     bool operator!=(const CueCardContent& o) const { return !(*this == o); }
 };
+
+// ── Rendering rules (the drawing itself is per frontend) ─────────────────────
+
+/// A label and the grid columns (0–4) it covers. A label extends only into
+/// following columns explicitly blanked with `\blank`; trailing empty columns
+/// do not span.
+struct LabelSpan { int startCol; int endCol; std::string label; };
+
+/// Spans of one label row: 0 = A′–E′ (top), 1 = A–E (bottom).
+std::vector<LabelSpan> labelSpans(const CueCardContent& card, int row);
+
+/// Column dividers (between column i and i+1, i = 0–3) not inside a span.
+std::vector<int> dividersBetween(const std::vector<LabelSpan>& spans);
+
+/// Characters as the eye counts them (combining marks such as the overline
+/// in x̄ don't count), for shrink-to-fit.
+int displayLength(std::string_view text);
+
+/// Per-template geometry, as fractions of the card (reference width 800 px
+/// for the font sizes; scale by width / 800).
+struct CueCardLayout {
+    double titleFontSize, gridFontSize, bankFontSize;
+    double titleYFraction, titleWidthFraction;
+    double gridY0Fraction, gridY1Fraction;
+    double xFractions[5];
+    double cellWidthFraction;
+    bool drawsDividers;   ///< SolidState: printed gold ink with dividers
+    bool hasId;           ///< SolidState: id right of the title
+    double referenceWidth;
+};
+const CueCardLayout& cueCardLayout(CueCardTemplate t);
+
+/// Largest font (≤ the grid size) at which every span fits its cells, using
+/// the 0.64 × size bold character width; never below 40 % of the grid size.
+double cellFittingFontSize(const std::vector<LabelSpan>& spans, const CueCardLayout& layout, double cardWidth,
+                           double scaledGridFontSize);
+
+/// Which cue card shows: the active library program's card, else a generic
+/// card titled with the module's metadata, else the user's card (file, preset,
+/// ti58c.mem), else none.
+std::optional<CueCardContent> resolveCueCard(int activeProgram, const std::map<int, CueCardContent>& moduleCards,
+                                             const std::string& moduleTitle, const std::string& moduleID,
+                                             const std::optional<CueCardContent>& userCard);
+
+/// The library program number from SCOM[9] (digits 4 and 3), 0 = none.
+inline int activeLibraryProgram(const uint8_t scom9[16]) { return scom9[4] * 10 + scom9[3]; }
 
 } // namespace cu59

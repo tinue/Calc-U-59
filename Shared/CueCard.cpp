@@ -1,5 +1,6 @@
 #include "CueCard.hpp"
 #include "TextUtil.hpp"
+#include <algorithm>
 #include <utility>
 
 namespace cu59 {
@@ -257,6 +258,94 @@ std::vector<std::string> CueCardContent::encodeToLines(std::optional<CueCardTemp
     if (style != CardButtonStyle::None) add("Style", toString(style));
     if (color != CueCardInkColor::Black) add("PencilColor", toString(color));
     return lines;
+}
+
+std::vector<LabelSpan> labelSpans(const CueCardContent& card, int row) {
+    std::vector<LabelSpan> spans;
+    const size_t base = static_cast<size_t>(row) * 5;
+    int i = 0;
+    while (i < 5) {
+        const std::string& label = card.labels[base + static_cast<size_t>(i)];
+        if (label.empty() || label == kCueCardInvisibleMarker) { ++i; continue; }
+        int end = i;
+        while (end + 1 < 5 && card.labels[base + static_cast<size_t>(end + 1)] == kCueCardInvisibleMarker) ++end;
+        spans.push_back({i, end, label});
+        i = end + 1;
+    }
+    return spans;
+}
+
+std::vector<int> dividersBetween(const std::vector<LabelSpan>& spans) {
+    std::vector<int> out;
+    for (int i = 0; i < 4; ++i) {
+        bool inside = false;
+        for (const auto& s : spans)
+            if (i >= s.startCol && i < s.endCol) { inside = true; break; }
+        if (!inside) out.push_back(i);
+    }
+    return out;
+}
+
+int displayLength(std::string_view text) {
+    int n = 0;
+    for (size_t i = 0; i < text.size();) {
+        auto c = static_cast<unsigned char>(text[i]);
+        size_t len = c < 0x80 ? 1 : (c >> 5) == 0x6 ? 2 : (c >> 4) == 0xE ? 3 : 4;
+        unsigned cp = c;
+        if (len == 2 && i + 1 < text.size()) cp = ((c & 0x1F) << 6) | (static_cast<unsigned char>(text[i + 1]) & 0x3F);
+        bool combining = cp >= 0x300 && cp <= 0x36F;  // combining diacritical marks (U+0305 overline)
+        if (!combining) ++n;
+        i += len;
+    }
+    return n;
+}
+
+const CueCardLayout& cueCardLayout(CueCardTemplate t) {
+    // CueCard keeps its own vertical positions; all three share fonts and cell width.
+    static const CueCardLayout kCue{22, 21, 20, 0.399, 0.90, 0.632, 0.862,
+                                    {0.099, 0.293, 0.487, 0.681, 0.879}, 0.186, false, false, 800};
+    static const CueCardLayout kMagnet{22, 21, 20, 0.385, 0.90, 0.635, 0.875,
+                                       {0.097, 0.288, 0.478, 0.668, 0.859}, 0.186, false, false, 800};
+    static const CueCardLayout kSolid{22, 21, 14, 0.355, 0.90, 0.60, 0.84,
+                                      {0.097, 0.288, 0.478, 0.668, 0.859}, 0.186, true, true, 800};
+    switch (t) {
+    case CueCardTemplate::CueCard: return kCue;
+    case CueCardTemplate::MagnetCard: return kMagnet;
+    case CueCardTemplate::SolidState: return kSolid;
+    }
+    return kCue;
+}
+
+double cellFittingFontSize(const std::vector<LabelSpan>& spans, const CueCardLayout& layout, double cardWidth,
+                           double scaledGridFontSize) {
+    // As the Swift renderer: start from the unscaled grid size, then the result
+    // is capped by the scaled size by the caller's min().
+    double size = layout.gridFontSize;
+    for (const auto& s : spans) {
+        double spanWidth = cardWidth * layout.cellWidthFraction * (s.endCol - s.startCol + 1);
+        double fitting = spanWidth / (displayLength(s.label) * 0.64);
+        if (fitting < size) size = fitting;
+    }
+    size = std::max(size, layout.gridFontSize * 0.4);
+    return std::min(scaledGridFontSize, size);
+}
+
+std::optional<CueCardContent> resolveCueCard(int activeProgram, const std::map<int, CueCardContent>& moduleCards,
+                                             const std::string& moduleTitle, const std::string& moduleID,
+                                             const std::optional<CueCardContent>& userCard) {
+    if (activeProgram > 0) {
+        auto it = moduleCards.find(activeProgram);
+        if (it != moduleCards.end()) return it->second;
+        if (!moduleTitle.empty() || !moduleID.empty()) {
+            CueCardContent c;
+            c.template_ = CueCardTemplate::SolidState;
+            c.title = moduleTitle;
+            c.id = moduleID;
+            return c;
+        }
+        return std::nullopt;
+    }
+    return userCard;
 }
 
 bool CueCardContent::operator==(const CueCardContent& o) const {

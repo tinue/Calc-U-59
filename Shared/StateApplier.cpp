@@ -1,4 +1,5 @@
 #include "StateApplier.hpp"
+#include <algorithm>
 #include <vector>
 
 namespace cu59 {
@@ -68,6 +69,25 @@ void applySkipResetState(TI59Machine& m, const LoadStateResult& r, Model model) 
     if (r.partitionWasExplicit) setPartition(m, r.partitionMaxStep);
     if (!r.programSteps.empty()) writeProgram(m, r, model);
     writeRegisters(m, r);
+}
+
+void softReset(TI59Machine& m, Model model, const std::vector<uint8_t>* savedRam) {
+    m.reset();
+    if (info(model).hasConstantMemory) {
+        if (savedRam && savedRam->size() >= 120 * 16) m.deserialiseRAM(savedRam->data());
+        return;
+    }
+    // Clear out-of-range registers for the current model.
+    const uint8_t zero[16] = {};
+    int totalRegs = m.ramRegCount();
+    int dataRegCount = std::max(0, totalRegs - m.partitionProgramRegs());
+    for (int reg = dataRegCount; reg < totalRegs; ++reg) m.writeRAMReg(reg, zero);
+}
+
+void cleanReset(TI59Machine& m) {
+    std::vector<uint8_t> zero(120 * 16, 0);
+    m.deserialiseRAM(zero.data());
+    m.reset();
 }
 
 } // namespace cu59

@@ -1,4 +1,5 @@
 #include "ModuleImage.hpp"
+#include <cstdio>
 
 namespace cu59 {
 
@@ -9,6 +10,21 @@ ProgramSource programSourceFrom(uint8_t flag, uint16_t romPC) {
     if (flag == 2 && ((romPC >= 0x1193 && romPC <= 0x1194) || (romPC >= 0x14F9 && romPC <= 0x1506)))
         return ProgramSource::SolidStateReturn;
     return ProgramSource::FastMode;
+}
+
+std::string programSourceLabel(ProgramSource source, uint8_t flag) {
+    char raw[8];
+    std::snprintf(raw, sizeof raw, "%X", flag);
+    switch (source) {
+    case ProgramSource::UserProgram: return "Prg Source: User Program";
+    case ProgramSource::SolidState:
+        return std::string("Prg Source: Solid State Program") + (flag == 1 ? "" : std::string(" (") + raw + ")");
+    case ProgramSource::SolidStateReturn: return "Prg Source: Solid State Return (PC Reload)";
+    case ProgramSource::FastMode: return std::string("Prg Source: User Program (Fast Mode, ") + raw + ")";
+    case ProgramSource::Rom:
+        return std::string("Prg Source: ROM Program") + (flag == 8 ? "" : std::string(" (") + raw + ")");
+    }
+    return "";
 }
 
 ModuleImage ModuleImage::parse(const std::vector<uint8_t>& raw, std::string* error) {

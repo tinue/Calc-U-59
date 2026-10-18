@@ -60,6 +60,37 @@ bool LiveDebugSnapshot::operator==(const LiveDebugSnapshot& o) const {
            returnAddressSourceFlags == o.returnAddressSourceFlags && returnAddresses == o.returnAddresses;
 }
 
+std::vector<CpuFrame> readTraceRing(const TI59Machine& m) {
+    std::vector<CpuFrame> frames(1024);
+    frames.resize(m.readCpuFrames(frames.data(), 1024));
+    return frames;
+}
+
+std::vector<InspectorEntry> inspectorHistory(const TI59Machine& m) {
+    std::vector<CpuFrame> frames = readTraceRing(m);
+    std::vector<InspectorEntry> out;
+    out.reserve(frames.size() + 1);
+    for (size_t i = 0; i < frames.size(); ++i) {
+        const CpuFrame& f = frames[i];
+        out.push_back({f.pc, f.opcode, TI59Machine::disassemble(f.pc, f.opcode), f, true, i + 1 == frames.size()});
+    }
+    // snapshotCPU() carries the real next opcode.
+    uint16_t pc = m.pc();
+    uint16_t next = m.snapshotCPU().opcode;
+    out.push_back({pc, next, TI59Machine::disassemble(pc, next), CpuFrame{}, false, false});
+    return out;
+}
+
+std::vector<InspectorEntry> recentInstructions(const std::vector<CpuFrame>& frames, size_t count) {
+    std::vector<InspectorEntry> out;
+    size_t first = frames.size() > count ? frames.size() - count : 0;
+    for (size_t i = first; i < frames.size(); ++i) {
+        const CpuFrame& f = frames[i];
+        out.push_back({f.pc, f.opcode, TI59Machine::disassemble(f.pc, f.opcode), f, true, i + 1 == frames.size()});
+    }
+    return out;
+}
+
 LiveDebugBuild buildLiveSnapshot(const TI59Machine& m, Model model, const ModuleImage& module,
                                  std::vector<uint8_t>& romCache, bool frozen) {
     LiveDebugBuild out;

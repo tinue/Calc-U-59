@@ -7,6 +7,25 @@
 
 namespace cu59 {
 
+// PC-100C paper geometry, from a measured print head, in dot-pitch units (dp):
+//   total span (first → last dot centre) 55 mm; 5-dot character 1.9 mm (4 dp);
+//   inter-character gap 1.2 mm (1 + charGap dp). Scaling the raw pitch
+//   (0.475 mm) to the 55 mm span gives 0.430 mm with the gap ratio kept.
+//   Vertical: a 10-line measurement (42.3 mm) gives a 4.377 mm line pitch =
+//   10.18 dp: 7 dot rows plus a 3.18 dp stepper gap.
+struct PrinterGeometry {
+    static constexpr double charGap = 1.53;
+    static constexpr double dotPitchMM = 55.0 / (99.0 + 19.0 * charGap);   ///< ≈ 0.430 mm
+    static constexpr double widthUnits = 100.0 + 19.0 * charGap;            ///< line width incl. ½ dp margins
+    static constexpr double heightUnits = 10.18;                            ///< full line pitch
+    static constexpr double interLineGap = heightUnits - 7.0;               ///< ≈ 3.18 dp
+    /// A PRT_FEED blank line (one ROM ADV; the physical key issues two): half a
+    /// line plus 2 dp, as measured on a laser-printed copy.
+    static constexpr double feedHeightUnits = heightUnits / 2.0 + 2.0;
+    static constexpr double dotRadiusFraction = 0.38;                       ///< of the dot pitch
+    static constexpr double charStepUnits = 5.0 + charGap;
+};
+
 inline constexpr uint8_t kPC100CFont[64][7] = {
     {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},  // 00: space
     {0x0E, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E},  // 01: 0
