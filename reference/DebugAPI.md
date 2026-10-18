@@ -178,8 +178,7 @@ inspect and single-step through program execution.
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `isFrozen` | `Bool` | `true` when emulation is halted (read-only; derived from `freezeReason`) |
-| `freezeReason` | `FreezeReason?` | `nil` = running; non-nil = frozen (`.manual`, `.breakpoint`) |
+| `isFrozen` | `Bool` | `true` when emulation is halted |
 | `pendingFreezeOnPCChange` | `Bool` | `true` when "FREEZE ON START" is armed; auto-clears on first PC change |
 
 ### Methods
@@ -522,16 +521,9 @@ dispFilter    display blanking filter counter (0–3; ≥3 = blanked during comp
 
 ### Breakpoints
 
-```swift
-viewModel.addBreakpoint(_ pc: UInt16)
-viewModel.removeBreakpoint(_ pc: UInt16)
-viewModel.resumeFromBreakpoint()
-viewModel.singleStep()
-```
-
-When a breakpoint is hit, the emulation loop stops and `isPausedOnBreakpoint`
-becomes `true`. `breakpointPC` holds the address. Use `resumeFromBreakpoint()`
-to continue or `singleStep()` to advance one instruction at a time.
+Core breakpoints (`TI59Machine::addBreakpoint`, `TRACE_BREAKPOINTS`, step
+bit 31) are used only by the headless tools (`tools/headless/`). Neither app
+sets them; the run loop just stops if one is hit.
 
 ### CPU Inspector
 

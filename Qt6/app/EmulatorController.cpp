@@ -626,11 +626,9 @@ void EmulatorController::stepFrozen() {
     TI59Machine& m = m_session->machine();
     m_session->post([this, &m] {
         uint16_t prior = m.pc();
-        uint32_t r = m.step();
-        bool breakpoint = (r & 0x8000'0000u) != 0;
+        m.step();
         // HOLD (WAIT Dn): the PC didn't advance — step until it does.
-        for (int limit = 32; !breakpoint && m.pc() == prior && limit > 0; --limit)
-            breakpoint = (m.step() & 0x8000'0000u) != 0;
+        for (int limit = 32; m.pc() == prior && limit > 0; --limit) m.step();
         m.beginNextStep();
         onGui([this] { captureInspector(); });
     });
@@ -767,10 +765,6 @@ void EmulatorController::clearAsmOverlay() {
 }
 
 // ── Session events (session threads → GUI thread) ────────────────────────────
-
-void EmulatorController::SessionListener::breakpointHit(uint16_t) {
-    c->onGui([c = c] { emit c->runStateChanged(); });
-}
 
 void EmulatorController::SessionListener::freezeFired(cu59::FreezeOwner owner) {
     c->onGui([c = c, owner] {

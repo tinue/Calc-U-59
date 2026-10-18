@@ -152,10 +152,8 @@ drain call over the bridge) removes the whole index-alignment problem, including
 
 ## 9. Dead / vestigial code
 
-- `App/Views/CPUDebugView.swift` (425 lines) is not embedded in the app (only its own
-  preview references it). Delete it, or move it to an `Attic/` group excluded from
-  the targets; its presence invites confusion with `CPUInspectorView` (the project
-  skill already warns about exactly this).
+- ~~`App/Views/CPUDebugView.swift`~~ — deleted (2.0.0), with the view model's
+  unreachable breakpoint API.
 - `TraceWriter`'s `sessionSuppressedTotal` is always 0 (dedup was removed) and the
   payload writes a constant `UInt32(0)` "suppressed count" — candidates for removal
   at the next trace-format version bump.

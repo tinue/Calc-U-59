@@ -19,7 +19,6 @@ cu59::ResourceReader readerFrom(TIResourceReader block) {
 /// Forwards session events to the (weak) delegate.
 struct DelegateListener : cu59::EmulatorSession::Listener {
     __weak id<TISessionDelegate> delegate;
-    void breakpointHit(uint16_t pc) override { [delegate sessionBreakpointHit:pc]; }
     void freezeFired(cu59::FreezeOwner o) override {
         [delegate sessionFreezeFired:o == cu59::FreezeOwner::Cpu ? 0 : 1];
     }
@@ -157,14 +156,13 @@ struct DelegateListener : cu59::EmulatorSession::Listener {
 }
 
 + (TITraceFlags)traceFlagsForCpuPanel:(BOOL)cpuPanel frozen:(BOOL)frozen manualTrace:(BOOL)manual
-                          freezeArmed:(BOOL)armed scriptedTrace:(BOOL)scripted breakpoints:(BOOL)breakpoints {
+                          freezeArmed:(BOOL)armed scriptedTrace:(BOOL)scripted {
     cu59::TraceConsumers c;
     c.cpuPanelVisible = cpuPanel;
     c.frozen = frozen;
     c.manualTrace = manual;
     c.freezeArmed = armed;
     c.scriptedTrace = scripted;
-    c.breakpoints = breakpoints;
     return static_cast<TITraceFlags>(cu59::traceFlagsFor(c));
 }
 

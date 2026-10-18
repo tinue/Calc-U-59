@@ -9,7 +9,6 @@ uint32_t traceFlagsFor(const TraceConsumers& c) {
     uint32_t flags = TRACE_NONE;
     if (c.cpuPanelVisible || c.frozen || c.manualTrace || c.freezeArmed || c.scriptedTrace)
         flags |= TRACE_PC | TRACE_REGS_FULL;
-    if (c.breakpoints) flags |= TRACE_BREAKPOINTS;
     return flags;
 }
 
@@ -28,7 +27,6 @@ EmulatorSession::EmulatorSession(Model model, const ResourceReader& roms, const 
     m_machine->loadConstants(constants.data(), constants.size());
 
     EmulationRunner::Callbacks cb;
-    cb.breakpoint = [this](uint16_t pc) { m_listener.breakpointHit(pc); };
     cb.freezeFired = [this](FreezeOwner owner) { m_listener.freezeFired(owner); };
     cb.batchDone = [this] { m_listener.batchDone(); };
     m_runner = std::make_unique<EmulationRunner>(*m_machine, model, m_freeze, std::move(cb));

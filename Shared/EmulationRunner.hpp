@@ -22,7 +22,6 @@ namespace cu59 {
 class EmulationRunner {
 public:
     struct Callbacks {
-        std::function<void(uint16_t pc)> breakpoint;     ///< loop stopped on a breakpoint
         std::function<void(FreezeOwner)> freezeFired;     ///< loop stopped by an armed freeze
         std::function<void()> batchDone;                  ///< after every batch (TI-58C persist debounce)
     };

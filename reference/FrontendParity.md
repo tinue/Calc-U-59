@@ -65,7 +65,7 @@ tracked here (see `NewGUIGuide.md`).
 | LOG tab: dumps, clear, log level | `DebugView` | `LogWidget` | `DebugLog` | Both | |
 | Binary trace (TRACE toggle), size limit | `DebugView`, `TraceWriter` | `LogWidget` | `TraceWriter` | Both | |
 | Trace location | Local / iCloud / custom | card folder, or trace folder in Settings | — | Both | iCloud: Swift only |
-| Breakpoints | — | — | Core API | — | no UI in either app |
+| Breakpoints | — | — | Core API only (headless tools) | — | no UI in either app; the session ignores them |
 
 ## App
 

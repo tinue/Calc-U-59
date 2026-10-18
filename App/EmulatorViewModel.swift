@@ -2,13 +2,6 @@ import Foundation
 import os
 import SwiftUI
 
-enum FreezeReason {
-    case manual
-    case breakpointPC(Int)     // future: breakpoint on program step
-    case keycode(UInt8)        // future: freeze when specific keycode executes next
-    case variable(Int, Double) // future: freeze when register matches value
-}
-
 /// Which debug panel owns the current freeze.
 /// RESUME and STEP are only enabled in the owning panel; the other panel's buttons are
 /// disabled while frozen to prevent cross-panel confusion (e.g. CALCULATOR STEP while
@@ -192,13 +185,12 @@ class EmulatorViewModel {
         }
     }
     var liveDebugSnapshot: LiveDebugSnapshot = .empty
-    var freezeReason: FreezeReason? = nil {
+    var isFrozen: Bool = false {
         didSet {
-            session?.frozen = freezeReason != nil
+            session?.frozen = isFrozen
             updateDebugTraceFlags()
         }
     }
-    var isFrozen: Bool { freezeReason != nil }
     var freezeOwner: FreezePanel? = nil  // set on freeze entry, cleared on unfreeze
     /// Freeze as soon as the calculator PC changes. Armed in the session's
     /// FreezeController (Shared/); this mirrors it for the UI.
@@ -253,13 +245,13 @@ class EmulatorViewModel {
 
     /// Single owner of the machine's trace flags.  Recomputed whenever a consumer
     /// changes state: CPU debug panel visibility, freeze mode (incl. armed
-    /// freeze-on-start), the binary trace toggle, or the breakpoint set.
+    /// freeze-on-start) or the binary trace toggle.
     /// With no consumer active the core runs with TRACE_NONE — its fast path.
     private func updateDebugTraceFlags() {
         guard let m = machine else { return }
         let flags = TISession.traceFlags(forCpuPanel: cpuDebugEnabled, frozen: isFrozen, manualTrace: cIndicatorDebug,
                                          freezeArmed: pendingFreezeOnPCChange || pendingCPUScanLoopFreeze,
-                                         scriptedTrace: isScriptedTraceOpen, breakpoints: !breakpoints.isEmpty)
+                                         scriptedTrace: isScriptedTraceOpen)
         if m.traceFlags != flags { m.traceFlags = flags }
     }
 
@@ -274,11 +266,6 @@ class EmulatorViewModel {
     }
     var cpuInspectorHistory: [InspectorSnapshot] = []  // the trace ring + the next instruction
     var cpuInspectorUpdateID: Int = 0  // incremented every captureInspectorSnapshot call
-
-    // ── Trace / debug state ──────────────────────────────────────────────────
-    var breakpoints: Set<UInt16> = []
-    var isPausedOnBreakpoint: Bool = false
-    var breakpointPC: UInt16? = nil
 
     // ── Card reader state ────────────────────────────────────────────────────
     enum CardState: Equatable {
@@ -825,38 +812,6 @@ class EmulatorViewModel {
 
     // MARK: - Trace / debug
 
-    func addBreakpoint(_ pc: UInt16) {
-        breakpoints.insert(pc)
-        machine?.addBreakpoint(pc)
-        updateDebugTraceFlags()   // arms TRACE_BREAKPOINTS
-    }
-
-    func removeBreakpoint(_ pc: UInt16) {
-        breakpoints.remove(pc)
-        machine?.removeBreakpoint(pc)
-        updateDebugTraceFlags()
-    }
-
-    func resumeFromBreakpoint() {
-        guard isPausedOnBreakpoint else { return }
-        isPausedOnBreakpoint = false
-        breakpointPC = nil
-        startEmulationLoop()
-    }
-
-    func singleStep() {
-        guard isFrozen else { return }
-        guard let session, let m = machine else { return }
-        session.post { [weak self, m] in
-            guard let self else { return }
-            let result = m.step()
-            if result & 0x8000_0000 != 0 {
-                let hitPC = m.currentPC
-                DispatchQueue.main.async { self.onBreakpointHit(pc: hitPC) }
-            }
-        }
-    }
-
     /// Step once while frozen and refresh the inspector view with the new state.
     /// If the instruction has HOLD set (WAIT Dn), auto-steps until the PC advances.
     func stepFrozen() {
@@ -865,22 +820,12 @@ class EmulatorViewModel {
         session.post { [weak self, m] in
             guard let self else { return }
             let priorPC = m.currentPC
-            var result = m.step()
-            if result & 0x8000_0000 != 0 {
-                let hitPC = m.currentPC
-                DispatchQueue.main.async { self.onBreakpointHit(pc: hitPC) }
-            } else if m.currentPC == priorPC {
-                // PC didn't advance — HOLD is set (WAIT Dn). Step until it clears.
-                var limit = 32
-                while m.currentPC == priorPC && limit > 0 {
-                    result = m.step()
-                    if result & 0x8000_0000 != 0 {
-                        let hitPC = m.currentPC
-                        DispatchQueue.main.async { self.onBreakpointHit(pc: hitPC) }
-                        break
-                    }
-                    limit -= 1
-                }
+            _ = m.step()
+            // PC didn't advance — HOLD is set (WAIT Dn). Step until it clears.
+            var limit = 32
+            while m.currentPC == priorPC && limit > 0 {
+                _ = m.step()
+                limit -= 1
             }
             m.beginNextStep()
             DispatchQueue.main.async { [weak self] in
@@ -888,11 +833,6 @@ class EmulatorViewModel {
                 self.captureInspectorSnapshot(machine: m)
             }
         }
-    }
-
-    private func onBreakpointHit(pc: UInt16) {
-        isPausedOnBreakpoint = true
-        breakpointPC = pc
     }
 
     func freezeOnNextPCChange() {
@@ -927,9 +867,9 @@ class EmulatorViewModel {
         freeze()
     }
 
-    func freeze(reason: FreezeReason = .manual, waitForKeycode: Bool = true) {
+    private func freeze() {
         session?.stop()
-        freezeReason = reason
+        isFrozen = true
         asmOverlayActive = false
         pendingFreezeOnPCChange = false   // Cancel any pending CALCULATOR freeze
         pendingCPUScanLoopFreeze = false  // Cancel any pending CPU scan-loop freeze
@@ -937,10 +877,7 @@ class EmulatorViewModel {
         // Advance to the next keycode boundary on the emulation thread (runs after the
         // running loop exits: the session's job queue is serial). Then capture state.
         session.post { [weak self, m] in
-            if waitForKeycode {
-                _ = m.stepUntilNextKeycode()  // advance to program-step boundary
-            }
-            // else: stop after the current ROM opcode — correct for CPU-level freeze
+            _ = m.stepUntilNextKeycode()  // advance to program-step boundary
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
                 // Pre-execution phase: prepare ring buffer and snapshot for display
@@ -1027,7 +964,7 @@ class EmulatorViewModel {
     /// NOT cleared — it stays current and will be refreshed by the 60 Hz loop
     /// once the emulator resumes.
     private func clearFrozenState() {
-        freezeReason = nil
+        isFrozen = false
         freezeOwner = nil
     }
 
@@ -1046,50 +983,6 @@ class EmulatorViewModel {
             Self.logger.error("\(error, privacy: .public)")
         }
     }
-
-    // MARK: - Calculator-level snapshot
-
-    /// A decoded view of the calculator's current state.
-    struct CalcSnapshot {
-        /// Data registers R00–Rnn decoded as Double, where nn is determined by the
-        /// current partition (e.g. R00–R59 for the default 479:59 split).
-        /// Index 0 = R00, index (count-1) = last available register.
-        var registers: [Double]
-        /// Program step keycodes (one byte per step, 0–99).  Length = partition step count.
-        var programSteps: [UInt8]
-        /// Content of the printer character accumulator (not yet committed to a line).
-        var printerBuffer: String
-        /// Current CPU register state.
-        var cpu: TICpuFrame
-    }
-
-    /// Read the full calculator state without disturbing execution.
-    /// Returns nil if the machine is not yet started.
-    func getCalcSnapshot() -> CalcSnapshot? {
-        guard let m = machine else { return nil }
-        // Number of accessible data registers depends on the current partition:
-        // programRAMregs occupy RAM[0..(n-1)]; data regs fill RAM[n..totalRegs-1] top-down.
-        let partitionProgramRegs = Int(m.partitionProgramRegs)
-        let totalRegs = Int(m.ramRegisterCount)
-
-        // If partition is invalid (claims more than physically exists), return empty registers
-        guard partitionProgramRegs <= totalRegs else {
-            let regs = [Double](repeating: 0, count: 0)
-            let steps = Array(m.allProgramSteps() as Data)
-            let cpu = m.snapshotCPU()
-            return CalcSnapshot(registers: regs, programSteps: steps,
-                                printerBuffer: m.printerBufferContent, cpu: cpu)
-        }
-
-        let numRegs = max(0, totalRegs - partitionProgramRegs)
-        var regs = [Double](repeating: 0, count: numRegs)
-        for i in 0..<numRegs { regs[i] = m.dataRegister(i) }
-        let steps = Array(m.allProgramSteps() as Data)
-        let cpu = m.snapshotCPU()
-        return CalcSnapshot(registers: regs, programSteps: steps,
-                            printerBuffer: m.printerBufferContent, cpu: cpu)
-    }
-
 
     /// Build a real-time debug snapshot for the live debug view (Shared/DebugSnapshots.cpp)
     /// and refresh the always-live program listing.
@@ -1119,8 +1012,6 @@ class EmulatorViewModel {
     private func buildCPUDebugSnapshot(machine m: TI59MachineWrapper) -> CPUDebugSnapshot {
         var snap = CPUDebugSnapshot()
         snap.currentPC = m.currentPC
-        snap.isPaused = isPausedOnBreakpoint
-        snap.pausedPC = breakpointPC
 
         // Trace flags are managed by updateDebugTraceFlags(); they are guaranteed
         // on whenever this builder runs (cpuDebugEnabled or isFrozen).
@@ -1234,8 +1125,6 @@ class EmulatorViewModel {
         }
 
         session?.stop()
-        isPausedOnBreakpoint = false
-        breakpointPC = nil
         pendingFreezeOnPCChange = false
         let freezeOnASMStart = pendingCPUScanLoopFreeze  // capture before clearing
         pendingCPUScanLoopFreeze = false
@@ -1263,7 +1152,7 @@ class EmulatorViewModel {
                 // FREEZE ON START was armed — freeze in-place at the 0x1800 entry point.
                 // session.sync above already completed; no running loop to drain.
                 freezeOwner = .cpu
-                freezeReason = .manual
+                isFrozen = true
                 DispatchQueue.main.async { [weak self] in
                     guard let self else { return }
                     self.liveDebugSnapshot = self.buildLiveSnapshot(machine: m)
@@ -1314,18 +1203,6 @@ class EmulatorViewModel {
     func debugDumpStepCounterAnalysis() {
         guard let m = machine else { return }
         ringWriteAll(TIDebugModel.dumpStepCounterAnalysis(m))
-    }
-
-    /// Read a raw 16-nibble RAM register (reg 0–119).
-    func rawRegister(_ reg: Int) -> [UInt8]? {
-        guard let m = machine else { return nil }
-        return Array(m.rawRegister(reg) as Data)
-    }
-
-    /// Write a raw 16-nibble RAM register (reg 0–119).
-    func setRawRegister(_ reg: Int, nibbles: [UInt8]) {
-        guard nibbles.count == 16 else { return }
-        machine?.setRawRegister(reg, nibbles: Data(nibbles))
     }
 
     // MARK: - State file loading
@@ -1512,7 +1389,6 @@ class EmulatorViewModel {
 final class SessionEventForwarder: NSObject, TISessionDelegate {
     weak var target: EmulatorViewModel?
     init(_ target: EmulatorViewModel) { self.target = target }
-    func sessionBreakpointHit(_ pc: UInt16) { target?.sessionBreakpointHit(pc) }
     func sessionFreezeFired(_ owner: Int) { target?.sessionFreezeFired(owner) }
     func sessionHeldKeyChanged(_ highlightID: Int) { target?.sessionHeldKeyChanged(highlightID) }
     func sessionFullSpeedChanged(_ on: Bool) { target?.sessionFullSpeedChanged(on) }
@@ -1526,19 +1402,15 @@ final class SessionEventForwarder: NSObject, TISessionDelegate {
 }
 
 extension EmulatorViewModel {
-    func sessionBreakpointHit(_ pc: UInt16) {
-        DispatchQueue.main.async { [weak self] in self?.onBreakpointHit(pc: pc) }
-    }
-
     /// An armed freeze fired; the run loop has stopped. Owner 0 = CPU panel
     /// (FREEZE ON START), 1 = CALCULATOR panel (next PC change).
     func sessionFreezeFired(_ owner: Int) {
         DispatchQueue.main.async { [weak self] in
             guard let self, let m = self.machine else { return }
             self.freezeOwner = owner == 0 ? .cpu : .calculator
-            // Set freezeReason before clearing the armed flags so updateDebugTraceFlags()
+            // Set isFrozen before clearing the armed flags so updateDebugTraceFlags()
             // keeps tracing enabled throughout.
-            self.freezeReason = .manual
+            self.isFrozen = true
             self.pendingCPUScanLoopFreeze = false
             self.pendingFreezeOnPCChange = false
             if owner == 0 {
@@ -1724,8 +1596,6 @@ struct CPUDebugSnapshot: Equatable {
 
     var recentInstructions: [Instruction] = []  // last ~32 instructions with snapshots
     var currentPC: UInt16 = 0
-    var isPaused: Bool = false
-    var pausedPC: UInt16? = nil
 
     static let empty = CPUDebugSnapshot()
 }

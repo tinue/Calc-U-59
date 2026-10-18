@@ -77,7 +77,7 @@ Shared/ (C++, used by this app via Bridge/ and by the Qt6 app):
 | **Key sequencer threads** (`Shared/KeySequencer`) | KEYSTROKES playback and physical-keyboard taps (two independent lanes), deferred key releases |
 | **global/utility** | `CardStorage.warmUp()` — `url(forUbiquityContainerIdentifier:)` blocks and returns nil if called on the main thread |
 
-Session events (breakpoint, freeze fired, held key, full speed, playback
+Session events (freeze fired, held key, full speed, playback
 start/end, scripted trace, log lines) arrive through `TISessionDelegate` on the
 session's threads; `SessionEventForwarder` hands them to the view model, which
 hops to the main thread before touching observable state.
@@ -107,9 +107,9 @@ started with `session.start()`:
 
 `step()` returns its cycle weight in bits 29:0, sets bit 30 for a confirmed
 hardware poll (a key or card-switch wait; not a printer-only BUSY wait, whose
-length is counted in emulated cycles, so full speed speeds up printing) and bit 31 if a breakpoint was hit.  On a breakpoint, or when an
-armed freeze (`Shared/FreezeController`) fires, the loop stops and the session
-reports it to the delegate.
+length is counted in emulated cycles, so full speed speeds up printing) and bit 31 if a breakpoint was hit (Core breakpoints are set only by the headless
+tools; the loop just stops).  When an armed freeze (`Shared/FreezeController`)
+fires, the loop stops and the session reports it to the delegate.
 
 ---
 

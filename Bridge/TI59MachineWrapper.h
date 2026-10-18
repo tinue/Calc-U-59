@@ -60,17 +60,8 @@ typedef struct {
 - (uint32_t)stepUntilNextKeycode
     NS_SWIFT_NAME(stepUntilNextKeycode());
 
-/// Key input. row 0–6, col 0–15.
-- (void)pressKeyRow:(int)row col:(int)col;
-- (void)releaseKeyRow:(int)row col:(int)col;
-
 /// TI-58C: serialise RAM (1920-byte NSData).
 - (NSData*)serialiseRAM;
-
-// ── State file load helpers ───────────────────────────────────────────────────
-
-/// Current program register count (= data register base index).
-@property NSInteger partitionProgramRegs;
 
 // ── Magnetic card reader ─────────────────────────────────────────────────────
 
@@ -80,9 +71,6 @@ typedef struct {
 
 /// Eject the card; returns bytes captured by OUT CRD (empty for read swipes).
 - (NSData*)cardEject;
-
-/// YES while the ROM is polling TST BUSY waiting for a card to be inserted.
-@property (readonly) BOOL isWaitingForCard;
 
 /// 0 = no card operation pending, 1 = read, 2 = write.
 @property (readonly) NSInteger cardMode;
@@ -101,7 +89,6 @@ typedef struct {
 /// Attach or detach the printer.  When detached the ROM's printer-present
 /// sense (KP.D0) reads low, so the ROM will not attempt to print.
 - (void)setPrinterConnected:(BOOL)connected;
-@property (nonatomic, readonly) BOOL isPrinterConnected;
 
 // ── Trace / debug API ─────────────────────────────────────────────────────────
 
@@ -111,10 +98,6 @@ typedef struct {
 
 @property (nonatomic) TITraceFlags traceFlags;
 @property (readonly)  uint16_t currentPC;
-
-- (void)addBreakpoint:(uint16_t)pc;
-- (void)removeBreakpoint:(uint16_t)pc;
-- (void)clearBreakpoints;
 
 /// Load 13-bit opcodes into debug overlay region at linear address 0x1800.
 /// `words` must contain little-endian UInt16 opcodes. Returns NO on overflow.
@@ -128,43 +111,13 @@ typedef struct {
 - (NSArray<NSValue*>*)readCpuFramesMax:(NSUInteger)max
     NS_SWIFT_NAME(readCpuFrames(max:));
 
-// ── Old trace API (deprecated; kept for binary compatibility) ──
-
-+ (NSString*)disassemblePC:(uint16_t)pc opcode:(uint16_t)opcode;
-
 // ── Calculator-level API ──────────────────────────────────────────────────────
-
-/// Read data register regNum (0–58) decoded as a Double.
-- (double)dataRegister:(NSInteger)regNum
-    NS_SWIFT_NAME(dataRegister(_:));
-
-/// Read all program steps as keycodes (one byte per step, value 0–99).
-/// The returned data length is partitionProgramRegs × 8 (e.g. 480 bytes for OP 17).
-- (NSData*)allProgramSteps;
 
 /// Capture a snapshot of all CPU registers at the current instant.
 - (TICpuFrame)snapshotCPU;
 
 /// Pre-execution phase for the next instruction. Call after freeze or after step() in debugger.
 - (void)beginNextStep;
-
-// ── Raw RAM access ────────────────────────────────────────────────────────────
-
-/// Number of accessible RAM registers (120 for TI-59, 64 for TI-58C, 60 for TI-58).
-@property (readonly) NSInteger ramRegisterCount;
-
-/// Read a complete 16-nibble RAM register.  reg must be in [0, ramRegisterCount).
-- (NSData*)rawRegister:(NSInteger)reg
-    NS_SWIFT_NAME(rawRegister(_:));
-
-/// Write a complete 16-nibble RAM register.  nibbles must be exactly 16 bytes.
-- (void)setRawRegister:(NSInteger)reg nibbles:(NSData*)nibbles
-    NS_SWIFT_NAME(setRawRegister(_:nibbles:));
-
-// ── Printer buffer ────────────────────────────────────────────────────────────
-
-/// Content currently held in the printer character accumulator (not yet committed to a line).
-@property (readonly) NSString *printerBufferContent;
 
 @end
 

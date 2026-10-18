@@ -8,7 +8,6 @@ NS_ASSUME_NONNULL_BEGIN
 /// Events from the session. Called on the session's threads (emulation,
 /// key sequencer) — hop to the main thread before touching UI state.
 @protocol TISessionDelegate <NSObject>
-- (void)sessionBreakpointHit:(uint16_t)pc;
 /// owner: 0 = CPU panel (FREEZE ON START), 1 = CALCULATOR panel (next PC change).
 - (void)sessionFreezeFired:(NSInteger)owner;
 /// row×5 + col of the key shown pressed, -1 for none.
@@ -87,7 +86,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 /// TRACE_* flags for the active consumers (Shared/EmulatorSession.hpp traceFlagsFor).
 + (TITraceFlags)traceFlagsForCpuPanel:(BOOL)cpuPanel frozen:(BOOL)frozen manualTrace:(BOOL)manual
-                          freezeArmed:(BOOL)armed scriptedTrace:(BOOL)scripted breakpoints:(BOOL)breakpoints;
+                          freezeArmed:(BOOL)armed scriptedTrace:(BOOL)scripted;
 
 @end
 

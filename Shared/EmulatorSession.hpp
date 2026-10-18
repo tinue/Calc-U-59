@@ -34,7 +34,6 @@ struct TraceConsumers {
     bool manualTrace = false;      ///< the "C" indicator / trace toggle
     bool freezeArmed = false;      ///< FREEZE ON START or next-PC-change armed
     bool scriptedTrace = false;
-    bool breakpoints = false;
 };
 
 /// The trace flags for those consumers; with none active the core runs on its
@@ -45,7 +44,6 @@ class EmulatorSession : private KeySequencer::Host {
 public:
     struct Listener {
         virtual ~Listener() = default;
-        virtual void breakpointHit(uint16_t /*pc*/) {}
         virtual void freezeFired(FreezeOwner) {}
         virtual void heldKeyChanged(int /*highlightID*/) {}
         virtual void fullSpeedChanged(bool) {}

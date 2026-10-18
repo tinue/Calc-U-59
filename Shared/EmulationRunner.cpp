@@ -68,9 +68,8 @@ void EmulationRunner::runLoop() {
     while (m_running) {
         auto start = Clock::now();
         BatchResult r = runBatch(m_machine, carry, target, m_freeze);
-        if (r.stop == BatchResult::Stop::Breakpoint) {
+        if (r.stop == BatchResult::Stop::Breakpoint) {  // Core breakpoints are set by headless tools only
             m_running = false;
-            if (m_callbacks.breakpoint) m_callbacks.breakpoint(m_machine.pc());
             return;
         }
         if (r.stop == BatchResult::Stop::Freeze) {

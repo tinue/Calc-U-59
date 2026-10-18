@@ -37,9 +37,8 @@ Pre-built macOS DMGs, Windows installers and Linux AppImages are available from 
 **Printer:** The PC-100C thermal printer is not hardware-emulated. The printer output is simulated functionally: the emulator intercepts the ROM's print commands and renders characters using a pixel-accurate dot-matrix font calibrated against physical hardware, but does not model the actual printer interface timing or mechanics. It will not reproduce timing-sensitive printer interactions.
 
 **Debug API:** Despite being a research tool, the debug API is still in its infancy. Live view and inspection, step by step
-operation of both calculator-level and CPU-level instructions work, and the underlying breakpoint API is fully implemented
-(`reference/DebugAPI.md` § "Breakpoints") — but there is currently no in-app UI to set one interactively; the one that
-exists in source (`CPUDebugView.swift`) isn't wired into the app (see `ideas/Redesign.md` item 9). Also still missing: keypress
+operation of both calculator-level and CPU-level instructions work, and the core has a breakpoint API used by the headless
+tools (`reference/DebugAPI.md` § "Breakpoints") — but neither app has a UI to set one. Also still missing: keypress
 latch while single stepping (`ideas/KeypressLatch.md`), or any sort of dynamic freeze (e.g. on register change). The API surface
 will change as it matures.
 

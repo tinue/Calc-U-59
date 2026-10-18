@@ -23,12 +23,11 @@ template <class F> bool waitFor(F cond, std::chrono::milliseconds timeout) {
 }
 
 struct RecordingListener : EmulatorSession::Listener {
-    std::atomic<int> freezes{0}, playbackDone{0}, breakpoints{0};
+    std::atomic<int> freezes{0}, playbackDone{0};
     std::atomic<FreezeOwner> owner{FreezeOwner::Calculator};
     std::mutex mutex;
     std::vector<std::string> logs;
     void freezeFired(FreezeOwner o) override { owner = o; ++freezes; }
-    void breakpointHit(uint16_t) override { ++breakpoints; }
     void playbackFinished() override { ++playbackDone; }
     void logLine(const std::string& l) override { std::lock_guard<std::mutex> lock(mutex); logs.push_back(l); }
 };
@@ -171,7 +170,4 @@ TEST(trace_flags_for_consumers) {
     TraceConsumers c;
     c.frozen = true;
     CHECK_EQ(traceFlagsFor(c), static_cast<uint32_t>(TRACE_PC | TRACE_REGS_FULL));
-    c = {};
-    c.breakpoints = true;
-    CHECK_EQ(traceFlagsFor(c), static_cast<uint32_t>(TRACE_BREAKPOINTS));
 }

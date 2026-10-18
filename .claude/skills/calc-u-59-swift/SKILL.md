@@ -38,8 +38,6 @@ EmulatorViewModel          (App/EmulatorViewModel.swift)
        CardPickerView      magnetic card library picker
 ```
 
-> **Note:** `CPUDebugView.swift` exists in the repository but is not embedded in the app (only referenced in its own SwiftUI preview). Do not wire it up or confuse it with `CPUInspectorView`.
-
 All UI state flows through `EmulatorViewModel`. Views are thin bindings — no business logic in views.
 
 **No non-GUI logic in Swift at all.** Parsing, file formats, timing, key

@@ -147,7 +147,6 @@ private:
     struct SessionListener : cu59::EmulatorSession::Listener {
         EmulatorController* c;
         explicit SessionListener(EmulatorController* controller) : c(controller) {}
-        void breakpointHit(uint16_t pc) override;
         void freezeFired(cu59::FreezeOwner owner) override;
         void heldKeyChanged(int highlightID) override;
         void fullSpeedChanged(bool on) override;
