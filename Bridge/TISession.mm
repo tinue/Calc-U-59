@@ -35,12 +35,19 @@ struct DelegateListener : cu59::EmulatorSession::Listener {
 
 } // namespace
 
+@interface TIPrinterLine ()
+@property (nonatomic, readwrite, copy) NSData *codes;
+@property (nonatomic, readwrite) NSInteger rowCount;
+@end
+@implementation TIPrinterLine
+@end
+
 @interface TIFrameUpdate ()
 @property (nonatomic, readwrite) BOOL displayUpdated;
 @property (nonatomic, readwrite) TIDisplaySnapshot display;
 @property (nonatomic, readwrite) double calcIndicatorOpacity;
 @property (nonatomic, readwrite, copy) NSArray<NSString *> *printerLines;
-@property (nonatomic, readwrite, copy) NSArray<NSData *> *printerCodeLines;
+@property (nonatomic, readwrite, copy) NSArray<TIPrinterLine *> *printerCodeLines;
 @property (nonatomic, readwrite, copy) NSArray<NSString *> *logLines;
 @property (nonatomic, readwrite) BOOL cardAutoEjected;
 @end
@@ -131,11 +138,10 @@ struct DelegateListener : cu59::EmulatorSession::Listener {
     t.printerLines = lines;
     NSMutableArray* codes = [NSMutableArray arrayWithCapacity:u.printerCodeLines.size()];
     for (const auto& c : u.printerCodeLines) {
-        // 21 bytes, as TI59MachineWrapper.drainPrinterCodeLines: codes[0..19] + rowCount.
-        uint8_t buf[21];
-        memcpy(buf, c.codes.data(), 20);
-        buf[20] = c.rowCount;
-        [codes addObject:[NSData dataWithBytes:buf length:21]];
+        TIPrinterLine* line = [[TIPrinterLine alloc] init];
+        line.codes = [NSData dataWithBytes:c.codes.data() length:c.codes.size()];
+        line.rowCount = c.rowCount;
+        [codes addObject:line];
     }
     t.printerCodeLines = codes;
     NSMutableArray* logs = [NSMutableArray arrayWithCapacity:u.logLines.size()];

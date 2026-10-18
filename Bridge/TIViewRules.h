@@ -89,6 +89,12 @@ NS_ASSUME_NONNULL_BEGIN
 @property (class, readonly) CGFloat printerFeedHeightUnits;
 @property (class, readonly) CGFloat printerInterLineGap;
 @property (class, readonly) CGFloat printerDotRadiusFraction;
+@property (class, readonly) CGFloat printerPaperPaddingX;
+@property (class, readonly) CGFloat printerPaperPaddingY;
+/// Height of a strip line: PRT_FEED blank, complete, or cut short (rowCount 1–6).
++ (CGFloat)printerLineHeightUnitsFeed:(BOOL)isFeed rowCount:(NSInteger)rowCount;
+/// Copy-as-image pixels per dot pitch: 600 dpi, capped at 16000 px for the whole strip.
++ (CGFloat)printerCopyPixelsPerUnit:(CGFloat)stripHeightUnits;
 
 // ── Heatmap (Shared/RomHeatmap.hpp) ──────────────────────────────────────────
 @property (class, readonly) NSInteger heatmapCols;

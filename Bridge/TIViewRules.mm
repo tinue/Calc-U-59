@@ -193,6 +193,14 @@ static NSArray<TIInspectorEntry*>* entriesFrom(const std::vector<cu59::Inspector
 + (CGFloat)printerWidthUnits { return cu59::PrinterGeometry::widthUnits; }
 + (CGFloat)printerHeightUnits { return cu59::PrinterGeometry::heightUnits; }
 + (CGFloat)printerFeedHeightUnits { return cu59::PrinterGeometry::feedHeightUnits; }
++ (CGFloat)printerPaperPaddingX { return cu59::PrinterGeometry::paperPaddingX; }
++ (CGFloat)printerPaperPaddingY { return cu59::PrinterGeometry::paperPaddingY; }
++ (CGFloat)printerLineHeightUnitsFeed:(BOOL)isFeed rowCount:(NSInteger)rowCount {
+    return cu59::PrinterGeometry::lineHeightUnits(isFeed == YES, static_cast<int>(rowCount));
+}
++ (CGFloat)printerCopyPixelsPerUnit:(CGFloat)stripHeightUnits {
+    return cu59::PrinterGeometry::copyPixelsPerUnit(stripHeightUnits);
+}
 + (CGFloat)printerInterLineGap { return cu59::PrinterGeometry::interLineGap; }
 + (CGFloat)printerDotRadiusFraction { return cu59::PrinterGeometry::dotRadiusFraction; }
 

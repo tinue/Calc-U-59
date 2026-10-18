@@ -98,3 +98,15 @@ TEST(model_info) {
     CHECK(info(Model::TI58C).scanLoop.contains(0x0A2E));
     CHECK(!info(Model::TI59).idleAndKeyDetect.contains(0x0661));
 }
+
+TEST(printer_strip_geometry) {
+    using G = PrinterGeometry;
+    CHECK_EQ(G::lineHeightUnits(true, 7), G::feedHeightUnits);
+    CHECK_EQ(G::lineHeightUnits(false, 7), G::heightUnits);
+    CHECK_EQ(G::lineHeightUnits(false, 3), 3.0);   // cut short: rows only, no advance
+    CHECK_EQ(G::lineHeightUnits(false, 0), 1.0);   // clamped to 1–7
+    CHECK_EQ(G::lineHeightUnits(false, 9), G::heightUnits);
+    double px = G::dotPitchMM / 25.4 * 600;
+    CHECK_EQ(G::copyPixelsPerUnit(100), px);
+    CHECK_EQ(G::copyPixelsPerUnit(10000), 16000.0 / 10000);
+}

@@ -30,13 +30,8 @@ public:
     /// Height for a width, in dot-pitch units scaled to that width.
     static double heightUnits(const QStringList& lines, const QVector<PrinterCodeLine>& codes) {
         double units = 0;
-        for (int i = 0; i < lines.size(); ++i) {
-            if (lines[i].isEmpty()) units += PrinterGeometry::feedHeightUnits;
-            else {
-                int rows = i < codes.size() ? std::clamp<int>(codes[i].rowCount, 1, 7) : 7;
-                units += rows == 7 ? PrinterGeometry::heightUnits : rows;
-            }
-        }
+        for (int i = 0; i < lines.size(); ++i)
+            units += PrinterGeometry::lineHeightUnits(lines[i].isEmpty(), i < codes.size() ? codes[i].rowCount : 7);
         return units;
     }
 
@@ -54,7 +49,7 @@ public:
                 continue;
             }
             const PrinterCodeLine* line = i < codes.size() ? &codes[i] : nullptr;
-            int rows = line ? std::clamp<int>(line->rowCount, 1, 7) : 7;
+            int rows = PrinterGeometry::clampRowCount(line ? line->rowCount : 7);
             for (int row = 0; row < rows; ++row) {
                 double cy = y + (row + 0.5) * pitch;
                 for (int ch = 0; ch < 20 && line; ++ch) {
@@ -65,23 +60,25 @@ public:
                 }
             }
             // A complete line ends with the stepper's advance; a cut-short one doesn't.
-            y += (rows == 7 ? PrinterGeometry::heightUnits : rows) * pitch;
+            y += PrinterGeometry::lineHeightUnits(false, rows) * pitch;
         }
     }
 
     QSize sizeHint() const override { return QSize(220, heightForWidth(220)); }
     bool hasHeightForWidth() const override { return true; }
     int heightForWidth(int w) const override {
-        double pitch = (w - 12) / PrinterGeometry::widthUnits;
-        return static_cast<int>(heightUnits(m_c.printerLines(), m_c.printerCodeLines()) * pitch) + 16;
+        double pitch = (w - 2 * PrinterGeometry::paperPaddingX) / PrinterGeometry::widthUnits;
+        return static_cast<int>(heightUnits(m_c.printerLines(), m_c.printerCodeLines()) * pitch) +
+               static_cast<int>(2 * PrinterGeometry::paperPaddingY);
     }
 
 protected:
     void paintEvent(QPaintEvent*) override {
         QPainter p(this);
         p.setRenderHint(QPainter::Antialiasing);
-        p.translate(6, 8);
-        paintStrip(p, width() - 12, m_c.printerLines(), m_c.printerCodeLines(), ChromeStyle::gray(0.12));
+        p.translate(PrinterGeometry::paperPaddingX, PrinterGeometry::paperPaddingY);
+        paintStrip(p, width() - 2 * PrinterGeometry::paperPaddingX, m_c.printerLines(), m_c.printerCodeLines(),
+                   ChromeStyle::gray(0.12));
     }
 
 private:
@@ -229,12 +226,8 @@ void PrinterWidget::resizeEvent(QResizeEvent* e) {
 void PrinterWidget::copyToClipboard() {
     const QStringList& lines = m_controller.printerLines();
     const auto& codes = m_controller.printerCodeLines();
-    // Physical size at 600 dpi, backed off for long tapes so the image stays
-    // within 16000 px.
     double unitsHigh = PaperView::heightUnits(lines, codes);
-    double dpi = 600.0;
-    double pxPerUnit = PrinterGeometry::dotPitchMM / 25.4 * dpi;
-    if (unitsHigh * pxPerUnit > 16000.0) pxPerUnit = 16000.0 / unitsHigh;
+    double pxPerUnit = PrinterGeometry::copyPixelsPerUnit(unitsHigh);
     QImage image(QSize(static_cast<int>(PrinterGeometry::widthUnits * pxPerUnit),
                        std::max(1, static_cast<int>(unitsHigh * pxPerUnit))), QImage::Format_RGB32);
     image.fill(Qt::white);

@@ -37,7 +37,7 @@ Qt6/app/ (Qt Widgets) ───────────────┘
 | `KeyNames.{hpp,cpp}` | Keycode mnemonics, operand-step grammar | `TISharedTables` |
 | `SevenSegment.hpp` | 7-segment patterns for every display glyph | `TISharedTables` |
 | `LedGeometry.{hpp,cpp}` | Segment polygons (modernized), dot grids (classic), decimal point, style parameters | `TIViewRules` |
-| `PrinterFont.hpp` | PC-100C 5×7 font and paper geometry | `TISharedTables`, `TIViewRules` |
+| `PrinterFont.hpp` | PC-100C 5×7 font and paper geometry (line heights incl. cut-short lines, copy-as-image scale) | `TISharedTables`, `TIViewRules` |
 | `Bcd.{hpp,cpp}` | Register BCD encoding, register lines | `TISharedTables` |
 | `StateFile.{hpp,cpp}` | `.ti59` parser and pre-scan (`StateFileFormat.md`) | `TIFileFormats` |
 | `StateApplier.{hpp,cpp}` | Writing a parsed file into the machine; Reset / clean reset | `TIFileFormats`, `TIViewRules` |

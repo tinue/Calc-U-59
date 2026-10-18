@@ -118,16 +118,12 @@ struct PrinterView: View {
                     // needs 2 dp more than the naive half-pitch — see feedHeightUnits.
                     Color.clear.aspectRatio(PrinterDotLine.widthUnits / PrinterDotLine.feedHeightUnits, contentMode: .fit)
                 } else {
-                    PrinterDotLine(
-                        codes: i < viewModel.printerCodeLines.count
-                            ? [UInt8](viewModel.printerCodeLines[i])
-                            : [UInt8](repeating: 0, count: 20)
-                    )
+                    PrinterDotLine(line: i < viewModel.printerCodeLines.count ? viewModel.printerCodeLines[i] : .blank)
                 }
             }
         }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 8)
+        .padding(.horizontal, TIViewRules.printerPaperPaddingX)
+        .padding(.vertical, TIViewRules.printerPaperPaddingY)
     }
 
     // MARK: - Text strip (fallback / copy-paste mode)
@@ -213,7 +209,6 @@ struct PrinterView: View {
         // Render bitmap at physical PC-100C size: dotPitchMM → points at 72 DPI.
         let dotPitchPt = PrinterDotLine.dotPitchMM * 72.0 / 25.4
         let lineW = PrinterDotLine.widthUnits  * dotPitchPt
-        let lineH = PrinterDotLine.heightUnits * dotPitchPt
         let feedH = PrinterDotLine.feedHeightUnits * dotPitchPt
         let lines     = viewModel.printerLines
         let codeLines = viewModel.printerCodeLines
@@ -222,12 +217,7 @@ struct PrinterView: View {
                 if lines[i].isEmpty {
                     Color.white.frame(width: lineW, height: feedH)
                 } else {
-                    PrinterDotLine(
-                        codes: i < codeLines.count
-                            ? [UInt8](codeLines[i])
-                            : [UInt8](repeating: 0, count: 20),
-                        dotColor: .black
-                    )
+                    PrinterDotLine(line: i < codeLines.count ? codeLines[i] : .blank, dotColor: .black)
                     .background(Color.white)
                     .frame(width: lineW)
                 }
@@ -235,18 +225,14 @@ struct PrinterView: View {
         }
         .background(Color.white)
 
-        // GPU-backed rendering (both AppKit and UIKit ImageRenderer back-ends) is capped at a
-        // 16384 px texture dimension. A full 959-step listing easily exceeds that in height at
-        // 600 DPI, silently truncating/corrupting the snapshot. Back off the DPI for long tapes
-        // so the whole listing still fits in one image.
-        let fullLineCount  = lines.filter { !$0.isEmpty }.count
-        let feedLineCount  = lines.count - fullLineCount
-        let totalHeightPt  = Double(fullLineCount) * lineH + Double(feedLineCount) * feedH
-        let maxTextureDim  = 16000.0  // stay safely under the 16384 px GPU limit
-        let maxScale       = totalHeightPt > 0 ? maxTextureDim / totalHeightPt : .infinity
-
+        // 600 dpi, backed off for long tapes so the image fits the GPU texture limit
+        // (Shared/PrinterFont.hpp copyPixelsPerUnit); cut-short lines count their rows only.
+        let stripUnits = lines.indices.reduce(0.0) { sum, i in
+            sum + TIViewRules.printerLineHeightUnitsFeed(lines[i].isEmpty,
+                                                         rowCount: i < codeLines.count ? codeLines[i].rowCount : 7)
+        }
         let renderer = ImageRenderer(content: strip)
-        renderer.scale = min(600.0 / 72.0, maxScale)  // up to 600 DPI — crisp, but never exceeds the texture limit
+        renderer.scale = TIViewRules.printerCopyPixelsPerUnit(stripUnits) / dotPitchPt
 
         #if os(macOS)
         NSPasteboard.general.clearContents()
@@ -295,8 +281,20 @@ struct PrinterView: View {
 
 // MARK: - Dot line renderer
 
+/// One printed line's dot codes (Bridge TIPrinterLine).
+struct PrinterCodeLine: Equatable {
+    var codes: [UInt8]  // 20 raw character codes (0–63)
+    var rowCount: Int   // dot rows printed: 7 complete, 1–6 cut short
+
+    static let blank = PrinterCodeLine(codes: Array(repeating: 0, count: 20), rowCount: 7)
+
+    init(codes: [UInt8], rowCount: Int) { self.codes = codes; self.rowCount = rowCount }
+    init(_ t: TIPrinterLine) { self.init(codes: [UInt8](t.codes), rowCount: t.rowCount) }
+}
+
 struct PrinterDotLine: View {
-    let codes: [UInt8]  // 20 raw character codes (0–63)
+    let line: PrinterCodeLine
+    private var codes: [UInt8] { line.codes }
 
     // Physical model of the PC-100C print head (measured; derivation in
     // Shared/PrinterFont.hpp PrinterGeometry, shared with the Qt6 app). Units
@@ -316,11 +314,8 @@ struct PrinterDotLine: View {
     private static let dotRadiusFraction = TIViewRules.printerDotRadiusFraction  // of the dot pitch
     private static let interLineGap      = TIViewRules.printerInterLineGap       // ≈ 3.18 dp stepper advance
 
-    // Byte 20, when present, carries the rowCount from the C++ PrinterCodeLine struct.
     // 7 = complete line; 1–6 = aborted mid-stroke (partial dot-rows visible on paper).
-    private var rowCount: Int {
-        codes.count > 20 ? max(1, min(7, Int(codes[20]))) : 7
-    }
+    private var rowCount: Int { max(1, min(7, line.rowCount)) }
 
     // Dot-row model: each row is a separate Canvas with aspect ratio widthUnits:1
     // (one dot-pitch tall, full line width). This gives SwiftUI a concrete height per
@@ -377,7 +372,7 @@ struct PrinterDotLine: View {
     ]
     // Provide zero-filled code lines so the preview renders blank dot rows
     // (good enough to check layout; real codes come from the emulator).
-    vm.printerCodeLines = vm.printerLines.map { _ in Data(count: 20) }
+    vm.printerCodeLines = vm.printerLines.map { _ in .blank }
     return PrinterView()
         .environment(vm)
         .frame(width: 220, height: 400)

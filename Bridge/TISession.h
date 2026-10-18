@@ -24,12 +24,18 @@ NS_ASSUME_NONNULL_BEGIN
 @end
 
 /// One 60 Hz frame (Shared/FrameSampler.hpp).
+/// One printed line's dot codes (Core PrinterCodeLine).
+@interface TIPrinterLine : NSObject
+@property (nonatomic, readonly, copy) NSData *codes;   ///< 20 character codes (0–63)
+@property (nonatomic, readonly) NSInteger rowCount;    ///< dot rows printed: 7 complete, 1–6 cut short
+@end
+
 @interface TIFrameUpdate : NSObject
 @property (nonatomic, readonly) BOOL displayUpdated;
 @property (nonatomic, readonly) TIDisplaySnapshot display;
 @property (nonatomic, readonly) double calcIndicatorOpacity;
 @property (nonatomic, readonly, copy) NSArray<NSString *> *printerLines;
-@property (nonatomic, readonly, copy) NSArray<NSData *> *printerCodeLines;  ///< 20 codes + row count per line
+@property (nonatomic, readonly, copy) NSArray<TIPrinterLine *> *printerCodeLines;  ///< parallel to printerLines
 @property (nonatomic, readonly, copy) NSArray<NSString *> *logLines;
 @property (nonatomic, readonly) BOOL cardAutoEjected;
 @end

@@ -94,7 +94,7 @@ class EmulatorViewModel {
 
     // ── Printer state ────────────────────────────────────────────────────────
     var printerLines: [String] = []
-    var printerCodeLines: [Data] = []  // parallel to printerLines; 20 raw codes per line
+    var printerCodeLines: [PrinterCodeLine] = []  // parallel to printerLines
     var printerClearID: Int = 0   // incremented on cut to reset Text identity and drop selection
     var printerTrace: Bool = false
     var printerConnected: Bool = true
@@ -480,7 +480,7 @@ class EmulatorViewModel {
         }
 
         if !frame.printerCodeLines.isEmpty {
-            printerCodeLines.append(contentsOf: frame.printerCodeLines)
+            printerCodeLines.append(contentsOf: frame.printerCodeLines.map(PrinterCodeLine.init))
         }
 
         // Guard each assignment: @Observable notifies on every write, even of an

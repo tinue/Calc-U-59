@@ -49,7 +49,7 @@ tracked here (see `NewGUIGuide.md`).
 | PC-100C connect toggle (resets) | `PrinterView` | `PrinterWidget` | — | Both | |
 | Dot view at PC-100C proportions; text view | `PrinterView` | `PrinterWidget` | `PrinterFont` PrinterGeometry | Both | |
 | PRINT / ADV (hold), T (TRACE latch) | `PrinterView` | `PrinterWidget` | — | Both | |
-| Copy (text + 600 dpi image), cut | `PrinterView` | `PrinterWidget` | `PrinterFont` | Both | |
+| Copy (text + 600 dpi image), cut | `PrinterView` | `PrinterWidget` | `PrinterFont` PrinterGeometry (strip height, copy scale) | Both | |
 
 ## Debugger
 

@@ -24,6 +24,28 @@ struct PrinterGeometry {
     static constexpr double feedHeightUnits = heightUnits / 2.0 + 2.0;
     static constexpr double dotRadiusFraction = 0.38;                       ///< of the dot pitch
     static constexpr double charStepUnits = 5.0 + charGap;
+
+    /// Margins of the on-screen paper strip, in points / pixels.
+    static constexpr double paperPaddingX = 6, paperPaddingY = 8;
+
+    /// Dot rows of a printed line: 7 for a complete line, 1–6 where printing was cut short.
+    static constexpr int clampRowCount(int rowCount) { return rowCount < 1 ? 1 : rowCount > 7 ? 7 : rowCount; }
+
+    /// Height of one strip line: a PRT_FEED blank line, a complete line (7 rows
+    /// plus the stepper's advance) or a cut-short one (its rows, no advance).
+    static constexpr double lineHeightUnits(bool isFeed, int rowCount) {
+        if (isFeed) return feedHeightUnits;
+        int rows = clampRowCount(rowCount);
+        return rows == 7 ? heightUnits : rows;
+    }
+
+    /// Copy-as-image scale: physical size at 600 dpi, backed off for long tapes
+    /// so the image stays within 16000 px (GPU texture limits are 16384).
+    static constexpr double copyDpi = 600, copyMaxPx = 16000;
+    static constexpr double copyPixelsPerUnit(double stripHeightUnits) {
+        double px = dotPitchMM / 25.4 * copyDpi;
+        return stripHeightUnits * px > copyMaxPx ? copyMaxPx / stripHeightUnits : px;
+    }
 };
 
 inline constexpr uint8_t kPC100CFont[64][7] = {
