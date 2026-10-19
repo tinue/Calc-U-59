@@ -1,6 +1,6 @@
 ---
 name: calc-u-59-shared
-description: Use this skill when working on the shared C++ layer of Calc-U-59 (Shared/, tests/, the root CMakeLists.txt, tools/goldens/) — the non-GUI logic both the Swift app and the Qt6 app use: file formats, state files, cue cards, the UI-thread orchestrator (SessionController), the emulator runtime (session, run loop, freeze state, key sequencing, frame sampling), the debugger model (DebugModel), debug snapshots, trace writer, view rules. Also trigger when adding a Bridge/ wrapper for a Shared module, or when logic is about to be written in App/*.swift or Qt6/app/ that isn't drawing.
+description: Use this skill when working on the shared C++ layer of Calc-U-59 (Shared/, tests/, the root CMakeLists.txt, tools/goldens/) — the non-GUI logic the Swift app, the Qt6 app and the web client use: file formats, state files, cue cards, the UI-thread orchestrator (SessionController), the emulator runtime (session, run loop, freeze state, key sequencing, frame sampling), the debugger model (DebugModel), debug snapshots, trace writer, view rules. Also trigger when adding a Bridge/ wrapper for a Shared module, or when logic is about to be written in App/*.swift, Qt6/app/ or Web/ that isn't drawing.
 user-invocable: true
 ---
 
@@ -12,26 +12,27 @@ drawing rules: `reference/SharedArchitecture.md`. Don't restate them here.
 ## Rules
 
 1. **Shared is the home of all non-GUI logic.** If code would parse, encode,
-   time, sequence, build a snapshot or compute a layout number in Swift or
-   Qt, it belongs here instead (CLAUDE.md § "Frontend Parity").
+   time, sequence, build a snapshot or compute a layout number in Swift, Qt
+   or the web client's JS, it belongs here instead (CLAUDE.md § "Frontend Parity").
 2. **C++17, standard library only.** No Foundation, Qt or platform APIs; no
    C++20 (the CMake build is C++17 — it is the gate).
 3. **No locations.** Take `std::filesystem::path` or a `ResourceReader`;
    never look up iCloud, Documents, bundles or qrc.
-4. **Both builds before every commit:**
+4. **All builds before every commit:**
    ```bash
    cmake -S . -B build/cmake -G Ninja && cmake --build build/cmake && ctest --test-dir build/cmake --output-on-failure
    xcodebuild -project Calc-U-59.xcodeproj -scheme Calc-U-59 -destination platform=macOS build
+   Web/build.sh && Web/run-tests.sh
    ```
-   (The Qt app builds as part of the root CMake build when Qt is installed.)
+   (The Qt app builds as part of the root CMake build when Qt is installed;
+   the web build needs `emcc` — calc-u-59-web skill.)
 5. **No threads you can't pump.** The web build compiles `Shared/` without
    threads (`Threading::Cooperative`, `reference/SharedArchitecture.md`
    § "Cooperative mode (no threads)"). New runtime code that waits or runs
    in the background must work both ways, with a test in
-   `tests/shared_cooperative_tests.cpp`. When the controller or runtime
-   changes, also run `tools/build_wasm.sh` (needs `emcc`) and
-   `helpsite-unit-tests/run-tests.sh`; `docs/wasm/bindings.cpp` is the web's
-   adapter, to update like `Qt6/app/EmulatorController`.
+   `tests/shared_cooperative_tests.cpp`. `Web/bindings.cpp` is the web's
+   adapter, to update like `Qt6/app/EmulatorController` when the controller
+   or `Platform` changes.
 6. **Test every module** in `tests/` (`TestHarness.hpp`, `TEST`/`CHECK`;
    `TestRoms.hpp` boots machines from `roms/`). Tests run from the repo root.
 7. **Commit often, never push.**

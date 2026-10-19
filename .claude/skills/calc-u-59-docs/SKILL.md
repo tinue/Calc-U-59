@@ -1,6 +1,6 @@
 ---
 name: calc-u-59-docs
-description: Use this skill when working on the Calc-U-59 documentation or help website (docs/, reference/, root markdown files). Covers the GitHub Pages static site (HTML + client-side React), the design system, and the reference architecture docs. Trigger on any task that touches docs/*.html, docs/*.jsx, docs/*.css, reference/*.md, README.md, CHANGELOG.md, TODO.md, or PRIVACY.md. Also trigger when the user says "update documentation" (or similar) after finishing Core/, Shared/, App/ or Qt6/ work on a release branch — see the Release Documentation Update Workflow section.
+description: Use this skill when working on the Calc-U-59 documentation or help website (docs/, reference/, root markdown files). Covers the GitHub Pages static site (HTML + client-side React), the design system, and the reference architecture docs. Trigger on any task that touches docs/*.html, docs/*.jsx, docs/*.css, reference/*.md, README.md, CHANGELOG.md, TODO.md, or PRIVACY.md. Also trigger when the user says "update documentation" (or similar) after finishing Core/, Shared/, App/, Qt6/ or Web/ work on a release branch — see the Release Documentation Update Workflow section.
 user-invocable: true
 ---
 
@@ -75,7 +75,6 @@ covers the build and routing files):
 | File | Role |
 |------|------|
 | `docs/Pages.jsx` | Page content: home, install, debugger, … |
-| `docs/Calculator.jsx` | Interactive calculator component |
 | `docs/components.jsx` | Reusable UI components |
 | `docs/styles.css` | Main stylesheet |
 | `docs/colors_and_type.css` | Design tokens (colors, typography) — load this first |
@@ -90,9 +89,9 @@ Generated — never edit by hand, always regenerate: `docs/build/`, every
 
 There is also a dedicated design skill at `docs/SKILL.md` that covers generating branded interfaces and visual assets. Do not duplicate its content here — use it when the task is primarily visual or brand-driven.
 
-**The playable web calculator (`docs/play/`)** is a real, WASM-compiled build of the emulation core, not a mock — see `docs/PlayCalculator.jsx`, `docs/calc-engine-worker.js`, `docs/wasm/`. The engine is the main repo's `Core/` + `Shared/` (`SessionController`, single-threaded) compiled by `tools/build_wasm.sh`, which also copies the ROM text files into `docs/wasm/roms/`; JS only draws and passes messages. See the Release Documentation Update Workflow below for when to re-run it.
+**The playable calculator (`/play/`, `/app/`) is the web client from the main repo's `Web/`** — calc-u-59-web skill and `reference/WebClient.md`. The calculator files still in `docs/` (`Calculator.jsx`, `cuecard.jsx`, `led-display.jsx`, `PlayCalculator.jsx`, `calc-engine-worker.js`, `wasm/`, `app/`, `presets/`) are the pre-move copy that `calcu59.ch` serves until it is retired; don't develop the calculator there. Embedding a built `Web/dist/` instead is the new site's job.
 
-**`/software/` (`docs/software-files/`) needs a manual sync check.** These files are deliberately hand-copied from the main repo's `examples/` — self-hosted (not linked out to GitHub) so the `download` attribute works and visitors never leave `calcu59.ch`, and files stay small enough (~200K total) that duplication is cheap. Nothing wires the two directories together automatically, unlike `tools/build_wasm.sh`, which regenerates `docs/wasm/`. Whenever you're in this skill for an unrelated reason, or a session adds files to the main repo's `examples/`, diff the two:
+**`/software/` (`docs/software-files/`) needs a manual sync check.** These files are deliberately hand-copied from the main repo's `examples/` — self-hosted (not linked out to GitHub) so the `download` attribute works and visitors never leave `calcu59.ch`, and files stay small enough (~200K total) that duplication is cheap. Nothing wires the two directories together automatically. Whenever you're in this skill for an unrelated reason, or a session adds files to the main repo's `examples/`, diff the two:
 ```bash
 comm -23 <(cd examples && find . -maxdepth 2 \( -name '*.ti59' -o -name '*.ti58' -o -name '*.ti58c' -o -name '*.asm' \) ! -path './debug/*' ! -path './screentest/*' | sed 's|^\./||' | sort) \
          <(cd docs/software-files && find . -type f | sed 's|^\./||' | sort)
@@ -147,10 +146,11 @@ These are AI-generated documents produced by reading the source code alongside h
 | `reference/CoreArchitecture.md` | C++ emulation core (`Core/`): TMC0501, SCOM, register model |
 | `reference/SharedArchitecture.md` | Shared C++ layer (`Shared/`) both GUIs use: modules, SessionController, threads, run loop and timing, key input and keyboard map, card/state-file/ROM loading, drawing rules, tests and goldens |
 | `reference/AppArchitecture.md` | Swift app (`App/`) and the ObjC++ `Bridge/` |
-| `reference/FrontendParity.md` | Feature table of the Swift and Qt6 apps: where each feature lives, what is pending on which side |
+| `reference/FrontendParity.md` | Feature table of the Swift app, the Qt6 app and the web client: where each feature lives, what is pending on which side |
+| `reference/WebClient.md` | The web client (`Web/`): layout, build, the `Web/dist/` contract the website embeds |
 | `reference/DebugAPI.md` | Debug panel and debug API, including the ASM overlay feature |
 | `reference/StateFileFormat.md` | `.ti59`/`.ti58`/`.ti58c` file format: sections, PARTITION/PROGRAM/REGISTERS, matrix codes, KEYSTROKES syntax, CUECARD grammar |
-| `reference/NewGUIGuide.md` | Porting guide for another GUI frontend: building on `Shared/` (the Qt6 app as the example), or compiling `Shared/` for a platform without threads (the web build) |
+| `reference/NewGUIGuide.md` | Porting guide for another GUI frontend: building on `Shared/` (the Qt6 app as the example), or compiling `Shared/` for a platform without threads (the web client) |
 
 The Qt6 app has no reference doc of its own: its class map and build live in
 the `calc-u-59-qt` skill, its feature placement in `FrontendParity.md`.
@@ -179,7 +179,7 @@ When updating these files, keep the provenance notice at the top intact — it s
 
 ## Release Documentation Update Workflow
 
-Triggered by the user saying **"update documentation"** (or similar) after finishing work on `Core/`, `Shared/`, `App/` or `Qt6/` for a release. The current dev branch (`dev-X.Y.Z`) always starts at the HEAD of the previous release tag — that tag, not `main` and not an arbitrary commit count, is the diff base.
+Triggered by the user saying **"update documentation"** (or similar) after finishing work on `Core/`, `Shared/`, `App/`, `Qt6/` or `Web/` for a release. The current dev branch (`dev-X.Y.Z`) always starts at the HEAD of the previous release tag — that tag, not `main` and not an arbitrary commit count, is the diff base.
 
 1. **Find the base commit — verify, don't trust a single command blindly.**
    This repo has at least one tag anomaly (`v1.6.0` and `v1.5.0` point at the exact same commit — a past tagging mistake), so `git describe --tags --abbrev=0` alone can silently mislead. Cross-check two ways:
@@ -196,19 +196,15 @@ Triggered by the user saying **"update documentation"** (or similar) after finis
    git log <base-commit>..HEAD --oneline
    git diff <base-commit>..HEAD --stat
    ```
-   Read the full diff for `Core/`, `Shared/`, `App/`, `Bridge/`, `Qt6/` and `roms/` — that's where documented facts live. Skip doc-only or test-only commits already made earlier in the same session.
+   Read the full diff for `Core/`, `Shared/`, `App/`, `Bridge/`, `Qt6/`, `Web/` and `roms/` — that's where documented facts live. Skip doc-only or test-only commits already made earlier in the same session.
 
 3. **Update `CHANGELOG.md`.** Confirm every user-facing change from step 2 has an entry under the current `[X.Y.Z] - work in progress` heading, in the existing style (bold **Area** prefix, `### Fixes` subsection for bug fixes). Don't add a release date — that happens at release time.
 
-4. **Update reference docs** (`reference/CoreArchitecture.md`, `reference/SharedArchitecture.md`, `reference/AppArchitecture.md`, `reference/DebugAPI.md`, `reference/StateFileFormat.md`, `reference/FrontendParity.md`) for anything the diff invalidated: register model, SCOM layout, PC encoding, machine variants, bridge/debug API surface, settings, file formats. Keep each file's provenance notice intact.
+4. **Update reference docs** (`reference/CoreArchitecture.md`, `reference/SharedArchitecture.md`, `reference/AppArchitecture.md`, `reference/DebugAPI.md`, `reference/StateFileFormat.md`, `reference/FrontendParity.md`, `reference/WebClient.md`) for anything the diff invalidated: register model, SCOM layout, PC encoding, machine variants, bridge/debug API surface, settings, file formats. Keep each file's provenance notice intact.
 
-5. **Update the help website** (`docs/Pages.jsx`, `docs/PlayCalculator.jsx`, etc.) if the change is user-facing in either app — new settings, module behavior, install steps (Mac, iOS, Windows, Linux), state-file directives (mention the directive exists and link back to `reference/StateFileFormat.md` for the grammar, don't restate it). `docs/` is a separate git worktree with its own versioning (i.e. none) — a change only needing a website update, with nothing in `Core/`/`Shared/`/`App/`/`Qt6/`/`roms/`, does not need a `CHANGELOG.md` entry. Commit `docs/` changes from inside `docs/`, not from the main repo (see above).
+5. **Update the help website** (`docs/Pages.jsx`, etc.) if the change is user-facing in either app — new settings, module behavior, install steps (Mac, iOS, Windows, Linux), state-file directives (mention the directive exists and link back to `reference/StateFileFormat.md` for the grammar, don't restate it). `docs/` is a separate git worktree with its own versioning (i.e. none) — a change only needing a website update, with nothing in `Core/`/`Shared/`/`App/`/`Qt6/`/`Web/`/`roms/`, does not need a `CHANGELOG.md` entry. Commit `docs/` changes from inside `docs/`, not from the main repo (see above).
 
-6. **Rebuild the WASM calculator (`docs/play/`) if the diff from step 2 touched `Core/`, `Shared/` or `roms/`** (the web build compiles both C++ layers and copies the ROM text files). If `SessionController`'s or `Platform`'s interface changed, update `docs/wasm/bindings.cpp` to match — it is the web's adapter, like `Qt6/app/EmulatorController`.
-   ```bash
-   tools/build_wasm.sh
-   ```
-   Then run `helpsite-unit-tests/run-tests.sh` — `play-calculator.spec.js` covers arithmetic, the physical keyboard, module cue cards, presets and the card reader through the real WASM engine end to end — before committing. Only GUI-only releases (`App/`, `Qt6/`) skip this step.
+6. **The web client** (`Web/`) is not part of the website any more: if the diff touched `Core/`, `Shared/`, `roms/` or `Web/`, build and test it as the calc-u-59-web skill says. Nothing in `docs/` is rebuilt for it.
 
 7. **Commit in both places, never push.** Main-repo changes (`CHANGELOG.md`, `reference/`, `README.md`, `TODO.md`, `tools/`) commit from the repo root; `docs/` changes commit from inside `docs/` (separate worktree/branch — see above). Two separate commits, following the "commit often, never push" rule below.
 
