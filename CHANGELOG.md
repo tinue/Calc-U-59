@@ -16,6 +16,7 @@
 - **Examples** New `fastmode-sst.ti59` (the shortest way into fast mode), `printer-interrupt.ti59` (the smallest printer interrupt) and `calendar-09-dispatch.ti59` (a fast-mode calendar printer, faster than Acosta's 1981 program).
 - **Documentation** Annotated ROM listings and guides for the TI-59 and the TI-58C (`rom/`), with explanations of fast mode and the printer interrupt. Command-line tools for ROM traces and for running and timing programs headless (`tools/headless/`, `tools/agentic/`).
 - **Build** New CMake build with a C++ test suite (`ctest`), including checks of the moved code against the previous Swift implementation.
+- **Web calculator** The playable calculator on the website now runs the same shared C++ layer as the apps, compiled to WebAssembly, instead of its own JavaScript copies of it. Presets, key timing, the physical keyboard, cue cards, the magnetic card and the display now behave as in the apps: the display fades as on the real calculator, the C indicator dims smoothly, a short click on a key always registers, a SKIP-RESET preset keeps the program in memory, and choosing a module resets the calculator as the apps' setting does.
 - **License** Calc-U-59 is now free software under the GNU General Public License, version 3 (GPLv3), replacing the Polyform Noncommercial License. The Windows and Linux app uses Qt6 under the LGPLv3 (see `THIRD-PARTY-NOTICES.md`).
 
 ### Fixes
@@ -26,6 +27,7 @@
 - **Debugger** A trace file that can't be created, or that reaches its size limit, now shows an alert instead of only stopping. Pressing RESUME right after FREEZE or STEP no longer briefly shows a stale frozen view.
 - **Printer** Copy as image now sizes long tapes by their real height, counting cut-short (printer-interrupt) lines by the rows they printed, so such copies keep the full 600 dpi when they fit.
 - **Settings** A stored startup calculator that no longer names a model now falls back to the last used one instead of the TI-59.
+- **State Files** KEYSTROKES playback now waits for the calculator to be ready before each key, not only after it. A script's first key could be lost when the calculator was still busy, e.g. `2nd Pgm 01` ending up in LRN mode.
 
 ## [1.7.0] - 2026-09-15
 - **Error messages** File-load error alerts now show a title that matches what actually failed (state file, card, or ASM load/save) instead of always saying "ROM load error". A state file that isn't valid UTF-8 (e.g. saved with a curly quote or em dash in a non-UTF-8 encoding) now gets a specific explanation instead of a generic "Cannot read file."

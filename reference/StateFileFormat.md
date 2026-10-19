@@ -329,8 +329,7 @@ Row1: i: \to x_{i} | \to A^{-1}
 `Title`, `ID`, the rows and every label expand tokens: Greek letters,
 overlined variables such as `\xbar`, arrows, `\sqrt`, `\sum`, `\integral`,
 and `^{…}` / `_{…}` super- and subscripts. The table is `kMathTokens` in
-`Shared/CueCard.cpp`. The web build keeps a copy, `MATH_TOKENS` in
-`docs/cuecard-data.js`, which must stay identical.
+`Shared/CueCard.cpp`.
 
 ---
 
@@ -353,7 +352,7 @@ second file of a multi-file screenshot sequence.
 ## What a load does
 
 Without `SKIP-RESET`, in this order (code: `SessionController::loadStateFile`,
-`Shared/StateApplier.cpp`; the web build: `docs/calc-engine-worker.js`):
+`Shared/StateApplier.cpp`):
 
 1. `MODEL:` switches the machine if it names another model.
 2. Reset, then 300,000 steps for the ROM's power-on routine.

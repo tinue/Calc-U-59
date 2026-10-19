@@ -90,9 +90,9 @@ Generated — never edit by hand, always regenerate: `docs/build/`, every
 
 There is also a dedicated design skill at `docs/SKILL.md` that covers generating branded interfaces and visual assets. Do not duplicate its content here — use it when the task is primarily visual or brand-driven.
 
-**The playable web calculator (`docs/play/`)** is a real, WASM-compiled build of the emulation core, not a mock — see `docs/PlayCalculator.jsx`, `docs/calc-engine-worker.js`, `docs/wasm/`. It's built from `tools/pack_roms.py` and `tools/build_wasm.sh` in the main repo; see the Release Documentation Update Workflow below for when to re-run them.
+**The playable web calculator (`docs/play/`)** is a real, WASM-compiled build of the emulation core, not a mock — see `docs/PlayCalculator.jsx`, `docs/calc-engine-worker.js`, `docs/wasm/`. The engine is the main repo's `Core/` + `Shared/` (`SessionController`, single-threaded) compiled by `tools/build_wasm.sh`, which also copies the ROM text files into `docs/wasm/roms/`; JS only draws and passes messages. See the Release Documentation Update Workflow below for when to re-run it.
 
-**`/software/` (`docs/software-files/`) needs a manual sync check.** These files are deliberately hand-copied from the main repo's `examples/` — self-hosted (not linked out to GitHub) so the `download` attribute works and visitors never leave `calcu59.ch`, and files stay small enough (~200K total) that duplication is cheap. Nothing wires the two directories together automatically, unlike the `pack_roms.py`/`build_wasm.sh` scripts that regenerate `docs/wasm/`. Whenever you're in this skill for an unrelated reason, or a session adds files to the main repo's `examples/`, diff the two:
+**`/software/` (`docs/software-files/`) needs a manual sync check.** These files are deliberately hand-copied from the main repo's `examples/` — self-hosted (not linked out to GitHub) so the `download` attribute works and visitors never leave `calcu59.ch`, and files stay small enough (~200K total) that duplication is cheap. Nothing wires the two directories together automatically, unlike `tools/build_wasm.sh`, which regenerates `docs/wasm/`. Whenever you're in this skill for an unrelated reason, or a session adds files to the main repo's `examples/`, diff the two:
 ```bash
 comm -23 <(cd examples && find . -maxdepth 2 \( -name '*.ti59' -o -name '*.ti58' -o -name '*.ti58c' -o -name '*.asm' \) ! -path './debug/*' ! -path './screentest/*' | sed 's|^\./||' | sort) \
          <(cd docs/software-files && find . -type f | sed 's|^\./||' | sort)
@@ -150,7 +150,7 @@ These are AI-generated documents produced by reading the source code alongside h
 | `reference/FrontendParity.md` | Feature table of the Swift and Qt6 apps: where each feature lives, what is pending on which side |
 | `reference/DebugAPI.md` | Debug panel and debug API, including the ASM overlay feature |
 | `reference/StateFileFormat.md` | `.ti59`/`.ti58`/`.ti58c` file format: sections, PARTITION/PROGRAM/REGISTERS, matrix codes, KEYSTROKES syntax, CUECARD grammar |
-| `reference/NewGUIGuide.md` | Porting guide for another GUI frontend: building on `Shared/` (the Qt6 app as the example), or porting its rules to a non-C++ platform (the web build) |
+| `reference/NewGUIGuide.md` | Porting guide for another GUI frontend: building on `Shared/` (the Qt6 app as the example), or compiling `Shared/` for a platform without threads (the web build) |
 
 The Qt6 app has no reference doc of its own: its class map and build live in
 the `calc-u-59-qt` skill, its feature placement in `FrontendParity.md`.
@@ -204,18 +204,11 @@ Triggered by the user saying **"update documentation"** (or similar) after finis
 
 5. **Update the help website** (`docs/Pages.jsx`, `docs/PlayCalculator.jsx`, etc.) if the change is user-facing in either app — new settings, module behavior, install steps (Mac, iOS, Windows, Linux), state-file directives (mention the directive exists and link back to `reference/StateFileFormat.md` for the grammar, don't restate it). `docs/` is a separate git worktree with its own versioning (i.e. none) — a change only needing a website update, with nothing in `Core/`/`Shared/`/`App/`/`Qt6/`/`roms/`, does not need a `CHANGELOG.md` entry. Commit `docs/` changes from inside `docs/`, not from the main repo (see above).
 
-6. **Rebuild the WASM calculator (`docs/play/`) only if it's actually affected.** Check whether the diff from step 2 touched:
-   - `Core/*.cpp` / `Core/*.hpp` — specifically anything reachable from `docs/wasm/bindings.cpp`'s bound surface (ROM/library/constants loading, key press/release, display snapshot, program/register writes, `stepN`/`stepCycles`, `insertedModuleNumber`). If `TI59Machine`'s public API itself changed, check `bindings.cpp`'s bound-method list against `Core/TI59Machine.hpp` before assuming a plain rebuild covers it — a new or changed method may need a matching binding.
-   - `roms/calculator/*.txt`, `roms/solid-state/*.txt` (including `roms/solid-state/cuecards.txt`) — any of these changing means `tools/pack_roms.py` must be re-run to regenerate `docs/wasm/roms/*.json`.
-
-   If either applies:
+6. **Rebuild the WASM calculator (`docs/play/`) if the diff from step 2 touched `Core/`, `Shared/` or `roms/`** (the web build compiles both C++ layers and copies the ROM text files). If `SessionController`'s or `Platform`'s interface changed, update `docs/wasm/bindings.cpp` to match — it is the web's adapter, like `Qt6/app/EmulatorController`.
    ```bash
-   python3 tools/pack_roms.py   # only if roms/*.txt changed
-   tools/build_wasm.sh          # only if Core/ or bindings.cpp changed
+   tools/build_wasm.sh
    ```
-   Then run `helpsite-unit-tests/run-tests.sh` — `play-calculator.spec.js` covers arithmetic, module cue cards, and preset loading through the real WASM core end to end — before committing.
-
-   If neither `Core/` nor `roms/*.txt` changed (most releases are GUI, `Shared/` or debugger work), skip this step entirely. The web build compiles `Core/` only, not `Shared/`.
+   Then run `helpsite-unit-tests/run-tests.sh` — `play-calculator.spec.js` covers arithmetic, the physical keyboard, module cue cards, presets and the card reader through the real WASM engine end to end — before committing. Only GUI-only releases (`App/`, `Qt6/`) skip this step.
 
 7. **Commit in both places, never push.** Main-repo changes (`CHANGELOG.md`, `reference/`, `README.md`, `TODO.md`, `tools/`) commit from the repo root; `docs/` changes commit from inside `docs/` (separate worktree/branch — see above). Two separate commits, following the "commit often, never push" rule below.
 

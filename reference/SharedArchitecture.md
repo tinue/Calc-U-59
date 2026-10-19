@@ -5,14 +5,15 @@
 > app on it. Like the other `reference/*.md` files it is best-effort and
 > correct as of writing — the code wins where they disagree.
 
-`Shared/` holds everything both frontends need that is neither hardware
+`Shared/` holds everything the frontends need that is neither hardware
 emulation nor drawing. It sits between `Core/` (the emulated hardware, see
-`CoreArchitecture.md`) and the two GUIs:
+`CoreArchitecture.md`) and the two apps, plus the website's playable
+calculator:
 
 ```
-App/ (SwiftUI) ── Bridge/ (ObjC++) ──┐
-                                      ├── Shared/ (C++17, std only) ── Core/
-Qt6/app/ (Qt Widgets) ───────────────┘
+App/ (SwiftUI) ── Bridge/ (ObjC++) ─────────┐
+Qt6/app/ (Qt Widgets) ──────────────────────┼── Shared/ (C++17, std only) ── Core/
+docs/ web calculator ── wasm/bindings.cpp ──┘   (WebAssembly, no threads)
 ```
 
 - **C++17, standard library only** — no Foundation, no Qt, no iCloud. The
@@ -40,6 +41,7 @@ wrappers in `Bridge/`, which only translate types (`AppArchitecture.md`
 | `Pacing` | 20 ms cycle-weighted batches with carry; the full-speed sleep rule |
 | `FreezeController` | The two armed freezes, checked per instruction from the run loop |
 | `KeySequencer` | 100 ms taps that wait for the scan loop, physical-key holds, KEYSTROKES playback |
+| `Threading` | Threads or cooperative (no threads, pumped from `tick()`) — see § "Threads" |
 | `FrameSampler` | The 60 Hz frame: display, C indicator, printer, log, card auto-eject |
 | `DisplayPov` | LED brightness per position from the core's duty cycles (persistence of vision) |
 | **Debugger** | |
@@ -124,6 +126,27 @@ One `tick(now)`:
 `EmulatorSession::Listener` callbacks arrive on the emulation or sequencer
 threads; `SessionController` hops them to the UI thread.
 
+### Cooperative mode (no threads)
+
+`Threading::Cooperative` (`Shared/Threading.hpp`, the last argument of
+`SessionController`, `EmulatorSession`, `EmulationRunner` and `KeySequencer`)
+runs all of the above on the frontend's UI thread instead. The web calculator
+uses it — a page on GitHub Pages can't have threads (no `SharedArrayBuffer`
+without COOP/COEP headers) — and so do the tests on virtual time
+(`tests/shared_cooperative_tests.cpp`). The apps use `Threading::Threads`.
+
+- `SessionController::tick(now)` first calls `EmulatorSession::pump(now)`.
+- `EmulationRunner::pump` runs the 20 ms batches due by `now` on the same
+  absolute schedule as the thread (a lag over 100 ms restarts it); at full
+  speed it runs batches back to back for at most 10 ms of wall clock. Jobs
+  queued behind a stopped loop run at the end of the pump; `sync()` runs the
+  queue, then the job, inline.
+- `KeySequencer` scripts and taps are resumable tasks in both modes — the
+  same state machine, which says when it next wants to run. Threaded, each
+  lane's thread sleeps until then; cooperatively, the session advances the
+  lanes after every batch, at the time that batch ends, so a 100 ms hold is
+  five batches and the scan-loop wait is checked at each batch boundary.
+
 `sync()` waits for the job; call `stop()` first, or it waits for the run
 loop. Key playback reads the session's frozen state, so it stops waiting for
 an idle CPU that will never come.
@@ -171,13 +194,14 @@ bit 4 is the card-detect line. Scanning: `CoreArchitecture.md`
 ## Physical Keyboard Mapping
 
 Computer keyboards drive the calculator in the macOS Swift app, the Qt6 app
-and the web calculator (`docs/play/`, through its own port
-`docs/keyboard-map.js`). iOS/iPadOS and the standalone web app `docs/app/`
-have no keyboard input. The debugger and printer panels take no calculator
+and the web calculator (`docs/play/`). iOS/iPadOS and the standalone web app
+`docs/app/` have no keyboard input. The debugger and printer panels take no calculator
 keys: Space (R/S vs. STEP) and Cmd/Ctrl+C (printer tape vs. selected text)
 would have no single owner.
 
-Values below are matrix codes. The JS table is a hand-ported copy.
+Values below are matrix codes. The website's keyboard legend
+(`TI59_KEYBOARD_LEGEND` in `docs/Pages.jsx`, prerendered without the engine)
+lists the same bindings by hand.
 
 ### What is bound
 
@@ -219,10 +243,13 @@ multiplication.
 
 `key[]` is a wire level, not an event; the ROM accepts a key only when two
 scans one display sweep apart see it, and drops a shorter press as bounce
-(`ideas/KeypressLatch.md`). Both apps use `KeySequencer`:
+(`ideas/KeypressLatch.md`). Every frontend uses `KeySequencer`:
 
 - A press is held at least 100 ms. A key-up that comes sooner defers the
-  release; it is never dropped. (The web build: 80 ms hold, 120 ms gap.)
+  release; it is never dropped. The web calculator sends on-screen clicks
+  this way too, so a click shorter than that still registers.
+- A tap waits for the steady scan loop before it presses, and again after it
+  releases, so a key never lands in the ROM's release gate or debounce.
 - One key at a time: a key-down while another is held releases the first.
 - OS auto-repeat is ignored. A held key can never re-trigger, so repeats
   would only cause spurious releases.
@@ -356,8 +383,9 @@ Field grammar: `StateFileFormat.md` § "CUECARD: Field Grammar".
   width 0.64 × size), never below 40 % of the template's size. Free-text
   rows truncate instead.
 
-`docs/cuecard.jsx` is the web build's own port; it measures text in the DOM
-and drops the bank badges.
+The web calculator (`docs/cuecard.jsx`) gets the card, its spans and its ink
+from `Shared/` and draws it with DOM text: it measures the shrink-to-fit in
+the DOM and drops the bank badges.
 
 ### Printer
 

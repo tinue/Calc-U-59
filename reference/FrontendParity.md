@@ -9,7 +9,8 @@ on top. **Status:** `Both` — present in both; `Pending (Qt)` / `Pending
 (Swift)` — present in one, the other still to do (the Notes say why);
 `Swift only` / `Qt only` — deliberately platform-specific.
 
-The web calculator (`docs/play/`) has its own, narrower feature set and is not
+The web calculator (`docs/play/`) runs the same `SessionController` but has a
+narrower feature set (TI-59 only; no printer, debugger or traces) and is not
 tracked here (see `NewGUIGuide.md`).
 
 ## Calculator

@@ -24,9 +24,17 @@ drawing rules: `reference/SharedArchitecture.md`. Don't restate them here.
    xcodebuild -project Calc-U-59.xcodeproj -scheme Calc-U-59 -destination platform=macOS build
    ```
    (The Qt app builds as part of the root CMake build when Qt is installed.)
-5. **Test every module** in `tests/` (`TestHarness.hpp`, `TEST`/`CHECK`;
+5. **No threads you can't pump.** The web build compiles `Shared/` without
+   threads (`Threading::Cooperative`, `reference/SharedArchitecture.md`
+   § "Cooperative mode (no threads)"). New runtime code that waits or runs
+   in the background must work both ways, with a test in
+   `tests/shared_cooperative_tests.cpp`. When the controller or runtime
+   changes, also run `tools/build_wasm.sh` (needs `emcc`) and
+   `helpsite-unit-tests/run-tests.sh`; `docs/wasm/bindings.cpp` is the web's
+   adapter, to update like `Qt6/app/EmulatorController`.
+6. **Test every module** in `tests/` (`TestHarness.hpp`, `TEST`/`CHECK`;
    `TestRoms.hpp` boots machines from `roms/`). Tests run from the repo root.
-6. **Commit often, never push.**
+7. **Commit often, never push.**
 
 ## Adding a module
 
