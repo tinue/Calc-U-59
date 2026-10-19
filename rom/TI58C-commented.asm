@@ -2956,7 +2956,7 @@
 081C: 1516  JNC 0AA7          ; odd → shift first
 081D: 0700  A=A+1 EXP1        ; … one result exponent unit per two
 081E: 180B  JC 0819
-; LIB_EXEC_FETCH: next keycode of a library program from the CROM (FETCH
+; LIB_EXEC_ENTRY: next keycode of a library program from the CROM (FETCH
 ; HIGH then FETCH, which advances the module's internal PC): tens → D[1],
 ; units → D[0]. Then poll row 8 / column 1 (the RST key): held → abort the
 ; run and perform RST (082A → 04DF → 028A → 028C; trace-confirmed with
@@ -3159,7 +3159,7 @@
 08AA: 0A18  MOV KR[4..7],R5
 08AB: 06F6  D=R5 EXP
 08AC: 0A45  TST KR[4]         ; library program?
-08AD: 111D  JNC 081F          ; yes → fetch from the module (LIB_EXEC_FETCH 081F)
+08AD: 111D  JNC 081F          ; yes → fetch from the module (LIB_EXEC_ENTRY 081F)
 08AE: 00B8  TST fB[11]        ; cache invalid?
 08AF: 15BC  JNC 0B8D          ; yes → reload without advancing
 08B0: 0A67  MOV R5,#6

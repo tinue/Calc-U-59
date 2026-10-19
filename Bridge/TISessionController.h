@@ -200,7 +200,6 @@ typedef NS_ENUM(NSInteger, TIFreezeOwner) {
 - (void)dumpScom;
 - (void)dumpProg;
 - (void)dumpMemory;
-- (void)dumpStepCounterAnalysis;
 
 @property (nonatomic, readonly) BOOL manualTrace;
 - (void)setManualTrace:(BOOL)on;

@@ -83,4 +83,5 @@ The version is read from the Xcode project's `MARKETING_VERSION`.
 - **Windows** x86_64 / arm64: windeployqt → Inno Setup
   (`Qt6/resources/windows/calc-u-59.iss`, state-file associations).
 - `LICENSE`, `NOTICE`, `THIRD-PARTY-NOTICES.md` and `licenses/` (Qt LGPLv3)
-  are staged into the Windows package; the AppImage step does not copy them.
+  ship in both packages: next to the Windows executable, and in
+  `usr/share/doc/calc-u-59/` inside the AppImage.

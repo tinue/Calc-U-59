@@ -329,7 +329,6 @@ struct PlatformAdapter : cu59::SessionController::Platform {
 - (void)dumpScom { _c->dumpScom(); }
 - (void)dumpProg { _c->dumpProg(); }
 - (void)dumpMemory { _c->dumpMemory(); }
-- (void)dumpStepCounterAnalysis { _c->dumpStepCounterAnalysis(); }
 
 - (BOOL)manualTrace { return _c->manualTrace(); }
 - (void)setManualTrace:(BOOL)on { _c->setManualTrace(on == YES); }

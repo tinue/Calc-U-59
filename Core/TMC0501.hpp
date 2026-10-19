@@ -248,12 +248,10 @@ public:
     bool runDebugInjectedProgram(uint16_t startAddr, uint32_t maxSteps,
                                  uint32_t* outSteps);
 
-    /// Return the last stable display snapshot.
-    /// The snapshot is captured on every SET IDLE when the digit counter
-    /// reaches 0.  If the CPU has been active (not idling) for 3+ consecutive
-    /// digit-counter cycles the display is blanked — matching the hardware
-    /// behaviour where the LEDs go dark during heavy computation.
-    /// calcIndicator is true whenever the CPU is not in IDLE/display mode.
+    /// Display state integrated since the previous call: the latched digit
+    /// and control codes, each position's driven duty cycle (how bright it
+    /// looks is left to the frontend) and the C indicator's duty cycle.
+    /// Resets the integration window. Called by the UI thread at ~60 Hz.
     DisplaySnapshot getDisplay() const;
 
     uint16_t pc()       const { return addr; }
@@ -369,7 +367,7 @@ private:
     // program byte (keycodes and operands) from this site; module header reads
     // and label searches use different IN LIB sites that we deliberately
     // ignore.  Verified by execution trace per ROM variant (see
-    // reference/CPU_SCOM_Interconnect.md; module layout per
+    // reference/CoreArchitecture.md § "PRG SOURCE flag"; module layout per
     // https://www.datamath.org/Chips/TMC0540.htm).  TI-58 shares the TI-59
     // ROM; TI-58C uses a different ROM set (CD2400/CD2401/TMC0573) where
     // the interpreter loop lives at a different address.
@@ -502,17 +500,14 @@ private:
     //            start=0xFF marks an invalid/unused mask entry.
     static const MaskInfo mask_info[16];
 
-    // 64 × 16-digit BCD constant table, stored in the SCOM chip (TMC0571).
-    // Selected by KR bits 10:4 via the ADD/SUB … const ALU instructions.
+    // 64 × 16-digit constant ROM, loaded from the two ROM chips' CONST-K
+    // files (32 rows each). Selected by KR bits 4–6 and 8–11 via the
+    // ADD/SUB … const ALU instructions; the ROM walks it with INC KR.
     //
-    // Entries 0–15: mathematical constants for transcendental functions
-    //   (ln 10, ln 2, π/2, π, 180/π, and partial-product table entries used
-    //   by the CORDIC-style algorithms for sin/cos/tan/exp/ln).
-    // Entries 16–63: 6-bit keystroke display codes used in programming mode
-    //   to render key names on the LED display (e.g. SIN, STO, RCL, …).
-    //
-    // The constant is accessed by loading KR with the desired index via the
-    // INC KR chain at 0x139A–0x13A8, then using an ADD/SUB…const opcode.
+    // Rows 0–15: numeric constants of the transcendental functions
+    //   (ln 10, ln 2, π/2, π, 180/π, and the CORDIC-style partial products).
+    // Rows 16–63: the 384 keycodes of the ROM keycode sub-programs
+    //   (Σ+, x̄, P→R, D.MS, Op 11–15; PRG SOURCE 8, romKeycode()).
     uint8_t m_constant[64][16];
 
     // ALU operation selector passed to alu().

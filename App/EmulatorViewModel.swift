@@ -34,7 +34,8 @@ enum ProgramSource: Equatable {
     /// variants): RTN has written the popped library level into SCOM[0], so
     /// nibbles 4–7 hold the saved CROM return address (plain BCD, not a step
     /// number) until 1506 sets the flag back to 1. Lasts 16 instructions —
-    /// visible only when frozen, since stepUntilNextKeycode stops at 1192.
+    /// visible only when the CPU is single-stepped; STEP stops at the step
+    /// dispatch, outside it.
     case solidStateReturn
     /// 2, 4 or 6 anywhere else: a RAM program on the sub-program fast path —
     /// no display formatting, no R/S or GTO polls.
@@ -315,7 +316,6 @@ class EmulatorViewModel {
     func debugDumpSCOM() { controller.dumpScom() }
     func debugDumpProg() { controller.dumpProg() }
     func debugDumpMemory() { controller.dumpMemory() }
-    func debugDumpStepCounterAnalysis() { controller.dumpStepCounterAnalysis() }
 
     func loadASMOverlayFile(_ url: URL) {
         let scoped = url.startAccessingSecurityScopedResource()

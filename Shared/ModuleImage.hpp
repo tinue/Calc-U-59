@@ -23,7 +23,7 @@ enum class ProgramSource {
     /// RTN has written the popped library level into SCOM[0], so nibbles 4–7
     /// hold the saved CROM return address (plain BCD, not a step number) until
     /// 1506 sets the flag back to 1. Lasts 16 instructions — visible only when
-    /// frozen, since stepUntilNextKeycode stops at 1192.
+    /// the CPU is single-stepped; STEP stops at the step dispatch, outside it.
     SolidStateReturn,
     FastMode,          ///< 2, 4 or 6 elsewhere: RAM program on the sub-program fast path.
     Rom,               ///< bit 3 set, bit 0 clear (8 official): constant-ROM keycode sub-program.

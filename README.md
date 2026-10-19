@@ -113,7 +113,6 @@ isn't duplicated in this repository.
 | [`TODO.md`](TODO.md) | Unsorted backlog of ideas, bugs, and observations across the core, settings, and UI. |
 | [`release.yaml`](release.yaml) | Release configuration for ReleaseIt: the Mac DMG built locally, the Windows/Linux packages from CI, the iOS App Store upload. |
 | [`PRIVACY.md`](PRIVACY.md) | App Store privacy policy — Calc-U-59 collects no data and makes no network connections. |
-| [`ideas/Redesign.md`](ideas/Redesign.md) | Findings from a pre-2.0 codebase review flagging items that need a design decision or coordinated refactor rather than a spot fix. Written before the `Shared/` split; check each item against the current code. |
 | [`ideas/KeypressLatch.md`](ideas/KeypressLatch.md) | Unimplemented design proposal for latching keypresses while the debugger is frozen. |
 | [`ideas/Pico.md`](ideas/Pico.md) | Feasibility analysis for running the core on a Raspberry Pi Pico wired to a real TI-59's keyboard, display, and card reader. |
 | [`ideas/CardRecovery.md`](ideas/CardRecovery.md) | Signal-chain analysis and breadboard circuit design for a standalone Pico-based magnetic-card reader, aimed at recovering cards a stock TI-59 fails to read. |
@@ -155,8 +154,6 @@ Checked-in analysis the project keeps for itself, distinct from any AI tool's pr
 | Document | Abstract |
 |---|---|
 | [`memory/MEMORY.md`](memory/MEMORY.md) | Index of the other files in this directory. |
-| [`memory/project_context.md`](memory/project_context.md) | Project goals, key reference PDFs, and implementation phase. |
-| [`memory/headless.md`](memory/headless.md) | Superseded plan for a headless runner; the harness that was built is `tools/headless/`. |
 | [`memory/sbr444-quirk-analysis.md`](memory/sbr444-quirk-analysis.md) | Trace-level analysis of the `SBR 444`/R-S firmware quirk chain in the article's printer-interrupt sequence (overview: `rom/printerinterrupt.md`). The `*.txt` files beside it are the CPU traces it and the ROM annotations cite. |
 
 ### `rom/` — ROM listings and guides

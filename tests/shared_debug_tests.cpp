@@ -299,7 +299,6 @@ TEST(debug_dumps) {
     CHECK_EQ(scom[1].substr(0, 4), std::string("S00 "));
     auto mem = dumpMemory(*m);
     CHECK(mem.size() >= 2);
-    CHECK_EQ(dumpStepCounterAnalysis(*m).size(), size_t{15});
     CHECK(dumpProg(*m)[0].rfind("── Prog P000–P", 0) == 0);
 }
 

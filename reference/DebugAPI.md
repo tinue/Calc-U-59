@@ -330,7 +330,6 @@ Qt `logText()`).
 | `dumpScom()` | `debugDumpSCOM()` | 16 rows, nibble 15 first: `S00 0000000000000000` |
 | `dumpProg()` | `debugDumpProg()` | Non-zero program registers as their 8 keycodes in step order: `P000: 76 11 …` |
 | `dumpMemory()` | `debugDumpMemory()` | Every non-zero RAM register by physical index, in the `ti58c.mem` register-line format |
-| `dumpStepCounterAnalysis()` | `debugDumpStepCounterAnalysis()` | SCOM[0], [10], [13] for step-counter study; no button in either app |
 | `cycleDebugLevel()`, `clearLog()` | `toggleDebug()`, `clearDebug()` | Level Off → Info → Debug → Off; clear |
 
 Qt has the same names as `SessionController` for the four dumps. The level

@@ -581,7 +581,6 @@ void SessionController::dumpVars() { if (m_session) log(cu59::dumpVars(m_session
 void SessionController::dumpScom() { if (m_session) log(cu59::dumpScom(m_session->machine())); }
 void SessionController::dumpProg() { if (m_session) log(cu59::dumpProg(m_session->machine())); }
 void SessionController::dumpMemory() { if (m_session) log(cu59::dumpMemory(m_session->machine())); }
-void SessionController::dumpStepCounterAnalysis() { if (m_session) log(cu59::dumpStepCounterAnalysis(m_session->machine())); }
 
 // ── Traces ───────────────────────────────────────────────────────────────────
 

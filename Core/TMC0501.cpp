@@ -296,13 +296,10 @@ int TMC0501::getStepWeight() const {
 
 // ── Display read-out ──────────────────────────────────────────────────────────
 //
-// Called by the UI thread at ~60 Hz.  Returns a stable, mutex-protected copy
-// of the last display snapshot.
-//
-// Blanking: if the CPU has been in active (non-idle) mode for 3 or more
-// consecutive digit-counter cycles, the display is blanked to mimic the
-// hardware behaviour where the LED segments go dark during computation.
-// ctrl=7 for every digit signals "blank" to the LED renderer.
+// Called by the UI thread at ~60 Hz.  Integrates what the multiplex drove
+// since the previous call into per-position duty cycles and resets the window.
+// A position that was not driven reads as dark; persistence of vision is the
+// frontend's job (Shared/DisplayPov).
 
 DisplaySnapshot TMC0501::getDisplay() const {
     std::lock_guard<std::mutex> lock(m_displayMutex);
@@ -1078,8 +1075,7 @@ void TMC0501::execALU(uint16_t opcode) {
     default: break;
     }
 
-    // SCOM constant index — built from KR bits 10:4 (7 bits total).
-    // The unusual bit arrangement mirrors the hardware's KR field layout.
+    // Constant ROM row — KR bits 4–6 and 8–11 (bit 7 is skipped).
     int constIdx = static_cast<int>(((KR >> 5) & 0x78u) | ((KR >> 4) & 0x07u));
     if (constIdx >= 64) constIdx = 0;
     const uint8_t* constPtr = m_constant[constIdx];
@@ -1398,7 +1394,7 @@ void TMC0501::beginNextStep() {
 
 void TMC0501::postOperation() {
     // ── Per-step display capture & decay ────────────────────────────────────
-    // Must run after every instruction because each cycles the digit counter (see line 462).
+    // Must run after every instruction because each cycles the digit counter (at the top of step()).
     // Strobe capture is triggered when the digit counter indicates a visible position
     // (strobeDigit 2..13); skipping any cycle would break scan-chain timing and lose
     // display updates. This ensures both branch and normal execution paths maintain
@@ -1410,7 +1406,7 @@ void TMC0501::postOperation() {
     // Per-digit strobe-latched capture: during IDLE, when each digit position
     // is active (strobeDigit ∈ [2..13]), latch the corresponding segments and DP.
     // strobeDigit must reflect the digit *after* this instruction completes.
-    // Since digit is decremented at step() entry (line 462), we compute the
+    // Since digit is decremented at step() entry, we compute the
     // "active display position" from that decremented value.
     uint8_t strobeDigit = digit ? static_cast<uint8_t>(digit - 1) : 15;
     if ((flags & FLG_IDLE) && strobeDigit >= 2 && strobeDigit <= 13) {

@@ -124,26 +124,4 @@ std::vector<std::string> dumpMemory(const TI59Machine& m) {
     return lines;
 }
 
-std::vector<std::string> dumpStepCounterAnalysis(const TI59Machine& m) {
-    CpuFrame cpu = m.snapshotCPU();
-    static const char* kHex = "0123456789abcdef";
-    return {
-        "── Step Counter Analysis (SCOM) ──",
-        "SCOM[0]  (positions 0–15):",
-        "values:  " + nibbleHex(cpu.SCOM[0]),
-        "pos:     0123456789abcdef",
-        "note:    ----VARYING---",
-        std::string("SCOM[15][0]: ") + kHex[cpu.SCOM[15][0] & 0xF] + " (expected: 0=PC=0, 9=PC>0)",
-        "SCOM[10]: " + nibbleHex(cpu.SCOM[10]),
-        "SCOM[13]: " + nibbleHex(cpu.SCOM[13]),
-        "",
-        "Known mappings (for reference):",
-        "PC=100 → SCOM[0] pos 4-6 = '421'",
-        "PC=200 → SCOM[0] pos 4-6 = '052'",
-        "PC=300 → SCOM[0] pos 4-6 = '473'",
-        "PC=400 → SCOM[0] pos 4-6 = '425'",
-        "Pattern: nibbles don't decode as BCD or simple hex",
-    };
-}
-
 } // namespace cu59

@@ -173,7 +173,7 @@ When updating these files, keep the provenance notice at the top intact — it s
 | `TODO.md` | Development task list |
 | `PRIVACY.md` | App Store privacy policy |
 | `THIRD-PARTY-NOTICES.md` | Qt6 (LGPLv3) and ROM-image notices; shipped with the Windows build |
-| `ideas/*.md` | Unimplemented design proposals and feasibility analyses (e.g. `Redesign.md`, `KeypressLatch.md`, `Pico.md`, `CardRecovery.md`) — not current behavior, don't treat as authoritative |
+| `ideas/*.md` | Unimplemented design proposals and feasibility analyses (e.g. `KeypressLatch.md`, `Pico.md`, `CardRecovery.md`) — not current behavior, don't treat as authoritative |
 
 ---
 

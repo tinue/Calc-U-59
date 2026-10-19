@@ -322,8 +322,8 @@ n + 2 (0 = floating); fB[15] = sci, fB[7] = eng.
 - Labels in a module program are found by `LIB_LABEL_SEARCH` (`1364`): the
   program's start/end come from the header (2 BCD bytes per program), and
   the bytes are walked through the same scanner as RAM programs.
-- Execution fetches each keycode at `LIB_EXEC_FETCH` (`082B` LIB.HI, `082F`
-  LIB.IN); the
+- Execution fetches each keycode at `LIB_EXEC_ENTRY` (`082B`, LIB.HI) and
+  `LIB_EXEC_FETCH` (`082F`, LIB.IN); the
   module's own address counter is the program counter (SCOM[0]'s step
   counter is not used).
 - Source 2 exists in SCOM[0] only inside a RTN back into a module program.

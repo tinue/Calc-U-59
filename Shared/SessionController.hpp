@@ -173,7 +173,6 @@ public:
     void dumpScom();
     void dumpProg();
     void dumpMemory();
-    void dumpStepCounterAnalysis();
 
     bool manualTrace() const { return m_manualTrace; }
     void setManualTrace(bool on);

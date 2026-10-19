@@ -44,7 +44,4 @@ std::vector<std::string> dumpProg(const TI59Machine& m);
 /// Every non-zero RAM register as a register line.
 std::vector<std::string> dumpMemory(const TI59Machine& m);
 
-/// SCOM[0] nibble layout and reference values for studying the step counter.
-std::vector<std::string> dumpStepCounterAnalysis(const TI59Machine& m);
-
 } // namespace cu59

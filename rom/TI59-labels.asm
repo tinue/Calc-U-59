@@ -148,7 +148,7 @@
 0F45  LABEL_SEARCH       [T] walk RAM program registers looking for Lbl x
 1364  LIB_LABEL_SEARCH   [T] same for a library program (header start/end)
 12E1  PGM_SELECT         [T] Pgm nn: check against the module's program count
-082B  LIB_EXEC_FETCH     [T] module keycode fetch; RST held → abort (0836)
+082B  LIB_EXEC_ENTRY     [T] module keycode fetch; RST held → abort (0836)
 0499  COND_TRANSFER      [T] x=t, x≥t, If flg, Dsz: branch on fA[9] (INV inverts)
 15BA  FLAG_OP            [T] St flg / INV St flg: flag n = bit ⌊n/5⌋ of SCOM[0] nibble 11 + n mod 5
 04E6  DISPLAY_PEEK       [T] light the display ~256 cycles (GTO held while a RAM program runs)

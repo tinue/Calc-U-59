@@ -1667,7 +1667,7 @@
 04E4: 1FF0  JC 08DC
 04E5: 1FF0  JC 08DD
 ; DISPLAY_PEEK (from 07DC): light the display — wait for the printer,
-; SET.IDLE, count KR up to KR[13] (≈256 instruction cycles), back to active
+; SET.IDLE, count KR up to KR[13] (256 idle-loop passes, ≈216 ms), back to active
 ; mode and continue the run.
 04E6: 0A0C  MOV KR,EXT[4..15]
 04E7: 00C5  SET KR[12]        ; KR := 0x1000: counts to 0x2000
@@ -2844,7 +2844,7 @@
 0828: 1500  JNC 0AA8          ; odd → shift first
 0829: 0700  A=A+1 EXP1        ; … one result exponent unit per two
 082A: 180B  JC 0825
-; LIB_EXEC_FETCH: next keycode of a library program from the CROM (FETCH
+; LIB_EXEC_ENTRY: next keycode of a library program from the CROM (FETCH
 ; HIGH then FETCH, which advances the module's internal PC): tens → D[1],
 ; units → D[0]. Then poll row 8 / column 1 (the RST key): held → abort the
 ; run and perform RST (0836 → 04E3 → 028F → 0291; trace-confirmed with
@@ -3041,7 +3041,7 @@
 08B5: 0A18  MOV KR[4..7],R5
 08B6: 06F6  D=R5 EXP
 08B7: 0A45  TST KR[4]         ; library program?
-08B8: 111B  JNC 082B          ; yes → fetch from the module (LIB_EXEC_FETCH 082B)
+08B8: 111B  JNC 082B          ; yes → fetch from the module (LIB_EXEC_ENTRY 082B)
 08B9: 00B8  TST fB[11]        ; cache invalid?
 08BA: 15B6  JNC 0B95          ; yes → reload without advancing
 08BB: 0A67  MOV R5,#6

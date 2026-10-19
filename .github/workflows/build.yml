@@ -88,6 +88,9 @@ jobs:
             'HERE="$(dirname "$(readlink -f "$0")")"' \
             'exec "$HERE/AppRun.qt" "$@"' > AppDir/AppRun
           chmod +x AppDir/AppRun
+          # Qt is LGPLv3: ship its licence and our notices inside the image.
+          mkdir -p AppDir/usr/share/doc/calc-u-59
+          cp -r LICENSE NOTICE THIRD-PARTY-NOTICES.md licenses AppDir/usr/share/doc/calc-u-59/
           ./linuxdeploy.AppImage --appdir=AppDir --output=appimage
       - name: Upload artifact
         uses: actions/upload-artifact@v6
