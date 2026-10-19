@@ -2,7 +2,7 @@
 
 **Last updated: 2026-10-19**
 
-Calc-U-59 is a cycle-accurate emulator of three famous programmable calculators of the late 1970s and early 1980s. This policy covers the macOS, iOS and iPadOS app and the Windows and Linux app.
+Calc-U-59 is a cycle-accurate emulator of three famous programmable calculators of the late 1970s and early 1980s. This policy covers the macOS, iOS and iPadOS app, the Windows and Linux app, and the website at www.calcu59.ch.
 
 ## Data Collection
 
@@ -24,6 +24,18 @@ You can disable iCloud sync for Calc-U-59 at any time in **Settings → [your na
 The Windows and Linux app does not use iCloud or any other cloud service. It
 stores card files and the TI-58C constant memory file in a local folder
 (`Calc-U-59` in your home folder by default, changeable in Settings).
+
+## Website
+
+The website sets no cookies and uses no analytics or tracking. Fonts,
+scripts and images are all served from the site itself; nothing is loaded
+from third-party servers. The web calculator stores its own files in your
+browser's cache so it also works offline; that copy stays on your device.
+
+The site is hosted on GitHub Pages. GitHub logs the IP addresses of
+visitors for security purposes, as described in the
+[GitHub Privacy Statement](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement).
+The developer has no access to these logs.
 
 ## Contact
 
