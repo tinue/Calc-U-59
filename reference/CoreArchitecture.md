@@ -252,8 +252,11 @@ itself addresses it.
 ### SCOM (TMC0571)
 
 16 scratch registers × 16 nibbles.  Internal to the CPU, not user-accessible.
-Persisted across power cycles on the TI-58C via `serialiseRAM`/`deserialiseRAM`
-(the SCOM partition pointer is re-written separately by `setPartitionProgramRegs`).
+Not persisted: SCOM loses its contents at power-off on every variant (`reset()`
+clears it). On the TI-58C the power-on code rebuilds the partition and the Fix
+setting from RAM register 60 (E000); see `rom/TI58C-ROM-Guide.md` § "Constant
+memory". (A state load re-writes the SCOM partition pointer separately via
+`setPartitionProgramRegs`.)
 
 ---
 
@@ -659,7 +662,7 @@ the write path in `step()` is unsynchronised (emulation-thread-only).
 
 | Feature | TI-59 | TI-58 | TI-58C |
 |---|---|---|---|
-| ROM words | 6144 | 5120 | 5120 |
+| ROM words | 6144 | 6144 | 6144 |
 | RAM registers | 120 | 60 | 60 |
 | Card reader | Yes (switch on slot 10) | No (slot 7 held high to veto the card path) | No (slot 7 held high to veto the card path) |
 | Library module | Yes | Yes | Yes |

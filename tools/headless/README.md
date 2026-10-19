@@ -10,6 +10,7 @@ tools/headless/ti59.py 5 + 7 =           # trace each key, idle loop collapsed
 tools/headless/ti59.py --full 5          # don't collapse the idle loop
 tools/headless/ti59.py --boot            # power-on trace
 tools/headless/ti59.py --printer --module ML 2nd Pgm 0 1 …
+tools/headless/ti59.py --variant TI58C 5 + 7 =   # TI-58C ROM (labels: rom/TI58C-labels.asm)
 ```
 
 Each trace line: `PC OPCODE dDIGIT [c0 = COND active] mnemonic  changes…`,
