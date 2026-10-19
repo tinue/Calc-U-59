@@ -250,8 +250,9 @@ public:
     /// Display state integrated since the previous call: the latched digit
     /// and control codes, each position's driven duty cycle (how bright it
     /// looks is left to the frontend) and the C indicator's duty cycle.
-    /// Resets the integration window. Called by the UI thread at ~60 Hz.
-    DisplaySnapshot getDisplay() const;
+    /// Resets the integration window, so a core has one display consumer
+    /// (FrameSampler, ~60 Hz on the UI thread).
+    DisplaySnapshot takeDisplay();
 
     uint16_t pc()       const { return addr; }
     uint16_t cpuFlags() const { return flags; }
@@ -409,16 +410,16 @@ private:
 
     // ── Display state (shared between CPU thread and UI thread) ───────
     // Per-digit live buffers: updated during each digit's strobe phase when IDLE.
-    // getDisplay() reports the duty since its previous call and restarts the window.
+    // takeDisplay() reports the duty since its previous call and restarts the window.
     // IMPORTANT: All access to display state members (below) must be guarded by
     // m_displayMutex. Updated exclusively by postOperation() (CPU thread), read only
-    // by getDisplay() (UI thread, ~60 Hz).
+    // by takeDisplay() (UI thread, ~60 Hz).
     mutable std::mutex m_displayMutex;
     uint8_t  m_digitSegmentsA[12]{};  // A[2..13] → m_digitSegmentsA[0..11] per strobe (CPU thread write, UI thread read)
     uint8_t  m_digitSegmentsB[12]{};  // B[2..13] → m_digitSegmentsB[0..11] per strobe (CPU thread write, UI thread read)
-    mutable uint32_t m_digitLitTicks[12]{};   // Weighted cycles each position was driven since the last getDisplay().
-    mutable uint32_t m_dpLitTicks[12]{};  // Same for each position's decimal point.
-    mutable DisplaySnapshot m_lastDisplay{};  // Returned again when no cycle ran since the last poll.
+    uint32_t m_digitLitTicks[12]{};   // Weighted cycles each position was driven since the last takeDisplay().
+    uint32_t m_dpLitTicks[12]{};  // Same for each position's decimal point.
+    DisplaySnapshot m_lastDisplay{};  // Returned again when no cycle ran since the last poll.
     uint16_t m_digitSuppressedMask{0}; // Zero-suppression circuit output bitmask for indices 0..11.
     bool     m_zeroSuppressRunning{true}; // Scan-chain running state for leading-zero suppression.
     // CPU thread only (postOperation, computeDisplayTraceState): no lock.
@@ -426,8 +427,8 @@ private:
     uint16_t m_drivenLastRev{0};      // … and in the last complete one (trace display state).
 
 
-    mutable std::atomic<uint32_t> m_cSteps{0};          // Steps (IDLE or non-IDLE) where fA≠0 since last getDisplay().
-    mutable std::atomic<uint32_t> m_pollSteps{0};       // Weighted step count since last getDisplay() (non-IDLE=1, IDLE=4).
+    std::atomic<uint32_t> m_cSteps{0};          // Steps (IDLE or non-IDLE) where fA≠0 since last takeDisplay().
+    std::atomic<uint32_t> m_pollSteps{0};       // Weighted step count since last takeDisplay() (non-IDLE=1, IDLE=4).
     mutable std::atomic<uint64_t> m_elapsedTicks{0};    // Weighted step count since last reset(); never drained (see elapsedTicks()).
     uint64_t m_elapsedTicksLocal{0};    // Non-atomic running total, owned by the stepping thread; mirrored into m_elapsedTicks via store (cheaper than fetch_add on every step()).
 

@@ -21,7 +21,7 @@ FrameUpdate FrameSampler::tick(TI59Machine& m, double instructionHz, int debugLe
     }
     u.printerCodeLines = m.drainPrinterCodeLines();
 
-    u.display = m.getDisplay();
+    u.display = m.takeDisplay();
     m_pov.update(u.display, u.display.pollTicks / instructionHz);
     auto level = [](float b) { return static_cast<uint8_t>(std::lround(b * 255.0f)); };
     for (int i = 0; i < 12; ++i) {

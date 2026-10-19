@@ -365,12 +365,13 @@ driven time; the decimal point of the position `R5` names is driven the same
 way. Nothing is driven in RUN mode, so the display goes dark while the
 calculator computes.
 
-`getDisplay()` (UI thread, under `m_displayMutex`) returns per position the
+`takeDisplay()` (UI thread, under `m_displayMutex`) returns per position the
 last latched glyph and its **duty**: the driven time since the previous call
 × 16 (a position is strobed one instruction in 16), so a steadily multiplexed
 display reads 1.0 and a computing one 0. `pollTicks` is the interval in
 weighted cycles; a poll with no cycle since the last one returns the last
-snapshot again. The core makes no visibility decision: brightness and
+snapshot again. Each call restarts the window, so a core has one display
+consumer (`FrameSampler`). The core makes no visibility decision: brightness and
 persistence of vision are `Shared/DisplayPov`.
 
 The **C indicator** (`calcIndicator`) is the fraction of the interval in
@@ -602,7 +603,7 @@ inspection).
 | Mechanism | Protects |
 |---|---|
 | `m_keyMutex` (`TI59Machine`) | All CPU, SCOM, RAM, card and printer-buffer state; every public method except those below |
-| `m_displayMutex` (`TMC0501`) | Strobe buffers and duty counters (`getDisplay()` takes only this one) |
+| `m_displayMutex` (`TMC0501`) | Strobe buffers and duty counters (`takeDisplay()` takes only this one) |
 | `m_prnMutex` (`TMC0501`) | Printer output queues (`drainPrinterLines`/`drainPrinterCodeLines`) |
 | `m_traceMutex` (`TMC0501`) | Trace ring and breakpoint list; taken by every traced step and by `drainCpuFrames`/`readCpuFrames` |
 | atomics | `m_traceFlags`, C-indicator and poll counters, `elapsedTicks()` |

@@ -86,7 +86,7 @@ uint16_t h_lib_exec_pc(void* m) { return static_cast<TI59Machine*>(m)->libExecPC
 // Positions not driven since the last call read as blank (ctrl 7).
 // masks[0] = decimal points driven, masks[1] = zero-suppressed mask.
 void h_display(void* m, uint8_t* digits12, uint8_t* ctrl12, uint16_t* masks) {
-    DisplaySnapshot d = static_cast<TI59Machine*>(m)->getDisplay();
+    DisplaySnapshot d = static_cast<TI59Machine*>(m)->takeDisplay();
     memcpy(digits12, d.digits, 12);
     memcpy(ctrl12, d.ctrl, 12);
     masks[0] = 0;

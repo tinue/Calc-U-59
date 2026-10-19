@@ -32,8 +32,9 @@ public:
     void pressKey(int row, int col);
     void releaseKey(int row, int col);
 
-    /// Display — safe to call from any thread.
-    DisplaySnapshot getDisplay() const;
+    /// Display since the previous call — safe from any thread, but it restarts
+    /// the integration window: one consumer per machine (see TMC0501).
+    DisplaySnapshot takeDisplay();
 
     /// TI-58C persistence helpers.
     void serialiseRAM(uint8_t* dst) const;   // 120*16 bytes
@@ -184,7 +185,7 @@ private:
     // including the read-only accessors (snapshotCPU, readDataReg, copyRAMReg,
     // partitionProgramRegs, card getters, printerBufferContent, pc).
     // Exceptions, each with their own synchronisation:
-    //   getDisplay()                → m_displayMutex inside TMC0501
+    //   takeDisplay()               → m_displayMutex inside TMC0501
     //   drainPrinterLines/CodeLines → m_prnMutex inside TMC0501
     //   drain/readCpuFrames         → m_traceMutex inside TMC0501
     //   setTraceFlags/traceFlags    → std::atomic

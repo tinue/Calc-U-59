@@ -148,7 +148,7 @@ struct PovRig {
     double acc = 0;
     explicit PovRig(Model md) : model(md), m(testroms::makeMachine(md)), hz(info(md).instructionHz) {
         testroms::runToScanLoop(*m, md);
-        m->getDisplay();
+        m->takeDisplay();
     }
     FrameUpdate frame() {
         while (acc < hz / 60) acc += m->step() & TI59Machine::kWeightMask;

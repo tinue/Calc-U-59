@@ -61,8 +61,8 @@ void TI59Machine::releaseKey(int row, int col) {
     m_cpu.releaseKey(row, col);
 }
 
-DisplaySnapshot TI59Machine::getDisplay() const {
-    return m_cpu.getDisplay();
+DisplaySnapshot TI59Machine::takeDisplay() {
+    return m_cpu.takeDisplay();
 }
 
 void TI59Machine::serialiseRAM(uint8_t* dst) const {

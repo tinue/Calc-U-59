@@ -298,7 +298,7 @@ int TMC0501::getStepWeight() const {
 // A position that was not driven reads as dark; persistence of vision is the
 // frontend's job (Shared/DisplayPov).
 
-DisplaySnapshot TMC0501::getDisplay() const {
+DisplaySnapshot TMC0501::takeDisplay() {
     std::lock_guard<std::mutex> lock(m_displayMutex);
     // Integrate the SH-pin (C indicator) signal over the polling interval rather
     // than sampling a boolean at one instant.
@@ -1443,7 +1443,7 @@ void TMC0501::postOperation() {
         m_zeroSuppressRunning = zero;
 
         // A lit strobe latches the glyph and adds this instruction's time to the
-        // position's driven time (getDisplay turns it into a duty cycle). A
+        // position's driven time (takeDisplay turns it into a duty cycle). A
         // suppressed or blank strobe drives nothing; the glyph stays latched.
         const uint32_t w = static_cast<uint32_t>(getStepWeight());
         const bool emitsGlyph = (b == 0 || b == 1 || b == 5 || b == 6 || b == 8 || b == 9);

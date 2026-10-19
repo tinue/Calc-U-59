@@ -50,8 +50,8 @@ inline bool runToScanLoop(TI59Machine& m, cu59::Model model, uint32_t maxSteps =
 /// Display as text, leftmost digit first, using the LED decode rules
 /// (ctrl 0/1/8/9 = digit, 5/6 = minus/degree, others blank). Positions not
 /// driven since the last poll (suppressed, blank, or the CPU computing) are skipped.
-inline std::string displayText(const TI59Machine& m) {
-    DisplaySnapshot d = m.getDisplay();
+inline std::string displayText(TI59Machine& m) {
+    DisplaySnapshot d = m.takeDisplay();
     std::string s;
     for (int i = 11; i >= 0; --i) {
         if (d.digitDuty[i] == 0) continue;
