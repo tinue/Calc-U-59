@@ -1,18 +1,13 @@
-• WINDOWS AND LINUX: New Qt6 desktop app for Windows (x64 and ARM64 installers) and Linux (x86_64 and aarch64 AppImages), with the Mac app's features: calculator with both LED styles and cue cards, physical keyboard, magnetic cards, presets with KEYSTROKES, the PC-100C printer with copy as text and image, and the full debugger (CALCULATOR, CPU with ROM heatmap and ASM overlay, LOG with binary traces). Cards and TI-58C constant memory are stored in "~/Calc-U-59" instead of iCloud; Settings sets the card folder, the trace folder and the folder Open Preset starts in.
-• ARCHITECTURE: All logic that isn't drawing — state files, cue cards, card files, ROM loading, the real-time run loop, key timing, KEYSTROKES playback, the debugger's snapshots, traces — moved from the Swift app into a shared C++ layer that both apps use, so the two behave identically. The Mac and iOS app is meant to work exactly as before.
-• FULL SPEED: Holding the display (or a KEYSTROKES "FullSpeed:" section) now also speeds up printing, e.g. a 2nd List or a calendar printout. Waits for a key or the card reader still run at regular speed, and the elapsed time a KEYSTROKES script reports is unchanged.
-• DEBUGGER: The DEBUG row of the CALCULATOR tab now shows the whole status register ("HIR0:", SCOM[0], 16 digits) instead of the IO and KEY fields.
-• DEBUGGER: The CALCULATOR tab shows X, the calculator's working value, with all 13 digits before T ("X:"). It is read from C after a result and from A while a number is typed. When that register holds no number, for example while single-stepping a fast-mode program, the raw register is shown in amber.
-• DEBUGGER: The CALCULATOR tab's program cursor now shows the next step to execute ("← next"), as the calculator's LRN display does after SST. It used to show the last executed step, worked out as "step counter − 1", which named the step before a jump's target, a step that never ran.
-• DEBUGGER: STEP in the CALCULATOR tab now advances exactly as SST does: one program byte per press, with a jump (GTO, SBR, RTN, conditionals) completed in the byte that causes it. It used to stop inside a jump, and inside each step's fetch, where X was not yet in place. The armed FREEZE ON START now stops at the same point, right before the first program step.
-• DEBUGGER: While a program runs, the CALCULATOR tab now shows the state at the last program step (or after the last key), never the middle of an operation, so X no longer flickers to its raw form.
-• BUILD: New CMake build with a C++ test suite ("ctest"), including checks of the moved code against the previous Swift implementation.
-• LICENSE: Calc-U-59 is now free software under the GNU General Public License, version 3 (GPLv3), replacing the Polyform Noncommercial License. The Windows and Linux app uses Qt6 under the LGPLv3 (see "THIRD-PARTY-NOTICES.md").
+• ACCURACY: The emulator now runs at the real calculator's speed; it ran about 17% slow on the Mac. Details measured on a real TI-59 are reproduced too: the error blink now flashes at the real rhythm (0.9 s instead of 0.45 s).
+• DISPLAY: The LED display now looks the way the eye sees the real one: short computations no longer flash it dark, long ones such as sin visibly dim it, and the TI-58's error blink no longer flickers.
+• FULL SPEED: Holding the display now also speeds up printing, e.g. a 2nd List or a calendar printout.
+• DEBUGGER: The CALCULATOR tab shows X, the working value, and the whole status register. STEP now advances exactly as SST does, the program cursor marks the next step as LRN does, values no longer flicker while a program runs, and fast mode shows for every mode.
+• EXAMPLES: New "fastmode-sst.ti59", "printer-interrupt.ti59" and "calendar-09-dispatch.ti59", a fast-mode calendar printer faster than Acosta's 1981 program. Annotated ROM listings in "rom/" explain fast mode and the printer interrupt.
+• LICENSE: Calc-U-59 is now free software under the GPLv3.
 
 FIXES
-• TI-58C: Loading a preset with a cue card now stores that card in the constant memory file, so it comes back after a restart (it used to keep the previous card).
-• CALCULATOR SWITCH: Switching between TI-59, TI-58 and TI-58C now keeps the printer connected or disconnected as set, empties the card reader, and no longer carries a debugger freeze or an armed FREEZE ON START over to the new calculator. The LOG tab keeps its contents, and the debug level carries over. If the new calculator's ROM can't be loaded, the previous one keeps running.
-• STATE FILES: A "SOLID-STATE-MODULE:" that can't be loaded now shows an error and keeps the current module. Under "SKIP-RESET:", the ignored "MODEL:", "SOLID-STATE-MODULE:" and "PRINTER:" lines are listed in the LOG tab.
-• DEBUGGER: A trace file that can't be created, or that reaches its size limit, now shows an alert instead of only stopping. Pressing RESUME right after FREEZE or STEP no longer briefly shows a stale frozen view.
-• PRINTER: Copy as image now sizes long tapes by their real height, counting cut-short (printer-interrupt) lines by the rows they printed, so such copies keep the full 600 dpi when they fit.
-• SETTINGS: A stored startup calculator that no longer names a model now falls back to the last used one instead of the TI-59.
+• TI-58C: "REGISTERS:" in a state file now fills the right registers (they were four off), and a preset's cue card comes back after a restart.
+• CALCULATOR SWITCH: Switching between TI-59, TI-58 and TI-58C keeps the printer setting and the LOG, and no longer carries a debugger freeze over.
+• STATE FILES: The first key of a KEYSTROKES script is no longer lost while the calculator is busy. A module that can't be loaded now shows an error and keeps the current one.
+• DEBUGGER: A trace file that can't be written or gets full now shows an alert.
+• PRINTER: Copy as image keeps the full 600 dpi for printer-interrupt tapes.
