@@ -50,3 +50,6 @@ appstore:
   worktree: appstore
   bundle_id: ch.erzberger.calcu59
   export_options: bin/AppStoreExportOptions.plist
+  # The App Store notes are for the iOS app: CHANGELOG lines about the other
+  # clients carry <!-- appstore: skip --> (ReleaseIt README).
+  notes_forbidden: [Windows, Linux, Qt, AppImage, Android]
