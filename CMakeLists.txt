@@ -46,6 +46,9 @@ add_library(calcu59_shared STATIC ${SHARED_SOURCES})
 target_include_directories(calcu59_shared PUBLIC ${SHARED_ROOT})
 target_link_libraries(calcu59_shared PUBLIC calcu59_core)
 target_compile_options(calcu59_shared PRIVATE ${CALCU59_WARNINGS})
+# Both static libraries end up in the ti59headless shared object: on Linux
+# that needs -fPIC (macOS always builds position-independent code).
+set_target_properties(calcu59_shared PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 # -----------------------------------------------------------------------------
 # Headless harness (tools/headless/ti59.py loads it via ctypes; build.sh does
