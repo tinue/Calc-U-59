@@ -1,6 +1,7 @@
 #pragma once
 #include "MachineModelInfo.hpp"
 #include "StateFile.hpp"
+#include "Threading.hpp"
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -27,10 +28,14 @@
 // (2nd + key, e.g. Shift+A for A′) is played as two taps instead, since the ROM
 // must see 2nd released and rescanned before the second key.
 //
-// Playback and keyboard taps run on two independent lanes (threads), as two
-// separate tasks would: a key press cancels earlier keyboard taps, never a
-// running script. Host callbacks arrive on those threads (deferred releases
-// on a timer thread) and must be thread-safe.
+// Playback and keyboard taps run on two independent lanes, as two separate
+// tasks would: a key press cancels earlier keyboard taps, never a running
+// script. Each script or tap is a resumable task — a small state machine that
+// says when it next wants to run. With Threading::Threads each lane is a thread
+// that sleeps until then (deferred releases on a timer thread), and Host
+// callbacks arrive on those threads and must be thread-safe. With
+// Threading::Cooperative there are no threads: advance(now) runs whatever is
+// due, on the caller's thread.
 
 namespace cu59 {
 
@@ -60,7 +65,7 @@ public:
     static constexpr std::chrono::milliseconds kHold{100};
     static constexpr std::chrono::microseconds kScanPoll{1500};
 
-    KeySequencer(Model model, Host& host);
+    KeySequencer(Model model, Host& host, Threading threading = Threading::Threads);
     ~KeySequencer();
     KeySequencer(const KeySequencer&) = delete;
     KeySequencer& operator=(const KeySequencer&) = delete;
@@ -79,50 +84,81 @@ public:
     /// Force-release whatever is held (focus lost, view torn down).
     void releaseAll();
 
+    /// Cooperative only: run the lanes and deferred releases due at `now`.
+    void advance(std::chrono::steady_clock::time_point now);
+
     /// row×5 + col identifier the keyboard view highlights for a matrix code.
     static int highlightID(uint8_t matrixCode) { return (matrixCode / 10 - 1) * 5 + (matrixCode % 10 - 1); }
 
 private:
     using Clock = std::chrono::steady_clock;
-    using Job = std::function<void(uint64_t generation)>;
 
-    /// A serial job queue on its own thread; cancel() bumps the generation,
-    /// which drops queued jobs and wakes a sleeping one.
+    /// One script or keyboard tap sequence, resumable: step() runs it until it
+    /// has to wait, and says until when.
+    struct Task {
+        enum class Phase {
+            Next,         ///< run the next event
+            Holding,      ///< key down until `wake` (a cancel does not cut it short)
+            WaitingIdle,  ///< key up; poll every kScanPoll until the CPU is in the scan loop
+            Sleeping,     ///< Wait / WaitFullSpeed until `wake` (a cancel ends it)
+        };
+        std::vector<KeystrokeEvent> events;  ///< a keyboard tap sequence holds Key events only
+        bool script = false;
+        uint64_t generation = 0;
+        size_t next = 0;
+        Phase phase = Phase::Next;
+        Clock::time_point wake{};
+        uint8_t code = 0;                    ///< the key being tapped
+        std::optional<bool> restoreSpeed;    ///< WaitFullSpeed: the speed to go back to
+    };
+
+    /// A serial queue of tasks; cancel() bumps the generation, which drops
+    /// queued tasks and ends a waiting one. Threaded: a thread runs them.
+    /// Cooperative: advance() does.
     class Lane {
     public:
-        Lane();
+        Lane(KeySequencer& owner, Threading threading);
         ~Lane();
-        void post(Job job);
+        void post(Task task);
         void cancel();
         bool cancelled(uint64_t generation) const { return m_generation.load() != generation; }
-        /// Sleep unless cancelled; false if cancelled.
-        bool sleepFor(Clock::duration d, uint64_t generation);
+        /// Cooperative: run what is due at `now`.
+        void advance(Clock::time_point now);
     private:
         void run();
+        bool takeNext(Task& task);  // under m_mutex
+        KeySequencer& m_owner;
         std::atomic<uint64_t> m_generation{0};
         std::mutex m_mutex;
         std::condition_variable m_cv;
-        std::deque<std::pair<uint64_t, Job>> m_jobs;
+        std::deque<Task> m_tasks;
+        std::optional<Task> m_current;  ///< cooperative: the task in progress
         bool m_quit = false;
         std::thread m_thread;
     };
 
-    void tap(Lane& lane, uint8_t code, uint64_t generation);
-    void waitForScanLoopIdle(Lane& lane, uint64_t generation);
-    void runScript(const std::vector<KeystrokeEvent>& events, uint64_t generation);
+    /// Run `task` at `now` until it waits: when it next wants to run, or
+    /// nullopt when it has finished.
+    std::optional<Clock::time_point> step(Lane& lane, Task& task, Clock::time_point now);
+    void finish(Task& task);
     void releaseAt(uint8_t code, Clock::time_point when);
+    /// Under m_timerMutex: the earliest release due at `now`, else when the next is due.
+    std::optional<uint8_t> takeDueRelease(Clock::time_point now, std::optional<Clock::time_point>& next);
     void timerLoop();
+    Clock::time_point now() const;
 
     const PcRange m_scanLoop;
     Host& m_host;
+    const Threading m_threading;
     std::atomic<bool> m_playing{false};
+    Clock::time_point m_now{};  ///< cooperative: the last advance() time
 
     // Physical keyboard: the single code held down, and since when.
     std::mutex m_keyMutex;
     std::optional<uint8_t> m_heldCode;
     Clock::time_point m_heldSince;
 
-    // Deferred releases (timer thread).
+    // Deferred releases (threaded: on the timer thread).
     std::mutex m_timerMutex;
     std::condition_variable m_timerCv;
     std::vector<std::pair<Clock::time_point, uint8_t>> m_releases;

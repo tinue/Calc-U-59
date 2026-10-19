@@ -5,7 +5,9 @@ namespace cu59 {
 
 // ── Lane ─────────────────────────────────────────────────────────────────────
 
-KeySequencer::Lane::Lane() { m_thread = std::thread([this] { run(); }); }
+KeySequencer::Lane::Lane(KeySequencer& owner, Threading threading) : m_owner(owner) {
+    if (threading == Threading::Threads) m_thread = std::thread([this] { run(); });
+}
 
 KeySequencer::Lane::~Lane() {
     {
@@ -14,13 +16,14 @@ KeySequencer::Lane::~Lane() {
         ++m_generation;
     }
     m_cv.notify_all();
-    m_thread.join();
+    if (m_thread.joinable()) m_thread.join();
 }
 
-void KeySequencer::Lane::post(Job job) {
+void KeySequencer::Lane::post(Task task) {
     {
         std::lock_guard<std::mutex> lock(m_mutex);
-        m_jobs.emplace_back(m_generation.load(), std::move(job));
+        task.generation = m_generation.load();
+        m_tasks.push_back(std::move(task));
     }
     m_cv.notify_all();
 }
@@ -29,34 +32,64 @@ void KeySequencer::Lane::cancel() {
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         ++m_generation;
-        m_jobs.clear();
+        m_tasks.clear();
     }
     m_cv.notify_all();
 }
 
-bool KeySequencer::Lane::sleepFor(Clock::duration d, uint64_t generation) {
-    std::unique_lock<std::mutex> lock(m_mutex);
-    return !m_cv.wait_for(lock, d, [&] { return m_quit || cancelled(generation); });
+// A task cancelled before it started never runs (no playbackStarted).
+bool KeySequencer::Lane::takeNext(Task& task) {
+    while (!m_tasks.empty()) {
+        task = std::move(m_tasks.front());
+        m_tasks.pop_front();
+        if (!cancelled(task.generation)) return true;
+    }
+    return false;
 }
 
 void KeySequencer::Lane::run() {
     for (;;) {
-        std::pair<uint64_t, Job> job;
+        Task task;
         {
             std::unique_lock<std::mutex> lock(m_mutex);
-            m_cv.wait(lock, [this] { return m_quit || !m_jobs.empty(); });
+            m_cv.wait(lock, [this] { return m_quit || !m_tasks.empty(); });
             if (m_quit) return;
-            job = std::move(m_jobs.front());
-            m_jobs.pop_front();
+            if (!takeNext(task)) continue;
         }
-        if (!cancelled(job.first)) job.second(job.first);
+        while (auto wake = m_owner.step(*this, task, Clock::now())) {
+            std::unique_lock<std::mutex> lock(m_mutex);
+            // A hold runs to its end; step() goes back to sleep if woken early.
+            if (task.phase == Task::Phase::Holding) m_cv.wait_until(lock, *wake);
+            else m_cv.wait_until(lock, *wake, [&] { return m_quit || cancelled(task.generation); });
+        }
+    }
+}
+
+void KeySequencer::Lane::advance(Clock::time_point now) {
+    for (;;) {
+        if (!m_current) {
+            Task task;
+            {
+                std::lock_guard<std::mutex> lock(m_mutex);
+                if (!takeNext(task)) return;
+            }
+            m_current = std::move(task);
+        }
+        auto wake = m_owner.step(*this, *m_current, now);
+        if (!wake) {
+            m_current.reset();
+            continue;
+        }
+        if (*wake > now) return;
     }
 }
 
 // ── KeySequencer ─────────────────────────────────────────────────────────────
 
-KeySequencer::KeySequencer(Model model, Host& host) : m_scanLoop(info(model).scanLoop), m_host(host) {
-    m_timer = std::thread([this] { timerLoop(); });
+KeySequencer::KeySequencer(Model model, Host& host, Threading threading)
+    : m_scanLoop(info(model).scanLoop), m_host(host), m_threading((requireThreadSupport(threading), threading)),
+      m_script(*this, threading), m_keys(*this, threading) {
+    if (threading == Threading::Threads) m_timer = std::thread([this] { timerLoop(); });
 }
 
 KeySequencer::~KeySequencer() {
@@ -67,63 +100,121 @@ KeySequencer::~KeySequencer() {
         m_timerQuit = true;
     }
     m_timerCv.notify_all();
-    m_timer.join();
+    if (m_timer.joinable()) m_timer.join();
 }
 
-void KeySequencer::tap(Lane& lane, uint8_t code, uint64_t generation) {
-    m_host.pressKey(code);
-    // The hold is not cut short by a cancel: the key must still come up.
-    std::this_thread::sleep_for(kHold);
-    m_host.releaseKey(code);
-    waitForScanLoopIdle(lane, generation);
+KeySequencer::Clock::time_point KeySequencer::now() const {
+    return m_threading == Threading::Threads ? Clock::now() : m_now;
 }
 
-// The narrow steady-state scan loop, not the wider key-detect range: that
-// also covers the debounce/confirm states of the key just pressed, so the
-// next key could fire mid-debounce and be discarded. A freeze stops the CPU
-// outright, so return at once instead of waiting forever.
-void KeySequencer::waitForScanLoopIdle(Lane& lane, uint64_t generation) {
-    while (!lane.cancelled(generation)) {
-        if (m_host.isFrozen()) return;
-        if (m_scanLoop.contains(m_host.pc())) return;
-        if (!lane.sleepFor(kScanPoll, generation)) return;
+void KeySequencer::advance(Clock::time_point now) {
+    if (m_threading != Threading::Cooperative) return;
+    m_now = std::max(m_now, now);
+    std::optional<Clock::time_point> next;
+    for (;;) {
+        std::optional<uint8_t> code;
+        {
+            std::lock_guard<std::mutex> lock(m_timerMutex);
+            code = takeDueRelease(m_now, next);
+        }
+        if (!code) break;
+        m_host.releaseKey(*code);
+    }
+    m_script.advance(m_now);
+    m_keys.advance(m_now);
+}
+
+// A tap holds the key kHold — not cut short by a cancel, the key must still
+// come up — then waits for the narrow steady-state scan loop, not the wider
+// key-detect range: that also covers the debounce/confirm states of the key
+// just pressed, so the next key could fire mid-debounce and be discarded. A
+// freeze stops the CPU outright, so the wait ends at once instead of forever.
+std::optional<KeySequencer::Clock::time_point> KeySequencer::step(Lane& lane, Task& task, Clock::time_point now) {
+    using K = KeystrokeEvent::Kind;
+    using P = Task::Phase;
+    auto seconds = [](double s) { return std::chrono::duration_cast<Clock::duration>(std::chrono::duration<double>(s)); };
+    if (task.script && task.next == 0 && task.phase == P::Next) {
+        m_playing = true;
+        m_host.playbackStarted();
+    }
+    for (;;) {
+        switch (task.phase) {
+        case P::Holding:
+            if (now < task.wake) return task.wake;
+            m_host.releaseKey(task.code);
+            task.phase = P::WaitingIdle;
+            break;
+        case P::WaitingIdle:
+            if (lane.cancelled(task.generation) || m_host.isFrozen() || m_scanLoop.contains(m_host.pc())) {
+                task.phase = P::Next;
+                break;
+            }
+            if (now < task.wake) return task.wake;
+            task.wake = now + kScanPoll;
+            return task.wake;
+        case P::Sleeping:
+            if (now < task.wake && !lane.cancelled(task.generation)) return task.wake;
+            if (task.restoreSpeed) m_host.setFullSpeed(*task.restoreSpeed);
+            task.restoreSpeed.reset();
+            task.phase = P::Next;
+            break;
+        case P::Next: {
+            // A keyboard sequence that ran its last tap clears the highlight
+            // even if cancelled during that tap; one cancelled earlier doesn't.
+            if (task.next == task.events.size() || (task.script && lane.cancelled(task.generation))) {
+                finish(task);
+                return std::nullopt;
+            }
+            if (lane.cancelled(task.generation)) return std::nullopt;
+            const KeystrokeEvent& e = task.events[task.next++];
+            switch (e.kind) {
+            case K::Key:
+                if (!task.script) m_host.heldKeyChanged(highlightID(e.code));
+                m_host.pressKey(e.code);
+                task.code = e.code;
+                task.wake = now + kHold;
+                task.phase = P::Holding;
+                return task.wake;
+            case K::ToggleTrace: m_host.togglePrinterTrace(); break;
+            case K::Wait:
+                task.wake = now + seconds(e.seconds);
+                task.phase = P::Sleeping;
+                break;
+            case K::WaitFullSpeed:
+                task.restoreSpeed = m_host.fullSpeed();
+                m_host.setFullSpeed(true);
+                task.wake = now + seconds(e.seconds);
+                task.phase = P::Sleeping;
+                break;
+            case K::FullSpeed: m_host.setFullSpeed(true); break;
+            case K::RegularSpeed: m_host.setFullSpeed(false); break;
+            case K::ZeroElapseTime: m_host.zeroElapseTime(); break;
+            case K::ReportElapseTime: m_host.reportElapseTime(); break;
+            case K::Trace: m_host.scriptedTrace(e.traceName); break;
+            }
+            break;
+        }
+        }
+    }
+}
+
+void KeySequencer::finish(Task& task) {
+    if (task.script) {
+        m_playing = false;
+        m_host.playbackFinished();
+    } else {
+        m_host.heldKeyChanged(-1);
     }
 }
 
 void KeySequencer::play(std::vector<KeystrokeEvent> events) {
-    m_script.post([this, events = std::move(events)](uint64_t generation) { runScript(events, generation); });
+    Task task;
+    task.events = std::move(events);
+    task.script = true;
+    m_script.post(std::move(task));
 }
 
 void KeySequencer::cancel() { m_script.cancel(); }
-
-void KeySequencer::runScript(const std::vector<KeystrokeEvent>& events, uint64_t generation) {
-    using K = KeystrokeEvent::Kind;
-    m_playing = true;
-    m_host.playbackStarted();
-    auto seconds = [](double s) { return std::chrono::duration_cast<Clock::duration>(std::chrono::duration<double>(s)); };
-    for (const auto& e : events) {
-        if (m_script.cancelled(generation)) break;
-        switch (e.kind) {
-        case K::Key: tap(m_script, e.code, generation); break;
-        case K::ToggleTrace: m_host.togglePrinterTrace(); break;
-        case K::Wait: m_script.sleepFor(seconds(e.seconds), generation); break;
-        case K::WaitFullSpeed: {
-            bool previous = m_host.fullSpeed();
-            m_host.setFullSpeed(true);
-            m_script.sleepFor(seconds(e.seconds), generation);
-            m_host.setFullSpeed(previous);
-            break;
-        }
-        case K::FullSpeed: m_host.setFullSpeed(true); break;
-        case K::RegularSpeed: m_host.setFullSpeed(false); break;
-        case K::ZeroElapseTime: m_host.zeroElapseTime(); break;
-        case K::ReportElapseTime: m_host.reportElapseTime(); break;
-        case K::Trace: m_host.scriptedTrace(e.traceName); break;
-        }
-    }
-    m_playing = false;
-    m_host.playbackFinished();
-}
 
 void KeySequencer::keyDown(const std::vector<uint8_t>& codes) {
     if (codes.empty()) return;
@@ -134,20 +225,19 @@ void KeySequencer::keyDown(const std::vector<uint8_t>& codes) {
         {
             std::lock_guard<std::mutex> lock(m_keyMutex);
             m_heldCode = codes[0];
-            m_heldSince = Clock::now();
+            m_heldSince = now();
         }
         m_host.heldKeyChanged(highlightID(codes[0]));
         m_host.pressKey(codes[0]);
         return;
     }
-    m_keys.post([this, codes](uint64_t generation) {
-        for (uint8_t code : codes) {
-            if (m_keys.cancelled(generation)) return;
-            m_host.heldKeyChanged(highlightID(code));
-            tap(m_keys, code, generation);
-        }
-        m_host.heldKeyChanged(-1);
-    });
+    Task task;
+    for (uint8_t code : codes) {
+        KeystrokeEvent e;
+        e.code = code;
+        task.events.push_back(e);
+    }
+    m_keys.post(std::move(task));
 }
 
 void KeySequencer::keyUp() {
@@ -162,7 +252,7 @@ void KeySequencer::keyUp() {
     }
     m_host.heldKeyChanged(-1);
     auto earliest = since + kHold;
-    if (Clock::now() >= earliest) m_host.releaseKey(code);
+    if (now() >= earliest) m_host.releaseKey(code);
     else releaseAt(code, earliest);
 }
 
@@ -186,23 +276,32 @@ void KeySequencer::releaseAt(uint8_t code, Clock::time_point when) {
     m_timerCv.notify_all();
 }
 
+std::optional<uint8_t> KeySequencer::takeDueRelease(Clock::time_point now, std::optional<Clock::time_point>& next) {
+    next.reset();
+    auto it = std::min_element(m_releases.begin(), m_releases.end());
+    if (it == m_releases.end()) return std::nullopt;
+    if (now < it->first) {
+        next = it->first;
+        return std::nullopt;
+    }
+    uint8_t code = it->second;
+    m_releases.erase(it);
+    return code;
+}
+
 void KeySequencer::timerLoop() {
     std::unique_lock<std::mutex> lock(m_timerMutex);
     while (!m_timerQuit) {
-        if (m_releases.empty()) {
+        std::optional<Clock::time_point> next;
+        if (auto code = takeDueRelease(Clock::now(), next)) {
+            lock.unlock();
+            m_host.releaseKey(*code);
+            lock.lock();
+        } else if (next) {
+            m_timerCv.wait_until(lock, *next);
+        } else {
             m_timerCv.wait(lock, [this] { return m_timerQuit || !m_releases.empty(); });
-            continue;
         }
-        auto next = std::min_element(m_releases.begin(), m_releases.end());
-        if (Clock::now() < next->first) {
-            m_timerCv.wait_until(lock, next->first);
-            continue;
-        }
-        uint8_t code = next->second;
-        m_releases.erase(next);
-        lock.unlock();
-        m_host.releaseKey(code);
-        lock.lock();
     }
 }
 
