@@ -22,7 +22,8 @@
 // input and KEYSTROKES playback, the 60 Hz frame sampler and the two binary
 // trace writers (manual and scripted). One session per machine (a model
 // switch builds a new one); SessionController owns it. Listener events come
-// on the session's threads. See reference/SharedArchitecture.md.
+// on the session's threads — with Threading::Cooperative, from pump(). See
+// reference/SharedArchitecture.md.
 
 namespace cu59 {
 
@@ -83,7 +84,7 @@ public:
     /// Build the machine from ROM text files: the model's ROM and constants
     /// and, if given, a solid-state module image. Throws RomError.
     EmulatorSession(Model model, const ResourceReader& roms, const std::optional<std::string>& moduleRomFile,
-                    Listener& listener);
+                    Listener& listener, Threading threading = Threading::Threads);
     ~EmulatorSession();
     EmulatorSession(const EmulatorSession&) = delete;
     EmulatorSession& operator=(const EmulatorSession&) = delete;
@@ -105,6 +106,8 @@ public:
     void sync(const std::function<void()>& job) { m_runner->sync(job); }
     void setFullSpeed(bool on) override;
     bool isFullSpeed() const { return m_runner->fullSpeed(); }
+    /// Cooperative only: run the batches, key input and jobs due by `now`.
+    void pump(std::chrono::steady_clock::time_point now);
 
     /// Since the last call: a batch ran (TI-58C RAM may have changed).
     bool takeRamDirty() { return m_ramDirty.exchange(false); }

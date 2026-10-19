@@ -13,7 +13,7 @@ uint32_t traceFlagsFor(const TraceConsumers& c) {
 }
 
 EmulatorSession::EmulatorSession(Model model, const ResourceReader& roms, const std::optional<std::string>& moduleRomFile,
-                                 Listener& listener)
+                                 Listener& listener, Threading threading)
     : m_model(model),
       m_listener(listener),
       m_machine(std::make_shared<TI59Machine>(toVariant(model))),
@@ -29,8 +29,8 @@ EmulatorSession::EmulatorSession(Model model, const ResourceReader& roms, const 
     EmulationRunner::Callbacks cb;
     cb.freezeFired = [this](FreezeOwner owner) { onFreezeFired(owner); };
     cb.batchDone = [this] { m_ramDirty = true; };
-    m_runner = std::make_unique<EmulationRunner>(*m_machine, model, m_freeze, std::move(cb));
-    m_keys = std::make_unique<KeySequencer>(model, static_cast<KeySequencer::Host&>(*this));
+    m_runner = std::make_unique<EmulationRunner>(*m_machine, model, m_freeze, std::move(cb), threading);
+    m_keys = std::make_unique<KeySequencer>(model, static_cast<KeySequencer::Host&>(*this), threading);
 }
 
 EmulatorSession::~EmulatorSession() {
@@ -44,6 +44,18 @@ bool EmulatorSession::loadModule(const std::string& romFile, const ResourceReade
     m_machine->loadLibrary(image->data(), image->size());
     m_moduleImage = std::move(*image);
     return true;
+}
+
+// Key input advances after every batch, at the time the batch ends, so a
+// 100 ms hold is five batches and the wait for the scan loop is checked at
+// each batch boundary; with the loop stopped (frozen), at `now`.
+void EmulatorSession::pump(std::chrono::steady_clock::time_point now) {
+    bool ran = false;
+    m_runner->pump(now, [&](std::chrono::steady_clock::time_point t) {
+        ran = true;
+        m_keys->advance(t);
+    });
+    if (!ran) m_keys->advance(now);
 }
 
 void EmulatorSession::setFullSpeed(bool on) {

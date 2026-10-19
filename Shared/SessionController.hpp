@@ -21,7 +21,9 @@
 // constant memory, the card reader, the printer strip, the cue card shown,
 // freeze and step, traces, the ASM overlay and the LOG tab. The frontend
 // supplies a Platform (its UI thread, files, settings, error alerts), calls
-// tick() at 60 Hz and redraws what changed() names.
+// tick() at 60 Hz and redraws what changed() names. With
+// Threading::Cooperative (the web build) tick() also runs the emulation and
+// key input itself: there are no other threads.
 // See reference/SharedArchitecture.md § "SessionController".
 
 namespace cu59 {
@@ -77,7 +79,8 @@ public:
     enum class DebugLevel { Off = 0, Info = 1, Debug = 2 };
 
     /// `cuecards` is roms/solid-state/cuecards.txt; `moduleID` the saved module.
-    SessionController(Platform& platform, ResourceReader roms, std::string cuecards, std::string moduleID);
+    SessionController(Platform& platform, ResourceReader roms, std::string cuecards, std::string moduleID,
+                      Threading threading = Threading::Threads);
     ~SessionController();
     SessionController(const SessionController&) = delete;
     SessionController& operator=(const SessionController&) = delete;
@@ -207,6 +210,7 @@ private:
     void onUi(uint64_t sessionGeneration, std::function<void()> f);
 
     Platform& m_platform;
+    const Threading m_threading;
     ResourceReader m_roms;
     std::string m_cuecards;
     std::shared_ptr<bool> m_alive = std::make_shared<bool>(true);

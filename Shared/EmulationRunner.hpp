@@ -2,7 +2,9 @@
 #include "../Core/TI59Machine.hpp"
 #include "FreezeController.hpp"
 #include "Pacing.hpp"
+#include "Threading.hpp"
 #include <atomic>
+#include <chrono>
 #include <condition_variable>
 #include <cstdint>
 #include <deque>
@@ -16,17 +18,29 @@
 // ASM overlay entry — is posted here too, so it runs after the loop has
 // exited and never concurrently with it. Callbacks run on this thread;
 // frontends hop to their UI thread.
+//
+// With Threading::Cooperative there is no thread: pump(now), called at 60 Hz
+// from the frontend's thread, runs the batches due by `now` and the jobs
+// queued after the loop stopped, in the same order the thread would.
 
 namespace cu59 {
 
 class EmulationRunner {
 public:
+    using Clock = std::chrono::steady_clock;
+
     struct Callbacks {
         std::function<void(FreezeOwner)> freezeFired;     ///< loop stopped by an armed freeze
         std::function<void()> batchDone;                  ///< after every batch (TI-58C persist debounce)
+        /// Cooperative: the clock that ends a full-speed slice (tests inject one).
+        std::function<Clock::time_point()> wallClock = [] { return Clock::now(); };
     };
 
-    EmulationRunner(TI59Machine& m, Model model, FreezeController& freeze, Callbacks callbacks);
+    /// Cooperative: how long one pump() may run batches back to back at full speed.
+    static constexpr std::chrono::milliseconds kFullSpeedSlice{10};
+
+    EmulationRunner(TI59Machine& m, Model model, FreezeController& freeze, Callbacks callbacks,
+                    Threading threading = Threading::Threads);
     ~EmulationRunner();
     EmulationRunner(const EmulationRunner&) = delete;
     EmulationRunner& operator=(const EmulationRunner&) = delete;
@@ -44,11 +58,22 @@ public:
     void post(std::function<void()> job);
     /// Queue a job and wait for it. Stop the loop first, or this waits for it.
     /// Called from the emulation thread itself, the job runs inline.
+    /// Cooperative: runs the queued jobs, then `job`, inline.
     void sync(const std::function<void()>& job);
+
+    /// Cooperative only: run the batches due by `now` (regular speed), or
+    /// batches for up to kFullSpeedSlice (full speed), then the jobs queued
+    /// behind a stopped loop. `afterBatch` gets the time each batch ends at.
+    void pump(Clock::time_point now, const std::function<void(Clock::time_point)>& afterBatch);
 
 private:
     void threadMain();
     void runLoop();
+    /// One batch; false when it stopped the loop (breakpoint, armed freeze).
+    /// `paced`: the loop is to sleep out the rest of the batch.
+    bool runOneBatch(int32_t& carry, bool& paced);
+    /// Cooperative: run queued jobs up to a running loop (an empty job marks it).
+    void drainJobs();
 
     TI59Machine& m_machine;
     const Model m_model;
@@ -56,6 +81,14 @@ private:
     Callbacks m_callbacks;
     std::atomic<bool> m_running{false};
     std::atomic<bool> m_fullSpeed{false};
+    const Threading m_threading;
+    const int32_t m_target;
+
+    // Cooperative run loop state.
+    int32_t m_carry = 0;
+    Clock::time_point m_deadline{};
+    bool m_restart = false;
+    bool m_draining = false;
 
     std::mutex m_mutex;
     std::condition_variable m_cv;

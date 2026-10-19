@@ -60,8 +60,9 @@ private:
     }
 };
 
-SessionController::SessionController(Platform& platform, ResourceReader roms, std::string cuecards, std::string moduleID)
-    : m_platform(platform), m_roms(std::move(roms)), m_cuecards(std::move(cuecards)), m_moduleID(std::move(moduleID)) {}
+SessionController::SessionController(Platform& platform, ResourceReader roms, std::string cuecards, std::string moduleID,
+                                     Threading threading)
+    : m_platform(platform), m_threading(threading), m_roms(std::move(roms)), m_cuecards(std::move(cuecards)), m_moduleID(std::move(moduleID)) {}
 
 SessionController::~SessionController() {
     m_alive.reset();  // drop events still queued for the UI thread
@@ -92,7 +93,7 @@ bool SessionController::startMachine(Model model) {
     auto romFile = moduleRomFile(m_cuecards, m_moduleID);
     std::unique_ptr<EmulatorSession> session;
     try {
-        session = std::make_unique<EmulatorSession>(model, m_roms, romFile, *events);
+        session = std::make_unique<EmulatorSession>(model, m_roms, romFile, *events, m_threading);
     } catch (const std::exception& e) {
         m_platform.error("ROM load error", e.what());
         if (m_session && !m_debugState.frozen) m_session->start();  // keep the calculator we had
@@ -237,6 +238,7 @@ std::optional<std::vector<uint8_t>> SessionController::loadConstantMemory() {
 
 void SessionController::tick(Clock::time_point now) {
     if (!m_session) return;
+    m_session->pump(now);
     uint32_t changes = 0;
     FrameUpdate f = m_session->tick(static_cast<int>(m_debugLevel), m_cardState == CardState::Swiping);
     if (f.cardAutoEjected) ejectCard();  // the core ejected at CRD_OFF: save written data

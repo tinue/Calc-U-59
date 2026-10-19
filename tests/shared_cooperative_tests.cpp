@@ -1,12 +1,20 @@
-// Shared/ runtime without threads (Threading::Cooperative): the key sequencer
-// on virtual time, compared against its threaded mode.
+// Shared/ runtime without threads (Threading::Cooperative), as the web build
+// runs it: the key sequencer on virtual time compared against its threaded
+// mode, the pumped run loop's pacing, and a whole SessionController.
 
 #include "TestHarness.hpp"
+#include "TestRoms.hpp"
+#include "../Shared/EmulationRunner.hpp"
+#include "../Shared/KeyMatrix.hpp"
 #include "../Shared/KeySequencer.hpp"
+#include "../Shared/SessionController.hpp"
+#include "../Shared/StateFile.hpp"
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <deque>
 #include <functional>
+#include <map>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -183,4 +191,152 @@ TEST(threaded_and_cooperative_sequencers_agree) {
     CHECK(host.names() == r.host.names());
     auto hold = host.at("release 25") - host.at("press 25");
     CHECK(hold >= 100ms && hold < 150ms);
+}
+
+// ── Run loop ─────────────────────────────────────────────────────────────────
+
+TEST(cooperative_runner_paces_by_the_wall_clock) {
+    auto m = testroms::makeMachine(Model::TI59);
+    testroms::runToScanLoop(*m, Model::TI59);
+    FreezeController freeze(Model::TI59);
+    int batches = 0;
+    EmulationRunner::Callbacks cb;
+    cb.batchDone = [&] { ++batches; };
+    EmulationRunner runner(*m, Model::TI59, freeze, cb, Threading::Cooperative);
+    std::vector<int> order;
+    runner.post([&] { order.push_back(1); });
+    runner.start();
+    runner.post([&] { order.push_back(2); });  // behind the loop: waits until it stops
+    auto t = Clock::time_point{} + 1h;
+    uint64_t t0 = m->elapsedTicks();
+    for (int i = 0; i < 60; ++i, t += std::chrono::microseconds(16'667)) runner.pump(t, nullptr);
+    CHECK_EQ(batches, 50);  // one second of 20 ms batches
+    uint64_t ticks = m->elapsedTicks() - t0;
+    CHECK(ticks >= 50u * 284u && ticks < 50u * 284u + 8u);
+    CHECK(order == std::vector<int>{1});
+    t += 5s;  // a stall: the schedule restarts instead of catching up
+    runner.pump(t, nullptr);
+    CHECK_EQ(batches, 51);
+    runner.stop();
+    runner.sync([&] { order.push_back(3); });
+    CHECK(order == (std::vector<int>{1, 2, 3}));
+    runner.pump(t + 1s, nullptr);
+    CHECK_EQ(batches, 51);
+}
+
+TEST(cooperative_runner_full_speed_runs_a_slice) {
+    auto m = testroms::makeMachine(Model::TI59);
+    testroms::runToScanLoop(*m, Model::TI59);
+    const uint8_t loop[] = {61, 0, 0};  // GTO 000: computes forever
+    m->writeProgram(loop, 3);
+    pressMatrix(*m, 91);  // R/S
+    m->stepN(30'000, false);
+    releaseMatrix(*m, 91);
+    m->stepN(30'000, false);
+    CHECK(!info(Model::TI59).idleAndKeyDetect.contains(m->pc()));
+    FreezeController freeze(Model::TI59);
+    auto wall = Clock::time_point{} + 1h;
+    int batches = 0;
+    EmulationRunner::Callbacks cb;
+    cb.batchDone = [&] { ++batches; wall += 1ms; };  // each batch "takes" 1 ms
+    cb.wallClock = [&] { return wall; };
+    EmulationRunner runner(*m, Model::TI59, freeze, cb, Threading::Cooperative);
+    runner.setFullSpeed(true);
+    runner.start();
+    runner.pump(Clock::time_point{} + 1h, nullptr);
+    CHECK_EQ(batches, 10);
+}
+
+// ── SessionController ────────────────────────────────────────────────────────
+
+namespace {
+
+/// A frontend on virtual time: tick() at 60 Hz, then the UI queue.
+struct VirtualPlatform : SessionController::Platform {
+    std::deque<std::function<void()>> queue;
+    std::vector<std::string> errors;
+    std::map<std::string, std::string> cards;
+    void runOnUiThread(std::function<void()> job) override { queue.push_back(std::move(job)); }
+    std::optional<std::string> readConstantMemory() override { return std::nullopt; }
+    void writeConstantMemory(const std::string&) override {}
+    bool writeCard(const std::string& path, const std::string& text) override { cards[path] = text; return true; }
+    SessionController::TraceLocation traceLocation() override { return {"/nonexistent", 1'000'000}; }
+    void saveLastUsedModel(Model) override {}
+    void saveModuleID(const std::string&) override {}
+    void error(const std::string& title, const std::string& message) override { errors.push_back(title + ": " + message); }
+    void diagnostic(const std::string&) override {}
+    void changed(uint32_t) override {}
+};
+
+struct ControllerRig {
+    VirtualPlatform p;
+    SessionController c{p, testroms::reader(), testroms::readFile("roms/solid-state/cuecards.txt").value_or(""), "ML",
+                        Threading::Cooperative};
+    Clock::time_point t = Clock::time_point{} + 1h;
+    ControllerRig() { CHECK(c.startMachine(Model::TI59)); }
+    void run(Clock::duration d) {
+        for (auto end = t + d; t < end; t += std::chrono::microseconds(16'667)) {
+            c.tick(t);
+            while (!p.queue.empty()) {
+                auto job = std::move(p.queue.front());
+                p.queue.pop_front();
+                job();
+            }
+        }
+    }
+    template <class F> bool runUntil(F cond, Clock::duration limit = 20s) {
+        for (auto end = t + limit; t < end;) {
+            if (cond()) return true;
+            run(100ms);
+        }
+        return cond();
+    }
+    void load(const std::string& text) { c.loadStateFile(std::vector<uint8_t>(text.begin(), text.end())); }
+};
+
+} // namespace
+
+TEST(cooperative_controller_plays_a_preset) {
+    ControllerRig r;
+    r.run(1s);
+    CHECK(info(Model::TI59).scanLoop.contains(r.c.session()->machine().pc()));
+    r.load("KEYSTROKES:\n25 83 85 84 95\nZeroElapseTime:\nWait: 50ms\nReportElapseTime:\n");
+    CHECK(r.runUntil([&] { return r.c.keystrokesPlaying(); }));
+    CHECK(r.runUntil([&] { return !r.c.keystrokesPlaying(); }));
+    r.run(500ms);
+    CHECK_EQ(testroms::displayText(r.c.session()->machine()), std::string("5"));
+    CHECK(r.c.logText().find("Elapsed: 0:00.0") != std::string::npos);
+    CHECK(r.p.errors.empty());
+}
+
+TEST(cooperative_controller_skip_reset_keeps_the_program) {
+    ControllerRig r;
+    r.load("PROGRAM:\n85 01\n");
+    r.run(1s);
+    CHECK_EQ(int(r.c.session()->machine().readProgramStep(1)), 1);
+    r.load("SKIP-RESET: on\nREGISTERS:\n05 = 3.25\n");
+    r.run(200ms);
+    CHECK_EQ(int(r.c.session()->machine().readProgramStep(1)), 1);
+    CHECK_EQ(r.c.session()->machine().readDataReg(5), 3.25);
+}
+
+TEST(cooperative_controller_writes_and_reads_a_card) {
+    ControllerRig r;
+    r.load("PROGRAM:\n85 07\n");
+    r.run(1s);
+    r.load("SKIP-RESET: on\nKEYSTROKES:\n82 21 91\n");  // 1 2nd Write
+    CHECK(r.runUntil([&] { return !r.c.keystrokesPlaying(); }));
+    r.run(500ms);  // the ROM reaches its card wait after the playback ends
+    r.c.insertBlankCard("web:card", "card.U59");
+    CHECK(r.runUntil([&] { return r.c.cardState() == SessionController::CardState::NoCard; }));
+    CHECK_EQ(r.p.cards.count("web:card"), size_t{1});
+    r.load("PARTITION: 479\n");  // a fresh machine: no program
+    r.run(1s);
+    CHECK_EQ(int(r.c.session()->machine().readProgramStep(1)), 0);
+    const std::string& card = r.p.cards["web:card"];
+    r.c.insertCard(std::vector<uint8_t>(card.begin(), card.end()), "web:card", "card.U59");
+    CHECK(r.runUntil([&] { return r.c.cardState() == SessionController::CardState::NoCard; }));
+    r.run(1s);
+    CHECK_EQ(int(r.c.session()->machine().readProgramStep(1)), 7);
+    CHECK(r.p.errors.empty());
 }
