@@ -108,7 +108,7 @@ test('browser Forward restores next page', async ({ page }) => {
 test('"← Return to start" button uses browser history', async ({ page }) => {
   await goto(page, '/');
   await goto(page, '/debugger/');   // real navigation, creates a history entry
-  await page.click('button.btn.secondary');
+  await page.getByRole('link', { name: '← Return to start' }).click();
   await expect(page).toHaveURL(/\/$/);
 });
 
@@ -120,11 +120,11 @@ test('sidebar sub-topic updates path', async ({ page }) => {
 });
 
 test('Back from sub-topic returns to previous sub-topic', async ({ page }) => {
-  await goto(page, '/getting-started/install-iphone-ipad/');
-  await page.click("a[href='/getting-started/debugger/']");
-  await expect(page).toHaveURL(/\/getting-started\/debugger\/$/);
+  await goto(page, '/getting-started/printer/');
+  await page.click("aside a[href='/getting-started/']");
+  await expect(page).toHaveURL(/\/getting-started\/$/);
   await page.goBack();
-  await expect(page).toHaveURL(/\/getting-started\/install-iphone-ipad\/$/);
+  await expect(page).toHaveURL(/\/getting-started\/printer\/$/);
 });
 
 // ── Nav active-class ─────────────────────────────────────────
