@@ -1,8 +1,8 @@
 const { test, expect } = require('@playwright/test');
 
-// The WASM module + ROM/module JSON fetches take longer than the site's
-// other pages (which are pure static HTML) — give #play tests more room
-// than the 10s default in playwright.config.js.
+// The WASM engine and ROM file fetches take longer than the site's other
+// pages (which are pure static HTML) — give /play/ tests more room than the
+// 10s default in playwright.config.js.
 test.describe.configure({ timeout: 20000 });
 
 async function gotoPlayReady(page) {
@@ -11,11 +11,15 @@ async function gotoPlayReady(page) {
   // No dedicated "ready" DOM hook — wait for the transient startup status
   // text to clear, which the worker's `{type:"ready"}` message triggers.
   await expect(page.getByText('Starting the emulator')).toHaveCount(0, { timeout: 15000 });
+  // The TI-59 boots in real time, as in the apps and on the hardware: a key
+  // pressed in its first moments is lost. Give it time to reach the keyboard
+  // scan loop.
+  await page.waitForTimeout(500);
 }
 
 async function pressKey(page, label) {
   await page.getByRole('button', { name: label, exact: true }).click();
-  await page.waitForTimeout(200); // matches the worker's press/release pacing
+  await page.waitForTimeout(200); // the 100 ms minimum hold, then the ROM's reply
 }
 
 // The display is a single <canvas> (docs/led-display.jsx), not a 12-cell DOM
@@ -54,16 +58,14 @@ test('module 01 (Master Library) is loaded by default', async ({ page }) => {
 test('pressing 2 + 2 = computes through the real emulation core', async ({ page }) => {
   await gotoPlayReady(page);
   for (const key of ['2', '+', '2', '=']) await pressKey(page, key);
-  await page.waitForTimeout(300);
-  const viaAddition = await ledBitmap(page);
+  const viaAddition = await settledLedBitmap(page);
 
   // No DOM text to read off the canvas (see ledBitmap above), so arithmetic
   // correctness is verified by bitmap identity against a second,
   // independently-computed expression with the same result.
   await gotoPlayReady(page);
   for (const key of ['5', '−', '1', '=']) await pressKey(page, key);
-  await page.waitForTimeout(300);
-  const viaSubtraction = await ledBitmap(page);
+  const viaSubtraction = await settledLedBitmap(page);
 
   expect(viaAddition).toBe(viaSubtraction);
 });
@@ -94,7 +96,7 @@ test('2nd -> Pgm -> 01 shows the Master Library diagnostic cue card', async ({ p
   await expect(page.locator('.cuecard')).toContainText('ML-01');
 });
 
-// ── Physical keyboard (docs/keyboard-map.js) ────────────────────────────
+// ── Physical keyboard (Shared/KeyboardMap.cpp, in the worker) ────────────
 //
 // These tests compare the rendered canvas bitmap (ledBitmap, above) before
 // and after typing: it changes if and only if the keys reached the
@@ -109,10 +111,9 @@ async function focusCalculator(page) {
   await page.locator('.calcu-device').focus();
 }
 
-// The display keeps changing for a while after the worker reports "ready" (the
-// core runs POWER_ON_STEPS to stabilize, and the decimal point has an afterglow
-// animation). Any before/after comparison has to start from a settled frame or
-// it reads that drift as a keypress.
+// The display keeps changing for a while after a key: digits fade in and out
+// (Shared/DisplayPov) and the C indicator dims smoothly. Any comparison has to
+// use a settled frame or it reads that drift as a difference.
 async function settledLedBitmap(page) {
   let previous = await ledBitmap(page);
   for (let i = 0; i < 20; i++) {
@@ -126,7 +127,7 @@ async function settledLedBitmap(page) {
 
 async function typeKey(page, key) {
   await page.keyboard.press(key);
-  await page.waitForTimeout(250); // covers the 80 ms hold + 120 ms gap per code
+  await page.waitForTimeout(400); // a two-code binding is two taps of 100 ms + the scan-loop wait
 }
 
 test('typing 2 + 2 = drives the emulation core', async ({ page }) => {
@@ -135,9 +136,8 @@ test('typing 2 + 2 = drives the emulation core', async ({ page }) => {
 
   const before = await settledLedBitmap(page);
   for (const key of ['2', '+', '2', '=']) await typeKey(page, key);
-  await page.waitForTimeout(300);
 
-  expect(await ledBitmap(page)).not.toBe(before);
+  expect(await settledLedBitmap(page)).not.toBe(before);
 });
 
 test('typing matches clicking for the same keys', async ({ page }) => {
@@ -161,13 +161,11 @@ test('unbound keys do nothing', async ({ page }) => {
   const before = await settledLedBitmap(page);
   // STO, LRN, x², R/S, CE, 2nd — all deliberately click-only.
   for (const key of ['s', 'l', 'q', ' ', 'Backspace', "'"]) await typeKey(page, key);
-  await page.waitForTimeout(300);
-  expect(await ledBitmap(page)).toBe(before);
+  expect(await settledLedBitmap(page)).toBe(before);
 
   // ...and the calculator is still listening: a bound key still works.
   await typeKey(page, '5');
-  await page.waitForTimeout(300);
-  expect(await ledBitmap(page)).not.toBe(before);
+  expect(await settledLedBitmap(page)).not.toBe(before);
 });
 
 test('Shift+A sends 2nd before A', async ({ page }) => {
@@ -188,18 +186,15 @@ test('keystrokes are ignored until the calculator has focus', async ({ page }) =
   // No focusCalculator() here — the page never auto-focuses it.
   const before = await settledLedBitmap(page);
   for (const key of ['2', '+', '2', '=']) await typeKey(page, key);
-  await page.waitForTimeout(300);
 
-  expect(await ledBitmap(page)).toBe(before);
+  expect(await settledLedBitmap(page)).toBe(before);
 });
 
 test('the standalone app does not capture keystrokes', async ({ page }) => {
   await page.goto('/app/index.html');
   await expect(page.getByText('Starting the emulator')).toHaveCount(0, { timeout: 15000 });
 
-  // keyboard-map.js is deliberately not loaded there, and PlayCalculator is
-  // mounted without the keyboard prop.
-  expect(await page.evaluate(() => typeof ti59KeyboardMatrixCodes)).toBe('undefined');
+  // PlayCalculator is mounted without the keyboard prop.
   expect(await page.locator('.calcu-device').getAttribute('tabindex')).toBeNull();
 });
 
@@ -211,4 +206,50 @@ test('loading the Base Conversion preset shows its own cue card', async ({ page 
 
   await expect(page.locator('.cuecard')).toHaveCount(1);
   await expect(page.locator('.cuecard')).toContainText('Base Conversion');
+});
+
+// ── Presets and the magnetic card (Shared/SessionController in the worker) ──
+
+async function uploadPreset(page, text) {
+  await page.locator('input[type=file]').setInputFiles({
+    name: 'test.ti59', mimeType: 'text/plain', buffer: Buffer.from(text),
+  });
+  await page.waitForTimeout(500);
+}
+
+// Lbl A 1 2 3 R/S: pressing A shows 123.
+const PROGRAM_123 = 'PROGRAM:\n76 11 01 02 03 91\n';
+
+async function displayAfterA(page) {
+  await pressKey(page, 'A');
+  return settledLedBitmap(page);
+}
+
+test('a SKIP-RESET preset keeps the program in memory', async ({ page }) => {
+  await gotoPlayReady(page);
+  await uploadPreset(page, PROGRAM_123);
+  const expected = await displayAfterA(page);
+
+  await uploadPreset(page, 'SKIP-RESET: on\nREGISTERS:\n05 = 1\n');
+  await pressKey(page, 'CLR');
+  expect(await displayAfterA(page)).toBe(expected);
+});
+
+test('Queue Card writes the program and reads it back', async ({ page }) => {
+  await gotoPlayReady(page);
+  await uploadPreset(page, PROGRAM_123);
+  await uploadPreset(page, 'SKIP-RESET: on\nKEYSTROKES:\n82 21 91\n');  // 1 2nd Write
+  await page.waitForTimeout(1000);
+  await page.getByRole('button', { name: 'Queue Card' }).click();  // the card passes: written
+  await page.waitForTimeout(2000);
+
+  await uploadPreset(page, 'PARTITION: 479\n');  // a fresh machine: no program
+  await page.waitForTimeout(1000);
+  await page.getByRole('button', { name: 'Queue Card' }).click();  // read it back
+  await page.waitForTimeout(2000);
+  await pressKey(page, 'CLR');
+  const readBack = await displayAfterA(page);
+
+  await uploadPreset(page, PROGRAM_123);
+  expect(readBack).toBe(await displayAfterA(page));
 });
