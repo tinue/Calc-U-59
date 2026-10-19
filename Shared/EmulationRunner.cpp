@@ -64,9 +64,17 @@ void EmulationRunner::runLoop() {
     using Clock = std::chrono::steady_clock;
     const int32_t target = batchTargetCycles(m_model);
     const auto batch = std::chrono::duration_cast<Clock::duration>(std::chrono::duration<double>(kBatchSeconds));
+    // Absolute deadlines: each batch is due 20 ms after the previous one, so
+    // oversleep and callback time are paid back by a shorter next sleep. Timing
+    // each batch from a fresh now() (as before) lost both every batch — about
+    // 17% of real time on macOS. A stall longer than kMaxLag (debugger stop,
+    // App Nap) or a full-speed batch restarts the schedule instead of bursting
+    // to catch up.
+    constexpr auto kMaxLag = std::chrono::milliseconds(100);
     int32_t carry = 0;
+    auto deadline = Clock::now();
     while (m_running) {
-        auto start = Clock::now();
+        deadline += batch;
         BatchResult r = runBatch(m_machine, carry, target, m_freeze);
         if (r.stop == BatchResult::Stop::Breakpoint) {  // Core breakpoints are set by headless tools only
             m_running = false;
@@ -77,8 +85,13 @@ void EmulationRunner::runLoop() {
             if (m_callbacks.freezeFired) m_callbacks.freezeFired(r.freezeOwner);
             return;
         }
-        if (shouldSleep(m_fullSpeed, m_machine.pc(), r.polledHardware, m_model))
-            std::this_thread::sleep_until(start + batch);
+        if (shouldSleep(m_fullSpeed, m_machine.pc(), r.polledHardware, m_model)) {
+            auto now = Clock::now();
+            if (now - deadline > kMaxLag) deadline = now;
+            else std::this_thread::sleep_until(deadline);
+        } else {
+            deadline = Clock::now();
+        }
         if (m_callbacks.batchDone) m_callbacks.batchDone();
     }
 }

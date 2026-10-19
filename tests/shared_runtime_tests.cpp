@@ -136,6 +136,28 @@ TEST(runner_post_and_sync_are_serial) {
     CHECK(ticks > 500 && ticks < 14219 / 2);
 }
 
+// The run loop must deliver emulated time at the real rate even when every
+// batch costs extra (oversleep, the batchDone callback). Pacing each batch
+// from a fresh now() lost that time — 0.83× real time on macOS, which made the
+// TI-59 error blink 1.07 s instead of the measured 0.90 s.
+TEST(runner_keeps_real_time) {
+    auto m = testroms::makeMachine(Model::TI59);
+    testroms::runToScanLoop(*m, Model::TI59);
+    FreezeController freeze(Model::TI59);
+    EmulationRunner::Callbacks cb;
+    cb.batchDone = [] { std::this_thread::sleep_for(2ms); };  // a slow UI callback
+    EmulationRunner runner(*m, Model::TI59, freeze, cb);
+    uint64_t t0 = m->elapsedTicks();
+    auto w0 = std::chrono::steady_clock::now();
+    runner.start();
+    std::this_thread::sleep_for(1500ms);
+    uint64_t t1 = m->elapsedTicks();
+    double wall = std::chrono::duration<double>(std::chrono::steady_clock::now() - w0).count();
+    runner.stop();
+    double ratio = double(t1 - t0) / info(Model::TI59).instructionHz / wall;
+    CHECK(ratio > 0.95 && ratio < 1.05);
+}
+
 TEST(session_plays_keystrokes_in_real_time) {
     RecordingListener listener;
     EmulatorSession session(Model::TI59, testroms::reader(), std::string("TMC0541.txt"), listener);

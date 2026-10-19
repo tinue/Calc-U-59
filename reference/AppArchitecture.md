@@ -107,8 +107,13 @@ started by the session:
 1. Call `step()` repeatedly, accumulating the returned cycle weights.
 2. When accumulated weight ≥ 284 cycles, subtract 284 (carry over overshoot to
    the next batch rather than resetting to zero — this prevents long-term drift).
-3. Sleep for the remainder of the 20 ms window — skipped at full speed unless
-   the CPU is in the scan/key-detect range or the batch polled hardware.
+3. Sleep until the batch's deadline — skipped at full speed unless the CPU is
+   in the scan/key-detect range or the batch polled hardware. Deadlines are
+   absolute (each one 20 ms after the previous), so oversleep and the
+   `batchDone` callback are paid back in the next batch; a stall over 100 ms
+   or a full-speed batch restarts the schedule. Timing each batch from a fresh
+   `now()` instead runs about 17% slow on macOS (`runner_keeps_real_time` in
+   `tests/shared_runtime_tests.cpp`).
 
 `step()` returns its cycle weight in bits 29:0, sets bit 30 for a confirmed
 hardware poll (a key or card-switch wait; not a printer-only BUSY wait, whose
