@@ -17,6 +17,7 @@
 - **Documentation** Annotated ROM listings and guides for the TI-59 and the TI-58C (`rom/`), with explanations of fast mode and the printer interrupt. Command-line tools for ROM traces and for running and timing programs headless (`tools/headless/`, `tools/agentic/`).
 - **Build** New CMake build with a C++ test suite (`ctest`), including checks of the moved code against the previous Swift implementation.
 - **Web calculator** The playable calculator on the website now runs the same shared C++ layer as the apps, compiled to WebAssembly, instead of its own JavaScript copies of it. Presets, key timing, the physical keyboard, cue cards, the magnetic card and the display now behave as in the apps: the display fades as on the real calculator, the C indicator dims smoothly, a short click on a key always registers, a SKIP-RESET preset keeps the program in memory, and choosing a module resets the calculator as the apps' setting does.
+- **Web calculator** The web calculator is now its own client in `Web/`, next to the Swift and Qt6 apps, built and tested in CI into a self-contained folder that the website embeds and that works under any path. The installable web app no longer compiles its scripts in the browser (3 MB less to load) and updates its offline copy whenever a new version is published.
 - **License** Calc-U-59 is now free software under the GNU General Public License, version 3 (GPLv3), replacing the Polyform Noncommercial License. The Windows and Linux app uses Qt6 under the LGPLv3 (see `THIRD-PARTY-NOTICES.md`).
 
 ### Fixes
