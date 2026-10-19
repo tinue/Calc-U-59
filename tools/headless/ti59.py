@@ -26,8 +26,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent.parent
-sys.path.insert(0, str(REPO / "tools"))
-import pack_roms  # noqa: E402  (ROM text parsers shared with the web build)
+ROMS = REPO / "roms"
 
 # Matrix code = row*10 + col (row 1-9 top to bottom, col 1-5 left to right).
 KEYS = {
@@ -84,12 +83,14 @@ def _lib():
         os.system(str(HERE / "build.sh"))
     lib = C.CDLL(str(path))
     lib.h_new.restype = C.c_void_p
-    for name in ("h_free", "h_reset", "h_load_rom", "h_load_lib", "h_load_const", "h_press",
+    for name in ("h_free", "h_reset", "h_press",
                  "h_release", "h_printer", "h_trace_sw", "h_stepn", "h_record", "h_snapshot",
                  "h_ram_read", "h_ram_write", "h_write_program", "h_display", "h_pc",
                  "h_lib_exec_pc", "h_printer_lines", "h_printer_print", "h_printer_adv"):
         getattr(lib, name).argtypes = None
     lib.h_stepn.argtypes = [C.c_void_p, C.c_uint32]
+    lib.h_load_model_roms.argtypes = [C.c_void_p, C.c_int, C.c_char_p]
+    lib.h_load_module.argtypes = [C.c_void_p, C.c_char_p, C.c_char_p]
     lib.h_record.argtypes = [C.c_void_p, C.c_void_p, C.c_int, C.c_int]
     lib.h_pc.argtypes = [C.c_void_p]
     lib.h_pc.restype = C.c_uint16
@@ -118,34 +119,8 @@ def disasm(pc: int, op: int) -> str:
     return _DIS[k]
 
 
-# Machine variants: Core/MachineVariant.hpp enum value, ROM chips, constant chips.
-VARIANTS = {
-    "TI59": (0, pack_roms.TI59_ROM_CHIPS, pack_roms.TI59_CONST_CHIPS),
-    "TI58": (1, pack_roms.TI59_ROM_CHIPS, pack_roms.TI59_CONST_CHIPS),
-    "TI58C": (2, pack_roms.TI58C_ROM_CHIPS, pack_roms.TI58C_CONST_CHIPS),
-}
-
-
-def load_rom_words(variant: str = "TI59") -> list[int]:
-    words: list[int] = []
-    for chip in VARIANTS[variant][1]:
-        words += pack_roms.parse_rom_txt((pack_roms.CALC_ROMS / f"{chip}.txt").read_text())
-    return words
-
-
-def load_constants(variant: str = "TI59") -> bytes:
-    rows: list[bytes] = []
-    for chip in VARIANTS[variant][2]:
-        rows += pack_roms.parse_constants_txt((pack_roms.CALC_ROMS / f"{chip}.txt").read_text())
-    return b"".join(rows)
-
-
-def module_rom(module_id: str) -> bytes:
-    text = (pack_roms.SOLID_STATE / "cuecards.txt").read_text()
-    for m in pack_roms.parse_cuecards_file(text):
-        if m["id"].upper() == module_id.upper():
-            return pack_roms.parse_tmc_txt((pack_roms.SOLID_STATE / m["romFile"]).read_text())
-    raise KeyError(module_id)
+# Machine variants: Core/MachineVariant.hpp enum value (= Shared/MachineModelInfo.hpp Model).
+VARIANTS = {"TI59": 0, "TI58": 1, "TI58C": 2}
 
 
 def nibs(r, msd_first=True) -> str:
@@ -157,14 +132,12 @@ class Machine:
     def __init__(self, module: str | None = "ML", printer: bool = False, boot: bool = True,
                  variant: str = "TI59"):
         self.variant = variant
-        self.h = C.c_void_p(LIB.h_new(VARIANTS[variant][0]))
-        w = load_rom_words(variant)
-        LIB.h_load_rom(self.h, (C.c_uint16 * len(w))(*w), len(w))
-        k = load_constants(variant)
-        LIB.h_load_const(self.h, (C.c_uint8 * len(k)).from_buffer_copy(k), len(k))
-        if module:
-            b = module_rom(module)
-            LIB.h_load_lib(self.h, (C.c_uint8 * len(b)).from_buffer_copy(b), len(b))
+        self.h = C.c_void_p(LIB.h_new(VARIANTS[variant]))
+        roms = str(ROMS).encode()
+        if LIB.h_load_model_roms(self.h, VARIANTS[variant], roms) != 0:
+            raise RuntimeError(f"cannot load the {variant} ROM from {ROMS}")
+        if module and LIB.h_load_module(self.h, module.encode(), roms) != 0:
+            raise KeyError(module)
         LIB.h_printer(self.h, 1 if printer else 0)
         LIB.h_reset(self.h)
         self.boot_recs: list[HRec] = []

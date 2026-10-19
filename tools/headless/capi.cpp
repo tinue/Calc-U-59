@@ -1,4 +1,4 @@
-// Flat C API over TI59Machine for the Python headless harness
+// Flat C API over TI59Machine (plus Shared/'s ROM loader) for the Python headless harness
 // (tools/headless/ti59.py, loaded via ctypes). Built by
 // tools/headless/build.sh into tools/headless/build/libti59headless.dylib.
 //
@@ -7,7 +7,11 @@
 // not pay a ctypes round trip per instruction.
 
 #include "../../Core/TI59Machine.hpp"
+#include "../../Shared/ModuleCatalog.hpp"
+#include "../../Shared/RomLoader.hpp"
 #include <cstring>
+#include <fstream>
+#include <sstream>
 #include <string>
 
 namespace {
@@ -34,6 +38,20 @@ void fill(HRec& r, uint16_t pc, uint16_t op, const CpuFrame& f, int w) {
     memcpy(r.SCOM, f.SCOM, sizeof(r.SCOM));
 }
 
+// The roms/ text dumps, as the apps bundle them: calculator/ then solid-state/.
+cu59::ResourceReader romReader(const std::string& romsDir) {
+    return [romsDir](const std::string& name) -> std::optional<std::string> {
+        for (const char* sub : {"/calculator/", "/solid-state/"}) {
+            std::ifstream f(romsDir + sub + name, std::ios::binary);
+            if (!f) continue;
+            std::ostringstream ss;
+            ss << f.rdbuf();
+            return ss.str();
+        }
+        return std::nullopt;
+    };
+}
+
 } // namespace
 
 extern "C" {
@@ -43,9 +61,39 @@ int h_rec_size() { return static_cast<int>(sizeof(HRec)); }
 void* h_new(int variant) { return new TI59Machine(static_cast<MachineVariant>(variant)); }
 void  h_free(void* m) { delete static_cast<TI59Machine*>(m); }
 
-void h_load_rom(void* m, const uint16_t* w, int n)  { static_cast<TI59Machine*>(m)->loadROM(w, n); }
-void h_load_lib(void* m, const uint8_t* b, int n)   { static_cast<TI59Machine*>(m)->loadLibrary(b, n); }
-void h_load_const(void* m, const uint8_t* b, int n) { static_cast<TI59Machine*>(m)->loadConstants(b, n); }
+// ROM and constants of `model` (Shared Model: 0 TI-59, 1 TI-58, 2 TI-58C) and
+// a solid-state module by its cuecards.txt id, read from `romsDir` through
+// Shared/RomLoader like the apps. 0 on success, -1 on a missing or bad file.
+int h_load_model_roms(void* mv, int model, const char* romsDir) {
+    auto* m = static_cast<TI59Machine*>(mv);
+    try {
+        auto read = romReader(romsDir);
+        auto words = cu59::loadRom(static_cast<cu59::Model>(model), read);
+        auto constants = cu59::loadConstants(static_cast<cu59::Model>(model), read);
+        m->loadROM(words.data(), words.size());
+        m->loadConstants(constants.data(), constants.size());
+        return 0;
+    } catch (const std::exception&) {
+        return -1;
+    }
+}
+
+int h_load_module(void* mv, const char* moduleID, const char* romsDir) {
+    auto read = romReader(romsDir);
+    auto catalog = read("cuecards.txt");
+    if (!catalog) return -1;
+    auto file = cu59::moduleRomFile(*catalog, moduleID);
+    if (!file) return -1;
+    try {
+        auto image = cu59::loadModule(*file, read);
+        if (!image) return -1;
+        static_cast<TI59Machine*>(mv)->loadLibrary(image->data(), image->size());
+        return 0;
+    } catch (const std::exception&) {
+        return -1;
+    }
+}
+
 void h_reset(void* m) { static_cast<TI59Machine*>(m)->reset(); }
 
 void h_press(void* m, int kbit, int digit)   { static_cast<TI59Machine*>(m)->pressKey(kbit, digit); }

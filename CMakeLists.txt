@@ -52,7 +52,7 @@ target_compile_options(calcu59_shared PRIVATE ${CALCU59_WARNINGS})
 # the same with one clang++ call)
 # -----------------------------------------------------------------------------
 add_library(ti59headless SHARED ${CMAKE_CURRENT_SOURCE_DIR}/tools/headless/capi.cpp)
-target_link_libraries(ti59headless PRIVATE calcu59_core)
+target_link_libraries(ti59headless PRIVATE calcu59_shared)
 
 # -----------------------------------------------------------------------------
 # Tests: run from the repository root so they can read roms/ and examples/
