@@ -113,7 +113,7 @@ isn't duplicated in this repository.
 | [`CHANGELOG.md`](CHANGELOG.md) | Version history, one heading per release. |
 | [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) | Qt6 (LGPLv3) notice for the Windows/Linux app; status of the `roms/` ROM images. |
 | [`TODO.md`](TODO.md) | Unsorted backlog of ideas, bugs, and observations across the core, settings, and UI. |
-| [`release.yaml`](release.yaml) | Release configuration for ReleaseIt: the Mac DMG built locally, the Windows/Linux packages from CI, the iOS App Store upload. |
+| [`release.yaml`](release.yaml) | Release configuration for ReleaseIt: the Mac DMG built locally, the Windows/Linux packages and the web client's zip from CI, the iOS App Store upload. |
 | [`PRIVACY.md`](PRIVACY.md) | App Store privacy policy — Calc-U-59 collects no data and makes no network connections. |
 | [`ideas/KeypressLatch.md`](ideas/KeypressLatch.md) | Unimplemented design proposal for latching keypresses while the debugger is frozen. |
 | [`ideas/Pico.md`](ideas/Pico.md) | Feasibility analysis for running the core on a Raspberry Pi Pico wired to a real TI-59's keyboard, display, and card reader. |

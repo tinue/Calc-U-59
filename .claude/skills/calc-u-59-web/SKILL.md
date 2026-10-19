@@ -69,4 +69,4 @@ in Node. Ports 8059 and 8060 (`CALCU_WEB_PORT` moves both).
 
 CI: job `web` in `.github/workflows/build.yml` (emsdk pinned to the local
 `emcc --version`; bump both together) builds, tests and uploads
-`Calc-U-59-web-<version>.zip`.
+`Calc-U-59-web-<version>.zip`; `release` attaches it as `Calc-U-59-web.zip`.

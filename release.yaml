@@ -10,9 +10,13 @@
 #   release ios --release   App Store Connect: metadata, screenshots, build
 #
 # The Swift macOS app is built, Developer-ID-signed, notarized and stapled
-# locally. The Qt6 Windows and Linux builds come from
+# locally. The Qt6 Windows and Linux builds and the web client come from
 # .github/workflows/build.yml (dispatched, no publish job of its own); their
 # artifacts go into the same pre-release as the DMG. There is no Mac Qt build.
+# The web client's zip (Web/dist/, reference/WebClient.md) has a fixed asset
+# name, so the website's build can fetch it by tag, or once promoted
+# (--release) as releases/latest/download/Calc-U-59-web.zip; its
+# MANIFEST.json names the version and commit.
 
 name: Calc-U-59
 
@@ -40,6 +44,7 @@ build:
       - { artifact: Calc-U-59-linux-aarch64,  file: "Calc-U-59-*.AppImage",       as: Calc-U-59-linux-aarch64.AppImage, executable: true }
       - { artifact: Calc-U-59-windows-x86_64, file: Calc-U-59-Setup.exe,          as: Calc-U-59-windows-x86_64.exe }
       - { artifact: Calc-U-59-windows-arm64,  file: Calc-U-59-Setup-arm64.exe,    as: Calc-U-59-windows-arm64.exe }
+      - { artifact: Calc-U-59-web,            file: "Calc-U-59-web-*.zip",        as: Calc-U-59-web.zip }
 
 appstore:
   worktree: appstore

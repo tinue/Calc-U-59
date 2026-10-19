@@ -70,6 +70,8 @@ Web/run-tests.sh      # Playwright against dist/; build first
 Re-run it whenever `Core/`, `Shared/`, `roms/` or anything in `Web/` changes.
 CI uploads `dist/` zipped as `Calc-U-59-web-<version>.zip` (artifact
 `Calc-U-59-web`); the zip holds the contents of `dist/` at its root.
+`release` (`release.yaml`) attaches it to each release as
+`Calc-U-59-web.zip` — the file the website's build downloads.
 
 ## The `dist/` contract
 
