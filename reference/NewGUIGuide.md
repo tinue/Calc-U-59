@@ -17,11 +17,11 @@ to write.
 |---|---|---|
 | Swift app (`App/`) — macOS, iOS | Swift + SwiftUI | `Core/` + `Shared/` through ObjC++ wrappers in `Bridge/` |
 | Qt6 app (`Qt6/`) — Windows, Linux (macOS: development only) | C++ + Qt Widgets | `Core/` + `Shared/` directly |
-| Web calculator (`docs/play/`) | JS + React, engine in WASM | `Core/` + `Shared/` compiled with Emscripten; `docs/wasm/bindings.cpp` is the adapter |
+| Web client (`Web/`) — browsers, embedded by the website | JS + React, engine in WASM | `Core/` + `Shared/` compiled with Emscripten; `Web/bindings.cpp` is the adapter (`WebClient.md`) |
 
-All three share all non-GUI code. The Swift and Qt apps are kept at feature
-parity (`FrontendParity.md`); the web build is deliberately narrower: TI-59
-only, no debugger, printer or traces.
+All three share all non-GUI code and are tracked in `FrontendParity.md`. The
+Swift and Qt apps are kept at feature parity; the web client is
+deliberately narrower: TI-59 only, no debugger, printer or traces.
 
 ## If your GUI can call C++
 
@@ -53,8 +53,8 @@ packaging.
 ## If it can't call C++
 
 Compile `Core/` and `Shared/` to something it can call, as the web build
-does with Emscripten (`tools/build_wasm.sh`), and write the adapter in C++
-on that side (`docs/wasm/bindings.cpp`, about 300 lines with the embind
+does with Emscripten (`Web/build.sh`), and write the adapter in C++
+on that side (`Web/bindings.cpp`, about 300 lines with the embind
 surface):
 
 - **No threads?** Construct the `SessionController` with

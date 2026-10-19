@@ -7,13 +7,13 @@
 
 `Shared/` holds everything the frontends need that is neither hardware
 emulation nor drawing. It sits between `Core/` (the emulated hardware, see
-`CoreArchitecture.md`) and the two apps, plus the website's playable
-calculator:
+`CoreArchitecture.md`) and the three GUIs — the two apps and the web client
+(`WebClient.md`):
 
 ```
 App/ (SwiftUI) ── Bridge/ (ObjC++) ─────────┐
 Qt6/app/ (Qt Widgets) ──────────────────────┼── Shared/ (C++17, std only) ── Core/
-docs/ web calculator ── wasm/bindings.cpp ──┘   (WebAssembly, no threads)
+Web/ (React) ── Web/bindings.cpp ───────────┘   (WebAssembly, no threads)
 ```
 
 - **C++17, standard library only** — no Foundation, no Qt, no iCloud. The
@@ -130,9 +130,9 @@ threads; `SessionController` hops them to the UI thread.
 
 `Threading::Cooperative` (`Shared/Threading.hpp`, the last argument of
 `SessionController`, `EmulatorSession`, `EmulationRunner` and `KeySequencer`)
-runs all of the above on the frontend's UI thread instead. The web calculator
-uses it — a page on GitHub Pages can't have threads (no `SharedArrayBuffer`
-without COOP/COEP headers) — and so do the tests on virtual time
+runs all of the above on the frontend's UI thread instead. The web client
+uses it — a static host can't be relied on to allow threads (no
+`SharedArrayBuffer` without COOP/COEP headers) — and so do the tests on virtual time
 (`tests/shared_cooperative_tests.cpp`). The apps use `Threading::Threads`.
 
 - `SessionController::tick(now)` first calls `EmulatorSession::pump(now)`.
@@ -194,8 +194,8 @@ bit 4 is the card-detect line. Scanning: `CoreArchitecture.md`
 ## Physical Keyboard Mapping
 
 Computer keyboards drive the calculator in the macOS Swift app, the Qt6 app
-and the web calculator (`docs/play/`). iOS/iPadOS and the standalone web app
-`docs/app/` have no keyboard input. The debugger and printer panels take no calculator
+and the web client (`Web/`, with its `keyboard` prop). iOS/iPadOS and the
+web client's standalone app (`Web/app/`) have no keyboard input. The debugger and printer panels take no calculator
 keys: Space (R/S vs. STEP) and Cmd/Ctrl+C (printer tape vs. selected text)
 would have no single owner.
 
@@ -246,7 +246,7 @@ scans one display sweep apart see it, and drops a shorter press as bounce
 (`ideas/KeypressLatch.md`). Every frontend uses `KeySequencer`:
 
 - A press is held at least 100 ms. A key-up that comes sooner defers the
-  release; it is never dropped. The web calculator sends on-screen clicks
+  release; it is never dropped. The web client sends on-screen clicks
   this way too, so a click shorter than that still registers.
 - A tap waits for the steady scan loop before it presses, and again after it
   releases, so a key never lands in the ROM's release gate or debounce.
@@ -265,7 +265,7 @@ clicking into the debug panel silently stops keys reaching the calculator.
 This is a stepping stone: the Mac is meant to end up with one input surface
 where every key has one meaning (`TODO.md` § UI). Panels that need keys
 themselves (the CPU inspector's arrow keys) take focus on click, never on
-appear. The web calculator is focusable (`tabIndex=0`, focused on
+appear. The web client is focusable (`tabIndex=0`, focused on
 pointer-down with `preventScroll`) but not focused on load, so Tab still
 works on the page.
 
@@ -383,7 +383,7 @@ Field grammar: `StateFileFormat.md` § "CUECARD: Field Grammar".
   width 0.64 × size), never below 40 % of the template's size. Free-text
   rows truncate instead.
 
-The web calculator (`docs/cuecard.jsx`) gets the card, its spans and its ink
+The web client (`Web/src/cuecard.jsx`) gets the card, its spans and its ink
 from `Shared/` and draws it with DOM text: it measures the shrink-to-fit in
 the DOM and drops the bank badges.
 
