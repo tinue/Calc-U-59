@@ -118,16 +118,24 @@ def disasm(pc: int, op: int) -> str:
     return _DIS[k]
 
 
+# Machine variants: Core/MachineVariant.hpp enum value, ROM chips, constant chips.
+VARIANTS = {
+    "TI59": (0, pack_roms.TI59_ROM_CHIPS, pack_roms.TI59_CONST_CHIPS),
+    "TI58": (1, pack_roms.TI59_ROM_CHIPS, pack_roms.TI59_CONST_CHIPS),
+    "TI58C": (2, ["CD2400", "CD2401", "TMC0573"], ["CD2400-CONST-K", "CD2401-CONST-K"]),
+}
+
+
 def load_rom_words(variant: str = "TI59") -> list[int]:
     words: list[int] = []
-    for chip in pack_roms.TI59_ROM_CHIPS:
+    for chip in VARIANTS[variant][1]:
         words += pack_roms.parse_rom_txt((pack_roms.CALC_ROMS / f"{chip}.txt").read_text())
     return words
 
 
-def load_constants() -> bytes:
+def load_constants(variant: str = "TI59") -> bytes:
     rows: list[bytes] = []
-    for chip in pack_roms.TI59_CONST_CHIPS:
+    for chip in VARIANTS[variant][2]:
         rows += pack_roms.parse_constants_txt((pack_roms.CALC_ROMS / f"{chip}.txt").read_text())
     return b"".join(rows)
 
@@ -146,11 +154,13 @@ def nibs(r, msd_first=True) -> str:
 
 
 class Machine:
-    def __init__(self, module: str | None = "ML", printer: bool = False, boot: bool = True):
-        self.h = C.c_void_p(LIB.h_new(0))
-        w = load_rom_words()
+    def __init__(self, module: str | None = "ML", printer: bool = False, boot: bool = True,
+                 variant: str = "TI59"):
+        self.variant = variant
+        self.h = C.c_void_p(LIB.h_new(VARIANTS[variant][0]))
+        w = load_rom_words(variant)
         LIB.h_load_rom(self.h, (C.c_uint16 * len(w))(*w), len(w))
-        k = load_constants()
+        k = load_constants(variant)
         LIB.h_load_const(self.h, (C.c_uint8 * len(k)).from_buffer_copy(k), len(k))
         if module:
             b = module_rom(module)
@@ -362,9 +372,11 @@ def summary(recs: list[HRec], labels: dict[int, str] | None = None) -> str:
     return "\n".join(out)
 
 
-def load_labels() -> dict[int, str]:
+def load_labels(variant: str = "TI59") -> dict[int, str]:
     labels = {}
-    p = REPO / "rom" / "TI59-labels.asm"
+    p = REPO / "rom" / ("TI58C-labels.asm" if variant == "TI58C" else "TI59-labels.asm")
+    if not p.exists():
+        return labels
     for line in p.read_text().splitlines():
         parts = line.split()
         if len(parts) >= 2 and len(parts[0]) == 4 and parts[1] != "—":
@@ -384,9 +396,10 @@ def main():
     ap.add_argument("--boot", action="store_true", help="also print the boot trace")
     ap.add_argument("--program", help="comma-separated keycodes written to RAM step 0..")
     ap.add_argument("--summary", action="store_true", help="distinct PCs per key with hit counts")
+    ap.add_argument("--variant", default="TI59", choices=sorted(VARIANTS))
     args = ap.parse_args()
-    m = Machine(module=args.module or None, printer=args.printer)
-    labels = load_labels()
+    m = Machine(module=args.module or None, printer=args.printer, variant=args.variant)
+    labels = load_labels(args.variant)
     if args.boot:
         print("=== boot ===")
         print(Machine.format(m.boot_recs, full=args.full, labels=labels))

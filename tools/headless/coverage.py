@@ -5,6 +5,7 @@
     tools/headless/coverage.py show 0400 04FF   # per-address scenario list
     tools/headless/coverage.py unique sqrt      # addresses only that scenario hits
     tools/headless/coverage.py gaps             # never-executed address ranges
+    tools/headless/coverage.py --variant TI58C build   # same for the TI-58C ROM
 
 Each scenario starts from a freshly booted machine. A scenario's "setup"
 keys run untraced; only its "keys" are attributed. Boot is a scenario of
@@ -20,7 +21,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from ti59 import Machine, SECOND, IDLE_LO, IDLE_HI, FLG_IDLE  # noqa: E402
 
-OUT = Path(__file__).resolve().parent / "build" / "coverage.json"
+VARIANT = "TI59"
+if "--variant" in sys.argv:
+    _i = sys.argv.index("--variant")
+    VARIANT = sys.argv[_i + 1]
+    del sys.argv[_i:_i + 2]
+OUT = Path(__file__).resolve().parent / "build" / (
+    "coverage.json" if VARIANT == "TI59" else f"coverage-{VARIANT}.json")
 
 # name: (setup keys, traced keys[, options])
 S = lambda *k: list(k)  # noqa: E731
@@ -210,7 +217,7 @@ def expand(keys):
 def run(name: str, spec) -> set[int]:
     setup, keys = spec[0], spec[1]
     opts = spec[2] if len(spec) > 2 else {}
-    m = Machine(printer=opts.get("printer", False))
+    m = Machine(printer=opts.get("printer", False), variant=VARIANT)
     run.last_card = b""
     if opts.get("trace"):
         from ti59 import LIB
@@ -240,9 +247,11 @@ def run(name: str, spec) -> set[int]:
 
 def build():
     cov: dict[str, list[int]] = {}
-    m = Machine()
+    m = Machine(variant=VARIANT)
     cov["boot"] = sorted({r.pc for r in m.boot_recs})
     for name, spec in SCENARIOS.items():
+        if VARIANT != "TI59" and len(spec) > 2 and "card" in spec[2]:
+            continue                  # no card reader on the TI-58/58C
         pcs = run(name, spec)
         cov[name] = sorted(pcs)
         prn = " | ".join(run.last_printer)
