@@ -577,7 +577,7 @@ void SessionController::clearLog() {
     emitChanged(LogChanged);
 }
 
-void SessionController::dumpVars() { if (m_session) log(cu59::dumpVars(m_session->machine(), m_model)); }
+void SessionController::dumpVars() { if (m_session) log(cu59::dumpVars(m_session->machine())); }
 void SessionController::dumpScom() { if (m_session) log(cu59::dumpScom(m_session->machine())); }
 void SessionController::dumpProg() { if (m_session) log(cu59::dumpProg(m_session->machine())); }
 void SessionController::dumpMemory() { if (m_session) log(cu59::dumpMemory(m_session->machine())); }

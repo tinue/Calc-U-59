@@ -94,9 +94,8 @@ void TI59Machine::writeProgram(const uint8_t* keycodes, int count) {
 
 void TI59Machine::writeDataRegister(int regNum, const uint8_t* nibbles16) {
     std::lock_guard<std::mutex> lock(m_keyMutex);
-    if (regNum < 0 || regNum >= m_ram.size()) return;  // asserts vanish in release builds
-    // Data registers descend from the top of RAM: R00=RAM[size-1], R01=RAM[size-2], ...
-    m_ram.writeReg(m_ram.size() - 1 - regNum, nibbles16);
+    const int idx = dataRegRAMIndexLocked(regNum);
+    if (idx >= 0) m_ram.writeReg(idx, nibbles16);
 }
 
 int TI59Machine::partitionProgramRegs() const {
@@ -338,9 +337,28 @@ double TI59Machine::decodeBCD(const uint8_t* n) {
 
 double TI59Machine::readDataReg(int regNum) const {
     std::lock_guard<std::mutex> lock(m_keyMutex);
-    if (regNum < 0 || regNum >= m_ram.size()) return 0.0;  // asserts vanish in release builds
-    // Data registers descend from the top of RAM: R00=RAM[size-1], R01=RAM[size-2], ...
-    return decodeBCD(m_ram.readReg(m_ram.size() - 1 - regNum));
+    const int idx = dataRegRAMIndexLocked(regNum);
+    return idx >= 0 ? decodeBCD(m_ram.readReg(idx)) : 0.0;
+}
+
+int TI59Machine::dataRegCount() const {
+    std::lock_guard<std::mutex> lock(m_keyMutex);
+    return dataRegCountLocked();
+}
+
+int TI59Machine::dataRegCountLocked() const {
+    // The ROM's highest register number, BCD in SCOM[13] nibbles 5–3: 119 on
+    // the TI-59, 59 on the TI-58/58C. A TI-58C partitioned like a TI-59
+    // (examples/repartition.ti58c) has 119 too, and its R56–R59 are then the
+    // extra registers RAM 63–60. Zero before the ROM has booted.
+    const int top = m_cpu.scomNibble(13, 5) * 100 + m_cpu.scomNibble(13, 4) * 10 + m_cpu.scomNibble(13, 3);
+    if (top == 0) return hasConstantMemory(m_variant) ? 60 : m_ram.size();
+    return top + 1;
+}
+
+int TI59Machine::dataRegRAMIndexLocked(int regNum) const {
+    const int idx = dataRegCountLocked() - 1 - regNum;
+    return (regNum >= 0 && idx >= 0 && idx < m_ram.size()) ? idx : -1;
 }
 
 uint8_t TI59Machine::readProgramStep(int stepAddr) const {

@@ -42,10 +42,9 @@ std::string RingLog::displayText() {
     return out;
 }
 
-std::vector<std::string> dumpVars(const TI59Machine& m, Model model) {
+std::vector<std::string> dumpVars(const TI59Machine& m) {
     const int totalRegs = m.ramRegCount();
-    // TI-58/58C: a 60-register address space; TI-59: all 120.
-    const int displayable = info(model).hasConstantMemory ? 60 : totalRegs;
+    const int displayable = m.dataRegCount();  // the TI-58C's H00–H03 sit above
     const int programRegs = std::min(m.partitionProgramRegs(), totalRegs);
     const int visible = displayable - programRegs;
     if (visible <= 0) return {"── Vars: no data registers in current partition ──"};

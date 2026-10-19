@@ -43,7 +43,7 @@ public:
     /// Write keycodes[0..count-1] to program RAM starting at step 0.
     void writeProgram(const uint8_t* keycodes, int count);
 
-    /// Write 16 nibbles to RAM[partitionProgramRegs + regNum].
+    /// Write 16 nibbles to data register regNum (see dataRegCount()).
     void writeDataRegister(int regNum, const uint8_t* nibbles16);
 
     /// Current program-register count read live from SCOM[9][0] * 10.
@@ -135,8 +135,16 @@ public:
     /// Decode a 16-nibble TI-59 BCD register to a double.
     static double decodeBCD(const uint8_t* nibbles16);
 
-    /// Read data register regNum (0–58) decoded as double.
+    /// Read data register regNum (see dataRegCount()) decoded as double.
     double readDataReg(int regNum) const;
+
+    /// Data registers as the ROM addresses them: Rnn = RAM[dataRegCount() - 1 - nn],
+    /// descending to meet the program at the partition. 120 on the TI-59, 60 on
+    /// the TI-58/58C, where the TI-58C's 4 extra registers (H00–H03, RAM 60–63)
+    /// sit above R00 — unless the TI-58C is partitioned like a TI-59
+    /// (examples/repartition.ti58c): then it is 120 and only R56–R59 exist, on
+    /// the extra registers. Registers without RAM read 0 and ignore writes.
+    int dataRegCount() const;
 
     /// Read program step stepAddr (0–479) as 2-digit keycode (0–99).
     uint8_t readProgramStep(int stepAddr) const;
@@ -164,6 +172,8 @@ public:
     MachineVariant variant() const { return m_variant; }
 
 private:
+    int dataRegCountLocked() const;
+    int dataRegRAMIndexLocked(int regNum) const;  // -1: no RAM behind it
     MachineVariant m_variant;
     ROM            m_rom;
     RAM            m_ram;

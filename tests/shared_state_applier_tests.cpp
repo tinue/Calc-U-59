@@ -99,3 +99,44 @@ TEST(apply_every_example_file) {
     }
     CHECK(applied >= 40);
 }
+
+// Rnn as the ROM addresses it: STO/RCL by key must agree with
+// readDataReg/writeDataRegister (and so with REGISTERS:) on every model. The
+// TI-58C's extra registers H00–H03 sit above R00 and must not shift it.
+TEST(data_registers_match_the_rom) {
+    constexpr int kKey7 = 62, kKey0 = 92, kSto = 42, kRcl = 43, kClr = 25;
+    for (Model model : {Model::TI59, Model::TI58, Model::TI58C}) {
+        auto m = testroms::makeMachine(model);
+        CHECK(testroms::runToScanLoop(*m, model));
+        for (int k : {kKey7, kSto, kKey0, kKey0, kClr}) testroms::tap(*m, model, k);
+        CHECK_EQ(reg(*m, 0), 7.0);
+
+        auto r = parseStateFile("REGISTERS:\n00 = 5\n", 959, model == Model::TI58C);
+        applySkipResetState(*m, r, model);
+        for (int k : {kRcl, kKey0, kKey0}) testroms::tap(*m, model, k);
+        CHECK_EQ(testroms::displayText(*m), std::string("5"));
+    }
+
+    // TI-58C partitioned like a TI-59 (examples/repartition.ti58c): code 60 41
+    // in steps 480–481 (RAM 60, kept by power-off) gives partition 0.19, and
+    // the ROM then addresses Rnn as RAM[119 - nn]: R59 is RAM 60, R56 RAM 63.
+    auto m = testroms::makeMachine(Model::TI58C);
+    CHECK(testroms::runToScanLoop(*m, Model::TI58C));
+    uint8_t r60[16];
+    m->copyRAMReg(60, r60);
+    r60[0] = 0; r60[1] = 6; r60[2] = 1; r60[3] = 4;
+    m->writeRAMReg(60, r60);
+    m->reset();
+    CHECK(testroms::runToScanLoop(*m, Model::TI58C));
+    CHECK_EQ(m->dataRegCount(), 120);
+    for (int k : {kKey7, kSto, 73, 64, kClr}) testroms::tap(*m, Model::TI58C, k);  // 7 STO 59
+    m->copyRAMReg(60, r60);
+    CHECK_EQ(TI59Machine::decodeBCD(r60), 7.0);
+    CHECK_EQ(reg(*m, 59), 7.0);
+    auto r = parseStateFile("REGISTERS:\n56 = 5\n", 479, true);
+    applySkipResetState(*m, r, Model::TI58C);
+    uint8_t r63[16];
+    m->copyRAMReg(63, r63);
+    CHECK_EQ(TI59Machine::decodeBCD(r63), 5.0);
+    CHECK_EQ(reg(*m, 0), 0.0);  // R00 would be RAM 119: no hardware
+}

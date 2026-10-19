@@ -167,7 +167,7 @@ LiveDebugBuild buildLiveSnapshot(const TI59Machine& m, Model model, const Module
     LiveDebugSnapshot& snap = out.snap;
     const int partitionProgramRegs = m.partitionProgramRegs();
     const int totalRegs = m.ramRegCount();  // 60 (TI-58), 64 (TI-58C) or 120 (TI-59)
-    const int displayableRegs = info(model).hasConstantMemory ? 60 : totalRegs;
+    const int displayableRegs = m.dataRegCount();  // the TI-58C's H00–H03 sit above
     // Quirky partitions may claim more registers than physically exist.
     const int programRegs = std::min(partitionProgramRegs, totalRegs);
     snap.programRegCount = partitionProgramRegs;

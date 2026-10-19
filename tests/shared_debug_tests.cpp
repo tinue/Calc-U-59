@@ -289,7 +289,7 @@ TEST(debug_dumps) {
     testroms::runToScanLoop(*m, Model::TI59);
     auto v = encodeBcd(std::string_view("42"));
     m->writeDataRegister(7, v.data());
-    auto vars = dumpVars(*m, Model::TI59);
+    auto vars = dumpVars(*m);
     CHECK(vars.size() >= 2);
     bool found = std::find(vars.begin(), vars.end(), std::string("V07 = 42")) != vars.end();
     if (!found) for (auto& l : vars) std::fprintf(stderr, "  vars: %s\n", l.c_str());

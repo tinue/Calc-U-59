@@ -33,7 +33,7 @@ private:
 
 /// Non-zero data registers of the current partition, sorted by label: normal
 /// registers as Vnn, the TI-58C's extra registers as Hnn.
-std::vector<std::string> dumpVars(const TI59Machine& m, Model model);
+std::vector<std::string> dumpVars(const TI59Machine& m);
 
 /// All 16 SCOM rows, nibble 15 first.
 std::vector<std::string> dumpScom(const TI59Machine& m);

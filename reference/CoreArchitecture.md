@@ -169,7 +169,9 @@ All variants load 6144 × 13-bit words (0x0000–0x17FF):
 120 registers × 16 BCD nibbles (`RAM::setLimit` caps the TI-58 at 60, the
 TI-58C at 64). Program steps fill registers from the bottom (2 nibbles per
 step, units digit first, 8 steps per register); data registers count down
-from the top, Rnn = RAM[top − nn], top = 119 (TI-59) or 59 (TI-58/58C). The
+from the top, Rnn = RAM[top − nn]. The ROM keeps top as BCD in SCOM[13]
+nibbles 5–3: 119 (TI-59) or 59 (TI-58/58C); `TI59Machine::dataRegCount()`
+is top + 1 and `readDataReg`/`writeDataRegister` use it. The
 partition (SCOM[9] nibble 0 = program registers ÷ 10) is set by Op 17; the
 defaults are 479.59 (TI-59) and 239.29 (TI-58/58C).
 
@@ -191,8 +193,10 @@ The TI-58C has **60 addressable registers, exactly like the TI-58**, plus 4
 raw RAM cells `RAM[60]`–`RAM[63]` outside that space. Do not call them
 "registers 60–63". They:
 
-- are never reachable via `STO`/`RCL` (the ROM's addressing produces 00–59
-  only) and never take part in partitioning;
+- are not reachable via `STO`/`RCL` in the TI-58C's own partitions (top =
+  59). A partition hacked like a TI-59's (`examples/repartition.ti58c`, TI
+  PPC Notes V5N7) sets top = 119; the cells are then R59–R56 (RAM[119 − nn]),
+  and the debugger shows them as such;
 - are read and written only by `MEMWR`/`MEMRD`, which address raw RAM;
 - persist with the 60 normal registers (`serialiseRAM`/`deserialiseRAM`,
   `ti58c.mem`) and are loadable and saveable through state files and the
