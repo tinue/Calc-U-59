@@ -223,7 +223,7 @@ void CpuInspectorWidget::refreshDetails() {
                        c(QStringLiteral("IDLE: %1").arg(idle), idle ? QStringLiteral("white") : QStringLiteral("rgba(255,255,255,0.45)")) +
                        QStringLiteral("&nbsp;&nbsp;&nbsp;&nbsp;") + c(QString::asprintf("DIGIT: %2d", f.postDigit), value));
     bool on = f.displayOn != 0;
-    set(m_displayState, c(QStringLiteral("Decay: %1").arg(f.maxDigitDecay), value) + QStringLiteral("&nbsp;&nbsp;&nbsp;&nbsp;") +
+    set(m_displayState, c(QStringLiteral("Lit: %1").arg(f.maxDigitDecay), value) + QStringLiteral("&nbsp;&nbsp;&nbsp;&nbsp;") +
                             c(on ? QStringLiteral("ON") : QStringLiteral("OFF"), on ? QStringLiteral("rgba(52,199,89,0.85)")
                                                                                      : QStringLiteral("rgba(255,59,48,0.7)")));
 }

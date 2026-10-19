@@ -40,8 +40,9 @@ struct CpuFrame {
     uint8_t  Sout[16];
     uint16_t EXT, PREG, flags, m_libAddr;
     uint8_t  REG_ADDR, RAM_ADDR, RAM_OP, m_libAddrReadPos;
-    uint8_t  displayOn;  ///< 1 when one or more digits or decimal dots are currently visible, else 0.
-    uint8_t  maxDigitDecay; ///< Maximum active digit afterglow counter across display positions (0..N).
+    uint8_t  displayOn;  ///< 1 when a digit or decimal dot was driven in the last digit-counter revolution, else 0.
+    uint8_t  maxDigitDecay; ///< Number of positions (0..12) driven in that revolution (the name predates
+                            ///< the duty model; kept so the trace format is unchanged).
 };
 
 // ── Debug event ───────────────────────────────────────────────────────────────

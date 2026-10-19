@@ -24,7 +24,7 @@ tracked here (see `NewGUIGuide.md`).
 | Hold display for full speed | `KeyboardView` | `KeyboardWidget` | `Pacing` | Both | |
 | Physical keyboard (26 keys, Shift = 2nd, min. hold) | `KeyboardView` | `KeyboardWidget` | `KeyboardMap`, `KeySequencer` | Both | macOS only in the Swift app |
 | LED display, Modernized / Classic styles | `LEDDisplayView` | `LedRenderer` | `SevenSegment`, `LedGeometry` | Both | Glow: SwiftUI blur / box-blur layers |
-| Decimal-point afterglow, "C" indicator fade | `LEDDisplayView` | `LedRenderer` | `FrameSampler` | Both | |
+| Digit and decimal-point brightness (persistence of vision), "C" indicator fade | `LEDDisplayView` | `LedRenderer` | `FrameSampler`, `DisplayPov` | Both | |
 | Cue card: 3 templates, `\blank` spans, shrink-to-fit, inks | `CueCardView` | `CueCardRenderer` | `CueCard` (layout, geometry, inks) | Both | |
 | Module program cards (SCOM[9]), user cards | `EmulatorViewModel` | `EmulatorController` | `SessionController`, `CueCard` resolveCueCard | Both | |
 | Solid State module selection | `SettingsView` | `SettingsDialog` | `ModuleCatalog` | Both | soft reset on change |

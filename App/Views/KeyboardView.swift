@@ -99,9 +99,8 @@ struct KeyboardView: View {
                 LEDDisplayView(
                     digits:        viewModel.displayDigits,
                     ctrl:          viewModel.displayCtrl,
-                    suppressedMask: viewModel.displaySuppressedMask,
-                    dpPos:         viewModel.dpPos,
-                    dpAfterglowMask: viewModel.dpAfterglowMask,
+                    levels:        viewModel.displayLevels,
+                    dpLevels:      viewModel.dpLevels,
                     calcIndicatorOpacity: viewModel.calcIndicatorOpacity,
                     fontStyle:     fontStyle
                 )

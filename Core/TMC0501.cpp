@@ -158,10 +158,10 @@ void TMC0501::reset() {
     // Initialize per-digit live buffers
     memset(m_digitSegmentsA, 0, sizeof(m_digitSegmentsA));
     memset(m_digitSegmentsB, 0, sizeof(m_digitSegmentsB));
-    memset(m_digitAfterglowCounters, 0, sizeof(m_digitAfterglowCounters));
-    memset(m_dpAfterglowCounters, 0, sizeof(m_dpAfterglowCounters));
-    memset(m_digitLitInLastStrobe, 0, sizeof(m_digitLitInLastStrobe));
-    memset(m_dpLitInLastStrobe, 0, sizeof(m_dpLitInLastStrobe));
+    memset(m_digitLitTicks, 0, sizeof(m_digitLitTicks));
+    memset(m_dpLitTicks, 0, sizeof(m_dpLitTicks));
+    m_drivenThisRev = m_drivenLastRev = 0;
+    m_lastDisplay = DisplaySnapshot{};
     m_currentDpPos = 0;
     m_digitSuppressedMask = 0;
     m_zeroSuppressRunning = true;
@@ -278,18 +278,9 @@ void TMC0501::releaseKey(int row, int col) {
 void TMC0501::computeDisplayTraceState(uint8_t& displayOn, uint8_t& maxDigitDecay) const {
     std::lock_guard<std::mutex> lock(m_displayMutex);
 
-    uint8_t maxDecay = 0;
-    bool anyVisible = false;
-    for (int i = 0; i < 12; ++i) {
-        const uint8_t digitDecay = m_digitAfterglowCounters[i];
-        if (digitDecay > maxDecay) maxDecay = digitDecay;
-        if (digitDecay > 0 || m_dpAfterglowCounters[i] > 0) {
-            anyVisible = true;
-        }
-    }
-
-    displayOn = anyVisible ? 1u : 0u;
-    maxDigitDecay = maxDecay;
+    // maxDigitDecay keeps its trace slot; it now counts the positions driven.
+    displayOn = m_drivenLastRev ? 1u : 0u;
+    maxDigitDecay = static_cast<uint8_t>(__builtin_popcount(m_drivenLastRev));
 }
 
 uint32_t TMC0501::getPrinterBusyCycles() const {
@@ -338,33 +329,29 @@ DisplaySnapshot TMC0501::getDisplay() const {
     const uint32_t pollSteps = m_pollSteps.exchange(0, std::memory_order_relaxed);
     const float cLevel = pollSteps ? (float)cSteps / (float)pollSteps : 0.0f;
 
-    // Build snapshot from per-position decay counters and latched LED state.
+    // A poll with no cycle since the last one has nothing new to integrate.
+    if (pollSteps == 0) return m_lastDisplay;
+
+    // Per-position duty: the fraction of the interval the position was driven,
+    // ×16 because the IDLE multiplex drives each position one instruction in 16.
+    // How bright that looks (persistence of vision) is left to the frontend.
     DisplaySnapshot result;
-
-    uint16_t effectiveSuppressedMask = m_digitSuppressedMask;
+    uint16_t driven = 0;
     for (int i = 0; i < 12; ++i) {
-        const bool visible = m_digitAfterglowCounters[i] > 0;
-        if (visible) {
-            result.digits[i] = m_digitSegmentsA[i] & 0x0F;
-            result.ctrl[i]   = m_digitSegmentsB[i] & 0x0F;
-            effectiveSuppressedMask &= static_cast<uint16_t>(~(1u << i));
-        } else {
-            result.digits[i] = 0;
-            result.ctrl[i]   = 7; // blank when this position's decay reached zero
-        }
-    }
-
-    // Decimal point visibility is fully per-position afterglow.
-    uint16_t dpMask = 0;
-    for (int i = 0; i < 12; ++i) {
-        if (m_dpAfterglowCounters[i] > 0) dpMask |= static_cast<uint16_t>(1u << i);
+        result.digits[i] = m_digitSegmentsA[i] & 0x0F;
+        result.ctrl[i]   = m_digitSegmentsB[i] & 0x0F;
+        result.digitDuty[i] = std::min(1.0f, 16.0f * (float)m_digitLitTicks[i] / (float)pollSteps);
+        result.dpDuty[i]    = std::min(1.0f, 16.0f * (float)m_dpLitTicks[i] / (float)pollSteps);
+        if (m_digitLitTicks[i]) driven |= static_cast<uint16_t>(1u << i);
+        m_digitLitTicks[i] = 0;
+        m_dpLitTicks[i] = 0;
     }
 
     result.dpPos = m_currentDpPos;
-    result.dpAfterglowMask = dpMask;
-    result.suppressedMask = effectiveSuppressedMask;
+    result.suppressedMask = m_digitSuppressedMask & static_cast<uint16_t>(~driven);
     result.calcIndicator = cLevel;
-
+    result.pollTicks = pollSteps;
+    m_lastDisplay = result;
     return result;
 }
 
@@ -1409,8 +1396,6 @@ void TMC0501::beginNextStep() {
     }
 }
 
-static constexpr uint8_t kAfterglowRefresh = 4;
-
 void TMC0501::postOperation() {
     // ── Per-step display capture & decay ────────────────────────────────────
     // Must run after every instruction because each cycles the digit counter (see line 462).
@@ -1467,38 +1452,28 @@ void TMC0501::postOperation() {
         }
         m_zeroSuppressRunning = zero;
 
-        // Segment visibility for this strobe: when lit, refresh this digit's decay and
-        // latch the current glyph. When removed (suppression/blank/space), start decay.
+        // A lit strobe latches the glyph and adds this instruction's time to the
+        // position's driven time (getDisplay turns it into a duty cycle). A
+        // suppressed or blank strobe drives nothing; the glyph stays latched.
+        const uint32_t w = static_cast<uint32_t>(getStepWeight());
         const bool emitsGlyph = (b == 0 || b == 1 || b == 5 || b == 6 || b == 8 || b == 9);
-        const bool litNow = (!suppressed && emitsGlyph);
-        const bool wasLit = m_digitLitInLastStrobe[idx];
-        if (litNow) {
+        if (!suppressed && emitsGlyph) {
             m_digitSegmentsA[idx] = a;
             m_digitSegmentsB[idx] = b;
+            m_digitLitTicks[idx] += w;
+            m_drivenThisRev |= static_cast<uint16_t>(1u << idx);
         }
-        if (litNow || wasLit) {
-            m_digitAfterglowCounters[idx] = kAfterglowRefresh;
-        }
-        m_digitLitInLastStrobe[idx] = litNow;
-
         // Decimal-point strobe: R5 indicates the currently driven dot position.
-        const bool dpLitNow = (R5 == strobeDigit);
-        const bool dpWasLit = m_dpLitInLastStrobe[idx];
-        if (dpLitNow || dpWasLit) {
-            m_dpAfterglowCounters[idx] = kAfterglowRefresh;
+        if (R5 == strobeDigit) {
+            m_dpLitTicks[idx] += w;
+            m_drivenThisRev |= static_cast<uint16_t>(1u << idx);
         }
-        m_dpLitInLastStrobe[idx] = dpLitNow;
     }
 
     if (digit == 0) {
         std::lock_guard<std::mutex> lock(m_displayMutex);
-        // Decay once per full digit-counter cycle, unconditionally — not inside the
-        // IDLE-gated strobe block — so counters tick down during RUN mode too.
-        for (int i = 0; i < 12; ++i) {
-            if (m_digitAfterglowCounters[i] > 0) m_digitAfterglowCounters[i]--;
-            if (m_dpAfterglowCounters[i] > 0) m_dpAfterglowCounters[i]--;
-        }
-
+        m_drivenLastRev = m_drivenThisRev;
+        m_drivenThisRev = 0;
     }
 }
 

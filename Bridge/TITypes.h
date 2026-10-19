@@ -6,14 +6,13 @@ NS_ASSUME_NONNULL_BEGIN
 // a CPU trace frame (TICpuFrame matches CpuFrame field for field; the layout
 // is checked in BridgeConvert.h).
 
-/// The display (Core DisplaySnapshot).
+/// The display as drawn (Shared LedFrame): each position's last glyph and its
+/// brightness as the eye sees it (Shared/DisplayPov).
 typedef struct {
     uint8_t  digits[12];      ///< A[2..13] BCD digit values
     uint8_t  ctrl[12];        ///< B[2..13] display control nibbles
-    uint8_t  dpPos;           ///< R5 — current decimal-point position index (0 = none, 2..13 valid)
-    uint16_t dpAfterglowMask; ///< Bitmask of positions with active afterglow: bit (pos-2) for pos 2..13.
-                              ///<   Includes current dpPos. Zero when display is blanked.
-    uint16_t suppressedMask;  ///< Zero-suppression circuit output: bit i suppresses display index i.
+    uint8_t  digitLevel[12];  ///< brightness 0 (dark) … 255 (lit) per position
+    uint8_t  dpLevel[12];     ///< same for the decimal point of each position
 } TIDisplaySnapshot;
 
 /// One instruction's CPU state (Core CpuFrame).

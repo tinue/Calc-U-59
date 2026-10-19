@@ -1,9 +1,17 @@
 #include "FrameSampler.hpp"
 #include <algorithm>
+#include <cmath>
+#include <cstring>
 
 namespace cu59 {
 
-FrameUpdate FrameSampler::tick(TI59Machine& m, int debugLevel, bool cardSwiping) {
+bool LedFrame::operator==(const LedFrame& o) const {
+    return std::memcmp(digits, o.digits, sizeof digits) == 0 && std::memcmp(ctrl, o.ctrl, sizeof ctrl) == 0 &&
+           std::memcmp(digitLevel, o.digitLevel, sizeof digitLevel) == 0 &&
+           std::memcmp(dpLevel, o.dpLevel, sizeof dpLevel) == 0;
+}
+
+FrameUpdate FrameSampler::tick(TI59Machine& m, double instructionHz, int debugLevel, bool cardSwiping) {
     FrameUpdate u;
     u.cardAutoEjected = cardSwiping && !m.isCardPresent();
     u.printerLines = m.drainPrinterLines();
@@ -14,10 +22,14 @@ FrameUpdate FrameSampler::tick(TI59Machine& m, int debugLevel, bool cardSwiping)
     u.printerCodeLines = m.drainPrinterCodeLines();
 
     u.display = m.getDisplay();
-    CpuFrame cpu = m.snapshotCPU();
-    bool idle = (cpu.flags & FLG_IDLE) != 0;
-    bool displayOn = cpu.displayOn != 0;  // one or more digits or dots visible
-    u.displayUpdated = !(displayOn && !idle);
+    m_pov.update(u.display, u.display.pollTicks / instructionHz);
+    auto level = [](float b) { return static_cast<uint8_t>(std::lround(b * 255.0f)); };
+    for (int i = 0; i < 12; ++i) {
+        u.led.digits[i] = u.display.digits[i];
+        u.led.ctrl[i] = u.display.ctrl[i];
+        u.led.digitLevel[i] = level(m_pov.digit(i));
+        u.led.dpLevel[i] = level(m_pov.dp(i));
+    }
 
     u.calcIndicatorOpacity = updateCalcIndicator(u.display.calcIndicator);
     return u;
@@ -26,6 +38,7 @@ FrameUpdate FrameSampler::tick(TI59Machine& m, int debugLevel, bool cardSwiping)
 void FrameSampler::reset() {
     m_calcOpacity = 0;
     m_zeroFrames = 0;
+    m_pov.reset();
 }
 
 // The C indicator follows the core's integrated duty cycle. Hardware (Sladký

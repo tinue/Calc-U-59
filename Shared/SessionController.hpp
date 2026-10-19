@@ -109,7 +109,7 @@ public:
     std::vector<ModuleMetadata> allModules() const { return allModuleMetadata(m_cuecards); }
 
     // ── Display, keys, speed ─────────────────────────────────────────────────
-    const DisplaySnapshot& display() const { return m_display; }
+    const LedFrame& display() const { return m_display; }
     double calcIndicatorOpacity() const { return m_calcOpacity; }
     void pressKey(uint8_t matrixCode);
     void releaseKey(uint8_t matrixCode);
@@ -223,7 +223,7 @@ private:
     std::optional<CueCardContent> m_userCueCard;
     int m_activeProgram = 0;
 
-    DisplaySnapshot m_display{};
+    LedFrame m_display{};
     double m_calcOpacity = 0;
     bool m_fullSpeed = false;
     bool m_keystrokesPlaying = false;

@@ -28,7 +28,7 @@ EmulatorViewModel          (App/EmulatorViewModel.swift)
   └─ App/Views/            (SwiftUI, thin bindings only)
        CalculatorView      main container
        KeyboardView        calculator image + gesture hit-test + LED overlay
-       LEDDisplayView      12-digit BCD LED with afterglow animation
+       LEDDisplayView      12-digit BCD LED, per-digit brightness (Shared/DisplayPov)
        PrinterView         PC-100C tape simulation
        CueCardView         reference card overlay
        DebugView           3-tab container: CALCULATOR / CPU / LOG

@@ -45,14 +45,15 @@ void blur(QImage& img, double radius) {
 
 QColor rgba(double r, double g, double b, double a) { return QColor::fromRgbF(r, g, b, a); }
 
-/// One lit shape with its opacity (the "C" annunciator fades).
+/// One lit shape with its opacity (digit brightness, or the fading "C").
 struct Lit { QPainterPath path; double opacity; };
+struct Dot { QRectF rect; double opacity; };
 
 } // namespace
 
 namespace {
 
-void render(QPainter& p, const QRectF& rect, const DisplaySnapshot& d, double calcOpacity, cu59::LedStyle style) {
+void render(QPainter& p, const QRectF& rect, const cu59::LedFrame& d, double calcOpacity, cu59::LedStyle style) {
     const cu59::LedStyleParams& sp = cu59::ledStyleParams(style);
     p.fillRect(rect, rgba(cu59::kLedBackgroundR, cu59::kLedBackgroundG, cu59::kLedBackgroundB, 1));
     const double w = rect.width() / 12.0, h = rect.height();
@@ -61,7 +62,7 @@ void render(QPainter& p, const QRectF& rect, const DisplaySnapshot& d, double ca
 
     std::vector<Lit> lit;          // segments to glow and draw lit
     QPainterPath dark;             // unlit segments
-    std::vector<QRectF> dps;       // decimal points (unsheared)
+    std::vector<Dot> dps;          // decimal points (unsheared)
     double glowRadius = 0;
 
     const auto modern = cu59::modernizedSegments(w, h);
@@ -69,12 +70,13 @@ void render(QPainter& p, const QRectF& rect, const DisplaySnapshot& d, double ca
     for (int i = 0; i < 12; ++i) {
         const double x = rect.left() + (11 - i) * w;
         uint8_t segs;
-        double opacity = 1.0;
+        double opacity;
         if (i == 11 && calcOpacity > 0) {
             segs = cu59::kSegmentsC;
             opacity = calcOpacity;
         } else {
-            segs = cu59::segmentsFor(d.digits[i], d.ctrl[i], ((d.suppressedMask >> i) & 1) != 0);
+            opacity = d.digitLevel[i] / 255.0;
+            segs = opacity > 0 ? cu59::segmentsFor(d.digits[i], d.ctrl[i], false) : 0;
         }
         // Shear x' = x + slant × (h − y): the bottom stays put.
         QTransform t(1, 0, -sp.slant, 1, x + h * sp.slant, rect.top());
@@ -95,9 +97,11 @@ void render(QPainter& p, const QRectF& rect, const DisplaySnapshot& d, double ca
             if ((segs >> bit) & 1) lit.push_back({path, opacity});
             else dark.addPath(path);
         }
-        if ((d.dpAfterglowMask >> i) & 1) {
+        if (d.dpLevel[i] > 0) {
             cu59::LedDot dot = cu59::decimalPoint(w, h);
-            dps.emplace_back(x + dot.cx - dot.diameter / 2, rect.top() + dot.cy - dot.diameter / 2, dot.diameter, dot.diameter);
+            dps.push_back({QRectF(x + dot.cx - dot.diameter / 2, rect.top() + dot.cy - dot.diameter / 2, dot.diameter,
+                                  dot.diameter),
+                           d.dpLevel[i] / 255.0});
         }
     }
 
@@ -118,7 +122,12 @@ void render(QPainter& p, const QRectF& rect, const DisplaySnapshot& d, double ca
         g.setPen(Qt::NoPen);
         g.translate(-rect.topLeft());
         if (decimalPoints) {
-            for (const auto& r : dps) g.setBrush(active), g.drawEllipse(r);
+            for (const auto& dot : dps) {
+                QColor c = active;
+                c.setAlphaF(dot.opacity);
+                g.setBrush(c);
+                g.drawEllipse(dot.rect);
+            }
         } else {
             for (const auto& l : lit) {
                 QColor c = active;
@@ -140,15 +149,19 @@ void render(QPainter& p, const QRectF& rect, const DisplaySnapshot& d, double ca
             glowLayer(glowRadius * sp.glowBlurPerWidth, sp.glowOpacity, false);
         }
     }
-    if (!dps.empty()) glowLayer(dps.front().width() * cu59::kDecimalGlowBlurPerDiameter, cu59::kDecimalGlowOpacity, true);
+    if (!dps.empty()) glowLayer(dps.front().rect.width() * cu59::kDecimalGlowBlurPerDiameter, cu59::kDecimalGlowOpacity, true);
 
     for (const auto& l : lit) {
         QColor c = active;
         c.setAlphaF(l.opacity);
         p.fillPath(l.path, c);
     }
-    p.setBrush(active);
-    for (const auto& r : dps) p.drawEllipse(r);
+    for (const auto& dot : dps) {
+        QColor c = active;
+        c.setAlphaF(dot.opacity);
+        p.setBrush(c);
+        p.drawEllipse(dot.rect);
+    }
     p.restore();
 }
 
@@ -156,15 +169,12 @@ void render(QPainter& p, const QRectF& rect, const DisplaySnapshot& d, double ca
 /// costly part; a static display, or a running program's C indicator cycling
 /// through its opacities, comes from here.
 struct CacheKey {
-    DisplaySnapshot display;
+    cu59::LedFrame display;
     int opacityStep;   ///< C indicator opacity in 1/64 steps
     int style;
     QSize pixels;
     bool operator==(const CacheKey& o) const {
-        return std::memcmp(&display.digits, &o.display.digits, sizeof display.digits) == 0 &&
-               std::memcmp(&display.ctrl, &o.display.ctrl, sizeof display.ctrl) == 0 &&
-               display.suppressedMask == o.display.suppressedMask && display.dpAfterglowMask == o.display.dpAfterglowMask &&
-               opacityStep == o.opacityStep && style == o.style && pixels == o.pixels;
+        return display == o.display && opacityStep == o.opacityStep && style == o.style && pixels == o.pixels;
     }
 };
 
@@ -179,7 +189,7 @@ constexpr size_t kCacheSize = 24;
 
 } // namespace
 
-void paint(QPainter& p, const QRectF& rect, const DisplaySnapshot& d, double calcOpacity, cu59::LedStyle style) {
+void paint(QPainter& p, const QRectF& rect, const cu59::LedFrame& d, double calcOpacity, cu59::LedStyle style) {
     const qreal dpr = p.device() ? p.device()->devicePixelRatioF() : 1.0;
     CacheKey key{d, static_cast<int>(std::lround(calcOpacity * 64)), static_cast<int>(style), (rect.size() * dpr).toSize()};
     auto& entries = cache();

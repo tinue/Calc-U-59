@@ -83,12 +83,17 @@ void h_ram_write(void* m, int reg, const uint8_t* in16)  { static_cast<TI59Machi
 void h_write_program(void* m, const uint8_t* k, int n)   { static_cast<TI59Machine*>(m)->writeProgram(k, n); }
 uint16_t h_lib_exec_pc(void* m) { return static_cast<TI59Machine*>(m)->libExecPC(); }
 
-// masks[0] = decimal-point afterglow mask, masks[1] = zero-suppressed mask.
+// Positions not driven since the last call read as blank (ctrl 7).
+// masks[0] = decimal points driven, masks[1] = zero-suppressed mask.
 void h_display(void* m, uint8_t* digits12, uint8_t* ctrl12, uint16_t* masks) {
     DisplaySnapshot d = static_cast<TI59Machine*>(m)->getDisplay();
     memcpy(digits12, d.digits, 12);
     memcpy(ctrl12, d.ctrl, 12);
-    masks[0] = d.dpAfterglowMask;
+    masks[0] = 0;
+    for (int i = 0; i < 12; ++i) {
+        if (d.digitDuty[i] == 0) ctrl12[i] = 7;
+        if (d.dpDuty[i] > 0) masks[0] |= static_cast<uint16_t>(1u << i);
+    }
     masks[1] = d.suppressedMask;
 }
 

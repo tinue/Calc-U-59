@@ -33,7 +33,7 @@ public:
     QVector<cu59::ModuleMetadata> allModules() const;
 
     // ── Display ──────────────────────────────────────────────────────────────
-    const DisplaySnapshot& display() const { return m_c->display(); }
+    const cu59::LedFrame& display() const { return m_c->display(); }
     double calcIndicatorOpacity() const { return m_c->calcIndicatorOpacity(); }
     void setFullSpeed(bool on) { m_c->setFullSpeed(on); }
     const std::optional<cu59::CueCardContent>& cueCard() const { return m_c->cueCard(); }

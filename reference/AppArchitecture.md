@@ -128,8 +128,9 @@ fires, the loop stops and the session applies the freeze before reporting it.
 `startDisplayRefresh` creates a `Timer` on the main run loop that calls
 `controller.tick()` (`Shared/SessionController.cpp`) every 16 ms. One tick:
 
-1. **Frame** (`Shared/FrameSampler.cpp`): the display snapshot (held while the
-   display is lit but the CPU is not IDLE), the C indicator's smoothed
+1. **Frame** (`Shared/FrameSampler.cpp`): the display — each position's
+   glyph with its brightness from the core's duty cycles through
+   `Shared/DisplayPov` (persistence of vision) — the C indicator's smoothed
    opacity, printer text and dot lines, core log messages at or below the
    debug level, and card auto-eject (the core executed `CRD_OFF`; written
    data is saved).
@@ -358,7 +359,7 @@ Its value objects (`TILiveDebugSnapshot`, `TIStepEntry`, `TIInspectorEntry`,
 change.
 
 **Display snapshot** — `TIDisplaySnapshot` (`Bridge/TITypes.h`) mirrors
-`DisplaySnapshot`.
+Shared's `LedFrame`: glyphs plus a brightness 0–255 per digit and decimal point.
 
 **CPU frames** — `TICpuFrame` mirrors `CpuFrame` field for field; the layout is
 `static_assert`ed in `Bridge/BridgeConvert.h` (with the shared `ns`/`cpp`/`bytes`

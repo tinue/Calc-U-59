@@ -4,6 +4,9 @@
 #include "TestHarness.hpp"
 #include "TestRoms.hpp"
 #include "../Shared/EmulatorSession.hpp"
+#include "../Shared/FrameSampler.hpp"
+#include "../Shared/KeyMatrix.hpp"
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <thread>
@@ -114,6 +117,99 @@ TEST(calc_indicator_smoothing) {
     s.updateCalcIndicator(1.0f);
     double v = s.updateCalcIndicator(0.5f);  // proportional fall: alpha = min(0.5, 0.325/0.65)
     CHECK(std::fabs(v - (0.65 + 0.5 * (0.325 - 0.65))) < 1e-9);
+}
+
+// ── Display: persistence of vision (Shared/DisplayPov) ──
+
+TEST(display_pov_channel_hold_and_fade) {
+    const double frame = 1.0 / 60;
+    DisplayPov::Channel c;
+    CHECK_EQ(c.step(1.0, frame), 1.0);                       // driven: on at once
+    CHECK_EQ(c.step(0.4, frame), 1.0);                       // part of a frame dark: within the hold
+    CHECK_EQ(c.step(1.0, frame), 1.0);
+    CHECK_EQ(c.step(0.0, frame), 1.0);                       // 17 ms dark …
+    CHECK_EQ(c.step(0.0, frame), 1.0);                       // … 33 ms: still held
+    double fading = c.step(0.0, frame);                      // 50 ms
+    fading = c.step(0.0, frame);                             // 67 ms: fading
+    CHECK(fading < 1.0 && fading > DisplayPov::kCutoff);
+    for (int i = 0; i < 6; ++i) c.step(0.0, frame);          // 167 ms: out
+    CHECK_EQ(c.level, 0.0);
+}
+
+namespace {
+
+// A machine driven frame by frame (60 Hz of emulated time) through FrameSampler,
+// as the apps do.
+struct PovRig {
+    Model model;
+    std::unique_ptr<TI59Machine> m;
+    FrameSampler sampler;
+    double hz;
+    double acc = 0;
+    explicit PovRig(Model md) : model(md), m(testroms::makeMachine(md)), hz(info(md).instructionHz) {
+        testroms::runToScanLoop(*m, md);
+        m->getDisplay();
+    }
+    FrameUpdate frame() {
+        while (acc < hz / 60) acc += m->step() & TI59Machine::kWeightMask;
+        acc -= hz / 60;
+        return sampler.tick(*m, hz, 0, false);
+    }
+    static int brightest(const FrameUpdate& f) {
+        int mx = 0;
+        for (uint8_t l : f.led.digitLevel) mx = std::max(mx, int(l));
+        return mx;
+    }
+    /// Press the last key of `keys` (the others are tapped first) and return the
+    /// dimmest brightest-digit level over the next second.
+    int dimmestDuring(std::initializer_list<int> setup, std::initializer_list<int> keys) {
+        for (int k : setup) testroms::tap(*m, model, k);
+        std::vector<int> v(keys);
+        for (size_t i = 0; i + 1 < v.size(); ++i) testroms::tap(*m, model, v[i]);
+        for (int i = 0; i < 10; ++i) frame();
+        pressMatrix(*m, v.back());
+        int dim = 255;
+        for (int i = 0; i < 60; ++i) {
+            if (i == 6) releaseMatrix(*m, v.back());
+            dim = std::min(dim, brightest(frame()));
+        }
+        return dim;
+    }
+};
+
+} // namespace
+
+// Calibrated on a real TI-59: a digit key's ≈ 11 ms of dark display is
+// invisible, sin (≈ 350 ms) visibly darkens.
+TEST(display_pov_keys_as_the_eye_sees_them) {
+    CHECK_EQ(PovRig(Model::TI59).dimmestDuring({82, 83}, {84}), 255);    // 1 2 → 3
+    CHECK_EQ(PovRig(Model::TI59).dimmestDuring({84, 92}, {21, 33}), 0);  // 30 sin
+}
+
+// The TI-58 error blink drives its rightmost digit only every fifth digit sweep
+// of a lit pass; it must still look steadily lit (with the old revolution-
+// counted afterglow it dropped to dark in mid-phase). A brief ramp to ≈ 86% in
+// the first frames of a lit phase is what its duty there really is.
+TEST(display_pov_ti58_blink_has_no_dropouts) {
+    PovRig r(Model::TI58);
+    for (int k : {92, 35}) testroms::tap(*r.m, Model::TI58, k);  // 0 1/x → error blink
+    // "9.9999999 99" has 10 lit positions; a frame between two frames with all
+    // others fully lit is mid-phase.
+    std::vector<int> right, full;
+    for (int i = 0; i < 1500; ++i) {
+        FrameUpdate f = r.frame();
+        right.push_back(f.led.digitLevel[0]);
+        full.push_back(int(std::count(std::begin(f.led.digitLevel) + 1, std::end(f.led.digitLevel), 255)));
+    }
+    int dropouts = 0, litFrames = 0;
+    for (size_t i = 1; i + 1 < full.size(); ++i) {
+        if (full[i - 1] == 9 && full[i] == 9 && full[i + 1] == 9) {  // mid-phase
+            ++litFrames;
+            if (right[i] < 200) ++dropouts;
+        }
+    }
+    CHECK(litFrames > 500);
+    CHECK_EQ(dropouts, 0);
 }
 
 TEST(runner_post_and_sync_are_serial) {

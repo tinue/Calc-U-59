@@ -146,7 +146,9 @@ public:
     bool keystrokesPlaying() const { return m_keys->isPlaying(); }
 
     // ── Frames ───────────────────────────────────────────────────────────────
-    FrameUpdate tick(int debugLevel, bool cardSwiping) { return m_sampler.tick(*m_machine, debugLevel, cardSwiping); }
+    FrameUpdate tick(int debugLevel, bool cardSwiping) {
+        return m_sampler.tick(*m_machine, info(m_model).instructionHz, debugLevel, cardSwiping);
+    }
 
     // ── Traces ───────────────────────────────────────────────────────────────
     TraceWriter& manualTrace() { return m_manualTrace; }

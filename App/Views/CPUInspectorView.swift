@@ -229,7 +229,7 @@ struct CPUInspectorView: View {
                                 let displayOn = cpu.displayOn != 0
                                 VStack(alignment: .leading, spacing: 2) {
                                     HStack(spacing: 16) {
-                                        Text("Decay: \(cpu.maxDigitDecay)")
+                                        Text("Lit: \(cpu.maxDigitDecay)")
                                             .foregroundStyle(.white.opacity(0.85))
                                         Text(displayOn ? "ON" : "OFF")
                                             .foregroundStyle(displayOn ? Color.green.opacity(0.85) : Color.red.opacity(0.7))

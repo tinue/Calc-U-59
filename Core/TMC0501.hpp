@@ -33,10 +33,14 @@ struct DisplaySnapshot {
     uint8_t  digits[12]{};        ///< A[2..13] — BCD digit values (0–9, A–F)
     uint8_t  ctrl[12]{};          ///< B[2..13] — display-control nibbles (select digit vs. minus/degree/blank)
     uint8_t  dpPos{0};            ///< R5 — decimal-point position within the mantissa (0 = none, 2–13 valid)
-    uint16_t dpAfterglowMask{0};  ///< Bitmask of dp positions with active afterglow: bit (pos-2) for positions 2..13.
-                                  ///< Includes the current dpPos plus any recently-vacated positions still glowing.
-                                  ///< Zero when no afterglow counter is active.
-    uint16_t suppressedMask{0};   ///< Zero-suppression circuit output: bit i suppresses digit index i (0..11).
+    uint16_t suppressedMask{0};   ///< Zero-suppression circuit output for positions not driven this interval (bit i = index i)
+    /// Fraction of the poll interval each position (index 0..11 = position 2..13) was
+    /// driven, normalised so a steadily multiplexed IDLE display reads 1.0 (each
+    /// position is strobed one instruction in 16). 0 = not driven at all. digits/ctrl
+    /// hold the glyph of the position's last driven strobe, also when its duty is 0.
+    float    digitDuty[12]{};
+    float    dpDuty[12]{};        ///< Same for the decimal point of each position.
+    uint32_t pollTicks{0};        ///< Weighted cycles the interval covered (time = pollTicks / instruction rate).
     float    calcIndicator{0.0f}; ///< fraction of the last poll interval where C LED was driven:
                                   ///<   RUN mode: any fA≠0; IDLE mode: fA bit 14 (SH pin, per HW guide). (0.0–1.0)
 };
@@ -415,13 +419,11 @@ private:
     mutable std::mutex m_displayMutex;
     uint8_t  m_digitSegmentsA[12]{};  // A[2..13] → m_digitSegmentsA[0..11] per strobe (CPU thread write, UI thread read)
     uint8_t  m_digitSegmentsB[12]{};  // B[2..13] → m_digitSegmentsB[0..11] per strobe (CPU thread write, UI thread read)
-    uint8_t  m_digitAfterglowCounters[12]{}; // Digit (segment) afterglow counter per position.
-                                             // counter[i] → position (i+2); decrement each digit==0 cycle.
-                                             // Seeded when the position is actively driven (not suppressed) during IDLE scan.
-    uint8_t  m_dpAfterglowCounters[12]{};    // Decimal-point afterglow counter per position.
-                                             // Seeded only when R5 matches the currently strobed position.
-    bool     m_digitLitInLastStrobe[12]{};   // Per-position segment lit state from previous strobe.
-    bool     m_dpLitInLastStrobe[12]{};      // Per-position decimal-point lit state from previous strobe.
+    mutable uint32_t m_digitLitTicks[12]{};   // Weighted cycles each position was driven since the last getDisplay().
+    mutable uint32_t m_dpLitTicks[12]{};  // Same for each position's decimal point.
+    uint16_t m_drivenThisRev{0};      // Positions driven (digit or dot) in the current digit-counter revolution.
+    uint16_t m_drivenLastRev{0};      // … and in the last complete one (trace display state).
+    mutable DisplaySnapshot m_lastDisplay{};  // Returned again when no cycle ran since the last poll.
     uint8_t  m_currentDpPos{0};       // Live R5 DP position (updated per strobe capture)
     uint16_t m_digitSuppressedMask{0}; // Zero-suppression circuit output bitmask for indices 0..11.
     bool     m_zeroSuppressRunning{true}; // Scan-chain running state for leading-zero suppression.
@@ -534,7 +536,8 @@ private:
     // Per-step post-execution work that must run for every instruction.
     void postOperation();
 
-    // Compute trace-facing display state from per-position afterglow counters.
+    // Trace-facing display state: whether, and how many, positions were driven
+    // in the last complete digit-counter revolution.
     void computeDisplayTraceState(uint8_t& displayOn, uint8_t& maxDigitDecay) const;
 
     uint32_t getPrinterBusyCycles() const;

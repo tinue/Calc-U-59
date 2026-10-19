@@ -221,13 +221,12 @@ struct PlatformAdapter : cu59::SessionController::Platform {
 // ── Display, keys, speed ─────────────────────────────────────────────────────
 
 - (TIDisplaySnapshot)display {
-    const DisplaySnapshot& s = _c->display();
+    const cu59::LedFrame& s = _c->display();
     TIDisplaySnapshot d{};
     memcpy(d.digits, s.digits, sizeof d.digits);
     memcpy(d.ctrl, s.ctrl, sizeof d.ctrl);
-    d.dpPos = s.dpPos;
-    d.dpAfterglowMask = s.dpAfterglowMask;
-    d.suppressedMask = s.suppressedMask;
+    memcpy(d.digitLevel, s.digitLevel, sizeof d.digitLevel);
+    memcpy(d.dpLevel, s.dpLevel, sizeof d.dpLevel);
     return d;
 }
 - (double)calcIndicatorOpacity { return _c->calcIndicatorOpacity(); }

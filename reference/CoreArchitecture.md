@@ -363,7 +363,7 @@ Each call to `TMC0501::step()` executes the following in order:
 3. **Printer busy countdown** — decrement `m_prnBusyCycles`; clear `FLG_BUSY` at zero.
 4. **Fetch opcode** — `rom.read(addr)`.
 5. **Advance digit counter** — 15 → 14 → … → 0 → 15.
-6. **Display snapshot** — at `digit == 0`: commit pending snapshot or increment blank filter.
+6. **Display strobe** — in IDLE, the strobed position latches its glyph and adds the step's weight to its driven time (see Display Subsystem).
 7. **Clear FLG_HOLD** — HOLD is re-asserted each cycle by `WAIT`/`KEY_ALL` if needed.
 8. **PREG latch** — if `KR[1]` set, prepare next-cycle redirect.
 9. **Expire validity windows** — clear `FLG_EXT_VALID` / `FLG_IO_VALID` and zero `EXT`/`Sout` on second cycle.
@@ -380,14 +380,20 @@ The 12-digit LED display is multiplexed at the digit-counter rate.  In idle
 mode, `A[2..13]` holds BCD digit values and `B[2..13]` holds display-control
 nibbles (select digit, minus sign, degree symbol, blank).
 
-A `DisplaySnapshot` is captured once per digit-counter cycle (at `digit == 0`)
-whenever `SET IDL` has been executed (`FLG_IDLE` set).  The snapshot is written
-under `m_displayMutex` and read by the UI thread via `getDisplay()`.
+Each IDLE instruction strobes one position (the digit counter, 13 → 2). A
+strobe that shows a glyph latches it and adds the instruction's weight to the
+position's driven time; the decimal point of the position R5 names is driven
+the same way. Nothing is driven in RUN mode, so the display is dark while the
+calculator computes.
 
-**Blanking filter**: `m_dispFilter` counts digit-counter wrap-arounds since the
-last `SET IDL`.  When it reaches 3, `getDisplay()` returns a blank display
-(all `ctrl = 7`), reproducing the hardware behaviour where LEDs go dark during
-heavy computation.
+`getDisplay()` (UI thread, under `m_displayMutex`) returns per position the
+last latched glyph and its **duty**: the driven time since the previous call,
+×16 (a position is strobed one instruction in 16), so a steadily multiplexed
+display reads 1.0 and a computing one 0. `pollTicks` is the interval in
+weighted cycles. The core makes no visibility decision: how bright that looks
+to the eye is `Shared/DisplayPov` (hold ≈ 55 ms, then a 30 ms fade),
+integrated over each 60 Hz poll so the multiplex rhythm cannot alias with it.
+The C annunciator's duty (`calcIndicator`) works the same way.
 
 ---
 

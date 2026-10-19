@@ -17,7 +17,7 @@ if ! command -v emcc >/dev/null 2>&1; then
   exit 1
 fi
 
-emcc \
+em++ \
   -O3 \
   -std=c++17 \
   --bind \

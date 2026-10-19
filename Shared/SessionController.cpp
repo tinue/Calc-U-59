@@ -252,8 +252,8 @@ void SessionController::tick(Clock::time_point now) {
     if (m_session->takeRamDirty() && info(m_model).hasConstantMemory && !m_persistDue) m_persistDue = now + 500ms;
     if (m_persistDue && now >= *m_persistDue) persistConstantMemory();
 
-    if (f.displayUpdated && std::memcmp(&f.display, &m_display, sizeof m_display) != 0) {
-        m_display = f.display;
+    if (f.led != m_display) {
+        m_display = f.led;
         changes |= DisplayChanged;
     }
     if (f.calcIndicatorOpacity != m_calcOpacity) {

@@ -64,9 +64,8 @@ class EmulatorViewModel {
 
     var displayDigits:   [UInt8] = Array(repeating: 0, count: 12)
     var displayCtrl:     [UInt8] = Array(repeating: 0, count: 12)
-    var displaySuppressedMask: UInt16 = 0
-    var dpPos:           UInt8   = 0
-    var dpAfterglowMask: UInt16  = 0  // Bit (pos-2) set for each dp position 2..13 with active afterglow
+    var displayLevels:   [UInt8] = Array(repeating: 0, count: 12)  // brightness 0…255 per position
+    var dpLevels:        [UInt8] = Array(repeating: 0, count: 12)  // decimal point brightness per position
     var calcIndicatorOpacity: Double = 0.0
     var model: MachineModel = .ti59
     var errorMessage: String?
@@ -348,13 +347,16 @@ class EmulatorViewModel {
             let snap = controller.display
             var d = [UInt8](repeating: 0, count: 12)
             var k = [UInt8](repeating: 0, count: 12)
-            withUnsafeBytes(of: snap.digits) { b in for i in 0..<12 { d[i] = b[i] } }
-            withUnsafeBytes(of: snap.ctrl)   { b in for i in 0..<12 { k[i] = b[i] } }
+            var lv = [UInt8](repeating: 0, count: 12)
+            var dp = [UInt8](repeating: 0, count: 12)
+            withUnsafeBytes(of: snap.digits)     { b in for i in 0..<12 { d[i] = b[i] } }
+            withUnsafeBytes(of: snap.ctrl)       { b in for i in 0..<12 { k[i] = b[i] } }
+            withUnsafeBytes(of: snap.digitLevel) { b in for i in 0..<12 { lv[i] = b[i] } }
+            withUnsafeBytes(of: snap.dpLevel)    { b in for i in 0..<12 { dp[i] = b[i] } }
             if displayDigits != d { displayDigits = d }
             if displayCtrl != k { displayCtrl = k }
-            if displaySuppressedMask != snap.suppressedMask { displaySuppressedMask = snap.suppressedMask }
-            if dpPos != snap.dpPos { dpPos = snap.dpPos }
-            if dpAfterglowMask != snap.dpAfterglowMask { dpAfterglowMask = snap.dpAfterglowMask }
+            if displayLevels != lv { displayLevels = lv }
+            if dpLevels != dp { dpLevels = dp }
             if calcIndicatorOpacity != controller.calcIndicatorOpacity { calcIndicatorOpacity = controller.calcIndicatorOpacity }
         }
         if c.contains(.cueCard) { cueCardContent = controller.cueCard.swiftValue }

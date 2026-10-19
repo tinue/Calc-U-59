@@ -5,9 +5,8 @@ import SwiftUI
 struct LEDDisplayView: View, Equatable {
     let digits:    [UInt8]   // 12 elements: A[2..13]
     let ctrl:      [UInt8]   // 12 elements: B[2..13]
-    let suppressedMask: UInt16 // Bit i suppresses display index i (zero-suppression circuit from core)
-    let dpPos:     UInt8
-    let dpAfterglowMask: UInt16  // Bit (pos-2) for dp positions 2..13 that should be visible
+    let levels:    [UInt8]   // 12 elements: brightness 0…255 per position (Shared/DisplayPov)
+    let dpLevels:  [UInt8]   // 12 elements: decimal point brightness per position
     let calcIndicatorOpacity: Double
     let fontStyle: LEDFontStyle
 
@@ -26,14 +25,13 @@ struct LEDDisplayView: View, Equatable {
                 let rect = CGRect(x: x, y: 0, width: digitWidth, height: height)
 
                 let segs: UInt8
-                let cOpacity: Double   // 1.0 for normal segments; fades for "C" afterglow
+                let cOpacity: Double   // the position's brightness, or the fading "C"
                 if i == 11 && calcIndicatorOpacity > 0 {
                     segs = TISharedTables.segmentsC
                     cOpacity = calcIndicatorOpacity
                 } else {
-                    let isSuppressed = ((suppressedMask >> i) & 1) == 1
-                    segs = TISharedTables.segments(forDigit: digits[i], ctrl: ctrl[i], suppressed: isSuppressed)
-                    cOpacity = 1.0
+                    cOpacity = Double(levels[i]) / 255.0
+                    segs = cOpacity > 0 ? TISharedTables.segments(forDigit: digits[i], ctrl: ctrl[i], suppressed: false) : 0
                 }
 
                 // Slant transform for the digit
@@ -44,13 +42,11 @@ struct LEDDisplayView: View, Equatable {
 
                 drawSegments(ctx: &digitCtx, geometry: geometry, style: style, segments: segs, segmentOpacity: cOpacity)
 
-                // Draw decimal point dot for all positions with active afterglow.
-                // dpAfterglowMask includes the current dpPos, so a single bit check suffices.
-                // bit i corresponds to canvas index i (dp position i+2).
-                if (dpAfterglowMask >> i) & 1 == 1 {
+                // Decimal point of this position at its own brightness.
+                if dpLevels[i] > 0 {
                     var dpCtx = ctx
                     drawDecimalPoint(ctx: &dpCtx, rect: geometry.decimalPoint.offsetBy(dx: rect.minX, dy: rect.minY),
-                                     style: style)
+                                     style: style, opacity: Double(dpLevels[i]) / 255.0)
                 }
             }
         }
@@ -133,14 +129,14 @@ struct LEDDisplayView: View, Equatable {
         }
     }
 
-    private func drawDecimalPoint(ctx: inout GraphicsContext, rect: CGRect, style: TILedStyle) {
+    private func drawDecimalPoint(ctx: inout GraphicsContext, rect: CGRect, style: TILedStyle, opacity: Double) {
         // The decimal point glows with the modernized parameters in both styles.
         let activeColor = Color(red: 1.0, green: 0.1, blue: 0.1)
         let path = Path(ellipseIn: rect)
         drawGlowingPath(ctx: &ctx, path: path, color: activeColor,
                         blurRadius: rect.width * TIViewRules.decimalGlowBlurPerDiameter,
-                        glowOpacity: TIViewRules.decimalGlowOpacity, segmentOpacity: 1.0)
-        ctx.fill(path, with: .color(activeColor))
+                        glowOpacity: TIViewRules.decimalGlowOpacity, segmentOpacity: opacity)
+        ctx.fill(path, with: .color(activeColor.opacity(opacity)))
     }
 }
 
@@ -148,9 +144,8 @@ struct LEDDisplayView: View, Equatable {
     LEDDisplayView(
         digits:        [8,8,8,8,8,8,8,8,8,8,8,8],
         ctrl:          [0,0,0,0,0,0,0,0,0,0,0,0],
-        suppressedMask: 0,
-        dpPos:         4,
-        dpAfterglowMask: 0b0000_0000_0000_1100,  // positions 2 & 3 lit
+        levels:        Array(repeating: 255, count: 12),
+        dpLevels:      [255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  // positions 2 & 3 lit
         calcIndicatorOpacity: 1.0,
         fontStyle:     .modernized
     )

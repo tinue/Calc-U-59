@@ -84,6 +84,28 @@ TEST(ti59_error_blink_period_matches_hardware) {
     CHECK(period > 0.899 * 0.98 && period < 0.899 * 1.02);
 }
 
+// getDisplay() reports how long each position was driven: a steady IDLE display
+// reads 1.0 for lit positions and 0 for suppressed ones, a computing CPU 0.
+TEST(display_duty_is_normalised_to_the_multiplex) {
+    for (Model model : {Model::TI59, Model::TI58C}) {
+        auto m = testroms::makeMachine(model);
+        testroms::runToScanLoop(*m, model);
+        for (int k : {kKey2, kKey3}) testroms::tap(*m, model, k);  // shows "23"
+        m->getDisplay();
+        m->stepN(20000, false);
+        DisplaySnapshot d = m->getDisplay();
+        int lit = 0, dark = 0;
+        for (float duty : d.digitDuty) {
+            if (duty > 0.95f && duty <= 1.0f) ++lit;
+            if (duty == 0.0f) ++dark;                           // leading zeros, exponent: not driven
+        }
+        CHECK_EQ(lit, 2);
+        CHECK_EQ(dark, 10);
+        CHECK(d.pollTicks > 0);
+        CHECK_EQ(m->getDisplay().pollTicks, d.pollTicks);       // no cycle since: same snapshot
+    }
+}
+
 TEST(ti58c_ram_round_trip) {
     auto m = testroms::makeMachine(Model::TI58C);
     testroms::runToScanLoop(*m, Model::TI58C);
