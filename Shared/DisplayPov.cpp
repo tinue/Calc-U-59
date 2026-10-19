@@ -29,11 +29,4 @@ void DisplayPov::update(const DisplaySnapshot& d, double seconds) {
     }
 }
 
-void DisplayPov::reset() {
-    for (int i = 0; i < 12; ++i) {
-        m_digit[i] = Channel{};
-        m_dp[i] = Channel{};
-    }
-}
-
 } // namespace cu59

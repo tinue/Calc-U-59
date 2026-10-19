@@ -31,7 +31,7 @@ struct LEDDisplayView: View, Equatable {
                     cOpacity = calcIndicatorOpacity
                 } else {
                     cOpacity = Double(levels[i]) / 255.0
-                    segs = cOpacity > 0 ? TISharedTables.segments(forDigit: digits[i], ctrl: ctrl[i], suppressed: false) : 0
+                    segs = TISharedTables.segments(forDigit: digits[i], ctrl: ctrl[i], suppressed: levels[i] == 0)
                 }
 
                 // Slant transform for the digit

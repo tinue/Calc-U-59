@@ -122,7 +122,7 @@ def disasm(pc: int, op: int) -> str:
 VARIANTS = {
     "TI59": (0, pack_roms.TI59_ROM_CHIPS, pack_roms.TI59_CONST_CHIPS),
     "TI58": (1, pack_roms.TI59_ROM_CHIPS, pack_roms.TI59_CONST_CHIPS),
-    "TI58C": (2, ["CD2400", "CD2401", "TMC0573"], ["CD2400-CONST-K", "CD2401-CONST-K"]),
+    "TI58C": (2, pack_roms.TI58C_ROM_CHIPS, pack_roms.TI58C_CONST_CHIPS),
 }
 
 

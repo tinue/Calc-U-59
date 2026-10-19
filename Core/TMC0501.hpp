@@ -32,7 +32,6 @@ struct PrinterCodeLine {
 struct DisplaySnapshot {
     uint8_t  digits[12]{};        ///< A[2..13] — BCD digit values (0–9, A–F)
     uint8_t  ctrl[12]{};          ///< B[2..13] — display-control nibbles (select digit vs. minus/degree/blank)
-    uint8_t  dpPos{0};            ///< R5 — decimal-point position within the mantissa (0 = none, 2–13 valid)
     uint16_t suppressedMask{0};   ///< Zero-suppression circuit output for positions not driven this interval (bit i = index i)
     /// Fraction of the poll interval each position (index 0..11 = position 2..13) was
     /// driven, normalised so a steadily multiplexed IDLE display reads 1.0 (each
@@ -410,21 +409,21 @@ private:
 
     // ── Display state (shared between CPU thread and UI thread) ───────
     // Per-digit live buffers: updated during each digit's strobe phase when IDLE.
-    // getDisplay() reads these directly at query time (no stale batch snapshot).
+    // getDisplay() reports the duty since its previous call and restarts the window.
     // IMPORTANT: All access to display state members (below) must be guarded by
     // m_displayMutex. Updated exclusively by postOperation() (CPU thread), read only
-    // by getDisplay() (UI thread, ~60 Hz) and computeDisplayTraceState() (CPU thread).
+    // by getDisplay() (UI thread, ~60 Hz).
     mutable std::mutex m_displayMutex;
     uint8_t  m_digitSegmentsA[12]{};  // A[2..13] → m_digitSegmentsA[0..11] per strobe (CPU thread write, UI thread read)
     uint8_t  m_digitSegmentsB[12]{};  // B[2..13] → m_digitSegmentsB[0..11] per strobe (CPU thread write, UI thread read)
     mutable uint32_t m_digitLitTicks[12]{};   // Weighted cycles each position was driven since the last getDisplay().
     mutable uint32_t m_dpLitTicks[12]{};  // Same for each position's decimal point.
-    uint16_t m_drivenThisRev{0};      // Positions driven (digit or dot) in the current digit-counter revolution.
-    uint16_t m_drivenLastRev{0};      // … and in the last complete one (trace display state).
     mutable DisplaySnapshot m_lastDisplay{};  // Returned again when no cycle ran since the last poll.
-    uint8_t  m_currentDpPos{0};       // Live R5 DP position (updated per strobe capture)
     uint16_t m_digitSuppressedMask{0}; // Zero-suppression circuit output bitmask for indices 0..11.
     bool     m_zeroSuppressRunning{true}; // Scan-chain running state for leading-zero suppression.
+    // CPU thread only (postOperation, computeDisplayTraceState): no lock.
+    uint16_t m_drivenThisRev{0};      // Positions driven (digit or dot) in the current digit-counter revolution.
+    uint16_t m_drivenLastRev{0};      // … and in the last complete one (trace display state).
 
 
     mutable std::atomic<uint32_t> m_cSteps{0};          // Steps (IDLE or non-IDLE) where fA≠0 since last getDisplay().

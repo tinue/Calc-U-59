@@ -19,9 +19,9 @@ void DebugModel::moduleChanged(const EmulatorSession& session) {
     m_romCache.clear();
 }
 
-DebugModel::Update DebugModel::tick(const TI59Machine& m, Model model, bool livePanel, bool cpuPanel, bool frozen) {
+DebugModel::Update DebugModel::tick(const TI59Machine& m, bool livePanel, bool cpuPanel, bool frozen) {
     Update u;
-    if (livePanel && !frozen) u |= rebuildLive(m, model, false);
+    if (livePanel && !frozen) u |= rebuildLive(m, false);
     if (cpuPanel || frozen) {
         readTraceRing(m, m_frames);
         m_heatmap.ingest(m_frames.data(), m_frames.size());
@@ -37,16 +37,16 @@ DebugModel::Update DebugModel::tick(const TI59Machine& m, Model model, bool live
     return u;
 }
 
-DebugModel::Update DebugModel::frozenView(const TI59Machine& m, Model model, FrozenViewReason reason) {
+DebugModel::Update DebugModel::frozenView(const TI59Machine& m, FrozenViewReason reason) {
     Update u;
-    if (reason != FrozenViewReason::StepInstruction) u |= rebuildLive(m, model, true);
+    if (reason != FrozenViewReason::StepInstruction) u |= rebuildLive(m, true);
     u |= captureInspector(m);
     return u;
 }
 
-DebugModel::Update DebugModel::rebuildLive(const TI59Machine& m, Model model, bool frozen) {
+DebugModel::Update DebugModel::rebuildLive(const TI59Machine& m, bool frozen) {
     Update u;
-    LiveDebugBuild b = buildLiveSnapshot(m, model, m_module, m_romCache, calcViewState(m));
+    LiveDebugBuild b = buildLiveSnapshot(m, m_module, m_romCache, calcViewState(m));
     if (b.libProgramMismatch && b.libProgramMismatch->second != m_lastLibMismatch) {
         m_lastLibMismatch = b.libProgramMismatch->second;
         u.diagnostic = "Library exec PC resolves to Pgm " + std::to_string(b.libProgramMismatch->first) +

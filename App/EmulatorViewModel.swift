@@ -345,14 +345,10 @@ class EmulatorViewModel {
         }
         if c.contains(.display) {
             let snap = controller.display
-            var d = [UInt8](repeating: 0, count: 12)
-            var k = [UInt8](repeating: 0, count: 12)
-            var lv = [UInt8](repeating: 0, count: 12)
-            var dp = [UInt8](repeating: 0, count: 12)
-            withUnsafeBytes(of: snap.digits)     { b in for i in 0..<12 { d[i] = b[i] } }
-            withUnsafeBytes(of: snap.ctrl)       { b in for i in 0..<12 { k[i] = b[i] } }
-            withUnsafeBytes(of: snap.digitLevel) { b in for i in 0..<12 { lv[i] = b[i] } }
-            withUnsafeBytes(of: snap.dpLevel)    { b in for i in 0..<12 { dp[i] = b[i] } }
+            let d = withUnsafeBytes(of: snap.digits) { Array($0) }
+            let k = withUnsafeBytes(of: snap.ctrl) { Array($0) }
+            let lv = withUnsafeBytes(of: snap.digitLevel) { Array($0) }
+            let dp = withUnsafeBytes(of: snap.dpLevel) { Array($0) }
             if displayDigits != d { displayDigits = d }
             if displayCtrl != k { displayCtrl = k }
             if displayLevels != lv { displayLevels = lv }

@@ -38,7 +38,7 @@ FrameUpdate FrameSampler::tick(TI59Machine& m, double instructionHz, int debugLe
 void FrameSampler::reset() {
     m_calcOpacity = 0;
     m_zeroFrames = 0;
-    m_pov.reset();
+    m_pov = {};
 }
 
 // The C indicator follows the core's integrated duty cycle. Hardware (Sladký

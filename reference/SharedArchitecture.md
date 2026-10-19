@@ -325,7 +325,8 @@ differ.
 
 - Glyphs: `SevenSegment` (`segmentsFor(digit, ctrl, suppressed)`), never a
   font. Zero suppression happens in the core (`TMC0501`), which reports
-  suppressed positions as not driven.
+  suppressed positions as not driven; both renderers pass a position at
+  level 0 as `suppressed`.
 - Shapes: `LedGeometry` — hexagonal segments (modernized) or dot grids
   (classic), the decimal point, and per style the slant (shear 0.14, about
   8°, bottom fixed), colours and glow radii. The decimal point is not

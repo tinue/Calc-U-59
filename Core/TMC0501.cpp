@@ -162,7 +162,6 @@ void TMC0501::reset() {
     memset(m_dpLitTicks, 0, sizeof(m_dpLitTicks));
     m_drivenThisRev = m_drivenLastRev = 0;
     m_lastDisplay = DisplaySnapshot{};
-    m_currentDpPos = 0;
     m_digitSuppressedMask = 0;
     m_zeroSuppressRunning = true;
     // Reset card state; caller (TI59Machine) re-presses the card-switch key.
@@ -276,8 +275,6 @@ void TMC0501::releaseKey(int row, int col) {
 }
 
 void TMC0501::computeDisplayTraceState(uint8_t& displayOn, uint8_t& maxDigitDecay) const {
-    std::lock_guard<std::mutex> lock(m_displayMutex);
-
     // maxDigitDecay keeps its trace slot; it now counts the positions driven.
     displayOn = m_drivenLastRev ? 1u : 0u;
     maxDigitDecay = static_cast<uint8_t>(__builtin_popcount(m_drivenLastRev));
@@ -344,7 +341,6 @@ DisplaySnapshot TMC0501::getDisplay() const {
         m_dpLitTicks[i] = 0;
     }
 
-    result.dpPos = m_currentDpPos;
     result.suppressedMask = m_digitSuppressedMask & static_cast<uint16_t>(~driven);
     result.calcIndicator = cLevel;
     result.pollTicks = pollSteps;
@@ -1416,8 +1412,6 @@ void TMC0501::postOperation() {
         const uint8_t a = static_cast<uint8_t>(A[strobeDigit] & 0x0F);
         const uint8_t b = static_cast<uint8_t>(B[strobeDigit] & 0x0F);
 
-        m_currentDpPos = R5;
-
         // Emulate zero-suppression circuit during scan: one digit decision per strobe.
         // The scan order for visible digits is 13→...→2 (idx 11→...→0), with state
         // carried forward via m_zeroSuppressRunning. The scan-chain breaks silently
@@ -1467,7 +1461,6 @@ void TMC0501::postOperation() {
     }
 
     if (digit == 0) {
-        std::lock_guard<std::mutex> lock(m_displayMutex);
         m_drivenLastRev = m_drivenThisRev;
         m_drivenThisRev = 0;
     }

@@ -5,7 +5,6 @@
 #include "PrinterFont.hpp"
 #include "StateApplier.hpp"
 #include "TextUtil.hpp"
-#include <cstring>
 
 namespace cu59 {
 
@@ -261,7 +260,7 @@ void SessionController::tick(Clock::time_point now) {
         changes |= DisplayChanged;
     }
 
-    DebugModel::Update u = m_debug.tick(m_session->machine(), m_model, m_liveDebugEnabled, m_cpuDebugEnabled,
+    DebugModel::Update u = m_debug.tick(m_session->machine(), m_liveDebugEnabled, m_cpuDebugEnabled,
                                         m_debugState.frozen);
     if (u.live) changes |= LiveChanged;
     if (u.listing) changes |= ListingChanged;
@@ -499,7 +498,7 @@ void SessionController::onFrozenView(uint64_t freezeGeneration, FrozenViewReason
     pullDebugState();
     // RESUME (or a new freeze) came first: this view is stale, and the machine may be running.
     if (!m_debugState.frozen || m_debugState.generation != freezeGeneration) return;
-    DebugModel::Update u = m_debug.frozenView(m_session->machine(), m_model, reason);
+    DebugModel::Update u = m_debug.frozenView(m_session->machine(), reason);
     if (u.diagnostic) m_platform.diagnostic(*u.diagnostic);
     emitChanged((u.live ? LiveChanged : 0) | (u.listing ? ListingChanged : 0) | (u.cpu ? CpuChanged : 0) |
                 RunStateChanged);
@@ -509,7 +508,7 @@ void SessionController::setLiveDebugEnabled(bool on) {
     m_liveDebugEnabled = on;
     // Shown while frozen: the frozen view may predate it, so build it now.
     if (on && m_debugState.frozen && m_session) {
-        DebugModel::Update u = m_debug.rebuildLive(m_session->machine(), m_model, true);
+        DebugModel::Update u = m_debug.rebuildLive(m_session->machine(), true);
         emitChanged((u.live ? LiveChanged : 0) | (u.listing ? ListingChanged : 0));
     }
 }
@@ -666,7 +665,7 @@ void SessionController::runAsm() {
         if (freezeOnStart) {
             // FREEZE ON START was armed: freeze in place at the 0x1800 entry.
             m_session->freezeInPlace(FreezeOwner::Cpu);
-            DebugModel::Update u = m_debug.frozenView(m_session->machine(), m_model, FrozenViewReason::Freeze);
+            DebugModel::Update u = m_debug.frozenView(m_session->machine(), FrozenViewReason::Freeze);
             changes |= (u.live ? LiveChanged : 0) | (u.listing ? ListingChanged : 0) | (u.cpu ? CpuChanged : 0);
         } else {
             m_session->start();

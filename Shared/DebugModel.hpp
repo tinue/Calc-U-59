@@ -44,12 +44,12 @@ public:
     /// The 60 Hz frame: the CALCULATOR snapshot while running and its panel
     /// shows; the heatmap while the CPU panel shows or frozen (steps add
     /// frames); the running CPU history.
-    Update tick(const TI59Machine& m, Model model, bool livePanel, bool cpuPanel, bool frozen);
+    Update tick(const TI59Machine& m, bool livePanel, bool cpuPanel, bool frozen);
     /// The machine stopped at a point to show (freeze, armed freeze, step).
-    Update frozenView(const TI59Machine& m, Model model, FrozenViewReason reason);
+    Update frozenView(const TI59Machine& m, FrozenViewReason reason);
     /// The CALCULATOR snapshot now, and when frozen the listing (only a frozen
     /// panel shows it).
-    Update rebuildLive(const TI59Machine& m, Model model, bool frozen);
+    Update rebuildLive(const TI59Machine& m, bool frozen);
 
     void resetHeatmapBaseline(const TI59Machine& m);
     void clearHeatmap() { m_heatmap.clear(); }

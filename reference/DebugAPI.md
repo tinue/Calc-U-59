@@ -113,7 +113,7 @@ reports changes as `RunStateChanged`.
 
 ### What a frozen view rebuilds
 
-`DebugModel::frozenView(m, model, reason)` rebuilds the CPU history always,
+`DebugModel::frozenView(m, reason)` rebuilds the CPU history always,
 and the CALCULATOR snapshot and listing for every reason except
 `StepInstruction`. Showing the CALCULATOR panel while frozen rebuilds its
 snapshot at once (`rebuildLive`).
@@ -171,9 +171,9 @@ into `vm.liveDebugSnapshot` (a Swift struct with the same fields); Qt reads
 
 | Field | Source | Meaning |
 |---|---|---|
-| `nonZeroRegs` | RAM | Non-zero data registers: `{num, value, isHidden}`; `isHidden` = TI-58C extra register H00–H03 |
+| `nonZeroRegs` | RAM | Non-zero data registers: `{num, value, isHidden}`; `isHidden` = TI-58C extra register H00–H03. Built by `nonZeroDataRegs()`, which `dumpVars()` shares |
 | `programRegCount` | SCOM[9][0] | The claimed partition (not clamped to physical RAM) |
-| `dataRegCount` | | Displayable data registers |
+| `dataRegCount` | | Displayable data registers (`partitionDataRegCount()`) |
 | `programWindow` | | `StepEntry` ±5 around `currentStep` (running view) |
 | `currentStep` | | The next step to execute; −1 = unknown |
 | `hir[0..7]` | SCOM[1..8] | HIR 1–8 |

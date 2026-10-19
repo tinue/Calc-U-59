@@ -6,7 +6,6 @@
 #include <QPolygonF>
 #include <algorithm>
 #include <cmath>
-#include <cstring>
 #include <vector>
 
 namespace LedRenderer {
@@ -76,7 +75,7 @@ void render(QPainter& p, const QRectF& rect, const cu59::LedFrame& d, double cal
             opacity = calcOpacity;
         } else {
             opacity = d.digitLevel[i] / 255.0;
-            segs = opacity > 0 ? cu59::segmentsFor(d.digits[i], d.ctrl[i], false) : 0;
+            segs = cu59::segmentsFor(d.digits[i], d.ctrl[i], d.digitLevel[i] == 0);
         }
         // Shear x' = x + slant × (h − y): the bottom stays put.
         QTransform t(1, 0, -sp.slant, 1, x + h * sp.slant, rect.top());
@@ -110,6 +109,18 @@ void render(QPainter& p, const QRectF& rect, const cu59::LedFrame& d, double cal
     p.setPen(Qt::NoPen);
     p.fillPath(dark, inactive);
 
+    auto tint = [&](double opacity) {
+        QColor c = active;
+        c.setAlphaF(opacity);
+        return c;
+    };
+    auto drawDots = [&](QPainter& q) {
+        for (const auto& dot : dps) {
+            q.setBrush(tint(dot.opacity));
+            q.drawEllipse(dot.rect);
+        }
+    };
+
     // Glow layers, rendered offscreen at device resolution and blurred.
     const qreal dpr = p.device() ? p.device()->devicePixelRatioF() : 1.0;
     auto glowLayer = [&](double blurRadius, double layerOpacity, bool decimalPoints) {
@@ -121,20 +132,9 @@ void render(QPainter& p, const QRectF& rect, const cu59::LedFrame& d, double cal
         g.setRenderHint(QPainter::Antialiasing);
         g.setPen(Qt::NoPen);
         g.translate(-rect.topLeft());
-        if (decimalPoints) {
-            for (const auto& dot : dps) {
-                QColor c = active;
-                c.setAlphaF(dot.opacity);
-                g.setBrush(c);
-                g.drawEllipse(dot.rect);
-            }
-        } else {
-            for (const auto& l : lit) {
-                QColor c = active;
-                c.setAlphaF(l.opacity);
-                g.fillPath(l.path, c);
-            }
-        }
+        if (decimalPoints) drawDots(g);
+        else
+            for (const auto& l : lit) g.fillPath(l.path, tint(l.opacity));
         g.end();
         blur(img, blurRadius * dpr);
         p.setOpacity(layerOpacity);
@@ -151,17 +151,8 @@ void render(QPainter& p, const QRectF& rect, const cu59::LedFrame& d, double cal
     }
     if (!dps.empty()) glowLayer(dps.front().rect.width() * cu59::kDecimalGlowBlurPerDiameter, cu59::kDecimalGlowOpacity, true);
 
-    for (const auto& l : lit) {
-        QColor c = active;
-        c.setAlphaF(l.opacity);
-        p.fillPath(l.path, c);
-    }
-    for (const auto& dot : dps) {
-        QColor c = active;
-        c.setAlphaF(dot.opacity);
-        p.setBrush(c);
-        p.drawEllipse(dot.rect);
-    }
+    for (const auto& l : lit) p.fillPath(l.path, tint(l.opacity));
+    drawDots(p);
     p.restore();
 }
 

@@ -1,5 +1,6 @@
 #include "DebugLog.hpp"
 #include "Bcd.hpp"
+#include "DebugSnapshots.hpp"
 #include <algorithm>
 #include <cstdio>
 #include <utility>
@@ -43,28 +44,16 @@ std::string RingLog::displayText() {
 }
 
 std::vector<std::string> dumpVars(const TI59Machine& m) {
-    const int totalRegs = m.ramRegCount();
-    const int displayable = m.dataRegCount();  // the TI-58C's H00–H03 sit above
-    const int programRegs = std::min(m.partitionProgramRegs(), totalRegs);
-    const int visible = displayable - programRegs;
+    const int visible = partitionDataRegCount(m);
     if (visible <= 0) return {"── Vars: no data registers in current partition ──"};
 
     char buf[96];
     std::snprintf(buf, sizeof buf, "── Vars V00–V%02d ──", visible - 1);
     std::vector<std::string> lines{buf};
     std::vector<std::pair<std::string, double>> entries;
-    uint8_t n[16];
-    for (int ramIdx = displayable; ramIdx < totalRegs; ++ramIdx) {
-        m.copyRAMReg(ramIdx, n);
-        if (allZero(n)) continue;
-        std::snprintf(buf, sizeof buf, "H%02d", ramIdx - displayable);
-        entries.emplace_back(buf, TI59Machine::decodeBCD(n));
-    }
-    for (int ramIdx = programRegs; ramIdx < std::min(displayable, totalRegs); ++ramIdx) {
-        m.copyRAMReg(ramIdx, n);
-        if (allZero(n)) continue;
-        std::snprintf(buf, sizeof buf, "V%02d", displayable - 1 - ramIdx);
-        entries.emplace_back(buf, TI59Machine::decodeBCD(n));
+    for (const auto& r : nonZeroDataRegs(m)) {
+        std::snprintf(buf, sizeof buf, "%c%02d", r.isHidden ? 'H' : 'V', r.num);
+        entries.emplace_back(buf, r.value);
     }
     std::sort(entries.begin(), entries.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
     for (const auto& [label, value] : entries) {

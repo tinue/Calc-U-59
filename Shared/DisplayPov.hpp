@@ -31,7 +31,6 @@ public:
     void update(const DisplaySnapshot& d, double seconds);
     float digit(int i) const { return static_cast<float>(m_digit[i].level); }
     float dp(int i) const { return static_cast<float>(m_dp[i].level); }
-    void reset();
 
     /// One position: duty (0..1) over `seconds` → brightness (0..1).
     struct Channel {

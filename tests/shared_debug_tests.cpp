@@ -21,7 +21,7 @@ std::string xAfter(std::initializer_list<int> keys) {
     testroms::runToScanLoop(*m, Model::TI59);
     for (int k : keys) testroms::tap(*m, Model::TI59, k);
     std::vector<uint8_t> romCache;
-    auto s = buildLiveSnapshot(*m, Model::TI59, ModuleImage{}, romCache, calcViewState(*m)).snap;
+    auto s = buildLiveSnapshot(*m, ModuleImage{}, romCache, calcViewState(*m)).snap;
     return xRegisterLine(s.xValue, s.xRaw);
 }
 } // namespace
@@ -64,7 +64,7 @@ std::vector<std::string> stepThrough(const std::vector<uint8_t>& prog, int last,
         m->beginNextStep();
         auto state = calcViewState(*m);
         CHECK(state.atStep && state.cpu.pc == m->pc());  // STEP stopped at the boundary
-        auto snap = buildLiveSnapshot(*m, model, ModuleImage{}, romCache, state).snap;
+        auto snap = buildLiveSnapshot(*m, ModuleImage{}, romCache, state).snap;
         steps.push_back(std::to_string(snap.currentStep) + " " + xRegisterLine(snap.xValue, snap.xRaw));
         if (snap.currentStep >= last) break;
     }
@@ -114,9 +114,9 @@ TEST(running_view_shows_only_step_boundaries) {
         int raw = 0, liveRaw = 0;
         for (int i = 0; i < 3000; ++i) {
             m->stepN(37, false);
-            raw += !buildLiveSnapshot(*m, model, ModuleImage{}, romCache, calcViewState(*m)).snap.xRaw.empty();
+            raw += !buildLiveSnapshot(*m, ModuleImage{}, romCache, calcViewState(*m)).snap.xRaw.empty();
             TMC0501::StepBoundary live{m->snapshotCPU(), m->libExecPC(), false, 0};
-            liveRaw += !buildLiveSnapshot(*m, model, ModuleImage{}, romCache, live).snap.xRaw.empty();
+            liveRaw += !buildLiveSnapshot(*m, ModuleImage{}, romCache, live).snap.xRaw.empty();
         }
         CHECK_EQ(raw, 0);
         CHECK(liveRaw > 100);
@@ -134,7 +134,7 @@ TEST(idle_cursor_matches_lrn_after_sst) {
     m->writeProgram(prog.data(), prog.size());
     std::vector<uint8_t> romCache;
     auto next = [&] {
-        return buildLiveSnapshot(*m, Model::TI59, ModuleImage{}, romCache, calcViewState(*m))
+        return buildLiveSnapshot(*m, ModuleImage{}, romCache, calcViewState(*m))
             .snap.currentStep;
     };
     testroms::tap(*m, Model::TI59, 81);  // RST
@@ -192,7 +192,7 @@ TEST(live_snapshot_and_listing) {
 
     std::vector<uint8_t> romCache;
     auto lib = ModuleImage::parse(*loadModule("TMC0541.txt", testroms::reader()));
-    auto b = buildLiveSnapshot(*m, Model::TI59, lib, romCache, calcViewState(*m));
+    auto b = buildLiveSnapshot(*m, lib, romCache, calcViewState(*m));
     const auto& s = b.snap;
     CHECK(s.programSource == ProgramSource::UserProgram);
     CHECK_EQ(s.currentStep, 0);
@@ -214,7 +214,7 @@ TEST(live_snapshot_and_listing) {
     CHECK(listing[0].isCurrent && !listing[1].isCurrent);
     CHECK_EQ(listing[7].mnemonic, std::string("01"));
     CHECK_EQ(listing[9].mnemonic, std::string("R/S"));
-    CHECK(buildLiveSnapshot(*m, Model::TI59, lib, romCache, calcViewState(*m)).snap == s);
+    CHECK(buildLiveSnapshot(*m, lib, romCache, calcViewState(*m)).snap == s);
 }
 
 TEST(rom_heatmap_counts_new_frames_once) {

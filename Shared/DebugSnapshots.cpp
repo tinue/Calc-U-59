@@ -161,27 +161,34 @@ TMC0501::StepBoundary calcViewState(const TI59Machine& m) {
     return {m.snapshotCPU(), m.libExecPC(), false, 0};
 }
 
-LiveDebugBuild buildLiveSnapshot(const TI59Machine& m, Model model, const ModuleImage& module,
-                                 std::vector<uint8_t>& romCache, const TMC0501::StepBoundary& state) {
-    LiveDebugBuild out;
-    LiveDebugSnapshot& snap = out.snap;
-    const int partitionProgramRegs = m.partitionProgramRegs();
-    const int totalRegs = m.ramRegCount();  // 60 (TI-58), 64 (TI-58C) or 120 (TI-59)
-    const int displayableRegs = m.dataRegCount();  // the TI-58C's H00–H03 sit above
-    // Quirky partitions may claim more registers than physically exist.
-    const int programRegs = std::min(partitionProgramRegs, totalRegs);
-    snap.programRegCount = partitionProgramRegs;
-    snap.dataRegCount = std::max(0, displayableRegs - programRegs);
+namespace {
+// Quirky partitions may claim more registers than physically exist.
+int programRAMRegs(const TI59Machine& m) { return std::min(m.partitionProgramRegs(), m.ramRegCount()); }
+} // namespace
 
-    // Non-zero data registers: visible ones as Rnn, the TI-58C's extra ones as Hnn.
-    for (int ramIdx = programRegs; ramIdx < totalRegs; ++ramIdx) {
+int partitionDataRegCount(const TI59Machine& m) { return std::max(0, m.dataRegCount() - programRAMRegs(m)); }
+
+std::vector<LiveDebugSnapshot::RegEntry> nonZeroDataRegs(const TI59Machine& m) {
+    const int top = m.dataRegCount();  // Rnn = RAM[top - 1 - nn]; Hnn = RAM[top + nn]
+    std::vector<LiveDebugSnapshot::RegEntry> regs;
+    for (int ramIdx = programRAMRegs(m); ramIdx < m.ramRegCount(); ++ramIdx) {
         uint8_t n[16];
         m.copyRAMReg(ramIdx, n);
         if (std::all_of(n, n + 16, [](uint8_t v) { return v == 0; })) continue;
-        double value = TI59Machine::decodeBCD(n);
-        if (ramIdx < displayableRegs) snap.nonZeroRegs.push_back({displayableRegs - 1 - ramIdx, value, false});
-        else snap.nonZeroRegs.push_back({ramIdx - displayableRegs, value, true});
+        const double value = TI59Machine::decodeBCD(n);
+        if (ramIdx < top) regs.push_back({top - 1 - ramIdx, value, false});
+        else regs.push_back({ramIdx - top, value, true});
     }
+    return regs;
+}
+
+LiveDebugBuild buildLiveSnapshot(const TI59Machine& m, const ModuleImage& module,
+                                 std::vector<uint8_t>& romCache, const TMC0501::StepBoundary& state) {
+    LiveDebugBuild out;
+    LiveDebugSnapshot& snap = out.snap;
+    snap.programRegCount = m.partitionProgramRegs();
+    snap.dataRegCount = partitionDataRegCount(m);
+    snap.nonZeroRegs = nonZeroDataRegs(m);
 
     const CpuFrame& cpu = state.cpu;
     const auto& S = cpu.SCOM;
