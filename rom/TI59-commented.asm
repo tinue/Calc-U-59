@@ -2142,7 +2142,9 @@
 ; on which digit TST.BUSY runs at.
 063C: 00C8  TST fB[12]
 063D: 00A8  TST fB[10]
-063E: 0AB0  WAIT D11          ; → next instruction samples digit 10 = the card-switch column
+063E: 0AB0  WAIT D11          ; → next instruction samples digit 10 = the card-switch column.
+                              ;   Reached after 1–2 executions, so the hardware misses the digit
+                              ;   and waits one more sweep (WAIT minimum)
 063F: 0A0B  TST.BUSY          ; card-switch poll: card absent (or printer busy) clears COND
 ; TI-59, card absent: digit 10 asserted → COND=0 → JC not taken, idle continues.
 ; If digit 10 reads idle — a TI-59 with a card inserted, or a TI-58 (no card
@@ -2166,10 +2168,14 @@
 ; each pass increments it, and the PARITY of its hundreds digit (nibble 3)
 ; drives the blink: odd → the display, blanked by CLR.IDLE at 0643, is left
 ; dark for the pass; even → three extra increments and SET.IDLE re-lights it.
-; Counting +1/pass dark but +4/pass lit gives ≈100 dark : 25 lit passes — the
-; fast ~4:1 error flicker. errorblink.txt shows 21-instruction dark passes
-; ×99 alternating with 32-instruction lit passes ×24, ≈48 machine cycles per
-; pass (the loop's WAIT D14 → D11 → D8 spans three 16-digit sweeps). The
+; Counting +1/pass dark but +4/pass lit gives 100 dark : 25 lit passes; a lit
+; pass runs mostly at the ¼-speed idle rate, so both phases last about the
+; same: a dark pass is 4 digit sweeps of active instructions (64), a lit pass
+; 5 sweeps of which ~59 are idle instructions. WAIT D11 (063E) and WAIT D14
+; (0656) reach their digit after 1–2 executions here, too early for the
+; hardware, and each waits one more sweep (WAIT minimum, reference/
+; CoreArchitecture.md). Measured on a real TI-59: 0.899 s period, dark 0.456 s,
+; lit 0.444 s (emulator 0.897 / 0.452 / 0.445 s). The
 ; counter is simply whatever D holds — the epilogue at 0624 (D=LOAD MLSD1)
 ; leaves D[3] = 1, so the blink always opens with a dark phase. The arming
 ; scan at 0656/0657 keeps running, so any key stays live during the blink.
@@ -2199,7 +2205,8 @@
 ; Steady-state scan window: strobe the matrix once, then loop back to the
 ; housekeeping check at 063C — the steady-state idle cycle (10 instructions:
 ; 063C→0642, 0656→0658). A new keypress is always seen here first.
-0656: 0AE0  WAIT D14
+0656: 0AE0  WAIT D14          ; after the error blink reached after 1–2 executions → one more
+                              ;   sweep (WAIT minimum); in the steady loop 9, unaffected
 0657: 0820  KEY [N,O,P,Q,S,T] ALL ; ARMING scan — first sight of a new key
 0658: 1839  JC 063C           ; no key → back to top of the idle loop
 0659: 0AE0  WAIT D14          ; key seen — wait one full display sweep…

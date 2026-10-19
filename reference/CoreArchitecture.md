@@ -57,6 +57,12 @@ Clock chain:
   ÷ 4  (idle clock divider)       → ~3,555 instructions/sec (idle/display mode)
 ```
 
+Sources: the TI-58/59 timing diagram in Hynek Sladký, *HW guide for
+calculators TI-58/59* (2014), p. 6 — instruction cycle ≈ 70 µs in calculate
+mode, ≈ 280 µs in display mode; one digit time per instruction cycle. A real
+TI-59 filmed next to a stopwatch confirms both rates: ten `Pause` steps take
+0.459 s each (emulator 0.457 s).
+
 The emulator models this with `step()` returning a **cycle weight** of 1 or 4
 so that callers can pace emulation accurately.
 
@@ -424,7 +430,7 @@ counter (`TMC0501.cpp`, opcode groups `0x0800` and `0x0A00`):
 | `KEY […] ALL` (scan-all) | HOLDs | Re-executes every cycle, riding the counter down one row per cycle. Stops when a masked-in K-line is active at the current row (→ COND cleared, `KR` register loaded) or when the counter reaches digit 0 (→ no key, COND stays 1). Digit 0 is a termination sentinel and is **not** sampled. |
 | `KEY […]` (test-row) | 1 | Samples only the currently strobed row against the mask; clears COND on a hit. **Never writes the `KR` register.** |
 | `TST.BUSY` | 1 | Clears COND if bit 4 (the KR *line*) is active at the current row, **or** if the printer-busy flip-flop is set. Effectively a test-row probe for the one K-line that `KEY` masks always exclude. |
-| `WAIT Dn` | HOLDs | Pure synchronizer: stalls until the counter equals *n*. Reads no K-lines itself — its job is to make the *next* instruction execute at a known row. |
+| `WAIT Dn` | HOLDs, at least 3 | Pure synchronizer: stalls until the counter equals *n*, but releases no earlier than its 3rd execution (see "`WAIT` minimum" below). Reads no K-lines itself — its job is to make the *next* instruction execute at a known row. |
 | `WAIT.BUSY` | 1 | Undocumented; treated as a no-op by the emulator. |
 
 The bracket list in a `KEY` mnemonic is the K-line mask — which sense lines
@@ -436,6 +442,21 @@ keys.
 executes, so the instruction after `WAIT Dn` runs at digit **n−1**.  ROM code
 therefore always encodes target+1: `WAIT D11` + `TST.BUSY` samples digit 10;
 `WAIT D1` + `KEY [P]` samples digit 0.
+
+**`WAIT` minimum (3 executions):** HOLD reaches the ROM chips as a bit of the
+next cycle's EXT word (state S2), and the SCOM latches the address it implies
+only in the cycle after that (US 3,900,722, cols. 15–16 and 22–23). A `WAIT`
+therefore cannot release on its first or second execution: if its digit comes
+up that early, it is missed and the `WAIT` runs one more full revolution
+(`TMC0501::kWaitMinExecutions`). It still releases on the right digit, so
+every `WAIT Dn` + probe pair samples the same row as before. Measured on a
+real TI-59 (stopwatch-calibrated 120 fps video): the error blink, whose idle
+loop reaches `WAIT D11` (`0x063E`) and `WAIT D14` (`0x0656`) after 1–2
+executions, has a 0.899 s period (dark 0.456 s, lit 0.444 s); with the rule
+the emulator gives 0.897 s (0.452 / 0.445), without it 0.447 s. The steady
+TI-59 idle pass grows from 9.0 to 13.5 ms. Waits with more slack — `WAIT D1`
+before `SET IDLE`, the Pause loop, the TI-58C idle loop — are unaffected
+(Pause interval: 0.459 s measured, 0.457 s emulated).
 
 **`KR` register load format** (scan-all hit only):
 

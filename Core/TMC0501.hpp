@@ -457,6 +457,12 @@ private:
     // backward branch retrying it — see step()'s kPolledHardware doc comment.
     bool m_lastStepWasHWPoll{false};
 
+    // Consecutive executions of the instruction now being held (1 = first).
+    // WAIT Dn cannot release before execution kWaitMinExecutions — see the
+    // WAIT case in step().
+    int m_holdRun{1};
+    static constexpr int kWaitMinExecutions = 3;
+
     // Latched at each step boundary and idle entry (see step()).
     StepBoundary m_stepBoundary{};
     int noteStepBoundary();

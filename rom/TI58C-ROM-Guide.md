@@ -203,13 +203,17 @@ speed. The ROM compensates in one place only:
 
 | Activity | TI-59 | TI-58C | Compensated? |
 |---|---|---|---|
-| Error blink | 4 counts per lit pass, both phases ≈ 220 ms | 1 count per pass, 100 + 100 passes ≈ 400 + 533 ms (with printer 333 + 400 ms) | yes: the lit-phase +3 was dropped |
-| Steady idle pass | 9.0 ms | 4.0 ms (6.7 ms with printer) | — |
+| Error blink | 4 counts per lit pass, both phases ≈ 450 ms: period 0.90 s (measured on a real TI-59) | 1 count per pass, 100 + 100 passes ≈ 400 + 533 ms (with printer 333 + 400 ms) | yes: the lit-phase +3 was dropped; the period stays ≈ 0.9 s |
+| Steady idle pass | 13.5 ms | 4.0 ms (6.7 ms with printer) | — |
 | Key debounce gap (one digit sweep) | 4.5 ms | 1.33 ms | no |
 | Pause (DISPLAY_PEEK `04E2`, unchanged) | 432 ms | 128 ms | no |
 | GTO peek while running | 216 ms | 64 ms | no |
 
-The TI-58C times are computed from the emulator's model: 384 kHz ÷ 32 =
+The TI-59 blink and Pause figures were checked against a real TI-59 filmed
+next to a stopwatch. Two of the TI-59's idle-loop waits reach their digit too
+early for the hardware and each costs an extra digit sweep (`WAIT` minimum,
+`reference/CoreArchitecture.md`); the TI-58C's rebuilt idle loop has no such
+wait. The TI-58C times are computed from the emulator's model: 384 kHz ÷ 32 =
 12,000 instructions per second, idle at full speed. **Open question:** a
 real TI-58C Pause of about 0.13 s would be clearly shorter than the TI-59's.
 Either the real Pause is that short, or the idle-clock model is incomplete.

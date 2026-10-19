@@ -2264,8 +2264,9 @@
 ; ═══════════════════════════════════════════════════════════════════════════
 ; Δ [HW] TI-59 064B–0655: the lit phase no longer adds 3 extra counts and the
 ; PRT.STEP poll is gone. On the TI-59 a lit pass runs at the ¼-speed idle
-; rate, so counting 4 per lit pass made both phases ≈ 220 ms; with full-speed
-; idle the TI-58C counts 1 in both (period ≈ 0.93 s against ≈ 0.45 s).
+; rate, so counting 4 per lit pass makes both phases ≈ 0.45 s; with full-speed
+; idle the TI-58C counts 1 in both (period ≈ 0.93 s against the TI-59's
+; 0.90 s, measured on a real TI-59).
 063F: 0A01  CLR.IDLE          ; blank the display; CPU takes the bus back
 0640: 0CD5  C<>D MAEX         ; blink counter (D[1..3]) into C
 0641: 0F24  C=C+1 MAEX1       ; counter += 1 (units digit = nibble 1)

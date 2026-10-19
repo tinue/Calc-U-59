@@ -152,6 +152,7 @@ void TMC0501::reset() {
     R5 = digit = RAM_ADDR = RAM_OP = REG_ADDR = 0;
     addr  = 0;
     flags = FLG_COND;  // COND starts true; display active
+    m_holdRun = 1;
     m_elapsedTicksLocal = 0;
     m_elapsedTicks.store(0, std::memory_order_relaxed);
     // Initialize per-digit live buffers
@@ -517,6 +518,8 @@ int TMC0501::step() {
     // ── Clear HOLD ────────────────────────────────────────────────────
     // HOLD is re-asserted each cycle by WAIT Dn / KEY scan-all if the
     // condition isn't yet satisfied; clearing it here is the default.
+    // m_holdRun counts the executions of a held instruction (WAIT uses it).
+    m_holdRun = (flags & FLG_HOLD) ? m_holdRun + 1 : 1;
     flags &= ~FLG_HOLD;
 
 
@@ -649,7 +652,17 @@ int TMC0501::step() {
             // *next* instruction runs at digit==0.  E.g. WAIT D1 + KEY FB
             // samples key[0] (KP.D0).  WAIT D0 (encoded 0) wraps: fires at
             // digit==15 (benign; not used meaningfully in TI-59 ROMs).
-            if (digit != ((opcode >> 4) & 0x000Fu)) {
+            //
+            // HOLD reaches the ROM chips as a bit of the *next* cycle's EXT word
+            // (state S2), and the SCOM latches the address it implies only in the
+            // cycle after that (US 3,900,722, cols. 15-16 and 22-23). So a WAIT
+            // cannot release on its first or second execution: if the target
+            // digit comes up that early it is missed and the WAIT runs a full
+            // revolution more. Measured on a TI-59: the error blink (WAIT D11
+            // 063E and WAIT D14 0656 hit their digit after 1-2 executions) takes
+            // 0.899 s per period, which this reproduces (0.897 s); without it the
+            // blink ran 2x too fast. Waits with more slack are unchanged.
+            if (digit != ((opcode >> 4) & 0x000Fu) || m_holdRun < kWaitMinExecutions) {
                 flags |= FLG_HOLD;
             }
             break;

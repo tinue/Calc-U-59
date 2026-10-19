@@ -5,12 +5,15 @@
 #include "TestHarness.hpp"
 #include "TestRoms.hpp"
 
+#include <vector>
+
 using cu59::Model;
 
 namespace {
 
 // Matrix codes (reference/StateFileFormat.md): 2 = 83, 3 = 84, + = 85, = = 95, CLR = 25.
 constexpr int kKey2 = 83, kKey3 = 84, kPlus = 85, kEquals = 95, kClr = 25;
+constexpr int kKey0 = 92, kRecip = 35;
 
 } // namespace
 
@@ -55,6 +58,30 @@ TEST(two_plus_three_equals_five) {
         for (int k : {kClr, kKey2, kPlus, kKey3, kEquals}) testroms::tap(*m, model, k);
         CHECK_EQ(testroms::displayText(*m), std::string("5"));
     }
+}
+
+// The error blink of a real TI-59 (0 1/x) was filmed next to a stopwatch:
+// 0.899 s per period. Its idle loop has two WAITs that reach their digit after
+// 1-2 executions; only with the WAIT minimum (TMC0501::kWaitMinExecutions) do
+// they take the extra revolution that makes the period right.
+TEST(ti59_error_blink_period_matches_hardware) {
+    auto m = testroms::makeMachine(Model::TI59);
+    testroms::runToScanLoop(*m, Model::TI59);
+    for (int k : {kKey0, kRecip}) testroms::tap(*m, Model::TI59, k);
+    // 0x0655 SET.IDLE re-lights the display once per lit pass; a lit phase
+    // starts at the first one after a dark phase (≥ 2000 ticks without it).
+    std::vector<uint64_t> litStarts;
+    uint64_t lastSetIdle = 0;
+    for (int i = 0; i < 400'000 && litStarts.size() < 4; ++i) {
+        m->step();
+        if (m->pc() != 0x0655) continue;
+        uint64_t t = m->elapsedTicks();
+        if (lastSetIdle == 0 || t - lastSetIdle > 2000) litStarts.push_back(t);
+        lastSetIdle = t;
+    }
+    CHECK_EQ(litStarts.size(), size_t{4});
+    double period = double(litStarts[3] - litStarts[1]) / 2 / cu59::info(Model::TI59).instructionHz;
+    CHECK(period > 0.899 * 0.98 && period < 0.899 * 1.02);
 }
 
 TEST(ti58c_ram_round_trip) {
