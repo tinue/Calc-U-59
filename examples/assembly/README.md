@@ -28,4 +28,4 @@ The `PROGRAM:` section is the annotated assembly source — for reading and unde
 3. In the **ASM Overlay** section at the bottom, click **Select File** and pick a `.asm` file.
 4. Click **Run** to execute the program.
 
-The loaded code runs in the calculator's ROM overlay area (`0x1800–0x1FFF`) and updates the display in real-time.
+The loaded code runs in the calculator's ROM overlay area (`0x1800–0x1FFF`) and updates the display in real time. The overlay works the same in the Mac/iOS and Windows/Linux apps; `reference/DebugAPI.md` § "ASM Overlay" describes it.

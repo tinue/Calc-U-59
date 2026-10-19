@@ -6,71 +6,66 @@
 > duplicated moved into `Shared/`. Treat it like the other `reference/*.md`
 > files: best-effort, correct as of writing, the code wins.
 
-**For anyone — human or AI agent — adding a GUI for a platform Calc-U-59
-doesn't support yet** (Android, another toolkit, …). It answers: what does a
-new GUI reuse, and what does it still have to write?
+For anyone adding a GUI for a platform Calc-U-59 doesn't support yet
+(Android, another toolkit, …): what a new GUI reuses, and what it still has
+to write.
 
-## The three existing GUIs
+## The existing GUIs
 
 | GUI | Language / toolkit | Uses |
 |---|---|---|
 | Swift app (`App/`) — macOS, iOS | Swift + SwiftUI | `Core/` + `Shared/` through ObjC++ wrappers in `Bridge/` |
 | Qt6 app (`Qt6/`) — Windows, Linux (macOS: development only) | C++ + Qt Widgets | `Core/` + `Shared/` directly |
-| Web (`docs/#play`) | JS + React + WASM | `Core/` only, via `docs/wasm/bindings.cpp`; its own JS ports of the rest |
+| Web calculator (`docs/play/`) | JS + React + WASM | `Core/` only, via `docs/wasm/bindings.cpp`; its own JS ports of the rest |
 
 The Swift and Qt apps share all non-GUI code and are kept at feature parity
-(`FrontendParity.md`, CLAUDE.md § "Frontend Parity"). The web build is
-deliberately narrower (no debugger, printer or traces).
+(`FrontendParity.md`). The web build is deliberately narrower: no debugger,
+printer or traces.
 
-## If your GUI can call C++ (recommended)
+## If your GUI can call C++
 
 Build on `Shared/` (`SharedArchitecture.md`). The Qt app is the worked
-example: `Qt6/app/EmulatorController` is the whole adapter.
+example: `Qt6/app/EmulatorController` is the whole adapter, about 120 lines.
 
-1. **One `cu59::EmulatorSession` per machine.** It loads the ROMs from text
-   through a `ResourceReader` you supply, owns the machine, the paced run loop
-   and its thread, armed freezes, key timing, KEYSTROKES playback, the frame
-   sampler and the trace writers.
-2. **Implement `EmulatorSession::Listener`** and hop each callback to your UI
-   thread — they arrive on the session's threads.
-3. **Call `tick()` at 60 Hz** and apply the `FrameUpdate`: display (only when
-   `displayUpdated`), C-indicator opacity, printer lines, log lines, card
-   auto-eject.
-4. **Forward input:** `pressKey`/`releaseKey` (matrix codes, hit-tested with
-   `KeyboardLayout`), `keyboardDown`/`keyboardUp` (`KeyboardMap` turns your
-   key events into codes), full speed while the display is held.
-5. **Files:** `StateFile` + `StateApplier` (presets), `CardFile` (cards),
-   `ConstantMemory` (TI-58C), `ModuleCatalog` + `RomLoader`. You choose where
-   files live; `Shared/` only takes paths.
-6. **Draw** with the shared rules: `SevenSegment` + `LedGeometry` for the LED
-   (never a font — no font reproduces the hardware's lit segments, as the web
-   build learned), `CueCard` layout/spans/shrink-to-fit, `PrinterFont` +
-   `PrinterGeometry`, `RomHeatmap` colours, `DebugSnapshots` for the debugger.
+1. **Own one `cu59::SessionController`** on your UI thread. Give it a
+   `ResourceReader` for the ROM text files in `roms/` and the text of
+   `roms/solid-state/cuecards.txt`.
+2. **Implement `SessionController::Platform`**: queue jobs on your UI thread,
+   read and write `ti58c.mem` and card files, give the trace folder and size
+   limit, store the last model and module, show errors, and redraw on
+   `changed(mask)`.
+3. **Call `tick(now)` at 60 Hz.** Redraw only what the `Change` bits name.
+4. **Forward input**: `pressKey`/`releaseKey` with matrix codes (hit test with
+   `KeyboardLayout`, convert with `matrixCode`), `keyboardDown`/`keyboardUp`
+   with `KeyboardMap` codes, `keyboardRelease` on focus loss, `setFullSpeed`
+   while the display is held, and the file, printer and debugger actions.
+5. **Draw** with the shared rules (`SharedArchitecture.md` § "Drawing
+   Rules"): `SevenSegment` + `LedGeometry` for the LED — never a font, no
+   font reproduces the hardware's lit segments — `CueCard` for cue cards,
+   `PrinterFont` for the strip, `DebugSnapshots`, `DebugText` and
+   `RomHeatmap` for the debugger.
 
-What remains genuinely per-GUI: the widgets and painting (glow/blur, fonts),
-file dialogs and storage locations, settings storage (use the same key
-names), packaging.
+What stays per GUI: widgets and painting (glow, fonts), file dialogs and
+storage locations, settings storage (with the `SettingsKeys` names),
+packaging.
 
-## If it can't (another language)
+## If it can't call C++
 
 Bind `Core/TI59Machine` the way `docs/wasm/bindings.cpp` does and port what
-you need from `Shared/` — the web build's JS files (`docs/state-file-parser.js`,
-`docs/cuecard-data.js`, `docs/calc-engine-worker.js` for pacing,
-`docs/led-display.jsx`, `docs/cuecard.jsx`, `docs/matrix-keys.js`,
-`docs/keyboard-map.js`) are such hand ports and show the size of the job.
-The rules you must get right:
+you need from `Shared/`. The web build's JS files are such hand ports and
+show the size of the job: `docs/state-file-parser.js`, `docs/cuecard-data.js`,
+`docs/calc-engine-worker.js` (pacing, KEYSTROKES), `docs/led-display.jsx`,
+`docs/cuecard.jsx`, `docs/matrix-keys.js`, `docs/keyboard-map.js`.
 
 | Subsystem | Source of truth |
 |---|---|
-| Run-loop pacing (14,218.75 Hz on the TI-59, 12,000 Hz on the TI-58/58C; IDLE steps weigh 4 except on the TI-58C; overshoot carried, not reset) | `Shared/Pacing.cpp`, `AppArchitecture.md` § "Emulation Loop and Timing" |
-| Key coordinates (visual grid → matrix code → K-line bit) | `Shared/KeyMatrix.hpp`, `AppArchitecture.md` § "Key Input Coordinate Systems" |
-| Key timing (100 ms hold, wait for the scan loop) | `Shared/KeySequencer.cpp` |
-| State-file format | `StateFileFormat.md`, `Shared/StateFile.cpp` |
-| LED rendering | `Shared/SevenSegment.hpp`, `Shared/LedGeometry.cpp` |
-| Cue-card rendering | `AppArchitecture.md` § "Cue Card Rendering", `Shared/CueCard.cpp` |
-| Card reader flow (auto-eject at `CRD_OFF`) | `AppArchitecture.md` § "Card Reader Flow" |
+| Run-loop pacing | `Shared/Pacing.cpp`; `SharedArchitecture.md` § "Emulation Loop and Timing" |
+| Key coordinates, keyboard map, key timing | `Shared/KeyMatrix.hpp`, `Shared/KeyboardMap.cpp`, `Shared/KeySequencer.cpp`; `SharedArchitecture.md` § "Key Input Coordinate Systems", § "Physical Keyboard Mapping" |
+| State files | `StateFileFormat.md`, `Shared/StateFile.cpp`, `Shared/StateApplier.cpp` |
+| LED | `Shared/SevenSegment.hpp`, `Shared/LedGeometry.cpp`, `Shared/DisplayPov.cpp` |
+| Cue cards | `Shared/CueCard.cpp`; `SharedArchitecture.md` § "Cue Card Rendering" |
+| Card reader | `SharedArchitecture.md` § "Card Reader Flow" |
 | ROM loading | `Shared/RomLoader.cpp`; `tools/pack_roms.py` packs the same text for the web |
 
-When a `Shared/` rule changes, the web build's port may need the same change
-— the docs skill's release workflow checks the WASM build after `Core/`
-changes; check its JS ports for `Shared/` changes the web build also shows.
+When a `Shared/` rule changes, check whether the web build's port needs the
+same change.

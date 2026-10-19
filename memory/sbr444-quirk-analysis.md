@@ -12,7 +12,9 @@ The TI-59 "printer interrupt" hack (PPX Exchange, March/April 1982) plants an in
 keycode `1F` in program memory through a chain of four firmware quirks. The
 initialization sequence `[9 Op 17] [Pgm 12] [SBR 444] [R/S] [P/R] [LRN] [Ins] [LRN]`
 looks harmless, yet leaves the machine in a state where `Ins` computes the invalid
-keycode. The session of 2026-07-04 analyzed exactly what `SBR 444` and `R/S` do —
+keycode. What the hack does and a shorter way to make 1F (through fast mode)
+are in `rom/printerinterrupt.md`; this document is the trace-level analysis.
+The session of 2026-07-04 analyzed exactly what `SBR 444` and `R/S` do —
 quirk 1 of the chain — and corrected an earlier, wrong account. The session of
 2026-07-05 analyzed the `2nd P/R` press — quirk 2 — from the two traces proposed by
 open question 1, resolving it.
@@ -223,14 +225,10 @@ an error from a 0 ÷ 0 inside that garbage (`03D4`).
    level 2 = src 0 + position 0010 ✓. The F semantics are also settled: rs.txt's
    resume push wrote `…1001` (clean depth 1) straight over the reset `…10000F`, so
    F acts as "empty" and the next push restarts the stack at depth 1.
-3. **RESOLVED 2026-10-17 — it doesn't.** See the corrected R/S findings: the resumed run
-   continues through EE and ends on the invalid `Pgm 51`. Original question: **Why exactly does the EE handler end a running program?** The keyboard-epilogue
-   gate (fB[10] at 06C0, plus fA[5] at 06BE — fA[5] was clear during the whole resumed
-   run) fell through. A *normal* running program that contains keycode 52 presumably
-   does not halt — determine which flag a normal run carries that the R/S-resumed
-   garbage run lacks.
-   **Proposed trace:** a small RAM program containing keycode 52 (EE), started with
-   R/S and traced across the EE step; compare the 02DE/06B9/06C0 flags with rs.txt.
+3. **RESOLVED 2026-10-17 — EE does not end a running program.** The R/S-resumed
+   run continues through EE and ends on the invalid `Pgm 51`; see the corrected
+   R/S findings above. (The earlier question rested on an incomplete rs.txt
+   capture window.)
 4. **RESOLVED — SCOM[9] descriptor layout.** Documented by the SCOM register table
    in "Calculators TI-58/59 HW programming guide" by Hynek Sladký
    (TI_58_59-HW-manual.pdf, not in the repository). Nibble 15 = list-data flag;
@@ -245,29 +243,15 @@ an error from a 0 ÷ 0 inside that garbage (`03D4`).
    (nibbles 3–15 only), so nibbles 0–2 were stale C content, not SCOM[9]; nothing
    actually changes across states. Layout added to reference/CoreArchitecture.md
    § SCOM registers.
-5. **RESOLVED 2026-10-17 — they are part of the R/S-resumed run itself** (12 fetches,
-   28–39, ending with Pgm 51; see above). Original question: **Where do 10 extra CROM
-   fetches come from between the second halt and the P/R press?** rs.txt ends with the CROM PC at 0030 (after the two keycode fetches)
-   and contains no later `IN LIB` in its whole 69k-line window; pr-after-halt2.txt
-   contains no LIB operation before the launcher either — yet the `LIB.PC.IN` read
-   during the P→R launch returns **0040**. So in the pr-after-halt2 run the pointer
-   moved 30 → 40 in the gap neither trace covers: the `WaitFullSpeed: 1s` between
-   the EE halt and the `2nd` press (rs.txt's window, from its own run, covers only
-   the first part of that second). The blink/idle cycle contains no LIB access
-   (checked instruction-by-instruction), so something outside the traced windows
-   fetches (or repositions by `OUT LIB_PC`) — key-release handling of R/S is one
-   candidate. Consequence is limited: it changes only which garbage CROM address
-   the dead return-stack level and any later RTN would use, not the quirk-2
-   mechanism.
-   **Proposed trace:** one window spanning the whole gap — `Trace:` on just before
-   the `R/S`, off after the `2nd` — and look for `IN LIB` / `OUT LIB_PC` between
-   the EE halt and the key scan that accepts `2nd`.
+5. **RESOLVED 2026-10-17 — the "extra" CROM fetches between the second halt
+   and P/R are part of the R/S-resumed run itself** (12 fetches, 28–39, ending
+   with Pgm 51; see above). rs.txt had stopped too early to show them.
 
-Traces for 3 and 5 can be captured the same way as the existing ones: temporarily
-insert `Trace: <name>.bin` / `Trace: Off` around the key of interest in the
-`KEYSTROKES` script of a scenario file, then render with `tools/read_trace.py`.
-(`examples/printer-quirks.ti59` currently carries the pr-after-halt2 capture edit
-in its working-tree state.)
+New traces are easiest with the headless harness (`tools/headless/`), which
+replays a key sequence and prints the ROM trace directly. In the GUI, insert
+`Trace: <name>.bin` / `Trace: Off` around the key of interest in a scenario's
+`KEYSTROKES` (e.g. `examples/printer-quirks.ti59`, whose `Trace:` line is
+commented out) and render with `tools/read_trace.py`.
 
 Headless replay (2026-10-17) also re-verified the rest of the chain: after P/R,
 SCOM[15] = `0000000100004012`, SCOM[0] = `…108010`; after LRN Ins LRN, program

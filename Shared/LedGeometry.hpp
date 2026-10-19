@@ -4,7 +4,7 @@
 
 // Geometry of the 12-digit LED display, shared so every frontend draws the
 // same segment shapes; each frontend does its own painting (shear, glow,
-// bloom). See reference/AppArchitecture.md § "LED Display Rendering".
+// bloom). See reference/SharedArchitecture.md § "LED Display Rendering".
 //
 // Coordinates are in one digit cell (origin top-left, width w, height h),
 // before the per-digit shear. Cell i (0 = rightmost) sits at x = (11 − i) × w;

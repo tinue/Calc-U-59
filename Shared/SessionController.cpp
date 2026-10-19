@@ -413,7 +413,7 @@ void SessionController::saveCard(const std::vector<uint8_t>& data, const std::st
     m_cardFileName = std::filesystem::path(path).filename().string();
 }
 
-// ── State files (reference/AppArchitecture.md § "State File Loading") ───────
+// ── State files (reference/SharedArchitecture.md § "State File Loading") ───────
 
 void SessionController::loadStateFile(const std::optional<std::vector<uint8_t>>& raw) {
     const std::string title = "State file load error";

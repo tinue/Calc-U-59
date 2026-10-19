@@ -1,8 +1,16 @@
 ---
 name: Headless runner plan
-description: Implementation plan for Python-driven headless TI-59 trace capture using .ti59 scenario files, without the Xcode/SwiftUI app
+description: Superseded implementation plan for Python-driven headless TI-59 trace capture using .ti59 scenario files, without the Xcode/SwiftUI app
 type: project
 ---
+
+**Superseded.** This plan was not built as written. The harness that exists
+is `tools/headless/` (Python + ctypes over an unmodified `Core/`), with
+`tools/agentic/` on top of it; the C++ state-file parser and trace writer are
+in `Shared/`, built by the root `CMakeLists.txt`. Several files named below
+(`App/TraceWriter.swift`, `App/StateFileLoader.swift`,
+`Bridge/TI59MachineWrapper.mm`, `roms/rom-59.hex`) no longer exist. Kept for
+history only.
 
 Goal: run a controlled calculator lifecycle (turn on → press key → capture trace) from Python without the GUI.
 

@@ -137,7 +137,7 @@ public:
     void pressPrinterAdv(bool pressed);
     void cutPaper();
 
-    // ── Card reader (reference/AppArchitecture.md § "Card Reader Flow") ──────
+    // ── Card reader (reference/SharedArchitecture.md § "Card Reader Flow") ──────
     CardState cardState() const { return m_cardState; }
     const std::string& cardFileName() const { return m_cardFileName; }
     /// A card file's bytes (nullopt: it could not be read); written data goes back to `path`.

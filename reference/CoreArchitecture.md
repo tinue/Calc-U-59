@@ -8,8 +8,11 @@
 > understanding of the low-level architecture described here; treat details as
 > best-effort reverse-engineering rather than authoritative hardware documentation.
 
-This document describes the design of the C++ emulation core (`Core/`) for the
-TI-59, TI-58, and TI-58C calculators.
+This document describes the C++ emulation core (`Core/`) for the TI-59,
+TI-58 and TI-58C. How the firmware uses the hardware (SCOM map, flags,
+run loop, fast mode) is in `rom/TI59-ROM-Guide.md` and
+`rom/TI58C-ROM-Guide.md`; everything above the hardware (pacing, debugger,
+file formats) is in `reference/SharedArchitecture.md`.
 
 ---
 
@@ -24,47 +27,49 @@ TI59Machine          (Core/TI59Machine.hpp/.cpp)
       └─ uses TraceTypes (Core/TraceTypes.hpp)
 ```
 
-`TI59Machine` is the public facade.  All platform code (Swift, CLI) talks to it
-and never touches `TMC0501` directly.  It holds the three hardware components as
-value members and routes every call through `m_keyMutex` so the emulation thread
-and the UI thread cannot race.
-
----
-
-## File Responsibilities
+`TI59Machine` is the public facade. `Shared/` (and through it both apps and
+the headless tools) talks to it and never touches `TMC0501` directly. It
+holds the three hardware components as value members and serialises access
+with `m_keyMutex` (see "Threading Model").
 
 | File | Emulated chip | Role |
 |---|---|---|
-| `ROM.hpp/.cpp` | TMC0521/TMC0570 | Instruction ROM (read-only, 13-bit words) |
+| `ROM.hpp/.cpp` | TMC0582/0583/0571B, CD2400/2401/TMC0573 | Instruction ROM (13-bit words) plus the debug overlay |
 | `RAM.hpp/.cpp` | TMC0598 | User RAM (120 × 16 BCD nibbles) |
-| `TMC0501.hpp/.cpp` | TMC0501 + TMC0571 | CPU + SCOM constants; full instruction execution |
-| `TI59Machine.hpp/.cpp` | — | Machine-level facade; variant selection; threading |
-| `TraceTypes.hpp` | — | Shared types for the trace/debug API (no dependencies) |
+| `TMC0501.hpp/.cpp` | TMC0501 + SCOM + CROM, card reader, printer | CPU and every peripheral; full instruction execution |
+| `TI59Machine.hpp/.cpp` | — | Facade; variant setup; locking |
+| `MachineVariant.hpp` | — | `TI59 \| TI58 \| TI58C`, `hasConstantMemory()`, `hasLargeMemory()` |
+| `TraceTypes.hpp` | — | `CpuFrame`, `DebugEvent`, `TRACE_*` flags |
+
+### Two different "PCs"
+
+| Term | Meaning |
+|---|---|
+| **ROM address** (CPU PC, `addr`) | The 13-bit address the TMC0501 is executing. Never user-visible. |
+| **Calculator step** | The step (0–959) of the user's keystroke program, shown in LRN. Kept by the firmware in SCOM[0] nibbles 4–7 (RAM programs) or in the module's own counter (solid-state programs, see "Solid-State Library Module"). |
+
+One calculator step typically runs dozens to thousands of ROM instructions.
 
 ---
 
 ## Hardware Background
 
-The TI-59 family uses a **4-bit BCD digit-serial architecture**.  Every
-arithmetic operation processes one BCD digit per clock cycle; a full 16-digit
-register takes 16 cycles.
+The TI-59 family uses a **4-bit BCD digit-serial architecture**: one digit
+per clock, so one instruction takes 16 digit times.
 
-Clock chain:
 ```
-455 kHz crystal oscillator
-  ÷ 2 (two-phase clock)           → 227.5 kHz
-  ÷ 16 (digit-serial cycle)       → ~14,219 instructions/sec (active mode)
-  ÷ 4  (idle clock divider)       → ~3,555 instructions/sec (idle/display mode)
+TI-59:      455 kHz ÷ 2 (two-phase) ÷ 16 → 14,219 instructions/s
+TI-58/58C:  384 kHz ÷ 2 ÷ 16             → 12,000 instructions/s
+idle (display) mode: ÷ 4 more on the TI-59/58; full speed on the TI-58C
 ```
 
-Sources: the TI-58/59 timing diagram in Hynek Sladký, *HW guide for
-calculators TI-58/59* (2014), p. 6 — instruction cycle ≈ 70 µs in calculate
-mode, ≈ 280 µs in display mode; one digit time per instruction cycle. A real
-TI-59 filmed next to a stopwatch confirms both rates: ten `Pause` steps take
-0.459 s each (emulator 0.457 s).
+Sources: Hynek Sladký, *HW guide for calculators TI-58/59* (2014), p. 6 —
+instruction cycle ≈ 70 µs in calculate mode, ≈ 280 µs in display mode. The
+TI-59 rates are confirmed by a stopwatch video of a real TI-59 (see "`WAIT`
+minimum"). The per-model rates live in `Shared/MachineModelInfo.hpp`.
 
-The emulator models this with `step()` returning a **cycle weight** of 1 or 4
-so that callers can pace emulation accurately.
+`step()` returns a **cycle weight** — 4 for an IDLE instruction on the
+TI-59/58, otherwise 1 (`getStepWeight()`) — so callers can pace in real time.
 
 ---
 
@@ -74,240 +79,173 @@ so that callers can pace emulation accurately.
 
 | Register | Purpose |
 |---|---|
-| `A` | Primary accumulator; `A[2..13]` drives the 12-digit LED display |
-| `B` | Secondary accumulator; `B[2..13]` drives LED display-control bits |
-| `C` | General-purpose working register |
-| `D` | General-purpose working register |
-| `E` | Implicit stack top; used only by `XCH A,E` |
+| `A` | Accumulator; `A[2..13]` drives the 12 display digits |
+| `B` | Accumulator; `B[2..13]` holds the display-control nibbles |
+| `C`, `D` | Working registers |
+| `E` | Only reachable through `A<>E` exchanges |
 
-**Nibble layout within a register:**
-
-```
-nibble  0       — DPT  (decimal-point position / special flags)
-nibble  1–2     — EXP  (2-digit decimal exponent, magnitude 0–99)
-nibble  3–15    — MANT (13-digit decimal mantissa, MSD at nibble 15)
-```
-
-Bit 1 of nibble 0 = mantissa sign; bit 2 = exponent sign.
+Number layout: nibble 0 = flags (bit 1 mantissa sign, bit 2 exponent sign),
+nibbles 1–2 = exponent, nibbles 3–15 = mantissa (MSD in 15). The firmware's
+number formats: `rom/TI59-ROM-Guide.md` § "Number formats".
 
 ### SCOM registers (TMC0571)
 
-16 × 16-nibble internal scratch registers.  The ROM uses these for:
+16 × 16-nibble scratch registers inside the CPU model (`SCOM[row][nibble]`),
+not user-accessible and never persisted: `reset()` clears them, and on the
+TI-58C the power-on code rebuilds partition and Fix from E000
+(`rom/TI58C-ROM-Guide.md` § "Constant memory"). The firmware's use of every
+row is in `rom/TI59-ROM-Guide.md` § "SCOM register map". The rows the C++
+code and the debugger decode:
 
-- The AOS (algebraic operating system) operator-precedence stack
-- Display state, pending operations, and intermediate results
-- Library/partition bookkeeping in SCOM[9]: nibble 15 = list-data flag,
+- **SCOM[9]** — library/partition bookkeeping: nibble 15 = list-data flag,
   nibbles 6–5 = current library program ("current page"), 4–3 = pending
-  `Pgm nn` selection ("new page"), 2 = module security code, 1 = number of
-  RAM chips (4 on the TI-59), 0 = the RAM/program partition pointer
-  (program-partition register count / 10, set by `OP 17`)
-- ALU addressing during STO/RCL sequences
-- The 6-level subroutine return stack: SCOM[15] holds levels 1–3, SCOM[14]
-  levels 4–6, and SCOM[15] nibble 0 the number of pushed levels (F after the
-  error-halt reset at ROM 0x11E1 = "empty"; the next push restarts at
-  depth 1).  Each level is a 5-nibble entry, from its lowest nibble upward:
-  the caller's Prg Src Flag, then a 4-digit BCD position LSD-first — RAM
-  register number · 10 + byte number for RAM-program and keyboard callers,
-  or the 4-digit "second ROM" (CROM) address for library callers.
-  Pushed on every calculator-level call: `SBR` into a RAM or library
-  program, and launches of keycode-ROM sub-programs such as P→R (push
-  routine at ROM 0x0D50).  Examples: a keyboard caller at step 008 pushes
-  source 0 · position 0010 (register 001, byte 0), giving SCOM[15] =
-  `…001001`; a library caller at CROM address 0040 pushes source 1 ·
-  position 0040, giving level nibbles `…00401`
+  `Pgm nn` selection ("new page"; read by `insertedModuleNumber()`), 2 =
+  module security code (TI-59 memory protection), 1 = number of RAM chips
+  (TI-58C: high nibble of E000's address), 0 = program-partition registers
+  ÷ 10 (set by Op 17, read by `partitionProgramRegs()`).
+  `setPartitionProgramRegs()` writes nibble 0 and SCOM[13] nibbles 8–9, as
+  Op 17 does.
+- **SCOM[14]/[15]** — the 6-level subroutine return stack: SCOM[15] holds
+  levels 1–3, SCOM[14] levels 4–6, and SCOM[15] nibble 0 the number of
+  pushed levels (F after the error-halt reset at ROM `11E1` = empty; the
+  next push restarts at depth 1). Each level is 5 nibbles, from its lowest
+  nibble upward: the caller's PRG SOURCE flag, then a 4-digit BCD position
+  LSD-first — RAM register · 10 + byte for RAM-program and keyboard callers,
+  or the CROM address for library callers. Pushed by every calculator-level
+  call (`SBR`, and launches of keycode sub-programs such as P→R; push
+  routine at ROM `0D50`). Example: a keyboard caller at step 008 pushes
+  source 0, position 0010, giving SCOM[15] = `…001001`.
 
 The SCOM[9] and SCOM[14]/[15] layouts follow the SCOM register table in
-"Calculators TI-58/59 HW programming guide" by Hynek Sladký
-(`TI_58_59-HW-manual.pdf`, not in this repository), trace-verified in
-`memory/sbr444-quirk-analysis.md`.
+Sladký's *Calculators TI-58/59 HW programming guide* (not in this
+repository), trace-verified in `memory/sbr444-quirk-analysis.md`.
 
-SCOM also contains a **64-entry constant table** (entries 0–15 = mathematical
-constants for transcendental functions; entries 16–63 = keystroke display codes
-used in program-review mode).  The constant index is encoded in `KR[10:4]` and
-walked with `INC KR` instructions.
+### Constant ROM
+
+`m_constant[64][16]`, loaded from the two ROM chips' `*-CONST-K.txt` files
+(32 rows each, `Shared/MachineModelInfo.hpp`). Rows 0–15 are the numeric
+constants of the transcendental functions; rows 16–63 hold the 384 keycodes
+of the keycode sub-programs (PRG SOURCE 8, `romKeycode()`). An ALU
+`…CON` operand reads the row selected by KR bits 4–6 and 8–11; the ROM walks
+it with `INC KR`. Contents: `rom/TI59-ROM-Guide.md` § "Transcendental
+functions" and `rom/TI59-keycode-programs.asm`.
 
 ### Control / address registers
 
 | Register | Width | Purpose |
 |---|---|---|
-| `KR` | 16 bit | Key register; also: SCOM constant index (bits 10:4), PREG trigger (bit 1), function-dispatch flags |
-| `SR` | 16 bit | Subroutine return; swap partner for `XCH KR,SR` (the ROM's call/return mechanism) |
-| `fA` | 16 bit | Flag register A — INV mode, overflow, error, C-indicator, … |
-| `fB` | 16 bit | Flag register B — second set of ROM-visible status bits |
-| `EXT` | 16 bit | External data latch (card reader / library module); valid one cycle after `IN CRD/LIB` |
-| `PREG` | 16 bit | Computed-jump latch; loaded by `SET KR[1]`, fires on the next `step()` call |
-| `Sout` | 16 × 4-bit | ALU output bus; also the IO bus for STO/RCL address encoding |
-| `R5` | 4 bit | Scratch nibble; captures the start-digit after every ALU op; `MOV R5,#n` target |
-| `digit` | 4 bit | Digit counter, cycling 15 → 0 → 15, one step per instruction |
-| `addr` | 13 bit | Program counter (ROM addresses 0x0000–0x1FFF) |
+| `KR` | 16 bit | Key register: scan result, jump target (bits 15–4), constant-row index, PREG trigger (bit 1) |
+| `SR` | 16 bit | Return-address parking; `SWAP KR,SR` is the ROM's call/return mechanism |
+| `fA`, `fB` | 16 bit | ROM-visible flag registers; meanings in `rom/TI59-ROM-Guide.md` § "Flags" |
+| `EXT` | 16 bit | External data latch (card reader / library module); valid one cycle after `CRD.IN`/`LIB.*` |
+| `PREG` | 13 bit | Computed-jump latch (see "Computed jump (PREG)") |
+| `Sout` | 16 × 4 bit | ALU output / IO bus; carries SCOM and RAM addresses and data |
+| `R5` | 4 bit | Scratch nibble: result digit at the field's constant position after every ALU op, `MOV R5,#n`, decimal-point position |
+| `digit` | 4 bit | Digit counter, 15 → 0 → 15, one step per instruction |
+| `addr` | 13 bit | Program counter (0x0000–0x1FFF) |
+| `flags` | 16 bit | Emulator-internal state (`FLG_*` in `TMC0501.hpp`): IDLE, HOLD, COND, pending memory operations, validity windows, printer BUSY |
 
 ---
 
 ## Memory Map
 
 ### ROM
-All variants load 6144 × 13-bit words (addresses 0x0000–0x17FF):
-- **TI-59** and **TI-58**: the same image — `TMC0582` + `TMC0583` + `TMC0571B`.
-  The plain TI-58 runs the identical firmware (card code included); it differs
-  only in RAM size, which the ROM autodetects (see User RAM below).
-- **TI-58C**: a different image — `CD2400` + `CD2401` + `TMC0573` (adds constant
-  memory and the `MEMWR`/`MEMRD` opcodes).
 
-(`ROM::TI58_WORDS = 5120` is a legacy alternate size still accepted by the load
-assert, but every shipped variant is 6144 words.)
+All variants load 6144 × 13-bit words (0x0000–0x17FF):
 
-ROM words are 13 bits wide.  The upper 3 bits of the 16-bit storage word are
-masked to zero on every `read()`.
+- **TI-59 and TI-58**: the same image, `TMC0582` + `TMC0583` + `TMC0571B`.
+  The TI-58 runs the identical firmware (card code included) and differs only
+  in RAM size, which the ROM autodetects (see below).
+- **TI-58C**: `CD2400` + `CD2401` + `TMC0573` (constant memory,
+  `MEMWR`/`MEMRD`). Differences: `rom/TI58C-ROM-Guide.md`.
+
+`ROM::load` also accepts 5120 words (`TI58_WORDS`), which no variant uses.
+`read()` masks to 13 bits and returns 0 beyond the image. Addresses
+0x1800–0x1FFF can hold debug ASM overlay words (`loadDebugOverlay`;
+`reference/DebugAPI.md` § "ASM Overlay").
 
 ### User RAM (TMC0598)
 
-120 registers × 16 BCD nibbles.  Layout:
+120 registers × 16 BCD nibbles (`RAM::setLimit` caps the TI-58 at 60, the
+TI-58C at 64). Program steps fill registers from the bottom (2 nibbles per
+step, units digit first, 8 steps per register); data registers count down
+from the top, Rnn = RAM[top − nn], top = 119 (TI-59) or 59 (TI-58/58C). The
+partition (SCOM[9] nibble 0 = program registers ÷ 10) is set by Op 17; the
+defaults are 479.59 (TI-59) and 239.29 (TI-58/58C).
 
-```
-RAM[0]   … RAM[n-1]     program steps (2 nibbles/step, 8 steps/register)
-RAM[n]   … RAM[119]     user data registers (R00 = RAM[119], R01 = RAM[118], …)
-```
-
-`n` = number of program-step registers, determined by the partition value set
-via `OP 17` (stored in SCOM[9][0] as `n/10`).  The factory default is
-`n = 60` (480 program steps, 60 data registers).
-
-- **TI-58/58C** sets a RAM limit of 60 registers (480 steps, 0 data registers
-  at the other end — data registers live in the upper 60).
-- **TI-59** uses all 120 registers.
-
-**STO/RCL can't reach every register.** `STO`/`RCL` take exactly two decimal
-digits, so a user-addressable register number is always 00–99 — 100 possible
-numbers, not 120. Since data registers descend from the top (`R00 = RAM[119]`
-down to `R99 = RAM[20]`), the 20 lowest physical registers (`RAM[0..19]`) can
-never hold a numbered variable on the TI-59, no matter where the partition
-boundary sits — they're either program steps or unused. (TI-58/58C never hit
-this ceiling: 60 registers total means every one of `R00`–`R59` is reachable.)
-
-**Moving the partition boundary (`2nd Op 17`) is usually non-destructive.**
-Steps and registers occupy the *same* physical `RAM[n]` cell from opposite
-ends, but nothing is erased when `n` changes — a register that held a
-variable simply becomes readable as program steps (typically decoding as
-garbage keycodes) if the boundary moves past it, and moving the boundary back
-restores the original variable value intact. This is why re-partitioning at
-runtime is a normal, safe operation on real hardware, not just an emulator
-convenience — as long as nothing actually *writes* into the reclaimed cell
-while it's on the other side of the boundary, the old value comes back.
-
-**Memory-size autodetection.** The TI-59 and the plain TI-58 load the *same*
-ROM image — the identical three chips `TMC0582` / `TMC0583` / `TMC0571B`,
-including the `0x1400–0x17FF` constant block and the card-reader firmware (the
-TI-58 carries the card code even though it has no card reader).  Only the
-TI-58**C** uses a different ROM set (`CD2400` / `CD2401` / `TMC0573`).  Since the
-hardware exposes no model identifier, the reset routine infers RAM size by
-*probing*: it writes a test value to a high register (register 90 in the trace),
-reads it back, and clears it.  Register 90 is in the `>=60` range that exists
-only on the 120-register TI-59; on a 60-register TI-58 the write is out of range
-(`RAM_ADDR < ram.size()` fails) and the read-back comes back as `0`.  The probe
-result selects the partition layout.
-
-This is directly observable by diffing the TI-58 and TI-59 reset traces, which
-are byte-identical except at the probe: at `B=LOAD MAEX` (`0x0381`) the TI-59
-reads back its written value while the TI-58 reads `0`, which flips the
-`IO=-B` compare (`0x0390`) and the branch at `0x0393` — the TI-58 takes the
-jump (skipping the accumulate, → 60-register partition) while the TI-59 falls
-through (→ 120-register partition).  See the annotated reset listing
-`rom/TI59-commented.asm` at `0x0377`.
+- **STO/RCL reach only 00–99.** On the TI-59 the lowest 20 registers
+  (RAM[0..19]) can only ever be program steps.
+- **Op 17 erases nothing.** Steps and registers share the same cells from
+  opposite ends; moving the boundary only changes how a cell is read, and
+  moving it back restores the old contents.
+- **Memory-size autodetection.** The hardware has no model identifier. The
+  reset routine (`rom/TI59-commented.asm` `0377`) writes register 90, reads
+  it back and clears it. On the 60-register TI-58 the write is out of range
+  (`RAM_ADDR < ram.size()` fails) and reads back 0, so the compare at `0390`
+  and the branch at `0393` select the 60-register layout. The TI-58 and TI-59
+  reset traces differ only there.
 
 ### TI-58C Extra (Constant Memory) Registers
 
-The TI-58C has **60 addressable registers, exactly like the TI-58** — plus 4
-more raw RAM cells (`RAM[60]`–`RAM[63]`) that exist *outside* that addressable
-space entirely. Do not think of them as "registers 60–63"; nothing in this
-codebase should call them that. They:
+The TI-58C has **60 addressable registers, exactly like the TI-58**, plus 4
+raw RAM cells `RAM[60]`–`RAM[63]` outside that space. Do not call them
+"registers 60–63". They:
 
-- are never reachable via `STO`/`RCL` — the ROM's register addressing on this
-  variant only ever produces 00–59;
-- can never be program steps and never participate in partitioning — `OP 17`
-  only ever moves the boundary within the 60-register space;
-- are read/written only by the dedicated `MEMWR`/`MEMRD` opcodes (see
-  "Two-Cycle Memory Operations" below), which address raw RAM directly and
-  are TI-58C-only instructions (the TI-59/TI-58 ROM never emits them);
-- persist as constant memory (`serialiseRAM`/`deserialiseRAM`) alongside the
-  60 normal registers, and so must be loadable/saveable through the state
-  file and debug tooling like any other stored value.
+- are never reachable via `STO`/`RCL` (the ROM's addressing produces 00–59
+  only) and never take part in partitioning;
+- are read and written only by `MEMWR`/`MEMRD`, which address raw RAM;
+- persist with the 60 normal registers (`serialiseRAM`/`deserialiseRAM`,
+  `ti58c.mem`) and are loadable and saveable through state files and the
+  debugger.
 
-**Naming convention used throughout this codebase:** call them **E000–E003**
-when referring to them as RAM storage (e.g. in code comments about raw RAM
-indices), and **H00–H03** when referring to them as state-file or debugger
-*variables* (matching `reference/StateFileFormat.md`'s `HNN =` syntax and the
-debugger's `H##` display labels). `MachineModel.extraRegisterBase` (`= 60`,
-Swift) is the one place the raw-index constant `60` should appear — every
-other call site should go through it or through `isHidden`-style explicit
-tagging, never re-derive "is this an extra register" from a register
-*number* being `>= 60`, since normal TI-59 registers legitimately go up to 99
-(see "STO/RCL can't reach every register" above) and would collide with that
-test.
+RAM[60] is the firmware's system register (signature, partition, Fix):
+`rom/TI58C-ROM-Guide.md` § "E000: the system register".
 
-Despite this separation at the state-file/debugger level, **the ROM's own
-addressing is uniform**: `MEMWR`/`MEMRD` compute a raw RAM index the same way
-for the whole 0–63 range, so a program that inserts steps in a way that
-shifts data upward can "hack" its way into `RAM[60..63]` even though the
-calculator's normal UI (`STO`/`RCL`) never lets a user address them directly.
-The C++ core's RAM model is correct as-is — `RAM::setLimit(64)` for TI-58C,
-guarded only by `RAM_ADDR < ram.size()` — this section is about the
-*vocabulary* higher layers (state-file loader, debugger, tracer) must use
-when talking about that same raw range, not about changing how the hardware
-itself addresses it.
+**Naming:** **E000–E003** for the raw RAM cells (code comments about raw
+indices), **H00–H03** for the same cells as state-file or debugger variables
+(`reference/StateFileFormat.md`'s `HNN =`, the debugger's `H##` labels). The
+raw base 60 is `cu59::kExtraRegisterBase` (`Shared/MachineModelInfo.hpp`);
+everywhere else tags extra registers explicitly (`isHidden`) instead of
+testing a register number ≥ 60, because normal TI-59 registers go up to 99.
 
-### SCOM (TMC0571)
-
-16 scratch registers × 16 nibbles.  Internal to the CPU, not user-accessible.
-Not persisted: SCOM loses its contents at power-off on every variant (`reset()`
-clears it). On the TI-58C the power-on code rebuilds the partition and the Fix
-setting from RAM register 60 (E000); see `rom/TI58C-ROM-Guide.md` § "Constant
-memory". (A state load re-writes the SCOM partition pointer separately via
-`setPartitionProgramRegs`.)
+The ROM's own `MEMWR`/`MEMRD` addressing is uniform over 0–63, and the core
+models it that way (`RAM::setLimit(64)`, guarded only by
+`RAM_ADDR < ram.size()`). The naming rule is for the layers above.
 
 ---
 
 ## Instruction Set Summary
 
-Opcodes are 13 bits.  The top bit (bit 12) selects the major class:
-
-```
-bit 12 = 1  →  Branch
-bit 12 = 0  →  Non-branch (sub-decoded by hi nibble, bits 11:8)
-```
+Opcodes are 13 bits. Bit 12 selects branch or non-branch. Mnemonics follow
+`tools/mnemonics.tsv` (as printed in `rom/*.asm`).
 
 ### Branch (bit 12 = 1)
 
 ```
-[ 1 | COND | offset[9:1] | dir ]
-  bit 12  bit 11         bit 0
+[ 1 | COND | offset (bits 10:1) | dir ]
+ bit 12  bit 11                  bit 0
 ```
 
-- **COND** (bit 11): must match `FLG_COND` (also at bit 11 of `flags`) for the
-  branch to be taken.  The XOR trick: `(flags ^ opcode) & FLG_COND == 0` → taken.
-- **offset**: 10-bit magnitude (bits 10:1), added to or subtracted from PC.
-- **dir** (bit 0): 0 = forward, 1 = backward.
+- Taken when opcode bit 11 equals `FLG_COND` (also bit 11 of `flags`):
+  `!((flags ^ opcode) & FLG_COND)`.
+- **offset**: 10-bit magnitude, added (dir 0) or subtracted (dir 1).
 
-**COND is active-low.**  Its resting (inactive) state is `1`; a satisfied test
-*activates* it by driving it to `0`.  `TST`/`KEY`/ALU-overflow do
-`flags &= ~FLG_COND`, i.e. they set COND to `0` **when the condition is true**.
-Consequently `JC` (cond bit = 1) is taken when COND is at rest (`1`), and `JNC`
-(cond bit = 0) is taken when COND has been activated (`0`).  The everyday idiom
-`TST fB[x]; JNC handler` therefore reads as "**if `fB[x]` is set, branch to
-handler**".  In the disassembly, "clear COND" / "reset COND" means *restore it
-to its resting `1`*, not drive it to `0`.
+**COND is active-low.** It rests at `1`; a satisfied test (`TST`, `KEY`,
+ALU carry) drives it to `0`. So `JC` (cond bit 1) is taken when COND is at
+rest and `JNC` when a test hit: `TST fB[x]; JNC handler` reads "if `fB[x]`
+is set, branch". "Clear COND" in the listing means *restore it to 1*.
 
-After a branch instruction (taken or not), `FLG_JUMP` is set.  The first
-subsequent non-branch instruction clears it and restores `FLG_COND = 1`,
-implementing the hardware's automatic COND-restore between branch chains.
+Every branch sets `FLG_JUMP`; the next non-branch instruction clears it and
+restores COND to 1 (the hardware's restore between branch chains).
 
-### Non-branch classes (hi nibble)
+### Non-branch classes (bits 11:8)
 
-| Hi nibble | Class | Key instructions |
+| Hi nibble | Class | Instructions |
 |---|---|---|
-| `0x0` | Flag ops | TST/SET/CLR/INV/XCH/MOV on `fA`, `fB`, `KR` |
-| `0x1`–`0x7`, `0x9`, `0xB`–`0xF` | **ALU** | ADD/SUB/SHL/SHR, exchange, register-to-register moves |
-| `0x8` | Keyboard scan | `KEY` (test one row), `KEY_ALL` (scan all rows) |
-| `0xA` | Control / peripheral | WAIT, SET/CLR IDL, INC KR, STO, RCL, I/O instructions |
+| `0x0` | Flag ops | TST/SET/CLR/INV/MOV/CMP on `fA`, `fB` bits; SET/CLR `KR` bits |
+| `0x8` | Keyboard | `KEY […]` (test row), `KEY […] ALL` (scan) |
+| `0xA` | Control / peripheral | WAIT, SET/CLR.IDLE, INC KR, STOF/RCLF, card, printer, RAM, library |
+| other | **ALU** | add/subtract/shift over a digit field, register moves and exchanges |
 
 ### ALU opcode layout
 
@@ -316,372 +254,380 @@ implementing the hardware's automatic COND-restore between branch chains.
       11:8    7:3    2:0
 ```
 
-- `ffff` — field-mask index (selects digit range: DPT, EXP, MANT, ALL, …)
-- `ooooo` — operation + source-pair index (0–31)
-- `ddd` — destination register (A/B/C/D, IO-only, or exchange A↔B/C↔D/A↔E)
+- `ffff` — field mask (digit range DPT, EXP, MANT, ALL, …, `mask_info`)
+- `ooooo` — operation and source pair (0–31; 24–31 are constant, SCOM/RAM
+  recall and R5 forms)
+- `ddd` — destination: A, IO only, A↔B, B, C, C↔D, D, A↔E
+
+Digit 0 is hexadecimal (wraps at 16), digits 1–15 are decimal. `Sout` gets
+the result inside the field and 0 outside it. A carry out of the field
+clears COND.
 
 ---
 
 ## Two-Cycle Memory Operations
 
-Several operations take two instructions to complete.  The first instruction
-sets a flag and latches an address; the second instruction executes the transfer.
+The first instruction latches an address and sets a flag; the next ALU
+instruction moves the data, through `Sout` (the IO bus). If that instruction
+does not drive IO, the bus reads 0 and 0 is written.
 
 ### SCOM store / recall
 
 ```
-1. STO   → sets FLG_STORE,  latches REG_ADDR from Sout[0]
-2. ALU   → executes; on FLG_STORE: Sout → SCOM[REG_ADDR]
-           on FLG_RECALL: SCOM[REG_ADDR] is injected as srcY into the ALU
+1. STOF / RCLF → REG_ADDR := Sout[0], FLG_STORE / FLG_RECALL
+2. ALU         → store: Sout → SCOM[REG_ADDR]; recall: SCOM[REG_ADDR] is the operand
 ```
 
-### RAM read / write
+### RAM (TI-59/58: `RAM.OP`, opcode 0x0AF8)
 
 ```
-1. RAM_OP → sets FLG_RAM_OP
-2. ALU    → Sout decoded: RAM_OP=Sout[0], RAM_ADDR=Sout[3]*10+Sout[2]
-             then sets FLG_RAM_READ or FLG_RAM_WRITE
-3. ALU    → on FLG_RAM_READ: RAM[RAM_ADDR] injected as srcY
-             on FLG_RAM_WRITE: Sout → RAM[RAM_ADDR]
+1. RAM.OP → FLG_RAM_OP
+2. ALU    → op := Sout[0] (0 read, 1 write, 2 clear 1, 4 clear 10),
+            RAM_ADDR := Sout[3]·10 + Sout[2] (Sout[3] may be hex: registers 100–119)
+3. ALU    → read: RAM[RAM_ADDR] is the operand; write: Sout → RAM[RAM_ADDR]
 ```
+
+### RAM (TI-58C: `MEMWR` 0x0A76, `MEMRD` 0x0A86)
+
+```
+1. MEMWR / MEMRD → RAM_ADDR := Sout[1]·16 + Sout[0] (binary), FLG_RAM_WRITE / FLG_RAM_READ
+2. ALU           → write Sout into RAM[RAM_ADDR] within this instruction's field / read as operand
+```
+
+The opcodes are decoded on every variant; the TI-59/58 ROM never emits them.
 
 ### Computed jump (PREG)
 
 ```
-1. SET KR[1] → rotates KR right-1 into PREG; clears KR[1]
-2. step()    → redirects addr = PREG >> 3, clears PREG; returns weight 0
+1. SET KR[1] → at the end of this step: PREG := KR[15:4] | KR[0] << 12, KR[1] cleared
+2. next instruction (delay slot) executes, then addr := PREG, PREG := 0
 ```
+
+HOLD outranks PREG: a held instruction keeps the redirect pending. A branch
+in the delay slot defers it to the next non-branch instruction. `PREG = 0`
+counts as "no jump" (see `rom/TI58C-ROM-Guide.md` § "Emulator issues found").
 
 ---
 
-## Execution Flow (step)
+## Execution Flow (`TMC0501::step()`)
 
-Each call to `TMC0501::step()` executes the following in order:
+1. **Printer countdown** — decrement `m_prnBusyCycles`; at zero clear
+   `FLG_BUSY` and commit the line with all 7 dot rows.
+2. **`beginNextStep()`** — fetch the opcode, restore COND after a branch
+   chain, patch the previous trace frame to post-execution state, start the
+   new frame (breakpoint check).
+3. **Digit counter** — 15 → 14 → … → 0 → 15.
+4. **HOLD** — count consecutive executions of a held instruction
+   (`m_holdRun`), then clear `FLG_HOLD`; `WAIT`/`KEY … ALL` re-assert it.
+5. **Validity windows** — `EXT` and `Sout` survive one cycle after they are
+   written, then read as 0.
+6. **Decode and execute** — a branch sets `addr` and skips step 8.
+7. **Display strobe** (`postOperation()`) — see "Display Subsystem".
+8. **Advance** — unless HOLD: PREG redirect if pending, else `addr++`.
+9. **Accounting** — weight, trace post-step, C-indicator and poll counters,
+   `elapsedTicks()`.
+10. **PREG latch** — if `KR[1]` is set.
+11. **Step boundary** (`noteStepBoundary()`) — see below.
 
-1. **PREG redirect** — if set, apply computed jump and return (weight 0).
-2. **Trace pre-step** — if tracing enabled, save PC/opcode/snapshot.
-3. **Printer busy countdown** — decrement `m_prnBusyCycles`; clear `FLG_BUSY` at zero.
-4. **Fetch opcode** — `rom.read(addr)`.
-5. **Advance digit counter** — 15 → 14 → … → 0 → 15.
-6. **Display strobe** — in IDLE, the strobed position latches its glyph and adds the step's weight to its driven time (see Display Subsystem).
-7. **Clear FLG_HOLD** — HOLD is re-asserted each cycle by `WAIT`/`KEY_ALL` if needed.
-8. **PREG latch** — if `KR[1]` set, prepare next-cycle redirect.
-9. **Expire validity windows** — clear `FLG_EXT_VALID` / `FLG_IO_VALID` and zero `EXT`/`Sout` on second cycle.
-10. **Decode and execute** — branch, flag ops, keyboard scan, control/peripheral, or ALU.
-11. **Advance PC** — `addr++` unless `FLG_HOLD`.
-12. **Trace post-step** — write `TraceEvent` to ring.
-13. **Return cycle weight** — 4 if `FLG_IDLE`, else 1.
+The return value carries the weight in `kWeightMask` and two bits:
+
+- **`kPolledHardware`** — a backward branch that retries a `KEY` or
+  `TST.BUSY` poll executed just before it: a spin-wait on a key, the card
+  switch and so on, whose real duration does not depend on CPU speed.
+  `Shared/Pacing` throttles full-speed runs on it. A `TST.BUSY` retry counts
+  only while the printer is not busy, so full speed also speeds up printing.
+- **`kStepBoundary`** — the next instruction is the interpreter's step
+  dispatch, `stepDispatchPC()` = `0837` (TI-59/58) or `082B` (TI-58C), which
+  every executed program byte (keycode or operand) passes once, from RAM,
+  the module or the keycode table. The CPU state there, and on idle entry
+  (`kIdleEntryPC` = `0624`, no bit), is latched as `lastStepBoundary()` for
+  the debugger's CALCULATOR view (`reference/DebugAPI.md` §
+  "Frozen-display semantics").
+
+`TI59Machine::step()` adds `kBreakpointHit`. `stepUntilNextKeycode()` (the
+debugger's STEP) runs until `kStepBoundary`, a breakpoint or a cycle limit:
+one program byte per call, as SST.
 
 ---
 
 ## Display Subsystem
 
-The 12-digit LED display is multiplexed at the digit-counter rate.  In idle
-mode, `A[2..13]` holds BCD digit values and `B[2..13]` holds display-control
-nibbles (select digit, minus sign, degree symbol, blank).
-
-Each IDLE instruction strobes one position (the digit counter, 13 → 2). A
-strobe that shows a glyph latches it and adds the instruction's weight to the
-position's driven time; the decimal point of the position R5 names is driven
-the same way. Nothing is driven in RUN mode, so the display is dark while the
+In IDLE, each instruction strobes one position: the position the digit
+counter is about to reach, 13 → 2 (`postOperation()`). `A` gives the digit,
+`B` the control nibble (digit, minus, degree, blank). The leading-zero
+suppression circuit is modelled per strobe (`suppressedMask`). A strobe that
+shows a glyph latches it and adds the instruction's weight to the position's
+driven time; the decimal point of the position `R5` names is driven the same
+way. Nothing is driven in RUN mode, so the display goes dark while the
 calculator computes.
 
 `getDisplay()` (UI thread, under `m_displayMutex`) returns per position the
-last latched glyph and its **duty**: the driven time since the previous call,
-×16 (a position is strobed one instruction in 16), so a steadily multiplexed
+last latched glyph and its **duty**: the driven time since the previous call
+× 16 (a position is strobed one instruction in 16), so a steadily multiplexed
 display reads 1.0 and a computing one 0. `pollTicks` is the interval in
-weighted cycles. The core makes no visibility decision: how bright that looks
-to the eye is `Shared/DisplayPov` (hold ≈ 55 ms, then a 30 ms fade),
-integrated over each 60 Hz poll so the multiplex rhythm cannot alias with it.
-The C annunciator's duty (`calcIndicator`) works the same way.
+weighted cycles; a poll with no cycle since the last one returns the last
+snapshot again. The core makes no visibility decision: brightness and
+persistence of vision are `Shared/DisplayPov`.
+
+The **C indicator** (`calcIndicator`) is the fraction of the interval in
+which it was driven: any `fA ≠ 0` in RUN mode, `fA` bit 14 in IDLE (Sladký).
+
+**Limitation:** the CPU's digit and the display strobe share one counter, so
+they are always in phase. A program that shifts `SET IDLE` out of phase on
+purpose (`examples/assembly/Decoder.asm`) shows other positions on real
+hardware but normal digits on the emulator.
 
 ---
 
 ## Keyboard Matrix and Scanning
 
 ```cpp
-key[col]  // bitmask; col = digit-counter slot (0–15)
+key[col]  // bitmask of active K-lines; col = digit-counter slot 0–15
 ```
 
-Keyboard rows connect at digit-counter slots 1–9 (D1–D9).  Each slot's bitmask
-encodes which K-lines are pressed (KN=bit 0 … KT=bit 6).
-
-### Scanning model: the digit counter is the only scanner
-
-There is exactly one scanner in the machine: the free-running 4-bit digit
-counter (15→14→…→1→0→15, one step per instruction cycle — see the step
-pipeline above).  It simultaneously drives the LED display multiplex and the
-keyboard row strobe; display refresh *is* the keyboard strobe.  No instruction
-scans anything by itself — instructions only *sample* the matrix at whatever
-row the counter happens to be strobing, or stall until the counter reaches a
-chosen row.
-
-The matrix is digit lines × K-lines:
-
-- **Digit lines** — the strobed side.  Exactly one is active per cycle (the
-  one matching the counter); it selects the row.
-- **K-lines KN…KT** — 7 sense lines, all readable **in parallel**.  A pressed
-  key in the strobed row pulls its K-line active.
-
-So time-scanning happens only across digits (rows); the K-line dimension is
-sampled all at once.  In the emulator this collapses to reading `key[digit]`.
+The free-running digit counter is the only scanner: it drives the display
+multiplex and the keyboard row strobe at once. Keyboard rows sit at digits
+1–9 (D1–D9). The 7 sense lines KN, KO, KP, KQ, KR, KS, KT (bits 0–6) are read
+in parallel, so in the emulator a scan is `key[digit]`. Instructions only
+sample the row being strobed, or stall until a chosen row comes up.
 
 ### Instructions that attend to the scan lines
 
-These are the only opcodes that read the K-lines or synchronize with the digit
-counter (`TMC0501.cpp`, opcode groups `0x0800` and `0x0A00`):
-
 | Mnemonic | Cycles | What it does |
 |---|---|---|
-| `KEY […] ALL` (scan-all) | HOLDs | Re-executes every cycle, riding the counter down one row per cycle. Stops when a masked-in K-line is active at the current row (→ COND cleared, `KR` register loaded) or when the counter reaches digit 0 (→ no key, COND stays 1). Digit 0 is a termination sentinel and is **not** sampled. |
-| `KEY […]` (test-row) | 1 | Samples only the currently strobed row against the mask; clears COND on a hit. **Never writes the `KR` register.** |
-| `TST.BUSY` | 1 | Clears COND if bit 4 (the KR *line*) is active at the current row, **or** if the printer-busy flip-flop is set. Effectively a test-row probe for the one K-line that `KEY` masks always exclude. |
-| `WAIT Dn` | HOLDs, at least 3 | Pure synchronizer: stalls until the counter equals *n*, but releases no earlier than its 3rd execution (see "`WAIT` minimum" below). Reads no K-lines itself — its job is to make the *next* instruction execute at a known row. |
-| `WAIT.BUSY` | 1 | Undocumented; treated as a no-op by the emulator. |
+| `KEY […] ALL` | HOLDs | Re-executes every cycle, riding the counter down. Stops on a masked-in K-line active at the current row (COND cleared, `KR` loaded) or at digit 0 (no key, COND stays 1). Digit 0 is a sentinel and is **not** sampled. |
+| `KEY […]` | 1 | Samples the current row against the mask; clears COND on a hit. **Never writes `KR`.** |
+| `TST.BUSY` | 1 | Clears COND if KR (bit 4) is active at the current row **or** the printer is busy. |
+| `WAIT Dn` | HOLDs, ≥ 3 | Stalls until the counter equals *n*, no earlier than its 3rd execution. Reads no K-lines; it makes the *next* instruction run at a known row. |
+| `WAIT.BUSY` | 1 | Undocumented; a no-op in the emulator. |
 
-The bracket list in a `KEY` mnemonic is the K-line mask — which sense lines
-participate.  The idle-loop scan `KEY [N,O,P,Q,S,T] ALL` deliberately omits
-the KR line, because that line carries peripheral signals (card switch), not
-keys.
+The bracket list in a `KEY` mnemonic is the K-line mask. The idle scan
+`KEY [N,O,P,Q,S,T] ALL` leaves out KR, which carries peripheral signals.
 
-**`WAIT` off-by-one:** the counter decrements *before* each instruction
-executes, so the instruction after `WAIT Dn` runs at digit **n−1**.  ROM code
-therefore always encodes target+1: `WAIT D11` + `TST.BUSY` samples digit 10;
-`WAIT D1` + `KEY [P]` samples digit 0.
+**`WAIT` off-by-one:** the counter decrements before each instruction, so
+the instruction after `WAIT Dn` runs at digit **n−1**. `WAIT D11` +
+`TST.BUSY` samples digit 10; `WAIT D1` + `KEY [P]` samples digit 0.
 
-**`WAIT` minimum (3 executions):** HOLD reaches the ROM chips as a bit of the
-next cycle's EXT word (state S2), and the SCOM latches the address it implies
-only in the cycle after that (US 3,900,722, cols. 15–16 and 22–23). A `WAIT`
-therefore cannot release on its first or second execution: if its digit comes
-up that early, it is missed and the `WAIT` runs one more full revolution
-(`TMC0501::kWaitMinExecutions`). It still releases on the right digit, so
-every `WAIT Dn` + probe pair samples the same row as before. Measured on a
-real TI-59 (stopwatch-calibrated 120 fps video): the error blink, whose idle
-loop reaches `WAIT D11` (`0x063E`) and `WAIT D14` (`0x0656`) after 1–2
-executions, has a 0.899 s period (dark 0.456 s, lit 0.444 s); with the rule
-the emulator gives 0.897 s (0.452 / 0.445), without it 0.447 s. The steady
-TI-59 idle pass grows from 9.0 to 13.5 ms. Waits with more slack — `WAIT D1`
-before `SET IDLE`, the Pause loop, the TI-58C idle loop — are unaffected
-(Pause interval: 0.459 s measured, 0.457 s emulated).
+**`WAIT` minimum (3 executions):** HOLD reaches the ROM chips as a bit of
+the next cycle's EXT word (state S2), and the SCOM latches the address it
+implies only in the cycle after that (US 3,900,722, cols. 15–16 and 22–23).
+So a `WAIT` cannot release on its first or second execution: if its digit
+comes up that early, it is missed and the `WAIT` runs one more revolution
+(`kWaitMinExecutions`). It still releases on the right digit, so every
+`WAIT Dn` + probe pair samples the same row. Measured on a real TI-59
+(stopwatch-calibrated 120 fps video): the error blink, whose idle loop
+reaches `WAIT D11` (`063E`) and `WAIT D14` (`0656`) after 1–2 executions,
+has a 0.899 s period (dark 0.456 s, lit 0.444 s); the emulator gives
+0.897 s with the rule and 0.447 s without. The steady TI-59 idle pass grows
+from 9.0 to 13.5 ms. Waits with more slack — `WAIT D1` before `SET.IDLE`,
+the Pause loop, the TI-58C idle loop — are unaffected (Pause step: 0.459 s
+measured, 0.457 s emulated).
 
-**`KR` register load format** (scan-all hit only):
+**`KR` after a scan-all hit:**
 
 ```
 KR = (digit << 4) | (K-line index << 8)
-      bits 7:4 = row (digit 1–9)     bits 10:8 = column (0=KN … 6=KT)
+      bits 7:4 = row (1–9)     bits 10:8 = line (0 = KN … 6 = KT)
 ```
 
-The ROM decodes the row with `TST KR[4]`…`TST KR[7]` after a hit.  If no key
-is found, `KR` keeps its previous content.  If two masked-in K-lines are
-active in the same row at once, the hit is discarded (multi-key rejection,
-mirroring the hardware limitation).
+No hit leaves `KR` unchanged. Two masked-in lines active in the same row
+discard the hit (multi-key rejection).
 
 ### The two ROM idioms
 
-| Goal | Idiom | Why |
-|---|---|---|
-| Scan the whole keyboard | `WAIT D14` + `KEY […] ALL` | Align to the top of the sweep, then let the scan ride the counter down through rows 13…1 |
-| Probe one specific signal | `WAIT Dn+1` + single-cycle probe (`KEY […]` test-row, or `TST.BUSY`) | Random access to one matrix cell: park until the right row is strobed, sample once |
+| Goal | Idiom |
+|---|---|
+| Scan the keyboard | `WAIT D14` + `KEY […] ALL`: start at the top, ride down to row 1 |
+| Probe one signal | `WAIT Dn+1` + `KEY […]` or `TST.BUSY`: park until the row is strobed, sample once |
 
-A `WAIT` before a scan-all is not needed for correctness (the scan always
-terminates at digit 0) but guarantees full row coverage; a `WAIT` before a
-test-row probe is essential, since the probe samples whatever row is strobed
-at that instant.
+### Peripheral signals in the matrix
 
-### Non-keyboard digits of importance
-
-Peripheral signals piggyback on matrix positions outside rows 1–9 (or on the
-excluded KR line).  Whether the idle scan can see them depends on where they
-sit relative to the scan window (rows 13…1) and the scan's K-line mask:
-
-| col | bit (K-line) | Signal | How the ROM samples it |
+| col | line | Signal | How the ROM samples it |
 |---|---|---|---|
-| 10 (TI-59) | 4 (KR) | Card switch (high = card absent) | `WAIT D11` + `TST.BUSY` in the idle loop (ROM `0x063E`); on the KR line, so invisible to scan-all |
-| 7 (TI-58/58C) | 4 (KR) | Held high by the emulator so the firmware's second card poll (ROM `0x0459`, `WAIT D8` + `TST.BUSY`) always vetoes the card path — the TI-58/58C have no card reader. Real-hardware wiring of this line is unverified. | `WAIT D8` + `TST.BUSY` |
-| 0 (TI-59/58) | 2 (KP) | PRN_CONNECTED (printer present) | `WAIT D1` + test-row `KEY [P]` at digit 0 — the scan-all sentinel digit, so **invisible to scan-all** by design |
-| 10 (TI-58C) | 2 (KP) | PRN_CONNECTED — the TI-58C PCB routes the detect pin to a different digit line | `WAIT D11` + test-row `KEY [P]` |
-| 12 | 2 (KP) | Printer PRINT button | Inside the scan window and on a masked-in line → the idle scan-all reports it like an ordinary key at row 12 |
-| 12 | 0 (KN) | Printer ADV button | Same — ordinary scan-all hit at row 12 |
-| 15 | 2 (KP) | Printer TRACE mode (physical latch) | Above the scan window (rows 15/14 are never strobed by the idle scan) → dedicated targeted poll in the keystroke/print path |
+| 10 (TI-59) | KR | Card switch (active = no card) | `WAIT D11` + `TST.BUSY` in the idle loop (`063E`); invisible to the scan |
+| 7 (TI-58/58C) | KR | Held active by the emulator so the second card poll (`0459`, `WAIT D8` + `TST.BUSY`) vetoes the card path; real-hardware wiring unverified | `WAIT D8` + `TST.BUSY` |
+| 0 (TI-59/58) | KP | Printer connected | `WAIT D1` + `KEY [P]` at the scan's sentinel digit, so invisible to the scan |
+| 10 (TI-58C) | KP | Printer connected (the TI-58C PCB routes it to digit 10) | `WAIT D11` + `KEY [P]` |
+| 12 | KP | Printer PRINT button | Ordinary scan hit at row 12 |
+| 12 | KN | Printer ADV button | Ordinary scan hit at row 12 |
+| 15 | KP | Printer TRACE switch (latch) | Above the scan window; polled in the keystroke/print path |
+
+The TRACE latch survives `reset()` (`TI59Machine` re-applies it).
 
 ---
 
-## Magnetic Card Reader
+## Magnetic Card Reader (TI-59)
 
-The TI-59 stores programs on magnetic cards divided into **4 banks of 246
-bytes** each.  Cards are read or written in separate one-bank passes.
+A card holds **4 banks of 246 bytes**, one bank per pass.
 
-**Read sequence:**
+1. `2nd Read`/`Write` makes the ROM poll the card switch with `TST.BUSY`.
+   The switch is held active (no card); when `TST.BUSY` samples it at its
+   column, `isWaitingForCard()` becomes true.
+2. The caller calls `insertCard(data, count)`: 984 bytes = all four banks,
+   246 = one bank, 0 = a blank card to write. This releases the switch.
+3. `CRD.RD` copies a bank of the card image into `m_cardBankBuffer` (a
+   246-byte card is bank slot 0); `CRD.IN` reads it byte by byte. For a
+   write, `CRD.WR` starts and `CRD.OUT` stores `KR[11:4]` per byte.
+4. `CRD.OFF` ends the pass and ejects the card; a written bank is filed by
+   its header byte 2 (3·(bank−1)). `cardEject()` returns the bank that was
+   written, or nothing after a read.
 
-1. User presses `2nd Read` on calculator.
-2. ROM polls `TST BUSY` in a tight loop, asserting the card-switch key.
-3. `m_waitingForCard` is set when TST BUSY sees the switch at the correct digit.
-4. UI layer detects `isWaitingForCard()` and calls `insertCard(data, count)`.
-5. `insertCard` releases the card-switch key and sets `m_cardPresent = true`.
-6. ROM executes `CRD_READ` → loads the requested bank into `m_cardBankBuffer`.
-7. ROM loops `IN CRD` to read bytes; `CRD_OFF` finalises and auto-ejects.
-
-**Write sequence:** same flow, but ROM issues `CRD_WRITE` + `OUT CRD` instead.
-`cardEject()` returns only the single bank that was written.
+Bank format and the firmware's checks: `rom/TI59-ROM-Guide.md` §
+"Magnetic cards".
 
 ---
 
 ## Solid-State Library Module (TMC0540 CROM)
 
-The library module is a TMC0540 CROM: 5,000 × 8-bit key-code memory with its
-**own internal address counter**, accessed serially (half-duplex on the EXT
-line) by the CPU.  The emulator models it as `m_libData[5000]` plus the
-address counter `m_libAddr` inside `TMC0501`.
+A 5,000 × 8-bit keycode memory with its **own address counter**, read
+serially over the EXT line. Modelled as `m_libData[5000]` and `m_libAddr`
+in `TMC0501`.
 
-### Module commands (control class `0xA`, sub-decoded `0xE`)
+### Module commands (control class 0xA, low nibble 0xE)
 
-| Mnemonic | Hardware command | Effect in emulator |
+| Mnemonic | Hardware command | Effect |
 |---|---|---|
-| `LIB.IN` (IN LIB) | FETCH | `EXT = m_libData[m_libAddr++] << 4`; wraps at 5000 |
-| `LIB.HI` (IN LIB_HIGH) | FETCH HIGH | High nibble of current byte; **no** address advance |
-| `LIB.PC` (OUT LIB_PC) | LOAD PC | Digit-serial address load: `m_libAddr = m_libAddr/10 + KR[7:4]×1000`; four calls load a 4-digit BCD address, LSD first |
-| `LIB.PC.IN` (IN LIB_PC) | UNLOAD PC | Reads one BCD digit of `m_libAddr` per call (`m_libAddrReadPos` cycles 0–3); does not modify the address |
+| `LIB.IN` | FETCH | `EXT = m_libData[m_libAddr++] << 4`; wraps at 5000 |
+| `LIB.HI` | FETCH HIGH | High nibble of the current byte; no advance |
+| `LIB.PC` | LOAD PC | `m_libAddr = m_libAddr/10 + KR[7:4]·1000`; four calls load a 4-digit BCD address, LSD first |
+| `LIB.PC.IN` | UNLOAD PC | One BCD digit of `m_libAddr` per call (`m_libAddrReadPos` 0–3); no change |
 
-`m_libAddrWasWriting` tracks the read/write direction so the digit position
-counter resets when the ROM switches between LOAD PC and UNLOAD PC sequences.
-Every exec/search FETCH is preceded by a FETCH HIGH of the same byte.
+`m_libAddrWasWriting` resets the digit position when the ROM switches
+between LOAD PC and UNLOAD PC. Every fetch is preceded by a `LIB.HI` of the
+same byte.
 
 ### Module image layout
 
 ```
 0000          number of programs N (BCD)
-0001          copy-protection flag (00 = copyable, 01 = protected)
+0001          copy protection (00 = copyable, 01 = protected)
 0002+2(n−1)   2-byte BCD start address of program n
-…             2-byte BCD pointer to last keycode of program N + 1
-PRG1 … PRGS−1 key codes (one 2-digit BCD key code per byte)
-PRGS … 4999   filler key code 92 (INV SBR)
+…             2-byte BCD pointer one past the last keycode of program N
+…             keycodes (one 2-digit BCD keycode per byte)
+… 4999        filler keycode 92 (INV SBR)
 ```
 
-### How the emulator knows the current instruction
+Labels repeat across programs; the label search scans from the program
+start and never leaves the program. `Shared/ModuleImage` parses the header
+(`ModuleImage::libraryStep`).
 
-The CROM program counter lives **in the module chip**, not in SCOM[0] (SCOM[0]
-nibbles 4–7 hold the step counter for RAM programs only).  The main ROM's
-library interpreter, however, also reads the module from several different
-code sites — and only one of them represents execution:
+### The user-visible module step (`libExecPC`)
+
+The module's counter is also moved by header reads and label searches, so
+the core keeps a separate latch, `m_libExecPC`. The `LIB.IN` handler copies
+the pre-increment `m_libAddr` into it only when the fetch comes from the
+interpreter's execution site, `libExecFetchPC()`:
 
 | Main-ROM address | Purpose |
 |---|---|
-| `0x1377` / `0x137C` | Header reads (program table) |
-| `0x1390` / `0x1394` | Label search (byte-by-byte scan from program start) |
-| `0x082B` / `0x082F` | **Execution interpreter fetch** (TI-59 / TI-58) |
-| `0x081F` / `0x0823` | **Execution interpreter fetch** (TI-58C — different ROM set CD2400/CD2401/TMC0573) |
-| `0x1370`, `0x1389`, `0x12B4` | LOAD PC loops (header / search start / exec start) |
+| `1377` / `137C` | Header reads (program table) |
+| `1390` / `1394` | Label search |
+| `082B` (`LIB.HI`) / **`082F`** (`LIB.IN`) | **Execution fetch**, TI-59/58 |
+| `081F` (`LIB.HI`) / **`0823`** (`LIB.IN`) | **Execution fetch**, TI-58C |
+| `1370`, `1389`, `12B4` | LOAD PC (header / search start / execution start) |
 
-The execution-fetch address differs by variant.  `libExecFetchPC()` in `TMC0501.hpp`
-returns `0x082F` for TI-59/TI-58 (they share the same ROM) and `0x0823` for
-TI-58C.  The IN LIB handler latches the **pre-increment** value of
-`m_libAddr` into `m_libExecPC` only when the fetch comes from this
-variant-specific execution site.  Header reads and label searches —
-which a taken label-branch performs in full on every iteration — never move
-the latch, so the user-visible step holds steady during lookups.  FA/FB flag
-bits cannot discriminate exec from search fetches (verified by trace), which
-is why the fetch-site check is used.
-
-The latch starts at the sentinel `kLibExecPCNone` (0xFFFF) and is reset on CPU
-reset and on module change.  It is exposed via `TI59Machine::libExecPC()`
-(mutex-protected) and the bridge; the Swift layer resolves it to a
-program-relative step (step 000 = first keycode of the program) by parsing the
-module header table and finding the range containing the latched address.
-
-`stepUntilNextKeycode()` (the debugger's STEP) stops at the interpreter's
-step dispatch, `TMC0501::stepDispatchPC()` — `0837` (TI-59/58), `082B`
-(TI-58C) — which every executed program byte passes once, from RAM, the
-module or the constant-ROM keycode table. There the latch (module) or the
-SCOM[0] step counter (RAM, keycode table) names the byte about to execute.
-`step()` flags that point with the return bit `kStepBoundary` and latches the
-CPU state there, and on idle entry (`0624`), for the CALCULATOR debug view
-(`TI59Machine::lastStepBoundary()`); see `reference/DebugAPI.md`
-§ "Frozen-display semantics".
+So the step holds steady during label searches, which a taken label branch
+repeats in full on every pass. `fA`/`fB` cannot tell execution from search
+fetches (verified by trace), hence the address check. The latch starts at
+`kLibExecPCNone` (0xFFFF) and is reset by `reset()` and `loadLibrary()`. It
+is exposed as `TI59Machine::libExecPC()` (locked), not as a `CpuFrame`
+field, so the trace format did not change. `ModuleImage::libraryStep` turns
+it into program number and program-relative step.
 
 ### PRG SOURCE flag (SCOM[0] nibble 3)
 
-The firmware tests the flag two ways. The run loop (`07C9`), the display
-formatter (`0553`), the key epilogue (`06BD`) and the SBR launch (`0A57`)
-ask only whether it is non-zero. The step fetch tests single bits: bit 0
-(`08B7`) selects the module, then bit 3 (`0B98`) the constant-ROM keycode
-table. No code tests bits 1 or 2.
+Where the running program's steps come from. The firmware tests it two
+ways: the run loop (`07C9`), the display formatter (`0553`), the key
+epilogue (`06BD`) and the SBR launch (`0A57`) ask only "non-zero?"; the step
+fetch tests bit 0 (`08B7`, module) and then bit 3 (`0B98`, keycode table).
+No code tests bits 1 or 2.
 
 | Value | Meaning |
 |---|---|
 | 0 | Keyboard / RAM program |
-| 1 | Library program executing — CROM counter is live |
-| 2 | Inside a RTN back into a library program only: RTN writes the popped level `[2][4-digit CROM addr]` into SCOM[0] at ROM `1192`, and LIB_RETURN reloads the CROM PC via OUT LIB_PC ×4 and sets the source back to 1 at `1506`, 16 instructions later. A debugger STEP stops only at the step dispatch, after `1506`, so it never lands inside that window |
-| 2, 4, 6 (outside that window) | "Fast mode" (TI PPC). There is no fast-mode value: it is a RAM program running with a non-zero flag that selects neither the library (bit 0) nor the keycode table (bit 3). The run loop takes the sub-program path (ROM 0x07C9 → 0x08AE) and skips the per-step display rebuild and R/S/GTO polls (~40% faster, R/S no longer stops it). Labels, SBR and the keycode sub-programs (Σ+, x̄, P→R, D.MS, Op 11–15) break, because label search and the call launch treat a non-zero caller as a library program. Full list: `rom/TI59-ROM-Guide.md` § "What a fast-mode program can do". Only reachable by a quirk — see `examples/fastmode.ti59` and `rom/TI59-ROM-Guide.md` § "Fast mode" |
+| 1 | Module program; the CROM counter is live |
+| 2, inside a RTN back into a module program | RTN writes the popped level into SCOM[0] (`1192`); `LIB_RETURN` reloads the CROM PC with `LIB.PC` ×4 and sets the flag back to 1 at `1506`, 16 instructions later. A debugger STEP stops only at the step dispatch, so it never lands in this window. |
+| 2, 4, 6 elsewhere | **Fast mode**: a RAM program on the sub-program path. Only reachable through firmware bugs; see `rom/fastmode.md` and `rom/TI59-ROM-Guide.md` § "Fast mode". |
 | 3, 5, 7, 9 | Undocumented; act like 1 (bit 0 is tested first) |
-| 8 | Keycode-ROM sub-program (constant-ROM rows 16–63: Σ+, x̄/σ, Op 11–15, P→R/R→P, D.MS — listing in `rom/TI59-keycode-programs.asm`), from any caller; the SCOM PC is used (step 000–383), `m_libExecPC` holds |
+| 8 (and A, C, E) | Keycode sub-program in the constant ROM (Σ+, x̄/σ, Op 11–15, P→R/R→P, D.MS; `rom/TI59-keycode-programs.asm`); the SCOM[0] step counter (000–383) is used, `m_libExecPC` holds |
 
-The debug panel decodes the flag the same way (`ProgramSource` in
-`App/EmulatorViewModel.swift`).
+The debugger decodes the flag the same way (`cu59::programSourceFrom`,
+`Shared/ModuleImage.cpp`).
 
-Source 2 exists because a library caller cannot be pushed as source 1: source 1
-means "the CROM counter is live", and the counter is clobbered by intervening
-header/search traffic — so the saved CROM address must be restored from the
-return level before fetching resumes.
+Source 2 exists because a module caller cannot be pushed as source 1:
+source 1 means "the CROM counter is live", and header and search traffic
+clobber the counter, so the saved address must be restored from the return
+level before fetching resumes.
 
 ---
 
 ## Printer (PC-100C)
 
-The printer has a 20-character right-to-left buffer.  The ROM writes characters
-from right to left; `PRT_PRINT` reverses the buffer to produce the correct
-left-to-right reading order in `m_prnLines`.
-
-Key opcodes:
+A 20-character buffer filled right to left; `PRT.GO` reverses it into a
+left-to-right line.
 
 | Opcode | Effect |
 |---|---|
-| `PRT_CLEAR` | Reset buffer; arm the ready gate |
-| `OUT PRT` | Store one character (6-bit `PRN_CODE` index from `KR[10:4]`) |
-| `OUT PRT_FUNC` | Store a 3-character function mnemonic (reversed, from `PRN_STR` table) |
-| `PRT_STEP` | Advance buffer pointer one position (blank column) |
-| `PRT_PRINT` | Flush buffer as a line; assert `FLG_BUSY` for ~150 ms |
-| `PRT_FEED` | Output a blank line (paper advance); assert `FLG_BUSY` |
+| `PRT.CLR` | Clear the buffer; arm the ready gate |
+| `PRT.OUT` | Store one character (6-bit code from `KR[9:4]`) |
+| `PRT.FUNC` | Store a 3-character function mnemonic (`PRN_STR` table) |
+| `PRT.STEP` | Store a blank |
+| `PRT.GO` | Print the line; `FLG_BUSY` for 197.5 ms |
+| `PRT.FEED` | Blank line (paper advance); `FLG_BUSY` for 197.5 ms |
 
-`FLG_BUSY` is cleared by the `m_prnBusyCycles` countdown in `step()`.  TST BUSY
-reads `FLG_BUSY` to pace the ROM's print loop.
+197.5 ms (measured: 40 ADV lines in 7.9 s) is 2808 cycles on the TI-59 and
+2370 on the TI-58/58C, counted down in `step()`. The ~120 ms per line of
+serial transfer that a real LIST adds is not modelled.
+
+Text lines are queued at once (`drainPrinterLines()`); the dot-matrix line
+(`PrinterCodeLine`, `drainPrinterCodeLines()`) is committed when BUSY
+expires, with `rowCount` = 7. A `PRT.GO` while BUSY is the **printer
+interrupt**: the line in progress is committed with the rows printed so far
+(elapsed × 7 / total) and the new print is ignored. Firmware side and the
+1F keycode that triggers it: `rom/printerinterrupt.md`. A `PRT.FEED` during
+a print commits the pending line first, so lines keep their order.
 
 ---
 
 ## Threading Model
 
-The emulator is designed for **two threads**: an emulation thread (runs
-`step()`/`stepN()`) and a UI thread (reads display, drains printer, presses keys).
-
-Synchronisation:
+The core expects **two threads**: the emulation thread (`step()`, `stepN()`,
+`stepUntilNextKeycode()`) and a UI thread (display, printer, keys, cards,
+inspection).
 
 | Mechanism | Protects |
 |---|---|
-| `m_keyMutex` (in `TI59Machine`) | All CPU state; wraps every `step()`, key press/release, card ops, printer drain |
-| `m_displayMutex` (in `TMC0501`) | `m_display` snapshot (written by emulation, read by UI) |
-| `m_prnMutex` (in `TMC0501`) | `m_prnLines` / `m_prnCodeLines` output queues |
-| `m_traceFlags` (atomic) | Trace enable flag (lock-free on the hot path) |
-| `m_traceMutex` (in `TMC0501`) | Breakpoint list and trace ring drain |
+| `m_keyMutex` (`TI59Machine`) | All CPU, SCOM, RAM, card and printer-buffer state; every public method except those below |
+| `m_displayMutex` (`TMC0501`) | Strobe buffers and duty counters (`getDisplay()` takes only this one) |
+| `m_prnMutex` (`TMC0501`) | Printer output queues (`drainPrinterLines`/`drainPrinterCodeLines`) |
+| `m_traceMutex` (`TMC0501`) | Trace ring and breakpoint list; taken by every traced step and by `drainCpuFrames`/`readCpuFrames` |
+| atomics | `m_traceFlags`, C-indicator and poll counters, `elapsedTicks()` |
 
-`getDisplay()` is intentionally **not** covered by `m_keyMutex` — it holds its
-own finer-grained `m_displayMutex` so the UI can sample the display without
-blocking the emulation thread.
+`readROMKeycode` and `disassemble` need no lock (immutable after load /
+pure). The full lock policy is the comment above `m_keyMutex` in
+`TI59Machine.hpp`.
 
 ---
 
 ## Trace / Debug API
 
-Controlled by `TRACE_*` flags in `TraceTypes.hpp`:
+`TRACE_*` flags (`TraceTypes.hpp`) select what each `CpuFrame` records:
 
 | Flag | Cost | Content |
 |---|---|---|
-| `TRACE_PC` | Low (~10 B/event) | PC, opcode, digit, cycle weight, seqno |
+| `TRACE_NONE` | One atomic load per step | — |
+| `TRACE_PC` | Low | pc, opcode, digit, cycle weight, seqno |
 | `TRACE_REGS_LIGHT` | Medium | + KR, SR, fA, fB, R5, cpuFlags |
-| `TRACE_REGS_FULL` | High (~370 B/event) | + A–E, SCOM, Sout (full `CPUSnapshot`) |
-| `TRACE_BREAKPOINTS` | Stop-the-world | Binary-search check on every step |
+| `TRACE_REGS_FULL` | High | + A–E, SCOM, Sout, EXT, PREG, library address |
+| `TRACE_BREAKPOINTS` | Binary search per step | Stop at a ROM address |
 
-Events accumulate in a 512-entry lock-free ring.  Seqno gaps indicate ring
-overflow.  `drainTraceEvents()` is the only path that acquires `m_traceMutex`;
-the write path in `step()` is unsynchronised (emulation-thread-only).
+Frames go into a 1024-entry ring (~397 bytes each) with **post-execution
+semantics**: `beginNextStep()` patches the previous frame with the state
+after its instruction. Seqno gaps mean ring overflow; `drainCpuFrames`
+reports the lost count. Field list and the trace file:
+`reference/DebugAPI.md` § "CPU / Trace API (Layer 1)". `emitDebug()` events
+(`setDebugLevel`, `drainDebugEvents`): `reference/DebugAPI.md` § "C-core
+debug events".
 
 ---
 
@@ -689,13 +635,14 @@ the write path in `step()` is unsynchronised (emulation-thread-only).
 
 | Feature | TI-59 | TI-58 | TI-58C |
 |---|---|---|---|
-| ROM words | 6144 | 6144 | 6144 |
-| RAM registers | 120 | 60 | 60 |
-| Card reader | Yes (switch on slot 10) | No (slot 7 held high to veto the card path) | No (slot 7 held high to veto the card path) |
+| ROM | TMC0582/0583/0571B | same as TI-59 | CD2400/2401/TMC0573 |
+| Clock (instructions/s) | 14,219 | 12,000 | 12,000 |
+| IDLE weight | 4 | 4 | 1 |
+| RAM registers | 120 | 60 | 60 + E000–E003 |
+| RAM access | `RAM.OP` | `RAM.OP` | `MEMWR`/`MEMRD` |
+| Card reader | Yes (switch at digit 10) | No (digit 7 held to veto the card path) | No (same) |
+| Printer-present digit | 0 | 0 | 10 |
+| Printer BUSY | 2808 cycles | 2370 cycles | 2370 cycles |
 | Library module | Yes | Yes | Yes |
-| Persistent RAM | No | No | Yes (`serialiseRAM`) |
-| Magnetic card slot | digit 10 | — | — |
-
-**TI-58C memory instructions**: uses dedicated opcodes `0xA76` (MEMWR) and
-`0xA86` (MEMRD) instead of TI-59/TI-58's generic `RAM_OP` (`0xAF8`).
-`TMC0501.cpp` checks the machine variant to distinguish these.
+| Constant memory | No | No | Yes (`ti58c.mem` via `serialiseRAM`) |
+| Step dispatch / module fetch | `0837` / `082F` | same | `082B` / `0823` |

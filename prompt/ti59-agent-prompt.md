@@ -971,8 +971,8 @@ Output: `3.142857143   PI`
   32  x:t                55  ÷      78  Σ+     95  =
   33  x²                 58  Fix    79  x̄      97  DSZ
   34  √x                 59  Int    80  Grad   98  Adv
-  35  1/x                60  Deg    81  RST    99  Prt
-  36  Pgm                           90  List
+  35  1/x                60  Deg    90  List   99  Prt
+  36  Pgm
 ```
 
 ### Partition Table (TI-59 / TI-58C)

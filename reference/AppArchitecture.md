@@ -5,42 +5,33 @@
 > iterative human testing and feedback; the AI produced code and documentation
 > to meet those specifications.
 
-This document covers the Swift application layer (`App/`, `Bridge/`) and how it
-connects to the C++ emulation core.
+The Swift app (`App/`, `Bridge/`) for macOS and iOS/iPadOS. It is a renderer
+over `Shared/SessionController`; everything that isn't drawing — the run
+loop, keys, presets, cards, the printer strip, the debugger, the rules the
+views draw with — is in `Shared/` and documented in `SharedArchitecture.md`.
 
 ---
 
 ## Layer Overview
 
 ```
-Calc-U-59App                 (app entry point, scene lifecycle)
-└─ CalculatorView            (root view: adaptive layout, toolbar, alerts)
-    ├─ KeyboardView          (calculator image + gesture hit-test + LED overlay)
-    │   └─ LEDDisplayView    (7-segment Canvas renderer)
-    ├─ PrinterView           (paper strip: dot-matrix or text; clipboard export)
-    ├─ CardPickerView        (modal sheet: card file load/save)
-    └─ DebugView             (register/SCOM/program dump panel)
+CalcU59App                    (Calc-U-59App.swift: scene, background/active, macOS Settings + About)
+└─ CalculatorView             (adaptive layout, toolbar, card bar, file importer, alerts)
+    ├─ KeyboardView           (calculator art, hit test, LED + cue-card overlays, physical keys)
+    │   ├─ LEDDisplayView
+    │   └─ CueCardView
+    ├─ PrinterView            (paper strip, PRINT / T / ADV, copy, cut)
+    ├─ CardPickerView         (card load / save sheet)
+    ├─ DebugView              (CALCULATOR / CPU / LOG tabs)
+    │   ├─ LiveDebugView      (CALCULATOR)
+    │   ├─ CPUInspectorView   (CPU, with the ROM heatmap) + ASMDebugContent
+    │   └─ StaticDebugContent (LOG)
+    └─ SettingsView
 
-EmulatorViewModel (@Observable)
-├─ TISessionController       (ObjC++ bridge → Shared/SessionController: machine,
-│   │                         presets, cards, printer, cue card, debugger, traces)
-│   └─ EmulatorSession       (C++: run loop thread, freezes, key sequencer,
-│       │                     frame sampler, trace writers)
-│       └─ TI59Machine       (C++ core, see CoreArchitecture.md)
-├─ PlatformForwarder         (TIPlatform: main thread, ti58c.mem, card files,
-│                             trace location, settings, alerts, changes)
-└─ displayTimer              (60 Hz main-thread Timer → controller.tick())
-
-Support files:
-├─ MachineModel.swift        (enum: TI-59 / TI-58 / TI-58C variant)
-├─ ROMLoader.swift           (bundle file access: ROM text dumps, cuecards.txt)
-└─ CardStorage.swift         (iCloud / local card file storage)
-
-Shared/ (C++, used by this app via Bridge/ and by the Qt6 app):
-├─ SessionController — everything that isn't drawing (see SharedArchitecture.md)
-├─ data tables — keyboard map, 7-segment patterns, PC-100C font,
-│  canvas/key layout, per-model facts, settings keys
-└─ view rules — cue-card geometry, LED geometry, printer geometry, debug text
+EmulatorViewModel (@Observable, main thread)
+├─ TISessionController        (Bridge/ → Shared/SessionController)
+├─ PlatformForwarder          (TIPlatform: files, trace location, settings, alerts, changes)
+└─ displayTimer               (60 Hz Timer → controller.tick())
 ```
 
 ---
@@ -49,467 +40,105 @@ Shared/ (C++, used by this app via Bridge/ and by the Qt6 app):
 
 | File | Role |
 |---|---|
-| `Calc-U-59App.swift` | App entry; persists TI-58C constant memory on scene background/inactive |
-| `MachineModel.swift` | Variant enum with hardware-specific metadata (card-switch col, RAM limits) |
-| `EmulatorViewModel.swift` | The `@Observable` face of `Shared/SessionController`: implements its platform, runs the 60 Hz timer, copies changes into observable properties |
-| `ROMLoader.swift` | Supplies the bundled ROM / module `.txt` files and `cuecards.txt` |
-| `CardStorage.swift` | Resolves the card file URL in the iCloud container (or local Documents) and provides atomic read/write |
-| `CueCardContent.swift` | SwiftUI-facing cue card value type and its `TICueCard` conversion (parsing/encoding: `Shared/CueCard`) |
-| `Bridge/TISessionController.{h,mm}` | ObjC++ face of `Shared/SessionController`, its `TIPlatform` protocol and the debug panels' value objects |
-| `Bridge/TITypes.h` | C mirrors of the Core display snapshot and CPU frame |
-| `Bridge/BridgeConvert.h` | ObjC++-only string/data/frame conversions shared by the wrappers |
-| `Bridge/TISharedTables.{h,mm}` | ObjC++ face of the `Shared/` data tables (keyboard map, 7-segment patterns, printer font, key layout, model facts) |
-| `Bridge/TIFileFormats.{h,mm}` | ObjC++ face of the cue-card model, cuecards.txt's module list and the card pickers' file names |
-| `Bridge/TIViewRules.{h,mm}` | ObjC++ face of the `Shared/` view rules (cue-card, LED and printer geometry, heatmap colours, debug text) |
-| `Bridge/TISettings.{h,mm}` | ObjC++ face of `Shared/SettingsKeys.hpp` |
-| `Bridge/Calc-U-59-Bridging-Header.h` | Swift bridging header; imports every wrapper |
-| `Views/CalculatorView.swift` | Root view; adaptive layout (portrait/landscape/macOS); card picker sheet; state file import |
-| `Views/KeyboardView.swift` | Overlays a `DragGesture` on the calculator image; normalised-coordinate hit testing; haptics |
-| `Views/LEDDisplayView.swift` | Renders 12 7-segment digits via SwiftUI `Canvas`; applies glow/bloom and an 8° slant |
-| `Views/PrinterView.swift` | Scrolling paper strip in dot-matrix or text mode; hardware PRINT/ADV buttons; clipboard copy |
-| `Views/CardPickerView.swift` | Load/Save sheet listing `.u59`/`.bin` files in the card directory |
-| `Views/DebugView.swift` | Monospaced debug output panel; Vars/SCOM/Prog dump buttons |
+| `Calc-U-59App.swift` | App entry; suspends on background, resumes on active; macOS Settings scene and About panel |
+| `EmulatorViewModel.swift` | The `@Observable` face of `SessionController`: forwards actions, runs the 60 Hz timer, copies what `changed` names into observable properties; `PlatformForwarder`; Swift mirrors of the debug snapshot and `ProgramSource` |
+| `MachineModel.swift` | Model enum (raw values match `cu59::Model`) |
+| `ROMLoader.swift` | `ResourceReader` over the app bundle; `cuecards.txt` text and module list |
+| `CardStorage.swift` | Card folder: iCloud Documents container, else local Documents |
+| `AppSettings.swift` | UserDefaults keys and resolution: shared keys from `TISettings`, plus the Swift-only trace location, keyboard feedback and portrait debug page |
+| `AppInfo.swift` | Version and About panel content |
+| `CueCardContent.swift` | Swift cue-card value type and its `TICueCard` conversion |
+| `Views/CalculatorView.swift` | Root view; macOS side-by-side and iOS portrait-page layouts; Reset / Clean (Cmd held; iOS: 1 s long press); preset and ASM file importer; UI-test hooks (`--UITesting`) |
+| `Views/KeyboardView.swift` | Calculator art, hit test (`TISharedTables.keyIndex`), pressed-key effect, hold display for full speed, haptics / click, `PhysicalKeyboardModifier` (macOS) |
+| `Views/UIKitTouchTracking.swift` | iOS raw-touch tracker that replaces `DragGesture` for keys (iOS 27 fires `onEnded` early) |
+| `Views/LEDDisplayView.swift` | 12-digit LED in a SwiftUI `Canvas` |
+| `Views/CueCardView.swift` | Cue card on its template art |
+| `Views/PrinterView.swift` | Paper strip, dot or text view; copy and cut |
+| `Views/CardPickerView.swift` | Card files in the card folder |
+| `Views/DebugView.swift` | Debug tabs; `ASMDebugContent`; LOG tab (`StaticDebugContent`) |
+| `Views/LiveDebugView.swift`, `Views/CPUInspectorView.swift` | CALCULATOR and CPU tabs |
+| `Views/HoldRepeatButton.swift` | Fires on press, repeats every 0.25 s while held (STEP) |
+| `Views/ChromeControlStyles.swift` | Dark chrome button and menu styles |
+| `Views/SettingsView.swift` | Startup calculator, module, keyboard feedback, portrait debug page, segment style, trace location and size |
 
 ---
 
-## Threading Model
+## Threading
 
 | Thread | What runs there |
 |---|---|
-| **Main thread** | SwiftUI rendering, the 60 Hz `controller.tick()`, every `SessionController` call, all mutations to `@Observable` properties |
-| **Emulation thread** (`Shared/EmulationRunner`, one per session) | The paced run loop, plus every job the session posts — freeze-to-keycode, single steps, state-file application, ASM overlay entry — always after the loop has exited |
-| **Key sequencer threads** (`Shared/KeySequencer`) | KEYSTROKES playback and physical-keyboard taps (two independent lanes), deferred key releases |
-| **global/utility** | `CardStorage.warmUp()` — `url(forUbiquityContainerIdentifier:)` blocks and returns nil if called on the main thread |
+| Main | SwiftUI, the 60 Hz `tick()`, every `TISessionController` call, `PlatformForwarder` callbacks, all `@Observable` writes |
+| `Shared/` threads | Emulation thread, key sequencer lanes and timer (`SharedArchitecture.md` § "Threads") |
+| Global utility queue | `CardStorage.warmUp()` before the first machine starts — `url(forUbiquityContainerIdentifier:)` blocks and returns nil on the main thread |
+| Global background queue | Writing `ti58c.mem` (iCloud writes can block) |
 
-Session events (freeze fired, frozen view ready, held key, full speed,
-playback start/end, log lines) arrive on the session's threads;
-`SessionController` hops them to the main thread (`dispatch_async` in
-`TISessionController`), where they reach the view model as `changed(_:)`.
-`ti58c.mem` is encoded on the main thread and written on a background queue.
+`TISessionController` implements `runOnUiThread` with
+`dispatch_async(dispatch_get_main_queue())`. The view model holds an App Nap
+activity token for its lifetime, so macOS never stalls the emulation thread
+while the window is hidden.
 
-`TI59Machine`'s `m_keyMutex` makes C++ state thread-safe; the Swift layer does
-not need its own lock.  Display snapshots and printer output each have their own
-finer-grained mutexes in C++ so the emulation thread and `tick()` don't block
-each other unnecessarily.
+### 60 Hz refresh
 
----
+`startDisplayRefresh()` adds a 1/60 s `Timer` to the main run loop (common
+modes) that calls `controller.tick()`. Changes arrive through
+`TIPlatform.changed(_:)`; `apply(_:)` reads only the named values and
+assigns a property only when it differs, because `@Observable` notifies on
+equal writes too.
 
-## Emulation Loop and Timing
-
-```
-Target:  14,218.75 instructions/sec  (455 kHz ÷ 2 ÷ 16, same as hardware)
-Batch:   ~284 cycles every 20 ms     (targetHz × batchMs)
-```
-
-The run loop is shared C++ (`Shared/EmulationRunner.cpp` + `Shared/Pacing.cpp`),
-started by the session:
-
-1. Call `step()` repeatedly, accumulating the returned cycle weights.
-2. When accumulated weight ≥ 284 cycles, subtract 284 (carry over overshoot to
-   the next batch rather than resetting to zero — this prevents long-term drift).
-3. Sleep until the batch's deadline — skipped at full speed unless the CPU is
-   in the scan/key-detect range or the batch polled hardware. Deadlines are
-   absolute (each one 20 ms after the previous), so oversleep and the
-   `batchDone` callback are paid back in the next batch; a stall over 100 ms
-   or a full-speed batch restarts the schedule. Timing each batch from a fresh
-   `now()` instead runs about 17% slow on macOS (`runner_keeps_real_time` in
-   `tests/shared_runtime_tests.cpp`).
-
-`step()` returns its cycle weight in bits 29:0, sets bit 30 for a confirmed
-hardware poll (a key or card-switch wait; not a printer-only BUSY wait, whose
-length is counted in emulated cycles, so full speed speeds up printing) and bit 31 if a breakpoint was hit (Core breakpoints are set only by the headless
-tools; the loop just stops).  When an armed freeze (`Shared/FreezeController`)
-fires, the loop stops and the session applies the freeze before reporting it.
-
----
-
-## 60 Hz Display Refresh (tick)
-
-`startDisplayRefresh` creates a `Timer` on the main run loop that calls
-`controller.tick()` (`Shared/SessionController.cpp`) every 16 ms. One tick:
-
-1. **Frame** (`Shared/FrameSampler.cpp`): the display — each position's
-   glyph with its brightness from the core's duty cycles through
-   `Shared/DisplayPov` (persistence of vision) — the C indicator's smoothed
-   opacity, printer text and dot lines, core log messages at or below the
-   debug level, and card auto-eject (the core executed `CRD_OFF`; written
-   data is saved).
-2. **Debugger** (`Shared/DebugModel.cpp`): the CALCULATOR snapshot while its
-   panel shows and the machine runs; the heatmap and running CPU history
-   while the CPU panel shows (or frozen).
-3. **Traces**: the trace ring drained into the open writers.
-4. **Slower checks**: the cue card's library program (2 Hz), the LOG text
-   (1 Hz), the TI-58C persist (0.5 s after a batch ran).
-
-The controller then reports what changed; the view model assigns only the
-values that actually changed (guarding prevents 60 Hz re-renders).
-
----
-
-## Key Input Coordinate Systems
-
-Three coordinate spaces are involved; each layer translates between them:
-
-| Layer | Coordinate meaning |
-|---|---|
-| `KeyboardView` | Visual row 0–8, col 0–4 (0-indexed from top-left of image) |
-| `EmulatorViewModel.pressKey(row:col:)` | Adds 1 to each: `cu59::matrixCode(row, col)` = `(row+1)*10 + (col+1)`, sent to the session |
-| `cu59::pressMatrix` (`Shared/KeyMatrix.hpp`) | Matrix code = row×10 + col (range 11–95); decodes back to row/col |
-| `TI59Machine.pressKey(kbit, digitSlot)` | kbit = K-line bit index (`kKBits[]` table); digitSlot = digit-counter column |
-| `TMC0501.key[]` | `key[digitSlot] \|= (1 << kbit)` — the final hardware bitmask |
-
-The `kKBits` table in `Shared/KeyMatrix.hpp` maps physical column (1–5) to
-K-line bit index: `{0, 1, 2, 3, 5, 6}` (skipping bit 4 which is the
-card-detect line, and bit 0 which is unused — hardware layout).
-
----
-
-## Physical Keyboard Mapping
-
-Computer keyboards drive the calculator on the two computer-facing builds: the
-macOS app (`Shared/KeyboardMap.cpp` + `KeyboardView`'s
-`PhysicalKeyboardModifier`), the Qt6 desktop app (the same `Shared/KeyboardMap.cpp`) and the embedded web calculator at `docs/#play`
-(`docs/keyboard-map.js` + `docs/PlayCalculator.jsx`). **iOS/iPadOS, and the
-standalone web app at `docs/app/`, deliberately have no keyboard input.** The
-debugger and printer panels have none either — on macOS all panels are visible
-at once, so Space (R/S vs. STEP) and ⌘C/⌘X (printer tape vs. selected debugger
-text) have no unambiguous owner.
-
-This section is the source of truth; the Swift and JS tables are two hand-ported
-copies of it (see `reference/NewGUIGuide.md` § "Known Duplication Traps").
-Values are **matrix codes**, as in the table above.
-
-### What is bound, and what is not
-
-**26 of the 45 keys are bound, deliberately**: the white (digit) keys, the
-yellow keys *except 2nd*, the A–E function keys, and EE / `(` / `)`. Everything
-else — **2nd, INV, lnx, CE, LRN, x⇄t, x², √x, 1/x, SST, STO, RCL, SUM, yˣ, BST,
-GTO, SBR, RST, R/S** — is pointer-only on purpose. Do not "complete" the table
-without asking; the omissions are the design, not an oversight.
-
-A consequence worth knowing: with 2nd unbound, the *only* second function
-reachable from a keyboard is A′–E′, via the Shift rule below.
-
-### The three rules
-
-1. **A binding may resolve to one or two matrix codes.** 2nd functions are not
-   bound as codes of their own — they are reached as on hardware, by pressing
-   2nd and then the key.
-2. **Shift + letter is shorthand for "2nd, then that letter's key."** Only
-   `a`–`e` are bound, so this fires nowhere else: it gives A′–E′ from
-   `Shift+A`…`Shift+E`.
-3. **Shift is not a 2nd prefix for non-letters**, which resolve on the character
-   the keyboard produced: `Shift+.` is `>` → EE and `Shift+,` is `<` → +/−.
-   This is also what makes the shifted symbols work — on a US layout `*`, `(`,
-   `)` and `+` are all Shift-something.
-
-Lookup goes through the produced character, never a physical scan code, so a
-non-US layout works wherever it puts these characters.
-
-### The table
-
-| Keyboard | TI key | Matrix | | Keyboard | TI key | Matrix |
-|---|---|---|---|---|---|---|
-| `0`–`9` | 0–9 | 92 82 83 84 72 73 74 62 63 64 | | `Escape` | CLR | 25 |
-| `.` `,` | . | 93 | | `/` | ÷ | 55 |
-| `<` | +/− | 94 | | `*` `x` | × | 65 |
-| `a`–`e` | A–E | 11–15 | | `-` | − | 75 |
-| `A`–`E` (Shift) | A′–E′ | 21 + 11–15 | | `+` | + | 85 |
-| `>` | EE | 52 | | `=` `Return`/`Enter` | = | 95 |
-| `(` `)` | ( ) | 53 54 | | | | |
-
-Numeric-keypad keys need no entries of their own — they produce the same
-characters as their main-block counterparts. `x` is bound to × as well as `*`
-so a keyboard without a numpad doesn't need `Shift+8` for every
-multiplication; nothing else claims `x`, since EE is on `>` and `e` belongs to
-the E user key.
-
-### Injection timing
-
-Both implementations obey `ideas/KeypressLatch.md`: `key[]` is a wire level, not an
-event, and the ROM only accepts a key seen at two scans one display sweep
-apart. A release that lands too early is discarded as bounce.
-
-- A press is held a **minimum** hold time even if key-up arrives sooner — the
-  release is deferred, not dropped. Without this, fast typing loses keys.
-  100 ms in the apps (`Shared/KeySequencer.cpp`, shared with KEYSTROKES
-  script playback); 80 ms hold + 120 ms gap on the web, matching
-  `calc-engine-worker.js`'s KEYSTROKES replay.
-- **One key at a time.** A key-down while another is held releases the previous
-  one first — the hardware rejects chords anyway.
-- **OS auto-repeat is ignored** (SwiftUI `KeyPress.Phases.repeat` is not
-  subscribed; JS checks `event.repeat`). The matrix bit is a level, so a held
-  key can never re-trigger and repeats would only produce spurious releases.
-- A two-code (2nd-prefixed) binding is **one logical action played back as two
-  full taps** — key-up is ignored for it, because the ROM has to see 2nd
-  released and re-scanned before the second key can be accepted.
-
-### Focus scoping
-
-Keys are only claimed while the calculator has focus, on both platforms.
-
-- **macOS**: the Mac window shows calculator, printer and debug panels side by
-  side. `KeyboardView` takes focus on appear and reclaims it whenever the
-  calculator is touched, so typing works at launch with nothing to select
-  first. `CPUInspectorView` therefore takes focus on click rather than on
-  appear — it used to grab first responder in `onAppear`, which would divert
-  every keypress away from the calculator. **There is no focus indicator**, by
-  decision: focus scoping here is a stepping stone, and the Mac is meant to end
-  up with one unified input surface where every key has exactly one meaning and
-  focus stops mattering (the three panels only stay separate because iPhone
-  portrait swipes between them — see `TODO.md` § UI). The live consequence is
-  that clicking into the debug panel silently stops keys reaching the
-  calculator, with nothing on screen to explain it.
-- **Web**: the container is `tabIndex=0` with a golden outline, focused on
-  pointer-down (with `preventScroll`, or the calculator scrolls into view
-  mid-click and the key moves out from under the pointer). Not auto-focused on
-  mount — `#play` is a long article, and Tab must keep working as Tab rather
-  than trapping the reader inside the keypad.
-
----
-
-## Card Reader Flow
-
-```
-1. User presses "2nd Read" or "2nd Write" on the calculator keyboard.
-2. ROM enters a TST BUSY polling loop; C++ sets isWaitingForCard = true.
-3. The UI shows the card picker (load) or inserts a blank card (write).
-4. EmulatorViewModel.insertCard(from:) or insertBlankCard(savingTo:) hands
-   the file to SessionController, which calls machine.insertCard(data) —
-   this releases the card-switch key in C++, waking the ROM from its wait loop.
-5. ROM executes CRD_READ + IN CRD (read) or CRD_WRITE + OUT CRD (write).
-6. At the end of the pass, ROM executes CRD_OFF — C++ auto-ejects the card
-   (sets isCardPresent = false, restores card-switch key).
-7. tick() sees the auto-eject and calls ejectCard(), which collects any
-   written bytes and saves them through the platform's writeCard.
-```
-
-Card file format (`.U59`): written as text ("Calc-U-59 Card 1.0", see
-`Shared/CardFile.hpp`). Still read: the binary layout with the 13-byte
-`Calc-U-59-CRD` header + 246 bytes, and legacy headerless 246 / 984-byte files.
-
----
-
-## State File Loading (`.ti59` / `.ti58`)
-
-`SessionController::loadStateFile` performs a **non-interactive load** — it
-writes state directly to RAM without simulating key presses (except for the
-optional `KEYSTROKES:` section):
-
-```
-1. UTF-8 check; prescanStateFile (MODEL:, SKIP-RESET:); parseStateFile with the
-   target model's limits — parse errors are reported, the load continues.
-2. MODEL: names another model → startMachine(target) first (synchronous).
-3. Partition check (stateFilePartitionError).
-4. Stop the loop, clearFreeze(), session.sync { cu59::applyState(...) }
-   (Shared/StateApplier.cpp):
-   a. machine.reset()
-   b. stepN(300_000)                      ← run ROM's power-on startup routine to idle
-   c. setPartitionProgramRegs(n)          ← write partition directly into SCOM
-   d. clear RAM (TI-58C: keep extra registers 60–63)
-   e. writeProgram(data)                  ← zero-padded to the model's physical capacity
-   f. writeDataRegister / writeRAMReg     ← each register (H registers → raw RAM 60–63)
-5. Heatmap baseline, start the loop, cut the paper.
-6. SOLID-STATE-MODULE:, PRINTER:, the cue card — then persist ti58c.mem.
-7. Play KEYSTROKES: (if present).
-```
-
-SKIP-RESET: writes only the partition (if explicit), program and registers,
-and logs the sections it ignores (MODEL:, SOLID-STATE-MODULE:, PRINTER:) to
-the LOG tab.
-
-The ROM's startup routine clears RAM and initialises SCOM; skipping it leaves
-stale flags that confuse display and AOS. `stepN(300_000)` is a conservative
-upper bound; the startup routine always completes well within this.
-
-`Shared/Bcd.hpp`'s `encodeBcd` converts a `REGISTERS:` literal to the
-16-nibble TI-59 BCD register format (see `CoreArchitecture.md` for the layout).
-
----
-
-## TI-58C Constant Memory
-
-The TI-58C has CMOS RAM that retains its contents when powered off.  The app
-emulates this by serialising the full 120×16-byte RAM to a file (`ti58c.mem`)
-in the same iCloud/local directory as card files.
-
-```
-Machine start:   ROM power-on routine, then the saved RAM restored
-                 (cu59::powerOn), so startup code can't overwrite it.
-
-While running:   0.5 s after a run-loop batch, ti58c.mem is rewritten if its
-                 contents (RAM and the user's cue card) changed.
-
-Scene background / inactive, model switch, preset load:
-                 written at once.
-
-Clean reset:     RAM zeroed, reset, written at once.
-```
+On `.background` the app calls `controller.suspend()` (persists `ti58c.mem`,
+stops the loop) and stops the timer; on `.active` it restarts both. A debug
+freeze survives.
 
 ---
 
 ## Bridge Layer
 
-The wrappers are thin: no logic beyond type translation.  Notable mappings:
+The wrappers translate types only. `Bridge/Calc-U-59-Bridging-Header.h`
+imports the public ones.
 
-**Session controller** — `TISessionController` owns a `cu59::SessionController`
-and adapts its `Platform` to the Swift `TIPlatform` protocol (held weakly).
-Its value objects (`TILiveDebugSnapshot`, `TIStepEntry`, `TIInspectorEntry`,
-`TIPrinterLine`) are built on demand when the view model reads them after a
-change.
+| Wrapper | Wraps |
+|---|---|
+| `TISessionController.{h,mm}` | `SessionController`; its `Platform` as the `TIPlatform` protocol (held weakly); `TIChange` = `Change` bits; value objects `TILiveDebugSnapshot`, `TIStepEntry`, `TIRegEntry`, `TIInspectorEntry`, `TIPrinterLine`, built when Swift reads them after a change |
+| `TISharedTables.{h,mm}` | `KeyboardMap`, `SevenSegment`, `PrinterFont` (font rows), `KeyboardLayout`, `KeyMatrix` |
+| `TIViewRules.{h,mm}` | `CueCard` (spans, geometry, inks), `LedGeometry`, `PrinterFont` (`PrinterGeometry`), `RomHeatmap`, `ModuleImage` (program source), `DebugText` |
+| `TIFileFormats.{h,mm}` | `TICueCard`, card file names (`CardFile`), `cuecards.txt` module list (`ModuleCatalog`); `TIResourceReader` |
+| `TISettings.{h,mm}` | `SettingsKeys` |
+| `TITypes.h` | `TIDisplaySnapshot` (mirrors `LedFrame`: glyph, control nibble and brightness 0–255 per digit and decimal point) and `TICpuFrame` (mirrors `CpuFrame`) |
+| `BridgeConvert.h` | ObjC++-only: string / data conversions; `static_assert`s that `TICpuFrame` matches `CpuFrame` field for field, so a frame converts with one `memcpy` |
+| `TIFileFormats+Cpp.h` | ObjC++-only: `TICueCard` ↔ `CueCardContent` |
 
-**Display snapshot** — `TIDisplaySnapshot` (`Bridge/TITypes.h`) mirrors
-Shared's `LedFrame`: glyphs plus a brightness 0–255 per digit and decimal point.
-
-**CPU frames** — `TICpuFrame` mirrors `CpuFrame` field for field; the layout is
-`static_assert`ed in `Bridge/BridgeConvert.h` (with the shared `ns`/`cpp`/`bytes`
-helpers), so a frame converts with one `memcpy`.
-
-**Matrix key decode** — the session's key input calls `cu59::pressMatrix`
-(`Shared/KeyMatrix.hpp`): `code / 10` → digit-counter slot, `code % 10` →
-physical column → K-line bit via `kKBits[]`.
-
+Never import the two ObjC++-only headers from the bridging header.
 
 ---
 
-## Solid-State Program Display
+## Swift-specific details
 
-`ProgramSource` (top of `EmulatorViewModel.swift`) decodes the firmware's PRG
-SOURCE flag (SCOM[0] nibble 3, see `reference/CoreArchitecture.md`) the way
-the ROM tests it, using the flag and the CPU PC (`cu59::programSourceFrom` in `Shared/ModuleImage.cpp`):
-bit 0 set → `solidState`; else bit 3 set → `rom`; 0 → `userProgram`; 2 with the
-CPU inside the RTN → LIB_RETURN window (ROM 1193–1194, 14F9–1506, the same on
-every variant) → `solidStateReturn`; any other 2, 4 or 6 → `fastMode`. The
-snapshot keeps the raw value in `prSourceFlag` and the decoded one in
-`programSource`. The debug panel shows the raw value for fast mode and for
-undocumented values.
+**Keys.** `KeyboardView` hit-tests in normalised canvas coordinates and calls
+`pressKey(row:col:)` with the 0-based grid position; the view model converts
+it with `TISharedTables.matrixCode(row:col:)`. On iOS, key touches go through
+`UIKitTouchTracker`; macOS keeps `DragGesture(minimumDistance: 0)`.
+Physical keys (macOS only) go through `PhysicalKeyboardModifier`, which
+subscribes to `.down` and `.up` only (dropping auto-repeat) and releases the
+held key when focus is lost. Mapping, timing and focus rules:
+`SharedArchitecture.md` § "Physical Keyboard Mapping".
 
-Solid-state (library module) programs are shown live in the PROGRAM STEPS view:
+**LED.** `LEDDisplayView` draws each cell in a `Canvas` with the shared
+segments and shear, the glow and bloom as blurred copies under the crisp
+fill, each at the cell's `LedFrame` brightness. Rules:
+`SharedArchitecture.md` § "LED Display Rendering".
 
-- `cu59::ModuleImage::parse` (`Shared/ModuleImage.cpp`) parses the module header into `programRanges` (program *n*, 1-based = `programRanges[n-1]`); `Shared/DebugModel` re-parses it whenever the machine or module changes.
-- `ModuleImage::libraryStep()` maps the core's latched `libExecPC` (`0xFFFF` = none) to `(program, step, range)`. Steps are **program-relative**: step 000 = first keycode of that program.
-- Frozen view: the full listing of the program being run, rebuilt on every freeze and keycode step (`Shared/DebugModel`).
-- The current Pgm number also lives in SCOM[9] digits 4 (tens) / 3 (units); the latch-derived program is cross-checked against it (mismatches debug-logged).
-- **PRG SOURCE = 2** ("Solid State Return (PC Reload)"): a transitional state inside a RTN back into the module (16 instructions between ROM 1192, where RTN writes SCOM[0], and 1506). A debugger STEP stops only at the step dispatch, after it, so only a running snapshot can catch it; the previous listing is then kept (`DebugModel::rebuildLive`). During this step SCOM[0] nibbles 4–7 hold a raw CROM address, **not** a step number — never decode it as one.
-- Colors: solid-state steps highlight blue; return-stack levels with source 2 show purple, like library levels.
+**Cue card.** `CueCardView` places the artwork `Image(template)`, then text
+at the frames and font sizes `TIViewRules` returns, with `.lineLimit(1)`.
+Rules: `SharedArchitecture.md` § "Cue Card Rendering".
 
----
+**Printer.** Dot view (`PrinterDotLine`, PC-100C proportions from
+`TIViewRules`) or selectable text. Copy renders the strip with
+`ImageRenderer` at the shared copy scale and puts text plus the image on the
+pasteboard (macOS: `NSImage`; iOS: PNG). Cut copies, then clears the strip;
+`printerClearID` resets the text view's identity to drop a selection.
 
-## ROM Loading
-
-`ROMLoader` loads the ROM from individual chip `.txt` files bundled with the app.
-Each file has a plain-text header block terminated by `---`, followed by data lines
-in the format `AAAA: WWWW WWWW …` (4-digit hex address, then 13-bit opcode words).
-`parseRomTxt` (`Shared/RomLoader.cpp`) strips the header, parses the data lines, and masks each
-word to 13 bits (`& 0x1FFF`).
-
-| Model | Chip files | Address range |
-|-------|-----------|---------------|
-| TI-59 / TI-58 | `TMC0582.txt`, `TMC0583.txt`, `TMC0571B.txt` | 0x0000–0x17FF |
-| TI-58C | `CD2400.txt`, `CD2401.txt`, `TMC0573.txt` | 0x0000–0x17FF |
-
-Constants (the 64 × 16-nibble SCOM constant table) are loaded separately from
-`*-CONST-K.txt` files via `ROMLoader.loadConstants` and fed to
-`wrapper.loadConstants`.
-
-Two sentinel values validate the TI-59 ROM image:
-- `words[0]   == 0x0A01` — first opcode (`CLR IDL` at address 0)
-- `words[6143] == 0x1987` — last opcode (also encodes the chip revision year)
-
-The module library (ML01, e.g., `ML01-MasterLibrary.hex`) is loaded by `ROMLoader.loadModuleLibrary()`
-and fed to `wrapper.loadLibrary()`, populating the CPU's 5,000-byte library module
-buffer.
-
----
-
-## LED Display Rendering
-
-`LEDDisplayView` is a SwiftUI `Canvas` that draws 12 digit positions left to
-right (display position 0 is the leftmost = most significant).  The CPU's
-`A[2..13]` array maps to positions 11→0 (MSD→LSD as stored, reversed for
-display).
-
-Each digit is drawn with a ~8° italic slant via a `CGAffineTransform` shear.
-Decimal point is drawn separately without the shear so it stays at the digit
-boundary.
-
-Active segments get two passes — a blurred glow and a sharper bloom — plus the
-final opaque fill, giving the characteristic LED phosphor appearance.
-
-The segment patterns (`Shared/SevenSegment.hpp`), the segment shapes of both
-styles, the decimal point, the slant, colours and glow radii
-(`Shared/LedGeometry.hpp`) are shared with the Qt6 app's `LedRenderer`, which
-draws the glow by box-blurring an offscreen layer; only the drawing calls
-differ.
-
-Zero suppression logic mirrors the hardware display driver: leading zeros are
-blanked unless the digit is immediately left of the decimal point (guarded by
-`dpPos`), or the digit position has a control nibble (`ctrl ≥ 8`) that forces
-display.
-
----
-
-## Cue Card Rendering
-
-`CueCardView` renders a `CueCardContent` (field grammar for authoring one in a
-state file's `CUECARD:` section is in `reference/StateFileFormat.md`, not
-here — this section covers rendering only) onto one of three background
-images, selected by `template`:
-
-| Template | Background | Text color | Dividers | ID field |
-|---|---|---|---|---|
-| `CueCard` | `CueCard.imageset` | black | no | no |
-| `MagnetCard` | `source-material/MagnetCard.svg` | black | no | no |
-| `SolidStateCard` | shares `CueCard` art | gold `#C49223` | yes | yes, top-right |
-
-Each template has its own set of fractional layout constants (title Y
-position, grid row Y positions, per-column X positions, font sizes) sized
-against the background image's own dimensions, defined in
-`Shared/CueCard.cpp` (`cueCardLayout`) and shared with the Qt6 app's
-`CueCardRenderer` — read those directly for exact numbers.
-
-Two title-independent algorithms drive the two content rows (label grid vs.
-free `Row1`/`Row2`/`Row2R` text, selected per the field grammar linked above):
-
-- **Column-span merging** (`Shared/CueCard` `labelSpans`, `dividersBetween`). A grid row is 5 label cells. A cell holding the
-  `\blank` sentinel (a zero-width space) doesn't render on its own — it
-  extends the *preceding* non-blank cell's span to cover it, so one label can
-  visually occupy multiple key positions. `MagnetCard` always draws the full
-  5-cell framework (with dividers) even when every cell is empty, since its
-  card artwork shows that grid unconditionally; `SolidStateCard` only draws
-  cells that end up with content.
-- **Shrink-to-fit font sizing** (`Shared/CueCard` `cellFittingFontSize`). Each grid row picks one font size shared by
-  all its cells, shrunk down from the template's base size (never below 40%
-  of it) just enough that the widest cell's text fits on one line — never
-  wrapped, never overflowing into the next row. Free-text rows (`Row1`/`Row2`/
-  `Row2R`) use single-line truncation instead, since they're one string, not
-  independently-sized cells.
-
-`docs/cuecard.jsx` is a from-scratch React port of this same view for the web
-build (`docs/#play`) — worth reading as a second, independently-built example
-of these same rules, including the places it deliberately diverges (DOM-measured
-shrink-to-fit instead of Swift's analytic character-width formula, CSS ellipsis
-instead of `.lineLimit(1)`, and dropping `MagnetCard`'s bank badges as
-non-load-bearing). The web build can't use `Shared/` (it is JavaScript), so it
-keeps its own port; see `reference/NewGUIGuide.md`.
-
----
-
-## Printer Rendering
-
-`PrinterView` has two display modes toggled by the header button:
-
-- **Dot mode** (`PrinterDotLine`): renders each character as a 5×7 dot grid
-  using `kPC100CFont` (`Shared/PrinterFont.hpp`), scaled to physically accurate PC-100C dimensions
-  (dot pitch ≈ 0.430 mm).  The geometry is derived from measurements of a real
-  unit and documented in `PrinterView.swift`.
-
-- **Text mode**: plain monospaced `Text` with `.textSelection(.enabled)` for
-  copy-paste.
-
-The **Copy** button renders the entire paper strip at 600 DPI using
-`ImageRenderer` (physical size preserved, high DPI for laser printing) and
-writes both `text/plain` and `image/tiff` (macOS) or `image/png` (iOS) to
-the clipboard simultaneously.  The **Scissors** button copies then clears the
-paper strip (`printerClearID` is incremented to reset the `Text` view identity
-and drop any active selection).
+**Storage.** Cards and `ti58c.mem` live in the `CardStorage` folder (iCloud
+Documents when available); reading `ti58c.mem` and writing cards go through
+`NSFileCoordinator`. Traces go to the trace location from Settings: Local
+(`~/Library/Application Support/Calc-U-59`), iCloud (the card folder) or a
+custom folder (macOS, security-scoped bookmark).

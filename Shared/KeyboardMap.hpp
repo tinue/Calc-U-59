@@ -4,7 +4,7 @@
 
 // Computer keyboard → TI-59 key matrix. Values are matrix codes (row×10 +
 // col), the numbering KEYSTROKES: sections use — not program keycodes. The
-// mapping is documented in reference/AppArchitecture.md § "Physical Keyboard
+// mapping is documented in reference/SharedArchitecture.md § "Physical Keyboard
 // Mapping" (docs/keyboard-map.js is the web build's hand-ported twin).
 //
 // Only 26 of the 45 keys are bound, deliberately: the white (digit) keys, the

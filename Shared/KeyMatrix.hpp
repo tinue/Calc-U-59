@@ -5,7 +5,7 @@
 // Keyboard matrix codes (row×10 + col, row 1–9 top→bottom, col 1–5
 // left→right — the same codes state files use, see
 // reference/StateFileFormat.md) and their mapping onto the core's
-// (K-line bit, digit slot) key coordinates. See reference/AppArchitecture.md
+// (K-line bit, digit slot) key coordinates. See reference/SharedArchitecture.md
 // § "Key Input Coordinate Systems".
 
 namespace cu59 {

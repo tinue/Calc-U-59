@@ -258,9 +258,9 @@ n + 2 (0 = floating); fB[15] = sci, fB[7] = eng.
 
 - **Step counter**: SCOM[0] nibbles 4–7 — nibble 4 = byte (0–7) within an
   8-step program register, nibbles 5–7 = register number (BCD). Nibble 3 =
-  Prg Src Flag (0 RAM, 1 library module, 2 return into a library program,
-  8 keycode sub-program in the constant ROM; 2/4/6 on a RAM program = fast
-  mode, see below).
+  Prg Src Flag (0 RAM, 1 library module, 8 keycode sub-program in the
+  constant ROM; all values and how the ROM tests them:
+  `reference/CoreArchitecture.md` § "PRG SOURCE flag").
 - **Keycodes** are two BCD digits row·10 + column (2nd functions: column + 5,
   so units 6–9/0); digit keys store their value 00–09 (`KEY_ENCODE` `0788`).
 - **SCOM[10]** caches the current program register as a shift register: the
@@ -322,7 +322,8 @@ n + 2 (0 = floating); fB[15] = sci, fB[7] = eng.
 - Labels in a module program are found by `LIB_LABEL_SEARCH` (`1364`): the
   program's start/end come from the header (2 BCD bytes per program), and
   the bytes are walked through the same scanner as RAM programs.
-- Execution fetches each keycode at `LIB_EXEC_FETCH` (`082B`/`082F`); the
+- Execution fetches each keycode at `LIB_EXEC_FETCH` (`082B` LIB.HI, `082F`
+  LIB.IN); the
   module's own address counter is the program counter (SCOM[0]'s step
   counter is not used).
 - Source 2 exists in SCOM[0] only inside a RTN back into a module program.
@@ -335,84 +336,49 @@ n + 2 (0 = floating); fB[15] = sci, fB[7] = eng.
 - **R/S** (row 9, col 1) is polled between RAM program steps (`07DD`): held →
   stop.
 - **GTO** (row 6, col 1) is polled there too (`07CF`): held → every second
-  step lights the display for ≈256 cycles (`04E6`), so the running program's
-  intermediate X values become visible. Suppressed when a module security
-  code is set.
+  step lights the display for 256 idle-loop passes, ≈216 ms (`04E6`), so the
+  running program's intermediate X values become visible. Suppressed when
+  memory is protected (SCOM[9] nibble 2).
 - **RST** (row 8, col 1) is polled on every library-module fetch (`0834`):
   held → the run stops and RST is performed.
 
 ## Fast mode
 
-The TI PPC "fast mode" is a RAM program running with a non-zero Prg Src Flag
-that selects neither the library (bit 0) nor the keycode table (bit 3) —
-2, 4 or 6. The run loop (`07C9`) then takes the sub-program path (`08AE`) and
-skips the per-step display rebuild and R/S/GTO polls: ~40% less time, but R/S
-cannot stop it. The only way in is a quirk chain that writes X's digit image
-into SCOM[0] (an argument terminated by EE after `St flg` at the end of the
-partition, mis-dispatched twice, ending in the HIR STO code at `11D9` with
-register 0, i.e. SCOM[0]). The 12th decimal digit of X becomes the source
-flag, the digits after it the start step. Full walkthrough: `examples/fastmode.ti59`.
+Fast mode is a RAM program running with a Prg Src Flag of 2, 4 or 6: non-zero,
+so the run loop (`07C9`) takes the sub-program path (`08AE`), but neither
+bit 0 (module) nor bit 3 (keycode table), so the step fetch reads RAM. What
+it does, its rules and the entry recipes: `rom/fastmode.md`. This section
+holds the ROM side.
 
-**Designed or accidental?** Both, in different parts.
-
-- **The fast path is designed.** It exists for the ROM's own sub-programs:
-  the keycode programs in the constant ROM (source 8: Σ+, x̄, P→R, D.MS,
-  Op 11–15) and module programs (source 1). A built-in "function" such as
-  P→R is 20–40 keycode steps internally, and the fast path makes it look
-  like a single operation, with no display flicker in between.
-- **Getting a RAM program onto that path is an accident.** The two tests on
-  the source flag disagree. The run loop asks only "non-zero?", while the
-  step fetch tests single bits (bit 0 → module, bit 3 → constant ROM), so 2,
-  4 and 6 fall through to an ordinary RAM fetch. The only way to put such a
-  value into SCOM[0] is the bug chain above: EE's `KEY_ENCODE` leaves a
-  column bit in KR, and St flg's continuation ORs into it and lands at
-  `0B34` instead of `0B14` (missing safeguard, see `0783`).
-
-**Not meant for end users.** Fast mode is not in TI's owner's manual; TI-59
-users found it and published it (the example cites TI PPC Notes V9N3P5). It
-is also fragile:
-
-- Only 2, 4 and 6 are fast mode. Odd values (1, 3, 5, 7, 9) fetch from the
-  module, because bit 0 is tested first, and 8 fetches from the constant-ROM
-  table. The run loses its RAM program either way (headless sweep of 0–9,
-  SST entry with X = 1.00000000000N).
-- X's digits also overwrite the step counter, the Fix setting, the
-  pending-key field and the user flags (the example ends with flag 4 set).
-  Digit-to-flag mapping, and the `Pgm 02 SBR 239` variant that takes the
-  flags from steps 013–015: `rom/fastmode.md` § "Flags and Fix after
-  entry".
-- Labels, subroutines and the built-in keycode sub-programs do not work, and
-  stopping can hang the calculator. See "What a fast-mode program can do"
-  below.
-
-It is a hobbyist technique built on a firmware bug, not a TI feature.
+Only 2, 4 and 6 work. Odd values fetch from the module, because bit 0 is
+tested first, and 8 fetches from the keycode table; either way the RAM
+program is lost (headless sweep of 0–9, SST entry with X = 1.00000000000N).
 
 ### Entry methods compared (headless traces)
 
 Two independent bugs lead into fast mode.
 
 **Family 1: the St flg mis-dispatch.** St flg's argument is cut short by a
-non-digit key after exactly one digit. That key's KEY_ENCODE column bit bends
-the continuation to `0B34`, and the chain ends in the HIR STO code (`11D9`)
-with register 0, so X's digit image lands in SCOM[0]. Only column-2 keys work
-as the terminator (B, INV, x⇄t, STO, EE; every key tested), and any digit
-works as the first one. X must carry 2, 4 or 6 as its 12th decimal; nibbles
-4–7 of its image become the start step. `1 + 2 EE 12 +/- =` gives exactly
-1.000000000002, so no tan 45 is needed.
+non-digit key after exactly one digit. That key's `KEY_ENCODE` leaves a
+column bit in KR, and St flg's continuation ORs into it and lands at `0B34`
+instead of `0B14` (missing safeguard, see `0783`). The chain ends in the HIR
+STO code (`11D9`) with register 0, so X's digit image lands in SCOM[0]. Only
+column-2 keys work as the terminator (B, INV, x⇄t, STO, EE; every key
+tested), and any digit works as the first one. The 12th decimal digit of X
+becomes the source flag, nibbles 4–7 of its image the start step.
 
-- **St flg at the end of the partition** (`examples/fastmode.ti59`, the St flg
-  trick of TI PPC Notes V9N3P5). Fetching the operand fails, the program halts
-  with the argument pending, and the user presses 7 EE.
+- **St flg at the end of the partition** (`examples/fastmode.ti59`, TI PPC
+  Notes V9N3P5). Fetching the operand fails, the program halts with the
+  argument pending, and the user presses 7 EE.
 - **Acosta's "hi2"** (`examples/calendar-08-acosta.ti59`): RCL of the
   constant, St flg, then a pseudo-keycode `0C` as the operand, all inside the
   program. Its hex units digit feeds only the digit C and leaves the argument
   open, and the next step (68 Nop) ends it. The keyboard ritual (`Pgm 12 SBR
   999`, `R/S`, `D.MS`, `LRN Ins Ins`) only manufactures that `0C`, with the
   stale-cache Ins quirk known from `examples/texas-print.ti59`.
-- **SST** (the simplest, `examples/fastmode-sst.ti59`). One St flg step
-  anywhere, preferably at step 8k+7, then `GTO` to it, `SST`, a digit and
-  STO. SST leaves the operand pending because a program operand is fed as
-  two digits. No partition-end halt and no pseudo-keycode are needed.
+- **SST** (`examples/fastmode-sst.ti59`). SST leaves the operand pending
+  because a program operand is fed as two digits. No partition-end halt and
+  no pseudo-keycode are needed.
 - **No program-only form without pseudo-keycodes.** A sweep of all 10,000
   `St flg kk kk` programs recordable in LRN found none that triggers it,
   because stored operands always arrive as two decimal digits.
@@ -428,22 +394,14 @@ at `0005`, which writes register A into SCOM[0]: source 4.
 registers 1–8 (range check at `11C1`). `St flg Ind` with flag numbers above 9
 and `Fix Ind` do not reach nibble 3.
 
-**After entry.** The jump to the new step does not reload the
-program-register cache. Steps 001–007 therefore run from the drained cache
-(as 00 when St flg was the last byte of its register), and the real program
-starts at step 008.
-
 ### What a fast-mode program can do
 
-Every instruction class was run once in fast mode and once in normal mode
-from the same program, and X, the data registers, the printout and the
-display were compared. Sources 2, 4 and 6 behave alike. To reproduce:
-`uv run python tools/agentic/fastmode_matrix.py`.
-
-**Why things break.** The ROM tests the Prg Src Flag in seven places. Only
-the step fetch tests single bits. The other six ask only "non-zero?", so
-there a fast-mode program counts as a keycode sub-program or a library
-program:
+The full list of what works, what breaks and how to end a program is in
+`rom/fastmode.md` § "Rules for fast-mode programs" (measured with
+`uv run python tools/agentic/fastmode_matrix.py`). All of it follows from
+the seven places that test the Prg Src Flag. Only the step fetch tests single
+bits; the other six ask only "non-zero?", so there a fast-mode program counts
+as a keycode sub-program or a library program:
 
 | Site | Test | Effect in fast mode |
 |---|---|---|
@@ -451,93 +409,14 @@ program:
 | `054F`–`0553` DISP_FORMAT | ≠ 0 → `08A1` | X is not formatted for the display after a step. The trace-print check (`05A8`) is inside the formatter, so nothing is traced. |
 | `08B2`–`08B8`, `0B8F` PRGREG_FETCH | bit 0, bit 3 | 2, 4 and 6 fetch from RAM, so the program itself runs. |
 | `0860` → `0BD2` LABEL_SEARCH | ≠ 0 → `0FAD` | Labels are searched in the selected module program, not in RAM. |
-| `0A4B`–`0A57` launch prologue | caller ≠ 0 → `0DA7` | Every call pushes the module's address counter as the return address, as for a library caller. |
+| `0A4B`–`0A57` launch prologue | caller ≠ 0 → `0DA7` | Every call pushes the module's address counter as the return address, as for a library caller. The launch also clears the source, so the subroutine itself runs in normal mode. |
 | `1191`, `14F9`–`1506` RTN_POP / LIB_RETURN | library level popped | The return reloads the module PC and sets source 1, so execution continues in the module. |
-| `06B9`–`06C5` key epilogue | ≠ 0 → `08AE` | After an operation, the program keeps running even when fB[0] is clear. |
+| `06B9`–`06C5` key epilogue | ≠ 0 → `08AE` | After an operation, the program keeps running even when fB[0] is clear: an INV SBR with an empty stack ends the run (`1195`) but the program carries on, and after a program R/S any operation key resumes it. |
 
-**Works as in normal mode:**
-
-- Number entry, EE, AOS arithmetic with all 8 parenthesis levels, and every
-  function computed in microcode: ln x, log, their inverses, sin, cos and tan
-  and their inverses in DEG, RAD and GRAD, √x, x², 1/x, yˣ, INV yˣ, |x|,
-  Int, INV Int, π, +/-, Fix, Eng and INV EE.
-- Memory: STO, RCL, SUM, Prd and Exc with their INV forms, all Ind forms,
-  CMs, CP (inside a program it clears only t, as usual), x⇄t, CE, CLR, and
-  HIR STO, RCL and SUM.
-- Flags: St flg, INV St flg, If flg.
-- Transfers to absolute or indirect addresses: GTO nnn, GTO Ind, x=t and x≥t
-  (with or without INV) to nnn or Ind, If flg to nnn or Ind, and Dsz n nnn.
-  **Dsz loops work.** The comment in `examples/fastmode.ti59` (TI PPC
-  folklore) says otherwise, but only Dsz to a *label* fails.
-- Lbl and Nop steps in the flow of the program; they are skipped as usual.
-- Op 00–08, Op 10, Op 16, Op 17, Op 18/19, Op 20–39, Op Ind, Fix Ind, and
-  Pgm nn on its own (it only selects the module program).
-- Printing: Prt, Adv, Op 05 and Op 06, Op 08 (label list). Pause shows
-  the correctly formatted X, because Pause formats it itself.
-- Errors (1/0, …) set the error condition as usual, and Op 18/19 see it.
-
-**Broken.** In each case the program leaves fast mode, usually stops with a
-dark display, and the result is lost:
-
-- **Any label as a transfer target.** This covers GTO, SBR, x=t, x≥t, If flg
-  and Dsz to a label, and the user keys A–E′ called from the program. The
-  search runs in the module program selected in SCOM[9]. When the label is
-  not there, the run stops with an error. If the label does exist there,
-  execution continues in the module. Use absolute addresses or Ind instead.
-- **Any subroutine call:** SBR nnn, SBR label, SBR Ind, and `Pgm nn SBR`
-  into the module. The subroutine itself runs, but its INV SBR returns into
-  the module, at whatever address the module's address counter held at the
-  call. (The launch also clears the source, so the subroutine runs in normal
-  mode.)
-- **The built-in keycode sub-programs**, which are calls of the same kind:
-  Σ+ and INV Σ+, x̄, P→R and INV P→R, D.MS and INV D.MS, and Op 11–15. The
-  sub-program completes (the first Σ+ does update R01–R06), and then returns
-  into the module.
-
-**Behaves differently:**
-
-- Nothing is traced: neither the printer's TRACE switch nor flag 9 prints
-  anything during the run.
-- Errors never stop the run, not even with flag 8 set.
-- INV SBR with an empty return stack does not stop the program. RTN_POP ends
-  the run (`1195`), but the key epilogue sees the source flag and carries on
-  with the next step.
-- The R/S and GTO keys are not polled, so R/S cannot interrupt the program
-  and holding GTO shows no peek. The other keys are ignored, as in normal
-  mode.
-- The display keeps whatever it showed at entry until the program stops.
-
-**Stopping and leaving.** RST clears the source flag and continues at step
-000 in normal mode. A program R/S stops the run but leaves the source flag
-set. Both then redisplay X. If X holds a computed, non-zero value that
-fast mode never formatted, that redisplay loops forever in `030A`–`030E`.
-The display stays dark, no key works, and only switching off ends it, which
-also loses the program. Measured stops (second table of the tool):
-
-| Ends with | Result |
-|---|---|
-| `CLR RST`, `CLR +/- RST`, `0 RST` | safe, normal mode (X = 0 or digit entry) |
-| `RCL nn Pause RST`, `RCL nn Prt RST` | safe: Pause and Prt format X |
-| `RCL nn RST`, `… = RST` | **hangs** |
-| `5 R/S`, `CLR R/S` (X in digit entry) | stops, shows the entry, source still set |
-| `RCL nn Pause R/S`, `RCL nn Prt R/S` | stops showing the formatted result, source still set |
-| `RCL nn R/S`, `… = R/S`, `STO nn R/S`, `RCL nn CE R/S` | **hangs** |
-
-So X must be in digit entry, or 0, or have just been shown by Pause or Prt.
-The robust pattern is `CLR RST` with the result in a register, which a
-normal-mode RCL at step 000 then shows (`examples/fastmode-sst.ti59`).
-
-**After a program R/S** the calculator is still in fast mode, with the
-source flag set:
-
-- The R/S key resumes the program, still in fast mode.
-- Digit keys, `.`, +/-, EE, INV, CLR and CE work as number entry.
-- Any operation key (+, =, x², x⇄t, 1/x, (, STO nn, RCL nn, …) executes and
-  then, through the key epilogue, quietly runs the program on from the
-  stopped step to its next R/S.
-- A user key A–E′ searches the module for its label and fails.
-- **RST from the keyboard** clears the source flag and is the way back to a
-  normal calculator.
+**The hang.** RST clears the source flag; a program R/S leaves it set. Both
+redisplay X. If X holds a computed value that fast mode never formatted, the
+digit layout loops forever in `030A`–`030E`: dark display, no key works. X
+in digit entry, 0, or a value just formatted by Pause or Prt is safe.
 
 ## Magnetic cards
 
@@ -593,6 +472,9 @@ KR[4..9], filled right to left), PRT.GO prints the line, TST.BUSY paces it.
 - **Alphanumeric** (Op 00–05): a 20-column buffer in SCOM[5]–[8]; the TI
   two-digit character codes map to printer codes as tens·8 + units. Op 06
   prints X with Op 04's characters, Op 07 plots an asterisk at column X.
+- **Printer interrupt**: a manufactured keycode 1F jumps into the print
+  routine just before PRT.GO and cuts the line in progress short
+  (`rom/printerinterrupt.md`).
 - **Adv** feeds two lines and keeps feeding while Adv or the printer's ADV
   button is held (`0F36`).
 

@@ -38,7 +38,7 @@
 # 5. The run ends at the program's own RST/R/S; R/S cannot interrupt fast mode.
 # 6. The comment at step 008 below is TI PPC folklore: Dsz loops to an absolute address
 #    work in fast mode. Only transfers to a label (and SBR) fail, because the ROM then
-#    searches the module. Full list: rom/TI59-ROM-Guide.md § "What a fast-mode program can do".
+#    searches the module. Full list: rom/fastmode.md § "Rules for fast-mode programs".
 
 PARTITION: 319.79
 

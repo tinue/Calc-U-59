@@ -1,6 +1,6 @@
 ---
 name: calc-u-59-docs
-description: Use this skill when working on the Calc-U-59 documentation or help website (docs/, reference/, root markdown files). Covers the GitHub Pages static site (HTML + client-side React), the design system, and the reference architecture docs. Trigger on any task that touches docs/*.html, docs/*.jsx, docs/*.css, reference/*.md, README.md, CHANGELOG.md, TODO.md, or PRIVACY.md. Also trigger when the user says "update documentation" (or similar) after finishing Core/ and/or App/ work on a release branch — see the Release Documentation Update Workflow section.
+description: Use this skill when working on the Calc-U-59 documentation or help website (docs/, reference/, root markdown files). Covers the GitHub Pages static site (HTML + client-side React), the design system, and the reference architecture docs. Trigger on any task that touches docs/*.html, docs/*.jsx, docs/*.css, reference/*.md, README.md, CHANGELOG.md, TODO.md, or PRIVACY.md. Also trigger when the user says "update documentation" (or similar) after finishing Core/, Shared/, App/ or Qt6/ work on a release branch — see the Release Documentation Update Workflow section.
 user-invocable: true
 ---
 
@@ -20,7 +20,7 @@ This skill covers the help website (`docs/`), reference architecture docs (`refe
 - **Everything in the main repository (`reference/`, root markdown files,
   `.claude/skills/`) is developer documentation** — for contributors, the
   project owner, and AI agents working on the code. It assumes the reader
-  can read Swift/C++ and doesn't need app-usage instructions.
+  can read Swift/C++/Qt and doesn't need app-usage instructions.
 - **`README.md` links to the website exactly once, prominently** (the "User
   Guide" section) rather than re-explaining or indexing end-user content.
   Technical facts that a developer needs but an end user doesn't — the
@@ -144,11 +144,18 @@ These are AI-generated documents produced by reading the source code alongside h
 
 | File | Content |
 |------|---------|
-| `reference/CoreArchitecture.md` | C++ emulation core: TMC0501, SCOM, register model |
-| `reference/AppArchitecture.md` | Swift app structure and EmulatorViewModel |
-| `reference/DebugAPI.md` | Debug panel and bridge API, including the ASM overlay feature |
+| `reference/CoreArchitecture.md` | C++ emulation core (`Core/`): TMC0501, SCOM, register model |
+| `reference/SharedArchitecture.md` | Shared C++ layer (`Shared/`) both GUIs use: modules, SessionController, threads, run loop and timing, key input and keyboard map, card/state-file/ROM loading, drawing rules, tests and goldens |
+| `reference/AppArchitecture.md` | Swift app (`App/`) and the ObjC++ `Bridge/` |
+| `reference/FrontendParity.md` | Feature table of the Swift and Qt6 apps: where each feature lives, what is pending on which side |
+| `reference/DebugAPI.md` | Debug panel and debug API, including the ASM overlay feature |
 | `reference/StateFileFormat.md` | `.ti59`/`.ti58`/`.ti58c` file format: sections, PARTITION/PROGRAM/REGISTERS, matrix codes, KEYSTROKES syntax, CUECARD grammar |
-| `reference/NewGUIGuide.md` | Porting guide for adding a new GUI frontend (Windows/Linux/Android/etc.) — the contract a new GUI must implement and what's still duplicated per-platform |
+| `reference/NewGUIGuide.md` | Porting guide for another GUI frontend: building on `Shared/` (the Qt6 app as the example), or porting its rules to a non-C++ platform (the web build) |
+
+The Qt6 app has no reference doc of its own: its class map and build live in
+the `calc-u-59-qt` skill, its feature placement in `FrontendParity.md`.
+ROM-level documentation (`rom/*-ROM-Guide.md`, `rom/fastmode.md`,
+`rom/printerinterrupt.md`) sits beside the annotated listings in `rom/`.
 
 There is no end-user guide in `reference/` — that content lives on the
 website (`docs/Pages.jsx`'s `DebuggerPage`, etc.) and is out of scope here.
@@ -161,17 +168,18 @@ When updating these files, keep the provenance notice at the top intact — it s
 
 | File | Purpose |
 |------|---------|
-| `README.md` | Project overview for GitHub |
+| `README.md` | Project overview for GitHub, how to build both apps, and the index of every developer document — keep the index current when adding or removing a document |
 | `CHANGELOG.md` | Version history (keep entries under the correct version heading) |
 | `TODO.md` | Development task list |
 | `PRIVACY.md` | App Store privacy policy |
-| `ideas/*.md` | Unimplemented design proposals and feasibility analyses (e.g. `Redesign.md`, `KeypressLatch.md`, `Pico.md`) — not current behavior, don't treat as authoritative |
+| `THIRD-PARTY-NOTICES.md` | Qt6 (LGPLv3) and ROM-image notices; shipped with the Windows build |
+| `ideas/*.md` | Unimplemented design proposals and feasibility analyses (e.g. `Redesign.md`, `KeypressLatch.md`, `Pico.md`, `CardRecovery.md`) — not current behavior, don't treat as authoritative |
 
 ---
 
 ## Release Documentation Update Workflow
 
-Triggered by the user saying **"update documentation"** (or similar) after finishing work on `Core/` and/or `App/` for a release. The current dev branch (`dev-X.Y.Z`) always starts at the HEAD of the previous release tag — that tag, not `main` and not an arbitrary commit count, is the diff base.
+Triggered by the user saying **"update documentation"** (or similar) after finishing work on `Core/`, `Shared/`, `App/` or `Qt6/` for a release. The current dev branch (`dev-X.Y.Z`) always starts at the HEAD of the previous release tag — that tag, not `main` and not an arbitrary commit count, is the diff base.
 
 1. **Find the base commit — verify, don't trust a single command blindly.**
    This repo has at least one tag anomaly (`v1.6.0` and `v1.5.0` point at the exact same commit — a past tagging mistake), so `git describe --tags --abbrev=0` alone can silently mislead. Cross-check two ways:
@@ -194,7 +202,7 @@ Triggered by the user saying **"update documentation"** (or similar) after finis
 
 4. **Update reference docs** (`reference/CoreArchitecture.md`, `reference/SharedArchitecture.md`, `reference/AppArchitecture.md`, `reference/DebugAPI.md`, `reference/StateFileFormat.md`, `reference/FrontendParity.md`) for anything the diff invalidated: register model, SCOM layout, PC encoding, machine variants, bridge/debug API surface, settings, file formats. Keep each file's provenance notice intact.
 
-5. **Update the help website** (`docs/Pages.jsx`, `docs/PlayCalculator.jsx`, etc.) if the change is user-facing — new settings, module behavior, install steps, state-file directives (mention the directive exists and link back to `reference/StateFileFormat.md` for the grammar, don't restate it). `docs/` is a separate git worktree with its own versioning (i.e. none) — a change only needing a website update, with nothing in `Core/`/`App/`/`roms/`, does not need a `CHANGELOG.md` entry. Commit `docs/` changes from inside `docs/`, not from the main repo (see above).
+5. **Update the help website** (`docs/Pages.jsx`, `docs/PlayCalculator.jsx`, etc.) if the change is user-facing in either app — new settings, module behavior, install steps (Mac, iOS, Windows, Linux), state-file directives (mention the directive exists and link back to `reference/StateFileFormat.md` for the grammar, don't restate it). `docs/` is a separate git worktree with its own versioning (i.e. none) — a change only needing a website update, with nothing in `Core/`/`Shared/`/`App/`/`Qt6/`/`roms/`, does not need a `CHANGELOG.md` entry. Commit `docs/` changes from inside `docs/`, not from the main repo (see above).
 
 6. **Rebuild the WASM calculator (`docs/play/`) only if it's actually affected.** Check whether the diff from step 2 touched:
    - `Core/*.cpp` / `Core/*.hpp` — specifically anything reachable from `docs/wasm/bindings.cpp`'s bound surface (ROM/library/constants loading, key press/release, display snapshot, program/register writes, `stepN`/`stepCycles`, `insertedModuleNumber`). If `TI59Machine`'s public API itself changed, check `bindings.cpp`'s bound-method list against `Core/TI59Machine.hpp` before assuming a plain rebuild covers it — a new or changed method may need a matching binding.
@@ -207,7 +215,7 @@ Triggered by the user saying **"update documentation"** (or similar) after finis
    ```
    Then run `helpsite-unit-tests/run-tests.sh` — `play-calculator.spec.js` covers arithmetic, module cue cards, and preset loading through the real WASM core end to end — before committing.
 
-   If neither `Core/` nor `roms/*.txt` changed (most releases are Swift-only UI/debugger work), skip this step entirely.
+   If neither `Core/` nor `roms/*.txt` changed (most releases are GUI, `Shared/` or debugger work), skip this step entirely. The web build compiles `Core/` only, not `Shared/`.
 
 7. **Commit in both places, never push.** Main-repo changes (`CHANGELOG.md`, `reference/`, `README.md`, `TODO.md`, `tools/`) commit from the repo root; `docs/` changes commit from inside `docs/` (separate worktree/branch — see above). Two separate commits, following the "commit often, never push" rule below.
 
@@ -219,6 +227,6 @@ Triggered by the user saying **"update documentation"** (or similar) after finis
 
 2. **Commit often, never push.** Commit after each logical unit of work. Never run `git push`.
 
-3. **Build on macOS.** Verify Swift-facing changes with a macOS build; build for iOS only when explicitly required (commands: `calc-u-59-swift` skill, § "Build Verification").
+3. **Build on macOS.** Verify Swift-facing changes with a macOS build; build for iOS only when explicitly required (commands: `calc-u-59-swift` skill, § "Build Verification"). Doc-only changes need no build.
 
 4. **Cite your sources.** When referencing a hardware spec, standard, or external document, include the https URL (or a pointer to the local reference file) inline in the relevant documentation paragraph or code comment.

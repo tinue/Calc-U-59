@@ -14,7 +14,7 @@ The second table stops a fast-mode program with R/S or RST in various X
 states and reports whether the calculator hangs in the redisplay loop
 030A-030E (only power-off ends it).
 
-Results and ROM explanation: rom/TI59-ROM-Guide.md § "Fast mode".
+Results: rom/fastmode.md; ROM side: rom/TI59-ROM-Guide.md § "Fast mode".
 
 CLI: fastmode_matrix.py [substring]     only cases whose name contains it"""
 import os

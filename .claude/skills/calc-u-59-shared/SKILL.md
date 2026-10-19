@@ -6,8 +6,8 @@ user-invocable: true
 
 # Calc-U-59 Shared C++ Layer
 
-Architecture, module list and the runtime's threads:
-`reference/SharedArchitecture.md`. Don't restate them here.
+Architecture, module list, threads, run loop, key input, file flows and
+drawing rules: `reference/SharedArchitecture.md`. Don't restate them here.
 
 ## Rules
 
@@ -41,7 +41,8 @@ Architecture, module list and the runtime's threads:
    `Bridge/TIFileFormats+Cpp.h` and `Bridge/BridgeConvert.h` (struct/string
    conversions); never import those from the bridging header.
 4. Qt access: call it directly.
-5. Add the module to `reference/SharedArchitecture.md`.
+5. Add the module to `reference/SharedArchitecture.md`, and a new wrapper to
+   `reference/AppArchitecture.md` § "Bridge Layer".
 
 ## Porting Swift logic (goldens)
 

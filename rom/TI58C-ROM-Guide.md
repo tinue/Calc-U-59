@@ -279,7 +279,7 @@ step 252 with no observable effect.
 
 - **Fast mode.** The St flg / KEY_ENCODE mis-dispatch at `0B34` and the
   HIR STO into SCOM[0] (`11BC`) work exactly as on the TI-59
-  (`rom/TI59-ROM-Guide.md` § Fast mode). The 69! test program runs in
+  (`rom/fastmode.md`; ROM side in `rom/TI59-ROM-Guide.md` § "Fast mode"). The 69! test program runs in
   363k weighted cycles in fast mode against 585k normally.
 - **The 7th SBR level is still dropped.** The push moved to `1334`, and
   the depth check is at `1339–133C`.
@@ -339,9 +339,10 @@ Some fixed tables kept their addresses but changed content:
 - In the print-mnemonic table (`1000–113D`), all 300 slots are unchanged;
   each target lies 9 words lower. Its spare words now hold the
   HIR, INV List, Pgm and Op Ind entries and the self-test pass/fail exits.
-- One side effect is visible with pseudo-keycodes. Code 1F still lands at
-  `0x0EF1`, but a different instruction sits there now. Listing it prints
-  a "0" line where the TI-59 prints a blank one.
+- One side effect is visible with pseudo-keycodes. Code 1F (the TI-59's
+  printer interrupt, `rom/printerinterrupt.md`) still lands at `0x0EF1`,
+  but a different instruction sits there now. Listing it prints a "0" line
+  where the TI-59 prints a blank one.
 
 ## SCOM and flag changes
 
@@ -370,16 +371,6 @@ Both are recorded here and not fixed in `Core/`:
 2. **A computed jump to address 0 is treated as no jump.** `if (PREG)` in
    `Core/TMC0501.cpp` makes the self-test's exit (`09DD`, KR := 0) fall
    through to `07B7` instead of restarting at `0000`.
-
-## Findings about the TI-59 from this comparison
-
-- **Op 17 under protection:** while memory is protected by a protected
-  card, Op 17 silently acts as Op 16 (TI-59 `1558`). Verified: after
-  reading a protected card, `2 Op 17` still shows 479.59; after CP it
-  shows 799.19. Added to `rom/TI59-ROM-Guide.md`.
-- **Keycode listing:** `rom/TI59-keycode-programs.asm` showed steps
-  212–213 wrongly. GTO takes two operand bytes (`61 02 36` = GTO 236), so
-  INV Σ+ starts with `+/-` at 213. Corrected.
 
 ## Open questions
 

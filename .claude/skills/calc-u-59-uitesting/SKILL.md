@@ -17,13 +17,15 @@ This skill covers all work inside `Calc-U-59UITests/`.
 | `AppHelpers.swift` | Shared helpers: `launchApp()`, `launchApp(orientation:)`, `attachScreenshot()` |
 | `LayoutTests.swift` | Button visibility, label-wrapping, portrait/landscape screenshots |
 | `FilePickerTests.swift` | File picker opens; reopens after cancel (regression for iPad popover dismiss bug) |
-| `PresetLoadTests.swift` | End-to-end load of `diag.ti59` via file picker; verifies keystroke playback starts |
+| `PresetLoadTests.swift` | End-to-end load of `test_diag.ti59` via the file picker; verifies keystroke playback starts |
 | `ScreenshotTests.swift` | App Store screenshot capture (driven by `bin/run-screenshots`); writes PNGs to the dir named in `/tmp/calc-u-59-screenshot-dir` |
 | `Calc_U_59UITestsLaunchTests.swift` | Default launch test (auto-generated, rarely edited) |
 | `UIRegressionTests.xctestplan` | Test plan used by CI |
 | `Screenshots.xctestplan` | Test plan for the screenshot run (`bin/run-screenshots`) |
 
-All tests are `#if !os(macOS)` guarded (the file picker and orientation APIs are iOS-only).
+The file-picker, preset and orientation tests are `#if !os(macOS)` guarded; `LayoutTests` also has macOS branches.
+
+`launchApp()` adds the `--UITesting` launch argument. Without it `keystroke-playback-status` and `btn-key-rs` don't exist (`CalculatorView.isUITesting`, always false on macOS). Launch through the helpers.
 
 ---
 
@@ -113,7 +115,7 @@ Screenshot tests that load `.ti59` files require those files to be present on th
 
 ## Testing the debug panel (CALCULATOR/CPU/LOG tabs) — prefer iPad
 
-On iPhone portrait, the debug panel (`DebugView`, holding `btn-tab-calculator`/`btn-tab-cpu`/`btn-tab-log`) lives on a second page reached via `btn-page-right`, and that page only exists at all when the `SettingsKey.portraitDebugPage` `@AppStorage` toggle is on (default `false` — see `App/Views/CalculatorView.swift:41`). A fresh iPhone simulator won't show it, and `btn-page-right` may not even reveal the debug tabs until that setting is flipped on (e.g. via the Settings screen, or by seeding `UserDefaults` before launch).
+On iPhone portrait the pages are calculator → printer → debug (`btn-page-right`), and `btn-page-left` on the calculator page goes straight to debug. The debug page (`DebugView`, holding `btn-tab-calculator`/`btn-tab-cpu`/`btn-tab-log`) exists only when Settings → "Debug Page in Portrait" is on (`SettingsKey.portraitDebugPage`, default `false`). A fresh iPhone simulator doesn't show it; turn the setting on through the Settings screen or by seeding `UserDefaults` before launch.
 
 The iPad layout shows the debug panel side-by-side with the calculator permanently — no paging, no setting to flip. When a test only needs to reach the debug tabs (e.g. checking the LOG tab's content after a KEYSTROKES script runs), prefer running it on an iPad simulator destination to skip this whole prerequisite.
 
@@ -128,15 +130,15 @@ The iPad layout shows the debug panel side-by-side with the calculator permanent
 | `btn-settings` | Button | Settings toolbar button |
 | `keystroke-playback-status` | OtherElement | `.accessibilityValue` = `"playing"` or `"idle"` |
 | `btn-freeze-on-start` | Button | "FREEZE ON START" in CALCULATOR debug panel (`LiveDebugView`); label shows "F.START" in narrow layout |
-| `btn-freeze-armed` | Button | "ARMED" — shown in place of `btn-freeze-on-start` while freeze is pending; tap to disarm |
+| `btn-freeze-armed` | Button | "ARMED" in CALCULATOR debug tab; always present, enabled only while FREEZE ON START is pending; tap to disarm |
 | `btn-page-left` | Button | Chevron-left page arrow (iPhone portrait only); destination depends on current page |
 | `btn-page-right` | Button | Chevron-right page arrow (iPhone portrait only); destination depends on current page |
 | `btn-tab-calculator` | Button | CALCULATOR tab in debug panel (`DebugView`) |
 | `btn-tab-cpu` | Button | CPU tab in debug panel (`DebugView`) |
 | `btn-tab-log` | Button | LOG tab in debug panel (`DebugView`) |
 | `btn-cpu-freeze-on-start` | Button | "FREEZE ON START" in CPU tab (`CPUInspectorView`) |
-| `btn-cpu-step` | Button | "STEP" in CPU tab (`CPUInspectorView`); tap to single-step, hold to auto-step |
-| `btn-key-rs` | Button | 1×1 automation-only button; calls `viewModel.pressKey(row: 8, col: 0)` (R/S); invisible to users, reachable by XCUITest |
+| `btn-cpu-step` | Button | "STEP" in CPU tab (`CPUInspectorView`); tap to single-step, hold to auto-step. The CALCULATOR tab's STEP and the CPU tab's ARMED have no identifier |
+| `btn-key-rs` | Button | 10×10 pt automation-only R/S key (`--UITesting`, iOS only): pressed on touch-down, released on touch-up, so `press(forDuration:)` works |
 | `btn-asm-select` | Button | "Select File" in ASM overlay (`ASMDebugContent` in `DebugView`); opens `.asm` file picker |
 | `btn-asm-run` | Button | "Run" in ASM overlay; disabled until a file is loaded (`vm.canRunASM`) |
 | `btn-freeze` | Button | "FREEZE" in CALCULATOR debug tab (`LiveDebugView`) |
@@ -154,10 +156,10 @@ The picker shows files as collection view cells. Each cell contains inner labels
 
 ```swift
 // WRONG — taps the label, picker stays open
-app.staticTexts["diag.ti59"].tap()
+app.staticTexts["test_diag.ti59"].tap()
 
 // CORRECT — taps the parent cell, picker loads the file
-let cell = app.cells.containing(.staticText, identifier: "diag.ti59").firstMatch
+let cell = app.cells.containing(.staticText, identifier: "test_diag.ti59").firstMatch
 XCTAssertTrue(cell.waitForExistence(timeout: 5))
 cell.tap()
 ```
@@ -175,27 +177,7 @@ Never use bare `app.buttons[label]` or `app.staticTexts[label]` for these — bo
 
 All files in `1-Testfiles/` (sourced from `examples/screentest/`) are prefixed with `test_` (e.g. `test_diag.ti59`). This prefix is never used for files in the root, so a fast-path check is unambiguous: if the file is already visible, we are already inside `1-Testfiles`.
 
-```swift
-private func navigateToOnMyIPhone(_ app: XCUIApplication, targetFile: String) {
-    if app.cells.containing(.staticText, identifier: targetFile).firstMatch.waitForExistence(timeout: 2) { return }
-
-    for label in ["Durchsuchen", "Browse"] {
-        let tab = app.tabBars.buttons[label]
-        if tab.waitForExistence(timeout: 2) {
-            if !tab.isSelected { tab.tap() }
-            break
-        }
-    }
-
-    for label in ["Auf meinem iPhone", "Auf meinem iPad", "On My iPhone", "On My iPad"] {
-        let item = app.cells.containing(.staticText, identifier: label).firstMatch
-        if item.waitForExistence(timeout: 2) { item.tap(); break }
-    }
-
-    let folder = app.cells.containing(.staticText, identifier: "1-Testfiles").firstMatch
-    if folder.waitForExistence(timeout: 2) { folder.tap() }
-}
-```
+`navigateToOnMyIPhone(_:targetFile:)` in `PresetLoadTests.swift` does this: return at once if the file is visible, else Browse tab → "On My iPhone/iPad" → `1-Testfiles`.
 
 ### 4. Locale-dependent labels
 
@@ -217,7 +199,7 @@ print(app.debugDescription)
 
 `keystroke-playback-status` (an `OtherElement` overlay in `CalculatorView`) exposes `isKeystrokesPlaying` as its accessibility value (`"playing"` / `"idle"`). Use it to confirm that a state file with a `KEYSTROKES:` section was actually loaded and the keystrokes started.
 
-**Important:** register the predicate expectation *before* tapping the file, so the poll is already running when the transition happens. A single 500 ms keystroke can be missed if the expectation is registered after the tap.
+**Important:** register the predicate expectation *before* tapping the file, so the poll is already running when the transition happens. A short script can finish before an expectation registered after the tap starts polling.
 
 ```swift
 let statusEl = app.otherElements["keystroke-playback-status"]
@@ -230,12 +212,13 @@ let result = XCTWaiter.wait(for: [playbackStarted], timeout: 8)
 XCTAssertEqual(result, .completed, "File did not load — keystroke playback never started")
 ```
 
-To make the playing window wide enough to catch reliably, add `WaitFullSpeed: Xs` to the state file's `KEYSTROKES:` section (keeps `isKeystrokesPlaying = true` for the full duration):
+To keep the playing window wide enough to catch, end the script with a `Wait:` (playback counts as playing until the script ends), as `examples/screentest/test_diag.ti59` does:
 
 ```
 KEYSTROKES:
+FullSpeed:
 15              # E — start
-WaitFullSpeed: 3s
+Wait: 1.5s
 ```
 
 ---
@@ -250,6 +233,6 @@ The system document picker is the most fragile part of the test suite. Things th
 - Grid vs. list layout (affects which queries match)
 
 Things that are stable:
-- Filenames (e.g. `"diag.ti59"`) — always your primary locator
+- Filenames (e.g. `"test_diag.ti59"`) — always your primary locator
 - `keystroke-playback-status` — our own element, won't change
 - `btn-preset`, `btn-reset`, `btn-settings` — our own identifiers

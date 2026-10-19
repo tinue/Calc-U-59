@@ -5,7 +5,7 @@
 #include <string>
 
 // Writes a parsed state file into a machine: partition, program and
-// registers (see reference/AppArchitecture.md § "State File Loading"). The
+// registers (see reference/SharedArchitecture.md § "State File Loading"). The
 // frontend owns everything around it — stopping its run loop first, model
 // switches, module and printer changes, the cue card, KEYSTROKES playback.
 

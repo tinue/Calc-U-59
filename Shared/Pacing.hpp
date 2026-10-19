@@ -4,7 +4,7 @@
 #include "MachineModelInfo.hpp"
 #include <cstdint>
 
-// Real-time pacing of the run loop (reference/AppArchitecture.md § "Emulation
+// Real-time pacing of the run loop (reference/SharedArchitecture.md § "Emulation
 // Loop and Timing"): 20 ms batches of the model's instruction rate, cycle-
 // weighted — TMC0501::step() returns 4 for an IDLE step (1 on the TI-58C,
 // which runs at constant speed) — with the overshoot carried into the next

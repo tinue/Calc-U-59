@@ -18,7 +18,7 @@ reference is the Swift code at the pinned commit, not the current tree.
 | Golden | Swift original (commit) | C++ port | Test |
 |---|---|---|---|
 | `keynames` | `App/TI59KeyNames.swift` (66537d3) | `Shared/KeyNames.cpp` | `tests/shared_tables_tests.cpp` |
-| `formats` | `App/StateFileLoader.swift`, `CueCardContent.swift`, `RegisterLineHelpers.swift` (66537d3) | `Shared/StateFile.cpp`, `CardFile.cpp`, `CueCard.cpp`, `Bcd.cpp` | `tests/shared_formats_tests.cpp` |
+| `formats` | `App/StateFileLoader.swift`, `CueCardContent.swift`, `RegisterLineHelpers.swift`, `MachineModel.swift` (66537d3) | `Shared/StateFile.cpp`, `CardFile.cpp`, `CueCard.cpp`, `Bcd.cpp` | `tests/shared_formats_tests.cpp` |
 
 The `formats` driver parses every example state file plus
 `tests/fixtures/{statefiles,cards}/` (edge cases), so adding an example adds

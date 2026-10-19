@@ -5,7 +5,7 @@
 // minus, degree, blank, the "C" annunciator) comes from this table — never
 // from a font: no font reproduces the hardware's lit-segment patterns (see
 // reference/NewGUIGuide.md). The drawing itself (shear, glow) stays in each
-// frontend; see reference/AppArchitecture.md § "LED Display Rendering".
+// frontend; see reference/SharedArchitecture.md § "LED Display Rendering".
 //
 // Segments: bit 0=A(top) 1=B(upper-right) 2=C(lower-right) 3=D(bottom)
 //           4=E(lower-left) 5=F(upper-left) 6=G(middle)

@@ -160,8 +160,8 @@ normal mode, and compares X, the data registers, the printout and the
 display. The brackets list the Prg Src Flag values seen while the program
 ran: a 1 means the run went into the module. The stop table ends a fast
 program with R/S or RST in various X states and reports whether the
-calculator hangs. The results and their ROM explanation are in
-`rom/TI59-ROM-Guide.md` § "What a fast-mode program can do".
+calculator hangs. The results are summarized in `rom/fastmode.md`; the ROM
+explanation is in `rom/TI59-ROM-Guide.md` § "What a fast-mode program can do".
 
 ### kdis.py — disassembler
 
@@ -227,12 +227,8 @@ uv run python tools/agentic/runtime.py examples/calendar-09-dispatch.ti59
 - **Values in REGISTERS** are written with 13 significant digits. For print
   codes, the position of the digits within the 13-digit mantissa matters (a
   2-digit vs 3-digit integer part shifts them).
-- **Fast mode** (`rom/TI59-ROM-Guide.md` § Fast mode,
-  `examples/fastmode-sst.ti59`):
-  - No SBR/RTN in the fast part. In the calendar program a RTN returned to a
-    wrong address.
-  - On entry, steps 001–006 run as 00, so they can hold normal-mode code.
-  - The display stays dark until the program leaves fast mode with RST.
+- **Fast mode:** the rules (no SBR, no labels as targets, safe endings) are
+  in `rom/fastmode.md`; `examples/fastmode-sst.ti59` is the SST entry.
 - **Settle overhead.** Key handling plus the idle checks cost ~1.6 s of
   emulated time per key. Don't sum the per-key times of `ti59file.run`;
   use `runtime.py`.

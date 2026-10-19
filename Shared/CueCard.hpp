@@ -11,7 +11,7 @@
 // keys. Parsed from CUECARD: sections (state files, card files, ti58c.mem,
 // roms/solid-state/cuecards.txt) and encoded back. Field grammar and
 // math-token table: reference/StateFileFormat.md § CUECARD. How each frontend
-// draws it: reference/AppArchitecture.md § "Cue Card Rendering".
+// draws it: reference/SharedArchitecture.md § "Cue Card Rendering".
 
 namespace cu59 {
 

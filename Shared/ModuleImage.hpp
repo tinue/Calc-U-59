@@ -7,7 +7,7 @@
 
 // Where the running program's steps come from, and the solid-state module
 // image's program table — what the live debugger needs to show the current
-// step. See reference/AppArchitecture.md § "Solid-State Program Display".
+// step. See reference/SharedArchitecture.md § "Solid-State Program Display".
 
 namespace cu59 {
 

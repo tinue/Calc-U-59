@@ -23,6 +23,8 @@ Architecture facts (register model, SCOM layout, PC encoding, machine variants, 
 - `reference/AppArchitecture.md` — Swift app and bridge layer
 - `reference/DebugAPI.md` — debug panel and bridge API
 - `reference/FrontendParity.md` — which feature lives where in the two GUIs
+- `reference/StateFileFormat.md` — the `.ti59`/`.ti58`/`.ti58c` file format
+- `rom/TI59-ROM-Guide.md`, `rom/TI58C-ROM-Guide.md` — how the ROMs work
 
 Do not restate these facts in CLAUDE.md, skills, or memory files — link to the reference doc instead.
 
@@ -32,6 +34,7 @@ Do not restate these facts in CLAUDE.md, skills, or memory files — link to the
 `.ti59` programs headless (run a file, per-line print times, run time per
 key, hot steps, step costs, keycode disassembler/assembler). Read
 `tools/agentic/README.md` before measuring or comparing program speed.
+ROM-level traces of key sequences come from `tools/headless/` (its README).
 
 ## Frontend Parity (Swift app ↔ Qt6 app)
 
