@@ -88,7 +88,7 @@ std::vector<std::string> dumpProg(const TI59Machine& m) {
         // Storage order (units-tens pairs), deliberately not the register-line format.
         std::string pairs;
         for (int i = 0; i < 16; i += 2) {
-            char p[4];
+            char p[8];  // two nibbles; sized for any uint8_t so GCC can see it fits
             std::snprintf(p, sizeof p, "%X%X", n[i + 1], n[i]);
             if (!pairs.empty()) pairs += ' ';
             pairs += p;

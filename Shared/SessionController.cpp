@@ -10,6 +10,11 @@ namespace cu59 {
 
 using namespace std::chrono_literals;
 
+namespace {
+// `on ? bit : 0` mixes an enum and an int (GCC -Wextra).
+uint32_t changeIf(bool on, SessionController::Change bit) { return on ? static_cast<uint32_t>(bit) : 0u; }
+}  // namespace
+
 // Session events, on the session's threads; each hops to the UI thread and is
 // dropped there if its session has been replaced meanwhile.
 struct SessionController::Events : EmulatorSession::Listener {
@@ -502,7 +507,7 @@ void SessionController::onFrozenView(uint64_t freezeGeneration, FrozenViewReason
     if (!m_debugState.frozen || m_debugState.generation != freezeGeneration) return;
     DebugModel::Update u = m_debug.frozenView(m_session->machine(), reason);
     if (u.diagnostic) m_platform.diagnostic(*u.diagnostic);
-    emitChanged((u.live ? LiveChanged : 0) | (u.listing ? ListingChanged : 0) | (u.cpu ? CpuChanged : 0) |
+    emitChanged(changeIf(u.live, LiveChanged) | changeIf(u.listing, ListingChanged) | changeIf(u.cpu, CpuChanged) |
                 RunStateChanged);
 }
 
@@ -511,7 +516,7 @@ void SessionController::setLiveDebugEnabled(bool on) {
     // Shown while frozen: the frozen view may predate it, so build it now.
     if (on && m_debugState.frozen && m_session) {
         DebugModel::Update u = m_debug.rebuildLive(m_session->machine(), true);
-        emitChanged((u.live ? LiveChanged : 0) | (u.listing ? ListingChanged : 0));
+        emitChanged(changeIf(u.live, LiveChanged) | changeIf(u.listing, ListingChanged));
     }
 }
 
@@ -668,7 +673,7 @@ void SessionController::runAsm() {
             // FREEZE ON START was armed: freeze in place at the 0x1800 entry.
             m_session->freezeInPlace(FreezeOwner::Cpu);
             DebugModel::Update u = m_debug.frozenView(m_session->machine(), FrozenViewReason::Freeze);
-            changes |= (u.live ? LiveChanged : 0) | (u.listing ? ListingChanged : 0) | (u.cpu ? CpuChanged : 0);
+            changes |= changeIf(u.live, LiveChanged) | changeIf(u.listing, ListingChanged) | changeIf(u.cpu, CpuChanged);
         } else {
             m_session->start();
         }

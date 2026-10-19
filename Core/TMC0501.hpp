@@ -299,10 +299,10 @@ public:
 
     /// Read a ROM keycode (PRG SOURCE = 8) by address 0–383.
     /// Returns 0 for out-of-range addresses.
-    uint8_t romKeycode(int addr) const {
-        if (addr < 0 || addr >= 384) return 0;
-        int row = 16 + (addr / 8);
-        int offset = (addr % 8) * 2;
+    uint8_t romKeycode(int index) const {
+        if (index < 0 || index >= 384) return 0;
+        int row = 16 + (index / 8);
+        int offset = (index % 8) * 2;
         uint8_t units = m_constant[row][offset];
         uint8_t tens = m_constant[row][offset + 1];
         return static_cast<uint8_t>((tens * 10) + units);
@@ -480,15 +480,15 @@ private:
     bool m_breakpointHit{false};
 
     void tracePreStep(uint32_t tf, uint16_t opcode);
-    void tracePostStep(uint32_t tf, int weight);
+    void tracePostStep(int weight);
 
     // ── Helper methods for masked operations ──────────────────────────
     // Read only the nibbles specified by the field mask from RAM
-    void readRegMasked(uint8_t* dst, int addr, const MaskInfo& m);
+    void readRegMasked(uint8_t* dst, int reg, const MaskInfo& m);
     // Write only the nibbles specified by the field mask to RAM
-    void writeRegMasked(int addr, const uint8_t* src, const MaskInfo& m);
+    void writeRegMasked(int reg, const uint8_t* src, const MaskInfo& m);
     // Read only the nibbles specified by the field mask from SCOM
-    void readScomMasked(uint8_t* dst, int addr, const MaskInfo& m);
+    void readScomMasked(uint8_t* dst, int reg, const MaskInfo& m);
 
     // ── ALU support tables ────────────────────────────────────────────
 

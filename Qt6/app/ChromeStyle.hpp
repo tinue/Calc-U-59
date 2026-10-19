@@ -16,7 +16,7 @@ inline const QColor kDebugBackground = gray(0.10);
 inline const QColor kDebugHeader = gray(0.07);
 inline const QColor kSectionBody = gray(0.13);
 inline const QColor kPill = gray(0.25);                 ///< pill buttons
-inline const QColor kPaper = QColor::fromRgbF(0.96, 0.94, 0.88);
+inline const QColor kPaper = QColor::fromRgbF(0.96f, 0.94f, 0.88f);
 
 inline QString rgb(const QColor& c) { return c.name(QColor::HexRgb); }
 

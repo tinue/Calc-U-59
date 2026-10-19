@@ -2,6 +2,7 @@
 #include "ROM.hpp"
 #include "RAM.hpp"
 #include <algorithm>
+#include <bitset>
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
@@ -197,9 +198,9 @@ void TMC0501::loadConstants(const uint8_t* data, size_t count) {
 
 // ── Masked RAM read/write helpers ──────────────────────────────────────────────
 
-void TMC0501::readRegMasked(uint8_t* dst, int addr, const MaskInfo& m) {
+void TMC0501::readRegMasked(uint8_t* dst, int reg, const MaskInfo& m) {
     // Read only the nibbles in the masked range from RAM, zero out others
-    const auto* src = ram.readReg(addr);
+    const auto* src = ram.readReg(reg);
     memset(dst, 0, 16);
     if (src && m.start != 0xFF) {
         for (int i = static_cast<int>(m.start); i <= static_cast<int>(m.end) && i < 16; i++) {
@@ -208,27 +209,27 @@ void TMC0501::readRegMasked(uint8_t* dst, int addr, const MaskInfo& m) {
     }
 }
 
-void TMC0501::writeRegMasked(int addr, const uint8_t* src, const MaskInfo& m) {
+void TMC0501::writeRegMasked(int reg, const uint8_t* src, const MaskInfo& m) {
     // Write only the nibbles in the masked range to RAM, preserve others
-    if (m.start != 0xFF && addr < ram.size()) {
-        const auto* current = ram.readReg(addr);
+    if (m.start != 0xFF && reg < ram.size()) {
+        const auto* current = ram.readReg(reg);
         if (current) {
             uint8_t temp[16];
             memcpy(temp, current, 16);
             for (int i = static_cast<int>(m.start); i <= static_cast<int>(m.end) && i < 16; i++) {
                 temp[i] = src[i];
             }
-            ram.writeReg(addr, temp);
+            ram.writeReg(reg, temp);
         }
     }
 }
 
-void TMC0501::readScomMasked(uint8_t* dst, int addr, const MaskInfo& m) {
+void TMC0501::readScomMasked(uint8_t* dst, int reg, const MaskInfo& m) {
     // Read only the nibbles in the masked range from SCOM, zero out others
     memset(dst, 0, 16);
-    if (addr < 16 && m.start != 0xFF) {
+    if (reg < 16 && m.start != 0xFF) {
         for (int i = static_cast<int>(m.start); i <= static_cast<int>(m.end) && i < 16; i++) {
-            dst[i] = SCOM[addr][i];
+            dst[i] = SCOM[reg][i];
         }
     }
 }
@@ -277,7 +278,7 @@ void TMC0501::releaseKey(int row, int col) {
 void TMC0501::computeDisplayTraceState(uint8_t& displayOn, uint8_t& maxDigitDecay) const {
     // maxDigitDecay keeps its trace slot; it now counts the positions driven.
     displayOn = m_drivenLastRev ? 1u : 0u;
-    maxDigitDecay = static_cast<uint8_t>(__builtin_popcount(m_drivenLastRev));
+    maxDigitDecay = static_cast<uint8_t>(std::bitset<16>(m_drivenLastRev).count());
 }
 
 uint32_t TMC0501::getPrinterBusyCycles() const {
@@ -534,7 +535,7 @@ int TMC0501::step() {
         postOperation();
         // TI-58C runs at constant speed; TI-59/58 slow to 1/4 speed during IDLE
         int w = getStepWeight();
-        if (tf != TRACE_NONE) [[unlikely]] { tracePostStep(tf, w); }
+        if (tf != TRACE_NONE) tracePostStep(w);
         if ((flags & FLG_IDLE) ? (fA & 0x4000u) : fA) m_cSteps.fetch_add(1, std::memory_order_relaxed);
         m_pollSteps.fetch_add(static_cast<uint32_t>(w), std::memory_order_relaxed);
         m_elapsedTicksLocal += static_cast<uint64_t>(w);
@@ -982,7 +983,7 @@ int TMC0501::step() {
     }
     // TI-58C runs at constant speed; TI-59/58 slow to 1/4 speed during IDLE
     int w = getStepWeight();
-    if (tf != TRACE_NONE) [[unlikely]] { tracePostStep(tf, w); }
+    if (tf != TRACE_NONE) tracePostStep(w);
     if ((flags & FLG_IDLE) ? (fA & 0x4000u) : fA) m_cSteps.fetch_add(1, std::memory_order_relaxed);
     m_pollSteps.fetch_add(static_cast<uint32_t>(w), std::memory_order_relaxed);
     m_elapsedTicksLocal += static_cast<uint64_t>(w);
@@ -1529,7 +1530,7 @@ void TMC0501::tracePreStep(uint32_t tf, uint16_t opcode) {
 // Full state patching is deferred to beginNextStep() at the next instruction
 // boundary, where the previous frame is rewritten to post-execution state.
 
-void TMC0501::tracePostStep(uint32_t tf, int weight) {
+void TMC0501::tracePostStep(int weight) {
     std::lock_guard<std::mutex> lk(m_traceMutex);
     CpuFrame& frame = m_frameRing[m_frameHead & kFrameRingMask];
 
