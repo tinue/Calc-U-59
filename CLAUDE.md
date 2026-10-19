@@ -54,10 +54,14 @@ shipped and never built in CI). Keep them in step:
   on the same branch** — or a `Pending (Qt)` / `Pending (Swift)` row with a
   reason in `reference/FrontendParity.md`. Update that table either way.
   `tools/check_parity.sh` flags a branch that touches one GUI only.
-- **Every change to `Core/` or `Shared/` must pass both builds before committing:**
-  `cmake -S . -B build/cmake -G Ninja && cmake --build build/cmake && ctest --test-dir build/cmake --output-on-failure`
-  and `xcodebuild -project Calc-U-59.xcodeproj -scheme Calc-U-59 -destination platform=macOS build`.
-  `Shared/` stays C++17 and standard-library-only.
+- **Every change to `Core/` or `Shared/` must pass all builds before committing:**
+  `cmake -S . -B build/cmake -G Ninja && cmake --build build/cmake && ctest --test-dir build/cmake --output-on-failure`,
+  `xcodebuild -project Calc-U-59.xcodeproj -scheme Calc-U-59 -destination platform=macOS build`,
+  and the web calculator, which compiles both layers too:
+  `tools/build_wasm.sh && helpsite-unit-tests/run-tests.sh`
+  (rebuilds `docs/wasm/` — commit that from inside `docs/`, the gh-pages worktree).
+  `Shared/` stays C++17 and standard-library-only, and must work without threads
+  (`Threading::Cooperative`, used by the web build).
 - **Settings both apps store** (key names, defaults, resolution) live in
   `Shared/SettingsKeys.hpp`; `App/AppSettings.swift` and `Qt6/app/AppSettings.hpp` use them.
 - **Assets have one source:** ROMs in `roms/`, artwork in `App/Assets.xcassets`,
