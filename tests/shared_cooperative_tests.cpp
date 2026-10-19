@@ -100,17 +100,23 @@ KeystrokeEvent event(KeystrokeEvent::Kind kind, double seconds = 0) {
 
 TEST(cooperative_script_holds_each_key_and_waits_for_the_scan_loop) {
     VirtualRig r;
-    r.host.idle = false;  // the CPU is computing after each key
+    r.host.idle = false;  // still computing: the first key waits
     r.keys.play(keyEvents({25, 83}));
-    r.run(120ms);
+    r.run(200ms);
     CHECK(r.keys.isPlaying());
-    CHECK(r.host.at("release 25") - r.host.at("press 25") == 100ms);
-    r.run(200ms);  // still busy: the next key waits
-    CHECK(r.host.at("press 83") == Clock::time_point{});
+    CHECK(r.host.at("press 25") == Clock::time_point{});
     r.host.idle = true;
     auto idleAt = r.t;
+    r.run(20ms);
+    CHECK(r.host.at("press 25") == idleAt + 20ms);  // noticed at the next batch boundary
+    r.host.idle = false;  // the key starts a computation
     r.run(200ms);
-    CHECK(r.host.at("press 83") == idleAt + 20ms);  // noticed at the next batch boundary
+    CHECK(r.host.at("release 25") - r.host.at("press 25") == 100ms);
+    CHECK(r.host.at("press 83") == Clock::time_point{});  // waits for the scan loop
+    r.host.idle = true;
+    idleAt = r.t;
+    r.run(200ms);
+    CHECK(r.host.at("press 83") == idleAt + 20ms);
     CHECK(!r.keys.isPlaying());
     CHECK(r.host.names() == (std::vector<std::string>{"started", "press 25", "release 25", "press 83", "release 83", "finished"}));
 }
@@ -272,7 +278,7 @@ struct ControllerRig {
     VirtualPlatform p;
     SessionController c{p, testroms::reader(), testroms::readFile("roms/solid-state/cuecards.txt").value_or(""), "ML",
                         Threading::Cooperative};
-    Clock::time_point t = Clock::time_point{} + 1h;
+    Clock::time_point t = Clock::time_point{} + 500ms;  // a browser's clock starts at page load
     ControllerRig() { CHECK(c.startMachine(Model::TI59)); }
     void run(Clock::duration d) {
         for (auto end = t + d; t < end; t += std::chrono::microseconds(16'667)) {
@@ -322,7 +328,7 @@ TEST(cooperative_controller_skip_reset_keeps_the_program) {
 
 TEST(cooperative_controller_writes_and_reads_a_card) {
     ControllerRig r;
-    r.load("PROGRAM:\n85 07\n");
+    r.load("PROGRAM:\n76 11 01 02 03 91\n");  // Lbl A 1 2 3 R/S
     r.run(1s);
     r.load("SKIP-RESET: on\nKEYSTROKES:\n82 21 91\n");  // 1 2nd Write
     CHECK(r.runUntil([&] { return !r.c.keystrokesPlaying(); }));
@@ -337,6 +343,16 @@ TEST(cooperative_controller_writes_and_reads_a_card) {
     r.c.insertCard(std::vector<uint8_t>(card.begin(), card.end()), "web:card", "card.U59");
     CHECK(r.runUntil([&] { return r.c.cardState() == SessionController::CardState::NoCard; }));
     r.run(1s);
-    CHECK_EQ(int(r.c.session()->machine().readProgramStep(1)), 7);
+    CHECK_EQ(int(r.c.session()->machine().readProgramStep(1)), 11);
     CHECK(r.p.errors.empty());
+}
+
+TEST(cooperative_controller_shows_the_library_program_card) {
+    ControllerRig r;
+    r.run(50ms);
+    r.load("SKIP-RESET: on\nKEYSTROKES:\n21 31 92 82\n");  // 2nd Pgm 01
+    CHECK(r.runUntil([&] { return !r.c.keystrokesPlaying(); }));
+    r.run(1s);
+    CHECK(r.c.cueCard().has_value());
+    if (r.c.cueCard()) CHECK_EQ(r.c.cueCard()->id, std::string("ML-01"));
 }

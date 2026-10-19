@@ -124,11 +124,12 @@ void KeySequencer::advance(Clock::time_point now) {
     m_keys.advance(m_now);
 }
 
-// A tap holds the key kHold — not cut short by a cancel, the key must still
-// come up — then waits for the narrow steady-state scan loop, not the wider
-// key-detect range: that also covers the debounce/confirm states of the key
-// just pressed, so the next key could fire mid-debounce and be discarded. A
-// freeze stops the CPU outright, so the wait ends at once instead of forever.
+// A tap waits for the narrow steady-state scan loop, holds the key kHold —
+// not cut short by a cancel, the key must still come up — then waits for the
+// scan loop again. The narrow loop, not the wider key-detect range: that also
+// covers the release gate and the debounce/confirm states of the key just
+// pressed, where a new key is discarded. A freeze stops the CPU outright, so
+// the waits end at once instead of forever.
 std::optional<KeySequencer::Clock::time_point> KeySequencer::step(Lane& lane, Task& task, Clock::time_point now) {
     using K = KeystrokeEvent::Kind;
     using P = Task::Phase;
@@ -139,6 +140,21 @@ std::optional<KeySequencer::Clock::time_point> KeySequencer::step(Lane& lane, Ta
     }
     for (;;) {
         switch (task.phase) {
+        case P::WaitingToPress:
+            if (lane.cancelled(task.generation)) {
+                task.phase = P::Next;
+                break;
+            }
+            if (m_host.isFrozen() || m_scanLoop.contains(m_host.pc())) {
+                if (!task.script) m_host.heldKeyChanged(highlightID(task.code));
+                m_host.pressKey(task.code);
+                task.wake = now + kHold;
+                task.phase = P::Holding;
+                return task.wake;
+            }
+            if (now < task.wake) return task.wake;
+            task.wake = now + kScanPoll;
+            return task.wake;
         case P::Holding:
             if (now < task.wake) return task.wake;
             m_host.releaseKey(task.code);
@@ -169,12 +185,10 @@ std::optional<KeySequencer::Clock::time_point> KeySequencer::step(Lane& lane, Ta
             const KeystrokeEvent& e = task.events[task.next++];
             switch (e.kind) {
             case K::Key:
-                if (!task.script) m_host.heldKeyChanged(highlightID(e.code));
-                m_host.pressKey(e.code);
                 task.code = e.code;
-                task.wake = now + kHold;
-                task.phase = P::Holding;
-                return task.wake;
+                task.wake = now;
+                task.phase = P::WaitingToPress;
+                break;
             case K::ToggleTrace: m_host.togglePrinterTrace(); break;
             case K::Wait:
                 task.wake = now + seconds(e.seconds);

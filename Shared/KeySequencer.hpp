@@ -16,11 +16,12 @@
 
 // Timed key input: KEYSTROKES playback and the physical keyboard.
 //
-// A tap holds the key 100 ms — longer than the ROM's worst-case debounce
-// (~3 sweeps to arm and confirm, ideas/KeypressLatch.md) yet short enough that
-// a repeat-while-held key (Adv) fires only a couple of times at regular speed
-// — then releases it and waits until the CPU is back in the steady keyboard
-// scan loop, so no keystroke is lost to a still-computing calculator.
+// A tap waits until the CPU is in the steady keyboard scan loop, holds the key
+// 100 ms — longer than the ROM's worst-case debounce (~3 sweeps to arm and
+// confirm, ideas/KeypressLatch.md) yet short enough that a repeat-while-held
+// key (Adv) fires only a couple of times at regular speed — then releases it
+// and waits for the scan loop again, so no keystroke is lost to a
+// still-computing calculator or one still in its key-release gate.
 //
 // Physical keys follow the hardware's level semantics: a single code goes down
 // on key-down and up on key-up, but never earlier than 100 ms after it went
@@ -97,10 +98,11 @@ private:
     /// has to wait, and says until when.
     struct Task {
         enum class Phase {
-            Next,         ///< run the next event
-            Holding,      ///< key down until `wake` (a cancel does not cut it short)
-            WaitingIdle,  ///< key up; poll every kScanPoll until the CPU is in the scan loop
-            Sleeping,     ///< Wait / WaitFullSpeed until `wake` (a cancel ends it)
+            Next,            ///< run the next event
+            WaitingToPress,  ///< poll every kScanPoll until the CPU is in the scan loop, then press
+            Holding,         ///< key down until `wake` (a cancel does not cut it short)
+            WaitingIdle,     ///< key up; poll every kScanPoll until the CPU is in the scan loop
+            Sleeping,        ///< Wait / WaitFullSpeed until `wake` (a cancel ends it)
         };
         std::vector<KeystrokeEvent> events;  ///< a keyboard tap sequence holds Key events only
         bool script = false;
