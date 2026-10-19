@@ -9,6 +9,8 @@ otherwise.
 
 Emulator-side facts (instruction set, SCOM/PREG mechanics, chip variants)
 live in `reference/CoreArchitecture.md`; this guide is about the firmware.
+The TI-58C runs a revised ROM; its differences (constant memory, bug fixes,
+self-test) are in `rom/TI58C-ROM-Guide.md`.
 
 ## Reproducing the traces
 
@@ -565,7 +567,8 @@ All trace-confirmed with the headless harness:
   partly or not at all program memory stay writable. The bank shows as
   negative. Protected memory also turns off List (`0D2E`), Op 08, trace
   printing (both the TRACE switch and flag 9, `068E`) and the GTO display
-  peek (`07D2`). CP clears the protection.
+  peek (`07D2`), and Op 17 silently acts as Op 16 (`1558`; `2 Op 17` keeps
+  479.59). CP clears the protection.
 
 ## Printing
 

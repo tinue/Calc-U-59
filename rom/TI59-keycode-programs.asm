@@ -229,12 +229,12 @@
 207  44  SUM
 208  05        operand
 209  01  1
-210  61  GTO
+210  61  GTO                  ; GTO 236 (two operand bytes): count += 1, shared with INV Σ+
 211  02        operand
-212  36  PGM
+212  36        operand
 
 ; ── step 213: INV Σ+ ──
-213  94        operand
+213  94  +/-
 214  44  SUM
 215  01        operand
 216  82  HIR
