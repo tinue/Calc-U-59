@@ -473,7 +473,7 @@ discard the hit (multi-key rejection).
 
 | col | line | Signal | How the ROM samples it |
 |---|---|---|---|
-| 10 (TI-59) | KR | Card switch (active = no card). Open on the TI-58, which has no reader | `WAIT D11` + `TST.BUSY` in the idle loop (`063E`); invisible to the scan |
+| 10 (TI-59) | KR | Card switch (active = no card). Open on the TI-58, which has no reader. Confirmed on a real TI-59: a card inserted while it sits idle starts the motor and is read without a key press (idle loop → `0459` → `045D` read → `053F`), as in the emulator | `WAIT D11` + `TST.BUSY` in the idle loop (`063E`); invisible to the scan |
 | 7 (TI-58/58C) | KR | Card veto: a D7–KR connection, absent on the TI-59 (Sladký, *HW guide*: "Reader detection: no D7-KR connection (TI-59 mode)"). With digit 10 open, every TI-58 idle pass goes through the second card poll (`0459`) and returns, and `2nd Write` (which enters at `045F`) finds no card to wait for. `Shared/` counts `0459`–`045B` as part of the TI-58's scan loop (`kCardVetoLo/Hi`), for FREEZE ON START, key sequencing and the full-speed throttle. The TI-58C ROM never probes digit 7 and samples digit 10 itself (`064D`) | `WAIT D8` + `TST.BUSY` at `0459`, reached only from the idle loop's `JC 0459` (`0640`) |
 | 0 (TI-59/58) | KP | Printer connected | `WAIT D1` + `KEY [P]` at the scan's sentinel digit, so invisible to the scan |
 | 10 (TI-58C) | KP | Printer connected (the TI-58C PCB routes it to digit 10) | `WAIT D11` + `KEY [P]` |
