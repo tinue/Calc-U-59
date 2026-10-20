@@ -419,7 +419,7 @@ The bracket list in a `KEY` mnemonic is the K-line mask. The idle scan
 the instruction after `WAIT Dn` runs at digit **n−1**. `WAIT D11` +
 `TST.BUSY` samples digit 10; `WAIT D1` + `KEY [P]` samples digit 0.
 
-**`WAIT` minimum (3 executions; 2 on the TI-58):** HOLD reaches the ROM chips as a bit of
+**`WAIT` minimum (3 executions; 2 below 400 kHz, i.e. on the TI-58):** HOLD reaches the ROM chips as a bit of
 the next cycle's EXT word (state S2), and the SCOM latches the address it
 implies only in the cycle after that (US 3,900,722, cols. 15–16 and 22–23).
 So a `WAIT` cannot release on its first or second execution: if its digit
@@ -437,7 +437,13 @@ earlier, plausibly because its slower clock (192 kHz PHI against 227.5 kHz,
 http://www.datamath.org/Chips/TP0240.htm) leaves the time: a real TI-58's
 error blink, filmed in a reflection, runs 0.684 s with a 0.40 s dark phase;
 minimum 2 gives 0.66 s (dark 0.41 s), minimum 3 gives 1.06 s. The lit phase
-is still about 0.03 s short.
+is still about 0.03 s short. The minimum therefore follows the resonator
+(`resonatorHz()` in `Core/MachineVariant.hpp`), not the model: 2 below
+400 kHz, 3 above. The service manual allows a TI-58 either a 455 kHz or a
+384 kHz resonator; a 455 kHz TI-58 would blink like a TI-59 (0.897 s). The
+400 kHz switch point is an assumption, chosen well clear of the ±1% spread
+of either part; the TI-58C (400 kHz, minimum 3) blinks the same with either
+minimum, so it cannot place it.
 
 **`KR` after a scan-all hit:**
 

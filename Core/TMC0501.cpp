@@ -647,8 +647,11 @@ int TMC0501::step() {
             // blink ran 2x too fast. Waits with more slack are unchanged.
             // The TI-58 catches the latch one execution earlier — plausibly its
             // slower clock (192 kHz PHI, http://www.datamath.org/Chips/TP0240.htm)
-            // leaves the time. A filmed TI-58 error blink runs 0.684 s (dark
-            // 0.40 s); minimum 2 gives 0.66 s (dark 0.41 s), minimum 3 1.06 s.
+            // leaves the time, so the minimum follows the resonator, not the
+            // model (a 455 kHz TI-58 would blink like a TI-59, 0.897 s). A filmed
+            // TI-58 error blink runs 0.684 s (dark 0.40 s); minimum 2 gives
+            // 0.66 s (dark 0.41 s), minimum 3 1.06 s. The TI-58C blink is the
+            // same with either minimum.
             if (digit != ((opcode >> 4) & 0x000Fu) || m_holdRun < waitMinExecutions()) {
                 flags |= FLG_HOLD;
             }
