@@ -457,16 +457,6 @@ private:
     // backward branch retrying it — see step()'s kPolledHardware doc comment.
     bool m_lastStepWasHWPoll{false};
 
-    // Consecutive executions of the instruction now being held (1 = first).
-    // WAIT Dn cannot release before execution waitMinExecutions() — see the
-    // WAIT case in step().
-    int m_holdRun{1};
-    // A slower clock leaves time to catch the latch at once (TI-58 at 384 kHz).
-    // Where it changes is not known: kFastLatchBelowHz is an assumption,
-    // chosen well clear of the 384 and 455 kHz resonators' ±1%.
-    static constexpr double kFastLatchBelowHz = 400000.0;
-    int waitMinExecutions() const { return resonatorHz(m_variant) < kFastLatchBelowHz ? 1 : 3; }
-
     // Latched at each step boundary and idle entry (see step()).
     StepBoundary m_stepBoundary{};
     int noteStepBoundary();

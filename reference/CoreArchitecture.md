@@ -68,8 +68,10 @@ Sources: Hynek Sladký, *HW guide for calculators TI-58/59* (2014), p. 6 —
 instruction cycle ≈ 70 µs in calculate mode, ≈ 280 µs in display mode; the
 TP0240 clock chip page (http://www.datamath.org/Chips/TP0240.htm) — 455 kHz
 (TI-59) and 384 kHz (TI-58) ceramic resonators, ±1%, ÷ 4 while /IDLE is
-active. The TI-59 rates are confirmed by videos of a real TI-59 (see "`WAIT`
-minimum"). The TI-58C is assumed to use the TI-58's 384 kHz part; no
+active. The TI-59 rates are confirmed on a real TI-59: videos (see "Printer
+line in the idle scan") and a logic analyser on its clock chip, whose PHI1/PHI2
+pins run at f/2 (226.6 kHz) while active and f/8 (56.7 kHz) while idle, for a
+453.3 kHz resonator. The TI-58C is assumed to use the TI-58's 384 kHz part; no
 TI-58C clock is documented. Measured units disagree: one shows PHI 194.7 kHz
 on a scope (389.4 kHz) and an error blink of 0.920 s that matches it
 exactly; another blinks 0.896 s, as at 400 kHz. The blink's length in
@@ -333,8 +335,7 @@ counts as "no jump" (see `rom/TI58C-ROM-Guide.md` § "Emulator issues found").
    chain, patch the previous trace frame to post-execution state, start the
    new frame (breakpoint check).
 3. **Digit counter** — 15 → 14 → … → 0 → 15.
-4. **HOLD** — count consecutive executions of a held instruction
-   (`m_holdRun`), then clear `FLG_HOLD`; `WAIT`/`KEY … ALL` re-assert it.
+4. **HOLD** — clear `FLG_HOLD`; `WAIT`/`KEY … ALL` re-assert it.
 5. **Validity windows** — `EXT` and `Sout` survive one cycle after they are
    written, then read as 0.
 6. **Decode and execute** — a branch sets `addr` and skips step 8.
@@ -412,10 +413,10 @@ sample the row being strobed, or stall until a chosen row comes up.
 
 | Mnemonic | Cycles | What it does |
 |---|---|---|
-| `KEY […] ALL` | HOLDs | Re-executes every cycle, riding the counter down. Stops on a masked-in K-line active at the current row (COND cleared, `KR` loaded) or at digit 0 (no key, COND stays 1). Digit 0 is a sentinel and is **not** sampled. |
+| `KEY […] ALL` | HOLDs | Re-executes every cycle, riding the counter down. Stops on a masked-in K-line active at the current row (COND cleared, `KR` loaded) or at digit 0, the last row it samples (no key, COND stays 1). |
 | `KEY […]` | 1 | Samples the current row against the mask; clears COND on a hit. **Never writes `KR`.** |
 | `TST.BUSY` | 1 | Clears COND if KR (bit 4) is active at the current row **or** the printer is busy. |
-| `WAIT Dn` | HOLDs, ≥ 3 | Stalls until the counter equals *n*, no earlier than its 3rd execution. Reads no K-lines; it makes the *next* instruction run at a known row. |
+| `WAIT Dn` | HOLDs | Stalls until the counter equals *n*; releases at once if it already does. Reads no K-lines; it makes the *next* instruction run at a known row. |
 | `WAIT.BUSY` | 1 | Undocumented; a no-op in the emulator. |
 
 The bracket list in a `KEY` mnemonic is the K-line mask. The idle scan
@@ -425,32 +426,25 @@ The bracket list in a `KEY` mnemonic is the K-line mask. The idle scan
 the instruction after `WAIT Dn` runs at digit **n−1**. `WAIT D11` +
 `TST.BUSY` samples digit 10; `WAIT D1` + `KEY [P]` samples digit 0.
 
-**`WAIT` minimum (3 executions; 1 below 400 kHz, i.e. on the TI-58 and TI-58C):** HOLD reaches the ROM chips as a bit of
-the next cycle's EXT word (state S2), and the SCOM latches the address it
-implies only in the cycle after that (US 3,900,722, cols. 15–16 and 22–23).
-So a `WAIT` cannot release on its first or second execution: if its digit
-comes up that early, it is missed and the `WAIT` runs one more revolution
-(`waitMinExecutions()`). It still releases on the right digit, so every
-`WAIT Dn` + probe pair samples the same row. Measured on a real TI-59
-(stopwatch-calibrated 120 fps video): the error blink, whose idle loop
-reaches `WAIT D11` (`063E`) and `WAIT D14` (`0656`) after 1–2 executions,
-has a 0.899 s period (dark 0.456 s, lit 0.444 s); the emulator gives
-0.897 s with the rule and 0.447 s without. The steady TI-59 idle pass grows
-from 9.0 to 13.5 ms. Waits with more slack — `WAIT D1` before `SET.IDLE`,
-the Pause loop, the TI-58C idle loop — are unaffected (Pause step: 0.459 s
-measured, 0.457 s emulated). The TI-58 catches the latch at once, plausibly
-because its slower clock (192 kHz PHI against 227.5 kHz,
-http://www.datamath.org/Chips/TP0240.htm) leaves the time: a real TI-58's
-error blink, filmed in a reflection, runs 0.684 s (lit about 0.28 s, dark
-about 0.40 s). With its card wiring (digit 7, below) minimum 1 gives
-0.681 s (lit 0.278 s, dark 0.403 s); minimum 2 gives 0.948 s, minimum 3
-1.381 s. The minimum therefore follows the resonator (`resonatorHz()` in
-`Core/MachineVariant.hpp`), not the model: 1 below 400 kHz, 3 above. The
-service manual allows a TI-58 either a 455 kHz or a 384 kHz resonator; a
-455 kHz TI-58 would blink like a TI-59 (0.897 s). The 400 kHz switch point
-is an assumption, chosen well clear of the ±1% spread of either part. The
-TI-58C (384 kHz, so minimum 1) blinks the same with any minimum, so it
-cannot place it; its counter loops run about 1% faster with 1 than with 3.
+**Printer line in the idle scan:** the PC-100C ties KP to D0 (printer
+present), and `KEY […] ALL` samples digit 0 like any other row. So on a
+TI-59 or TI-58 with a printer, the idle loop's arming scan (`0657`) stops at
+"row 0" on every pass, the confirmation scan (`065A`) one sweep later finds
+it again, and the row guard (`065C`–`0660`) discards it: two extra digit
+sweeps per pass (the confirmation's `WAIT D14` and its scan). The steady idle pass is 9.0 ms stand-alone and 18.0 ms with
+a printer (TI-59). The two release gates (`062D`, `0635`) fall through a
+row-0 hit the same way. Measured on a real TI-59 (videos at 120 and 30 fps):
+the error blink runs 0.899 s on the PC-100C (dark 0.456 s, lit 0.444 s) and
+0.449 s stand-alone; the emulator gives 0.897 and 0.447 s at 455 kHz. A
+logic-analyser capture of the stand-alone blink shows the same D12 rhythm
+as the emulator in both phases. A stand-alone TI-58 blinks 0.684 s (lit
+about 0.28 s, dark about 0.40 s; filmed in a reflection); the emulator gives
+0.681 s (lit 0.278, dark 0.403). The TI-58C moved the line to D10; its idle
+loop sends rows 10 and 11 to `0A25`, which rescans below the line, and adds
+a blink-counter step there to keep the blink near its stand-alone rate
+(`rom/TI58C-commented.asm` at `0A25`). An earlier model put the extra time
+in a `WAIT` that could not release before its third execution; it fitted
+the printer-attached TI-59 but not the stand-alone one.
 
 **`KR` after a scan-all hit:**
 
@@ -475,7 +469,7 @@ discard the hit (multi-key rejection).
 |---|---|---|---|
 | 10 (TI-59) | KR | Card switch (active = no card). Open on the TI-58, which has no reader. Confirmed on a real TI-59: a card inserted while it sits idle starts the motor and is read without a key press (idle loop → `0459` → `045D` read → `053F`), as in the emulator | `WAIT D11` + `TST.BUSY` in the idle loop (`063E`); invisible to the scan |
 | 7 (TI-58/58C) | KR | Card veto: a D7–KR connection, absent on the TI-59 (Sladký, *HW guide*: "Reader detection: no D7-KR connection (TI-59 mode)"). With digit 10 open, every TI-58 idle pass goes through the second card poll (`0459`) and returns, and `2nd Write` (which enters at `045F`) finds no card to wait for. `Shared/` counts `0459`–`045B` as part of the TI-58's scan loop (`kCardVetoLo/Hi`), for FREEZE ON START, key sequencing and the full-speed throttle. The TI-58C ROM never probes digit 7 and samples digit 10 itself (`064D`) | `WAIT D8` + `TST.BUSY` at `0459`, reached only from the idle loop's `JC 0459` (`0640`) |
-| 0 (TI-59/58) | KP | Printer connected | `WAIT D1` + `KEY [P]` at the scan's sentinel digit, so invisible to the scan |
+| 0 (TI-59/58) | KP | Printer connected | `WAIT D1` + `KEY [P]`. The idle scan sees it too, as a row-0 key that it discards (see "Printer line in the idle scan"); `Shared/` counts that confirmation scan (to `0660`) as part of the scan loop |
 | 10 (TI-58C) | KP | Printer connected (the TI-58C PCB routes it to digit 10) | `WAIT D11` + `KEY [P]` |
 | 12 | KP | Printer PRINT button | Ordinary scan hit at row 12 |
 | 12 | KN | Printer ADV button | Ordinary scan hit at row 12 |

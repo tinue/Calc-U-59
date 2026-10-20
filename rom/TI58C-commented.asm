@@ -2197,8 +2197,9 @@
 ; KEY...ALL HOLDs across digit slots until it reaches D0 (never sampled):
 ;   • no key down  → COND stays 1 → the following JC jumps on
 ;   • key detected → COND=0 and KR := row (KR[4..7]) + K-line (KR[8..10]).
-; The printer-present line is KP at D10 on the TI-58C (TI-59: D0, which no
-; scan-all ever samples), so the scans here have to step around it.
+; The printer-present line is KP at D10 on the TI-58C (TI-59: D0, the last row
+; a scan-all samples, where the TI-59 discards it as "row 0"), so the scans
+; here have to step around it.
 ;
 ; KEY ACCEPTANCE (trace-checked with the headless harness, TI-58C):
 ;   062D–063C — release gate on the way in (from reset or a finished key):
@@ -2220,7 +2221,7 @@
 ; Δ [HW] TI-59 062A–0640, 0656–0660: scan windows rebuilt around the
 ; printer-present line at D10 (TI-59 D0) and the TI-59 card-switch poll
 ; (063C–0640, WAIT D11 + TST.BUSY → 0459) dropped — no card reader. The
-; "row ≠ 0" TST KR[4..7] guards are gone (scan-all never reports row 0).
+; "row ≠ 0" TST KR[4..7] guards are gone (nothing is wired at D0 any more).
 062A: 00B2  CLR fA[11]        ; release-gate pass toggle: first pass
 062B: 0A10  WAIT D1           ; sync to digit 1
 062C: 0A09  SET.IDLE          ; enter idle: hardware multiplexes the display (TI-58C: CPU keeps

@@ -127,8 +127,9 @@ void KeySequencer::advance(Clock::time_point now) {
 // A tap waits for the narrow steady-state scan loop, holds the key kHold —
 // not cut short by a cancel, the key must still come up — then waits for the
 // scan loop again. The narrow loop, not the wider key-detect range: that also
-// covers the release gate and the debounce/confirm states of the key just
-// pressed, where a new key is discarded. A freeze stops the CPU outright, so
+// covers the release gate, where a new key is discarded, and the key just
+// pressed being decoded. (With a printer the narrow loop includes the confirm
+// scan: the printer line makes every pass take it.) A freeze stops the CPU outright, so
 // the waits end at once instead of forever.
 std::optional<KeySequencer::Clock::time_point> KeySequencer::step(Lane& lane, Task& task, Clock::time_point now) {
     using K = KeystrokeEvent::Kind;

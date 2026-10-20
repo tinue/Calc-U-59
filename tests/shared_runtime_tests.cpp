@@ -65,8 +65,9 @@ TEST(pacing_sleep_rule) {
     CHECK(!shouldSleep(true, 0x0100, false, Model::TI59));      // full speed races productive code
     CHECK(shouldSleep(true, 0x0640, false, Model::TI59));       // … but never the scan loop
     CHECK(shouldSleep(true, 0x0100, true, Model::TI59));        // … or a hardware poll
-    CHECK(shouldSleep(true, 0x0A00, false, Model::TI58C));      // TI-58C's wider scan range
-    CHECK(!shouldSleep(true, 0x0A00, false, Model::TI59));
+    CHECK(shouldSleep(true, 0x0A28, false, Model::TI58C));      // TI-58C's printer-line rescan
+    CHECK(!shouldSleep(true, 0x0A28, false, Model::TI59));
+    CHECK(!shouldSleep(true, 0x0800, false, Model::TI58C));     // … not the code between
 }
 
 TEST(freeze_on_scan_loop_exit_fires_on_key) {

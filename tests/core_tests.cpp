@@ -60,16 +60,14 @@ TEST(two_plus_three_equals_five) {
     }
 }
 
-// The error blink of a real TI-59 (0 1/x) was filmed next to a stopwatch:
-// 0.899 s per period. Its idle loop has two WAITs that reach their digit after
-// 1-2 executions; only with the WAIT minimum (TMC0501::waitMinExecutions) do
-// they take the extra revolution that makes the period right.
-TEST(ti59_error_blink_period_matches_hardware) {
-    auto m = testroms::makeMachine(Model::TI59);
-    testroms::runToScanLoop(*m, Model::TI59);
-    for (int k : {kKey0, kRecip}) testroms::tap(*m, Model::TI59, k);
-    // 0x0655 SET.IDLE re-lights the display once per lit pass; a lit phase
-    // starts at the first one after a dark phase (≥ 2000 ticks without it).
+// Error-blink period (0 1/x) of the TI-59 ROM in seconds: 0x0655 SET.IDLE
+// re-lights the display once per lit pass; a lit phase starts at the first one
+// after a dark phase (≥ 2000 ticks without it).
+static double errorBlinkPeriod(Model model, bool printer) {
+    auto m = testroms::makeMachine(model);
+    m->setPrinterConnected(printer);
+    testroms::runToScanLoop(*m, model);
+    for (int k : {kKey0, kRecip}) testroms::tap(*m, model, k);
     std::vector<uint64_t> litStarts;
     uint64_t lastSetIdle = 0;
     for (int i = 0; i < 400'000 && litStarts.size() < 4; ++i) {
@@ -80,31 +78,25 @@ TEST(ti59_error_blink_period_matches_hardware) {
         lastSetIdle = t;
     }
     CHECK_EQ(litStarts.size(), size_t{4});
-    double period = double(litStarts[3] - litStarts[1]) / 2 / cu59::info(Model::TI59).instructionHz;
+    if (litStarts.size() < 4) return 0;
+    return double(litStarts[3] - litStarts[1]) / 2 / cu59::info(model).instructionHz;
+}
+
+// The error blink of a real TI-59 (0 1/x), filmed next to a stopwatch on the
+// PC-100C: 0.899 s per period; stand-alone, 0.449 s. The printer's KP line at
+// D0 sends every idle pass through the confirmation scan (0x0659–0x0660).
+TEST(ti59_error_blink_period_matches_hardware) {
+    double period = errorBlinkPeriod(Model::TI59, true);
     CHECK(period > 0.899 * 0.98 && period < 0.899 * 1.02);
+    period = errorBlinkPeriod(Model::TI59, false);
+    CHECK(period > 0.449 * 0.98 && period < 0.449 * 1.02);
 }
 
 // A real TI-58's error blink, filmed in a reflection (no printer): 0.684 s per
-// period over 20 periods. With the TI-58's card veto (digit 7, so every idle
-// pass detours through the 0x0459 card poll) it takes the TI-58's WAIT minimum
-// of 1: 0.681 s; 1.38 s with the TI-59's 3.
+// period over 20 periods. Every idle pass detours through the TI-58's card
+// veto (digit 7, the 0x0459 card poll): 0.681 s.
 TEST(ti58_error_blink_period_matches_hardware) {
-    auto m = testroms::makeMachine(Model::TI58);
-    m->setPrinterConnected(false);
-    testroms::runToScanLoop(*m, Model::TI58);
-    for (int k : {kKey0, kRecip}) testroms::tap(*m, Model::TI58, k);
-    // Same ROM as the TI-59: 0x0655 SET.IDLE marks each lit pass.
-    std::vector<uint64_t> litStarts;
-    uint64_t lastSetIdle = 0;
-    for (int i = 0; i < 400'000 && litStarts.size() < 4; ++i) {
-        m->step();
-        if (m->pc() != 0x0655) continue;
-        uint64_t t = m->elapsedTicks();
-        if (lastSetIdle == 0 || t - lastSetIdle > 2000) litStarts.push_back(t);
-        lastSetIdle = t;
-    }
-    CHECK_EQ(litStarts.size(), size_t{4});
-    double period = double(litStarts[3] - litStarts[1]) / 2 / cu59::info(Model::TI58).instructionHz;
+    double period = errorBlinkPeriod(Model::TI58, false);
     CHECK(period > 0.684 * 0.98 && period < 0.684 * 1.02);
 }
 

@@ -2085,8 +2085,11 @@
 ;   • no key down  → COND stays 1 → the following JC jumps to the next window
 ;   • key detected → COND=0 and KR is loaded with the row/column, so the JC
 ;                    falls through into the TST KR[4..7] decode below.
-; Because WAIT D14 starts the scan at digit 13, this sweep only covers columns
-; 13..1. Signals on higher columns are read by dedicated polls, not here: the
+; Because WAIT D14 starts the scan at digit 13, this sweep covers columns
+; 13..0. Column 0 carries the printer-present line (KP, PC-100C attached),
+; which every scan therefore finds as a "row 0" key and discards (065C–0660,
+; and the release gates' TST chains). Signals on higher columns are read by
+; dedicated polls, not here: the
 ; card switch (col 10) at 063F, and the printer TRACE switch (col 15, bit 2) by
 ; a WAIT D0 + KEY[P] pair in the keystroke/print path (e.g. 05A9, 069A) — never
 ; during reset, which is why a latched TRACE switch has no effect on cold start.
@@ -2116,9 +2119,8 @@
 ; Key found at a release gate: KR[4..7] (digit row at detection) is non-zero
 ; for any real key, so the TST chain clears COND and JNC loops back to 0627 —
 ; the key is the previous keypress still held down; ignore it until released.
-; (A detection with row nibble 0 would fall through to the next window;
-; speculative: guards against spurious hardware detection at the D0 sweep
-; boundary, where the printer-present KP line is live.)
+; A detection with row nibble 0 — the printer-present KP line at D0, with a
+; PC-100C attached — falls through to the next window.
 062F: 0A45  TST KR[4]
 0630: 0A55  TST KR[5]
 0631: 0A65  TST KR[6]
@@ -2141,9 +2143,7 @@
 ; on which digit TST.BUSY runs at.
 063C: 00C8  TST fB[12]
 063D: 00A8  TST fB[10]
-063E: 0AB0  WAIT D11          ; → next instruction samples digit 10 = the card-switch column.
-                              ;   Reached after 1–2 executions, so the TI-59 misses the digit
-                              ;   and waits one more sweep (WAIT minimum; not on the TI-58)
+063E: 0AB0  WAIT D11          ; → next instruction samples digit 10 = the card-switch column
 063F: 0A0B  TST.BUSY          ; card-switch poll: card absent (or printer busy) clears COND
 ; TI-59, card absent: digit 10 asserted → COND=0 → JC not taken, idle continues.
 ; If digit 10 reads idle — a TI-59 with a card inserted — the JC lands at
@@ -2169,12 +2169,12 @@
 ; dark for the pass; even → three extra increments and SET.IDLE re-lights it.
 ; Counting +1/pass dark but +4/pass lit gives 100 dark : 25 lit passes; a lit
 ; pass runs mostly at the ¼-speed idle rate, so both phases last about the
-; same: a dark pass is 4 digit sweeps of active instructions (64), a lit pass
-; 5 sweeps of which ~59 are idle instructions. WAIT D11 (063E) and WAIT D14
-; (0656) reach their digit after 1–2 executions here, too early for the
-; hardware, and each waits one more sweep (WAIT minimum, reference/
-; CoreArchitecture.md). Measured on a real TI-59: 0.899 s period, dark 0.456 s,
-; lit 0.444 s (emulator 0.897 / 0.452 / 0.445 s). The
+; same: stand-alone, a dark pass is 2 digit sweeps of active instructions
+; (32), a lit pass 3 sweeps of which 26 are idle instructions. With a PC-100C
+; each pass takes 2 sweeps more: the printer-present line at D0 sends it
+; through the confirmation scan (0659–0660). Measured on a real TI-59: 0.899 s
+; period on the PC-100C (dark 0.456 s, lit 0.444 s; emulator 0.897 s), 0.449 s
+; stand-alone (emulator 0.447 s). The
 ; counter is simply whatever D holds — the epilogue at 0624 (D=LOAD MLSD1)
 ; leaves D[3] = 1, so the blink always opens with a dark phase. The arming
 ; scan at 0656/0657 keeps running, so any key stays live during the blink.
@@ -2204,14 +2204,14 @@
 ; Steady-state scan window: strobe the matrix once, then loop back to the
 ; housekeeping check at 063C — the steady-state idle cycle (10 instructions:
 ; 063C→0642, 0656→0658). A new keypress is always seen here first.
-0656: 0AE0  WAIT D14          ; after the error blink reached after 1–2 executions → one more
-                              ;   sweep (WAIT minimum); in the steady loop 9, unaffected
-0657: 0820  KEY [N,O,P,Q,S,T] ALL ; ARMING scan — first sight of a new key
+0656: 0AE0  WAIT D14
+0657: 0820  KEY [N,O,P,Q,S,T] ALL ; ARMING scan — first sight of a new key (or of the
+                              ;   printer line at D0)
 0658: 1839  JC 063C           ; no key → back to top of the idle loop
 0659: 0AE0  WAIT D14          ; key seen — wait one full display sweep…
 065A: 0820  KEY [N,O,P,Q,S,T] ALL ; …CONFIRMATION scan (debounce sample #2)
 065B: 183F  JC 063C           ; released in between → bounce/glitch, discard
-065C: 0A45  TST KR[4]         ; sanity guard: digit row nibble must be ≠ 0
+065C: 0A45  TST KR[4]         ; row guard: row 0 is the printer-present line at D0
 065D: 0A55  TST KR[5]         ; (same check as the release gates at 062F)
 065E: 0A65  TST KR[6]
 065F: 0A75  TST KR[7]

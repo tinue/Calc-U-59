@@ -95,7 +95,8 @@ TEST(model_info) {
     CHECK_EQ(info(Model::TI59).instructionHz, 14218.75);
     CHECK_EQ(info(Model::TI58C).instructionHz, 12000.0);
     CHECK(info(Model::TI59).hasCardReader && !info(Model::TI58).hasCardReader);
-    CHECK(info(Model::TI58C).scanLoop.contains(0x0A2E));
+    CHECK(info(Model::TI58C).scanLoop.contains(0x0A2E) && !info(Model::TI58C).scanLoop.contains(0x065A));
+    CHECK(info(Model::TI59).scanLoop.contains(0x0660));  // printer line at D0: confirm scan every pass
     CHECK(!info(Model::TI59).idleAndKeyDetect.contains(0x0661));
 }
 

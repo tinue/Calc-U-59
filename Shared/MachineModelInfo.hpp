@@ -34,6 +34,10 @@ struct PcRange {
 /// open, D7-KR asserted → JNC 0641) — see rom/TI59-commented.asm at 0x063C.
 inline constexpr uint16_t kCardVetoLo = 0x0459, kCardVetoHi = 0x045B;
 
+/// TI-58C with a printer: every idle pass rescans below the printer line at D10
+/// (0x0A25–0x0A2E; 0x0A2F–0x0A30 confirm a key) — rom/TI58C-commented.asm at 0x0A25.
+inline constexpr uint16_t kPrinterRescanLo = 0x0A25, kPrinterRescanHi = 0x0A2E;
+
 struct ModelInfo {
     const char* displayName;
 
@@ -52,11 +56,13 @@ struct ModelInfo {
     /// § "TI-58C Extra (Constant Memory) Registers".
     int extraRegisterCount;
 
-    /// Steady-state keyboard scan loop (FREEZE ON START).
+    /// Steady-state keyboard scan loop (FREEZE ON START). With a printer it
+    /// includes the confirmation scan, which the printer line (TI-59/58 D0,
+    /// TI-58C D10) sends every pass through.
     PcRange scanLoop;
 
     /// Full keyboard scan/detect cycle — release-gate spin (0x0627) through key
-    /// acceptance (0x0661 CLR.IDLE). See rom/TI59-commented.asm (0x0620-0x0661)
+    /// acceptance (0x0661 CLR.IDLE; TI-58C 0x065A). See rom/TI59-commented.asm (0x0620-0x0661)
     /// and ideas/KeypressLatch.md. Used wherever a held key or full-speed racing
     /// must not outrun real scanning/debouncing time.
     PcRange idleAndKeyDetect;
@@ -73,19 +79,20 @@ inline constexpr int kExtraRegisterBase = 60;
 inline const ModelInfo& info(Model m) {
     static const ModelInfo kTI59 {
         "TI-59", resonatorHz(MachineVariant::TI59) / 32, 6144, false, true, true, 0,
-        {0x063C, 0x0658}, {0x0627, 0x0660},
+        {0x063C, 0x0660}, {0x0627, 0x0660},
         {"TMC0582.txt", "TMC0583.txt", "TMC0571B.txt"},
         {"TMC0582-CONST-K.txt", "TMC0583-CONST-K.txt"},
     };
     static const ModelInfo kTI58 {
         "TI-58", resonatorHz(MachineVariant::TI58) / 32, 6144, false, false, false, 0,
-        {0x063C, 0x0658, kCardVetoLo, kCardVetoHi}, {0x0627, 0x0660, kCardVetoLo, kCardVetoHi},
+        {0x063C, 0x0660, kCardVetoLo, kCardVetoHi}, {0x0627, 0x0660, kCardVetoLo, kCardVetoHi},
         {"TMC0582.txt", "TMC0583.txt", "TMC0571B.txt"},
         {"TMC0582-CONST-K.txt", "TMC0583-CONST-K.txt"},
     };
     static const ModelInfo kTI58C {
         "TI-58C", resonatorHz(MachineVariant::TI58C) / 32, 6144, true, false, false, 4,
-        {0x063D, 0x0A2E}, {0x0627, 0x0A2E},
+        {0x063D, 0x0659, kPrinterRescanLo, kPrinterRescanHi},
+        {0x0627, 0x0659, kPrinterRescanLo, 0x0A30},
         {"CD2400.txt", "CD2401.txt", "TMC0573.txt"},
         {"CD2400-CONST-K.txt", "CD2401-CONST-K.txt"},
     };

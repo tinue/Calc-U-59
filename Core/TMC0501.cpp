@@ -153,7 +153,6 @@ void TMC0501::reset() {
     R5 = digit = RAM_ADDR = RAM_OP = REG_ADDR = 0;
     addr  = 0;
     flags = FLG_COND;  // COND starts true; display active
-    m_holdRun = 1;
     m_elapsedTicksLocal = 0;
     m_elapsedTicks.store(0, std::memory_order_relaxed);
     // Initialize per-digit live buffers
@@ -497,8 +496,6 @@ int TMC0501::step() {
     // ── Clear HOLD ────────────────────────────────────────────────────
     // HOLD is re-asserted each cycle by WAIT Dn / KEY scan-all if the
     // condition isn't yet satisfied; clearing it here is the default.
-    // m_holdRun counts the executions of a held instruction (WAIT uses it).
-    m_holdRun = (flags & FLG_HOLD) ? m_holdRun + 1 : 1;
     flags &= ~FLG_HOLD;
 
 
@@ -598,12 +595,16 @@ int TMC0501::step() {
         if (kmask & (kmask - 1u)) kmask = 0;
 
         if (!(opcode & 0x0008u)) {
-            // Scan-all mode: hold and scan until digit 0 or key found.
-            // Digit 0 is the termination sentinel only — it is NOT checked for
-            // key state.  Signals wired at D0 (e.g. KP.D0 = PRN_CONNECTED) are
-            // intentionally invisible to scan-all; the ROM detects them with a
-            // dedicated test-row ?KEY executed when digit == 0.
-            if (digit && (key[digit] & kmask)) {
+            // Scan-all mode: hold and scan until a key is found or digit 0,
+            // the last row sampled. A TI-59/58 on the PC-100C has KP at D0
+            // (printer present), so its idle loop's arming scan (0657) finds
+            // "row 0" on every pass, confirms it one sweep later (065A) and
+            // discards it (0660): +2 sweeps per pass with a printer. Measured
+            // on a real TI-59 error blink: 0.899 s on the PC-100C, 0.449 s
+            // stand-alone (emulator 0.897 / 0.447 s). The TI-58C moved the
+            // line to D10, and its ROM steps around it (rom/TI58C-commented.asm
+            // at 0A25).
+            if (key[digit] & kmask) {
                 uint8_t bit = 0, m2 = kmask;
                 while (!(m2 & 1)) { bit++; m2 >>= 1; }
                 flags &= ~FLG_COND;
@@ -631,24 +632,12 @@ int TMC0501::step() {
             // *next* instruction runs at digit==0.  E.g. WAIT D1 + KEY FB
             // samples key[0] (KP.D0).  WAIT D0 (encoded 0) wraps: fires at
             // digit==15 (benign; not used meaningfully in TI-59 ROMs).
-            //
-            // HOLD reaches the ROM chips as a bit of the *next* cycle's EXT word
-            // (state S2), and the SCOM latches the address it implies only in the
-            // cycle after that (US 3,900,722, cols. 15-16 and 22-23). So a WAIT
-            // cannot release on its first or second execution: if the target
-            // digit comes up that early it is missed and the WAIT runs a full
-            // revolution more. Measured on a TI-59: the error blink (WAIT D11
-            // 063E and WAIT D14 0656 hit their digit after 1-2 executions) takes
-            // 0.899 s per period, which this reproduces (0.897 s); without it the
-            // blink ran 2x too fast. Waits with more slack are unchanged.
-            // The TI-58 catches the latch at once — plausibly its slower clock
-            // (192 kHz PHI, http://www.datamath.org/Chips/TP0240.htm) leaves the
-            // time, so the minimum follows the resonator, not the model (a
-            // 455 kHz TI-58 would blink like a TI-59, 0.897 s). A filmed TI-58
-            // error blink runs 0.684 s (lit 0.28 s, dark 0.40 s); minimum 1 gives
-            // 0.681 s (lit 0.278, dark 0.403), 2 0.948 s, 3 1.381 s. The TI-58C
-            // blink is the same with any minimum.
-            if (digit != ((opcode >> 4) & 0x000Fu) || m_holdRun < waitMinExecutions()) {
+            // It releases at the first matching digit, even on its first
+            // execution: a stand-alone TI-59's error blink (0.449 s, where the
+            // idle loop's WAITs reach their digit after 1-2 executions) allows
+            // no extra revolution. The longer blink on the PC-100C comes from
+            // the printer line at D0 (scan-all above).
+            if (digit != ((opcode >> 4) & 0x000Fu)) {
                 flags |= FLG_HOLD;
             }
             break;
@@ -1287,6 +1276,8 @@ void TMC0501::setPrinterConnected(bool connected) {
     // TI-58C uses WAIT D11 + KEY FB → executes at digit 10 (KP.D10).
     // The printer connector is physically identical on both models, but the
     // TI-58C PCB routes the detection pin to a different digit-counter line.
+    // Both idle loops' scan-all sees the line as a key too, and steps around
+    // it (TI-59 0657–0660, TI-58C 0656–0659 → 0A25).
     int d = hasConstantMemory(m_variant) ? 10 : 0;
     if (connected) key[d] |=  (1u << 2);
     else           key[d] &= ~(1u << 2);
