@@ -16,9 +16,11 @@ inline bool hasLargeMemory(MachineVariant v) { return v == MachineVariant::TI59;
 /// Ceramic resonator frequency in Hz; ÷ 2 (two-phase) ÷ 16 (digit-serial) is the
 /// instruction rate. TI-59 455 kHz, TI-58 384 kHz, ±1% (TP0240 clock chip,
 /// http://www.datamath.org/Chips/TP0240.htm; the service manual names 455 kHz
-/// and allows the TI-58 a 384 kHz part, "the preferred part"). TI-58C 400 kHz:
-/// PHI1/PHI2 measured at 200 kHz on a real TI-58C, which also matches its filmed
-/// error blink (0.896 s).
+/// and allows the TI-58 a 384 kHz part, "the preferred part"). The TI-58C is
+/// assumed to use the TI-58's part: one real TI-58C measured PHI 194.7 kHz
+/// (389.4 kHz) and blinks to match, another blinks as at 400 kHz; neither is
+/// a known part. Real measurements are compared after normalising the unit's
+/// clock from its error blink (tests/core_tests.cpp).
 constexpr double resonatorHz(MachineVariant v) {
-    return v == MachineVariant::TI59 ? 455000.0 : v == MachineVariant::TI58 ? 384000.0 : 400000.0;
+    return v == MachineVariant::TI59 ? 455000.0 : 384000.0;
 }

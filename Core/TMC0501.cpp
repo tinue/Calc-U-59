@@ -282,12 +282,8 @@ void TMC0501::computeDisplayTraceState(uint8_t& displayOn, uint8_t& maxDigitDeca
 }
 
 uint32_t TMC0501::getPrinterBusyCycles() const {
-    // Printer busy time: 197.5ms.
-    // TI-59: (197.5ms * 455kHz) / 2 / 16 / 1000 = 2808 cycles
-    // TI-58: (197.5ms * 384kHz) / 2 / 16 / 1000 = 2370 cycles
-    // TI-58C: (197.5ms * 400kHz) / 2 / 16 / 1000 = 2469 cycles
-    if (hasLargeMemory(m_variant)) return 2808;
-    return hasConstantMemory(m_variant) ? 2469 : 2370;
+    // Printer busy time: 197.5 ms → TI-59 2808 cycles, TI-58/58C 2370.
+    return static_cast<uint32_t>(0.1975 * resonatorHz(m_variant) / 32);
 }
 
 int TMC0501::getStepWeight() const {
@@ -651,7 +647,8 @@ int TMC0501::step() {
             // model (a 455 kHz TI-58 would blink like a TI-59, 0.897 s). A filmed
             // TI-58 error blink runs 0.684 s (dark 0.40 s); minimum 2 gives
             // 0.66 s (dark 0.41 s), minimum 3 1.06 s. The TI-58C blink is the
-            // same with either minimum.
+            // same with either minimum; its 2-digit counter loop runs 0.3% faster
+            // with 2.
             if (digit != ((opcode >> 4) & 0x000Fu) || m_holdRun < waitMinExecutions()) {
                 flags |= FLG_HOLD;
             }

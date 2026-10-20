@@ -60,7 +60,7 @@ per clock, so one instruction takes 16 digit times.
 ```
 TI-59:      455 kHz ÷ 2 (two-phase) ÷ 16 → 14,219 instructions/s
 TI-58:      384 kHz ÷ 2 ÷ 16             → 12,000 instructions/s
-TI-58C:     400 kHz ÷ 2 ÷ 16             → 12,500 instructions/s
+TI-58C:     384 kHz ÷ 2 ÷ 16             → 12,000 instructions/s (assumed)
 idle (display) mode: ÷ 4 more on the TI-59/58; full speed on the TI-58C
 ```
 
@@ -69,10 +69,16 @@ instruction cycle ≈ 70 µs in calculate mode, ≈ 280 µs in display mode; the
 TP0240 clock chip page (http://www.datamath.org/Chips/TP0240.htm) — 455 kHz
 (TI-59) and 384 kHz (TI-58) ceramic resonators, ±1%, ÷ 4 while /IDLE is
 active. The TI-59 rates are confirmed by videos of a real TI-59 (see "`WAIT`
-minimum"). The TI-58C differs: PHI1/PHI2 measured at 200 kHz on a real
-TI-58C (so a 400 kHz resonator), and a filmed TI-58C error blink of 0.896 s
-matches it (384 kHz would give 0.933 s). The per-model rates live in
-`Shared/MachineModelInfo.hpp`.
+minimum"). The TI-58C is assumed to use the TI-58's 384 kHz part; no
+TI-58C clock is documented. Measured units disagree: one shows PHI 194.7 kHz
+on a scope (389.4 kHz) and an error blink of 0.920 s that matches it
+exactly; another blinks 0.896 s, as at 400 kHz. The blink's length in
+instructions depends on the ROM path only, so a unit's blink gives its
+clock, and its other measurements are compared after normalising to that
+clock — whether the deviation is the resonator or the video's timing does
+not matter, as long as one unit's videos share it. The frequencies live in
+`resonatorHz()` (`Core/MachineVariant.hpp`); the instruction rates in
+`Shared/MachineModelInfo.hpp` derive from it.
 
 `step()` returns a **cycle weight** — 4 for an IDLE instruction on the
 TI-59/58, otherwise 1 (`getStepWeight()`) — so callers can pace in real time.
@@ -419,7 +425,7 @@ The bracket list in a `KEY` mnemonic is the K-line mask. The idle scan
 the instruction after `WAIT Dn` runs at digit **n−1**. `WAIT D11` +
 `TST.BUSY` samples digit 10; `WAIT D1` + `KEY [P]` samples digit 0.
 
-**`WAIT` minimum (3 executions; 2 below 400 kHz, i.e. on the TI-58):** HOLD reaches the ROM chips as a bit of
+**`WAIT` minimum (3 executions; 2 below 400 kHz, i.e. on the TI-58 and TI-58C):** HOLD reaches the ROM chips as a bit of
 the next cycle's EXT word (state S2), and the SCOM latches the address it
 implies only in the cycle after that (US 3,900,722, cols. 15–16 and 22–23).
 So a `WAIT` cannot release on its first or second execution: if its digit
@@ -442,8 +448,9 @@ is still about 0.03 s short. The minimum therefore follows the resonator
 400 kHz, 3 above. The service manual allows a TI-58 either a 455 kHz or a
 384 kHz resonator; a 455 kHz TI-58 would blink like a TI-59 (0.897 s). The
 400 kHz switch point is an assumption, chosen well clear of the ±1% spread
-of either part; the TI-58C (400 kHz, minimum 3) blinks the same with either
-minimum, so it cannot place it.
+of either part. The TI-58C (384 kHz, so minimum 2) blinks the same with
+either minimum, so it cannot place it; its 2-digit counter loop is 0.3%
+faster with 2.
 
 **`KR` after a scan-all hit:**
 
@@ -658,7 +665,7 @@ debug events".
 | Feature | TI-59 | TI-58 | TI-58C |
 |---|---|---|---|
 | ROM | TMC0582/0583/0571B | same as TI-59 | CD2400/2401/TMC0573 |
-| Clock (instructions/s) | 14,219 | 12,000 | 12,500 |
+| Clock (instructions/s) | 14,219 | 12,000 | 12,000 |
 | IDLE weight | 4 | 4 | 1 |
 | RAM registers | 120 | 60 | 60 + E000–E003 |
 | RAM access | `RAM.OP` | `RAM.OP` | `MEMWR`/`MEMRD` |

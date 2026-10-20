@@ -109,9 +109,12 @@ TEST(ti58_error_blink_period_matches_hardware) {
     CHECK(period > 0.684 * 0.96 && period < 0.684 * 1.04);
 }
 
-// A real TI-58C's error blink, filmed (no printer): 0.896 s per period over 25
-// periods. It counts idle passes at full speed, so it pins the TI-58C clock:
-// 400 kHz, as measured on the board (PHI 200 kHz) — 384 kHz gave 0.933 s.
+// The TI-58C blink counts idle passes at full speed, so its length in
+// instructions is fixed by the ROM path alone; a real unit's blink in seconds
+// gives that unit's clock, to which its other measurements are normalised.
+// One real TI-58C (no printer) measured PHI 194.7 kHz on the scope (389.4 kHz
+// resonator) and blinks 0.920 s, i.e. 11,195 instructions per period at its
+// clock. (Another unit blinks 0.896 s, as at 400 kHz.)
 TEST(ti58c_error_blink_period_matches_hardware) {
     auto m = testroms::makeMachine(Model::TI58C);
     m->setPrinterConnected(false);  // the filmed one had none; with it the blink is 0.70 s
@@ -135,8 +138,9 @@ TEST(ti58c_error_blink_period_matches_hardware) {
         lastLit = t;
     }
     CHECK_EQ(litStarts.size(), size_t{4});
-    double period = double(litStarts[3] - litStarts[1]) / 2 / hz;
-    CHECK(period > 0.896 * 0.98 && period < 0.896 * 1.02);
+    const double ticks = double(litStarts[3] - litStarts[1]) / 2;
+    const double measured = 0.920 * 389400.0 / 32;
+    CHECK(ticks > measured * 0.99 && ticks < measured * 1.01);
 }
 
 // takeDisplay() reports how long each position was driven: a steady IDLE display
