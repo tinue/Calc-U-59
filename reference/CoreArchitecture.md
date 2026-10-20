@@ -425,7 +425,7 @@ The bracket list in a `KEY` mnemonic is the K-line mask. The idle scan
 the instruction after `WAIT Dn` runs at digit **n−1**. `WAIT D11` +
 `TST.BUSY` samples digit 10; `WAIT D1` + `KEY [P]` samples digit 0.
 
-**`WAIT` minimum (3 executions; 2 below 400 kHz, i.e. on the TI-58 and TI-58C):** HOLD reaches the ROM chips as a bit of
+**`WAIT` minimum (3 executions; 1 below 400 kHz, i.e. on the TI-58 and TI-58C):** HOLD reaches the ROM chips as a bit of
 the next cycle's EXT word (state S2), and the SCOM latches the address it
 implies only in the cycle after that (US 3,900,722, cols. 15–16 and 22–23).
 So a `WAIT` cannot release on its first or second execution: if its digit
@@ -438,19 +438,19 @@ has a 0.899 s period (dark 0.456 s, lit 0.444 s); the emulator gives
 0.897 s with the rule and 0.447 s without. The steady TI-59 idle pass grows
 from 9.0 to 13.5 ms. Waits with more slack — `WAIT D1` before `SET.IDLE`,
 the Pause loop, the TI-58C idle loop — are unaffected (Pause step: 0.459 s
-measured, 0.457 s emulated). The TI-58 catches the latch one execution
-earlier, plausibly because its slower clock (192 kHz PHI against 227.5 kHz,
+measured, 0.457 s emulated). The TI-58 catches the latch at once, plausibly
+because its slower clock (192 kHz PHI against 227.5 kHz,
 http://www.datamath.org/Chips/TP0240.htm) leaves the time: a real TI-58's
-error blink, filmed in a reflection, runs 0.684 s with a 0.40 s dark phase;
-minimum 2 gives 0.66 s (dark 0.41 s), minimum 3 gives 1.06 s. The lit phase
-is still about 0.03 s short. The minimum therefore follows the resonator
-(`resonatorHz()` in `Core/MachineVariant.hpp`), not the model: 2 below
-400 kHz, 3 above. The service manual allows a TI-58 either a 455 kHz or a
-384 kHz resonator; a 455 kHz TI-58 would blink like a TI-59 (0.897 s). The
-400 kHz switch point is an assumption, chosen well clear of the ±1% spread
-of either part. The TI-58C (384 kHz, so minimum 2) blinks the same with
-either minimum, so it cannot place it; its 2-digit counter loop is 0.3%
-faster with 2.
+error blink, filmed in a reflection, runs 0.684 s (lit about 0.28 s, dark
+about 0.40 s). With its card wiring (digit 7, below) minimum 1 gives
+0.681 s (lit 0.278 s, dark 0.403 s); minimum 2 gives 0.948 s, minimum 3
+1.381 s. The minimum therefore follows the resonator (`resonatorHz()` in
+`Core/MachineVariant.hpp`), not the model: 1 below 400 kHz, 3 above. The
+service manual allows a TI-58 either a 455 kHz or a 384 kHz resonator; a
+455 kHz TI-58 would blink like a TI-59 (0.897 s). The 400 kHz switch point
+is an assumption, chosen well clear of the ±1% spread of either part. The
+TI-58C (384 kHz, so minimum 1) blinks the same with any minimum, so it
+cannot place it; its counter loops run about 1% faster with 1 than with 3.
 
 **`KR` after a scan-all hit:**
 
@@ -473,8 +473,8 @@ discard the hit (multi-key rejection).
 
 | col | line | Signal | How the ROM samples it |
 |---|---|---|---|
-| 10 (TI-59/58) | KR | Card switch (active = no card). The TI-58 has no reader but must read it active: otherwise every idle pass detours through the second card poll (`0459`), and its error blink takes 1.38 s instead of the filmed 0.68 s | `WAIT D11` + `TST.BUSY` in the idle loop (`063E`); invisible to the scan |
-| 7 (TI-58C) | KR | Held active by the emulator; real-hardware wiring unverified. The TI-58C ROM has no idle card poll and samples digit 10 itself (`064D`) | `WAIT D8` + `TST.BUSY` |
+| 10 (TI-59) | KR | Card switch (active = no card). Open on the TI-58, which has no reader | `WAIT D11` + `TST.BUSY` in the idle loop (`063E`); invisible to the scan |
+| 7 (TI-58/58C) | KR | Card veto: a D7–KR connection, absent on the TI-59 (Sladký, *HW guide*: "Reader detection: no D7-KR connection (TI-59 mode)"). With digit 10 open, every TI-58 idle pass goes through the second card poll (`0459`) and returns, and `2nd Write` (which enters at `045F`) finds no card to wait for. The TI-58C ROM never probes digit 7 and samples digit 10 itself (`064D`) | `WAIT D8` + `TST.BUSY` at `0459`, reached only from the idle loop's `JC 0459` (`0640`) |
 | 0 (TI-59/58) | KP | Printer connected | `WAIT D1` + `KEY [P]` at the scan's sentinel digit, so invisible to the scan |
 | 10 (TI-58C) | KP | Printer connected (the TI-58C PCB routes it to digit 10) | `WAIT D11` + `KEY [P]` |
 | 12 | KP | Printer PRINT button | Ordinary scan hit at row 12 |
@@ -669,7 +669,7 @@ debug events".
 | IDLE weight | 4 | 4 | 1 |
 | RAM registers | 120 | 60 | 60 + E000–E003 |
 | RAM access | `RAM.OP` | `RAM.OP` | `MEMWR`/`MEMRD` |
-| Card reader | Yes (switch at digit 10) | No (digit 10 held active, as on a TI-59 without a card) | No (digit 7 held; the ROM never reads it) |
+| Card reader | Yes (switch at digit 10) | No (D7–KR veto, digit 10 open) | No (digit 7 held; the ROM never reads it) |
 | Printer-present digit | 0 | 0 | 10 |
 | Printer BUSY | 2808 cycles | 2370 cycles | 2370 cycles |
 | Library module | Yes | Yes | Yes |

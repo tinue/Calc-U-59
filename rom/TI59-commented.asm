@@ -1489,8 +1489,8 @@
 0458: 1F74  JC 0812           ; → ARITH_EXIT (next slot)
 ; Second card-path gate, entered from the idle-loop card poll (JC at 0640):
 ; sample digit 7. Asserted (or printer busy) → COND=0 → back to idle; clear →
-; fall through toward card handling. See the discussion at 063C; the line's
-; real-hardware identity is unverified.
+; fall through toward card handling. Asserted on the TI-58 only (D7-KR
+; connection, its card veto); see the discussion at 063C.
 0459: 0A80  WAIT D8           ; → next instruction samples digit 7
 045A: 0A0B  TST.BUSY
 045B: 13CC  JNC 0641          ; digit-7 line asserted (or printer busy) → back to idle
@@ -2142,19 +2142,18 @@
 063C: 00C8  TST fB[12]
 063D: 00A8  TST fB[10]
 063E: 0AB0  WAIT D11          ; → next instruction samples digit 10 = the card-switch column.
-                              ;   Reached after 1–2 executions, so the hardware misses the digit
-                              ;   and waits one more sweep (WAIT minimum)
+                              ;   Reached after 1–2 executions, so the TI-59 misses the digit
+                              ;   and waits one more sweep (WAIT minimum; not on the TI-58)
 063F: 0A0B  TST.BUSY          ; card-switch poll: card absent (or printer busy) clears COND
 ; TI-59, card absent: digit 10 asserted → COND=0 → JC not taken, idle continues.
 ; If digit 10 reads idle — a TI-59 with a card inserted — the JC lands at
 ; 0459, which re-polls via WAIT D8 → digit 7 and bounces back to idle
 ; (JNC 0641) if that line is asserted; only with both lines clear does 045C
-; fall into card handling. What the digit-7 line is on real hardware is
-; unverified. The TI-58 has no card reader, yet it must read digit 10 asserted
-; like a TI-59 without a card: a filmed TI-58 error blink (0.684 s) leaves no
-; room for the 0459 detour on every idle pass (1.38 s with it). The emulator
-; holds digit 10 on the TI-58 (TI59Machine::cardSwitchCol), so 2nd Write waits
-; for a card there too, until R/S (16B2).
+; fall into card handling. The digit-7 line is the TI-58's card veto: the
+; TI-58 has no reader, so digit 10 stays open, and a D7-KR connection (absent
+; on the TI-59: Sladký, HW guide, "Reader detection: no D7-KR connection
+; (TI-59 mode)") sends every idle pass back from 0459. 2nd Write enters past
+; the veto (045F).
 0640: 1BCF  JC 0459
 ; Error gate: fB[9] = ERROR flag (set by the over/underflow clamp at 025A, the
 ; 0÷0 path at 03D4, failed SBR at 11E8, …; cleared by CLR/CE at 03B0/03BA).

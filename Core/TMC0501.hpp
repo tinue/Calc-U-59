@@ -461,11 +461,11 @@ private:
     // WAIT Dn cannot release before execution waitMinExecutions() — see the
     // WAIT case in step().
     int m_holdRun{1};
-    // A slower clock leaves time to catch the latch one execution earlier
-    // (TI-58 at 384 kHz). Where it changes is not known: kFastLatchBelowHz is an
-    // assumption, chosen well clear of the 384 and 455 kHz resonators' ±1%.
+    // A slower clock leaves time to catch the latch at once (TI-58 at 384 kHz).
+    // Where it changes is not known: kFastLatchBelowHz is an assumption,
+    // chosen well clear of the 384 and 455 kHz resonators' ±1%.
     static constexpr double kFastLatchBelowHz = 400000.0;
-    int waitMinExecutions() const { return resonatorHz(m_variant) < kFastLatchBelowHz ? 2 : 3; }
+    int waitMinExecutions() const { return resonatorHz(m_variant) < kFastLatchBelowHz ? 1 : 3; }
 
     // Latched at each step boundary and idle entry (see step()).
     StepBoundary m_stepBoundary{};

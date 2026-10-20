@@ -85,10 +85,9 @@ TEST(ti59_error_blink_period_matches_hardware) {
 }
 
 // A real TI-58's error blink, filmed in a reflection (no printer): 0.684 s per
-// period over 20 periods. The TI-59 ROM gets there only with the card switch
-// read asserted (no detour through the 0x0459 card poll on every idle pass) and
-// the TI-58's WAIT minimum of 2; it was 1.38 s with neither. The emulated 0.66 s
-// is still 3% short (the lit phase), hence the wider bound.
+// period over 20 periods. With the TI-58's card veto (digit 7, so every idle
+// pass detours through the 0x0459 card poll) it takes the TI-58's WAIT minimum
+// of 1: 0.681 s; 1.38 s with the TI-59's 3.
 TEST(ti58_error_blink_period_matches_hardware) {
     auto m = testroms::makeMachine(Model::TI58);
     m->setPrinterConnected(false);
@@ -106,7 +105,7 @@ TEST(ti58_error_blink_period_matches_hardware) {
     }
     CHECK_EQ(litStarts.size(), size_t{4});
     double period = double(litStarts[3] - litStarts[1]) / 2 / cu59::info(Model::TI58).instructionHz;
-    CHECK(period > 0.684 * 0.96 && period < 0.684 * 1.04);
+    CHECK(period > 0.684 * 0.98 && period < 0.684 * 1.02);
 }
 
 // The TI-58C blink counts idle passes at full speed, so its length in
