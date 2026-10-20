@@ -123,17 +123,35 @@ TEST(calc_indicator_smoothing) {
 
 TEST(display_pov_channel_hold_and_fade) {
     const double frame = 1.0 / 60;
-    DisplayPov::Channel c;
-    CHECK_EQ(c.step(1.0, frame), 1.0);                       // driven: on at once
-    CHECK_EQ(c.step(0.4, frame), 1.0);                       // part of a frame dark: within the hold
-    CHECK_EQ(c.step(1.0, frame), 1.0);
-    CHECK_EQ(c.step(0.0, frame), 1.0);                       // 17 ms dark …
-    CHECK_EQ(c.step(0.0, frame), 1.0);                       // … 33 ms: still held
-    double fading = c.step(0.0, frame);                      // 50 ms
-    fading = c.step(0.0, frame);                             // 67 ms: fading
+    DisplayPov::Channel c;  // the whole display darkens alike: best duty = own duty
+    CHECK_EQ(c.step(1.0, 1.0, frame), 1.0);                  // driven: on at once
+    CHECK_EQ(c.step(0.4, 0.4, frame), 1.0);                  // part of a frame dark: within the hold
+    CHECK_EQ(c.step(1.0, 1.0, frame), 1.0);
+    CHECK_EQ(c.step(0.0, 0.0, frame), 1.0);                  // 17 ms dark …
+    CHECK_EQ(c.step(0.0, 0.0, frame), 1.0);                  // … 33 ms: still held
+    double fading = c.step(0.0, 0.0, frame);                 // 50 ms
+    fading = c.step(0.0, 0.0, frame);                        // 67 ms: fading
     CHECK(fading < 1.0 && fading > DisplayPov::kCutoff);
-    for (int i = 0; i < 6; ++i) c.step(0.0, frame);          // 167 ms: out
+    for (int i = 0; i < 6; ++i) c.step(0.0, 0.0, frame);     // 167 ms: out
     CHECK_EQ(c.level, 0.0);
+    CHECK_EQ(c.brightness(1.0), 0.0);
+}
+
+// A position that gets less of the multiplex than the others — alternately
+// 54% and 81% of the best-driven one, as the 60 Hz polls catch the error
+// blink's short sweeps — is steadily dimmer, not flickering and not fading:
+// a 67.5% share looks like √0.675 = 82%.
+TEST(display_pov_channel_share_is_steady) {
+    const double frame = 1.0 / 60;
+    DisplayPov::Channel c;
+    double lo = 1, hi = 0;
+    for (int i = 0; i < 120; ++i) {
+        c.step(i % 2 ? 0.54 * 0.9 : 0.81 * 0.9, 0.9, frame);
+        if (i >= 30) { lo = std::min(lo, c.brightness(1.0)); hi = std::max(hi, c.brightness(1.0)); }
+    }
+    CHECK_EQ(c.level, 1.0);
+    CHECK(lo > 0.79 && hi < 0.85);
+    CHECK(hi - lo < 0.04);
 }
 
 namespace {
@@ -186,30 +204,50 @@ TEST(display_pov_keys_as_the_eye_sees_them) {
     CHECK_EQ(PovRig(Model::TI59).dimmestDuring({84, 92}, {21, 33}), 0);  // 30 sin
 }
 
-// The TI-58 error blink drives its rightmost digit only every fifth digit sweep
-// of a lit pass; it must still look steadily lit (with the old revolution-
-// counted afterglow it dropped to dark in mid-phase). A brief ramp to ≈ 86% in
-// the first frames of a lit phase is what its duty there really is.
-TEST(display_pov_ti58_blink_has_no_dropouts) {
-    PovRig r(Model::TI58);
-    for (int k : {92, 35}) testroms::tap(*r.m, Model::TI58, k);  // 0 1/x → error blink
-    // "9.9999999 99" has 10 lit positions; a frame between two frames with all
-    // others fully lit is mid-phase.
-    std::vector<int> right, full;
-    for (int i = 0; i < 1500; ++i) {
-        FrameUpdate f = r.frame();
-        right.push_back(f.led.digitLevel[0]);
-        full.push_back(int(std::count(std::begin(f.led.digitLevel) + 1, std::end(f.led.digitLevel), 255)));
-    }
-    int dropouts = 0, litFrames = 0;
-    for (size_t i = 1; i + 1 < full.size(); ++i) {
-        if (full[i - 1] == 9 && full[i] == 9 && full[i + 1] == 9) {  // mid-phase
-            ++litFrames;
-            if (right[i] < 200) ++dropouts;
+// In the error blink each lit pass leaves IDLE before the sweep reaches the
+// right-hand digits every time, so they get less of the multiplex. On a real
+// TI-59 they look a little dimmer than the left ones, steadily — no flicker.
+// Mid-phase (frames well inside a lit phase) every position must hold its
+// brightness frame to frame, the rightmost must be dimmer than the leftmost
+// but never dark (with the old per-poll brightness it flickered between 60%
+// and 87% on the TI-58, and before that dropped to dark).
+TEST(display_pov_error_blink_is_steady) {
+    for (Model model : {Model::TI58, Model::TI59}) {
+        PovRig r(model);
+        for (int k : {92, 35}) testroms::tap(*r.m, model, k);  // 0 1/x → error blink
+        std::vector<FrameUpdate> f;
+        for (int i = 0; i < 600; ++i) f.push_back(r.frame());
+        // "9.9999999 99": position 10 is the leftmost lit one (not fading).
+        auto lit = [&](size_t i) { return f[i].led.digitLevel[10] >= 200; };
+        int midFrames = 0, worstSpread = 0, dimmest = 255, phases = 0;
+        int lo[12], hi[12];
+        bool inPhase = false;
+        for (size_t i = 3; i + 3 < f.size(); ++i) {
+            bool mid = true;
+            for (size_t j = i - 3; j <= i + 3; ++j) mid = mid && lit(j);
+            if (!mid) {
+                inPhase = false;
+                continue;
+            }
+            if (!inPhase) {  // a new lit phase: compare frames within it only
+                for (int p = 0; p < 12; ++p) lo[p] = hi[p] = f[i].led.digitLevel[p];
+                inPhase = true;
+                ++phases;
+            }
+            if (phases == 1) continue;  // the shares still settle from the display before the blink
+            ++midFrames;
+            for (int p = 0; p < 12; ++p) {
+                lo[p] = std::min(lo[p], int(f[i].led.digitLevel[p]));
+                hi[p] = std::max(hi[p], int(f[i].led.digitLevel[p]));
+                worstSpread = std::max(worstSpread, hi[p] - lo[p]);
+            }
+            CHECK(f[i].led.digitLevel[10] >= 245);
+            dimmest = std::min(dimmest, int(f[i].led.digitLevel[0]));
         }
+        CHECK(midFrames > 100);
+        CHECK(worstSpread <= 13);              // ≤ 5%: no visible flicker
+        CHECK(dimmest > 150 && dimmest < 245); // a little dimmer, never dark
     }
-    CHECK(litFrames > 500);
-    CHECK_EQ(dropouts, 0);
 }
 
 TEST(runner_post_and_sync_are_serial) {

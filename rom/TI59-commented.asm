@@ -1489,9 +1489,8 @@
 0458: 1F74  JC 0812           ; → ARITH_EXIT (next slot)
 ; Second card-path gate, entered from the idle-loop card poll (JC at 0640):
 ; sample digit 7. Asserted (or printer busy) → COND=0 → back to idle; clear →
-; fall through toward card handling. See the discussion at 063C: on a TI-58
-; this line vetoes the card path (speculative "no card reader" strap); its
-; real-hardware identity on the TI-59 is unverified.
+; fall through toward card handling. See the discussion at 063C; the line's
+; real-hardware identity is unverified.
 0459: 0A80  WAIT D8           ; → next instruction samples digit 7
 045A: 0A0B  TST.BUSY
 045B: 13CC  JNC 0641          ; digit-7 line asserted (or printer busy) → back to idle
@@ -2147,14 +2146,15 @@
                               ;   and waits one more sweep (WAIT minimum)
 063F: 0A0B  TST.BUSY          ; card-switch poll: card absent (or printer busy) clears COND
 ; TI-59, card absent: digit 10 asserted → COND=0 → JC not taken, idle continues.
-; If digit 10 reads idle — a TI-59 with a card inserted, or a TI-58 (no card
-; reader at all, so nothing drives digit 10) — the JC lands at 0459, which
-; re-polls via WAIT D8 → digit 7 and bounces back to idle (JNC 0641) if that
-; line is asserted; only with both lines clear does 045C fall into card
-; handling. What the digit-7 line is on real hardware is unverified;
-; speculative: on the TI-58 it is strapped asserted as a "no card reader"
-; signal, so the shared ROM can never enter the card path. The emulator models
-; exactly that (bit 4 of digit 7 held on TI-58/58C — TI59Machine::cardSwitchCol).
+; If digit 10 reads idle — a TI-59 with a card inserted — the JC lands at
+; 0459, which re-polls via WAIT D8 → digit 7 and bounces back to idle
+; (JNC 0641) if that line is asserted; only with both lines clear does 045C
+; fall into card handling. What the digit-7 line is on real hardware is
+; unverified. The TI-58 has no card reader, yet it must read digit 10 asserted
+; like a TI-59 without a card: a filmed TI-58 error blink (0.684 s) leaves no
+; room for the 0459 detour on every idle pass (1.38 s with it). The emulator
+; holds digit 10 on the TI-58 (TI59Machine::cardSwitchCol), so 2nd Write waits
+; for a card there too, until R/S (16B2).
 0640: 1BCF  JC 0459
 ; Error gate: fB[9] = ERROR flag (set by the over/underflow clamp at 025A, the
 ; 0÷0 path at 03D4, failed SBR at 11E8, …; cleared by CLR/CE at 03B0/03BA).

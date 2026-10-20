@@ -645,7 +645,11 @@ int TMC0501::step() {
             // 063E and WAIT D14 0656 hit their digit after 1-2 executions) takes
             // 0.899 s per period, which this reproduces (0.897 s); without it the
             // blink ran 2x too fast. Waits with more slack are unchanged.
-            if (digit != ((opcode >> 4) & 0x000Fu) || m_holdRun < kWaitMinExecutions) {
+            // The TI-58 catches the latch one execution earlier — plausibly its
+            // slower clock (192 kHz PHI, http://www.datamath.org/Chips/TP0240.htm)
+            // leaves the time. A filmed TI-58 error blink runs 0.684 s (dark
+            // 0.40 s); minimum 2 gives 0.66 s (dark 0.41 s), minimum 3 1.06 s.
+            if (digit != ((opcode >> 4) & 0x000Fu) || m_holdRun < waitMinExecutions()) {
                 flags |= FLG_HOLD;
             }
             break;

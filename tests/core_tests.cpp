@@ -62,7 +62,7 @@ TEST(two_plus_three_equals_five) {
 
 // The error blink of a real TI-59 (0 1/x) was filmed next to a stopwatch:
 // 0.899 s per period. Its idle loop has two WAITs that reach their digit after
-// 1-2 executions; only with the WAIT minimum (TMC0501::kWaitMinExecutions) do
+// 1-2 executions; only with the WAIT minimum (TMC0501::waitMinExecutions) do
 // they take the extra revolution that makes the period right.
 TEST(ti59_error_blink_period_matches_hardware) {
     auto m = testroms::makeMachine(Model::TI59);
@@ -82,6 +82,31 @@ TEST(ti59_error_blink_period_matches_hardware) {
     CHECK_EQ(litStarts.size(), size_t{4});
     double period = double(litStarts[3] - litStarts[1]) / 2 / cu59::info(Model::TI59).instructionHz;
     CHECK(period > 0.899 * 0.98 && period < 0.899 * 1.02);
+}
+
+// A real TI-58's error blink, filmed in a reflection (no printer): 0.684 s per
+// period over 20 periods. The TI-59 ROM gets there only with the card switch
+// read asserted (no detour through the 0x0459 card poll on every idle pass) and
+// the TI-58's WAIT minimum of 2; it was 1.38 s with neither. The emulated 0.66 s
+// is still 3% short (the lit phase), hence the wider bound.
+TEST(ti58_error_blink_period_matches_hardware) {
+    auto m = testroms::makeMachine(Model::TI58);
+    m->setPrinterConnected(false);
+    testroms::runToScanLoop(*m, Model::TI58);
+    for (int k : {kKey0, kRecip}) testroms::tap(*m, Model::TI58, k);
+    // Same ROM as the TI-59: 0x0655 SET.IDLE marks each lit pass.
+    std::vector<uint64_t> litStarts;
+    uint64_t lastSetIdle = 0;
+    for (int i = 0; i < 400'000 && litStarts.size() < 4; ++i) {
+        m->step();
+        if (m->pc() != 0x0655) continue;
+        uint64_t t = m->elapsedTicks();
+        if (lastSetIdle == 0 || t - lastSetIdle > 2000) litStarts.push_back(t);
+        lastSetIdle = t;
+    }
+    CHECK_EQ(litStarts.size(), size_t{4});
+    double period = double(litStarts[3] - litStarts[1]) / 2 / cu59::info(Model::TI58).instructionHz;
+    CHECK(period > 0.684 * 0.96 && period < 0.684 * 1.04);
 }
 
 // A real TI-58C's error blink, filmed (no printer): 0.896 s per period over 25

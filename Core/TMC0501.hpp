@@ -458,10 +458,10 @@ private:
     bool m_lastStepWasHWPoll{false};
 
     // Consecutive executions of the instruction now being held (1 = first).
-    // WAIT Dn cannot release before execution kWaitMinExecutions — see the
+    // WAIT Dn cannot release before execution waitMinExecutions() — see the
     // WAIT case in step().
     int m_holdRun{1};
-    static constexpr int kWaitMinExecutions = 3;
+    int waitMinExecutions() const { return m_variant == MachineVariant::TI58 ? 2 : 3; }
 
     // Latched at each step boundary and idle entry (see step()).
     StepBoundary m_stepBoundary{};

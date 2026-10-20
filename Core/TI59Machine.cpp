@@ -12,10 +12,12 @@ TI59Machine::TI59Machine(MachineVariant variant)
     }
     m_cpu.setMachineVariant(variant);
     // Card switch (bit 4): pressed = card absent (normal startup state).
-    // TI-59: digit-counter slot 10, the real card-detect switch. TI-58/58C
-    // have no card reader; asserting slot 7 — the line the ROM re-polls at
-    // 0x0459 before entering card handling — keeps the firmware out of the
-    // card path. Whether real TI-58 hardware straps that line is unverified.
+    // TI-59: digit-counter slot 10, the real card-detect switch. The TI-58
+    // shares the ROM and must read slot 10 asserted too: otherwise every idle
+    // pass detours through the second card poll at 0x0459, and its error
+    // blink takes 1.38 s instead of the 0.68 s filmed on a real TI-58. The
+    // TI-58C ROM has no idle card poll; slot 7 there is unverified but keeps
+    // its blink exact (it samples slot 10 at 0x064D).
     int col = cardSwitchCol();
     m_cpu.setCardSwitchCol(static_cast<uint8_t>(col));
     m_cpu.pressKey(4, col);
@@ -144,7 +146,7 @@ uint64_t TI59Machine::elapsedTicks() const {
 // ── Magnetic card reader ───────────────────────────────────────────────────────
 
 int TI59Machine::cardSwitchCol() const {
-    return hasLargeMemory(m_variant) ? 10 : 7;
+    return m_variant == MachineVariant::TI58C ? 7 : 10;
 }
 
 void TI59Machine::insertCard(const uint8_t* data, size_t count) {
