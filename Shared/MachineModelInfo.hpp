@@ -21,11 +21,18 @@ inline MachineVariant toVariant(Model m) {
     return MachineVariant::TI59;
 }
 
-/// Inclusive ROM address range.
+/// Inclusive ROM address range, with an optional second span.
 struct PcRange {
     uint16_t lo, hi;
-    bool contains(uint16_t pc) const { return pc >= lo && pc <= hi; }
+    uint16_t extraLo = 1, extraHi = 0;  ///< empty unless set
+    bool contains(uint16_t pc) const {
+        return (pc >= lo && pc <= hi) || (pc >= extraLo && pc <= extraHi);
+    }
 };
+
+/// TI-58: every idle pass detours through the card veto 0x0459–0x045B (digit 10
+/// open, D7-KR asserted → JNC 0641) — see rom/TI59-commented.asm at 0x063C.
+inline constexpr uint16_t kCardVetoLo = 0x0459, kCardVetoHi = 0x045B;
 
 struct ModelInfo {
     const char* displayName;
@@ -72,7 +79,7 @@ inline const ModelInfo& info(Model m) {
     };
     static const ModelInfo kTI58 {
         "TI-58", resonatorHz(MachineVariant::TI58) / 32, 6144, false, false, false, 0,
-        {0x063C, 0x0658}, {0x0627, 0x0660},
+        {0x063C, 0x0658, kCardVetoLo, kCardVetoHi}, {0x0627, 0x0660, kCardVetoLo, kCardVetoHi},
         {"TMC0582.txt", "TMC0583.txt", "TMC0571B.txt"},
         {"TMC0582-CONST-K.txt", "TMC0583-CONST-K.txt"},
     };

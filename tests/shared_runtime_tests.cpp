@@ -87,6 +87,32 @@ TEST(freeze_on_scan_loop_exit_fires_on_key) {
     CHECK(!info(Model::TI59).scanLoop.contains(m->pc()));
 }
 
+// The TI-58's idle pass detours through the card veto (0x0459–0x045B, digit 10
+// open, D7-KR asserted): it is part of the scan loop, so FREEZE ON START waits
+// for a key and the full-speed throttle keeps sleeping there.
+TEST(ti58_card_veto_is_part_of_the_scan_loop) {
+    auto m = testroms::makeMachine(Model::TI58);
+    CHECK(testroms::runToScanLoop(*m, Model::TI58));
+    bool sawVeto = false, left = false;
+    for (int i = 0; i < 20'000; ++i) {
+        m->step();
+        sawVeto = sawVeto || m->pc() == kCardVetoLo;
+        left = left || !info(Model::TI58).scanLoop.contains(m->pc());
+    }
+    CHECK(sawVeto && !left);
+    CHECK(shouldSleep(true, kCardVetoLo, false, Model::TI58));
+    CHECK(!info(Model::TI59).scanLoop.contains(kCardVetoLo));  // TI-59: card inserted
+    FreezeController freeze(Model::TI58);
+    freeze.armScanLoopExit(m->pc());
+    int32_t carry = 0;
+    BatchResult r;
+    for (int i = 0; i < 50 && r.stop == BatchResult::Stop::None; ++i) r = runBatch(*m, carry, 240, freeze);
+    CHECK(r.stop == BatchResult::Stop::None);
+    pressMatrix(*m, 83);
+    for (int i = 0; i < 50 && r.stop == BatchResult::Stop::None; ++i) r = runBatch(*m, carry, 240, freeze);
+    CHECK(r.stop == BatchResult::Stop::Freeze);
+}
+
 TEST(freeze_on_pc_change_and_mutual_exclusion) {
     auto m = testroms::makeMachine(Model::TI59);
     testroms::runToScanLoop(*m, Model::TI59);

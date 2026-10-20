@@ -56,10 +56,20 @@ SECOND = {
 PRINTER_BUTTONS = {"PRINT": "h_printer_print", "PAPER": "h_printer_adv"}
 KBITS = [0, 1, 2, 3, 5, 6]  # physical column -> K-line bit (Bridge/TI59MachineWrapper.mm)
 
-# Idle-loop address window (memory note "FullSpeed Scan-Loop Range Fix").
+# Idle-loop address window (memory note "FullSpeed Scan-Loop Range Fix"). The
+# TI-58 adds its card veto, part of every idle pass (kCardVetoLo/Hi in
+# Shared/MachineModelInfo.hpp).
 IDLE_LO, IDLE_HI = 0x0627, 0x0660
+CARD_VETO_LO, CARD_VETO_HI = 0x0459, 0x045B
 
 FLG_IDLE, FLG_COND = 0x0001, 0x0800
+
+
+def in_idle(r, variant: str = "TI59") -> bool:
+    """r (HRec) sits in the idle loop."""
+    if not r.flags & FLG_IDLE:
+        return False
+    return IDLE_LO <= r.pc <= IDLE_HI or (variant == "TI58" and CARD_VETO_LO <= r.pc <= CARD_VETO_HI)
 # TI-59 active-mode instruction rate: 455 kHz clock / 32 (Core/TMC0501.cpp, getPrinterBusyCycles).
 INSTR_PER_SEC = 455000 / 32
 
@@ -179,7 +189,7 @@ class Machine:
                 r = buf[i]
                 out.append(r)
                 if until_idle:
-                    if IDLE_LO <= r.pc <= IDLE_HI and (r.flags & FLG_IDLE):
+                    if in_idle(r, self.variant):
                         quiet += 1
                     else:
                         quiet = 0
@@ -224,11 +234,11 @@ class Machine:
         for _ in range(max_steps // 20000):
             self.step(20000)
             s = self.snapshot()
-            if IDLE_LO <= s.pc <= IDLE_HI and (s.flags & FLG_IDLE):
+            if in_idle(s, self.variant):
                 # make sure it stays idle
                 self.step(5000)
                 s = self.snapshot()
-                if IDLE_LO <= s.pc <= IDLE_HI and (s.flags & FLG_IDLE):
+                if in_idle(s, self.variant):
                     return True
         return False
 
@@ -285,15 +295,15 @@ class Machine:
     # ── formatting ─────────────────────────────────────────────────────────
     @staticmethod
     def format(recs: list[HRec], full: bool = False, collapse_idle: bool = True,
-               prev: HRec | None = None, labels: dict[int, str] | None = None) -> str:
+               prev: HRec | None = None, labels: dict[int, str] | None = None,
+               variant: str = "TI59") -> str:
         """One line per instruction: PC, opcode, mnemonic, then the registers
         and SCOM rows it changed (post-exec). Long idle-loop stretches collapse."""
         lines = []
         last = prev
         idle_run = 0
         for r in recs:
-            in_idle = IDLE_LO <= r.pc <= IDLE_HI and (r.flags & FLG_IDLE)
-            if collapse_idle and in_idle and not full:
+            if collapse_idle and in_idle(r, variant) and not full:
                 idle_run += 1
                 last = r
                 continue
@@ -324,14 +334,14 @@ class Machine:
         return "\n".join(lines)
 
 
-def summary(recs: list[HRec], labels: dict[int, str] | None = None) -> str:
+def summary(recs: list[HRec], labels: dict[int, str] | None = None, variant: str = "TI59") -> str:
     """Each distinct non-idle PC once, in first-execution order, with its hit
     count — a compact map of the code a keystroke runs, loops folded."""
     order: list[int] = []
     count: dict[int, int] = {}
     op: dict[int, int] = {}
     for r in recs:
-        if IDLE_LO <= r.pc <= IDLE_HI and (r.flags & FLG_IDLE):
+        if in_idle(r, variant):
             continue
         if r.pc not in count:
             order.append(r.pc)
@@ -375,7 +385,7 @@ def main():
     labels = load_labels(args.variant)
     if args.boot:
         print("=== boot ===")
-        print(Machine.format(m.boot_recs, full=args.full, labels=labels))
+        print(Machine.format(m.boot_recs, full=args.full, labels=labels, variant=m.variant))
     if args.program:
         m.write_program([int(x) for x in args.program.split(",")])
     prev = m.snapshot()
@@ -386,9 +396,9 @@ def main():
         recs = m.key(k)
         print(f"=== key {k}  ({len(recs)} steps) ===")
         if args.summary:
-            print(summary(recs, labels))
+            print(summary(recs, labels, m.variant))
         else:
-            print(Machine.format(recs, full=args.full, prev=prev, labels=labels))
+            print(Machine.format(recs, full=args.full, prev=prev, labels=labels, variant=m.variant))
         prev = recs[-1] if recs else prev
         print(f"--- display: [{m.display()}]  {m.regA_display()}")
     for line in m.printer_lines():

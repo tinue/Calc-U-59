@@ -19,7 +19,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from ti59 import Machine, SECOND, IDLE_LO, IDLE_HI, FLG_IDLE  # noqa: E402
+from ti59 import Machine, SECOND, in_idle  # noqa: E402
 
 VARIANT = "TI59"
 if "--variant" in sys.argv:
@@ -238,7 +238,7 @@ def run(name: str, spec) -> set[int]:
         recs_all += m.record(50000)
         run.last_card = m.card_eject()
     for r in recs_all:
-        if not (IDLE_LO <= r.pc <= IDLE_HI and (r.flags & FLG_IDLE)):
+        if not in_idle(r, VARIANT):
             pcs.add(r.pc)
     run.last_display = m.display()
     run.last_printer = m.printer_lines()
