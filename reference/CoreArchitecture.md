@@ -669,7 +669,7 @@ debug events".
 | IDLE weight | 4 | 4 | 1 |
 | RAM registers | 120 | 60 | 60 + E000–E003 |
 | RAM access | `RAM.OP` | `RAM.OP` | `MEMWR`/`MEMRD` |
-| Card reader | Yes (switch at digit 10) | No (digit 7 held to veto the card path) | No (same) |
+| Card reader | Yes (switch at digit 10) | No (digit 10 held active, as on a TI-59 without a card) | No (digit 7 held; the ROM never reads it) |
 | Printer-present digit | 0 | 0 | 10 |
 | Printer BUSY | 2808 cycles | 2370 cycles | 2370 cycles |
 | Library module | Yes | Yes | Yes |
