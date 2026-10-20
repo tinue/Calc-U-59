@@ -30,10 +30,12 @@ struct PcRange {
 struct ModelInfo {
     const char* displayName;
 
-    /// Instructions/sec in active (RUN) mode: TI-59 = 455 kHz crystal ÷ 2
-    /// (two-phase) ÷ 16 (digit-serial); TI-58/58C = 384 kHz ÷ 2 ÷ 16. IDLE
-    /// divides this further by 4 except on the TI-58C — see
-    /// TMC0501::getStepWeight() in Core/TMC0501.cpp.
+    /// Instructions/sec in active (RUN) mode: resonator ÷ 2 (two-phase) ÷ 16
+    /// (digit-serial). TI-59 455 kHz, TI-58 384 kHz, ±1% (TP0240 clock chip,
+    /// http://www.datamath.org/Chips/TP0240.htm). TI-58C 400 kHz: PHI1/PHI2
+    /// measured at 200 kHz on a real TI-58C, which also matches its filmed
+    /// error blink (0.896 s). IDLE divides this further by 4 except on the
+    /// TI-58C — see TMC0501::getStepWeight() in Core/TMC0501.cpp.
     double instructionHz;
 
     int  romWordCount;
@@ -78,7 +80,7 @@ inline const ModelInfo& info(Model m) {
         {"TMC0582-CONST-K.txt", "TMC0583-CONST-K.txt"},
     };
     static const ModelInfo kTI58C {
-        "TI-58C", 12000.0, 6144, true, false, false, 4,
+        "TI-58C", 12500.0, 6144, true, false, false, 4,
         {0x063D, 0x0A2E}, {0x0627, 0x0A2E},
         {"CD2400.txt", "CD2401.txt", "TMC0573.txt"},
         {"CD2400-CONST-K.txt", "CD2401-CONST-K.txt"},

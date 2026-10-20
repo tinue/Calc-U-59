@@ -84,6 +84,36 @@ TEST(ti59_error_blink_period_matches_hardware) {
     CHECK(period > 0.899 * 0.98 && period < 0.899 * 1.02);
 }
 
+// A real TI-58C's error blink, filmed (no printer): 0.896 s per period over 25
+// periods. It counts idle passes at full speed, so it pins the TI-58C clock:
+// 400 kHz, as measured on the board (PHI 200 kHz) — 384 kHz gave 0.933 s.
+TEST(ti58c_error_blink_period_matches_hardware) {
+    auto m = testroms::makeMachine(Model::TI58C);
+    m->setPrinterConnected(false);  // the filmed one had none; with it the blink is 0.70 s
+    testroms::runToScanLoop(*m, Model::TI58C);
+    for (int k : {kKey0, kRecip}) testroms::tap(*m, Model::TI58C, k);
+    const double hz = cu59::info(Model::TI58C).instructionHz;
+    // The multiplex leaves short gaps in a lit phase; a lit phase starts after
+    // ≥ 10 ms without any driven digit.
+    const uint64_t gap = static_cast<uint64_t>(0.010 * hz);
+    std::vector<uint64_t> litStarts;
+    uint64_t lastLit = 0;
+    m->takeDisplay();
+    for (int i = 0; i < 40'000 && litStarts.size() < 4; ++i) {
+        m->stepN(5, false);
+        DisplaySnapshot d = m->takeDisplay();
+        bool lit = false;
+        for (float duty : d.digitDuty) lit = lit || duty > 0.0f;
+        if (!lit) continue;
+        uint64_t t = m->elapsedTicks();
+        if (lastLit == 0 || t - lastLit > gap) litStarts.push_back(t);
+        lastLit = t;
+    }
+    CHECK_EQ(litStarts.size(), size_t{4});
+    double period = double(litStarts[3] - litStarts[1]) / 2 / hz;
+    CHECK(period > 0.896 * 0.98 && period < 0.896 * 1.02);
+}
+
 // takeDisplay() reports how long each position was driven: a steady IDLE display
 // reads 1.0 for lit positions and 0 for suppressed ones, a computing CPU 0.
 TEST(display_duty_is_normalised_to_the_multiplex) {

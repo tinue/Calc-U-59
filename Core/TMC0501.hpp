@@ -99,8 +99,8 @@ enum : uint16_t {
 //
 // Clock: TI-59: 455 kHz oscillator ÷ 2 (two-phase) ÷ 16 (digit-serial cycle)
 //        ≈ 14,219 instructions/sec in active mode; ÷4 further in idle mode.
-//        TI-58/58C: 384 kHz oscillator ÷ 2 ÷ 16 ≈ 12,000 instructions/sec
-//        (TI-58C runs at constant speed, no idle divisor).
+//        TI-58: 384 kHz oscillator ÷ 2 ÷ 16 = 12,000 instructions/sec.
+//        TI-58C: 400 kHz ÷ 2 ÷ 16 = 12,500 (constant speed, no idle divisor).
 
 class TMC0501 {
 public:

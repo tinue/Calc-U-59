@@ -284,8 +284,10 @@ void TMC0501::computeDisplayTraceState(uint8_t& displayOn, uint8_t& maxDigitDeca
 uint32_t TMC0501::getPrinterBusyCycles() const {
     // Printer busy time: 197.5ms.
     // TI-59: (197.5ms * 455kHz) / 2 / 16 / 1000 = 2808 cycles
-    // TI-58/58C: (197.5ms * 384kHz) / 2 / 16 / 1000 = 2370 cycles
-    return hasLargeMemory(m_variant) ? 2808 : 2370;
+    // TI-58: (197.5ms * 384kHz) / 2 / 16 / 1000 = 2370 cycles
+    // TI-58C: (197.5ms * 400kHz) / 2 / 16 / 1000 = 2469 cycles
+    if (hasLargeMemory(m_variant)) return 2808;
+    return hasConstantMemory(m_variant) ? 2469 : 2370;
 }
 
 int TMC0501::getStepWeight() const {

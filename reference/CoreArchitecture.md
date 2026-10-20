@@ -59,14 +59,20 @@ per clock, so one instruction takes 16 digit times.
 
 ```
 TI-59:      455 kHz ÷ 2 (two-phase) ÷ 16 → 14,219 instructions/s
-TI-58/58C:  384 kHz ÷ 2 ÷ 16             → 12,000 instructions/s
+TI-58:      384 kHz ÷ 2 ÷ 16             → 12,000 instructions/s
+TI-58C:     400 kHz ÷ 2 ÷ 16             → 12,500 instructions/s
 idle (display) mode: ÷ 4 more on the TI-59/58; full speed on the TI-58C
 ```
 
 Sources: Hynek Sladký, *HW guide for calculators TI-58/59* (2014), p. 6 —
-instruction cycle ≈ 70 µs in calculate mode, ≈ 280 µs in display mode. The
-TI-59 rates are confirmed by a stopwatch video of a real TI-59 (see "`WAIT`
-minimum"). The per-model rates live in `Shared/MachineModelInfo.hpp`.
+instruction cycle ≈ 70 µs in calculate mode, ≈ 280 µs in display mode; the
+TP0240 clock chip page (http://www.datamath.org/Chips/TP0240.htm) — 455 kHz
+(TI-59) and 384 kHz (TI-58) ceramic resonators, ±1%, ÷ 4 while /IDLE is
+active. The TI-59 rates are confirmed by videos of a real TI-59 (see "`WAIT`
+minimum"). The TI-58C differs: PHI1/PHI2 measured at 200 kHz on a real
+TI-58C (so a 400 kHz resonator), and a filmed TI-58C error blink of 0.896 s
+matches it (384 kHz would give 0.933 s). The per-model rates live in
+`Shared/MachineModelInfo.hpp`.
 
 `step()` returns a **cycle weight** — 4 for an IDLE instruction on the
 TI-59/58, otherwise 1 (`getStepWeight()`) — so callers can pace in real time.
@@ -641,7 +647,7 @@ debug events".
 | Feature | TI-59 | TI-58 | TI-58C |
 |---|---|---|---|
 | ROM | TMC0582/0583/0571B | same as TI-59 | CD2400/2401/TMC0573 |
-| Clock (instructions/s) | 14,219 | 12,000 | 12,000 |
+| Clock (instructions/s) | 14,219 | 12,000 | 12,500 |
 | IDLE weight | 4 | 4 | 1 |
 | RAM registers | 120 | 60 | 60 + E000–E003 |
 | RAM access | `RAM.OP` | `RAM.OP` | `MEMWR`/`MEMRD` |
