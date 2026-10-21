@@ -201,7 +201,7 @@ keys: Space (R/S vs. STEP) and Cmd/Ctrl+C (printer tape vs. selected text)
 would have no single owner.
 
 Values below are matrix codes. The website's keyboard legend
-(`TI59_KEYBOARD_LEGEND` in `docs/Pages.jsx`, prerendered without the engine)
+(`TI59_KEYBOARD_LEGEND` in `calc-u-site`'s `59/Pages.jsx`, prerendered without the engine)
 lists the same bindings by hand.
 
 ### What is bound

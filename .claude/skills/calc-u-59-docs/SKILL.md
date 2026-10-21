@@ -1,22 +1,23 @@
 ---
 name: calc-u-59-docs
-description: Use this skill when working on the Calc-U-59 documentation or help website (docs/, reference/, root markdown files). Covers the GitHub Pages static site (HTML + client-side React), the design system, and the reference architecture docs. Trigger on any task that touches docs/*.html, docs/*.jsx, docs/*.css, reference/*.md, README.md, CHANGELOG.md, TODO.md, or PRIVACY.md. Also trigger when the user says "update documentation" (or similar) after finishing Core/, Shared/, App/, Qt6/ or Web/ work on a release branch — see the Release Documentation Update Workflow section.
+description: Use this skill when working on the Calc-U-59 developer documentation (reference/, root markdown files) or deciding where documentation belongs. Covers the developer-vs-end-user split (the user guide lives at calc-u.org/59/ in the separate calc-u-site repository) and the reference architecture docs. Trigger on any task that touches reference/*.md, README.md, CHANGELOG.md, TODO.md, or PRIVACY.md. Also trigger when the user says "update documentation" (or similar) after finishing Core/, Shared/, App/, Qt6/ or Web/ work on a release branch — see the Release Documentation Update Workflow section.
 user-invocable: true
 ---
 
-# Calc-U-59 Documentation & Website
+# Calc-U-59 Documentation
 
-This skill covers the help website (`docs/`), reference architecture docs (`reference/`), and root markdown files.
+This skill covers the reference architecture docs (`reference/`) and root markdown files, and where the user guide lives.
 
 ---
 
 ## Documentation Policy: two audiences, two locations
 
-- **`docs/` (the `www.calcu59.ch` website) is the *only* place for end-user
-  documentation** — installing, operating, syncing, modules, settings, and
-  the debug panel from a user's point of view. If you're about to write
-  something an app user (not a contributor) would want to read, it goes
-  here, not in `reference/` or a root markdown file.
+- **The user guide (https://calc-u.org/59/, repository `calc-u-site`) is
+  the *only* place for end-user documentation** — installing, operating,
+  syncing, modules, settings, and the debug panel from a user's point of
+  view. If you're about to write something an app user (not a contributor)
+  would want to read, it goes there, not in `reference/` or a root markdown
+  file.
 - **Everything in the main repository (`reference/`, root markdown files,
   `.claude/skills/`) is developer documentation** — for contributors, the
   project owner, and AI agents working on the code. It assumes the reader
@@ -37,103 +38,22 @@ This skill covers the help website (`docs/`), reference architecture docs (`refe
 
 ---
 
-## Help Website (`docs/`)
+## The user guide (`calc-u.org/59/`)
 
-**Hosting:** GitHub Pages at `www.calcu59.ch`  
-**Stack:** React 18, self-hosted in `docs/vendor/`, precompiled and prerendered to static HTML. No npm dependencies, no Jekyll.
+The end-user website is https://calc-u.org/59/, the `59/` folder of the
+separate repository `calc-u-site` (checked out beside this one as
+`../calc-u-site`, GitHub `tinue/calc-u-site`). It has its own `CLAUDE.md`
+and skills (`site-59` for content and build, `site-59-design` for the
+design system); work on the site from there, under those rules, and commit
+there. Nothing about the site's build, design or URL map belongs in this
+repository.
 
-**There is a build step.** `node .seo/build.js` compiles every `.jsx` to
-`docs/build/*.js` and prerenders every route to a real static HTML file.
-**Any `.jsx` edit is incomplete until it is re-run** — otherwise the published
-HTML keeps showing the old text. `node .seo/check.js` verifies the output.
-`.github/workflows/build-site.yml` on the `gh-pages` branch does both on every
-push as a backstop.
+The playable calculator on the site (`/59/play/`, the installable app at
+`/59/calc/app/`) is this repository's web client, imported from a release's
+`Calc-U-59-web.zip` — calc-u-59-web skill and `reference/WebClient.md`.
 
-**Serving the site for manual testing means building it first.** The server
-hands out the last build's output, never the `.jsx` on disk, so an unbuilt
-server shows the user the *previous* version of whatever they asked you to
-change. `node .seo/build.js && python3 -m http.server 8000`, from `docs/`.
-
-`docs/.seo/README.md` is the reference for all of this — the URL map, where
-each SEO concern lives, how to add a page, how to serve it locally, and the
-decisions that look like bugs but are deliberate (`sitemap.xml`'s `lastmod`
-is one). **Read it before changing anything under `docs/`, and put new
-build or SEO facts there rather than here.**
-
-**Git setup — worktree:** `docs/` is a separate git worktree tracking the `gh-pages` branch, not the main repo branch. It is listed in `.gitignore` so it is invisible to the main repo's `git status`. Always commit docs changes from inside `docs/`:
-
-```bash
-git -C /path/to/Calc-U-59/docs add <files>
-git -C /path/to/Calc-U-59/docs commit -m "..."
-```
-
-Do **not** use the root repo's git commands for docs files — they will show nothing staged and the changes will appear lost.
-
-Content and design files, the ones this skill is about (`.seo/README.md`
-covers the build and routing files):
-
-| File | Role |
-|------|------|
-| `docs/Pages.jsx` | Page content: home, install, debugger, … |
-| `docs/components.jsx` | Reusable UI components |
-| `docs/styles.css` | Main stylesheet |
-| `docs/colors_and_type.css` | Design tokens (colors, typography) — load this first |
-| `docs/fonts/` | Self-hosted WOFF2 + each family's OFL licence |
-| `docs/preview/` | 16 HTML specimen cards for colors, type, spacing, components |
-| `docs/assets/` | App icon, iPad screenshots, device photo |
-| `docs/software-files/` | Self-hosted copies of `examples/*.ti59`/`.ti58`/`.ti58c` and `examples/assembly/*.asm`, linked from `/software/` (`SoftwarePage` in `Pages.jsx`, titled "TI-59 Software Collection" — the main repo's `examples/` name is unrelated, this collection outgrew "examples") via `download`-attribute links — see sync note below |
-| `docs/CNAME` | Custom domain record (`www.calcu59.ch`) |
-
-Generated — never edit by hand, always regenerate: `docs/build/`, every
-`index.html` (including the root one), `404.html`, `robots.txt`, `sitemap.xml`.
-
-There is also a dedicated design skill at `docs/SKILL.md` that covers generating branded interfaces and visual assets. Do not duplicate its content here — use it when the task is primarily visual or brand-driven.
-
-**The playable calculator (`/play/`, `/app/`) is the web client from the main repo's `Web/`** — calc-u-59-web skill and `reference/WebClient.md`. The calculator files still in `docs/` (`Calculator.jsx`, `cuecard.jsx`, `led-display.jsx`, `PlayCalculator.jsx`, `calc-engine-worker.js`, `wasm/`, `app/`, `presets/`) are the pre-move copy that `calcu59.ch` serves until it is retired; don't develop the calculator there. Embedding a built `Web/dist/` instead is the new site's job.
-
-**`/software/` (`docs/software-files/`) needs a manual sync check.** These files are deliberately hand-copied from the main repo's `examples/` — self-hosted (not linked out to GitHub) so the `download` attribute works and visitors never leave `calcu59.ch`, and files stay small enough (~200K total) that duplication is cheap. Nothing wires the two directories together automatically. Whenever you're in this skill for an unrelated reason, or a session adds files to the main repo's `examples/`, diff the two:
-```bash
-comm -23 <(cd examples && find . -maxdepth 2 \( -name '*.ti59' -o -name '*.ti58' -o -name '*.ti58c' -o -name '*.asm' \) ! -path './debug/*' ! -path './screentest/*' | sed 's|^\./||' | sort) \
-         <(cd docs/software-files && find . -type f | sed 's|^\./||' | sort)
-```
-Anything listed is new in `examples/` and missing from `docs/software-files/` — copy it over, add an entry to the matching category in `SoftwarePage` (`docs/Pages.jsx`), and rebuild. `examples/debug/` and `examples/screentest/` are internal test fixtures and are deliberately excluded from this page. The main repo's directory is still called `examples/` — nothing changes there, the rename is website-only.
-
----
-
-## Design System Rules
-
-These are hard constraints — do not break them.
-
-| Rule | Value |
-|------|-------|
-| Background | `#000` OLED black only — no gradients, no warm paper |
-| Accent | `#F0C040` golden yellow — not orange, not warm yellow |
-| Headings | Uppercase Barlow Condensed, `0.06em` letter-spacing |
-| Radii | 6 / 7 / 10 px — no full pills, no sharp squares |
-| Icons | `<K>` keycap pill system only — no emoji, no icon libraries |
-| Copy scope | Explains installing, syncing, modules, settings, file formats, the bottom toolbar — not TI-59 hardware internals or AOS arithmetic. **One exception, below.** |
-| Third parties | **None.** Everything the browser fetches is served from `calcu59.ch`, and the site carries no analytics of any kind. **Details below.** |
-
-All color and typography tokens are in `docs/colors_and_type.css`. Wrap content in `<div class="calcu">`.
-
-**The copy-scope exception: `/what-is-a-ti-59/`.** That page
-(`AboutTi59Page` in `docs/Pages.jsx`) is deliberately about the hardware —
-the three models, AOS, magnetic cards, Solid State Software, the PC-100C.
-It exists because nobody searches for "Calc-U 59"; they search "what is a
-TI-59" or "TI-58C programmable calculator". Every other page answers a
-question you only have *after* finding the app, so this page and `/play/`
-are the site's only two cold-search entry points. It is linked from the
-footer of all pages, from the home page, and from `/play/`.
-
-Do not delete it as scope creep, and do not treat it as licence to add
-hardware explanation elsewhere — the rule still holds for every other page.
-
-**No third parties, ever.** Fonts, React and the WASM core are all served
-from `calcu59.ch` — never a CDN, never Google Fonts. The site has no
-analytics, tag manager or telemetry and must not acquire any, whoever hosts
-it. Outbound `<a href>` links are fine; anything the browser fetches on its
-own is not. Why: `docs/fonts/README.md`. How it is enforced:
-`docs/.seo/README.md`.
+The `docs/` folder some clones still have (a worktree of the old `gh-pages`
+branch that served `www.calcu59.ch`) is retired: don't edit it.
 
 ---
 
@@ -158,7 +78,8 @@ ROM-level documentation (`rom/*-ROM-Guide.md`, `rom/fastmode.md`,
 `rom/printerinterrupt.md`) sits beside the annotated listings in `rom/`.
 
 There is no end-user guide in `reference/` — that content lives on the
-website (`docs/Pages.jsx`'s `DebuggerPage`, etc.) and is out of scope here.
+website (`calc-u-site`'s `59/Pages.jsx`, e.g. `DebuggerPage`) and is out of
+scope here.
 
 When updating these files, keep the provenance notice at the top intact — it signals that the content is best-effort reverse-engineering, not authoritative hardware documentation.
 
@@ -202,11 +123,11 @@ Triggered by the user saying **"update documentation"** (or similar) after finis
 
 4. **Update reference docs** (`reference/CoreArchitecture.md`, `reference/SharedArchitecture.md`, `reference/AppArchitecture.md`, `reference/DebugAPI.md`, `reference/StateFileFormat.md`, `reference/FrontendParity.md`, `reference/WebClient.md`) for anything the diff invalidated: register model, SCOM layout, PC encoding, machine variants, bridge/debug API surface, settings, file formats. Keep each file's provenance notice intact.
 
-5. **Update the help website** (`docs/Pages.jsx`, etc.) if the change is user-facing in either app — new settings, module behavior, install steps (Mac, iOS, Windows, Linux), state-file directives (mention the directive exists and link back to `reference/StateFileFormat.md` for the grammar, don't restate it). `docs/` is a separate git worktree with its own versioning (i.e. none) — a change only needing a website update, with nothing in `Core/`/`Shared/`/`App/`/`Qt6/`/`Web/`/`roms/`, does not need a `CHANGELOG.md` entry. Commit `docs/` changes from inside `docs/`, not from the main repo (see above).
+5. **Note what the user guide needs.** If a change is user-facing in any GUI — new settings, module behavior, install steps (Mac, iOS, Windows, Linux), state-file directives — list it for the user as a follow-up in `calc-u-site` (its `site-59` skill, § "After a Calc-U-59 release"). Don't edit that repository from here unless the user asks. A change only needing a website update, with nothing in `Core/`/`Shared/`/`App/`/`Qt6/`/`Web/`/`roms/`, does not need a `CHANGELOG.md` entry.
 
-6. **The web client** (`Web/`) is not part of the website any more: if the diff touched `Core/`, `Shared/`, `roms/` or `Web/`, build and test it as the calc-u-59-web skill says. Nothing in `docs/` is rebuilt for it.
+6. **The web client** (`Web/`): if the diff touched `Core/`, `Shared/`, `roms/` or `Web/`, build and test it as the calc-u-59-web skill says. The site picks up a new build by pinning the release's `Calc-U-59-web.zip`.
 
-7. **Commit in both places, never push.** Main-repo changes (`CHANGELOG.md`, `reference/`, `README.md`, `TODO.md`, `tools/`) commit from the repo root; `docs/` changes commit from inside `docs/` (separate worktree/branch — see above). Two separate commits, following the "commit often, never push" rule below.
+7. **Commit, never push.** Main-repo changes (`CHANGELOG.md`, `reference/`, `README.md`, `TODO.md`, `tools/`) commit from the repo root, following the "commit often, never push" rule below.
 
 ---
 

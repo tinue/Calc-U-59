@@ -16,7 +16,7 @@ Both apps call the same `SessionController` methods; the panels draw what
 `DebugModel` holds. Which panel lives where: `FrontendParity.md`
 § "Debugger". The session and controller: `SharedArchitecture.md`. Panel
 behaviour from a user's point of view: the user guide,
-https://www.calcu59.ch.
+https://calc-u.org/59/.
 
 ---
 

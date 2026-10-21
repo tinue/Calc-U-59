@@ -16,9 +16,10 @@ the render rule, styling, the PWA and `MANIFEST.json`:
 drawing: `reference/SharedArchitecture.md`. Feature placement:
 `reference/FrontendParity.md` (the Web column).
 
-The website (served from `docs/` until the move to the `calc-u-site`
-repository) only *embeds* a built `dist/`. Never edit the calculator in
-`docs/` — its copies there are the old, pre-move code.
+The website (https://calc-u.org/59/, repository `calc-u-site`) only
+*embeds* a built `dist/`, imported from a release's `Calc-U-59-web.zip`.
+Never edit the calculator there, nor in an old `docs/` worktree — those
+copies are generated or retired.
 
 ## Rules
 

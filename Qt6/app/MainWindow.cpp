@@ -75,7 +75,7 @@ void MainWindow::buildMenus() {
 
     QMenu* help = menuBar()->addMenu(QStringLiteral("&Help"));
     help->addAction(QStringLiteral("Calc-U-59 Help"), this,
-                    [] { QDesktopServices::openUrl(QUrl(QStringLiteral("https://www.calcu59.ch"))); });
+                    [] { QDesktopServices::openUrl(QUrl(QStringLiteral("https://calc-u.org/59/"))); });
     QAction* about = help->addAction(QStringLiteral("About Calc-U-59"), this, [this] {
         AboutDialog dialog(this);
         dialog.exec();

@@ -16,7 +16,7 @@ Whether you want a classic calculator that just works, or you want to run progra
 
 **For installation and day-to-day operation — including a debug-panel walkthrough — use the website:**
 
-### → https://www.calcu59.ch
+### → https://calc-u.org/59/
 
 This repository is developer documentation only — architecture, APIs, and file formats for people building or extending the emulator (including AI agents doing so). It does not duplicate the website's end-user content; the website links back here for anyone who wants the technical detail behind a file format or feature.
 
@@ -31,7 +31,7 @@ Pre-built macOS DMGs, Windows installers (x64, ARM64) and Linux AppImages (x86_6
 - Printer trace mode (functional simulation — see limitation below)
 - [`.ti59` state file format](reference/StateFileFormat.md) for loading calculator state
 - Card reader emulation and the Solid State Software modules, with cue cards
-- The web client, playable at [calcu59.ch/play](https://www.calcu59.ch/play/) — no install required
+- The web client, playable at [calc-u.org/59/play](https://calc-u.org/59/play/) — no install required
 
 ## Current Limitations
 
@@ -73,7 +73,7 @@ The file [`prompt/ti59-agent-prompt.md`](prompt/ti59-agent-prompt.md) is a syste
 
 ## Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for version history and release notes. This covers the apps and the web client (`Core/`, `Shared/`, `App/`, `Bridge/`, `Qt6/`, `Web/`); the website (`docs/`) is a separate `gh-pages` worktree with its own git history and no version numbers of its own, so website-only changes aren't logged here.
+See [CHANGELOG.md](CHANGELOG.md) for version history and release notes. This covers the apps and the web client (`Core/`, `Shared/`, `App/`, `Bridge/`, `Qt6/`, `Web/`); the website is a separate repository, [`calc-u-site`](https://github.com/tinue/calc-u-site), with its own git history and no version numbers of its own, so website-only changes aren't logged here.
 
 ## License
 
@@ -147,7 +147,7 @@ Trigger conditions and workflows for Claude Code when working in specific areas 
 | [`calc-u-59-qt`](.claude/skills/calc-u-59-qt/SKILL.md) | Working on the Qt6 app (`Qt6/`, CI workflow): ship scope (Windows/Linux), class map against the Swift views, threading, build and packaging. |
 | [`calc-u-59-web`](.claude/skills/calc-u-59-web/SKILL.md) | Working on the web client (`Web/`): rules (no logic, location independence, no side effects in render, own styling), build and tests; points to `reference/WebClient.md`. |
 | [`calc-u-59-swift`](.claude/skills/calc-u-59-swift/SKILL.md) | Working on the Swift/SwiftUI app (`App/`, `Bridge/`): view model, bridge, display, keyboard, debug panels, printer, card reader, settings. |
-| [`calc-u-59-docs`](.claude/skills/calc-u-59-docs/SKILL.md) | Working on documentation and the help website (`docs/`, `reference/`, root markdown files); states the developer-vs-end-user documentation split and the release documentation update workflow. |
+| [`calc-u-59-docs`](.claude/skills/calc-u-59-docs/SKILL.md) | Working on documentation (`reference/`, root markdown files); states the developer-vs-end-user documentation split, where the user guide lives, and the release documentation update workflow. |
 | [`calc-u-59-statefiles`](.claude/skills/calc-u-59-statefiles/SKILL.md) | Pointer to `reference/StateFileFormat.md` plus a couple of navigation aids for the two mistakes that come up most (matrix codes vs. keycodes, 2nd-function presses). |
 | [`calc-u-59-uitesting`](.claude/skills/calc-u-59-uitesting/SKILL.md) | Writing/debugging XCUITest UI tests (`Calc-U-59UITests/`): file picker navigation, accessibility identifiers, orientation. |
 
@@ -190,6 +190,6 @@ Checked-in analysis the project keeps for itself, distinct from any AI tool's pr
 | [`examples/assembly/README.md`](examples/assembly/README.md) | Format of the assembly examples derived from Hynek Sladký's HW programming guide. |
 | [`examples/debug/readme.md`](examples/debug/readme.md) | Notes that this subfolder holds debugging/regression state files, kept separate to keep the main examples folder clean. |
 
-### `docs/` — help website (not indexed here)
+### The user guide (not indexed here)
 
-`docs/` is the end-user website (linked at the top of this README) and tracks the `gh-pages` branch as its own git worktree with its own internal (build/design-system) documentation — see the `calc-u-59-docs` skill before editing it. It is intentionally not enumerated here: this repository points to it once, rather than indexing its pages alongside developer documentation.
+The end-user website (linked at the top of this README) lives in its own repository, [`calc-u-site`](https://github.com/tinue/calc-u-site), with its own internal (build/design-system) documentation. It is intentionally not enumerated here: this repository points to it once, rather than indexing its pages alongside developer documentation.

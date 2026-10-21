@@ -9,6 +9,7 @@
 - **Debugger** The CALCULATOR tab shows X, the working value, and the whole status register. STEP now advances exactly as SST does, the program cursor marks the next step as LRN does, values no longer flicker while a program runs, and fast mode shows for every mode.
 - **Examples** New `fastmode-sst.ti59`, `printer-interrupt.ti59` and `calendar-09-dispatch.ti59`, a fast-mode calendar printer faster than Acosta's 1981 program. Annotated ROM listings in `rom/` explain fast mode and the printer interrupt.
 - **License** Calc-U-59 is now free software under the GPLv3.
+- **User guide** The user guide moved to https://calc-u.org/59/, and the web calculator to https://calc-u.org/59/play/.
 
 ### Fixes
 - **TI-58C** `REGISTERS:` in a state file now fills the right registers (they were four off), and a preset's cue card comes back after a restart.

@@ -43,8 +43,8 @@ refs/
 # One-time setup per clone: git worktree add appstore appstore
 appstore/
 
-# Documentation website lives in the gh-pages branch, checked out as a worktree here.
-# One-time setup per clone: git worktree add docs gh-pages
+# Retired: the old website's gh-pages worktree, still present in older clones.
+# The user guide now lives in the calc-u-site repository (calc-u.org/59/).
 docs/
 
 # Local Claude Code settings (permissions only, no secrets — but local)

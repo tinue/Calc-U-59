@@ -13,7 +13,8 @@ TI-59 only, with no printer, debugger or traces (`FrontendParity.md` has the
 feature table).
 
 It is built into a self-contained folder, `Web/dist/`, that does not know
-where it is hosted. The website embeds that folder (a release asset of this
+where it is hosted. The website (https://calc-u.org/59/, repository
+`calc-u-site`) embeds that folder as `59/calc/` (a release asset of this
 repository, or a local `Web/dist/` for testing) and mounts the calculator
 from it. This document is the contract between the two.
 
@@ -71,7 +72,8 @@ Re-run it whenever `Core/`, `Shared/`, `roms/` or anything in `Web/` changes.
 CI uploads `dist/` zipped as `Calc-U-59-web-<version>.zip` (artifact
 `Calc-U-59-web`); the zip holds the contents of `dist/` at its root.
 `release` (`release.yaml`) attaches it to each release as
-`Calc-U-59-web.zip` — the file the website's build downloads.
+`Calc-U-59-web.zip` — the file the website's `59/.seo/fetch-web-client.js`
+downloads and pins.
 
 ## The `dist/` contract
 

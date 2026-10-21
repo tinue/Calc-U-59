@@ -9,7 +9,7 @@ A state file (a "preset" in the GUI) is UTF-8 text that sets the
 calculator's state: program, data registers, module, printer, cue card,
 and a key sequence to play after the load. How the apps apply one:
 `SharedArchitecture.md` § "State File Loading". For using the example files,
-point readers at the user guide, https://www.calcu59.ch.
+point readers at the user guide, https://calc-u.org/59/.
 
 ---
 

@@ -1,8 +1,8 @@
 # Privacy Policy — Calc-U-59
 
-**Last updated: 2026-10-19**
+**Last updated: 2026-10-21**
 
-Calc-U-59 is a cycle-accurate emulator of three famous programmable calculators of the late 1970s and early 1980s. This policy covers the macOS, iOS and iPadOS app, the Windows and Linux app, and the website at www.calcu59.ch.
+Calc-U-59 is a cycle-accurate emulator of three famous programmable calculators of the late 1970s and early 1980s. This policy covers the macOS, iOS and iPadOS app, the Windows and Linux app, and the website at calc-u.org.
 
 ## Data Collection
 
