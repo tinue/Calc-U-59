@@ -351,10 +351,11 @@ differ.
 
 ### LED Display Rendering
 
-- Glyphs: `SevenSegment` (`segmentsFor(digit, ctrl, suppressed)`), never a
+- Glyphs: `SevenSegment` (`ledCell(i, digit, ctrl, level, calcOpacity)`:
+  segments and opacity per cell, the "C" annunciator in cell 11), never a
   font. Zero suppression happens in the core (`TMC0501`), which reports
-  suppressed positions as not driven; both renderers pass a position at
-  level 0 as `suppressed`.
+  suppressed positions as not driven; `ledCell` blanks a position at
+  level 0. All three renderers call it.
 - Shapes: `LedGeometry` — hexagonal segments (modernized) or dot grids
   (classic), the decimal point, and per style the slant (shear 0.14, about
   8°, bottom fixed), colours and glow radii. The decimal point is not
