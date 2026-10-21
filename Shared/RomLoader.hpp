@@ -23,6 +23,10 @@ struct RomError : std::runtime_error {
 /// "TMC0582.txt"), or nullopt if it doesn't exist.
 using ResourceReader = std::function<std::optional<std::string>(const std::string& fileName)>;
 
+/// A ResourceReader over plain directories, searched in order — the layout of
+/// roms/ (calculator/, then solid-state/) for tests and headless tools.
+ResourceReader directoryReader(std::vector<std::string> dirs);
+
 /// Parse a ROM .txt file: "AAAA: WWWW WWWW ..." rows after the separator.
 /// Rows without a 4-hex-digit address are skipped; words are masked to 13 bits.
 /// Throws RomError on an invalid hex word.

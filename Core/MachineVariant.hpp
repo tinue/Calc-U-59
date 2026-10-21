@@ -24,3 +24,6 @@ inline bool hasLargeMemory(MachineVariant v) { return v == MachineVariant::TI59;
 constexpr double resonatorHz(MachineVariant v) {
     return v == MachineVariant::TI59 ? 455000.0 : 384000.0;
 }
+
+/// Instructions/sec in active (RUN) mode: resonatorHz() ÷ 2 (two-phase) ÷ 16 (digit-serial).
+constexpr double instructionHz(MachineVariant v) { return resonatorHz(v) / 32; }

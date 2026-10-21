@@ -57,8 +57,8 @@ const CALC_ROWS = [
 // forcePressed lets an outside caller light a key that no pointer is touching —
 // PlayCalculator.jsx uses it so a physical-keyboard press looks exactly like a
 // clicked one. onDown/onUp drive the emulator's press/release from the actual
-// pointer down/up.
-function CalcKey({ kc, scale, onDown, onUp, forcePressed = false }) {
+// pointer down/up; they get the key's `id`.
+function CalcKey({ kc, id, scale, onDown, onUp, forcePressed = false }) {
   const [pointerPressed, setPointerPressed] = useStateCalc(false);
   const pressed = pointerPressed || forcePressed;
 
@@ -120,13 +120,13 @@ function CalcKey({ kc, scale, onDown, onUp, forcePressed = false }) {
         lineHeight: 1,
       }}>{kc.top || "\u00A0"}</span>
       <button
-        onMouseDown={() => { setPointerPressed(true); onDown && onDown(kc.label); }}
-        onMouseUp={() => { setPointerPressed(false); onUp && onUp(kc.label); }}
-        onMouseLeave={() => { setPointerPressed(false); onUp && onUp(kc.label); }}
-        onTouchStart={() => { setPointerPressed(true); onDown && onDown(kc.label); }}
+        onMouseDown={() => { setPointerPressed(true); onDown && onDown(id); }}
+        onMouseUp={() => { setPointerPressed(false); onUp && onUp(id); }}
+        onMouseLeave={() => { setPointerPressed(false); onUp && onUp(id); }}
+        onTouchStart={() => { setPointerPressed(true); onDown && onDown(id); }}
         // preventDefault here suppresses the mousedown/mouseup/click "compatibility"
         // cascade Safari synthesizes after a touch it still classifies as a tap.
-        // Without it, a touch held past PlayCalculator.jsx's PLAY_KEY_HOLD_MS floor
+        // Without it, a touch held past the minimum hold (KeySequencer::kHold)
         // (so its own release already fired synchronously, right at touch-up) gets
         // a second, independent press/release cycle from that synthetic cascade —
         // a real second digit landing right when the finger lifts. Brief taps and
@@ -137,7 +137,7 @@ function CalcKey({ kc, scale, onDown, onUp, forcePressed = false }) {
         // so there's no separate cascade to suppress. (preventDefault is skipped
         // on touchstart/touchmove: React marks the delegated root listener for
         // those passive by default, so it would just warn and do nothing there.)
-        onTouchEnd={(e) => { e.preventDefault(); setPointerPressed(false); onUp && onUp(kc.label); }}
+        onTouchEnd={(e) => { e.preventDefault(); setPointerPressed(false); onUp && onUp(id); }}
         onClick={(e) => {
           if (onDown) {
             // Keyboard/assistive-tech activation (Tab, then Enter/Space)
@@ -146,7 +146,7 @@ function CalcKey({ kc, scale, onDown, onUp, forcePressed = false }) {
             // detail is >=1 and is already fully handled by the
             // mousedown/mouseup pair above; treating it here too would
             // press-and-release the key twice per click.
-            if (e.detail === 0) { onDown(kc.label); onUp && onUp(kc.label); }
+            if (e.detail === 0) { onDown(id); onUp && onUp(id); }
           }
         }}
         style={{

@@ -173,10 +173,11 @@ private:
     }
 
     static void post(const char* type, const char* field, val payload) {
+        static const val postMessage = val::global("postMessage");
         val msg = val::object();
-        msg.set("type", std::string(type));
+        msg.set("type", val(type));
         msg.set(field, payload);
-        val::global("postMessage")(msg);
+        postMessage(msg);
     }
 
     // Per cell (0 = rightmost) its segment mask, brightness and decimal point
@@ -187,12 +188,13 @@ private:
         const double calc = m_c->calcIndicatorOpacity();
         float cells[36];
         for (int i = 0; i < 12; ++i) {
-            const bool c = i == 11 && calc > 0;
-            cells[i * 3] = c ? cu59::kSegmentsC : cu59::segmentsFor(d.digits[i], d.ctrl[i], d.digitLevel[i] == 0);
-            cells[i * 3 + 1] = static_cast<float>(c ? calc : d.digitLevel[i] / 255.0);
+            const cu59::LedCell cell = cu59::ledCell(i, d.digits[i], d.ctrl[i], d.digitLevel[i], calc);
+            cells[i * 3] = cell.segments;
+            cells[i * 3 + 1] = static_cast<float>(cell.opacity);
             cells[i * 3 + 2] = d.dpLevel[i] / 255.0f;
         }
-        return val::global("Float32Array").new_(typed_memory_view(36, cells));
+        static const val Float32Array = val::global("Float32Array");
+        return Float32Array.new_(typed_memory_view(36, cells));
     }
 
     val cueCard() const {

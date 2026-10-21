@@ -10,6 +10,11 @@ const auto kBatch = std::chrono::duration_cast<EmulationRunner::Clock::duration>
 // restarts the schedule instead of bursting to catch up.
 constexpr auto kMaxLag = std::chrono::milliseconds(100);
 
+/// The batch due at `deadline` is late by more than kMaxLag: start over at `now`.
+bool lagging(EmulationRunner::Clock::time_point deadline, EmulationRunner::Clock::time_point now) {
+    return now - deadline > kMaxLag;
+}
+
 } // namespace
 
 EmulationRunner::EmulationRunner(TI59Machine& m, Model model, FreezeController& freeze, Callbacks callbacks,
@@ -33,7 +38,8 @@ EmulationRunner::~EmulationRunner() {
 void EmulationRunner::start() {
     if (m_running.exchange(true)) return;
     if (m_threading == Threading::Cooperative) {
-        m_restart = true;
+        m_carry = 0;
+        m_deadline = {};  // lagging: pump() starts the schedule at its `now`
         post(nullptr);
     } else {
         post([this] { runLoop(); });
@@ -81,19 +87,19 @@ void EmulationRunner::threadMain() {
     }
 }
 
-bool EmulationRunner::runOneBatch(int32_t& carry, bool& paced) {
+EmulationRunner::BatchEnd EmulationRunner::runOneBatch(int32_t& carry) {
     BatchResult r = runBatch(m_machine, carry, m_target, m_freeze);
     if (r.stop == BatchResult::Stop::Breakpoint) {  // Core breakpoints are set by headless tools only
         m_running = false;
-        return false;
+        return BatchEnd::Stopped;
     }
     if (r.stop == BatchResult::Stop::Freeze) {
         m_running = false;
         if (m_callbacks.freezeFired) m_callbacks.freezeFired(r.freezeOwner);
-        return false;
+        return BatchEnd::Stopped;
     }
-    paced = shouldSleep(m_fullSpeed, m_machine.pc(), r.polledHardware, m_model);
-    return true;
+    return shouldSleep(m_fullSpeed, m_machine.pc(), r.polledHardware, m_model) ? BatchEnd::Paced
+                                                                                : BatchEnd::Unpaced;
 }
 
 void EmulationRunner::runLoop() {
@@ -105,11 +111,11 @@ void EmulationRunner::runLoop() {
     auto deadline = Clock::now();
     while (m_running) {
         deadline += kBatch;
-        bool paced = true;
-        if (!runOneBatch(carry, paced)) return;
-        if (paced) {
+        const BatchEnd end = runOneBatch(carry);
+        if (end == BatchEnd::Stopped) return;
+        if (end == BatchEnd::Paced) {
             auto now = Clock::now();
-            if (now - deadline > kMaxLag) deadline = now;
+            if (lagging(deadline, now)) deadline = now;
             else std::this_thread::sleep_until(deadline);
         } else {
             deadline = Clock::now();
@@ -149,17 +155,12 @@ void EmulationRunner::pump(Clock::time_point now, const std::function<void(Clock
         loopActive = m_running && !m_jobs.empty() && !m_jobs.front();
     }
     if (loopActive) {
-        if (m_restart) {
-            m_restart = false;
-            m_carry = 0;
-            m_deadline = now;
-        } else if (now - m_deadline > kMaxLag) {
-            m_deadline = now;
-        }
+        if (lagging(m_deadline, now)) m_deadline = now;
         const auto sliceEnd = m_callbacks.wallClock() + kFullSpeedSlice;
         while (m_running && m_deadline <= now) {
-            bool paced = true;
-            if (!runOneBatch(m_carry, paced)) break;
+            const BatchEnd end = runOneBatch(m_carry);
+            if (end == BatchEnd::Stopped) break;
+            const bool paced = end == BatchEnd::Paced;
             if (paced) m_deadline += kBatch;
             if (m_callbacks.batchDone) m_callbacks.batchDone();
             if (afterBatch) afterBatch(paced ? m_deadline : now);

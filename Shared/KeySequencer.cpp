@@ -47,31 +47,29 @@ bool KeySequencer::Lane::takeNext(Task& task) {
     return false;
 }
 
+// A task in progress runs to its end, even on quit: a held key comes up.
 void KeySequencer::Lane::run() {
     for (;;) {
-        Task task;
-        {
-            std::unique_lock<std::mutex> lock(m_mutex);
-            m_cv.wait(lock, [this] { return m_quit || !m_tasks.empty(); });
+        auto wake = advance(Clock::now());
+        std::unique_lock<std::mutex> lock(m_mutex);
+        if (!wake) {
             if (m_quit) return;
-            if (!takeNext(task)) continue;
-        }
-        while (auto wake = m_owner.step(*this, task, Clock::now())) {
-            std::unique_lock<std::mutex> lock(m_mutex);
-            // A hold runs to its end; step() goes back to sleep if woken early.
-            if (task.phase == Task::Phase::Holding) m_cv.wait_until(lock, *wake);
-            else m_cv.wait_until(lock, *wake, [&] { return m_quit || cancelled(task.generation); });
+            m_cv.wait(lock, [this] { return m_quit || !m_tasks.empty(); });
+        } else if (m_current->phase == Task::Phase::Holding) {
+            m_cv.wait_until(lock, *wake);  // a hold runs to its end; step() sleeps again if woken early
+        } else {
+            m_cv.wait_until(lock, *wake, [&] { return m_quit || cancelled(m_current->generation); });
         }
     }
 }
 
-void KeySequencer::Lane::advance(Clock::time_point now) {
+std::optional<KeySequencer::Clock::time_point> KeySequencer::Lane::advance(Clock::time_point now) {
     for (;;) {
         if (!m_current) {
             Task task;
             {
                 std::lock_guard<std::mutex> lock(m_mutex);
-                if (!takeNext(task)) return;
+                if (!takeNext(task)) return std::nullopt;
             }
             m_current = std::move(task);
         }
@@ -80,7 +78,7 @@ void KeySequencer::Lane::advance(Clock::time_point now) {
             m_current.reset();
             continue;
         }
-        if (*wake > now) return;
+        if (*wake > now) return wake;
     }
 }
 
@@ -110,15 +108,9 @@ KeySequencer::Clock::time_point KeySequencer::now() const {
 void KeySequencer::advance(Clock::time_point now) {
     if (m_threading != Threading::Cooperative) return;
     m_now = std::max(m_now, now);
-    std::optional<Clock::time_point> next;
-    for (;;) {
-        std::optional<uint8_t> code;
-        {
-            std::lock_guard<std::mutex> lock(m_timerMutex);
-            code = takeDueRelease(m_now, next);
-        }
-        if (!code) break;
-        m_host.releaseKey(*code);
+    {
+        std::unique_lock<std::mutex> lock(m_timerMutex);
+        releaseDue(m_now, lock);
     }
     m_script.advance(m_now);
     m_keys.advance(m_now);
@@ -135,6 +127,11 @@ std::optional<KeySequencer::Clock::time_point> KeySequencer::step(Lane& lane, Ta
     using K = KeystrokeEvent::Kind;
     using P = Task::Phase;
     auto seconds = [](double s) { return std::chrono::duration_cast<Clock::duration>(std::chrono::duration<double>(s)); };
+    // Not in the scan loop yet: look again kScanPoll after the last look.
+    auto poll = [&] {
+        if (now >= task.wake) task.wake = now + kScanPoll;
+        return task.wake;
+    };
     if (task.script && task.next == 0 && task.phase == P::Next) {
         m_playing = true;
         m_host.playbackStarted();
@@ -153,9 +150,7 @@ std::optional<KeySequencer::Clock::time_point> KeySequencer::step(Lane& lane, Ta
                 task.phase = P::Holding;
                 return task.wake;
             }
-            if (now < task.wake) return task.wake;
-            task.wake = now + kScanPoll;
-            return task.wake;
+            return poll();
         case P::Holding:
             if (now < task.wake) return task.wake;
             m_host.releaseKey(task.code);
@@ -166,9 +161,7 @@ std::optional<KeySequencer::Clock::time_point> KeySequencer::step(Lane& lane, Ta
                 task.phase = P::Next;
                 break;
             }
-            if (now < task.wake) return task.wake;
-            task.wake = now + kScanPoll;
-            return task.wake;
+            return poll();
         case P::Sleeping:
             if (now < task.wake && !lane.cancelled(task.generation)) return task.wake;
             if (task.restoreSpeed) m_host.setFullSpeed(*task.restoreSpeed);
@@ -291,32 +284,25 @@ void KeySequencer::releaseAt(uint8_t code, Clock::time_point when) {
     m_timerCv.notify_all();
 }
 
-std::optional<uint8_t> KeySequencer::takeDueRelease(Clock::time_point now, std::optional<Clock::time_point>& next) {
-    next.reset();
-    auto it = std::min_element(m_releases.begin(), m_releases.end());
-    if (it == m_releases.end()) return std::nullopt;
-    if (now < it->first) {
-        next = it->first;
-        return std::nullopt;
+std::optional<KeySequencer::Clock::time_point> KeySequencer::releaseDue(Clock::time_point now,
+                                                                       std::unique_lock<std::mutex>& lock) {
+    for (;;) {
+        auto it = std::min_element(m_releases.begin(), m_releases.end());
+        if (it == m_releases.end()) return std::nullopt;
+        if (now < it->first) return it->first;
+        uint8_t code = it->second;
+        m_releases.erase(it);
+        lock.unlock();
+        m_host.releaseKey(code);
+        lock.lock();
     }
-    uint8_t code = it->second;
-    m_releases.erase(it);
-    return code;
 }
 
 void KeySequencer::timerLoop() {
     std::unique_lock<std::mutex> lock(m_timerMutex);
     while (!m_timerQuit) {
-        std::optional<Clock::time_point> next;
-        if (auto code = takeDueRelease(Clock::now(), next)) {
-            lock.unlock();
-            m_host.releaseKey(*code);
-            lock.lock();
-        } else if (next) {
-            m_timerCv.wait_until(lock, *next);
-        } else {
-            m_timerCv.wait(lock, [this] { return m_timerQuit || !m_releases.empty(); });
-        }
+        if (auto next = releaseDue(Clock::now(), lock)) m_timerCv.wait_until(lock, *next);
+        else m_timerCv.wait(lock, [this] { return m_timerQuit || !m_releases.empty(); });
     }
 }
 

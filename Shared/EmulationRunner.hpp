@@ -69,9 +69,10 @@ public:
 private:
     void threadMain();
     void runLoop();
-    /// One batch; false when it stopped the loop (breakpoint, armed freeze).
-    /// `paced`: the loop is to sleep out the rest of the batch.
-    bool runOneBatch(int32_t& carry, bool& paced);
+    /// Stopped: the batch stopped the loop (breakpoint, armed freeze).
+    /// Paced: sleep out the rest of the batch. Unpaced: go on at once.
+    enum class BatchEnd { Stopped, Paced, Unpaced };
+    BatchEnd runOneBatch(int32_t& carry);
     /// Cooperative: run queued jobs up to a running loop (an empty job marks it).
     void drainJobs();
 
@@ -87,7 +88,6 @@ private:
     // Cooperative run loop state.
     int32_t m_carry = 0;
     Clock::time_point m_deadline{};
-    bool m_restart = false;
     bool m_draining = false;
 
     std::mutex m_mutex;

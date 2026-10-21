@@ -7,11 +7,10 @@
 // not pay a ctypes round trip per instruction.
 
 #include "../../Core/TI59Machine.hpp"
+#include "../../Shared/MachineModelInfo.hpp"
 #include "../../Shared/ModuleCatalog.hpp"
 #include "../../Shared/RomLoader.hpp"
 #include <cstring>
-#include <fstream>
-#include <sstream>
 #include <string>
 
 namespace {
@@ -40,16 +39,7 @@ void fill(HRec& r, uint16_t pc, uint16_t op, const CpuFrame& f, int w) {
 
 // The roms/ text dumps, as the apps bundle them: calculator/ then solid-state/.
 cu59::ResourceReader romReader(const std::string& romsDir) {
-    return [romsDir](const std::string& name) -> std::optional<std::string> {
-        for (const char* sub : {"/calculator/", "/solid-state/"}) {
-            std::ifstream f(romsDir + sub + name, std::ios::binary);
-            if (!f) continue;
-            std::ostringstream ss;
-            ss << f.rdbuf();
-            return ss.str();
-        }
-        return std::nullopt;
-    };
+    return cu59::directoryReader({romsDir + "/calculator", romsDir + "/solid-state"});
 }
 
 } // namespace
@@ -57,6 +47,14 @@ cu59::ResourceReader romReader(const std::string& romsDir) {
 extern "C" {
 
 int h_rec_size() { return static_cast<int>(sizeof(HRec)); }
+
+// Shared/MachineModelInfo.hpp facts of `model`, so Python keeps no copies.
+double h_instruction_hz(int model) { return cu59::info(static_cast<cu59::Model>(model)).instructionHz; }
+// The idle/key-detect range: out = {lo, hi, extraLo, extraHi} (extra empty when lo > hi).
+void h_idle_range(int model, int* out) {
+    const cu59::PcRange& r = cu59::info(static_cast<cu59::Model>(model)).idleAndKeyDetect;
+    out[0] = r.lo; out[1] = r.hi; out[2] = r.extraLo; out[3] = r.extraHi;
+}
 
 void* h_new(int variant) { return new TI59Machine(static_cast<MachineVariant>(variant)); }
 void  h_free(void* m) { delete static_cast<TI59Machine*>(m); }

@@ -44,4 +44,16 @@ inline constexpr uint8_t segmentsFor(uint8_t digit, uint8_t ctrl, bool suppresse
     }
 }
 
+/// What one cell (0 = rightmost) shows: its glyph at its brightness (`level`
+/// 0–255), or in cell 11, while the "C" annunciator is lit (`calcOpacity` > 0),
+/// the C at that opacity. `opacity` is 0–1.
+struct LedCell {
+    uint8_t segments;
+    double opacity;
+};
+inline constexpr LedCell ledCell(int i, uint8_t digit, uint8_t ctrl, uint8_t level, double calcOpacity) {
+    if (i == 11 && calcOpacity > 0) return {kSegmentsC, calcOpacity};
+    return {segmentsFor(digit, ctrl, level == 0), level / 255.0};
+}
+
 } // namespace cu59

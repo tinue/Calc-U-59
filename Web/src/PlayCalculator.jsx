@@ -59,7 +59,8 @@ function PlayCalculator({ scale = 1, controls = true, keyboard = false }) {
   const workerRef = usePlayRef(null);
   const post = usePlayCallback((msg) => workerRef.current?.postMessage(msg), []);
 
-  const [cells, setCells] = usePlayState(null);
+  // Display frames bypass React state: the canvas repaints, nothing re-renders.
+  const frames = usePlayRef({ cells: null, onFrame: null }).current;
   const [geometry, setGeometry] = usePlayState(null);
   const [moduleId, setModuleId] = usePlayState("");
   const [modules, setModules] = usePlayState([]);
@@ -81,7 +82,10 @@ function PlayCalculator({ scale = 1, controls = true, keyboard = false }) {
           setModules(msg.modules);
           setStatusMessage("");
           break;
-        case "display": setCells(msg.cells); break;
+        case "display":
+          frames.cells = msg.cells;
+          if (frames.onFrame) frames.onFrame();
+          break;
         case "geometry": setGeometry(msg.geometry); break;
         case "module": setModuleId(msg.id); break;
         case "cueCard": setCueCard(msg.card); break;
@@ -140,24 +144,18 @@ function PlayCalculator({ scale = 1, controls = true, keyboard = false }) {
 
   // ── On-screen key clicks/taps ────────────────────────────────────────
   // Real pointer down/up; the worker keeps a short click down for the
-  // ROM's minimum hold. <CalcKey> reports its label — every label is unique —
-  // and also reports an up when the pointer merely leaves a key, so only the
-  // key the pointer pressed is released.
-  const pointerLabelRef = usePlayRef(null);
-  const pointerDownByLabel = usePlayCallback((label) => {
-    for (let ri = 0; ri < CALC_ROWS.length; ri++) {
-      const ci = CALC_ROWS[ri].findIndex((kc) => kc.label === label);
-      if (ci !== -1) {
-        pointerLabelRef.current = label;
-        post({ type: "pointerDown", row: ri, col: ci });
-        return;
-      }
-    }
+  // ROM's minimum hold. <CalcKey> reports its id (row×5 + col) and also
+  // reports an up when the pointer merely leaves a key, so only the key the
+  // pointer pressed is released.
+  const pointerKeyRef = usePlayRef(null);
+  const pointerDown = usePlayCallback((id) => {
+    pointerKeyRef.current = id;
+    post({ type: "pointerDown", row: Math.floor(id / 5), col: id % 5 });
   }, [post]);
 
-  const pointerUpByLabel = usePlayCallback((label) => {
-    if (pointerLabelRef.current !== label) return;
-    pointerLabelRef.current = null;
+  const pointerUp = usePlayCallback((id) => {
+    if (pointerKeyRef.current !== id) return;
+    pointerKeyRef.current = null;
     post({ type: "pointerUp" });
   }, [post]);
 
@@ -219,7 +217,7 @@ function PlayCalculator({ scale = 1, controls = true, keyboard = false }) {
     }}>
       <PlayDisplay
         scale={scale}
-        cells={cells}
+        frames={frames}
         geometry={geometry}
         moduleName={currentModule ? currentModule.menuTitle : ""}
         statusMessage={statusMessage}
@@ -236,8 +234,8 @@ function PlayCalculator({ scale = 1, controls = true, keyboard = false }) {
         {CALC_ROWS.map((row, ri) => (
           <div key={ri} style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 * scale }}>
             {row.map((kc, ci) => (
-              <MemoCalcKey key={ci} kc={kc} scale={scale}
-                           onDown={pointerDownByLabel} onUp={pointerUpByLabel}
+              <MemoCalcKey key={ci} kc={kc} id={ri * 5 + ci} scale={scale}
+                           onDown={pointerDown} onUp={pointerUp}
                            forcePressed={heldKey === ri * 5 + ci} />
             ))}
           </div>
@@ -277,7 +275,7 @@ function PlayCalculator({ scale = 1, controls = true, keyboard = false }) {
   );
 }
 
-function PlayDisplay({ scale, cells, geometry, moduleName, statusMessage }) {
+function PlayDisplay({ scale, frames, geometry, moduleName, statusMessage }) {
   return (
     <div style={{
       background: "linear-gradient(180deg, var(--display-bezel-2) 0%, var(--display-bezel) 50%, var(--display-bezel-2) 100%)",
@@ -295,7 +293,7 @@ function PlayDisplay({ scale, cells, geometry, moduleName, statusMessage }) {
         boxShadow: "inset 0 2px 8px rgba(0,0,0,.8)",
         overflow: "hidden",
       }}>
-        <LedDisplayCanvas scale={scale} cells={cells} geometry={geometry}
+        <LedDisplayCanvas scale={scale} frames={frames} geometry={geometry}
                           width={PLAY_LED_WIDTH} height={PLAY_LED_HEIGHT} />
       </div>
 

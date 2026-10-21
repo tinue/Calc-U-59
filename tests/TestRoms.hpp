@@ -19,12 +19,7 @@ inline std::optional<std::string> readFile(const std::string& path) {
 }
 
 /// ResourceReader over roms/calculator and roms/solid-state.
-inline cu59::ResourceReader reader() {
-    return [](const std::string& name) -> std::optional<std::string> {
-        if (auto t = readFile("roms/calculator/" + name)) return t;
-        return readFile("roms/solid-state/" + name);
-    };
-}
+inline cu59::ResourceReader reader() { return cu59::directoryReader({"roms/calculator", "roms/solid-state"}); }
 
 /// Build a machine with ROM, constants and the Master Library, as the apps do.
 inline std::unique_ptr<TI59Machine> makeMachine(cu59::Model model) {

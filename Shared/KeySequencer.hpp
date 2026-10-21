@@ -115,8 +115,8 @@ private:
     };
 
     /// A serial queue of tasks; cancel() bumps the generation, which drops
-    /// queued tasks and ends a waiting one. Threaded: a thread runs them.
-    /// Cooperative: advance() does.
+    /// queued tasks and ends a waiting one. Threaded: a thread calls advance()
+    /// and sleeps until the time it returns. Cooperative: the owner calls it.
     class Lane {
     public:
         Lane(KeySequencer& owner, Threading threading);
@@ -124,8 +124,9 @@ private:
         void post(Task task);
         void cancel();
         bool cancelled(uint64_t generation) const { return m_generation.load() != generation; }
-        /// Cooperative: run what is due at `now`.
-        void advance(Clock::time_point now);
+        /// Run what is due at `now`; when the task in progress next wants to
+        /// run, nullopt when the lane is idle.
+        std::optional<Clock::time_point> advance(Clock::time_point now);
     private:
         void run();
         bool takeNext(Task& task);  // under m_mutex
@@ -134,7 +135,7 @@ private:
         std::mutex m_mutex;
         std::condition_variable m_cv;
         std::deque<Task> m_tasks;
-        std::optional<Task> m_current;  ///< cooperative: the task in progress
+        std::optional<Task> m_current;  ///< the task in progress
         bool m_quit = false;
         std::thread m_thread;
     };
@@ -144,8 +145,9 @@ private:
     std::optional<Clock::time_point> step(Lane& lane, Task& task, Clock::time_point now);
     void finish(Task& task);
     void releaseAt(uint8_t code, Clock::time_point when);
-    /// Under m_timerMutex: the earliest release due at `now`, else when the next is due.
-    std::optional<uint8_t> takeDueRelease(Clock::time_point now, std::optional<Clock::time_point>& next);
+    /// Release every key due by `now`; when the next is due, nullopt for none.
+    /// `lock` holds m_timerMutex (dropped while a key is released).
+    std::optional<Clock::time_point> releaseDue(Clock::time_point now, std::unique_lock<std::mutex>& lock);
     void timerLoop();
     Clock::time_point now() const;
 

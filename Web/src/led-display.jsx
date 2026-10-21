@@ -1,7 +1,9 @@
 // The LED display of the playable calculator: the classic (dot-matrix) style
 // of App/Views/LEDDisplayView.swift and Qt6/app/LedRenderer.cpp. What to
 // draw comes from the worker, computed by the main repo's Shared/ layer:
-//   cells    — Float32Array [segments, level, dp] × 12, cell 0 rightmost: the
+//   frames   — {cells, onFrame}: the owner stores each frame's cells and calls
+//              onFrame(), which repaints without a React render. cells is a
+//              Float32Array [segments, level, dp] × 12, cell 0 rightmost: the
 //              lit-segment mask (Shared/SevenSegment.hpp, the "C" indicator
 //              in cell 11), brightness 0–1 (Shared/DisplayPov) and the
 //              decimal point's
@@ -38,10 +40,12 @@ function ledPaths(width, height, g) {
   return { segments, dps };
 }
 
-// Lit shapes with the same brightness share one blurred glow pass.
+// Lit shapes with the same brightness, in 1/64 steps, share one blurred glow
+// pass: brightness is continuous, and a blur per distinct level is expensive.
 function ledFillGlowing(ctx, shapes, rgb, blur, glowOpacity) {
   const byLevel = new Map();
-  for (const [path, level] of shapes) {
+  for (const [path, exact] of shapes) {
+    const level = Math.round(exact * 64) / 64;
     if (!byLevel.has(level)) byLevel.set(level, new Path2D());
     byLevel.get(level).addPath(path);
   }
@@ -81,7 +85,7 @@ const { useRef: useLedRef, useEffect: useLedEffect, useMemo: useLedMemo } = Reac
 
 // width/height are CSS pixels at scale=1; `geometry` must be for a cell of
 // (width × scale / 12) × (height × scale). Nothing is drawn until it arrives.
-function LedDisplayCanvas({ scale, cells, geometry, width, height }) {
+function LedDisplayCanvas({ scale, frames, geometry, width, height }) {
   const canvasRef = useLedRef(null);
   const cssWidth = width * scale;
   const cssHeight = height * scale;
@@ -100,9 +104,13 @@ function LedDisplayCanvas({ scale, cells, geometry, width, height }) {
   }, [cssWidth, cssHeight]);
 
   useLedEffect(() => {
-    if (!paths) return;
-    ledDrawDisplay(canvasRef.current.getContext("2d"), cssWidth, cssHeight, cells, geometry, paths);
-  }, [cells, paths]);
+    if (!paths) return undefined;
+    const draw = () =>
+      ledDrawDisplay(canvasRef.current.getContext("2d"), cssWidth, cssHeight, frames.cells, geometry, paths);
+    draw();
+    frames.onFrame = draw;
+    return () => { frames.onFrame = null; };
+  }, [frames, paths]);
 
   return (
     <canvas

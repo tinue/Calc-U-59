@@ -3,6 +3,7 @@
 // mode, the pumped run loop's pacing, and a whole SessionController.
 
 #include "TestHarness.hpp"
+#include "FakePlatform.hpp"
 #include "TestRoms.hpp"
 #include "../Shared/EmulationRunner.hpp"
 #include "../Shared/KeyMatrix.hpp"
@@ -257,25 +258,8 @@ TEST(cooperative_runner_full_speed_runs_a_slice) {
 
 namespace {
 
-/// A frontend on virtual time: tick() at 60 Hz, then the UI queue.
-struct VirtualPlatform : SessionController::Platform {
-    std::deque<std::function<void()>> queue;
-    std::vector<std::string> errors;
-    std::map<std::string, std::string> cards;
-    void runOnUiThread(std::function<void()> job) override { queue.push_back(std::move(job)); }
-    std::optional<std::string> readConstantMemory() override { return std::nullopt; }
-    void writeConstantMemory(const std::string&) override {}
-    bool writeCard(const std::string& path, const std::string& text) override { cards[path] = text; return true; }
-    SessionController::TraceLocation traceLocation() override { return {"/nonexistent", 1'000'000}; }
-    void saveLastUsedModel(Model) override {}
-    void saveModuleID(const std::string&) override {}
-    void error(const std::string& title, const std::string& message) override { errors.push_back(title + ": " + message); }
-    void diagnostic(const std::string&) override {}
-    void changed(uint32_t) override {}
-};
-
 struct ControllerRig {
-    VirtualPlatform p;
+    testroms::FakePlatform p;  // tick() at 60 Hz, then the UI queue
     SessionController c{p, testroms::reader(), testroms::readFile("roms/solid-state/cuecards.txt").value_or(""), "ML",
                         Threading::Cooperative};
     Clock::time_point t = Clock::time_point{} + 500ms;  // a browser's clock starts at page load
@@ -283,11 +267,7 @@ struct ControllerRig {
     void run(Clock::duration d) {
         for (auto end = t + d; t < end; t += std::chrono::microseconds(16'667)) {
             c.tick(t);
-            while (!p.queue.empty()) {
-                auto job = std::move(p.queue.front());
-                p.queue.pop_front();
-                job();
-            }
+            p.pump();
         }
     }
     template <class F> bool runUntil(F cond, Clock::duration limit = 20s) {

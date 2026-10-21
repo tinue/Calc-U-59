@@ -71,6 +71,11 @@ TEST(seven_segment_decode) {
     CHECK_EQ(segmentsFor(4, 7, false), 0);
     CHECK_EQ(segmentsFor(4, 3, false), 0);
     CHECK_EQ(segmentsFor(0xA, 0, false), kDigitSegments[0]);  // A–F digits wrap mod 10
+    CHECK_EQ(ledCell(11, 8, 0, 255, 0.5).segments, kSegmentsC);  // the lit "C" covers cell 11
+    CHECK_EQ(ledCell(11, 8, 0, 255, 0.5).opacity, 0.5);
+    CHECK_EQ(ledCell(10, 8, 0, 51, 0.5).segments, 0x7F);         // other cells keep their glyph
+    CHECK_EQ(ledCell(10, 8, 0, 51, 0.5).opacity, 0.2);
+    CHECK_EQ(ledCell(11, 8, 0, 0, 0).segments, 0);                // dark: zero-suppressed
 }
 
 TEST(printer_font_shape) {

@@ -15,8 +15,10 @@ NS_ASSUME_NONNULL_BEGIN
                      isLetter:(BOOL)isLetter shift:(BOOL)shift command:(BOOL)command;
 
 // ── LED display (Shared/SevenSegment.hpp) ───────────────────────────────────
-+ (uint8_t)segmentsForDigit:(uint8_t)digit ctrl:(uint8_t)ctrl suppressed:(BOOL)suppressed;
-@property (class, readonly) uint8_t segmentsC;
+/// What cell `index` (0 = rightmost) shows: segments and opacity 0–1 (cu59::ledCell).
++ (uint8_t)ledCellSegmentsAt:(NSInteger)index digit:(uint8_t)digit ctrl:(uint8_t)ctrl level:(uint8_t)level
+                 calcOpacity:(double)calcOpacity opacity:(double *)opacity
+    NS_SWIFT_NAME(ledCell(index:digit:ctrl:level:calcOpacity:opacity:));
 
 // ── PC-100C printer font (Shared/PrinterFont.hpp) ───────────────────────────
 /// Row 0–6 of a 6-bit character code: bit 4 = leftmost column.

@@ -24,15 +24,9 @@ struct LEDDisplayView: View, Equatable {
                 let x = CGFloat(11 - i) * digitWidth
                 let rect = CGRect(x: x, y: 0, width: digitWidth, height: height)
 
-                let segs: UInt8
-                let cOpacity: Double   // the position's brightness, or the fading "C"
-                if i == 11 && calcIndicatorOpacity > 0 {
-                    segs = TISharedTables.segmentsC
-                    cOpacity = calcIndicatorOpacity
-                } else {
-                    cOpacity = Double(levels[i]) / 255.0
-                    segs = TISharedTables.segments(forDigit: digits[i], ctrl: ctrl[i], suppressed: levels[i] == 0)
-                }
+                var cOpacity = 0.0     // the position's brightness, or the fading "C"
+                let segs = TISharedTables.ledCell(index: i, digit: digits[i], ctrl: ctrl[i], level: levels[i],
+                                                  calcOpacity: calcIndicatorOpacity, opacity: &cOpacity)
 
                 // Slant transform for the digit
                 var digitCtx = ctx

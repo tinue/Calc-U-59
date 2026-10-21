@@ -3,6 +3,7 @@
 // the fixes that came with moving them out of the frontends.
 
 #include "TestHarness.hpp"
+#include "FakePlatform.hpp"
 #include "TestRoms.hpp"
 #include "../Shared/SessionController.hpp"
 #include <chrono>
@@ -12,45 +13,9 @@
 
 using namespace cu59;
 using namespace std::chrono_literals;
+using testroms::FakePlatform;
 
 namespace {
-
-/// A frontend without a UI: the UI-thread queue is pumped by the test.
-struct FakePlatform : SessionController::Platform {
-    std::mutex mutex;
-    std::deque<std::function<void()>> queue;
-    std::optional<std::string> mem;
-    int memWrites = 0;
-    std::vector<std::string> errors;
-    uint32_t changes = 0;
-
-    void runOnUiThread(std::function<void()> job) override {
-        std::lock_guard<std::mutex> lock(mutex);
-        queue.push_back(std::move(job));
-    }
-    std::optional<std::string> readConstantMemory() override { return mem; }
-    void writeConstantMemory(const std::string& text) override { mem = text; ++memWrites; }
-    bool writeCard(const std::string&, const std::string&) override { return true; }
-    SessionController::TraceLocation traceLocation() override { return {std::filesystem::temp_directory_path(), 1'000'000}; }
-    void saveLastUsedModel(Model) override {}
-    void saveModuleID(const std::string&) override {}
-    void error(const std::string& title, const std::string& message) override { errors.push_back(title + ": " + message); }
-    void diagnostic(const std::string&) override {}
-    void changed(uint32_t c) override { changes |= c; }
-
-    void pump() {
-        for (;;) {
-            std::function<void()> job;
-            {
-                std::lock_guard<std::mutex> lock(mutex);
-                if (queue.empty()) return;
-                job = std::move(queue.front());
-                queue.pop_front();
-            }
-            job();
-        }
-    }
-};
 
 template <class F> bool pumpUntil(FakePlatform& p, F cond, std::chrono::milliseconds timeout = 3000ms) {
     auto end = std::chrono::steady_clock::now() + timeout;

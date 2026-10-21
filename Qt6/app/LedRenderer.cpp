@@ -68,15 +68,7 @@ void render(QPainter& p, const QRectF& rect, const cu59::LedFrame& d, double cal
     const auto classic = cu59::classicSegments(w, h);
     for (int i = 0; i < 12; ++i) {
         const double x = rect.left() + (11 - i) * w;
-        uint8_t segs;
-        double opacity;
-        if (i == 11 && calcOpacity > 0) {
-            segs = cu59::kSegmentsC;
-            opacity = calcOpacity;
-        } else {
-            opacity = d.digitLevel[i] / 255.0;
-            segs = cu59::segmentsFor(d.digits[i], d.ctrl[i], d.digitLevel[i] == 0);
-        }
+        const cu59::LedCell cell = cu59::ledCell(i, d.digits[i], d.ctrl[i], d.digitLevel[i], calcOpacity);
         // Shear x' = x + slant × (h − y): the bottom stays put.
         QTransform t(1, 0, -sp.slant, 1, x + h * sp.slant, rect.top());
         for (int bit = 0; bit < 7; ++bit) {
@@ -93,7 +85,7 @@ void render(QPainter& p, const QRectF& rect, const cu59::LedFrame& d, double cal
                 glowRadius = std::max(glowRadius, seg.radius);
             }
             path = t.map(path);
-            if ((segs >> bit) & 1) lit.push_back({path, opacity});
+            if ((cell.segments >> bit) & 1) lit.push_back({path, cell.opacity});
             else dark.addPath(path);
         }
         if (d.dpLevel[i] > 0) {

@@ -56,27 +56,11 @@ SECOND = {
 PRINTER_BUTTONS = {"PRINT": "h_printer_print", "PAPER": "h_printer_adv"}
 KBITS = [0, 1, 2, 3, 5, 6]  # physical column -> K-line bit (Bridge/TI59MachineWrapper.mm)
 
-# Idle-loop address windows, as idleAndKeyDetect in Shared/MachineModelInfo.hpp.
-# The TI-58 adds its card veto, part of every idle pass (kCardVetoLo/Hi); the
-# TI-58C ends at 0659 and, with a printer, rescans at 0A25–0A30.
+# The TI-59's idle-loop window (idleAndKeyDetect in Shared/MachineModelInfo.hpp);
+# in_idle() reads every model's from the library.
 IDLE_LO, IDLE_HI = 0x0627, 0x0660
-CARD_VETO_LO, CARD_VETO_HI = 0x0459, 0x045B
-IDLE_SPANS = {
-    "TI59": ((IDLE_LO, IDLE_HI),),
-    "TI58": ((IDLE_LO, IDLE_HI), (CARD_VETO_LO, CARD_VETO_HI)),
-    "TI58C": ((IDLE_LO, 0x0659), (0x0A25, 0x0A30)),
-}
 
 FLG_IDLE, FLG_COND = 0x0001, 0x0800
-
-
-def in_idle(r, variant: str = "TI59") -> bool:
-    """r (HRec) sits in the idle loop."""
-    if not r.flags & FLG_IDLE:
-        return False
-    return any(lo <= r.pc <= hi for lo, hi in IDLE_SPANS[variant])
-# TI-59 active-mode instruction rate: 455 kHz clock / 32 (Core/TMC0501.cpp, getPrinterBusyCycles).
-INSTR_PER_SEC = 455000 / 32
 
 
 class HRec(C.Structure):
@@ -114,6 +98,9 @@ def _lib():
     lib.h_lib_exec_pc.argtypes = [C.c_void_p]
     lib.h_lib_exec_pc.restype = C.c_uint16
     lib.h_disasm.argtypes = [C.c_uint16, C.c_uint16, C.c_char_p, C.c_int]
+    lib.h_instruction_hz.argtypes = [C.c_int]
+    lib.h_instruction_hz.restype = C.c_double
+    lib.h_idle_range.argtypes = [C.c_int, C.POINTER(C.c_int)]
     assert lib.h_rec_size() == C.sizeof(HRec), "HRec layout mismatch with capi.cpp"
     return lib
 
@@ -136,6 +123,25 @@ def disasm(pc: int, op: int) -> str:
 
 # Machine variants: Core/MachineVariant.hpp enum value (= Shared/MachineModelInfo.hpp Model).
 VARIANTS = {"TI59": 0, "TI58": 1, "TI58C": 2}
+
+# TI-59 active-mode instruction rate (instructionHz in Shared/MachineModelInfo.hpp).
+INSTR_PER_SEC = LIB.h_instruction_hz(VARIANTS["TI59"])
+
+
+def _idle_spans(model: int) -> tuple[tuple[int, int], ...]:
+    out = (C.c_int * 4)()
+    LIB.h_idle_range(model, out)
+    return tuple((lo, hi) for lo, hi in ((out[0], out[1]), (out[2], out[3])) if lo <= hi)
+
+
+IDLE_SPANS = {name: _idle_spans(model) for name, model in VARIANTS.items()}
+
+
+def in_idle(r, variant: str = "TI59") -> bool:
+    """r (HRec) sits in the idle loop."""
+    if not r.flags & FLG_IDLE:
+        return False
+    return any(lo <= r.pc <= hi for lo, hi in IDLE_SPANS[variant])
 
 
 def nibs(r, msd_first=True) -> str:

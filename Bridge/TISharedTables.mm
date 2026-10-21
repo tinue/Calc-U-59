@@ -17,11 +17,12 @@ CGRect toCG(const cu59::NRect& r) { return CGRectMake(r.x, r.y, r.w, r.h); }
     return [NSData dataWithBytes:codes.data() length:codes.size()];
 }
 
-+ (uint8_t)segmentsForDigit:(uint8_t)digit ctrl:(uint8_t)ctrl suppressed:(BOOL)suppressed {
-    return cu59::segmentsFor(digit, ctrl, suppressed == YES);
++ (uint8_t)ledCellSegmentsAt:(NSInteger)index digit:(uint8_t)digit ctrl:(uint8_t)ctrl level:(uint8_t)level
+                 calcOpacity:(double)calcOpacity opacity:(double *)opacity {
+    cu59::LedCell cell = cu59::ledCell(static_cast<int>(index), digit, ctrl, level, calcOpacity);
+    *opacity = cell.opacity;
+    return cell.segments;
 }
-
-+ (uint8_t)segmentsC { return cu59::kSegmentsC; }
 
 + (uint8_t)printerFontRowForCode:(uint8_t)code row:(NSInteger)row {
     if (code >= 64 || row < 0 || row >= 7) return 0;

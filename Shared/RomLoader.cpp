@@ -1,6 +1,8 @@
 #include "RomLoader.hpp"
 #include "TextUtil.hpp"
 #include <algorithm>
+#include <fstream>
+#include <sstream>
 
 namespace cu59 {
 
@@ -145,6 +147,19 @@ std::vector<uint8_t> loadConstants(Model model, const ResourceReader& read) {
     bytes.reserve(64 * 16);
     for (const auto& r : rows) bytes.insert(bytes.end(), r.begin(), r.end());
     return bytes;
+}
+
+ResourceReader directoryReader(std::vector<std::string> dirs) {
+    return [dirs = std::move(dirs)](const std::string& name) -> std::optional<std::string> {
+        for (const auto& dir : dirs) {
+            std::ifstream f(dir + "/" + name, std::ios::binary);
+            if (!f) continue;
+            std::ostringstream ss;
+            ss << f.rdbuf();
+            return ss.str();
+        }
+        return std::nullopt;
+    };
 }
 
 std::optional<std::vector<uint8_t>> loadModule(const std::string& romFile, const ResourceReader& read) {
