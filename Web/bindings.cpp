@@ -68,6 +68,8 @@ public:
         m_c = std::make_unique<cu59::SessionController>(
             *this, [this](const std::string& name) { return readFile(name); }, m_files["cuecards.txt"], cu59::settings::kDefaultModuleID,
             cu59::Threading::Cooperative);
+        // No printer GUI here: start without one (a preset's PRINTER: still applies).
+        m_c->setPrinterConnected(false);
         m_c->startMachine(cu59::Model::TI59);
         drain();
     }

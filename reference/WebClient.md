@@ -10,7 +10,9 @@ app (`App/`) and the Qt6 app (`Qt6/`): the real `cu59::SessionController`
 compiled to WebAssembly and run single-threaded in a Web Worker, with React
 components that only draw what it posts and forward input to it. It is
 TI-59 only, with no printer, debugger or traces (`FrontendParity.md` has the
-feature table).
+feature table). It starts with no printer connected, so the calculator runs
+as a stand-alone TI-59 (e.g. its 0.45 s error blink); a preset's `PRINTER:`
+line still connects the invisible one.
 
 It is built into a self-contained folder, `Web/dist/`, that does not know
 where it is hosted. The website (https://calc-u.org/59/, repository
