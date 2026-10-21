@@ -4,7 +4,7 @@ CYCLE-ACCURATE EMULATION
 The TMC0501 processor is emulated at the cycle level, reproducing the exact behaviour of the original hardware — including the TI-58C's constant memory, preserved across restarts. The Master Library ROM and many more modules are included.
 
 INTEGRATED DEBUGGER
-Inspect program memory, data registers, CPU state, and internal SCOM registers live as the machine runs. Step through instructions one at a time, or let the emulator run and freeze it at any point. You can even run your own assembly programs! Available on iPad (landscape) and Mac.
+Inspect program memory, data registers, CPU state, and internal SCOM registers live as the machine runs. Step through instructions one at a time, or let the emulator run and freeze it at any point. You can even run your own assembly programs! On iPad in landscape and on the Mac it sits beside the calculator; on iPhone and in portrait, turn on the debugger page in Settings.
 
 PAPER TAPE PRINTER
 A functional recreation of the PC-100C thermal printer with dot-matrix font rendering. Trace exactly what programs print and why. Copy output as plain text or as a high-resolution bitmap.
@@ -19,3 +19,5 @@ SOLID STATE MODULES
 Select a Solid State Module and run programs from there.
 
 Whether you're bringing an old program back to life, running the Master Library modules, or exploring how these machines actually worked under the hood, Calc-U-59 gives you a faithful TI-59 in your pocket.
+
+Calc-U-59 is free software under the GPLv3; the source code is on GitHub.
