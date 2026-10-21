@@ -1,0 +1,9 @@
+Calc-U-59 Card 1.0
+HEADER:
+partition: 13
+DATATYPE: data
+bank: 3
+protection: yes
+checksum: a5
+DATA:
+R060: 01 02 03 04 05 06 07 08

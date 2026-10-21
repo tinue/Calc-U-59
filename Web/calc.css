@@ -1,0 +1,80 @@
+/* The web calculator's stylesheet — everything PlayCalculator needs, so a
+   host page only adds its own layout (reference/WebClient.md).
+
+   The tokens are a copy of the website's design tokens (colors_and_type.css
+   in the site), scoped to .calcu-client — PlayCalculator's root, and the
+   PWA's <body> — so the host's own :root tokens neither leak in nor get
+   overridden. They are duplicated on purpose: the site and the client
+   change independently. */
+
+/* ---------- Fonts (self-hosted, SIL OFL 1.1 — fonts/*-OFL.txt) ---------- */
+@font-face { font-family:"Archivo"; font-style:normal; font-weight:400; font-display:swap;
+  src:url("fonts/archivo-400.woff2") format("woff2"); }
+@font-face { font-family:"Archivo"; font-style:normal; font-weight:700; font-display:swap;
+  src:url("fonts/archivo-700.woff2") format("woff2"); }
+@font-face { font-family:"Barlow Condensed"; font-style:normal; font-weight:600; font-display:swap;
+  src:url("fonts/barlow-condensed-600.woff2") format("woff2"); }
+@font-face { font-family:"Barlow Condensed"; font-style:normal; font-weight:700; font-display:swap;
+  src:url("fonts/barlow-condensed-700.woff2") format("woff2"); }
+
+/* ---------- Tokens ------------------------------------------------------ */
+.calcu-client {
+  --accent-yellow:        #f0c040;
+  --accent-yellow-2:      #d8a830;
+  --accent:               var(--accent-yellow);
+
+  --display-bezel:        #2c1812;
+  --display-bezel-2:      #1a0c08;
+
+  --bg-inset:             #1a130d;
+  --fg:                   #f4ecd6;
+  --fg-2:                 #d4c4a0;
+  --fg-3:                 #a89878;
+  --fg-on-yellow:         #2a1f10;
+
+  --stroke:               #2a1f15;
+  --stroke-warm:          #5a4628;
+
+  --font-key:             "Archivo", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-keycap:          "Barlow Condensed", "Helvetica Neue", "Arial Narrow", sans-serif;
+  --font-body:            "Archivo", "Helvetica Neue", Helvetica, Arial, sans-serif;
+
+  --radius-card:          10px;
+
+  color: var(--fg);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* PlayCalculator sizes itself as border boxes (width 360 × scale includes
+   its padding), whatever the host's own box model. */
+.calcu-device, .calcu-device * { box-sizing: border-box; }
+
+/* ---------- Cue card (src/cuecard.jsx) --------------------------------- */
+/* Deliberately tight: this sits directly under the LED display, not as a
+   standalone panel, so it should read as part of the calculator rather
+   than an equally-weighted card of its own.
+   Sizing (font-size, padding, margin, gap) is set inline from cuecard.jsx,
+   scaled by the same `scale` prop as the rest of the calculator — this
+   sheet only owns structure and color. */
+.cuecard {
+  background: var(--bg-inset);
+  border: 1px solid var(--stroke-warm, var(--stroke));
+  border-radius: var(--radius-card);
+  font-family: var(--font-keycap);
+  color: var(--fg-2);
+}
+.cuecard-header {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-weight: 700; letter-spacing: .05em;
+  color: var(--fg);
+}
+.cuecard-id { color: var(--accent); white-space: nowrap; }
+.cuecard-gridrow { display: grid; grid-template-columns: repeat(5, 1fr); }
+.cuecard-cell { text-align: center; line-height: 1.3; }
+.cuecard-row { letter-spacing: .02em; line-height: 1.3; }
+.cuecard-row-boxed { display: inline-block; border: 1px solid var(--fg-2); border-radius: 3px; }
+.cuecard-row-pair { display: flex; justify-content: space-between; }
+.cuecard .align-left { text-align: left; }
+.cuecard .align-center { text-align: center; }
+.cuecard .align-right { text-align: right; }

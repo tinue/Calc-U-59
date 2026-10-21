@@ -19,7 +19,7 @@ struct LiveDebugView: View {
                         returnAddressSection(baseFontSize: baseFontSize)
                         calcFlagsSection(baseFontSize: baseFontSize)
                         hirRegistersSection(baseFontSize: baseFontSize)
-                        tRegisterSection(baseFontSize: baseFontSize)
+                        xtRegisterSection(baseFontSize: baseFontSize)
                         dataRegistersSection(baseFontSize: baseFontSize)
                     }
                     .padding(4)
@@ -36,13 +36,7 @@ struct LiveDebugView: View {
     // MARK: - Adaptive Font Sizing
 
     private func adaptiveFontSize(width: CGFloat) -> CGFloat {
-        if width < 350 {
-            return 9      // iPad Mini: compact
-        } else if width < 500 {
-            return 11     // iPad Air: normal
-        } else {
-            return 13     // Mac: large
-        }
+        TIViewRules.debugPanelFontSize(width)  // compact / normal / large
     }
 
     // MARK: - Header
@@ -109,10 +103,7 @@ struct LiveDebugView: View {
                 Text(String(format: "FB:%04X", snap.fB))
                     .font(.system(size: baseFontSize + 2, design: .monospaced))
                     .foregroundStyle(Color(white: 0.65))
-                Text("IO:\(snap.ioUserFlags)")
-                    .font(.system(size: baseFontSize + 2, design: .monospaced))
-                    .foregroundStyle(Color(white: 0.85))
-                Text("KEY:\(snap.lastKey)")
+                Text("HIR0:\(snap.statusRegister)")
                     .font(.system(size: baseFontSize + 2, design: .monospaced))
                     .foregroundStyle(Color(white: 0.85))
             }
@@ -147,16 +138,8 @@ struct LiveDebugView: View {
     private func levelWithColor(_ label: String, _ index: Int, _ snap: LiveDebugSnapshot) -> some View {
         let sourceFlag = index < snap.returnAddressSourceFlags.count ? snap.returnAddressSourceFlags[index] : 0
         let address = index < snap.returnAddresses.count ? snap.returnAddresses[index] : 0
-        let isZero = address == 0
-        let color: Color
-        switch sourceFlag {
-        case 0: color = isZero ? Color(red: 0.10, green: 0.30, blue: 0.10) : Color(red: 0.25, green: 0.60, blue: 0.25)    // Green for RAM
-        case 1, 2: color = isZero ? Color(red: 0.30, green: 0.10, blue: 0.30) : Color(red: 0.60, green: 0.25, blue: 0.60) // Purple for library (2 = saved CROM return address)
-        case 8: color = isZero ? Color(red: 0.35, green: 0.28, blue: 0.10) : Color(red: 0.70, green: 0.60, blue: 0.25)    // Yellow for ROM
-        default: color = isZero ? Color(white: 0.6) : Color(white: 0.8)                                                    // Gray for unknown
-        }
         return Text("\(label):\(String(format: "%03d", address))")
-            .foregroundStyle(color)
+            .foregroundStyle(Color(rgb: TIViewRules.returnLevelColor(sourceFlag, zeroAddress: address == 0)))
     }
 
     // MARK: - Data Registers Section (Variables)
@@ -174,10 +157,7 @@ struct LiveDebugView: View {
             } else {
                 LazyVStack(alignment: .leading, spacing: 2) {
                     ForEach(Array(snap.nonZeroRegs.enumerated()), id: \.offset) { _, entry in
-                        let label = entry.isHidden ? String(format: "H%02d", entry.num) : String(format: "R%02d", entry.num)
-                        // Full 13-digit mantissa precision, not the calculator's 10-digit
-                        // display rounding — hiding digits here can mask stored-value bugs.
-                        Text(String(format: "%@ = %.13g", label, entry.value))
+                        Text(TIViewRules.registerLine(entry.num, value: entry.value, hidden: entry.isHidden))
                             .font(.system(size: baseFontSize + 2, design: .monospaced))
                             .foregroundStyle(Color(white: 0.85))
                     }
@@ -196,11 +176,11 @@ struct LiveDebugView: View {
 
         if vm.isFrozen, !vm.programListing.isEmpty {
             // Frozen mode: show full scrollable program.
-            // programListing is always-live; programListingSourceFlag tracks the display source
-            // (during solidStateReturn it holds the previous source's flag, not the raw CROM address).
+            // programListing is always-live; programListingSource tracks the display source
+            // (during solidStateReturn it holds the previous source, not the raw CROM address).
             let program = vm.programListing
             let currentIdx = vm.programListingCurrentIndex
-            let currentLineColor = programSourceHighlightColor(vm.programListingSourceFlag)
+            let currentLineColor = programSourceHighlightColor(vm.programListingSource)
 
             SectionBox(title: "PROGRAM STEPS") {
                 ScrollViewReader { proxy in
@@ -218,7 +198,7 @@ struct LiveDebugView: View {
                                     Text(entry.mnemonic)
                                         .foregroundStyle(entry.isCurrent ? .white : Color(white: 0.65))
                                     if entry.isCurrent {
-                                        Text("  ← frozen")
+                                        Text("  " + TIViewRules.currentStepMarker(true))
                                             .font(.system(size: baseFontSize, design: .monospaced))
                                             .foregroundStyle(Color.cyan)
                                     }
@@ -249,7 +229,7 @@ struct LiveDebugView: View {
             }
         } else {
             // Normal mode: show current step window (±5 around current)
-            let currentLineColor = programSourceHighlightColor(snap.prSourceFlag)
+            let currentLineColor = programSourceHighlightColor(snap.programSource)
 
             SectionBox(title: "PROGRAM STEPS") {
                 VStack(alignment: .leading, spacing: 0) {
@@ -266,7 +246,7 @@ struct LiveDebugView: View {
                             Text(entry.mnemonic)
                                 .foregroundStyle(entry.isCurrent ? .white : Color(white: 0.65))
                             if entry.isCurrent {
-                                Text("  ← running")
+                                Text("  " + TIViewRules.currentStepMarker(false))
                                     .font(.system(size: baseFontSize, design: .monospaced))
                                     .foregroundStyle(Color.cyan)
                             }
@@ -292,7 +272,7 @@ struct LiveDebugView: View {
         }
     }
 
-    // MARK: - SCOM Fields Section (IO User Flags, Last Key, Angle Mode)
+    // MARK: - SCOM Fields Section (FIX, Angle Mode, Eng/2nd/INV)
 
     private func scomFieldsSection(baseFontSize: CGFloat) -> some View {
         let snap = vm.liveDebugSnapshot
@@ -301,15 +281,9 @@ struct LiveDebugView: View {
                 Text("FIX:\(snap.fixIndicator)")
                     .font(.system(size: baseFontSize + 2, design: .monospaced))
                     .foregroundStyle(Color(white: 0.85))
-                if let mode = snap.angleMode {
-                    Text(modeStr(mode))
-                        .font(.system(size: baseFontSize + 2, design: .monospaced))
-                        .foregroundStyle(Color(white: 0.85))
-                } else {
-                    Text("?")
-                        .font(.system(size: baseFontSize + 2, design: .monospaced))
-                        .foregroundStyle(Color(white: 0.4))
-                }
+                Text(TIViewRules.angleModeLabel(snap.angleMode))
+                    .font(.system(size: baseFontSize + 2, design: .monospaced))
+                    .foregroundStyle(Color(white: snap.angleMode < 0 ? 0.4 : 0.85))
                 Text("Eng")
                     .font(.system(size: baseFontSize + 2, design: .monospaced))
                     .foregroundStyle(snap.engIndicator.isEmpty ? Color(white: 0.4) : Color(white: 0.85))
@@ -331,17 +305,12 @@ struct LiveDebugView: View {
         let snap = vm.liveDebugSnapshot
         return SectionBox(title: "HIR") {
             VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 12) {
-                    hirRow("1", snap.hir1, baseFontSize: baseFontSize)
-                    hirRow("2", snap.hir2, baseFontSize: baseFontSize)
-                    hirRow("3", snap.hir3, baseFontSize: baseFontSize)
-                    hirRow("4", snap.hir4, baseFontSize: baseFontSize)
-                }
-                HStack(spacing: 12) {
-                    hirRow("5", snap.hir5, baseFontSize: baseFontSize)
-                    hirRow("6", snap.hir6, baseFontSize: baseFontSize)
-                    hirRow("7", snap.hir7, baseFontSize: baseFontSize)
-                    hirRow("8", snap.hir8, baseFontSize: baseFontSize)
+                ForEach([0, 4], id: \.self) { first in
+                    HStack(spacing: 12) {
+                        ForEach(first..<first + 4, id: \.self) { i in
+                            hirRow(i + 1, snap.hir[i], baseFontSize: baseFontSize)
+                        }
+                    }
                 }
             }
             .padding(.horizontal, 8)
@@ -349,25 +318,30 @@ struct LiveDebugView: View {
         }
     }
 
-    // MARK: - T Register Section
+    // MARK: - X and T Register Section
 
-    private func tRegisterSection(baseFontSize: CGFloat) -> some View {
+    private func xtRegisterSection(baseFontSize: CGFloat) -> some View {
         let snap = vm.liveDebugSnapshot
         let isZero = snap.tRegister == 0
         let color = isZero ? Color(white: 0.6) : Color(white: 0.85)
         return SectionBox(title: "") {
-            Text(String(format: "T: %.13g", snap.tRegister))
-                .font(.system(size: baseFontSize + 2, design: .monospaced))
-                .foregroundStyle(color)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
+            HStack(spacing: 12) {
+                Text(TIViewRules.xRegisterLine(snap.xValue, raw: snap.xRaw))
+                    .font(.system(size: baseFontSize + 2, design: .monospaced))
+                    .foregroundStyle(Color(rgb: TIViewRules.xRegisterColor(snap.xValue, raw: snap.xRaw)))
+                Text(TIViewRules.tRegisterLine(snap.tRegister))
+                    .font(.system(size: baseFontSize + 2, design: .monospaced))
+                    .foregroundStyle(color)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
         }
     }
 
-    private func hirRow(_ label: String, _ value: Double, baseFontSize: CGFloat) -> some View {
+    private func hirRow(_ number: Int, _ value: Double, baseFontSize: CGFloat) -> some View {
         let isZero = value == 0
         let color = isZero ? Color(white: 0.6) : Color(white: 0.85)
-        return Text("\(label): \(String(format: "%.5g", value))")
+        return Text(TIViewRules.hirLine(number, value: value))
             .font(.system(size: baseFontSize + 2, design: .monospaced))
             .foregroundStyle(color)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -396,40 +370,17 @@ struct LiveDebugView: View {
         }
     }
 
-    private func flagIndicator(num: Int, state: Bool?, baseFontSize: CGFloat) -> some View {
-        let stateStr = state == nil ? "?" : (state! ? "1" : "0")
-        let color = state == nil ? Color(white: 0.4) : (state! ? Color(white: 0.85) : Color(white: 0.6))
-        return Text(String(format: "F%d:%@", num, stateStr))
-            .foregroundStyle(color)
-    }
-
-    private func modeStr(_ mode: LiveDebugSnapshot.AngleMode) -> String {
-        switch mode {
-        case .deg: return "DEG"
-        case .rad: return "RAD"
-        case .grad: return "GRAD"
-        }
+    private func flagIndicator(num: Int, state: Bool, baseFontSize: CGFloat) -> some View {
+        Text("F\(num):\(state ? 1 : 0)")
+            .foregroundStyle(Color(white: state ? 0.85 : 0.6))
     }
 
     // MARK: - Partition Section
 
     private func partitionSection(baseFontSize: CGFloat) -> some View {
         let snap = vm.liveDebugSnapshot
-        let totalSteps = snap.programRegCount * 8
-        let dataRegs = snap.dataRegCount
-
-        // Format partition as (lastStep.lastDataReg)
-        let lastStep = totalSteps > 0 ? totalSteps - 1 : 0
-        let partitionStr: String
-        if dataRegs > 0 {
-            let lastDataReg = dataRegs - 1
-            partitionStr = "(\(lastStep).\(lastDataReg))"
-        } else {
-            partitionStr = "(\(lastStep).)"
-        }
-
         return SectionBox(title: "PARTITION") {
-            Text("Steps: \(totalSteps), Registers: \(dataRegs) \(partitionStr)")
+            Text(TIViewRules.partitionLineProgramRegs(snap.programRegCount, dataRegs: snap.dataRegCount))
                 .font(.system(size: baseFontSize + 2, design: .monospaced))
                 .foregroundStyle(Color(white: 0.75))
                 .padding(.horizontal, 8)
@@ -441,7 +392,7 @@ struct LiveDebugView: View {
 
     private func prSourceFlagSection(baseFontSize: CGFloat) -> some View {
         let snap = vm.liveDebugSnapshot
-        let sourceText = resolvedProgramSource(snap.prSourceFlag)
+        let sourceText = resolvedProgramSource(snap.programSource, flag: snap.prSourceFlag)
         return SectionBox(title: "") {
             Text(sourceText)
                 .font(.system(size: baseFontSize + 2, design: .monospaced))
@@ -451,29 +402,26 @@ struct LiveDebugView: View {
         }
     }
 
-    private func resolvedProgramSource(_ flag: UInt8) -> String {
-        switch flag {
-        case 0: return "Prg Source: User Program"
-        case 1: return "Prg Source: Solid State Program"
-        case 2: return "Prg Source: Solid State Return (PC Reload)"
-        case 4: return "Prg Source: User Program (Fast Mode)"
-        case 8: return "Prg Source: ROM Program"
-        default: return String(format: "Prg Source: Unknown (%X)", flag)
-        }
+    /// "Prg Source: …" label (Shared/ModuleImage programSourceLabel): undocumented
+    /// values that decode like an official one show the raw flag, as fast mode does.
+    private func resolvedProgramSource(_ source: ProgramSource, flag: UInt8) -> String {
+        TIViewRules.programSourceLabel(source.raw, flag: flag)
     }
 
     /// Returns the highlight color for the current step in the program window based on program source.
-    private func programSourceHighlightColor(_ flag: UInt8) -> Color {
-        switch flag {
-        case ProgramSource.rom.rawValue:
-            return Color(red: 0.35, green: 0.28, blue: 0.10)  // Yellow for ROM
-        case ProgramSource.solidState.rawValue:
-            return Color(red: 0.10, green: 0.24, blue: 0.35)  // Blue for Solid State module
-        default:
-            return Color(red: 0.10, green: 0.30, blue: 0.10)  // Green for User Program (0, 4) and others
-        }
+    private func programSourceHighlightColor(_ source: ProgramSource) -> Color {
+        Color(rgb: TIViewRules.stepHighlightColor(source.raw))
     }
 
+}
+
+// MARK: - Colours
+
+extension Color {
+    /// A packed 0xRRGGBB colour from Shared/ (TIViewRules).
+    init(rgb: UInt32) {
+        self.init(red: Double(rgb >> 16 & 0xFF) / 255, green: Double(rgb >> 8 & 0xFF) / 255, blue: Double(rgb & 0xFF) / 255)
+    }
 }
 
 // MARK: - Section Container
@@ -519,30 +467,23 @@ private struct SectionBox<Content: View>: View {
                 .init(stepNum: 46, keycode: 55, mnemonic: "+", isCurrent: false),
                 .init(stepNum: 47, keycode: 57, mnemonic: "=", isCurrent: false),
             ]
-            snap.hir1 = 3.141592653589
-            snap.hir2 = 2.718281828
-            snap.hir3 = 1.414213562
-            snap.hir4 = 1.732050808
-            snap.hir5 = 1.618033989
-            snap.hir6 = 0
-            snap.hir7 = 0
-            snap.hir8 = 0
+            snap.hir = [3.141592653589, 2.718281828, 1.414213562, 1.732050808, 1.618033989, 0, 0, 0]
             snap.tRegister = 2.71828
+            snap.xValue = 1.414213562373
             snap.prSourceFlag = 0xA
+            snap.programSource = ProgramSource(flag: 0xA, romPC: 0)
             snap.pendingOpsCount = 2
-            snap.angleMode = .deg
+            snap.angleMode = 0  // DEG
             snap.dataRegCount = 60
             snap.programRegCount = 60
-            snap.calcFlags = [false, true, nil, false, true, nil, false, nil, true, nil]
+            snap.calcFlags = [false, true, false, false, true, false, false, false, true, false]
             snap.fixIndicator = "-"
             snap.fA = 0x0340
             snap.fB = 0x08E0
             snap.engIndicator = "Eng"
             snap.secondIndicator = "2nd"
             snap.invIndicator = "INV"
-            snap.ioUserFlags = "12345"
-            snap.lastKey = "67"
-            snap.printerSCOM = ["0000000000000000", "0000000000000000", "0000000000000000", "0000000000000000"]
+            snap.statusRegister = "1324500000067009"
             snap.scomRows = Array(repeating: "0123456789abcdef", count: 16)
             vm.liveDebugSnapshot = snap
             return vm

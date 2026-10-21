@@ -1,0 +1,8 @@
+PARTITION: x
+PROGRAM:
+1 2 3
+CUECARD:
+Template: Bogus
+Style: fancy
+PencilColor: red
+Banks: , 3

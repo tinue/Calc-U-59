@@ -37,15 +37,17 @@ enum KeyboardFeedbackType: Int, CaseIterable, Identifiable {
 // MARK: - UserDefaults keys
 
 enum SettingsKey {
-    static let startupModel           = "startupModel"             // Int: MachineModel.rawValue, or -1 = last used
-    static let lastUsedModel          = "lastUsedModel"            // Int: MachineModel.rawValue
-    static let solidStateModuleID     = "solidStateModuleID"       // String: module ID (default "ML")
+    // Shared with the Qt app (Shared/SettingsKeys.hpp)
+    static let startupModel           = TISettings.startupModelKey        // Int: MachineModel.rawValue, or -1 = last used
+    static let lastUsedModel          = TISettings.lastUsedModelKey       // Int: MachineModel.rawValue
+    static let solidStateModuleID     = TISettings.solidStateModuleIDKey  // String: module ID
+    static let traceMaxFileSizeMB     = TISettings.traceMaxFileSizeMBKey  // Int: maximum trace file size in MB
+    static let ledFontStyle           = TISettings.ledFontStyleKey        // Int: LEDFontStyle.rawValue
+    // Swift only
     static let traceLocation          = "traceLocation"            // Int: TraceLocation.rawValue
     static let traceCustomPath        = "traceCustomPath"          // String: absolute directory path (macOS only)
     static let traceCustomPathBookmark = "traceCustomPathBookmark" // Data: security-scoped bookmark for custom path
-    static let traceMaxFileSizeMB     = "traceMaxFileSizeMB"       // Int: maximum trace file size in MB (default 50)
     static let keyboardFeedback       = "keyboardFeedback"         // Int: KeyboardFeedbackType.rawValue
-    static let ledFontStyle           = "ledFontStyle"             // Int: LEDFontStyle.rawValue
     static let portraitDebugPage      = "portraitDebugPage"        // Bool: show Debug as third portrait page (default false)
 }
 
@@ -99,29 +101,45 @@ enum AppSettings {
         }
     }
 
-    /// Returns the model to launch at startup.
-    /// If `startupModel` has never been set, defaults to "last used" → TI-59.
+    /// The model to launch at startup: the stored one, else the last used, else TI-59
+    /// (Shared/SettingsKeys.hpp resolveStartupModel).
     static func resolvedStartupModel() -> MachineModel {
-        // object(forKey:) returns nil when the key is absent, distinguishing that
-        // from an explicit 0 (TI-59). Absent key → treat as -1 (last used).
-        let stored = UserDefaults.standard.object(forKey: SettingsKey.startupModel) as? Int
-        let raw = stored ?? -1
-        if raw == -1 {
-            let lastRaw = UserDefaults.standard.integer(forKey: SettingsKey.lastUsedModel)
-            return MachineModel(rawValue: lastRaw) ?? .ti59
-        }
+        let d = UserDefaults.standard
+        let raw = TISettings.resolveStartupModel(d.object(forKey: SettingsKey.startupModel) as? NSNumber,
+                                                 lastUsed: d.object(forKey: SettingsKey.lastUsedModel) as? NSNumber)
         return MachineModel(rawValue: raw) ?? .ti59
     }
 
-    /// Returns the solid-state module ID from UserDefaults.
-    /// Defaults to "ML" if not set.
-    static func resolvedSolidStateModuleID() -> String {
-        return UserDefaults.standard.string(forKey: SettingsKey.solidStateModuleID) ?? "ML"
+    /// Maximum trace file size in MB (default when unset or not positive).
+    static func resolvedTraceMaxMB() -> Int {
+        TISettings.resolveTraceMaxMB(UserDefaults.standard.object(forKey: SettingsKey.traceMaxFileSizeMB) as? NSNumber)
     }
 
-    /// Returns the directory URL where the trace file should be written.
-    /// For custom paths on macOS, uses a security-scoped bookmark to gain file access.
-    /// The caller (TraceWriter.open) is responsible for creating the directory if needed.
+    /// The solid-state module ID (default "ML").
+    static func resolvedSolidStateModuleID() -> String {
+        TISettings.resolveModuleID(UserDefaults.standard.string(forKey: SettingsKey.solidStateModuleID))
+    }
+
+    /// Whether the trace location is reachable (iCloud signed in, directory creatable).
+    static func traceLocationAvailable() -> Bool {
+        #if !os(macOS)
+        if resolvedTraceLocation() == .iCloud && FileManager.default.ubiquityIdentityToken == nil {
+            return false
+        }
+        #endif
+        let traceDir = traceDirectory()
+        do {
+            try FileManager.default.createDirectory(at: traceDir, withIntermediateDirectories: true)
+            return true
+        } catch {
+            print("[AppSettings] trace directory \(traceDir.path) is not available: \(error)")
+            return false
+        }
+    }
+
+    /// Returns the directory URL where trace files are written (manual and
+    /// KEYSTROKES "Trace:"). For custom paths on macOS, uses a security-scoped
+    /// bookmark to gain file access.
     static func traceDirectory() -> URL {
         let location = resolvedTraceLocation()
         switch location {

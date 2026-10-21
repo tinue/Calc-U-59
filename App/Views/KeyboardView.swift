@@ -6,90 +6,18 @@ import AudioToolbox
 struct KeyboardView: View {
     @Environment(EmulatorViewModel.self) var viewModel
 
-    // Canvas native size: 2064×4075 (aspect ratio ≈ 0.5065)
-    private static let imageAspect: CGFloat = 2064.0 / 4075.0
-
-    // ── Display panel and card slot rects (canvas-space) ─────────────────
-
-    /// LED display window — normalized to canvas size.
-    /// Positioned in upper portion of maroon display panel, shifted up to avoid card overlap.
-    private static let displayRect = CGRect(x: 0.0, y: 0.052,
-                                             width: 1.0, height: 0.05)
-
-    /// ML-01 card slot — normalized to canvas size.
-    /// Full-width, positioned between display and keyboard.
-    /// ML-01.png is 440px tall; 440 / 4075 ≈ 0.108
-    private static let cardRect = CGRect(x: 0.0, y: 0.11,
-                                          width: 1.0, height: 0.1080)
-
-    /// Keyboard section position within canvas.
-    /// Keyboard image is placed at this y-offset, scaled by this factor.
-    private static let kbYStart: CGFloat = 0.2324   // top of keyboard
-    private static let kbYScale: CGFloat = 0.7676   // height factor
+    // Canvas geometry (2064×4075 base image, display/card overlays, keyboard
+    // section) lives in Shared/KeyboardLayout.hpp; rects are normalized.
+    private static let imageAspect: CGFloat = TISharedTables.canvasAspect
+    private static let displayRect = TISharedTables.displayRect
+    private static let cardRect = TISharedTables.cardRect
+    private static let kbYStart: CGFloat = TISharedTables.keyboardYStart
+    private static let kbYScale: CGFloat = TISharedTables.keyboardYScale
 
     // ── Colors ──────────────────────────────────────────────────────────
 
     private static let cardEdge = Color(red: 0x0A/255.0, green: 0x08/255.0, blue: 0x06/255.0)
     private static let maroon = Color(red: 0x1C/255.0, green: 0x06/255.0, blue: 0x06/255.0)
-
-    // ── Key rects — keyboard-image space (0..1) ────────────────────────
-    /// Extracted from key_rectangles.png, converted to keyboard-image-space coords.
-    /// All 9×5 = 45 keys.
-    private static let keyRects: [[CGRect]] = [
-        // row 0
-        [CGRect(x:0.0160, y:0.0365, width:0.1245, height:0.0486), CGRect(x:0.2277, y:0.0365, width:0.1245, height:0.0486), CGRect(x:0.4375, y:0.0365, width:0.1245, height:0.0486), CGRect(x:0.6483, y:0.0365, width:0.1245, height:0.0486), CGRect(x:0.8571, y:0.0365, width:0.1245, height:0.0486)],
-        // row 1
-        [CGRect(x:0.0140, y:0.1484, width:0.1265, height:0.0508), CGRect(x:0.2277, y:0.1484, width:0.1245, height:0.0508), CGRect(x:0.4375, y:0.1484, width:0.1245, height:0.0508), CGRect(x:0.6483, y:0.1484, width:0.1245, height:0.0508), CGRect(x:0.8566, y:0.1484, width:0.1250, height:0.0508)],
-        // row 2
-        [CGRect(x:0.0160, y:0.2625, width:0.1245, height:0.0508), CGRect(x:0.2277, y:0.2625, width:0.1245, height:0.0508), CGRect(x:0.4375, y:0.2625, width:0.1245, height:0.0508), CGRect(x:0.6483, y:0.2625, width:0.1245, height:0.0508), CGRect(x:0.8571, y:0.2625, width:0.1245, height:0.0508)],
-        // row 3
-        [CGRect(x:0.0160, y:0.3753, width:0.1245, height:0.0508), CGRect(x:0.2277, y:0.3753, width:0.1245, height:0.0508), CGRect(x:0.4375, y:0.3753, width:0.1245, height:0.0508), CGRect(x:0.6483, y:0.3753, width:0.1245, height:0.0508), CGRect(x:0.8571, y:0.3753, width:0.1245, height:0.0508)],
-        // row 4
-        [CGRect(x:0.0160, y:0.4853, width:0.1245, height:0.0508), CGRect(x:0.2277, y:0.4853, width:0.1245, height:0.0508), CGRect(x:0.4375, y:0.4853, width:0.1245, height:0.0508), CGRect(x:0.6483, y:0.4853, width:0.1245, height:0.0508), CGRect(x:0.8566, y:0.4853, width:0.1284, height:0.0508)],
-        // row 5
-        [CGRect(x:0.0155, y:0.5987, width:0.1250, height:0.0508), CGRect(x:0.2001, y:0.5963, width:0.1623, height:0.0534), CGRect(x:0.4186, y:0.5959, width:0.1623, height:0.0537), CGRect(x:0.6366, y:0.5963, width:0.1628, height:0.0534), CGRect(x:0.8566, y:0.5963, width:0.1289, height:0.0534)],
-        // row 6
-        [CGRect(x:0.0160, y:0.7110, width:0.1245, height:0.0508), CGRect(x:0.2001, y:0.7091, width:0.1623, height:0.0528), CGRect(x:0.4186, y:0.7084, width:0.1623, height:0.0534), CGRect(x:0.6366, y:0.7094, width:0.1628, height:0.0524), CGRect(x:0.8566, y:0.7091, width:0.1289, height:0.0528)],
-        // row 7
-        [CGRect(x:0.0160, y:0.8232, width:0.1245, height:0.0508), CGRect(x:0.2001, y:0.8219, width:0.1623, height:0.0537), CGRect(x:0.4186, y:0.8213, width:0.1623, height:0.0528), CGRect(x:0.6371, y:0.8223, width:0.1623, height:0.0537), CGRect(x:0.8566, y:0.8217, width:0.1289, height:0.0537)],
-        // row 8
-        [CGRect(x:0.0160, y:0.9360, width:0.1245, height:0.0508), CGRect(x:0.2001, y:0.9336, width:0.1623, height:0.0541), CGRect(x:0.4186, y:0.9336, width:0.1623, height:0.0534), CGRect(x:0.6366, y:0.9336, width:0.1623, height:0.0556), CGRect(x:0.8566, y:0.9340, width:0.1294, height:0.0557)],
-    ]
-
-    // ── Key hit-test ──────────────────────────────────────────────────────
-
-    /// Expand each key rect horizontally for hit-testing.
-    /// **Tunable: 0.15 = add 15% of width left AND right**
-    private static let hitTestExpansionHorizontal: CGFloat = 0.15
-
-    /// Expand each key rect vertically for hit-testing.
-    /// **Tunable: 0.35 = add 35% of height top AND bottom**
-    private static let hitTestExpansionVertical: CGFloat = 0.35
-
-    /// Get the expanded detection rect for a key (in keyboard-image space)
-    private static func expandedKeyRect(row: Int, col: Int) -> CGRect {
-        let rect = keyRects[row][col]
-        let expandWidth = rect.width * hitTestExpansionHorizontal
-        let expandHeight = rect.height * hitTestExpansionVertical
-        return CGRect(
-            x: rect.minX - expandWidth,
-            y: rect.minY - expandHeight,
-            width: rect.width + expandWidth * 2,
-            height: rect.height + expandHeight * 2
-        )
-    }
-
-    /// Scan all 45 rects (in keyboard-image space) for the one containing (nx, ny).
-    /// Rects are expanded independently on horizontal/vertical axes. At most one matches unless rects overlap.
-    private static func keyAt(nx: CGFloat, ny: CGFloat) -> (Int, Int)? {
-        let pt = CGPoint(x: nx, y: ny)
-        for row in 0..<9 {
-            for col in 0..<5 {
-                if expandedKeyRect(row: row, col: col).contains(pt) { return (row, col) }
-            }
-        }
-        return nil
-    }
 
     private var canvasImageName: String {
         switch viewModel.model {
@@ -171,9 +99,8 @@ struct KeyboardView: View {
                 LEDDisplayView(
                     digits:        viewModel.displayDigits,
                     ctrl:          viewModel.displayCtrl,
-                    suppressedMask: viewModel.displaySuppressedMask,
-                    dpPos:         viewModel.dpPos,
-                    dpAfterglowMask: viewModel.dpAfterglowMask,
+                    levels:        viewModel.displayLevels,
+                    dpLevels:      viewModel.dpLevels,
                     calcIndicatorOpacity: viewModel.calcIndicatorOpacity,
                     fontStyle:     fontStyle
                 )
@@ -225,8 +152,9 @@ struct KeyboardView: View {
                         releaseHeldKey()
                         return
                     }
-                    guard let (row, col) = Self.keyAt(nx: nx, ny: kbNy) else { return }
-                    let keyID = row * 5 + col
+                    let keyID = TISharedTables.keyIndex(x: nx, y: kbNy)
+                    guard keyID >= 0 else { return }
+                    let row = keyID / 5, col = keyID % 5
                     guard pressedKey != keyID else { return }
                     releaseHeldKey()
                     pressedKey = keyID
@@ -257,7 +185,7 @@ struct KeyboardView: View {
                 // Physical-keyboard presses light the same highlight, so a typed key
                 // looks exactly like a clicked one.
                 if let pk = pressedKey ?? viewModel.keyboardHeldKey {
-                    let r = Self.keyRects[pk / 5][pk % 5]
+                    let r = TISharedTables.keyRect(row: pk / 5, col: pk % 5)
                     let keyW = w * r.width
                     let keyH = h * r.height * Self.kbYScale
                     let canvasX = w * r.minX
@@ -307,7 +235,7 @@ struct KeyboardView: View {
 private extension View {
     /// Route physical key presses to the calculator, on the platforms that have a
     /// keyboard to route. No-op off macOS: iOS/iPadOS is deliberately out of
-    /// scope (see `reference/AppArchitecture.md` § "Physical Keyboard Mapping").
+    /// scope (see `reference/SharedArchitecture.md` § "Physical Keyboard Mapping").
     @ViewBuilder
     func physicalKeyboard(viewModel: EmulatorViewModel, focus: FocusState<Bool>.Binding) -> some View {
         #if os(macOS)
@@ -340,6 +268,21 @@ private struct PhysicalKeyboardModifier: ViewModifier {
 
     private var isFocused: Bool { focus.wrappedValue }
 
+    /// One or two matrix codes for a key press, or empty if unbound. The
+    /// mapping and its rules live in Shared/KeyboardMap.hpp; this only
+    /// translates SwiftUI's KeyPress into its neutral form.
+    private func matrixCodes(for keyPress: KeyPress) -> [UInt8] {
+        let key = keyPress.key.character
+        let modifiers = keyPress.modifiers
+        let data = TISharedTables.matrixCodes(
+            forKey: key.unicodeScalars.first?.value ?? 0,
+            produced: keyPress.characters.unicodeScalars.first?.value ?? 0,
+            isLetter: key.isLetter,
+            shift: modifiers.contains(.shift),
+            command: modifiers.contains(.command) || modifiers.contains(.control) || modifiers.contains(.option))
+        return [UInt8](data)
+    }
+
     func body(content: Content) -> some View {
         content
             .focusable()
@@ -357,11 +300,12 @@ private struct PhysicalKeyboardModifier: ViewModifier {
             .onKeyPress(phases: [.down, .up]) { keyPress in
                 switch keyPress.phase {
                 case .down:
-                    guard let codes = TI59KeyboardMap.matrixCodes(for: keyPress) else { return .ignored }
+                    let codes = matrixCodes(for: keyPress)
+                    guard !codes.isEmpty else { return .ignored }
                     viewModel.keyboardKeyDown(codes)
                     return .handled
                 case .up:
-                    guard TI59KeyboardMap.matrixCodes(for: keyPress) != nil else { return .ignored }
+                    guard !matrixCodes(for: keyPress).isEmpty else { return .ignored }
                     viewModel.keyboardKeyUp()
                     return .handled
                 default:

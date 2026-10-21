@@ -39,7 +39,7 @@ Feasible with large margin; this half of the project is low-risk.
   platform layer (in the spirit of the existing `tools/` CLI, but targeting
   `arm-none-eabi`/Pico SDK/CMake instead of macOS): a real-time pacing loop
   around `step()`'s cycle-weight return, GPIO-based keyboard scan feeding
-  `key[]`, and a driver that reads `getDisplay()` and pushes it to real
+  `key[]`, and a driver that reads `takeDisplay()` and pushes it to real
   segments. The card-reader/library-module state (`m_libData`,
   `m_cardBankBuffer`) is already pure software and ports trivially; physical
   card hardware is a separate concern (§3 below).

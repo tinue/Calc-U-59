@@ -1,99 +1,82 @@
 # `.ti59` / `.ti58` / `.ti58c` State File Format
 
-> **Provenance notice.** This document consolidates format facts that were
-> previously split across `App/StateFileLoader.swift`'s header comment, the
-> `calc-u-59-statefiles` skill, and a section of `reference/DebugAPI.md`, into
-> one place. The authoritative parser is `App/StateFileLoader.swift` — when in
-> doubt, that file wins over this document.
+> **Provenance notice.** This document was consolidated by an AI (Claude)
+> from the parser, the `calc-u-59-statefiles` skill and an earlier section
+> of `reference/DebugAPI.md`. The parser is `Shared/StateFile.cpp`, shared
+> by the Swift and Qt6 apps; where they disagree, the code wins.
 
-State files are plain UTF-8 text that encode a full or partial calculator
-state: program steps, data registers, an inserted module, and a scripted key
-sequence to run after load. This is developer/implementer documentation —
-the format grammar, not a tutorial. For the algorithmic sequence the Swift
-app follows when applying one (thread handling, mutex/queue specifics), see
-`reference/AppArchitecture.md`'s "State File Loading" section. For a
-non-technical reader who just wants to use example files in the app, point
-them at the [user guide](https://www.calcu59.ch) instead — it links back
-here for anyone who wants to write their own.
+A state file (a "preset" in the GUI) is UTF-8 text that sets the
+calculator's state: program, data registers, module, printer, cue card,
+and a key sequence to play after the load. How the apps apply one:
+`SharedArchitecture.md` § "State File Loading". For using the example files,
+point readers at the user guide, https://calc-u.org/59/.
 
 ---
 
-## Sections
+## Sections and directives
 
-| Keyword | Purpose |
-|---------|---------|
-| `MODEL: TI-59` | Switches the machine variant (`TI-59` / `TI-58` / `TI-58C`) before loading. Requires a full reset — dropped (with a `[WARN]`) under `SKIP-RESET:`. |
-| `PARTITION: nnn[.xx]` | Sets the program/data-register split. See "PARTITION" below. |
-| `PROGRAM:` | Program listing. See "PROGRAM" below. |
-| `REGISTERS:` | `NN = value` lines. NN = 00–99; TI-58C only: `HNN` for hidden regs 00–03. |
-| `KEYSTROKES:` | Physical key presses to inject after load. Uses **matrix codes**, not keycodes (see below). |
-| `SOLID-STATE-MODULE: ID` | Load a module. IDs: `ML ST RE SY NG AV LE SA BD MU EE SE AG RP`. Requires a full reset. |
-| `PRINTER: on` | Connect the printer. Values: `on` / `off` / `true` / `false` / `1` / `0`. Requires a full reset. |
-| `SKIP-RESET: on` | Skip machine reset; apply only non-destructive sections (see below). |
-| `CUECARD:` | Custom cue-card content (template + fields). See "CUECARD: Field Grammar" below. |
+| Line | Meaning |
+|---|---|
+| `MODEL: TI-59` | Load into `TI-59`, `TI-58` or `TI-58C` (any case); the app switches model first. An unknown value is an error |
+| `PARTITION: nnn[.xx]` | Program/data split, see below |
+| `PROGRAM:` | Program steps, see below |
+| `REGISTERS:` | Data registers, see below |
+| `KEYSTROKES:` | Keys and directives played after the load, see below |
+| `CUECARD:` | The user's cue card, see "CUECARD: Field Grammar" |
+| `SOLID-STATE-MODULE: ID` | Insert a module: `ML ST RE SY NG AV LE SA BD MU EE SE AG RP` (`roms/solid-state/cuecards.txt`) |
+| `PRINTER: on` | Connect the printer: `on`, `true` or `1`; anything else disconnects it |
+| `SKIP-RESET: on` | Load without a reset, see "SKIP-RESET" |
 
-Lines starting with `#` are comments. Inline `#` comments are also stripped.
+- Keywords are case-insensitive. `PROGRAM:`, `REGISTERS:`, `KEYSTROKES:`,
+  `CUECARD:` and `PARTITION:` end the current section; lines after
+  `PARTITION:` are ignored until the next section keyword. `MODEL:`,
+  `SOLID-STATE-MODULE:`, `PRINTER:` and `SKIP-RESET:` may stand anywhere,
+  even inside a section.
+- `#` starts a comment, anywhere on a line. A value therefore cannot
+  contain `#`, not even a cue-card title or a trace file name.
+- Errors (unknown model, bad register value, bad `Trace:` line) are shown
+  after parsing; the load goes on without the bad line.
 
 ---
 
 ## PARTITION
 
-- The number before the dot is the last visible step number; total steps =
-  that number + 1.
-- Total steps must be a multiple of 80 (each unit of 10 program-RAM
-  registers = 80 steps); the parser rounds up to the nearest valid boundary,
-  max 960 (120 registers).
-- The `.xx` suffix (e.g. `.59`) is accepted — it appears in some existing
-  example files as a documentation aid showing the resulting register count —
-  but is **ignored by the parser**; only the part before the dot matters. The
-  register count is always *derived* from the step count, never set directly
-  by the suffix.
-- **Default when omitted:**
-  - TI-59: 479 (480 steps, 60 program-RAM registers)
-  - TI-58 / TI-58C: 239 (240 steps, 30 program-RAM registers)
-- **TI-58 / TI-58C cap:** an explicit `PARTITION:` value above 479 aborts the
-  load with an error (these variants have only 60 RAM registers total).
+- The number before the dot is the last step; steps = number + 1.
+- Steps are rounded up to a multiple of 80 (10 program registers), at most
+  960.
+- The `.xx` suffix (e.g. `479.59`) documents the register count and is
+  ignored.
+- **Default when omitted:** TI-59 479 (480 steps, 60 data registers);
+  TI-58/58C 239.
+- A value above the model's last step (479 on the TI-58/58C) aborts the
+  load.
 
 ---
 
 ## PROGRAM
 
-Accepts three line notations, chosen per line and never mixed mid-line:
+Each line is one of two notations:
 
 ```
 PROGRAM:
-76 11                    # Format 1: bare keycodes (many per line)
-002  42 00               # Format 2: step-number prefix, one keycode
-003  RCL  00              # Format 3: printer-listing mnemonics (ignored, keycode used)
-...                       # gap marker: steps in between remain 00
-110  42 05               # resumes at step 110
+76 11 42 00              # bare keycodes, any number per line
+000 43 RCL               # step number, keycode, then an optional label
+001 00 00
+110 42 STO               # a step number moves the position: 002–109 stay 00
 ```
 
-A step-prefixed line always carries exactly **one** keycode: the token right
-after the prefix. Anything after that — including a numeric mnemonic like the
-`0` in `473 00 0` — is a label and is ignored.
+- **Bare keycodes:** every token of 1–2 digits with a value 0–99 is a
+  keycode; other tokens (mnemonics) are skipped.
+- **Step-numbered:** a first token of 3 or more characters that is a step
+  number (0 up to the model's last physical step, 959 or 479) sets the
+  position. The next token is the one keycode; anything after it is a
+  label, even a number (`473 00 0`).
+- Steps not listed are 00. The program is written zero-padded to the
+  model's physical capacity, not to the partition.
 
 ---
 
 ## REGISTERS
-
-- **Normal registers:** `NN = value`, NN = 00–99. `NN` is the user-facing
-  `STO`/`RCL` register number (see `reference/CoreArchitecture.md` §
-  "User RAM (TMC0598)" for how it maps to a physical RAM cell). On the
-  TI-58/TI-58C, only 00–59 are physically reachable — an `NN` of 60–99 there
-  silently writes nowhere (guarded by the model's actual RAM size) rather
-  than erroring. **All of 00–99 are ordinary registers on the TI-59** —
-  60–99 there is *not* related to the TI-58C's extra registers below; the two
-  only look similar because both happen to involve the number 60.
-- **Extra registers (TI-58C only): `HNN = value`, NN = 00–03.** These are
-  *not* registers "60"–"63" — they are 4 raw RAM cells the TI-58C has beyond
-  its normal 60-register space, unreachable via `STO`/`RCL`, addressed only
-  by the ROM's `MEMWR`/`MEMRD` instructions. See
-  `reference/CoreArchitecture.md` § "TI-58C Extra (Constant Memory)
-  Registers" for what lives there and why the naming is kept deliberately
-  distinct from normal registers. Using `HNN` in a `.ti59` or `.ti58` file is
-  a parse error.
-- Any register (normal or extra) not listed defaults to zero on load.
 
 ```
 REGISTERS:
@@ -102,28 +85,64 @@ REGISTERS:
 H01 = 7.77E22
 ```
 
+- **`NN = value`, NN = 00–99:** the `STO`/`RCL` register number. All of
+  00–99 are ordinary registers on the TI-59; only 00–59 exist on the
+  TI-58/58C.
+- **`HNN = value`, NN = 00–03, TI-58C only:** the 4 extra RAM cells beyond
+  the 60 registers, reachable only by `MEMWR`/`MEMRD`. They are not
+  registers 60–63 (`CoreArchitecture.md` § "TI-58C Extra (Constant Memory)
+  Registers"). In a `.ti59` or `.ti58` file this is an error.
+- The value is a decimal literal (exponent allowed). Integers are stored
+  digit for digit, anything else rounded to 13 significant digits
+  (`cu59::encodeBcd`, `Shared/Bcd.hpp`).
+- Registers not listed are zero. `PROGRAM:` and `REGISTERS:` are written
+  as given, registers after the program: some listings deliberately put
+  registers in the program area or steps in the data area
+  (`examples/calendar-05-vanderburgh.ti59`).
+
+### Print-code register values
+
+Some programs store text for the PC-100 printer: a register holds up to
+five 2-digit character codes (`Op 01`–`Op 04`). Each code is a `row col`
+pair in an 8×8 grid, character index `row × 8 + col` (`PRN_CODE[64]` in
+`Core/TMC0501.cpp`). `3013351523` → 30 13 35 15 23 → `MARCH`.
+
+```
+     col 0  1  2  3  4  5  6  7
+row 0    (sp) 0  1  2  3  4  5  6
+row 1     7  8  9  A  B  C  D  E
+row 2     -  F  G  H  I  J  K  L
+row 3     M  N  O  P  Q  R  S  T
+row 4     .  U  V  W  X  Y  Z  +
+row 5     x  *  √  π  e  (  )  ,
+row 6     ↑  %  ⇄  /  =  '  ˣ  x̄
+row 7     ²  ?  ÷  !  Ⅱ  ▴  ∏  ∑
+```
+
+A value with fewer than five characters has fewer digits; keep it as
+printed.
+
 ---
 
 ## KEYSTROKES vs. PROGRAM: two different numbering systems
 
-This is the most important distinction when writing state files.
+| | PROGRAM | KEYSTROKES |
+|-|---|---|
+| What it is | Keycodes stored in program RAM | Physical key-matrix codes |
+| Range | 00–99 | 11–95 (row × 10 + col) |
+| Digit 0 | `00` | `92` |
+| Digit 1 | `01` | `82` |
+| SBR | `71` | `71` (same for this key) |
+| 2nd Pgm | `36` (one step) | `21 31` (two presses) |
 
-| | PROGRAM section | KEYSTROKES section |
-|-|----------------|--------------------|
-| What it is | Keycodes stored in program RAM | Physical key-matrix scan codes |
-| Number format | 0–99 (the ROM's internal encoding) | 11–95 (row × 10 + col) |
-| Example: digit 0 | keycode `00` | matrix code `92` |
-| Example: digit 1 | keycode `01` | matrix code `82` |
-| Example: SBR | keycode `71` | matrix code `71` (same for this key) |
-| Example: 2nd Pgm | keycode `36` (PGM, stored as one step) | matrix codes `21 31` (two physical presses) |
-
-**Rule:** the KEYSTROKES section simulates a user's fingers. Always use matrix codes there, never keycodes.
+KEYSTROKES simulates fingers: always matrix codes, never keycodes.
 
 ---
 
 ## Matrix Code Table — KEYSTROKES
 
-Matrix code = **row × 10 + col**, row 1–9 top to bottom, col 1–5 left to right.
+Matrix code = **row × 10 + col**, row 1–9 top to bottom, col 1–5 left to
+right (`Shared/KeyMatrix.hpp`).
 
 ```
          Col 1   Col 2   Col 3   Col 4   Col 5
@@ -142,244 +161,160 @@ Row 9:   R/S(91) 0(92)   .(93)   +/-(94) =(95)
 
 ## 2nd Function Table
 
-Pressing **2nd (21)** then a key activates that key's 2nd (upper-label) function. In KEYSTROKES, always send **two** matrix codes: `21` then the key's matrix code. The resulting program keycode is listed for reference.
+A 2nd function is two presses: `21`, then the key's matrix code. The
+program keycode it stores is the matrix code + 5 for columns 1–4, − 5 for
+column 5.
 
-The rule: **2nd keycode = matrix\_code + 5** for cols 1–4; **matrix\_code − 5** for col 5. This applies to every row, using the *matrix code* (not the primary keycode — these differ for digit and operator keys).
-
-| 2nd press sequence | 2nd function | Prog keycode |
-|--------------------|--------------|-------------|
-| `21 11` | A' | 16 |
-| `21 12` | B' | 17 |
-| `21 13` | C' | 18 |
-| `21 14` | D' | 19 |
+| Presses | Function | Keycode |
+|---|---|---|
+| `21 11` … `21 14` | A' … D' | 16 … 19 |
 | `21 15` | E' | 10 |
 | `21 23` | log | 28 |
-| `21 24` | CP (clear pending) | 29 |
+| `21 24` | CP | 29 |
 | `21 25` | CLR | 20 |
-| `21 31` | **Pgm** (program select) | 36 |
-| `21 32` | P→R (polar to rectangular) | 37 |
+| `21 31` | Pgm | 36 |
+| `21 32` | P→R | 37 |
 | `21 33` | sin | 38 |
 | `21 34` | cos | 39 |
 | `21 35` | tan | 30 |
-| `21 41` | Ins (insert step) | 46 |
-| `21 42` | CMs (clear memories) | 47 |
-| `21 43` | Exc (exchange) | 48 |
-| `21 44` | Prd (product) | 49 |
-| `21 45` | IND (indirect) | 40 |
-| `21 51` | Del (delete step) | 56 |
-| `21 52` | Eng (engineering notation) | 57 |
+| `21 41` | Ins | 46 |
+| `21 42` | CMs | 47 |
+| `21 43` | Exc | 48 |
+| `21 44` | Prd | 49 |
+| `21 45` | Ind | 40 |
+| `21 51` | Del | 56 |
+| `21 52` | Eng | 57 |
 | `21 53` | Fix | 58 |
-| `21 54` | Int (integer part) | 59 |
-| `21 55` | \|x\| (absolute value) | 50 |
+| `21 54` | Int | 59 |
+| `21 55` | \|x\| | 50 |
 | `21 61` | Pause | 66 |
-| `21 62` | x=t (equality test) | 67 |
+| `21 62` | x=t | 67 |
 | `21 63` | Nop | 68 |
 | `21 64` | Op | 69 |
 | `21 65` | Deg | 60 |
 | `21 71` | Lbl | 76 |
-| `21 72` | GE (≥) | 77 |
+| `21 72` | x≥t | 77 |
 | `21 73` | Σ+ | 78 |
-| `21 74` | x̄ (mean) | 79 |
+| `21 74` | x̄ | 79 |
 | `21 75` | Rad | 70 |
-| `21 81` | St flg (set flag) | 86 |
-| `21 82` | If flg (if flag) | 87 |
-| `21 83` | D.MS (deg/min/sec) | 88 |
-| `21 84` | **π** | 89 |
+| `21 81` | St flg | 86 |
+| `21 82` | If flg | 87 |
+| `21 83` | D.MS | 88 |
+| `21 84` | π | 89 |
 | `21 85` | Grad | 80 |
 | `21 91` | Write | 96 |
 | `21 92` | Dsz | 97 |
-| `21 93` | Adv (printer advance) | 98 |
-| `21 94` | Prt (printer print) | 99 |
-| `21 95` | List (print program listing) | 90 |
+| `21 93` | Adv | 98 |
+| `21 94` | Prt | 99 |
+| `21 95` | List | 90 |
 
 ---
 
-## Compact / Shortcut Keycodes (PROGRAM section only)
+## Merged Keycodes (PROGRAM only)
 
-Digit keys store their face value in program memory (pressing "2" stores keycode `2`, not `83`). This frees up the matrix-code-like slots (62–64, 72–74, 82–84, 92) for the ROM to use as compact single-step encodings of multi-key operations.
+Digit keys store their face value (`2` stores `02`, not `83`). The free
+codes hold single-step forms of two-key operations. In KEYSTROKES, press
+the keys.
 
-These are **only relevant in the PROGRAM section**. In KEYSTROKES you must always use the physical multi-key press sequence.
+| Keycode | Mnemonic | KEYSTROKES | Meaning |
+|---|---|---|---|
+| `62` | PG\* | `21 31 21 45` | Pgm Ind |
+| `63` | EX\* | `21 43 21 45` | Exc Ind |
+| `64` | PD\* | `21 44 21 45` | Prd Ind |
+| `72` | ST\* | `42 21 45` | STO Ind |
+| `73` | RC\* | `43 21 45` | RCL Ind |
+| `74` | SM\* | `44 21 45` | SUM Ind |
+| `83` | GO\* | `61 21 45` | GTO Ind |
+| `84` | OP\* | `21 64 21 45` | Op Ind |
+| `92` | RTN | `22 71` | INV SBR |
+| `82` | HIR | — | Undocumented; no key sequence enters it |
 
-| Keycode | Mnemonic | Physical keypress sequence (KEYSTROKES) | Notes |
-|---------|----------|-----------------------------------------|-------|
-| `62` | PG\* (Pgm Ind) | `21 31` `21 45` | Pgm with indirect register |
-| `63` | EX\* (Exc Ind) | `21 43` `21 45` | Exc with indirect register |
-| `64` | PD\* (Prd Ind) | `21 44` `21 45` | Prd with indirect register |
-| `72` | ST\* (STO Ind) | `42` `21 45` | STO with indirect register |
-| `73` | RC\* (RCL Ind) | `43` `21 45` | RCL with indirect register |
-| `74` | SM\* (SUM Ind) | `44` `21 45` | SUM with indirect register |
-| `82` | HIR | — | Undocumented; cannot be entered via keypresses |
-| `83` | GO\* (GTO Ind) | `61` `21 45` | GTO with indirect register |
-| `84` | OP\* (Op Ind) | `21 64` `21 45` | Op (2nd+9) with indirect register |
-| `92` | RTN | `22 71` | INV SBR; saves one program step vs storing INV + SBR separately |
-
-All indirect codes (`62–64`, `72–74`, `83–84`) take one additional operand byte (the register number) — see `stepsAfterTable` in `TI59KeyNames.swift`.
-
-The IND key itself is entered as **`21 45`** (2nd + y^x).
+Each of these except RTN takes one operand step (the register number).
+Operand rules: `stepsAfter()` and `argumentSteps()` in `Shared/KeyNames.cpp`.
 
 ---
 
 ## KEYSTROKES Syntax
 
+Every token of 1–2 digits is one press and release: 11–95 a key, 99 the
+virtual key below; other numbers and words are ignored, so a line can
+carry a comment-like mnemonic. `21 31` on one line is two presses.
+
 ```
-# One matrix code per token. Text tokens (mnemonics) are silently ignored.
-# Each line is one key press (press + release). 500 ms gap between presses.
-
-21 31       # 2nd Pgm  (select program mode)
-92          # 0
-82          # 1        → Pgm 01 selected
-71          # SBR
-95          # =        → run program 01
-
-# Explicit wait:
+KEYSTROKES:
+21 31       # 2nd Pgm
+92 82       # 0 1
+71 95       # SBR =    → Pgm 01, label =
 Wait: 2s
-Wait: 500ms
+21 84 65 72 95   # π × 4 =
 ```
 
-**Common sequences (ready to paste):**
+**Timing.** Each key is held 100 ms, then playback waits until the CPU is
+back in the keyboard scan loop, so no key is lost to a busy calculator
+(`Shared/KeySequencer`). While the debugger is frozen it doesn't wait.
 
-```
-# 2nd Pgm 01 SBR =   (select and run program 01)
-21 31
-92
-82
-71
-95
+**Directives** (one per line, case-insensitive):
 
-# π × 4 =
-21 84
-65
-72
-95
+| Directive | Effect |
+|---|---|
+| `Wait: 2s`, `Wait: 500ms` | Pause; the calculator runs at its current speed. The unit is required |
+| `WaitFullSpeed: 5s` | Full speed for the interval, then the previous speed. Use it after a key that starts a long computation |
+| `FullSpeed:` / `RegularSpeed:` | Switch speed until the other one or the end of the script |
+| `Trace: <name>` | Start a binary CPU trace to `<name>` in the trace folder (format: `DebugAPI.md` § "Trace File Format") |
+| `Trace: Off` | Stop it |
+| `ZeroElapseTime:` | Take the core's elapsed-time counter (`elapsedTicks()`) as the baseline |
+| `ReportElapseTime:` | Log `Elapsed: m:ss.mmm` since the baseline (or reset) to the LOG tab |
 
-# SBR =   (continue/re-enter a program)
-71
-95
-
-# CLR
-25
-
-# 2nd P/R  (toggle program/run mode)
-21 32
-```
-
-**`Wait:` and `WaitFullSpeed:` timing:**
-
-- Default gap between presses: 500 ms (450 ms hold + 50 ms gap, hardcoded in `EmulatorViewModel.playKeystrokes`)
-- `Wait: Xs` / `Wait: Xms` — pause for the given interval; emulator runs at its configured speed
-- `WaitFullSpeed: Xs` / `WaitFullSpeed: Xms` — enable full speed for the given interval, then restore the previous speed; use this after a key that starts a computation so the program finishes quickly without affecting key-press timing
-
-```
-71          # SBR
-95          # =    → program starts
-WaitFullSpeed: 5s   # run flat-out until program reaches input prompt
-21 84       # π    → next key sent at normal speed
-```
-
-**`Trace:` — scripted CPU trace capture.** Starts or stops a binary CPU
-instruction trace (same format as the manual "C" indicator button — see
-`reference/DebugAPI.md`), independent of that button and of any other
-`Trace:` session. Written under the configured trace directory (Settings →
-trace location: Local / iCloud / Custom).
-
-- `Trace: <filename>` — starts a fresh capture to `<filename>`, silently
-  overwriting an existing file of that name. The filename is the entire
-  trimmed remainder of the line, taken verbatim (spaces allowed, no
-  whitespace splitting) — it must not contain `/` or `\`. Opening a new
-  file while one is already open first closes the previous one cleanly.
-- `Trace: Off` — stops the current scripted capture, if any.
-- Any capture still open when the KEYSTROKES sequence ends is closed
-  automatically.
-- Each `Trace: <filename>` gets its own full size budget (Settings → max
-  trace file size); usage does not carry over between files.
-
-```
-Trace: LrnCheck.bin
-83  2
-72  4
-91  R/S
-Wait: 5s
-Trace: Off
-```
-
-**`FullSpeed:` / `RegularSpeed:` — persistent speed toggle.** Unlike
-`WaitFullSpeed:`, these switch speed with no auto-revert: `FullSpeed:` stays
-in effect (through any `Wait:`s and key presses) until a matching
-`RegularSpeed:`, or until the script ends — speed is always reset to regular
-when the script ends, even if it omitted `RegularSpeed:`. Neither directive
-takes an argument.
-
-- **`Adv` (`21 93`) needs `RegularSpeed:` active first.** Adv is a
-  repeat-while-held key on real hardware, gated by a fixed CPU-step busy
-  countdown rather than a real-time delay — at full speed the same key hold
-  can clear/re-fire that gate far more times than at regular speed, causing
-  a paper-feed runaway. Switch to `RegularSpeed:` before any `21 93`, then
-  back to `FullSpeed:` afterward if needed. `Prt` (`21 94`) is single-shot
-  and unaffected.
-
-```
-FullSpeed:
-71          # SBR
-95          # =    → program runs flat-out
-RegularSpeed:
-21 93       # Adv  → safe to hold-repeat at regular speed
-```
-
-**`ZeroElapseTime:` / `ReportElapseTime:` — scripted elapsed-time
-measurement.** Reads the core's internal weighted step counter (its
-`elapsedTicks()` accessor), which runs continuously from reset and is never
-drained by anything else. Neither directive takes an argument.
-
-- `ZeroElapseTime:` — snapshots the counter as the baseline for the next
-  `ReportElapseTime:`.
-- `ReportElapseTime:` — logs the elapsed time since the last
-  `ZeroElapseTime:` (or since reset, if none) to the debug log, converting
-  the weighted tick count to wall-clock time at the model's instruction
-  rate.
+- `Trace:` takes the rest of the line as the file name, spaces included;
+  `/` and `\` are errors. An existing file is overwritten. A new `Trace:`
+  closes the previous one; each file gets the full size limit from
+  Settings. The trace runs independently of the manual trace button.
+- When the script ends, speed returns to regular and an open `Trace:` file
+  is closed.
+- **Adv (`21 93`) needs `RegularSpeed:`.** Adv repeats while held, gated by
+  a CPU-step countdown, not real time: at full speed one 100 ms press feeds
+  many lines. `Prt` (`21 94`) is unaffected.
+- **Virtual key 99** toggles the printer's TRACE latch (paper trace), not a
+  CPU trace.
+- A new load's KEYSTROKES queue behind a script still playing. A model
+  switch or Reset cancels playback.
+- KEYSTROKES cannot freeze the debugger; a UI test has to press FREEZE.
 
 ```
 ZeroElapseTime:
 FullSpeed:
-71          # SBR
-95          # =    → run the timed portion
+71 95       # SBR =  → timed run
 RegularSpeed:
 ReportElapseTime:
 ```
-
-**Special virtual key.** Matrix code `99` is outside the valid key grid
-(rows 1–9, cols 1–5 give max code 95) and is repurposed to toggle the
-emulated printer's TRACE latch (each press flips on→off or off→on) — not
-the same thing as the `Trace:` directive above, which captures CPU
-instructions to a file rather than toggling a printed-paper feature.
 
 ---
 
 ## CUECARD: Field Grammar
 
-`CUECARD:` lines are `Key: value` pairs, one per line, consumed until the
-next section keyword. Keys are case-insensitive. `docs/cuecard-data.js` is a
-byte-for-byte JS port consumed by the web build's preset loader and
-`calc-engine-worker.js` (see `reference/AppArchitecture.md`'s "Cue Card
-Rendering" section for how these fields are drawn — that's a separate
-document because rendering is per-GUI-framework code, not file-format data).
+`Key: value` lines until the next section keyword. Keys are
+case-insensitive; unknown keys are ignored (`CueCardContent::parseLine`,
+`Shared/CueCard.cpp`). How the fields are drawn: `SharedArchitecture.md`
+§ "Cue Card Rendering".
 
 | Key | Applies to | Meaning |
-|-----|-----------|---------|
-| `Template` | all | `CueCard`, `MagnetCard`, or `SolidStateCard` — selects background art and layout |
-| `Title` | all | Card headline |
-| `Banks` | MagnetCard | `left, right` page-badge numbers, e.g. `Banks: 1, 2`; either side may be blank |
-| `ID` | SolidStateCard | Module/program ID shown top-right, e.g. `ML-01` |
-| `Row1`, `Row2`, `Row2R` | all | Free-text rows; `Row2R` is a second field right-aligned against `Row2` on the same line. If `Row1` (or `Row2`/`Row2R`) is empty, that row instead renders the `A'–E'` (row 1) or `A–E` (row 2) label grid below. |
-| `Row1Align`, `Row2Align`, `Row2RAlign` | all | `left` (default) / `center` / `right` |
-| `Style` | all | `none` (default) or `button` (draws a border around `Row1`/`Row2`/`Row2R` text) |
-| `PencilColor` | CueCard, MagnetCard | `black` (default), `pencil`, or `sharpie` — ink color for title/row/label text. Ignored on SolidStateCard, which always renders in its fixed printed gold. Must be set explicitly; a card never gets a non-black ink implicitly. Applies to the whole card regardless of where in the `CUECARD:` block it appears (order-independent, like `Template`/`Title`/`Style`). |
-| `A`…`E` | all | Labels for the plain A–E key row (grid row 2) |
-| `A'`…`E'` (or `A′`…`E′`) | all | Labels for the 2nd-function A′–E′ row (grid row 1) |
+|---|---|---|
+| `Template` | all | `CueCard` (default), `MagnetCard` or `SolidStateCard`, exact case |
+| `Title` | all | Headline |
+| `Banks` | MagnetCard | `left, right` page badges, e.g. `Banks: 1, 2`; either may be blank |
+| `ID` | SolidStateCard | Module/program ID right of the title, e.g. `ML-01` |
+| `Row1` | all | Text in place of the A′–E′ label row |
+| `Row2`, `Row2R` | all | Text in place of the A–E label row; `Row2R` is right of `Row2` on the same line |
+| `Row1Align` | all | `left`, `center` (default) or `right` |
+| `Row2Align`, `Row2RAlign` | all | `left` (default), `center` or `right` |
+| `Style` | all | `none` (default) or `button` (a box around the row text) |
+| `PencilColor` | CueCard, MagnetCard | `black` (default), `pencil` or `sharpie`, for the whole card. SolidStateCard always prints gold |
+| `A` … `E` | all | Labels of the A–E row |
+| `A'` … `E'` (or `A′` … `E′`) | all | Labels of the A′–E′ row |
 
-A label value of `\blank` renders as an invisible cell that merges into the
-*preceding* non-blank label's column span — use it to make one label visually
-span multiple key positions. Trailing blank cells with no preceding label just
-stay empty; only `\blank` explicitly triggers a merge.
+A label row shows only when its `Row` text is empty. A label `\blank` is an
+empty cell that the preceding label spans into; plain empty cells don't
+span. `IDAlign` is accepted and ignored.
 
 ```
 CUECARD:
@@ -389,72 +324,42 @@ ID: ML-02
 Row1: i: \to x_{i} | \to A^{-1}
 ```
 
-### Math notation shorthand
+### Math notation
 
-`Title`, `ID`, `Row1`, `Row2`, `Row2R`, and every label go through a
-token-expansion pass before rendering. The full token table (Greek letters,
-overline variables like `\xbar`, arrows, `\sqrt`/`\sum`/`\integral` etc., and
-LaTeX-style `^{...}`/`_{...}` super/subscripts) is authored once in
-`App/CueCardContent.swift`'s `mathTokens` array — treat that array as the
-single source of truth; `docs/cuecard-data.js`'s `MATH_TOKENS` must be kept
-byte-for-byte identical to it (see `reference/NewGUIGuide.md`'s "Future Work"
-appendix for the case to stop hand-syncing this a third time when a new GUI
-needs the same table).
+`Title`, `ID`, the rows and every label expand tokens: Greek letters,
+overlined variables such as `\xbar`, arrows, `\sqrt`, `\sum`, `\integral`,
+and `^{…}` / `_{…}` super- and subscripts. The table is `kMathTokens` in
+`Shared/CueCard.cpp`.
 
 ---
 
 ## SKIP-RESET
 
-`SKIP-RESET: on` skips the machine reset that normally occurs when a state file is loaded. Use it for files that only inject keystrokes into a running machine (e.g. the second step of a multi-file screenshot sequence).
+`SKIP-RESET: on` loads into the running machine without a reset, e.g. the
+second file of a multi-file screenshot sequence.
 
-**Applied sections** (work without a reset):
-
-| Section | Behaviour |
-|---------|-----------|
-| `PARTITION:` | Updated in SCOM only if explicitly specified; otherwise left as-is |
-| `PROGRAM:` | Full zero-padded write (replaces existing program) |
-| `REGISTERS:` | Listed registers are written individually |
-| `CUECARD:` | Cue card is replaced if present |
-| `KEYSTROKES:` | Played normally |
-
-**Silently dropped sections** (require a reset — a `[WARN]` is printed to the console):
-
-| Section | Why dropped |
-|---------|------------|
-| `MODEL:` | Model switch requires full machine reset |
-| `SOLID-STATE-MODULE:` | Module load requires full machine reset |
-| `PRINTER:` | Printer connection change requires full machine reset |
+| Section | Under SKIP-RESET |
+|---|---|
+| `PARTITION:` | Set only if given |
+| `PROGRAM:` | Written (zero-padded) only if it has steps |
+| `REGISTERS:` | The listed registers are written |
+| `CUECARD:` | Replaces the card if present |
+| `KEYSTROKES:` | Played |
+| `MODEL:`, `SOLID-STATE-MODULE:`, `PRINTER:` | Ignored, with a line in the LOG tab |
 
 ---
 
-## Reference load sequence
+## What a load does
 
-The order sections are applied in, independent of which GUI is loading the
-file (see `reference/AppArchitecture.md`'s "State File Loading" section for
-exactly how the Swift app executes this on its emulation queue, and
-`docs/calc-engine-worker.js` for the web build's version):
+Without `SKIP-RESET`, in this order (code: `SessionController::loadStateFile`,
+`Shared/StateApplier.cpp`):
 
-1. Reset the machine (unless `SKIP-RESET: on`), then run enough steps to let
-   the ROM's own power-on routine complete (300,000 steps is what both
-   existing GUIs use as a conservative upper bound — the routine always
-   finishes well within that).
-2. Apply `PARTITION:` (or the model's default).
-3. Write `PROGRAM:` steps.
-4. Write `REGISTERS:` (and hidden registers, TI-58C only).
-5. Load `SOLID-STATE-MODULE:` if present (this is a reset-requiring section;
-   under `SKIP-RESET:` a module change is dropped rather than applied here).
-6. Apply `CUECARD:` if present.
-7. Play back `KEYSTROKES:` (asynchronously — a fresh load should cancel any
-   still-playing KEYSTROKES sequence from a previous load rather than
-   interleaving the two).
-
-Registers that fall inside the program area for the loaded partition should
-be zeroed rather than left stale, and a newer load should always supersede
-an in-flight KEYSTROKES playback from an older one — both are easy to get
-wrong (each has been an actual bug fixed once in the Swift implementation).
-
----
-
-## KEYSTROKES Does Not Support
-
-- FREEZE / FREEZE ON START (debug panel — must be driven by a UI test driver, not KEYSTROKES itself)
+1. `MODEL:` switches the machine if it names another model.
+2. Reset, then 300,000 steps for the ROM's power-on routine.
+3. The partition (or the model's default).
+4. RAM cleared, except the TI-58C's extra registers (the ROM needs H00).
+5. The program, then the registers.
+6. The loop restarts and the printer paper is cut. Then
+   `SOLID-STATE-MODULE:`, `PRINTER:` and `CUECARD:` (no `CUECARD:` clears
+   the user's card). The TI-58C saves its memory.
+7. `KEYSTROKES:` play.

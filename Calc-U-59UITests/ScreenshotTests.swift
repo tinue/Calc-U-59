@@ -9,8 +9,7 @@ import XCTest
 ///     -destination "platform=iOS Simulator,name=iPad Pro 13-inch (M5)"
 ///
 /// For iPad screenshots rotate the simulator to landscape before running.
-/// XCUIScreen.main.screenshot() captures physical screen pixels and respects
-/// the current orientation — no post-processing needed.
+/// saveScreenshot(fallbackName:) writes the PNG in the device orientation.
 #if !os(macOS)
 final class ScreenshotTests: XCTestCase {
 
@@ -41,6 +40,39 @@ final class ScreenshotTests: XCTestCase {
         guard let s = try? String(contentsOfFile: "/tmp/calc-u-59-screenshot-name", encoding: .utf8)
                 .trimmingCharacters(in: .whitespacesAndNewlines), !s.isEmpty else { return nil }
         return s
+    }
+
+    /// Capture the screen and write it to `screenshotDir` as `screenshotName`
+    /// (or `<fallbackName>-<device>.png` when run straight from Xcode).
+    ///
+    /// Since Xcode 27 (Device Hub), XCUIScreen hands back landscape shots in
+    /// portrait pixel order, the content turned clockwise. Such a shot is
+    /// turned back here; one that already matches the orientation is written
+    /// as is, so it is never rotated twice.
+    private func saveScreenshot(fallbackName: String) throws {
+        let dest = URL(fileURLWithPath: "\(screenshotDir)/\(screenshotName ?? "\(fallbackName)-\(UIDevice.current.name)").png")
+        let shot = XCUIScreen.main.screenshot()
+        let orientation = XCUIDevice.shared.orientation
+        guard orientation.isLandscape, let cg = shot.image.cgImage, cg.width < cg.height else {
+            try shot.pngRepresentation.write(to: dest)
+            return
+        }
+        let w = CGFloat(cg.width), h = CGFloat(cg.height)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: h, height: w), format: format)
+        let png = renderer.pngData { ctx in
+            // landscapeLeft: turn counter-clockwise; landscapeRight: clockwise.
+            if orientation == .landscapeLeft {
+                ctx.cgContext.translateBy(x: 0, y: w)
+                ctx.cgContext.rotate(by: -.pi / 2)
+            } else {
+                ctx.cgContext.translateBy(x: h, y: 0)
+                ctx.cgContext.rotate(by: .pi / 2)
+            }
+            UIImage(cgImage: cg).draw(in: CGRect(x: 0, y: 0, width: w, height: h))
+        }
+        try png.write(to: dest)
     }
 
     // MARK: - Screenshots
@@ -77,8 +109,7 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [playbackDone], timeout: 10), .completed,
                        "Keystroke playback did not complete")
 
-        let dest = URL(fileURLWithPath: "\(screenshotDir)/\(screenshotName ?? "Diagnostic-\(UIDevice.current.name)").png")
-        try XCUIScreen.main.screenshot().pngRepresentation.write(to: dest)
+        try saveScreenshot(fallbackName: "Diagnostic")
         attachScreenshot(app, name: "diag.ti59 — diagnostic complete")
     }
 
@@ -141,8 +172,7 @@ final class ScreenshotTests: XCTestCase {
         rs.press(forDuration: 0.05)
 
         // Screenshot
-        let dest = URL(fileURLWithPath: "\(screenshotDir)/\(screenshotName ?? "Assembly-\(UIDevice.current.name)").png")
-        try XCUIScreen.main.screenshot().pngRepresentation.write(to: dest)
+        try saveScreenshot(fallbackName: "Assembly")
         attachScreenshot(app, name: "Assembly — stopwatch stopped at ~3.5s")
     }
 
@@ -157,8 +187,7 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 5),
                       "Settings sheet did not appear")
 
-        let dest = URL(fileURLWithPath: "\(screenshotDir)/\(screenshotName ?? "Settings-\(UIDevice.current.name)").png")
-        try XCUIScreen.main.screenshot().pngRepresentation.write(to: dest)
+        try saveScreenshot(fallbackName: "Settings")
         attachScreenshot(app, name: "Settings")
     }
 
@@ -186,8 +215,7 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [playbackDone], timeout: 15), .completed,
                        "test_58c_display.ti58c keystrokes did not complete")
 
-        let dest = URL(fileURLWithPath: "\(screenshotDir)/\(screenshotName ?? "PlainCalculator-\(UIDevice.current.name)").png")
-        try XCUIScreen.main.screenshot().pngRepresentation.write(to: dest)
+        try saveScreenshot(fallbackName: "PlainCalculator")
         attachScreenshot(app, name: "Plain Calculator — TI-58C display")
     }
 
@@ -241,8 +269,7 @@ final class ScreenshotTests: XCTestCase {
         stepButton.press(forDuration: 2)
 
         // Screenshot
-        let dest = URL(fileURLWithPath: "\(screenshotDir)/\(screenshotName ?? "CPUInspector-\(UIDevice.current.name)").png")
-        try XCUIScreen.main.screenshot().pngRepresentation.write(to: dest)
+        try saveScreenshot(fallbackName: "CPUInspector")
         attachScreenshot(app, name: "CPU Inspector — 5 steps after reset")
     }
 
@@ -326,8 +353,7 @@ final class ScreenshotTests: XCTestCase {
         }
 
         // Screenshot — freeze has fired; calculator is stopped on first instruction
-        let dest = URL(fileURLWithPath: "\(screenshotDir)/\(screenshotName ?? "CalcDebugger-\(UIDevice.current.name)").png")
-        try XCUIScreen.main.screenshot().pngRepresentation.write(to: dest)
+        try saveScreenshot(fallbackName: "CalcDebugger")
         attachScreenshot(app, name: "Calc Debugger — frozen on run")
     }
 
@@ -356,8 +382,7 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [playbackDone], timeout: 45), .completed,
                        "test_texas.ti59 keystrokes did not complete")
 
-        let dest = URL(fileURLWithPath: "\(screenshotDir)/\(screenshotName ?? "Texas-\(UIDevice.current.name)").png")
-        try XCUIScreen.main.screenshot().pngRepresentation.write(to: dest)
+        try saveScreenshot(fallbackName: "Texas")
         attachScreenshot(app, name: "Texas — test_texas.ti59 complete")
     }
 

@@ -1,4 +1,5 @@
-# Calc-U-59 Qt6 builds for Windows and Linux, plus the C++ test suite.
+# Calc-U-59 Qt6 builds for Windows and Linux, the web client (Web/), plus
+# the C++ test suite.
 #
 # Run by hand (workflow_dispatch) — ReleaseIt's `release` dispatches it for a
 # pre-release and attaches the artifacts (release.yaml). There is no macOS Qt
@@ -29,6 +30,43 @@ jobs:
         run: cmake --build build/cmake
       - name: Run tests
         run: ctest --test-dir build/cmake --output-on-failure
+
+  web:
+    # Web/build.sh into Web/dist/, the Playwright tests against it, and
+    # dist/ zipped (reference/WebClient.md).
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install emsdk
+        uses: mymindstorm/setup-emsdk@v16
+        with:
+          # Keep in step with the local toolchain (emcc --version).
+          version: 6.0.12
+      - name: Install Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Build
+        run: Web/build.sh
+      - name: Install Playwright
+        working-directory: Web
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: Test
+        run: Web/run-tests.sh
+      - name: Zip dist/
+        run: |
+          set -euo pipefail
+          # The version build.js read from MARKETING_VERSION, as the Qt build does.
+          VERSION=$(node -p 'require("./Web/dist/MANIFEST.json").version')
+          (cd Web/dist && zip -qr "$GITHUB_WORKSPACE/Calc-U-59-web-$VERSION.zip" .)
+      - name: Upload artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: Calc-U-59-web
+          path: Calc-U-59-web-*.zip
+          if-no-files-found: error
 
   linux:
     strategy:
@@ -88,6 +126,9 @@ jobs:
             'HERE="$(dirname "$(readlink -f "$0")")"' \
             'exec "$HERE/AppRun.qt" "$@"' > AppDir/AppRun
           chmod +x AppDir/AppRun
+          # Qt is LGPLv3: ship its licence and our notices inside the image.
+          mkdir -p AppDir/usr/share/doc/calc-u-59
+          cp -r LICENSE NOTICE THIRD-PARTY-NOTICES.md licenses AppDir/usr/share/doc/calc-u-59/
           ./linuxdeploy.AppImage --appdir=AppDir --output=appimage
       - name: Upload artifact
         uses: actions/upload-artifact@v6

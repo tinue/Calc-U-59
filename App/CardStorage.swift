@@ -1,10 +1,9 @@
 import Foundation
 
-/// Manages the single magnetic-card file used for card read/write operations.
-///
-/// The file (`card.bin`) contains the raw bytes captured by OUT CRD instructions
-/// during a write swipe, stored verbatim.  On a read swipe the same bytes are
-/// fed back to the hardware via IN CRD — no interpretation is applied.
+/// Resolves the folder that holds the magnetic-card files (`.U59`) and
+/// `ti58c.mem`; reading and writing them is `Shared/CardFile` via the
+/// SessionController. `hasCard` reports whether the default card (`card.U59`)
+/// exists.
 ///
 /// Storage location (in priority order):
 ///   1. iCloud Documents container — syncs across all signed-in devices
@@ -52,16 +51,5 @@ struct CardStorage {
     /// `true` when a card file is present on disk.
     static var hasCard: Bool {
         FileManager.default.fileExists(atPath: fileURL.path)
-    }
-
-    /// Overwrite the card file with `data`.  Atomic write prevents corruption
-    /// if the process is interrupted mid-write.
-    static func write(_ data: Data) throws {
-        try data.write(to: fileURL, options: .atomic)
-    }
-
-    /// Read and return the card file contents.
-    static func read() throws -> Data {
-        try Data(contentsOf: fileURL)
     }
 }

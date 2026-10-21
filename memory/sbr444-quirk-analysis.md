@@ -12,7 +12,9 @@ The TI-59 "printer interrupt" hack (PPX Exchange, March/April 1982) plants an in
 keycode `1F` in program memory through a chain of four firmware quirks. The
 initialization sequence `[9 Op 17] [Pgm 12] [SBR 444] [R/S] [P/R] [LRN] [Ins] [LRN]`
 looks harmless, yet leaves the machine in a state where `Ins` computes the invalid
-keycode. The session of 2026-07-04 analyzed exactly what `SBR 444` and `R/S` do —
+keycode. What the hack does and a shorter way to make 1F (through fast mode)
+are in `rom/printerinterrupt.md`; this document is the trace-level analysis.
+The session of 2026-07-04 analyzed exactly what `SBR 444` and `R/S` do —
 quirk 1 of the chain — and corrected an earlier, wrong account. The session of
 2026-07-05 analyzed the `2nd P/R` press — quirk 2 — from the two traces proposed by
 open question 1, resolving it.
@@ -77,18 +79,23 @@ directly off the module header in the traces).
    zeroed (0BCD), target E := 0 — a resume is not a transfer, so **no range check of
    any kind runs**.
 2. PRGREG_FETCH (08B2) dispatches flag = 1 → CROM interpreter fetch at 082B/082F…
-   from chip PC 0028 = **the header**. Exactly two keycodes are fetched: module[28] =
-   0x29 and module[29] = 0x52 — literally the two BCD bytes of **Pgm 14's start
-   address 2952** — executed as keycodes **29 = CP** and **52 = EE**.
-3. CP is harmless and its epilogue re-enters the fetch loop (…054C → 08A1 → 08AE →
-   082B). EE dispatches into KEY_EE (0110), sets fB[15] (EE mode) at 011A, and exits
-   through the *keyboard* epilogue (0129–012C → 02DE → 06B9); the continue-run gate
-   there (06C0 `TST fB[10]` / 06C3 `JNC 08AE`) fails, so the machine falls into the
-   display idle loop. **The run ends — no third fetch, no new error.**
-4. Final state after the second halt: fB = 8A60 — fB[9] still set (the blink is the
-   *first* crash's error, R/S never cleared it), fB[15] set (EE mode → display
-   "0. 00" from the zeroed display), fB[0]/fB[13] clear; SCOM[0] Prg Src Flag **still
-   1**, PC 008; CROM PC now 0030.
+   from chip PC 0028 = **the header**. *Corrected 2026-10-17 (headless harness,
+   tools/headless/, exact replay of examples/printer-quirks.ti59):* the run fetches
+   **12** keycodes, module[28..39] — the BCD start addresses of Pgm 14–19 —
+   executed as **29 CP, 52 EE, 30 tan, 95 =, 32 x⇄t, 31 LRN, 33 x², 63 Exc Ind,
+   34 √x, 80 Grad, 36 Pgm**, and `Pgm` consumes byte 39 = **51** as its program
+   number. There is no Pgm 51: the run halts at ROM 141C (`SET fB[9]`, `CLR fB[0]`,
+   → 12B8). The result does not depend on how long R/S is held (3000–60000
+   instruction steps tried): execution only starts after the release wait at 07EA.
+3. EE (keycode 52) does **not** end the run. Its handler (0110 → 012C → 02DE) sees
+   fB[0] set and takes 06B9; with a non-zero Prg Src Flag the 06C0/06C3 gate
+   continues the run at 08AE on both branches. A plain RAM program containing EE
+   (`1 EE 2 + 3 = R/S`) likewise runs through it (result 1.03 02). The earlier
+   reading — "exactly two keycodes, EE ends the run, CROM PC 0030" — came from an
+   incomplete rs.txt capture window.
+4. Final state after the second halt: fB = 8A60 — fB[9] set (the blink; the Pgm 51
+   error re-asserts it), fB[15] set (EE mode from keycode 52 → display "0. 00"),
+   fB[0]/fB[13] clear; SCOM[0] Prg Src Flag **still 1**, PC 008; **CROM PC 0040**.
 
 ### P/R re-derives the transfer type from the leftover Prg Src Flag (pr-after-halt1.txt / pr-after-halt2.txt)
 
@@ -172,6 +179,17 @@ source 8).
   *after* that instruction; a taken branch is only visible from the next line's
   address. Observed: `TST` of a SET flag leaves COND = 0.
 
+### Related trigger: `Pgm nn R/S` inside a program (headless, 2026-10-17)
+
+A RAM program step `Pgm nn` only marks SCOM[13] nibble 15; the next step
+decides (ROM `0976`). For R/S the library path is taken without any label
+search or start-address load, so the run continues at the CROM chip's
+current address. After a fresh selection that is the module header: with ML
+the fetches at `082F` go to CROM 0001, 0002, …, 0009 and then jump (Pgm 23
+→ 4660, Pgm 02 → 0596), the header bytes acting as keycodes exactly as in
+the R/S resume after the failed SBR 444. Program "3 Pgm 02 R/S" ends with
+an error from a 0 ÷ 0 inside that garbage (`03D4`).
+
 ## Open questions and proposed next steps
 
 1. **RESOLVED — Why does P/R arrive at the 087E test with fB[0] SET after halt 1 but
@@ -207,13 +225,10 @@ source 8).
    level 2 = src 0 + position 0010 ✓. The F semantics are also settled: rs.txt's
    resume push wrote `…1001` (clean depth 1) straight over the reset `…10000F`, so
    F acts as "empty" and the next push restarts the stack at depth 1.
-3. **Why exactly does the EE handler end a running program?** The keyboard-epilogue
-   gate (fB[10] at 06C0, plus fA[5] at 06BE — fA[5] was clear during the whole resumed
-   run) fell through. A *normal* running program that contains keycode 52 presumably
-   does not halt — determine which flag a normal run carries that the R/S-resumed
-   garbage run lacks.
-   **Proposed trace:** a small RAM program containing keycode 52 (EE), started with
-   R/S and traced across the EE step; compare the 02DE/06B9/06C0 flags with rs.txt.
+3. **RESOLVED 2026-10-17 — EE does not end a running program.** The R/S-resumed
+   run continues through EE and ends on the invalid `Pgm 51`; see the corrected
+   R/S findings above. (The earlier question rested on an incomplete rs.txt
+   capture window.)
 4. **RESOLVED — SCOM[9] descriptor layout.** Documented by the SCOM register table
    in "Calculators TI-58/59 HW programming guide" by Hynek Sladký
    (TI_58_59-HW-manual.pdf, not in the repository). Nibble 15 = list-data flag;
@@ -228,28 +243,19 @@ source 8).
    (nibbles 3–15 only), so nibbles 0–2 were stale C content, not SCOM[9]; nothing
    actually changes across states. Layout added to reference/CoreArchitecture.md
    § SCOM registers.
-5. **Where do 10 extra CROM fetches come from between the second halt and the P/R
-   press?** rs.txt ends with the CROM PC at 0030 (after the two keycode fetches)
-   and contains no later `IN LIB` in its whole 69k-line window; pr-after-halt2.txt
-   contains no LIB operation before the launcher either — yet the `LIB.PC.IN` read
-   during the P→R launch returns **0040**. So in the pr-after-halt2 run the pointer
-   moved 30 → 40 in the gap neither trace covers: the `WaitFullSpeed: 1s` between
-   the EE halt and the `2nd` press (rs.txt's window, from its own run, covers only
-   the first part of that second). The blink/idle cycle contains no LIB access
-   (checked instruction-by-instruction), so something outside the traced windows
-   fetches (or repositions by `OUT LIB_PC`) — key-release handling of R/S is one
-   candidate. Consequence is limited: it changes only which garbage CROM address
-   the dead return-stack level and any later RTN would use, not the quirk-2
-   mechanism.
-   **Proposed trace:** one window spanning the whole gap — `Trace:` on just before
-   the `R/S`, off after the `2nd` — and look for `IN LIB` / `OUT LIB_PC` between
-   the EE halt and the key scan that accepts `2nd`.
+5. **RESOLVED 2026-10-17 — the "extra" CROM fetches between the second halt
+   and P/R are part of the R/S-resumed run itself** (12 fetches, 28–39, ending
+   with Pgm 51; see above). rs.txt had stopped too early to show them.
 
-Traces for 3 and 5 can be captured the same way as the existing ones: temporarily
-insert `Trace: <name>.bin` / `Trace: Off` around the key of interest in the
-`KEYSTROKES` script of a scenario file, then render with `tools/read_trace.py`.
-(`examples/printer-quirks.ti59` currently carries the pr-after-halt2 capture edit
-in its working-tree state.)
+New traces are easiest with the headless harness (`tools/headless/`), which
+replays a key sequence and prints the ROM trace directly. In the GUI, insert
+`Trace: <name>.bin` / `Trace: Off` around the key of interest in a scenario's
+`KEYSTROKES` (e.g. `examples/printer-quirks.ti59`, whose `Trace:` line is
+commented out) and render with `tools/read_trace.py`.
+
+Headless replay (2026-10-17) also re-verified the rest of the chain: after P/R,
+SCOM[15] = `0000000100004012`, SCOM[0] = `…108010`; after LRN Ins LRN, program
+register 1 reads `1F 92 21 42 46 11 40 49` — the invalid keycode 1F at step 008.
 
 **Reminder:** whatever any of these resolves, update `rom/TI59-commented.asm`,
 `examples/texas-print.ti59`, *and* this document.

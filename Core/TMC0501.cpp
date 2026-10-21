@@ -2,6 +2,7 @@
 #include "ROM.hpp"
 #include "RAM.hpp"
 #include <algorithm>
+#include <bitset>
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
@@ -119,15 +120,16 @@ const TMC0501::MaskInfo TMC0501::mask_info[16] = {
 // index is encoded in KR bits 10:4 and loaded by running through the
 // INC KR chain at ROM addresses 0x139A–0x13A8.
 //
-// Entries 0–15: floating-point constants for transcendental math.
-//   The algorithms use a table-driven CORDIC-style approach; most entries are
-//   partial products or argument-reduction values, not simple named constants.
-//   Notable entries:
-//     [0]  ln(10) ≈ 2.302585092994…   (used for log₁₀ / 10^x)
-//     [1]  ln(2)  ≈ 0.693147180559…   (used for 2^x)
-//     [13] π/2    ≈ 1.570796326794…   (argument reduction for trig)
-//     [14] π      ≈ 3.141592653589…
-//     [15] 180/π  ≈ 57.2957795130…    (degree ↔ radian conversion)
+// Entries 0–15: floating-point constants for transcendental math, used by
+//   the ROM's Meggitt pseudo-multiplication (ln/e^x) and decimal CORDIC
+//   (trig) kernels — see rom/TI59-ROM-Guide.md § "Transcendental functions":
+//     [0]     ln(10) ≈ 2.302585092994        (log₁₀, 10^x, exponent fold-in)
+//     [1–7]   ln(1 + 10^−k), k = 0…6        ([1] = ln 2)
+//     [8–12]  atan(10^−k),   k = 0…4        ([8] = π/4)
+//     [13]    1.5707963267950 E+01 (= 5π)   the grad code flips its exponent
+//                                           to E−02 and uses it as π/200
+//     [14]    π      ≈ 3.141592653590       (2π range reduction)
+//     [15]    180/π  ≈ 57.2957795130…       (degree ↔ radian conversion)
 //
 // Entries 16–63: Keycode programs for routines such as Polar->Rec coordinates
 
@@ -147,6 +149,7 @@ void TMC0501::reset() {
     KR = SR = fA = fB = EXT = PREG = m_libAddr = m_libAddrReadPos = 0;
     m_libAddrWasWriting = false;
     m_libExecPC = kLibExecPCNone;
+    m_stepBoundary.count = 0;
     R5 = digit = RAM_ADDR = RAM_OP = REG_ADDR = 0;
     addr  = 0;
     flags = FLG_COND;  // COND starts true; display active
@@ -155,11 +158,10 @@ void TMC0501::reset() {
     // Initialize per-digit live buffers
     memset(m_digitSegmentsA, 0, sizeof(m_digitSegmentsA));
     memset(m_digitSegmentsB, 0, sizeof(m_digitSegmentsB));
-    memset(m_digitAfterglowCounters, 0, sizeof(m_digitAfterglowCounters));
-    memset(m_dpAfterglowCounters, 0, sizeof(m_dpAfterglowCounters));
-    memset(m_digitLitInLastStrobe, 0, sizeof(m_digitLitInLastStrobe));
-    memset(m_dpLitInLastStrobe, 0, sizeof(m_dpLitInLastStrobe));
-    m_currentDpPos = 0;
+    memset(m_digitLitTicks, 0, sizeof(m_digitLitTicks));
+    memset(m_dpLitTicks, 0, sizeof(m_dpLitTicks));
+    m_drivenThisRev = m_drivenLastRev = 0;
+    m_lastDisplay = DisplaySnapshot{};
     m_digitSuppressedMask = 0;
     m_zeroSuppressRunning = true;
     // Reset card state; caller (TI59Machine) re-presses the card-switch key.
@@ -195,9 +197,9 @@ void TMC0501::loadConstants(const uint8_t* data, size_t count) {
 
 // ── Masked RAM read/write helpers ──────────────────────────────────────────────
 
-void TMC0501::readRegMasked(uint8_t* dst, int addr, const MaskInfo& m) {
+void TMC0501::readRegMasked(uint8_t* dst, int reg, const MaskInfo& m) {
     // Read only the nibbles in the masked range from RAM, zero out others
-    const auto* src = ram.readReg(addr);
+    const auto* src = ram.readReg(reg);
     memset(dst, 0, 16);
     if (src && m.start != 0xFF) {
         for (int i = static_cast<int>(m.start); i <= static_cast<int>(m.end) && i < 16; i++) {
@@ -206,27 +208,27 @@ void TMC0501::readRegMasked(uint8_t* dst, int addr, const MaskInfo& m) {
     }
 }
 
-void TMC0501::writeRegMasked(int addr, const uint8_t* src, const MaskInfo& m) {
+void TMC0501::writeRegMasked(int reg, const uint8_t* src, const MaskInfo& m) {
     // Write only the nibbles in the masked range to RAM, preserve others
-    if (m.start != 0xFF && addr < ram.size()) {
-        const auto* current = ram.readReg(addr);
+    if (m.start != 0xFF && reg < ram.size()) {
+        const auto* current = ram.readReg(reg);
         if (current) {
             uint8_t temp[16];
             memcpy(temp, current, 16);
             for (int i = static_cast<int>(m.start); i <= static_cast<int>(m.end) && i < 16; i++) {
                 temp[i] = src[i];
             }
-            ram.writeReg(addr, temp);
+            ram.writeReg(reg, temp);
         }
     }
 }
 
-void TMC0501::readScomMasked(uint8_t* dst, int addr, const MaskInfo& m) {
+void TMC0501::readScomMasked(uint8_t* dst, int reg, const MaskInfo& m) {
     // Read only the nibbles in the masked range from SCOM, zero out others
     memset(dst, 0, 16);
-    if (addr < 16 && m.start != 0xFF) {
+    if (reg < 16 && m.start != 0xFF) {
         for (int i = static_cast<int>(m.start); i <= static_cast<int>(m.end) && i < 16; i++) {
-            dst[i] = SCOM[addr][i];
+            dst[i] = SCOM[reg][i];
         }
     }
 }
@@ -273,27 +275,14 @@ void TMC0501::releaseKey(int row, int col) {
 }
 
 void TMC0501::computeDisplayTraceState(uint8_t& displayOn, uint8_t& maxDigitDecay) const {
-    std::lock_guard<std::mutex> lock(m_displayMutex);
-
-    uint8_t maxDecay = 0;
-    bool anyVisible = false;
-    for (int i = 0; i < 12; ++i) {
-        const uint8_t digitDecay = m_digitAfterglowCounters[i];
-        if (digitDecay > maxDecay) maxDecay = digitDecay;
-        if (digitDecay > 0 || m_dpAfterglowCounters[i] > 0) {
-            anyVisible = true;
-        }
-    }
-
-    displayOn = anyVisible ? 1u : 0u;
-    maxDigitDecay = maxDecay;
+    // maxDigitDecay keeps its trace slot; it now counts the positions driven.
+    displayOn = m_drivenLastRev ? 1u : 0u;
+    maxDigitDecay = static_cast<uint8_t>(std::bitset<16>(m_drivenLastRev).count());
 }
 
 uint32_t TMC0501::getPrinterBusyCycles() const {
-    // Printer busy time: 197.5ms.
-    // TI-59: (197.5ms * 455kHz) / 2 / 16 / 1000 = 2808 cycles
-    // TI-58/58C: (197.5ms * 384kHz) / 2 / 16 / 1000 = 2370 cycles
-    return hasLargeMemory(m_variant) ? 2808 : 2370;
+    // Printer busy time: 197.5 ms → TI-59 2808 cycles, TI-58/58C 2370.
+    return static_cast<uint32_t>(0.1975 * instructionHz(m_variant));
 }
 
 int TMC0501::getStepWeight() const {
@@ -302,15 +291,12 @@ int TMC0501::getStepWeight() const {
 
 // ── Display read-out ──────────────────────────────────────────────────────────
 //
-// Called by the UI thread at ~60 Hz.  Returns a stable, mutex-protected copy
-// of the last display snapshot.
-//
-// Blanking: if the CPU has been in active (non-idle) mode for 3 or more
-// consecutive digit-counter cycles, the display is blanked to mimic the
-// hardware behaviour where the LED segments go dark during computation.
-// ctrl=7 for every digit signals "blank" to the LED renderer.
+// Called by the UI thread at ~60 Hz.  Integrates what the multiplex drove
+// since the previous call into per-position duty cycles and resets the window.
+// A position that was not driven reads as dark; persistence of vision is the
+// frontend's job (Shared/DisplayPov).
 
-DisplaySnapshot TMC0501::getDisplay() const {
+DisplaySnapshot TMC0501::takeDisplay() {
     std::lock_guard<std::mutex> lock(m_displayMutex);
     // Integrate the SH-pin (C indicator) signal over the polling interval rather
     // than sampling a boolean at one instant.
@@ -329,38 +315,34 @@ DisplaySnapshot TMC0501::getDisplay() const {
     //   • brief sub-frame computations      → small but non-zero duty cycle
     //   • long computations (e.g. 1/x)     → duty cycle near 1.0
     //   • IDLE with only decimal-point bits → duty cycle = 0.0 (no false C)
-    //   • "A" blink bright phase in IDLE   → fA[14] set → duty cycle ≈ 0.25
+    //   • label-not-found blink (e.g. A on a reset calculator): IDLE with
+    //     fA[14] set during the dark phase → C alternates with "0" → duty ≈ 0.25
     const uint32_t cSteps    = m_cSteps.exchange(0, std::memory_order_relaxed);
     const uint32_t pollSteps = m_pollSteps.exchange(0, std::memory_order_relaxed);
     const float cLevel = pollSteps ? (float)cSteps / (float)pollSteps : 0.0f;
 
-    // Build snapshot from per-position decay counters and latched LED state.
+    // A poll with no cycle since the last one has nothing new to integrate.
+    if (pollSteps == 0) return m_lastDisplay;
+
+    // Per-position duty: the fraction of the interval the position was driven,
+    // ×16 because the IDLE multiplex drives each position one instruction in 16.
+    // How bright that looks (persistence of vision) is left to the frontend.
     DisplaySnapshot result;
-
-    uint16_t effectiveSuppressedMask = m_digitSuppressedMask;
+    uint16_t driven = 0;
     for (int i = 0; i < 12; ++i) {
-        const bool visible = m_digitAfterglowCounters[i] > 0;
-        if (visible) {
-            result.digits[i] = m_digitSegmentsA[i] & 0x0F;
-            result.ctrl[i]   = m_digitSegmentsB[i] & 0x0F;
-            effectiveSuppressedMask &= static_cast<uint16_t>(~(1u << i));
-        } else {
-            result.digits[i] = 0;
-            result.ctrl[i]   = 7; // blank when this position's decay reached zero
-        }
+        result.digits[i] = m_digitSegmentsA[i] & 0x0F;
+        result.ctrl[i]   = m_digitSegmentsB[i] & 0x0F;
+        result.digitDuty[i] = std::min(1.0f, 16.0f * (float)m_digitLitTicks[i] / (float)pollSteps);
+        result.dpDuty[i]    = std::min(1.0f, 16.0f * (float)m_dpLitTicks[i] / (float)pollSteps);
+        if (m_digitLitTicks[i]) driven |= static_cast<uint16_t>(1u << i);
+        m_digitLitTicks[i] = 0;
+        m_dpLitTicks[i] = 0;
     }
 
-    // Decimal point visibility is fully per-position afterglow.
-    uint16_t dpMask = 0;
-    for (int i = 0; i < 12; ++i) {
-        if (m_dpAfterglowCounters[i] > 0) dpMask |= static_cast<uint16_t>(1u << i);
-    }
-
-    result.dpPos = m_currentDpPos;
-    result.dpAfterglowMask = dpMask;
-    result.suppressedMask = effectiveSuppressedMask;
+    result.suppressedMask = m_digitSuppressedMask & static_cast<uint16_t>(~driven);
     result.calcIndicator = cLevel;
-
+    result.pollTicks = pollSteps;
+    m_lastDisplay = result;
     return result;
 }
 
@@ -548,7 +530,7 @@ int TMC0501::step() {
         postOperation();
         // TI-58C runs at constant speed; TI-59/58 slow to 1/4 speed during IDLE
         int w = getStepWeight();
-        if (tf != TRACE_NONE) [[unlikely]] { tracePostStep(tf, w); }
+        if (tf != TRACE_NONE) tracePostStep(w);
         if ((flags & FLG_IDLE) ? (fA & 0x4000u) : fA) m_cSteps.fetch_add(1, std::memory_order_relaxed);
         m_pollSteps.fetch_add(static_cast<uint32_t>(w), std::memory_order_relaxed);
         m_elapsedTicksLocal += static_cast<uint64_t>(w);
@@ -556,7 +538,8 @@ int TMC0501::step() {
         // A backward branch immediately after a KEY-scan/TST.BUSY poll means the ROM
         // is looping back to retry it — a genuine spin-wait, not just an incidental
         // poll on the way through otherwise-productive code. See step()'s doc comment.
-        if (wasHWPollLastStep && taken && backward) w |= 0x4000'0000;
+        if (wasHWPollLastStep && taken && backward) w |= kPolledHardware;
+        w |= noteStepBoundary();
         return w;
     }
 
@@ -612,12 +595,16 @@ int TMC0501::step() {
         if (kmask & (kmask - 1u)) kmask = 0;
 
         if (!(opcode & 0x0008u)) {
-            // Scan-all mode: hold and scan until digit 0 or key found.
-            // Digit 0 is the termination sentinel only — it is NOT checked for
-            // key state.  Signals wired at D0 (e.g. KP.D0 = PRN_CONNECTED) are
-            // intentionally invisible to scan-all; the ROM detects them with a
-            // dedicated test-row ?KEY executed when digit == 0.
-            if (digit && (key[digit] & kmask)) {
+            // Scan-all mode: hold and scan until a key is found or digit 0,
+            // the last row sampled. A TI-59/58 on the PC-100C has KP at D0
+            // (printer present), so its idle loop's arming scan (0657) finds
+            // "row 0" on every pass, confirms it one sweep later (065A) and
+            // discards it (0660): +2 sweeps per pass with a printer. Measured
+            // on a real TI-59 error blink: 0.899 s on the PC-100C, 0.449 s
+            // stand-alone (emulator 0.897 / 0.447 s). The TI-58C moved the
+            // line to D10, and its ROM steps around it (rom/TI58C-commented.asm
+            // at 0A25).
+            if (key[digit] & kmask) {
                 uint8_t bit = 0, m2 = kmask;
                 while (!(m2 & 1)) { bit++; m2 >>= 1; }
                 flags &= ~FLG_COND;
@@ -645,6 +632,11 @@ int TMC0501::step() {
             // *next* instruction runs at digit==0.  E.g. WAIT D1 + KEY FB
             // samples key[0] (KP.D0).  WAIT D0 (encoded 0) wraps: fires at
             // digit==15 (benign; not used meaningfully in TI-59 ROMs).
+            // It releases at the first matching digit, even on its first
+            // execution: a stand-alone TI-59's error blink (0.449 s, where the
+            // idle loop's WAITs reach their digit after 1-2 executions) allows
+            // no extra revolution. The longer blink on the PC-100C comes from
+            // the printer line at D0 (scan-all above).
             if (digit != ((opcode >> 4) & 0x000Fu)) {
                 flags |= FLG_HOLD;
             }
@@ -882,8 +874,12 @@ int TMC0501::step() {
             if ((key[digit] & (1u << 4)) || (flags & FLG_BUSY))
                 flags &= ~FLG_COND;
             // Arm "this was a hardware poll" for the *next* step() to consume — see
-            // step()'s doc comment in TMC0501.hpp.
-            m_lastStepWasHWPoll = true;
+            // step()'s doc comment in TMC0501.hpp — but not while the printer is
+            // busy. A print wait ends after m_prnBusyCycles emulated cycles, so full
+            // speed may race through it (holding the display speeds up 2nd List and
+            // other printing); the KR line it may also see on the way (the card
+            // switch is high whenever no card is in) is incidental there.
+            if ((key[digit] & (1u << 4)) && !(flags & FLG_BUSY)) m_lastStepWasHWPoll = true;
             break;
 
         case 0xC:  // MOV KR,EXT[4..15] — load KR upper bits from card/library read
@@ -981,7 +977,7 @@ int TMC0501::step() {
     }
     // TI-58C runs at constant speed; TI-59/58 slow to 1/4 speed during IDLE
     int w = getStepWeight();
-    if (tf != TRACE_NONE) [[unlikely]] { tracePostStep(tf, w); }
+    if (tf != TRACE_NONE) tracePostStep(w);
     if ((flags & FLG_IDLE) ? (fA & 0x4000u) : fA) m_cSteps.fetch_add(1, std::memory_order_relaxed);
     m_pollSteps.fetch_add(static_cast<uint32_t>(w), std::memory_order_relaxed);
     m_elapsedTicksLocal += static_cast<uint64_t>(w);
@@ -996,7 +992,14 @@ int TMC0501::step() {
         KR  &= ~static_cast<uint16_t>(0x2);
     }
 
-    return w;
+    return w | noteStepBoundary();
+}
+
+int TMC0501::noteStepBoundary() {
+    const bool atStep = addr == stepDispatchPC();
+    if (!atStep && addr != kIdleEntryPC) return 0;
+    m_stepBoundary = {snapshotCPU(), m_libExecPC, atStep, m_stepBoundary.count + 1};
+    return atStep ? kStepBoundary : 0;
 }
 
 // ── ALU opcode decoder ────────────────────────────────────────────────────────
@@ -1063,8 +1066,7 @@ void TMC0501::execALU(uint16_t opcode) {
     default: break;
     }
 
-    // SCOM constant index — built from KR bits 10:4 (7 bits total).
-    // The unusual bit arrangement mirrors the hardware's KR field layout.
+    // Constant ROM row — KR bits 4–6 and 8–11 (bit 7 is skipped).
     int constIdx = static_cast<int>(((KR >> 5) & 0x78u) | ((KR >> 4) & 0x07u));
     if (constIdx >= 64) constIdx = 0;
     const uint8_t* constPtr = m_constant[constIdx];
@@ -1274,6 +1276,8 @@ void TMC0501::setPrinterConnected(bool connected) {
     // TI-58C uses WAIT D11 + KEY FB → executes at digit 10 (KP.D10).
     // The printer connector is physically identical on both models, but the
     // TI-58C PCB routes the detection pin to a different digit-counter line.
+    // Both idle loops' scan-all sees the line as a key too, and steps around
+    // it (TI-59 0657–0660, TI-58C 0656–0659 → 0A25).
     int d = hasConstantMemory(m_variant) ? 10 : 0;
     if (connected) key[d] |=  (1u << 2);
     else           key[d] &= ~(1u << 2);
@@ -1381,11 +1385,9 @@ void TMC0501::beginNextStep() {
     }
 }
 
-static constexpr uint8_t kAfterglowRefresh = 4;
-
 void TMC0501::postOperation() {
     // ── Per-step display capture & decay ────────────────────────────────────
-    // Must run after every instruction because each cycles the digit counter (see line 462).
+    // Must run after every instruction because each cycles the digit counter (at the top of step()).
     // Strobe capture is triggered when the digit counter indicates a visible position
     // (strobeDigit 2..13); skipping any cycle would break scan-chain timing and lose
     // display updates. This ensures both branch and normal execution paths maintain
@@ -1397,7 +1399,7 @@ void TMC0501::postOperation() {
     // Per-digit strobe-latched capture: during IDLE, when each digit position
     // is active (strobeDigit ∈ [2..13]), latch the corresponding segments and DP.
     // strobeDigit must reflect the digit *after* this instruction completes.
-    // Since digit is decremented at step() entry (line 462), we compute the
+    // Since digit is decremented at step() entry, we compute the
     // "active display position" from that decremented value.
     uint8_t strobeDigit = digit ? static_cast<uint8_t>(digit - 1) : 15;
     if ((flags & FLG_IDLE) && strobeDigit >= 2 && strobeDigit <= 13) {
@@ -1406,8 +1408,6 @@ void TMC0501::postOperation() {
         const int idx = static_cast<int>(strobeDigit - 2); // display index 0..11
         const uint8_t a = static_cast<uint8_t>(A[strobeDigit] & 0x0F);
         const uint8_t b = static_cast<uint8_t>(B[strobeDigit] & 0x0F);
-
-        m_currentDpPos = R5;
 
         // Emulate zero-suppression circuit during scan: one digit decision per strobe.
         // The scan order for visible digits is 13→...→2 (idx 11→...→0), with state
@@ -1439,38 +1439,27 @@ void TMC0501::postOperation() {
         }
         m_zeroSuppressRunning = zero;
 
-        // Segment visibility for this strobe: when lit, refresh this digit's decay and
-        // latch the current glyph. When removed (suppression/blank/space), start decay.
+        // A lit strobe latches the glyph and adds this instruction's time to the
+        // position's driven time (takeDisplay turns it into a duty cycle). A
+        // suppressed or blank strobe drives nothing; the glyph stays latched.
+        const uint32_t w = static_cast<uint32_t>(getStepWeight());
         const bool emitsGlyph = (b == 0 || b == 1 || b == 5 || b == 6 || b == 8 || b == 9);
-        const bool litNow = (!suppressed && emitsGlyph);
-        const bool wasLit = m_digitLitInLastStrobe[idx];
-        if (litNow) {
+        if (!suppressed && emitsGlyph) {
             m_digitSegmentsA[idx] = a;
             m_digitSegmentsB[idx] = b;
+            m_digitLitTicks[idx] += w;
+            m_drivenThisRev |= static_cast<uint16_t>(1u << idx);
         }
-        if (litNow || wasLit) {
-            m_digitAfterglowCounters[idx] = kAfterglowRefresh;
-        }
-        m_digitLitInLastStrobe[idx] = litNow;
-
         // Decimal-point strobe: R5 indicates the currently driven dot position.
-        const bool dpLitNow = (R5 == strobeDigit);
-        const bool dpWasLit = m_dpLitInLastStrobe[idx];
-        if (dpLitNow || dpWasLit) {
-            m_dpAfterglowCounters[idx] = kAfterglowRefresh;
+        if (R5 == strobeDigit) {
+            m_dpLitTicks[idx] += w;
+            m_drivenThisRev |= static_cast<uint16_t>(1u << idx);
         }
-        m_dpLitInLastStrobe[idx] = dpLitNow;
     }
 
     if (digit == 0) {
-        std::lock_guard<std::mutex> lock(m_displayMutex);
-        // Decay once per full digit-counter cycle, unconditionally — not inside the
-        // IDLE-gated strobe block — so counters tick down during RUN mode too.
-        for (int i = 0; i < 12; ++i) {
-            if (m_digitAfterglowCounters[i] > 0) m_digitAfterglowCounters[i]--;
-            if (m_dpAfterglowCounters[i] > 0) m_dpAfterglowCounters[i]--;
-        }
-
+        m_drivenLastRev = m_drivenThisRev;
+        m_drivenThisRev = 0;
     }
 }
 
@@ -1537,7 +1526,7 @@ void TMC0501::tracePreStep(uint32_t tf, uint16_t opcode) {
 // Full state patching is deferred to beginNextStep() at the next instruction
 // boundary, where the previous frame is rewritten to post-execution state.
 
-void TMC0501::tracePostStep(uint32_t tf, int weight) {
+void TMC0501::tracePostStep(int weight) {
     std::lock_guard<std::mutex> lk(m_traceMutex);
     CpuFrame& frame = m_frameRing[m_frameHead & kFrameRingMask];
 

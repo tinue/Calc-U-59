@@ -21,69 +21,36 @@ The TI-59, TI-58, and TI-58C are Texas Instruments handheld programmable calcula
 
 ---
 
-## Component Hierarchy
+## Where the facts live
 
-```
-TI59Machine          (Core/TI59Machine.hpp/.cpp)   ← public façade
- ├─ ROM              (Core/ROM.hpp/.cpp)
- ├─ RAM              (Core/RAM.hpp/.cpp)
- └─ TMC0501          (Core/TMC0501.hpp/.cpp)        ← CPU + SCOM
-      └─ TraceTypes  (Core/TraceTypes.hpp)
-```
+Do not restate these here — read them:
 
-`TI59Machine` is the **only** public interface. Swift and CLI code call it exclusively — never touch `TMC0501` directly. All calls — including read accessors — go through `m_keyMutex` so the emulation thread and UI thread cannot race. Any new public accessor must take the lock too.
+| Topic | Document |
+|---|---|
+| Components, registers, SCOM[9] and the return stack, RAM layout, TI-58C extra registers, instruction set, `step()` pipeline and its return bits, display, keyboard/`WAIT`, card reader, CROM and `libExecPC`, PRG SOURCE flag, printer, threading/locks, trace API, variant table | `reference/CoreArchitecture.md` |
+| How the firmware uses the hardware: SCOM map, fA/fB flags, AOS, run loop, labels, subroutines, cards, printing, error sites | `rom/TI59-ROM-Guide.md` |
+| What the TI-58C ROM does differently, known core issues it exposed | `rom/TI58C-ROM-Guide.md` |
+| Fast mode; the 1F printer interrupt | `rom/fastmode.md`, `rom/printerinterrupt.md` |
+| `CpuFrame` fields, trace file format, ASM overlay, debugger semantics | `reference/DebugAPI.md` |
+| Pacing, run loop, debugger model — everything above the hardware | `reference/SharedArchitecture.md` |
 
----
-
-## Register Model
-
-- **BCD registers A–E**: 16 nibbles each (nibble 0 = LSB).
-- **SCOM**: 16×16 matrix of nibbles (`scom[row][nibble]`).
-
-### Terminology: two different "PCs"
-
-| Term | Meaning |
-|------|---------|
-| **ROM address** (CPU PC) | The 13-bit address in ROM that the TMC0501 is currently fetching/executing (0x0000–0x17FF). Internal to the CPU; never user-visible. |
-| **Calculator PC** (user step address) | The step number (0–959) of the currently selected step in the user's keystroke program. User-visible on the display; stored externally in SCOM[0] nibbles 4–7. |
-
-The two are completely independent. A single calculator step (one keycode) typically causes dozens or hundreds of ROM instructions to execute.
-
-### SCOM Key Rows
-
-| Row | Content |
-|-----|---------|
-| 0 | IO user flags (3 bits), Last key, Prg Src Flag, **RAM address**, Second ROM address, Fixed PT, **calculator PC / user step address (nibbles 4–7)** |
-| 1–8 | Hierarchy registers 1–8 (mantissa bits 15–3, exp 2–1, sign 0) |
-| 11 | T register (stack top / last-X) |
-| 13 | Pending ops count; Deg/Rad/Grad mode (nibble 0: `0`=DEG, `1`=GRAD, `C`=RAD) |
-
-### Calculator PC Encoding (SCOM[0] nibbles 4–7)
-
-The user program step address (0–959) is encoded in nibbles 4–7 of SCOM[0] and must be kept in sync on every instruction in `TMC0501::step()` before ROM code executes. Full encoding formula: `reference/CoreArchitecture.md` § "Calculator PC Encoding".
+Annotated ROM listings: `rom/TI59-commented.asm`, `rom/TI58C-commented.asm`
+(labels: `rom/*-labels.asm`; keycode sub-programs: `rom/*-keycode-programs.asm`).
 
 ---
 
-## Program Source Flag and Solid-State (CROM) Execution
+## Rules for Core changes
 
-SCOM[0] nibble 3 holds the **PRG SOURCE** flag — where the currently executing
-user program lives. Full value table: `reference/CoreArchitecture.md` §
-"PRG SOURCE flag (SCOM[0] nibble 3)".
-
-**CROM program counter** (`m_libAddr`): held in the module chip itself. `IN LIB` fetches a byte and auto-increments; `OUT LIB_PC` (called 4×, one BCD digit each) writes it; `IN LIB_PC` reads it back (used for SBR return addresses). SCOM[0]'s calculator PC is only used for RAM programs.
-
-**User-visible solid-state PC** (`m_libExecPC`, sentinel `0xFFFF` = none): latched in the `IN LIB` handler only when the fetch comes from the firmware's execution-interpreter fetch site — `0x082F` on TI-59/TI-58 (they share the same ROM), `0x0823` on TI-58C (different ROM set: CD2400/CD2401/TMC0573). Implemented as the variant-aware member `libExecFetchPC()` in `TMC0501.hpp`. Header reads (ROM 1377/137C) and label searches (1390/1394) never move it. Exposed via `TI59Machine::libExecPC()` (locked); deliberately **not** part of `CpuFrame`, to avoid a trace-format change. Reset to the sentinel on machine reset and module change.
-
-**Module image header layout**: addr 0000 = program count N, 0001 = copy-protect flag, then one 2-byte BCD start address per program, then a pointer to last-keycode+1; unused space is filled with keycode 92 (INV SBR). Label search scans byte-by-byte from the program start and never leaves the current program (labels duplicate across programs).
-
----
-
-## Machine Variants
-
-Defined in `Core/MachineVariant.hpp`: `TI59 | TI58 | TI58C`. Full comparison
-table (RAM registers, card reader, persistent RAM, ROM size) and the
-TI-58C-specific MEMWR/MEMRD opcode note: `reference/CoreArchitecture.md` §
-"Variant Differences".
+- **`TI59Machine` is the only public interface.** `Shared/` (and through it
+  Swift, Qt and the tools) calls it, never `TMC0501`.
+- **Core stays hardware-only.** File formats, run-loop pacing, key timing and
+  debugger snapshots belong in `Shared/` (calc-u-59-shared skill).
+- **Every new public accessor takes `m_keyMutex`** unless it has its own
+  synchronisation; the lock policy is the comment above `m_keyMutex` in
+  `Core/TI59Machine.hpp`.
+- **Trace format:** a new `CpuFrame` field changes the binary trace format
+  (`reference/DebugAPI.md`); avoid it where an accessor will do (as
+  `libExecPC()` does).
 
 ---
 
@@ -92,26 +59,13 @@ TI-58C-specific MEMWR/MEMRD opcode note: `reference/CoreArchitecture.md` §
 `tools/mnemonics.tsv` is the **single source of truth** for all TMC0501 instruction mnemonics.
 
 - Python tools (`disasm.py`, `read_trace.py`) read the TSV at runtime — no regeneration needed.
+- `uv run python tools/disasm.py` regenerates `rom/TI59.asm` and `rom/TI58C.asm`.
 - C++ arrays in `TMC0501.cpp` are hard-coded and must be regenerated after any TSV change:
 
 ```bash
-python3 tools/disasm.py --emit-cpp > /tmp/generated.cpp
-# Paste over the section marked "── Generated tables ──" in TMC0501.cpp (~line 1575)
+uv run python tools/disasm.py --emit-cpp > /tmp/generated.cpp
+# Paste over the section marked "── Generated tables ──" in Core/TMC0501.cpp
 ```
-
----
-
-## Trace Infrastructure (`TraceTypes.hpp`)
-
-`CpuFrame` (397 bytes) holds ROM address, opcode, registers A–E, SCOM matrix, and flags. Frames in the ring use **post-execution semantics** — `beginNextStep()` patches the previous frame's registers after each instruction. Full field list and flag constants: `reference/DebugAPI.md` § "CpuFrame fields".
-
-Python tools: `tools/read_trace.py` (parse binary → text), `tools/compare_trace.py` (find first divergence).
-
----
-
-## IDLE/SCOM Synchronization
-
-The emulator assumes the ROM always uses the correct `WAIT D1 + SET IDLE` pattern and does not model the SCOM's independent digit counter. This works for all real ROM code but cannot handle programs that deliberately misalign counters (e.g. `examples/assembly/Decoder.asm`). Full hardware background: `reference/CoreArchitecture.md` § "IDLE/SCOM Synchronization".
 
 ---
 
@@ -119,35 +73,28 @@ The emulator assumes the ROM always uses the correct `WAIT D1 + SET IDLE` patter
 
 | Tool | Purpose |
 |------|---------|
+| `tools/headless/ti59.py` | Drive the core from Python, annotated ROM trace per key (`--variant`, `--program`, `--module`); see `tools/headless/README.md` |
+| `tools/headless/coverage.py` | Which keystroke scenario runs which ROM word |
+| `tools/agentic/` | Run, time and profile `.ti59` programs headless; read `tools/agentic/README.md` first |
 | `tools/disasm.py` | ROM disassembler; `--emit-cpp` regenerates C++ mnemonic arrays |
-| `tools/read_trace.py` | Parse binary trace → text/JSON |
-| `tools/compare_trace.py` | Find divergence between two trace files |
+| `tools/annotate_rom.py` | Apply comment batches to `rom/*-commented.asm` |
+| `tools/read_trace.py` | Parse a binary trace file → text/JSON |
+| `tools/compare_trace.py` | Find the first divergence between two trace files |
 | `tools/compare_logs.py` | Align two log files on matching ROM address sequence |
-| `tools/count_disp_phases.py` | Analyze DISP ON/OFF timing from a trace |
-
----
-
-## Reference
-
-Deep architecture documentation: `reference/CoreArchitecture.md`
 
 ---
 
 ## Global Rules
 
-1. **Compile, don't run.** Use `clang++` or `xcodebuild` to iterate on syntax and type errors. Do not launch the Xcode iOS Simulator or run the built Mac app — that is the user's job. When runtime verification is needed, ask the user to launch the app and explain precisely what behaviour or output to look for.
+1. **Build both, don't run.** A `Core/` change must pass the CMake build with
+   its tests and the Xcode build (commands: CLAUDE.md § "Frontend Parity").
+   Do not launch the iOS Simulator or the built app — that is the user's job.
+   When runtime verification is needed, ask the user to launch the app and
+   say precisely what to look for. Headless runs (`tools/headless/`,
+   `tools/agentic/`) are fine.
 
-   Quick syntax check:
-   ```bash
-   clang++ -Wall -Wextra -fPIC -c Core/TMC0501.cpp -o /tmp/test.o
-   ```
-   Full build:
-   ```bash
-   xcodebuild -project Calc-U-59.xcodeproj -scheme "Calc-U-59" build
-   ```
+2. **Build on macOS.** Verify Swift-facing changes with a macOS build; build for iOS only when explicitly required (commands: `calc-u-59-swift` skill, § "Build Verification").
 
-2. **Commit often, never push.** Commit after each logical unit of work. Never run `git push`.
-
-3. **iOS and macOS both must work.** Every change must leave both platforms building. If there is any doubt, make two explicit builds before declaring the task done.
+3. **Commit often, never push.** Commit after each logical unit of work. Never run `git push`.
 
 4. **Cite your sources.** When referencing a hardware spec, standard, or external document, include the https URL (or a pointer to the local reference file) in the relevant code comment or documentation.

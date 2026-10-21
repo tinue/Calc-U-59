@@ -391,7 +391,7 @@ def _apply_color(formatted, rec, color):
     Color rules (four states):
       - IDLE=1 / DISP=ON:  light yellow (\033[93m) — display mode (genuinely active)
       - IDLE=1 / DISP=OFF: red (\033[91m) — anomaly (should not happen)
-      - IDLE=0 / DISP=ON:  dark olive (\033[38;5;100m) — afterglow fade (display fading)
+      - IDLE=0 / DISP=ON:  dark olive (\033[38;5;100m) — first digit sweep after leaving IDLE
       - IDLE=0 / DISP=OFF: white (\033[0m) — normal RUN mode (no color)
     """
     if not color:

@@ -6,8 +6,8 @@ import Combine
 /// Off-screen 80×64 pixel buffer for the ROM heatmap.
 /// Cells are only repainted when their heat step increases — steps are monotonically non-decreasing.
 private final class HeatmapRenderer: ObservableObject {
-    static let cols = 80
-    static let rows = 64
+    static let cols = TIViewRules.heatmapCols   // 80 × 64 cells: Shared/RomHeatmap.hpp
+    static let rows = TIViewRules.heatmapRows
     static let cellCount = cols * rows  // 5 120
 
     @Published private(set) var cgImage: CGImage? = nil
@@ -18,7 +18,7 @@ private final class HeatmapRenderer: ObservableObject {
         var anyChanged = false
         for addr in 0..<Self.cellCount {
             let count   = addr < hitCount.count ? hitCount[addr] : 0
-            let newStep = heatStep(count)
+            let newStep = TIViewRules.heatStep(count)
             guard newStep != cellSteps[addr] else { continue }
             cellSteps[addr] = newStep
             setPixel(addr: addr, step: newStep)
@@ -33,18 +33,8 @@ private final class HeatmapRenderer: ObservableObject {
         cgImage = makeImage()
     }
 
-    // Fixed absolute thresholds: first hit → step 1 (immediately visible, dark amber).
-    // Steps only increase — enables incremental repaint.
-    private func heatStep(_ count: UInt32) -> UInt8 {
-        switch count {
-        case 0:         return 0
-        case 1...2:     return 1
-        case 3...9:     return 2
-        case 10...49:   return 3
-        case 50...249:  return 4
-        default:        return 5
-        }
-    }
+    // Heat steps (fixed thresholds; they only grow, so repaints are incremental)
+    // and their colours come from Shared/RomHeatmap.hpp.
 
     private func setPixel(addr: Int, step: UInt8) {
         let (r, g, b) = rgb(for: step)
@@ -55,16 +45,9 @@ private final class HeatmapRenderer: ObservableObject {
         pixelBuf[base+3] = 255
     }
 
-    // Pre-computed RGB for each step (HSB → RGB: hue 0.06–0.14, sat 0.9–1.0, bri 0.35–1.0).
     private func rgb(for step: UInt8) -> (UInt8, UInt8, UInt8) {
-        switch step {
-        case 0:  return (46,  46,  46)   // dark gray  (cold)
-        case 1:  return (89,  38,   9)   // very dark amber
-        case 2:  return (140, 67,   0)   // dark amber
-        case 3:  return (191, 115,  0)   // amber
-        case 4:  return (230, 165,  0)   // light amber
-        default: return (255, 214,  0)   // bright yellow
-        }
+        let c = TIViewRules.heatColor(step)
+        return (UInt8(c >> 16 & 0xFF), UInt8(c >> 8 & 0xFF), UInt8(c & 0xFF))
     }
 
     private func makeImage() -> CGImage? {
@@ -96,24 +79,8 @@ struct CPUInspectorView: View {
     @StateObject private var heatmapRenderer = HeatmapRenderer()
     @State private var heatmapHoveredAddress: Int? = nil
 
-    // Unified instruction list — live from cpuDebugSnapshot when running, cpuInspectorHistory when frozen.
-    private var displayHistory: [EmulatorViewModel.InspectorSnapshot] {
-        if vm.isFrozen {
-            return vm.cpuInspectorHistory
-        } else {
-            let instrs = vm.cpuDebugSnapshot.recentInstructions
-            return instrs.enumerated().map { idx, instr in
-                EmulatorViewModel.InspectorSnapshot(
-                    pc: instr.pc,
-                    opcode: instr.opcode,
-                    disasm: instr.disasm,
-                    frame: instr.frame,
-                    isHistory: true,
-                    isCurrent: idx == instrs.count - 1
-                )
-            }
-        }
-    }
+    // Running: the newest instructions (the last is current); frozen: the trace ring plus the next.
+    private var displayHistory: [EmulatorViewModel.InspectorSnapshot] { vm.cpuHistory }
 
     var body: some View {
         GeometryReader { geo in
@@ -166,25 +133,25 @@ struct CPUInspectorView: View {
                                 }
                             }
                         }
-                        .onChange(of: vm.cpuInspectorUpdateID) { _, _ in
-                            // Freeze or step: auto-select and scroll to current instruction.
-                            if let currentIdx = vm.cpuInspectorHistory.firstIndex(where: { $0.isCurrent }) {
-                                selectedIndex = currentIdx
-                                withAnimation(.easeInOut(duration: 0.1)) {
-                                    proxy.scrollTo(currentIdx, anchor: .center)
+                        .onChange(of: vm.cpuHistoryUpdateID) { _, _ in
+                            if vm.isFrozen {
+                                // Freeze or step: auto-select and scroll to the current instruction.
+                                if let currentIdx = vm.cpuHistory.firstIndex(where: { $0.isCurrent }) {
+                                    selectedIndex = currentIdx
+                                    withAnimation(.easeInOut(duration: 0.1)) {
+                                        proxy.scrollTo(currentIdx, anchor: .center)
+                                    }
                                 }
+                            } else {
+                                let last = displayHistory.count - 1
+                                guard last >= 0 else { return }
+                                selectedIndex = last
+                                proxy.scrollTo(last, anchor: .bottom)
                             }
-                        }
-                        .onChange(of: vm.cpuDebugSnapshot) { _, _ in
-                            guard !vm.isFrozen else { return }
-                            let last = displayHistory.count - 1
-                            guard last >= 0 else { return }
-                            selectedIndex = last
-                            proxy.scrollTo(last, anchor: .bottom)
                         }
                         .onAppear {
                             if vm.isFrozen {
-                                if let currentIdx = vm.cpuInspectorHistory.firstIndex(where: { $0.isCurrent }) {
+                                if let currentIdx = vm.cpuHistory.firstIndex(where: { $0.isCurrent }) {
                                     selectedIndex = currentIdx
                                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                                         proxy.scrollTo(currentIdx, anchor: .center)
@@ -226,15 +193,15 @@ struct CPUInspectorView: View {
                             }
 
                             inspectorSection(title: "CONTROL REGISTERS") {
-                                let cond = (cpu.flags & 0x0800) != 0 ? 1 : 0
-                                let idle = (cpu.flags & 0x0001) != 0 ? 1 : 0
+                                let cond = TIViewRules.condFlag(cpu.flags) ? 1 : 0
+                                let idle = TIViewRules.idleFlag(cpu.flags) ? 1 : 0
                                 let postDigit = Int(cpu.postDigit)
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text("KR: \(String(format: "%04X", cpu.KR)) [\(bin16(cpu.KR))]")
+                                    Text("KR: \(TIViewRules.hexBin16(cpu.KR))")
                                         .foregroundStyle(.white.opacity(0.85))
-                                    Text("fA: \(String(format: "%04X", cpu.fA)) [\(bin16(cpu.fA))]")
+                                    Text("fA: \(TIViewRules.hexBin16(cpu.fA))")
                                         .foregroundStyle(.white.opacity(0.85))
-                                    Text("fB: \(String(format: "%04X", cpu.fB)) [\(bin16(cpu.fB))]")
+                                    Text("fB: \(TIViewRules.hexBin16(cpu.fB))")
                                         .foregroundStyle(.white.opacity(0.85))
                                     HStack(spacing: 16) {
                                         Text("SR: \(String(format: "%04X", cpu.SR))")
@@ -262,7 +229,7 @@ struct CPUInspectorView: View {
                                 let displayOn = cpu.displayOn != 0
                                 VStack(alignment: .leading, spacing: 2) {
                                     HStack(spacing: 16) {
-                                        Text("Decay: \(cpu.maxDigitDecay)")
+                                        Text("Lit: \(cpu.maxDigitDecay)")
                                             .foregroundStyle(.white.opacity(0.85))
                                         Text(displayOn ? "ON" : "OFF")
                                             .foregroundStyle(displayOn ? Color.green.opacity(0.85) : Color.red.opacity(0.7))
@@ -394,9 +361,7 @@ struct CPUInspectorView: View {
     // MARK: - Register Row
 
     private func registerDisplay(_ label: String, _ nibbles: (UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8), baseFontSize: CGFloat) -> some View {
-        let array = [nibbles.0, nibbles.1, nibbles.2, nibbles.3, nibbles.4, nibbles.5, nibbles.6, nibbles.7,
-                     nibbles.8, nibbles.9, nibbles.10, nibbles.11, nibbles.12, nibbles.13, nibbles.14, nibbles.15]
-        let nibbleString = array.reversed().map { String(format: "%X", $0) }.joined()
+        let nibbleString = TIViewRules.registerNibbles(withUnsafeBytes(of: nibbles) { Data($0) })
         return HStack(spacing: 4) {
             Text(label)
                 .font(.system(size: baseFontSize + 2, weight: .bold, design: .monospaced))
@@ -414,8 +379,7 @@ struct CPUInspectorView: View {
     // MARK: - ROM Heatmap Section
 
     private func romHeatmapSection(width: CGFloat) -> some View {
-        // Use the same isCurrent entry that highlights the instruction list row —
-        // cpuDebugSnapshot.currentPC is the *next* (pre-fetch) PC, which is one ahead.
+        // The same isCurrent entry that highlights the instruction list row.
         let currentPC = displayHistory.first(where: { $0.isCurrent }).map { Int($0.pc) } ?? -1
         let cols      = CGFloat(HeatmapRenderer.cols)
         let rows      = CGFloat(HeatmapRenderer.rows)
@@ -504,16 +468,7 @@ struct CPUInspectorView: View {
 
     // MARK: - Helpers
 
-    private func bin16(_ v: UInt16) -> String {
-        let bits = (0..<16).map { i in (v >> (15 - i)) & 1 }
-        return stride(from: 0, to: 16, by: 4)
-            .map { g in bits[g..<g+4].map { String($0) }.joined() }
-            .joined(separator: " ")
-    }
-
     private func adaptiveFontSize(width: CGFloat) -> CGFloat {
-        if width < 350 { return 9 }
-        else if width < 500 { return 11 }
-        else { return 13 }
+        TIViewRules.debugPanelFontSize(width)
     }
 }

@@ -1,0 +1,18 @@
+Calc-U-59 Card 1.0
+
+CUECARD:
+Template: MagnetCard
+Title: TEST CARD
+A: run
+
+HEADER:
+Partition: 1C
+DataType: program
+Bank: 1
+Protection: no
+Checksum: 02
+
+DATA:
+R000: 00 00 00 00 00 63 20 17
+R001: 11 22 33 44 55 66 77 88
+R029: FF EE DD CC BB AA 99 88

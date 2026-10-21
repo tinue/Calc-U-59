@@ -5,9 +5,8 @@ import SwiftUI
 struct LEDDisplayView: View, Equatable {
     let digits:    [UInt8]   // 12 elements: A[2..13]
     let ctrl:      [UInt8]   // 12 elements: B[2..13]
-    let suppressedMask: UInt16 // Bit i suppresses display index i (zero-suppression circuit from core)
-    let dpPos:     UInt8
-    let dpAfterglowMask: UInt16  // Bit (pos-2) for dp positions 2..13 that should be visible
+    let levels:    [UInt8]   // 12 elements: brightness 0…255 per position (Shared/DisplayPov)
+    let dpLevels:  [UInt8]   // 12 elements: decimal point brightness per position
     let calcIndicatorOpacity: Double
     let fontStyle: LEDFontStyle
 
@@ -16,24 +15,18 @@ struct LEDDisplayView: View, Equatable {
             let digitWidth = size.width / 12.0
             let height     = size.height
 
-            // Compute slant once, reuse for all digits
-            let slant: CGFloat = (fontStyle == .modernized) ? 0.14 : 0.1139
+            // Style parameters and segment geometry: Shared/LedGeometry.hpp.
+            let style = TIViewRules.ledStyle(fontStyle.rawValue)
+            let slant = style.slant
+            let geometry = LEDGeometry(fontStyle: fontStyle, width: digitWidth, height: height)
 
             for i in 0..<12 {
                 let x = CGFloat(11 - i) * digitWidth
                 let rect = CGRect(x: x, y: 0, width: digitWidth, height: height)
 
-                let segs: UInt8
-                let cOpacity: Double   // 1.0 for normal segments; fades for "C" afterglow
-                if i == 11 && calcIndicatorOpacity > 0 {
-                    segs = segmentsC
-                    cOpacity = calcIndicatorOpacity
-                } else {
-                    let isSuppressed = ((suppressedMask >> i) & 1) == 1
-                    let ch = isSuppressed ? DisplayChar.space : displayChar(digit: digits[i], ctrl: ctrl[i])
-                    segs = segmentMask(for: ch)
-                    cOpacity = 1.0
-                }
+                var cOpacity = 0.0     // the position's brightness, or the fading "C"
+                let segs = TISharedTables.ledCell(index: i, digit: digits[i], ctrl: ctrl[i], level: levels[i],
+                                                  calcOpacity: calcIndicatorOpacity, opacity: &cOpacity)
 
                 // Slant transform for the digit
                 var digitCtx = ctx
@@ -41,15 +34,13 @@ struct LEDDisplayView: View, Equatable {
                 // Shear: x' = x + slant * (height - y). To fix bottom, we shift right by slant*height.
                 digitCtx.concatenate(CGAffineTransform(1, 0, -slant, 1, height * slant, 0))
 
-                let digitRect = CGRect(origin: .zero, size: rect.size)
-                drawSegments(ctx: &digitCtx, rect: digitRect, segments: segs, segmentOpacity: cOpacity, fontStyle: fontStyle)
+                drawSegments(ctx: &digitCtx, geometry: geometry, style: style, segments: segs, segmentOpacity: cOpacity)
 
-                // Draw decimal point dot for all positions with active afterglow.
-                // dpAfterglowMask includes the current dpPos, so a single bit check suffices.
-                // bit i corresponds to canvas index i (dp position i+2).
-                if (dpAfterglowMask >> i) & 1 == 1 {
+                // Decimal point of this position at its own brightness.
+                if dpLevels[i] > 0 {
                     var dpCtx = ctx
-                    drawDecimalPoint(ctx: &dpCtx, rect: rect, opacity: 1.0)
+                    drawDecimalPoint(ctx: &dpCtx, rect: geometry.decimalPoint.offsetBy(dx: rect.minX, dy: rect.minY),
+                                     style: style, opacity: Double(dpLevels[i]) / 255.0)
                 }
             }
         }
@@ -58,216 +49,88 @@ struct LEDDisplayView: View, Equatable {
 
     // MARK: - Display character decode (B-register table)
 
-    enum DisplayChar: Equatable {
-        case digit(UInt8)
-        case minus
-        case degree
-        case space
-        case blank
-    }
-
-    private func displayChar(digit: UInt8, ctrl: UInt8) -> DisplayChar {
-        switch ctrl {
-        case 0, 1, 8, 9: return .digit(digit & 0xF)
-        case 2, 3, 4:     return .space   // '"', positive sign, apostrophe
-        case 5:           return digit == 0 ? .minus : .degree
-        case 6:           return .minus
-        case 7:           return .blank
-        default:          return .blank
-        }
-    }
-
-    // MARK: - 7-segment bitmasks
-    // Segments: bit 0=A(top) 1=B(upper-right) 2=C(lower-right)
-    //           3=D(bottom) 4=E(lower-left) 5=F(upper-left) 6=G(middle)
-
-    private static let digitSegments: [UInt8] = [
-        0b0111111, // 0: A B C D E F
-        0b0000110, // 1: B C
-        0b1011011, // 2: A B D E G
-        0b1001111, // 3: A B C D G
-        0b1100110, // 4: B C F G
-        0b1101101, // 5: A C D F G
-        0b1111101, // 6: A C D E F G
-        0b0000111, // 7: A B C
-        0b1111111, // 8: all
-        0b1101111, // 9: A B C D F G
-    ]
-
-    private let segmentsC: UInt8 = 0b0111001  // A F E D — "C" shape
-
-    private func segmentMask(for ch: DisplayChar) -> UInt8 {
-        switch ch {
-        case .digit(let v): return LEDDisplayView.digitSegments[Int(v) % 10]
-        case .minus:        return 0b1000000 // G only
-        case .degree:       return 0b1100011 // A B F G
-        case .space, .blank: return 0b0000000
-        }
-    }
+    // Segment patterns (bit 0=A top … 6=G middle) come from
+    // Shared/SevenSegment.hpp — never from a font.
 
     // MARK: - Drawing
 
-    // Glow effect constants
-    private static let modernizedGlowBlurMultiplier: CGFloat = 0.8
-    private static let modernizedGlowOpacityFactor: Double = 0.6
-    private static let modernizedBloomBlurMultiplier: CGFloat = 0.2
-    private static let classicGlowBlurMultiplier: CGFloat = 1.3
-    private static let classicGlowOpacityFactor: Double = 0.65
-    private static let dotRadiusMultiplier: CGFloat = 0.45
+    /// One digit cell's shapes, computed once per frame (Shared/LedGeometry.hpp).
+    private struct LEDGeometry {
+        var polygons: [Path] = []                       // modernized: segments A–G
+        var segmentWidth: CGFloat = 0
+        var dots: [(centres: [CGPoint], radius: CGFloat)] = []   // classic: segments A–G
+        var decimalPoint: CGRect
+
+        init(fontStyle: LEDFontStyle, width w: CGFloat, height h: CGFloat) {
+            decimalPoint = TIViewRules.decimalPoint(width: w, height: h)
+            if fontStyle == .classic {
+                dots = TIViewRules.classicSegments(width: w, height: h).map { seg in
+                    (seg.centres.map { $0.cgPoint }, seg.radius)
+                }
+            } else {
+                segmentWidth = TIViewRules.modernizedSegmentWidth(w)
+                polygons = TIViewRules.modernizedSegments(width: w, height: h).map { pts in
+                    var p = Path()
+                    p.addLines(pts.map { $0.cgPoint })
+                    p.closeSubpath()
+                    return p
+                }
+            }
+        }
+    }
 
     // Draw a glowing path (reusable helper for both modernized and classic styles)
-    private func drawGlowingPath(ctx: inout GraphicsContext, path: CGPath, color: Color,
+    private func drawGlowingPath(ctx: inout GraphicsContext, path: Path, color: Color,
                                 blurRadius: CGFloat, glowOpacity: Double, segmentOpacity: Double) {
         var glow = ctx
         glow.addFilter(.blur(radius: blurRadius))
-        glow.fill(Path(path), with: .color(color.opacity(glowOpacity * segmentOpacity)))
+        glow.fill(path, with: .color(color.opacity(glowOpacity * segmentOpacity)))
     }
 
-    private func drawSegments(ctx: inout GraphicsContext, rect: CGRect, segments: UInt8,
-                              segmentOpacity: Double = 1.0, fontStyle: LEDFontStyle) {
+    private func drawSegments(ctx: inout GraphicsContext, geometry: LEDGeometry, style: TILedStyle,
+                              segments: UInt8, segmentOpacity: Double) {
+        let activeColor = Color(red: style.activeR, green: style.activeG, blue: style.activeB)
+        let inactiveColor = Color(red: style.inactiveR, green: style.inactiveG, blue: style.inactiveB,
+                                  opacity: style.inactiveAlpha)
         if fontStyle == .classic {
-            drawSegmentsClassic(ctx: &ctx, rect: rect, segments: segments, segmentOpacity: segmentOpacity)
-        } else {
-            drawSegmentsModernized(ctx: &ctx, rect: rect, segments: segments, segmentOpacity: segmentOpacity)
-        }
-    }
-
-    private func drawSegmentsModernized(ctx: inout GraphicsContext, rect: CGRect, segments: UInt8, segmentOpacity: Double = 1.0) {
-        let padX = rect.width * 0.22
-        let padY = rect.height * 0.10
-        let r = rect.insetBy(dx: padX, dy: padY)
-        let sw: CGFloat = r.width * 0.14   // thinner segments
-        let gap: CGFloat = sw * 0.15
-
-        // Segment paths (A–G)
-        let hh = r.height / 2
-        let paths: [(CGPath, Int)] = [
-            (hSeg(x: r.minX + sw/2 + gap, y: r.minY,             w: r.width - sw - 2*gap, sw: sw), 0), // A top
-            (vSeg(x: r.maxX - sw,        y: r.minY + sw/2 + gap, h: hh - sw - 2*gap,      sw: sw), 1), // B upper-right
-            (vSeg(x: r.maxX - sw,        y: r.midY + sw/2 + gap, h: hh - sw - 2*gap,      sw: sw), 2), // C lower-right
-            (hSeg(x: r.minX + sw/2 + gap, y: r.maxY - sw,        w: r.width - sw - 2*gap, sw: sw), 3), // D bottom
-            (vSeg(x: r.minX,             y: r.midY + sw/2 + gap, h: hh - sw - 2*gap,      sw: sw), 4), // E lower-left
-            (vSeg(x: r.minX,             y: r.minY + sw/2 + gap, h: hh - sw - 2*gap,      sw: sw), 5), // F upper-left
-            (hSeg(x: r.minX + sw/2 + gap, y: r.midY - sw/2,      w: r.width - sw - 2*gap, sw: sw), 6), // G middle
-        ]
-
-        let activeColor = Color(red: 1.0, green: 0.1, blue: 0.1)
-        let inactiveColor = Color(red: 0.2, green: 0.0, blue: 0.0, opacity: 0.2)
-
-        for (path, bit) in paths {
-            let active = (segments >> bit) & 1 == 1
-            if active {
-                drawGlowingPath(ctx: &ctx, path: path, color: activeColor, blurRadius: sw * Self.modernizedGlowBlurMultiplier, glowOpacity: Self.modernizedGlowOpacityFactor, segmentOpacity: segmentOpacity)
-                drawGlowingPath(ctx: &ctx, path: path, color: activeColor, blurRadius: sw * Self.modernizedBloomBlurMultiplier, glowOpacity: 1.0, segmentOpacity: segmentOpacity)
-            }
-            ctx.fill(Path(path), with: .color(active ? activeColor.opacity(segmentOpacity) : inactiveColor))
-        }
-    }
-
-    private func drawSegmentsClassic(ctx: inout GraphicsContext, rect: CGRect,
-                                     segments: UInt8, segmentOpacity: Double = 1.0) {
-        let padX = rect.width * 0.22
-        let padY = rect.height * 0.10
-        let r = rect.insetBy(dx: padX, dy: padY)
-        let sw: CGFloat = r.width * 0.16
-
-        let activeColor   = Color(red: 1.0, green: 0.2, blue: 0.2)
-        let inactiveColor = Color(red: 0.2, green: 0.0, blue: 0.0, opacity: 0.2)
-
-        let hh = r.height / 2
-        // (isHorizontal, x, y, length, bitIndex)
-        // Vertical segments define the boundaries; horizontal segments just touch them
-        let segs: [(Bool, CGFloat, CGFloat, CGFloat, Int)] = [
-            (true,  r.minX + sw,         r.minY,             r.width - 2*sw,      0), // A top
-            (false, r.maxX - sw,         r.minY,             hh,                  1), // B upper-right
-            (false, r.maxX - sw,         r.midY,             hh,                  2), // C lower-right
-            (true,  r.minX + sw,         r.maxY - sw,        r.width - 2*sw,      3), // D bottom
-            (false, r.minX,              r.midY,             hh,                  4), // E lower-left
-            (false, r.minX,              r.minY,             hh,                  5), // F upper-left
-            (true,  r.minX + sw,         r.midY - sw/2,      r.width - 2*sw,      6), // G middle
-        ]
-
-        for (isH, sx, sy, len, bit) in segs {
-            let active = (segments >> UInt8(bit)) & 1 == 1
-            let color  = active ? activeColor.opacity(segmentOpacity) : inactiveColor
-            drawDotSegment(ctx: &ctx, x: sx, y: sy, length: len, sw: sw,
-                          isHorizontal: isH, color: color, active: active, opacity: segmentOpacity)
-        }
-    }
-
-    // Draw a dot segment grid (horizontal: 2 rows × N cols; vertical: 2 cols × N rows)
-    private func drawDotSegment(ctx: inout GraphicsContext,
-                               x: CGFloat, y: CGFloat, length: CGFloat, sw: CGFloat,
-                               isHorizontal: Bool, color: Color, active: Bool, opacity: Double) {
-        let (cols, rows): (Int, Int)
-        if isHorizontal {
-            let rows2 = 2
-            let cellH = sw / CGFloat(rows2)
-            cols = max(2, Int(length / cellH))
-            rows = rows2
-        } else {
-            let cols2 = 2
-            let cellW = sw / CGFloat(cols2)
-            rows = max(2, Int(length / cellW))
-            cols = cols2
-        }
-
-        let cellW = isHorizontal ? length / CGFloat(cols) : sw / CGFloat(cols)
-        let cellH = isHorizontal ? sw / CGFloat(rows) : length / CGFloat(rows)
-        let dotR = min(cellW, cellH) * Self.dotRadiusMultiplier
-
-        for row in 0..<rows {
-            for col in 0..<cols {
-                let cx = x + (CGFloat(col) + 0.5) * cellW
-                let cy = y + (CGFloat(row) + 0.5) * cellH
-                let dotRect = CGRect(x: cx - dotR, y: cy - dotR, width: dotR*2, height: dotR*2)
-                if active {
-                    drawGlowingPath(ctx: &ctx, path: CGPath(ellipseIn: dotRect, transform: nil), color: color, blurRadius: dotR * Self.classicGlowBlurMultiplier, glowOpacity: Self.classicGlowOpacityFactor, segmentOpacity: opacity)
+            // Classic: each segment a grid of dots, each dot with its own glow.
+            for (bit, seg) in geometry.dots.enumerated() {
+                let active = (segments >> UInt8(bit)) & 1 == 1
+                let color = active ? activeColor.opacity(segmentOpacity) : inactiveColor
+                for c in seg.centres {
+                    let dot = Path(ellipseIn: CGRect(x: c.x - seg.radius, y: c.y - seg.radius,
+                                                     width: seg.radius * 2, height: seg.radius * 2))
+                    if active {
+                        drawGlowingPath(ctx: &ctx, path: dot, color: color, blurRadius: seg.radius * style.glowBlurPerWidth,
+                                        glowOpacity: style.glowOpacity, segmentOpacity: segmentOpacity)
+                    }
+                    ctx.fill(dot, with: .color(color))
                 }
-                ctx.fill(Path(ellipseIn: dotRect), with: .color(color))
+            }
+        } else {
+            // Modernized: hexagonal segments with a glow and a tighter bloom.
+            let sw = geometry.segmentWidth
+            for (bit, path) in geometry.polygons.enumerated() {
+                let active = (segments >> bit) & 1 == 1
+                if active {
+                    drawGlowingPath(ctx: &ctx, path: path, color: activeColor, blurRadius: sw * style.glowBlurPerWidth,
+                                    glowOpacity: style.glowOpacity, segmentOpacity: segmentOpacity)
+                    drawGlowingPath(ctx: &ctx, path: path, color: activeColor, blurRadius: sw * style.bloomBlurPerWidth,
+                                    glowOpacity: 1.0, segmentOpacity: segmentOpacity)
+                }
+                ctx.fill(path, with: .color(active ? activeColor.opacity(segmentOpacity) : inactiveColor))
             }
         }
     }
 
-    private func drawDecimalPoint(ctx: inout GraphicsContext, rect: CGRect, opacity: Double = 1.0) {
-        let dotSize: CGFloat = rect.height * 0.13
-        let dotRect = CGRect(x: rect.maxX - dotSize * 1.1,
-                             y: rect.maxY - dotSize * 1.4,
-                             width: dotSize, height: dotSize)
-
+    private func drawDecimalPoint(ctx: inout GraphicsContext, rect: CGRect, style: TILedStyle, opacity: Double) {
+        // The decimal point glows with the modernized parameters in both styles.
         let activeColor = Color(red: 1.0, green: 0.1, blue: 0.1)
-
-        let path = CGPath(ellipseIn: dotRect, transform: nil)
-        drawGlowingPath(ctx: &ctx, path: path, color: activeColor, blurRadius: dotSize * Self.modernizedGlowBlurMultiplier, glowOpacity: Self.modernizedGlowOpacityFactor, segmentOpacity: opacity)
-        ctx.fill(Path(ellipseIn: dotRect), with: .color(activeColor.opacity(opacity)))
-    }
-
-    // MARK: - Path helpers (hexagonal chamfered segments)
-
-    private func hSeg(x: CGFloat, y: CGFloat, w: CGFloat, sw: CGFloat) -> CGPath {
-        let c = sw * 0.5
-        let p = CGMutablePath()
-        p.move(to:    CGPoint(x: x + c,     y: y))
-        p.addLine(to: CGPoint(x: x + w - c, y: y))
-        p.addLine(to: CGPoint(x: x + w,     y: y + sw/2))
-        p.addLine(to: CGPoint(x: x + w - c, y: y + sw))
-        p.addLine(to: CGPoint(x: x + c,     y: y + sw))
-        p.addLine(to: CGPoint(x: x,         y: y + sw/2))
-        p.closeSubpath()
-        return p
-    }
-
-    private func vSeg(x: CGFloat, y: CGFloat, h: CGFloat, sw: CGFloat) -> CGPath {
-        let c = sw * 0.5
-        let p = CGMutablePath()
-        p.move(to:    CGPoint(x: x + sw/2, y: y))
-        p.addLine(to: CGPoint(x: x + sw,   y: y + c))
-        p.addLine(to: CGPoint(x: x + sw,   y: y + h - c))
-        p.addLine(to: CGPoint(x: x + sw/2, y: y + h))
-        p.addLine(to: CGPoint(x: x,        y: y + h - c))
-        p.addLine(to: CGPoint(x: x,        y: y + c))
-        p.closeSubpath()
-        return p
+        let path = Path(ellipseIn: rect)
+        drawGlowingPath(ctx: &ctx, path: path, color: activeColor,
+                        blurRadius: rect.width * TIViewRules.decimalGlowBlurPerDiameter,
+                        glowOpacity: TIViewRules.decimalGlowOpacity, segmentOpacity: opacity)
+        ctx.fill(path, with: .color(activeColor.opacity(opacity)))
     }
 }
 
@@ -275,11 +138,20 @@ struct LEDDisplayView: View, Equatable {
     LEDDisplayView(
         digits:        [8,8,8,8,8,8,8,8,8,8,8,8],
         ctrl:          [0,0,0,0,0,0,0,0,0,0,0,0],
-        suppressedMask: 0,
-        dpPos:         4,
-        dpAfterglowMask: 0b0000_0000_0000_1100,  // positions 2 & 3 lit
+        levels:        Array(repeating: 255, count: 12),
+        dpLevels:      [255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  // positions 2 & 3 lit
         calcIndicatorOpacity: 1.0,
         fontStyle:     .modernized
     )
     .frame(width: 360, height: 50)
+}
+
+private extension NSValue {
+    /// The boxed CGPoint (TIViewRules boxes points with @encode(CGPoint)); works on
+    /// macOS and iOS alike, unlike pointValue / cgPointValue.
+    var cgPoint: CGPoint {
+        var p = CGPoint.zero
+        getValue(&p, size: MemoryLayout<CGPoint>.size)
+        return p
+    }
 }

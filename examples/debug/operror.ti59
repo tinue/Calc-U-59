@@ -10,7 +10,7 @@
 # Real hardware does not show this behaviour.
 #
 # Root cause: not Op 01 itself. The REGISTERS: preset loader
-# (encodeTI59BCD in App/StateFileLoader.swift) converted the decimal literal
+# (encodeTI59BCD, then in App/StateFileLoader.swift) converted the decimal literal
 # to BCD via an iterative float digit-extraction loop (mantissa/pow, then
 # repeated subtract+multiply-by-10). That loop accumulates floating-point
 # rounding error across the 13 mantissa digits, so register 15 was actually

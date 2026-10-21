@@ -9,6 +9,36 @@
 #
 # Start the program with "A". A blinking "1" appears. Then press 7 and EE -> Calculation starts
 # The result is in register 00
+#
+# HOW IT WORKS (ROM trace, headless harness tools/headless/, 2026-10-17)
+#
+# 1. [A] runs steps 311-319. tan 45 in DEG with guard digits is 1.000000000001; squared, X is
+#    1.000000000002, held in C as the digit image 1000000000002000 (nibble 3 = the "2").
+#    The last step, St flg (319), needs a flag-digit operand at step 320, which is beyond the
+#    partition: the run halts with the error blink while the St flg sequence is still
+#    suspended waiting for its argument (fB[12] set, resume slot 00CF parked in SR).
+# 2. [7] is taken as the first flag digit by the argument collector (ROM 0x06C6).
+# 3. [EE] is a non-digit key in argument mode, so it terminates the argument the normal way
+#    (as in "5 STO 3 +", which stores into R03 and then executes +): its keycode 52 is
+#    encoded (KEY_ENCODE 0x0788) and parked in SCOM[0] nibbles 1-2 with fB[14] = "key
+#    pending" (0x0783-0x07AB), and St flg resumes. But KEY_ENCODE left EE's column bit
+#    KR[9] in KR, and the St flg continuation (0x04B4 -> 0x0276) builds its 0x0B10-bank
+#    dispatch address by OR-ing bits into KR: it lands on 0x0B34 (inside the ln finish code)
+#    instead of 0x0B14 (FLAG_OP). The stray path re-arms argument mode, and the pending EE is
+#    re-executed (pre-idle 0x0620 -> 0x04F6 -> STEP_DISPATCH). Through a second offset
+#    dispatch it ends in the HIR STO code (0x11D9-0x11DD, "store X into hierarchy register
+#    SCOM[m]") with m = D[0] = 0 — effectively HIR STO 0: X's digit image is written
+#    verbatim into SCOM[0].
+# 4. SCOM[0] = 1000000000002000: step counter 000 (nibbles 4-7), Prg Src Flag 2 (nibble 3),
+#    user flag 4 (nibble 15). The RAM program runs, but because the source flag is non-zero
+#    the run loop treats it like a keycode sub-program (0x07C9 -> 0x08AE): no display rebuild,
+#    no R/S / GTO polls between steps. Measured: 350k vs 600k instruction cycles for this
+#    program (normal mode ~70% slower). With X = 1.000000000004 (Prg Src 4) it works the same;
+#    1 or 3 (library bit) and 8 (keycode-table bit) do not.
+# 5. The run ends at the program's own RST/R/S; R/S cannot interrupt fast mode.
+# 6. The comment at step 008 below is TI PPC folklore: Dsz loops to an absolute address
+#    work in fast mode. Only transfers to a label (and SBR) fail, because the ROM then
+#    searches the module. Full list: rom/fastmode.md § "Rules for fast-mode programs".
 
 PARTITION: 319.79
 

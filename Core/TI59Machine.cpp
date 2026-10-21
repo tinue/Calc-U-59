@@ -12,10 +12,12 @@ TI59Machine::TI59Machine(MachineVariant variant)
     }
     m_cpu.setMachineVariant(variant);
     // Card switch (bit 4): pressed = card absent (normal startup state).
-    // TI-59: digit-counter slot 10, the real card-detect switch. TI-58/58C
-    // have no card reader; asserting slot 7 — the line the ROM re-polls at
-    // 0x0459 before entering card handling — keeps the firmware out of the
-    // card path. Whether real TI-58 hardware straps that line is unverified.
+    // TI-59: digit-counter slot 10, the real card-detect switch. The TI-58
+    // shares the ROM but has no reader: slot 10 stays open and a D7-KR
+    // connection vetoes the card path at 0x0459 instead (Sladký, HW guide:
+    // "Reader detection: no D7-KR connection (TI-59 mode)"). The TI-58C ROM
+    // never probes slot 7; it samples slot 10 itself (0x064D), so slot 7 is
+    // harmless there.
     int col = cardSwitchCol();
     m_cpu.setCardSwitchCol(static_cast<uint8_t>(col));
     m_cpu.pressKey(4, col);
@@ -46,7 +48,7 @@ uint32_t TI59Machine::step() {
     std::lock_guard<std::mutex> lock(m_keyMutex);
     auto r = static_cast<uint32_t>(m_cpu.step());
     if (m_cpu.consumeBreakpointHit()) {
-        r |= 0x8000'0000U;
+        r |= kBreakpointHit;
     }
     return r;
 }
@@ -61,8 +63,8 @@ void TI59Machine::releaseKey(int row, int col) {
     m_cpu.releaseKey(row, col);
 }
 
-DisplaySnapshot TI59Machine::getDisplay() const {
-    return m_cpu.getDisplay();
+DisplaySnapshot TI59Machine::takeDisplay() {
+    return m_cpu.takeDisplay();
 }
 
 void TI59Machine::serialiseRAM(uint8_t* dst) const {
@@ -94,9 +96,8 @@ void TI59Machine::writeProgram(const uint8_t* keycodes, int count) {
 
 void TI59Machine::writeDataRegister(int regNum, const uint8_t* nibbles16) {
     std::lock_guard<std::mutex> lock(m_keyMutex);
-    if (regNum < 0 || regNum >= m_ram.size()) return;  // asserts vanish in release builds
-    // Data registers descend from the top of RAM: R00=RAM[size-1], R01=RAM[size-2], ...
-    m_ram.writeReg(m_ram.size() - 1 - regNum, nibbles16);
+    const int idx = dataRegRAMIndexLocked(regNum);
+    if (idx >= 0) m_ram.writeReg(idx, nibbles16);
 }
 
 int TI59Machine::partitionProgramRegs() const {
@@ -145,7 +146,7 @@ uint64_t TI59Machine::elapsedTicks() const {
 // ── Magnetic card reader ───────────────────────────────────────────────────────
 
 int TI59Machine::cardSwitchCol() const {
-    return hasLargeMemory(m_variant) ? 10 : 7;
+    return m_variant == MachineVariant::TI59 ? 10 : 7;
 }
 
 void TI59Machine::insertCard(const uint8_t* data, size_t count) {
@@ -279,23 +280,19 @@ uint32_t TI59Machine::stepN(uint32_t n, bool stopOnBreakpoint) {
 
 uint32_t TI59Machine::stepUntilNextKeycode(uint32_t maxCycles) {
     std::lock_guard<std::mutex> lock(m_keyMutex);
-    uint8_t n4 = m_cpu.scomNibble(0, 4);
-    uint8_t n5 = m_cpu.scomNibble(0, 5);
-    uint8_t n6 = m_cpu.scomNibble(0, 6);
-    uint8_t n7 = m_cpu.scomNibble(0, 7);
-    // Solid-state programs never move the SCOM[0] step counter; their
-    // per-step boundary is the library exec latch advancing instead.
-    uint16_t libPC = m_cpu.libExecPC();
     uint32_t done = 0;
     while (done < maxCycles) {
-        int w = m_cpu.step();          // returns 1 (active) or 4 (IDLE)
-        done += static_cast<uint32_t>(w);
+        int r = m_cpu.step();
+        done += static_cast<uint32_t>(r & TMC0501::kWeightMask);  // weight: 1 active, 4 IDLE
         if (m_cpu.consumeBreakpointHit()) { break; }
-        if (m_cpu.scomNibble(0, 4) != n4 || m_cpu.scomNibble(0, 5) != n5 ||
-            m_cpu.scomNibble(0, 6) != n6 || m_cpu.scomNibble(0, 7) != n7) { break; }
-        if (m_cpu.libExecPC() != libPC) { break; }
+        if (r & TMC0501::kStepBoundary) { break; }
     }
     return done;
+}
+
+TMC0501::StepBoundary TI59Machine::lastStepBoundary() const {
+    std::lock_guard<std::mutex> lock(m_keyMutex);
+    return m_cpu.lastStepBoundary();
 }
 
 uint16_t TI59Machine::pc() const {
@@ -342,9 +339,28 @@ double TI59Machine::decodeBCD(const uint8_t* n) {
 
 double TI59Machine::readDataReg(int regNum) const {
     std::lock_guard<std::mutex> lock(m_keyMutex);
-    if (regNum < 0 || regNum >= m_ram.size()) return 0.0;  // asserts vanish in release builds
-    // Data registers descend from the top of RAM: R00=RAM[size-1], R01=RAM[size-2], ...
-    return decodeBCD(m_ram.readReg(m_ram.size() - 1 - regNum));
+    const int idx = dataRegRAMIndexLocked(regNum);
+    return idx >= 0 ? decodeBCD(m_ram.readReg(idx)) : 0.0;
+}
+
+int TI59Machine::dataRegCount() const {
+    std::lock_guard<std::mutex> lock(m_keyMutex);
+    return dataRegCountLocked();
+}
+
+int TI59Machine::dataRegCountLocked() const {
+    // The ROM's highest register number, BCD in SCOM[13] nibbles 5–3: 119 on
+    // the TI-59, 59 on the TI-58/58C. A TI-58C partitioned like a TI-59
+    // (examples/repartition.ti58c) has 119 too, and its R56–R59 are then the
+    // extra registers RAM 63–60. Zero before the ROM has booted.
+    const int top = m_cpu.scomNibble(13, 5) * 100 + m_cpu.scomNibble(13, 4) * 10 + m_cpu.scomNibble(13, 3);
+    if (top == 0) return hasConstantMemory(m_variant) ? 60 : m_ram.size();
+    return top + 1;
+}
+
+int TI59Machine::dataRegRAMIndexLocked(int regNum) const {
+    const int idx = dataRegCountLocked() - 1 - regNum;
+    return (regNum >= 0 && idx >= 0 && idx < m_ram.size()) ? idx : -1;
 }
 
 uint8_t TI59Machine::readProgramStep(int stepAddr) const {

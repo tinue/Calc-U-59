@@ -84,8 +84,8 @@ struct CardPickerView: View {
                 Spacer()
                 if mode == .save {
                     Button("Save") {
-                        var name = fileName.trimmingCharacters(in: .whitespacesAndNewlines)
-                        if !name.contains(".") { name += ".U59" }
+                        let name = TIFileFormats.withDefaultCardExtension(
+                            fileName.trimmingCharacters(in: .whitespacesAndNewlines))
                         onPick(directory.appendingPathComponent(name))
                         dismiss()
                     }
@@ -108,12 +108,8 @@ struct CardPickerView: View {
             options: .skipsHiddenFiles
         )) ?? []
         files = urls
-            .filter {
-                let name = $0.lastPathComponent
-                let ext = ($0.pathExtension).lowercased()
-                return !name.hasSuffix(".icloud") && (ext == "u59" || ext == "bin")
-            }
             .map { $0.lastPathComponent }
+            .filter { TIFileFormats.isCardFileName($0) }
             .sorted()
     }
 }

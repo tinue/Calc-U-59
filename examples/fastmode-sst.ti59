@@ -1,0 +1,109 @@
+# fastmode-sst.ti59
+#
+# The shortest known way into the TI-59 "fast mode", found by tracing the ROM
+# with the headless harness (tools/headless/, 2026-10-17). Compare
+# examples/fastmode.ti59 (the St flg trick of TI PPC Notes V9N3P5) and
+# examples/calendar-08-acosta.ti59 (the "hi2" entry); rom/TI59-ROM-Guide.md
+# § "Fast mode" explains all known entry methods side by side.
+#
+# The program computes 69! into R00, the same job as examples/fastmode.ti59.
+# Loading the file runs the entry sequence automatically (KEYSTROKES below).
+# By hand:
+#
+#   1 + 2 EE 12 +/- =    X := 1.000000000002 exactly
+#   GTO 007              position at the St flg step
+#   SST                  execute St flg: its flag operand is now pending
+#   0                    any digit: the first of the two operand digits
+#   STO                  any column-2 key (STO, EE, x<>t, INV, B) ends it
+#
+# The calculation starts at once in fast mode and stops showing 69!
+# (1.7112245 98). For comparison, normal mode: GTO 008 R/S takes about 75%
+# longer (headless measurement: 298k vs 518k instruction cycles).
+#
+# HOW IT WORKS
+#
+# 1. SST executes the St flg at step 007. Inside a program an operand is fed
+#    as two digit keys, so St flg now waits for two digits.
+# 2. The typed digit is the first. STO, a non-digit key, ends the argument
+#    early. Its key-encode (ROM 0x0788) leaves STO's column bit (column 2) in
+#    KR. St flg's continuation ORs bits into KR to build its dispatch
+#    address, so it lands at 0x0B34 instead of FLAG_OP (0x0B14). From there a
+#    second offset dispatch ends in the HIR STO code (0x11D9) with register
+#    0, which writes X's digit image into SCOM[0]. Any digit works, and only
+#    the five column-2 keys do (tested for every key).
+# 3. X = 1.000000000002 has the image 1000000000002000. Its nibble 3 becomes
+#    the Prg Src Flag (2) and nibbles 4-7 the step counter (000). The
+#    nibble-15 "1" also sets user flag 4. A non-zero source flag makes the
+#    run loop skip the display rebuild and the R/S and GTO polls. The value
+#    2 selects neither the module (bit 0) nor the constant-ROM table
+#    (bit 3), so the steps are still fetched from RAM.
+# 4. The jump to step 000 does not reload the program-register cache
+#    (SCOM[10]). Steps 001-007 therefore execute as 00 from the drained
+#    cache, and the program proper starts at step 008. That is why St flg
+#    sits at the last byte of a register (step 8k+7) and steps 000-006 are
+#    left empty.
+# 5. Fast mode ends at the RST at step 031, which clears the step counter and
+#    the Prg Src Flag. The program then continues in normal mode at step 000:
+#    RCL 00, R/S. Steps 000-002 are free for this because on entry the run
+#    starts at 001 and 001-007 come from the drained cache.
+#    Two traps when leaving fast mode, both because it skips the display
+#    formatter (DISP_FORMAT): a plain R/S stops with the source flag still 2
+#    and the display stays dark, even after CLR. RCL 00 RST (recalling the
+#    result while still in fast mode) leaves an unformatted display image
+#    that makes the redisplay after RST loop forever (ROM 0x030A-0x030E).
+#    examples/fastmode.ti59 avoids the second trap with CLR +/- RST.
+#
+# Unlike examples/fastmode.ti59 no partition-end halt is needed. Unlike the
+# Acosta calendar no pseudo-keycode has to be manufactured. A program cannot
+# trigger this on its own: a sweep of all 10,000 "St flg kk kk" programs
+# found none that works, because stored operands always arrive as two
+# decimal digits.
+
+MODEL: TI-59
+
+PROGRAM:
+000  43 RCL     # reached through the RST at step 031, in normal mode again:
+001  00  00     # show the result …
+002  91 R/S     # … and stop. (On entry steps 001-007 run from the drained cache.)
+007  86 STF     # the entry trigger; its operand is supplied from the keyboard
+008  25 CLR     # fast-mode program starts here
+009  00  0
+010  32 X<>T    # t := 0
+011  06  6
+012  09  9
+013  42 STO
+014  00  00     # R00 := 69 (product)
+015  42 STO
+016  01  01     # R01 := 69 (counter)
+017  01  1      # loop: counter - 1
+018  94 +/-
+019  44 SUM
+020  01  01
+021  43 RCL
+022  01  01
+023  67 EQ      # counter = 0 → done (step 031)
+024  00  00
+025  31  31
+026  49 PRD
+027  00  00     # R00 *= counter
+028  61 GTO
+029  00  00
+030  17  17     # → step 017
+031  81 RST     # leave fast mode (Prg Src Flag 0) and go to step 000
+
+KEYSTROKES:
+82          # 1
+85          # +
+83          # 2
+52          # EE
+82          # 1
+83          # 2
+94          # +/-
+95          # =      X = 1.000000000002
+61          # GTO
+92          # 0
+92          # 0
+62          # 7      → step 007
+41          # SST    St flg executes, operand pending
+92          # 0      first operand digit
+42          # STO    column-2 key: fast mode starts

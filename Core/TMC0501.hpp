@@ -32,11 +32,14 @@ struct PrinterCodeLine {
 struct DisplaySnapshot {
     uint8_t  digits[12]{};        ///< A[2..13] — BCD digit values (0–9, A–F)
     uint8_t  ctrl[12]{};          ///< B[2..13] — display-control nibbles (select digit vs. minus/degree/blank)
-    uint8_t  dpPos{0};            ///< R5 — decimal-point position within the mantissa (0 = none, 2–13 valid)
-    uint16_t dpAfterglowMask{0};  ///< Bitmask of dp positions with active afterglow: bit (pos-2) for positions 2..13.
-                                  ///< Includes the current dpPos plus any recently-vacated positions still glowing.
-                                  ///< Zero when no afterglow counter is active.
-    uint16_t suppressedMask{0};   ///< Zero-suppression circuit output: bit i suppresses digit index i (0..11).
+    uint16_t suppressedMask{0};   ///< Zero-suppression circuit output for positions not driven this interval (bit i = index i)
+    /// Fraction of the poll interval each position (index 0..11 = position 2..13) was
+    /// driven, normalised so a steadily multiplexed IDLE display reads 1.0 (each
+    /// position is strobed one instruction in 16). 0 = not driven at all. digits/ctrl
+    /// hold the glyph of the position's last driven strobe, also when its duty is 0.
+    float    digitDuty[12]{};
+    float    dpDuty[12]{};        ///< Same for the decimal point of each position.
+    uint32_t pollTicks{0};        ///< Weighted cycles the interval covered (time = pollTicks / instruction rate).
     float    calcIndicator{0.0f}; ///< fraction of the last poll interval where C LED was driven:
                                   ///<   RUN mode: any fA≠0; IDLE mode: fA bit 14 (SH pin, per HW guide). (0.0–1.0)
 };
@@ -96,8 +99,8 @@ enum : uint16_t {
 //
 // Clock: TI-59: 455 kHz oscillator ÷ 2 (two-phase) ÷ 16 (digit-serial cycle)
 //        ≈ 14,219 instructions/sec in active mode; ÷4 further in idle mode.
-//        TI-58/58C: 384 kHz oscillator ÷ 2 ÷ 16 ≈ 12,000 instructions/sec
-//        (TI-58C runs at constant speed, no idle divisor).
+//        TI-58/58C: 384 kHz oscillator ÷ 2 ÷ 16 = 12,000 instructions/sec
+//        (TI-58C: constant speed, no idle divisor). See resonatorHz().
 
 class TMC0501 {
 public:
@@ -111,16 +114,19 @@ public:
     /// Execute one instruction at the current program counter.
     ///
     /// Returns the cycle weight of this instruction for emulation pacing in the
-    /// low bits:
+    /// low bits (kWeightMask):
     ///   1 — normal instruction (active / computing mode)
     ///   4 — normal instruction while FLG_IDLE is set (idle/display mode runs
     ///       at 1/4 clock speed, matching the hardware's power-saving divider)
     ///
-    /// Bit 0x4000'0000 is set on a backward branch that retries a KEY-scan or
+    /// Bit kPolledHardware is set on a backward branch that retries a KEY-scan or
     /// TST.BUSY hardware poll (opcode 0x08xx, or TST BUSY: opcode & 0x0F0F ==
     /// 0x0A0B) executed the instruction immediately before it — i.e. a genuine
     /// ROM spin-wait on state whose real-world completion time doesn't depend on
-    /// CPU speed (a key release, a fixed-duration print step). Deliberately NOT
+    /// CPU speed (a key release, the card switch). A TST.BUSY retry counts only
+    /// when the KR line is active and the printer is not busy: a print wait is
+    /// timed in emulated cycles (m_prnBusyCycles), so full speed shortens it.
+    /// Deliberately NOT
     /// set on every occurrence of these opcodes — most executions fall through
     /// (poll succeeded) as part of otherwise-productive code and don't need
     /// throttling; only a confirmed retry does. The ROM re-implements this
@@ -130,8 +136,25 @@ public:
     /// regardless of PC, or an unthrottled batch can spin through hundreds of
     /// thousands of iterations waiting for an event a real CPU would only need
     /// a handful of polls to observe.
-    /// TI59Machine::step() ORs in a separate bit, 0x8000'0000, for "breakpoint hit".
+    /// Bit kStepBoundary (0x2000'0000) is set when the next instruction is the
+    /// interpreter's step dispatch (stepDispatchPC()): a program step boundary.
+    /// The CPU state there is latched (lastStepBoundary()), and also on entry to
+    /// the idle loop (kIdleEntryPC, no bit): the calculator-level boundaries.
+    /// TI59Machine::step() ORs in a separate bit, kBreakpointHit, for "breakpoint hit".
     int step();
+    static constexpr int kWeightMask = 0xFF;
+    static constexpr int kStepBoundary = 0x2000'0000;
+    static constexpr int kPolledHardware = 0x4000'0000;
+
+    /// The CPU state at the last step boundary or idle entry, with the module
+    /// fetch latch of that moment and a count of boundaries (0 = none since reset).
+    struct StepBoundary {
+        CpuFrame cpu;
+        uint16_t libExecPC;
+        bool atStep;        ///< false: idle entry
+        uint64_t count;
+    };
+    const StepBoundary& lastStepBoundary() const { return m_stepBoundary; }
 
     /// Press / release a key by hardware matrix coordinates.
     /// row = K-line bit index (KO=1 KP=2 KQ=3 KS=5 KT=6)
@@ -224,13 +247,12 @@ public:
     bool runDebugInjectedProgram(uint16_t startAddr, uint32_t maxSteps,
                                  uint32_t* outSteps);
 
-    /// Return the last stable display snapshot.
-    /// The snapshot is captured on every SET IDLE when the digit counter
-    /// reaches 0.  If the CPU has been active (not idling) for 3+ consecutive
-    /// digit-counter cycles the display is blanked — matching the hardware
-    /// behaviour where the LEDs go dark during heavy computation.
-    /// calcIndicator is true whenever the CPU is not in IDLE/display mode.
-    DisplaySnapshot getDisplay() const;
+    /// Display state integrated since the previous call: the latched digit
+    /// and control codes, each position's driven duty cycle (how bright it
+    /// looks is left to the frontend) and the C indicator's duty cycle.
+    /// Resets the integration window, so a core has one display consumer
+    /// (FrameSampler, ~60 Hz on the UI thread).
+    DisplaySnapshot takeDisplay();
 
     uint16_t pc()       const { return addr; }
     uint16_t cpuFlags() const { return flags; }
@@ -241,6 +263,20 @@ public:
     /// Unlike m_libAddr, this is NOT disturbed by header reads or label
     /// searches — see the IN LIB handler for the latch rule.
     uint16_t libExecPC() const { return m_libExecPC; }
+
+    /// ROM address of STEP_DISPATCH, where the interpreter executes the keycode
+    /// it has just fetched — once per program byte (operands included), for RAM,
+    /// module and constant-ROM keycode programs alike. Here the step counter (or
+    /// the module fetch latch) names the step about to run, the previous step is
+    /// complete, and X is back in A/C (rom/TI59-commented.asm 0837; the TI-58C
+    /// ROM has it at 082B, 8 words after its LIB_EXEC_FETCH like the TI-59's).
+    uint16_t stepDispatchPC() const { return libExecFetchPC() + 8; }
+
+    /// Where the ROM falls into the idle loop once nothing runs: after every
+    /// keyboard operation and when a program stops (the "program running?" test
+    /// at 0622/0623 branches to the run loop instead). Same address in both ROMs;
+    /// the loop itself returns to 0627, never here (rom/TI59-commented.asm 0624).
+    static constexpr uint16_t kIdleEntryPC = 0x0624;
 
     static constexpr uint16_t kLibExecPCNone = 0xFFFF;
 
@@ -263,10 +299,10 @@ public:
 
     /// Read a ROM keycode (PRG SOURCE = 8) by address 0–383.
     /// Returns 0 for out-of-range addresses.
-    uint8_t romKeycode(int addr) const {
-        if (addr < 0 || addr >= 384) return 0;
-        int row = 16 + (addr / 8);
-        int offset = (addr % 8) * 2;
+    uint8_t romKeycode(int index) const {
+        if (index < 0 || index >= 384) return 0;
+        int row = 16 + (index / 8);
+        int offset = (index % 8) * 2;
         uint8_t units = m_constant[row][offset];
         uint8_t tens = m_constant[row][offset + 1];
         return static_cast<uint8_t>((tens * 10) + units);
@@ -331,7 +367,7 @@ private:
     // program byte (keycodes and operands) from this site; module header reads
     // and label searches use different IN LIB sites that we deliberately
     // ignore.  Verified by execution trace per ROM variant (see
-    // reference/CPU_SCOM_Interconnect.md; module layout per
+    // reference/CoreArchitecture.md § "PRG SOURCE flag"; module layout per
     // https://www.datamath.org/Chips/TMC0540.htm).  TI-58 shares the TI-59
     // ROM; TI-58C uses a different ROM set (CD2400/CD2401/TMC0573) where
     // the interpreter loop lives at a different address.
@@ -374,27 +410,25 @@ private:
 
     // ── Display state (shared between CPU thread and UI thread) ───────
     // Per-digit live buffers: updated during each digit's strobe phase when IDLE.
-    // getDisplay() reads these directly at query time (no stale batch snapshot).
+    // takeDisplay() reports the duty since its previous call and restarts the window.
     // IMPORTANT: All access to display state members (below) must be guarded by
     // m_displayMutex. Updated exclusively by postOperation() (CPU thread), read only
-    // by getDisplay() (UI thread, ~60 Hz) and computeDisplayTraceState() (CPU thread).
+    // by takeDisplay() (UI thread, ~60 Hz).
     mutable std::mutex m_displayMutex;
     uint8_t  m_digitSegmentsA[12]{};  // A[2..13] → m_digitSegmentsA[0..11] per strobe (CPU thread write, UI thread read)
     uint8_t  m_digitSegmentsB[12]{};  // B[2..13] → m_digitSegmentsB[0..11] per strobe (CPU thread write, UI thread read)
-    uint8_t  m_digitAfterglowCounters[12]{}; // Digit (segment) afterglow counter per position.
-                                             // counter[i] → position (i+2); decrement each digit==0 cycle.
-                                             // Seeded when the position is actively driven (not suppressed) during IDLE scan.
-    uint8_t  m_dpAfterglowCounters[12]{};    // Decimal-point afterglow counter per position.
-                                             // Seeded only when R5 matches the currently strobed position.
-    bool     m_digitLitInLastStrobe[12]{};   // Per-position segment lit state from previous strobe.
-    bool     m_dpLitInLastStrobe[12]{};      // Per-position decimal-point lit state from previous strobe.
-    uint8_t  m_currentDpPos{0};       // Live R5 DP position (updated per strobe capture)
+    uint32_t m_digitLitTicks[12]{};   // Weighted cycles each position was driven since the last takeDisplay().
+    uint32_t m_dpLitTicks[12]{};  // Same for each position's decimal point.
+    DisplaySnapshot m_lastDisplay{};  // Returned again when no cycle ran since the last poll.
     uint16_t m_digitSuppressedMask{0}; // Zero-suppression circuit output bitmask for indices 0..11.
     bool     m_zeroSuppressRunning{true}; // Scan-chain running state for leading-zero suppression.
+    // CPU thread only (postOperation, computeDisplayTraceState): no lock.
+    uint16_t m_drivenThisRev{0};      // Positions driven (digit or dot) in the current digit-counter revolution.
+    uint16_t m_drivenLastRev{0};      // … and in the last complete one (trace display state).
 
 
-    mutable std::atomic<uint32_t> m_cSteps{0};          // Steps (IDLE or non-IDLE) where fA≠0 since last getDisplay().
-    mutable std::atomic<uint32_t> m_pollSteps{0};       // Weighted step count since last getDisplay() (non-IDLE=1, IDLE=4).
+    std::atomic<uint32_t> m_cSteps{0};          // Steps (IDLE or non-IDLE) where fA≠0 since last takeDisplay().
+    std::atomic<uint32_t> m_pollSteps{0};       // Weighted step count since last takeDisplay() (non-IDLE=1, IDLE=4).
     mutable std::atomic<uint64_t> m_elapsedTicks{0};    // Weighted step count since last reset(); never drained (see elapsedTicks()).
     uint64_t m_elapsedTicksLocal{0};    // Non-atomic running total, owned by the stepping thread; mirrored into m_elapsedTicks via store (cheaper than fetch_add on every step()).
 
@@ -407,7 +441,11 @@ private:
     // ── Debug event log ───────────────────────────────────────────────
     uint8_t m_debugLevel{0};
     std::vector<DebugEvent> m_debugEvents;
-    void emitDebug(uint8_t level, const char* fmt, ...) __attribute__((format(printf, 3, 4)));
+    void emitDebug(uint8_t level, const char* fmt, ...)
+#if defined(__GNUC__) || defined(__clang__)
+        __attribute__((format(printf, 3, 4)))  // MSVC has no format-check attribute
+#endif
+        ;
 
     // ── Trace / debug state ───────────────────────────────────────────
     std::atomic<uint32_t> m_traceFlags{TRACE_NONE};
@@ -416,8 +454,12 @@ private:
 
     // Set by step() when the just-executed instruction was a KEY-scan or TST.BUSY
     // hardware poll; consumed (and cleared) by the very next step() to detect a
-    // backward branch retrying it — see step()'s 0x4000'0000 return-bit doc comment.
+    // backward branch retrying it — see step()'s kPolledHardware doc comment.
     bool m_lastStepWasHWPoll{false};
+
+    // Latched at each step boundary and idle entry (see step()).
+    StepBoundary m_stepBoundary{};
+    int noteStepBoundary();
 
     static constexpr uint32_t kFrameRingSize = 1024u;
     static constexpr uint32_t kFrameRingMask = kFrameRingSize - 1u;
@@ -432,15 +474,15 @@ private:
     bool m_breakpointHit{false};
 
     void tracePreStep(uint32_t tf, uint16_t opcode);
-    void tracePostStep(uint32_t tf, int weight);
+    void tracePostStep(int weight);
 
     // ── Helper methods for masked operations ──────────────────────────
     // Read only the nibbles specified by the field mask from RAM
-    void readRegMasked(uint8_t* dst, int addr, const MaskInfo& m);
+    void readRegMasked(uint8_t* dst, int reg, const MaskInfo& m);
     // Write only the nibbles specified by the field mask to RAM
-    void writeRegMasked(int addr, const uint8_t* src, const MaskInfo& m);
+    void writeRegMasked(int reg, const uint8_t* src, const MaskInfo& m);
     // Read only the nibbles specified by the field mask from SCOM
-    void readScomMasked(uint8_t* dst, int addr, const MaskInfo& m);
+    void readScomMasked(uint8_t* dst, int reg, const MaskInfo& m);
 
     // ── ALU support tables ────────────────────────────────────────────
 
@@ -452,17 +494,14 @@ private:
     //            start=0xFF marks an invalid/unused mask entry.
     static const MaskInfo mask_info[16];
 
-    // 64 × 16-digit BCD constant table, stored in the SCOM chip (TMC0571).
-    // Selected by KR bits 10:4 via the ADD/SUB … const ALU instructions.
+    // 64 × 16-digit constant ROM, loaded from the two ROM chips' CONST-K
+    // files (32 rows each). Selected by KR bits 4–6 and 8–11 via the
+    // ADD/SUB … const ALU instructions; the ROM walks it with INC KR.
     //
-    // Entries 0–15: mathematical constants for transcendental functions
-    //   (ln 10, ln 2, π/2, π, 180/π, and partial-product table entries used
-    //   by the CORDIC-style algorithms for sin/cos/tan/exp/ln).
-    // Entries 16–63: 6-bit keystroke display codes used in programming mode
-    //   to render key names on the LED display (e.g. SIN, STO, RCL, …).
-    //
-    // The constant is accessed by loading KR with the desired index via the
-    // INC KR chain at 0x139A–0x13A8, then using an ADD/SUB…const opcode.
+    // Rows 0–15: numeric constants of the transcendental functions
+    //   (ln 10, ln 2, π/2, π, 180/π, and the CORDIC-style partial products).
+    // Rows 16–63: the 384 keycodes of the ROM keycode sub-programs
+    //   (Σ+, x̄, P→R, D.MS, Op 11–15; PRG SOURCE 8, romKeycode()).
     uint8_t m_constant[64][16];
 
     // ALU operation selector passed to alu().
@@ -486,7 +525,8 @@ private:
     // Per-step post-execution work that must run for every instruction.
     void postOperation();
 
-    // Compute trace-facing display state from per-position afterglow counters.
+    // Trace-facing display state: whether, and how many, positions were driven
+    // in the last complete digit-counter revolution.
     void computeDisplayTraceState(uint8_t& displayOn, uint8_t& maxDigitDecay) const;
 
     uint32_t getPrinterBusyCycles() const;

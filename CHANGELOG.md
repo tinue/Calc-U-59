@@ -1,5 +1,23 @@
 # Changelog
 
+## [2.0.0] - 2026-10-21
+- **Windows and Linux** New desktop app for Windows (x64, ARM64) and Linux (x86_64, aarch64), with the Mac app's features: both LED styles, cue cards, the physical keyboard, magnetic cards, presets, the PC-100C printer and the full debugger. Cards and TI-58C memory are kept in `~/Calc-U-59`; Settings picks the folders. <!-- appstore: skip -->
+- **Web calculator** The calculator on the website now runs the same emulator as the apps and behaves exactly like them. The installable web app loads faster and updates itself when a new version is out. <!-- appstore: skip -->
+- **Accuracy** The emulator now runs at the real calculator's speed; it ran about 17% slow on the Mac. The error blink now matches a real TI-59 to within a few milliseconds: 0.9 s on the PC-100C, where the printer line slows the calculator's idle loop, and 0.45 s stand-alone, as before. The TI-58's error blink is twice as fast as before and matches a real TI-58's 0.68 s just as closely.
+- **Display** The LED display now looks the way the eye sees the real one: short computations no longer flash it dark, long ones such as sin visibly dim it, and the error blink no longer flickers. As on the real calculator, the right-hand digits of the error blink look a little dimmer.
+- **Full speed** Holding the display now also speeds up printing, e.g. a 2nd List or a calendar printout.
+- **Debugger** The CALCULATOR tab shows X, the working value, and the whole status register. STEP now advances exactly as SST does, the program cursor marks the next step as LRN does, values no longer flicker while a program runs, and fast mode shows for every mode.
+- **Examples** New `fastmode-sst.ti59`, `printer-interrupt.ti59` and `calendar-09-dispatch.ti59`, a fast-mode calendar printer faster than Acosta's 1981 program. Annotated ROM listings in `rom/` explain fast mode and the printer interrupt.
+- **License** Calc-U-59 is now free software under the GPLv3.
+- **User guide** The user guide moved to https://calc-u.org/59/, and the web calculator to https://calc-u.org/59/play/.
+
+### Fixes
+- **TI-58C** `REGISTERS:` in a state file now fills the right registers (they were four off), and a preset's cue card comes back after a restart.
+- **Calculator switch** Switching between TI-59, TI-58 and TI-58C keeps the printer setting and the LOG, and no longer carries a debugger freeze over.
+- **State Files** The first key of a KEYSTROKES script is no longer lost while the calculator is busy. A module that can't be loaded now shows an error and keeps the current one.
+- **Debugger** A trace file that can't be written or gets full now shows an alert.
+- **Printer** Copy as image keeps the full 600 dpi for printer-interrupt tapes.
+
 ## [1.7.0] - 2026-09-15
 - **Error messages** File-load error alerts now show a title that matches what actually failed (state file, card, or ASM load/save) instead of always saying "ROM load error". A state file that isn't valid UTF-8 (e.g. saved with a curly quote or em dash in a non-UTF-8 encoding) now gets a specific explanation instead of a generic "Cannot read file."
 - **State Files** New `PencilColor:` CUECARD keyword (`black` default, or `pencil`/`sharpie`) lets a CueCard or MagnetCard's title/row/label text use an ink color that contrasts against the template's printed divider lines instead of blending into them. SolidStateCard is unaffected — it always renders in its fixed printed gold.

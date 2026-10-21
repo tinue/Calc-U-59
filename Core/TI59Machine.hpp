@@ -16,15 +16,25 @@ public:
     void loadConstants(const uint8_t* data, size_t count);
     void reset();
 
-    /// Execute one CPU instruction.
+    /// Execute one CPU instruction. Returns TMC0501::step()'s weight and bits
+    /// (kStepBoundary: the next instruction is the step dispatch), plus
+    /// kBreakpointHit when a breakpoint was hit.
     uint32_t step();
+    static constexpr uint32_t kWeightMask = TMC0501::kWeightMask;
+    static constexpr uint32_t kStepBoundary = TMC0501::kStepBoundary;
+    static constexpr uint32_t kPolledHardware = TMC0501::kPolledHardware;
+    static constexpr uint32_t kBreakpointHit = 0x8000'0000u;
+
+    /// The CPU state latched at the last step boundary or idle entry (count 0: none since reset).
+    TMC0501::StepBoundary lastStepBoundary() const;
 
     /// Key input — thread-safe.
     void pressKey(int row, int col);
     void releaseKey(int row, int col);
 
-    /// Display — safe to call from any thread.
-    DisplaySnapshot getDisplay() const;
+    /// Display since the previous call — safe from any thread, but it restarts
+    /// the integration window: one consumer per machine (see TMC0501).
+    DisplaySnapshot takeDisplay();
 
     /// TI-58C persistence helpers.
     void serialiseRAM(uint8_t* dst) const;   // 120*16 bytes
@@ -34,7 +44,7 @@ public:
     /// Write keycodes[0..count-1] to program RAM starting at step 0.
     void writeProgram(const uint8_t* keycodes, int count);
 
-    /// Write 16 nibbles to RAM[partitionProgramRegs + regNum].
+    /// Write 16 nibbles to data register regNum (see dataRegCount()).
     void writeDataRegister(int regNum, const uint8_t* nibbles16);
 
     /// Current program-register count read live from SCOM[9][0] * 10.
@@ -77,6 +87,7 @@ public:
     void pressPrinterPrint(bool pressed);
     void pressPrinterAdv(bool pressed);
     void setPrinterTrace(bool enabled);
+    bool printerTrace() const { return m_printerTrace; }  ///< the TRACE latch
     void setPrinterConnected(bool connected);
     bool isPrinterConnected() const { return m_printerConnected; }
 
@@ -108,9 +119,11 @@ public:
     /// Stops early if a breakpoint is hit (when TRACE_BREAKPOINTS is set).
     uint32_t stepN(uint32_t n, bool stopOnBreakpoint = true);
 
-    /// Run until SCOM[0][4:7] changes (keycode boundary) or maxCycles cycle-equivalents
-    /// are consumed (IDLE steps count as 4, active steps count as 1).
-    /// Returns cycle-equivalents executed. Works for both RAM and master-library programs.
+    /// Run until the interpreter is about to execute the next program byte (a
+    /// step boundary, see step()), a breakpoint, or maxCycles cycle-equivalents
+    /// (IDLE steps count as 4, active steps as 1) — e.g. when the program stops.
+    /// One call per keycode, as SST: a jump completes inside the byte that
+    /// causes it. Returns cycle-equivalents executed.
     uint32_t stepUntilNextKeycode(uint32_t maxCycles = 50000);
 
     /// Current program counter (for CLI inspection between stepN calls).
@@ -123,8 +136,16 @@ public:
     /// Decode a 16-nibble TI-59 BCD register to a double.
     static double decodeBCD(const uint8_t* nibbles16);
 
-    /// Read data register regNum (0–58) decoded as double.
+    /// Read data register regNum (see dataRegCount()) decoded as double.
     double readDataReg(int regNum) const;
+
+    /// Data registers as the ROM addresses them: Rnn = RAM[dataRegCount() - 1 - nn],
+    /// descending to meet the program at the partition. 120 on the TI-59, 60 on
+    /// the TI-58/58C, where the TI-58C's 4 extra registers (H00–H03, RAM 60–63)
+    /// sit above R00 — unless the TI-58C is partitioned like a TI-59
+    /// (examples/repartition.ti58c): then it is 120 and only R56–R59 exist, on
+    /// the extra registers. Registers without RAM read 0 and ignore writes.
+    int dataRegCount() const;
 
     /// Read program step stepAddr (0–479) as 2-digit keycode (0–99).
     uint8_t readProgramStep(int stepAddr) const;
@@ -152,6 +173,8 @@ public:
     MachineVariant variant() const { return m_variant; }
 
 private:
+    int dataRegCountLocked() const;
+    int dataRegRAMIndexLocked(int regNum) const;  // -1: no RAM behind it
     MachineVariant m_variant;
     ROM            m_rom;
     RAM            m_ram;
@@ -162,7 +185,7 @@ private:
     // including the read-only accessors (snapshotCPU, readDataReg, copyRAMReg,
     // partitionProgramRegs, card getters, printerBufferContent, pc).
     // Exceptions, each with their own synchronisation:
-    //   getDisplay()                → m_displayMutex inside TMC0501
+    //   takeDisplay()               → m_displayMutex inside TMC0501
     //   drainPrinterLines/CodeLines → m_prnMutex inside TMC0501
     //   drain/readCpuFrames         → m_traceMutex inside TMC0501
     //   setTraceFlags/traceFlags    → std::atomic

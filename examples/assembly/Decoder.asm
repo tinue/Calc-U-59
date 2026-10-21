@@ -14,10 +14,10 @@ PROGRAM:
 ; an LED position it normally never would. That exposes all 16 hex segment combinations, which is
 ; exactly the test's goal.
 
-; The emulator's display on the other hand is a phase-independent snapshot taken at digit == 0
-; This copies the whole A/B register arrays unconditionally at digit 0. The phase shift from WAIT D12
-; has zero influence on which index lands in which slot. The display always shows expected content;
-; the DPT-as-digit trick is invisible.
+; The emulator on the other hand latches each position from A/B[digit] at the strobe of that same
+; digit: the CPU's digit and the display strobe share one counter, so they are always in phase.
+; The phase shift from WAIT D12 has zero influence on which index lands in which slot. The display
+; always shows expected content; the DPT-as-digit trick is invisible.
 ;
 ; The same is true for keyboard scans. Phase shifted, keys are detected wrongly, or do not even exist.
 ; Since the ROM often dispatches key presses via the scan code using the PREG mechanism, the handler for
