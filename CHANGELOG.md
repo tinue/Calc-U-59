@@ -1,6 +1,6 @@
 # Changelog
 
-## [2.0.0] - work in progress
+## [2.0.0] - 2026-10-21
 - **Windows and Linux** New desktop app for Windows (x64, ARM64) and Linux (x86_64, aarch64), with the Mac app's features: both LED styles, cue cards, the physical keyboard, magnetic cards, presets, the PC-100C printer and the full debugger. Cards and TI-58C memory are kept in `~/Calc-U-59`; Settings picks the folders. <!-- appstore: skip -->
 - **Web calculator** The calculator on the website now runs the same emulator as the apps and behaves exactly like them. The installable web app loads faster and updates itself when a new version is out. <!-- appstore: skip -->
 - **Accuracy** The emulator now runs at the real calculator's speed; it ran about 17% slow on the Mac. The error blink now matches a real TI-59 to within a few milliseconds: 0.9 s on the PC-100C, where the printer line slows the calculator's idle loop, and 0.45 s stand-alone, as before. The TI-58's error blink is twice as fast as before and matches a real TI-58's 0.68 s just as closely.
