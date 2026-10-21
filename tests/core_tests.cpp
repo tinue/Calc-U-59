@@ -92,23 +92,23 @@ TEST(ti59_error_blink_period_matches_hardware) {
     CHECK(period > 0.449 * 0.98 && period < 0.449 * 1.02);
 }
 
-// A real TI-58's error blink, filmed in a reflection (no printer): 0.684 s per
-// period over 20 periods. Every idle pass detours through the TI-58's card
-// veto (digit 7, the 0x0459 card poll): 0.681 s.
+// A real TI-58's error blink (Pavel's unit, 384.6 kHz): 0.6801 s per period
+// stand-alone, 1.2122 s on the PC-100C. Every idle pass detours through the
+// TI-58's card veto (digit 7, the 0x0459 card poll); with the printer also
+// through the KP·D0 confirmation scan. Emulated: 0.681 s and 1.215 s.
 TEST(ti58_error_blink_period_matches_hardware) {
     double period = errorBlinkPeriod(Model::TI58, false);
-    CHECK(period > 0.684 * 0.98 && period < 0.684 * 1.02);
+    CHECK(period > 0.6801 * 0.99 && period < 0.6801 * 1.01);
+    period = errorBlinkPeriod(Model::TI58, true);
+    CHECK(period > 1.2122 * 0.99 && period < 1.2122 * 1.01);
 }
 
 // The TI-58C blink counts idle passes at full speed, so its length in
 // instructions is fixed by the ROM path alone; a real unit's blink in seconds
 // gives that unit's clock, to which its other measurements are normalised.
-// One real TI-58C (no printer) measured PHI 194.7 kHz on the scope (389.4 kHz
-// resonator) and blinks 0.920 s, i.e. 11,195 instructions per period at its
-// clock. (Another unit blinks 0.896 s, as at 400 kHz.)
-TEST(ti58c_error_blink_period_matches_hardware) {
+static double ti58cErrorBlinkTicks(bool printer) {
     auto m = testroms::makeMachine(Model::TI58C);
-    m->setPrinterConnected(false);  // the filmed one had none; with it the blink is 0.70 s
+    m->setPrinterConnected(printer);
     testroms::runToScanLoop(*m, Model::TI58C);
     for (int k : {kKey0, kRecip}) testroms::tap(*m, Model::TI58C, k);
     const double hz = cu59::info(Model::TI58C).instructionHz;
@@ -129,8 +129,22 @@ TEST(ti58c_error_blink_period_matches_hardware) {
         lastLit = t;
     }
     CHECK_EQ(litStarts.size(), size_t{4});
-    const double ticks = double(litStarts[3] - litStarts[1]) / 2;
-    const double measured = 0.920 * 389400.0 / 32;
+    if (litStarts.size() < 4) return 0;
+    return double(litStarts[3] - litStarts[1]) / 2;
+}
+
+// Pavel's TI-58C measured PHI 194.7 kHz on the scope (389.4 kHz resonator) and
+// blinks 0.9185 s stand-alone, 0.7234 s on the PC-100C (faster with the
+// printer, unlike the TI-59 and TI-58). At its clock that is 11,177 and 8,803
+// instructions. (Another unit blinks 0.896 s
+// stand-alone, as at 400 kHz.)
+TEST(ti58c_error_blink_period_matches_hardware) {
+    const double unitHz = 389400.0 / 32;
+    double measured = 0.9185 * unitHz;
+    double ticks = ti58cErrorBlinkTicks(false);
+    CHECK(ticks > measured * 0.99 && ticks < measured * 1.01);
+    measured = 0.7234 * unitHz;
+    ticks = ti58cErrorBlinkTicks(true);
     CHECK(ticks > measured * 0.99 && ticks < measured * 1.01);
 }
 
