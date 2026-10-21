@@ -151,7 +151,7 @@ from here on every step takes the fast path, and the fetch still reads RAM.
 **Why the program starts at step 008.** The RAM chips transfer only whole
 registers of 16 digits. A register is either one data register or 8 program
 steps (000–007, 008–015, …). The firmware therefore copies a whole block of
-8 steps into a buffer, a shift register with the current step at the
+8 steps into a buffer (SCOM[10]), a shift register with the current step at the
 bottom. Within a block it only shifts the buffer down by one step; it reads
 memory only when the step counter moves on to the next block. Each shift
 moves an empty step (keycode 00) in at the top. Each regular jump (GTO, RST,

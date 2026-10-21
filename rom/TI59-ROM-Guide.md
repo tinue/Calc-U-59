@@ -110,16 +110,40 @@ pending operation's inverse-pair bit (see below).
 
 ## SCOM register map (as used by the firmware)
 
-| Row | Use |
-|---|---|
-| 0 | nibble 0 = Fix setting (n+2, 0 = floating); nibbles 1–2 = pending keycode (argument terminator, second operand digit, Ind of a compact code; fB[14]); nibble 3 = Prg Src Flag; nibbles 4–7 = program step (nibble 4 = byte 0–7, nibbles 5–7 = BCD register number); nibbles 11–15 = user flags (flag n = bit ⌊n/5⌋ of nibble 11 + n mod 5) |
-| 1–8 | AOS pending left operands, one per level; also the HIR hierarchy registers 1–8, and rows 5–8 hold the Op 01–04 print buffer |
-| 9 | library/partition descriptor (see `reference/CoreArchitecture.md`) |
-| 10 | current program register as a keycode shift register (current keycode in nibbles 1..0) |
-| 11 | t register |
-| 12 | AOS operator stack: 2 nibbles per entry (precedence, paren level), top entry in nibbles 1/0 |
-| 13 | nibble 0 = angle unit (0 DEG, 1 GRAD, 0xC RAD); nibble 1 = current paren level; nibble 2 = AOS depth; nibbles 3–5 = index of the top RAM register (119 TI-59, 59 TI-58), set by the power-on probe; nibbles 8–9 = program partition ÷ 10 |
-| 14, 15 | subroutine return stack (6 levels; SCOM[15] nibble 0 = depth) |
+<table class="regmap">
+<tr><th>Row</th><th>15</th><th>14</th><th>13</th><th>12</th><th>11</th><th>10</th><th>9</th><th>8</th><th>7</th><th>6</th><th>5</th><th>4</th><th>3</th><th>2</th><th>1</th><th>0</th></tr>
+<tr><th>0</th><td colspan="5" align="center">user flags 0–9</td><td></td><td></td><td></td><td colspan="3" align="center">step: register (BCD)</td><td>step: byte</td><td>Prg Src</td><td colspan="2" align="center">pending keycode</td><td>Fix</td></tr>
+<tr><th>1</th><td colspan="13" rowspan="8" align="center">mantissa<br>AOS pending operand · HIR register n<br>rows 5–8: Op 01–04 print buffer</td><td colspan="2" rowspan="8" align="center">exponent</td><td rowspan="8">signs</td></tr>
+<tr><th>2</th></tr>
+<tr><th>3</th></tr>
+<tr><th>4</th></tr>
+<tr><th>5</th></tr>
+<tr><th>6</th></tr>
+<tr><th>7</th></tr>
+<tr><th>8</th></tr>
+<tr><th>9</th><td>list data</td><td colspan="8"></td><td colspan="2" align="center">current page</td><td colspan="2" align="center">new page</td><td>security</td><td>RAM chips</td><td>partition ÷ 10</td></tr>
+<tr><th>10</th><td colspan="14" align="center">next keycodes of the program register (shifted right; 00 enters at the top)</td><td colspan="2" align="center">current keycode</td></tr>
+<tr><th>11</th><td colspan="16" align="center">t register</td></tr>
+<tr><th>12</th><td colspan="14" align="center">AOS: older pending operators, 2 nibbles each, same layout</td><td>top: precedence</td><td>top: paren level</td></tr>
+<tr><th>13</th><td>Pgm mark</td><td colspan="5"></td><td colspan="2" align="center">partition ÷ 10</td><td colspan="2"></td><td colspan="3" align="center">top RAM register</td><td>AOS depth</td><td>paren level</td><td>angle unit</td></tr>
+<tr><th>14</th><td colspan="5" align="center">return level 6</td><td colspan="5" align="center">return level 5</td><td colspan="5" align="center">return level 4</td><td></td></tr>
+<tr><th rowspan="2">15</th><td colspan="5" align="center">return level 3</td><td colspan="5" align="center">return level 2</td><td colspan="5" align="center">return level 1</td><td rowspan="2">depth</td></tr>
+<tr><td colspan="10" align="center">(every level has the layout of level 1)</td><td colspan="4" align="center">position (BCD, LSD first)</td><td>source</td></tr>
+</table>
+
+Empty cells are not used, or their use is not known.
+
+- **Row 0.** Fix = n + 2 (0 = floating). The pending keycode is an argument
+  terminator, a second operand digit or the Ind of a compact code (fB[14]).
+  Flag n is bit ⌊n/5⌋ of nibble 11 + (n mod 5). Prg Src: § "Program memory
+  and execution".
+- **Rows 1–8** use the stored number format (§ "Number formats").
+- **Row 9:** `reference/CoreArchitecture.md` § "SCOM registers".
+- **Row 12:** § "AOS".
+- **Row 13.** Angle unit 0 = DEG, 1 = GRAD, 0xC = RAD. Top RAM register is
+  the index of the highest RAM register (119 TI-59, 59 TI-58), set by the
+  power-on probe. Pgm mark: § "Solid State library".
+- **Rows 14–15:** `reference/CoreArchitecture.md` § "SCOM registers".
 
 Rows 1–8 are shared: AOS levels, HIR registers and (5–8) the Op 01–04 print
 buffer use the same storage, so deep pending arithmetic and alpha printing or
@@ -165,6 +189,41 @@ Meanings established so far; "set" means the bit is 1.
 ## AOS (algebraic operating system)
 
 Implemented at `0146–020A`; full register-level detail in the listing.
+
+**What is kept where.** `2 × ( 3 + 4 yˣ` cannot be computed while it is
+typed: each operator must wait until it is clear that nothing of higher
+precedence follows. Every waiting operation is split in two halves:
+
+- its **left operand** goes into SCOM[1]–[8], one row per level;
+- its **operator** goes onto the operator stack in SCOM[12], as a 2-digit
+  entry: precedence in the higher nibble, the paren level at the time of
+  the push in the lower one. The newest entry is always in nibbles 1/0;
+  each push shifts the row left by 2 nibbles and each pop shifts it right.
+
+SCOM[13] nibble 2 (depth) counts the pending levels: entry k from the
+bottom of SCOM[12] belongs to the operand in SCOM[k]. Nibble 1 is the
+current paren level. The precedence names the operation only up to its
+inverse: `+`/`−` are both 2, `×`/`÷` both 4, `yˣ`/INV `yˣ` both 6. Which
+one is meant is the inverse-pair bit, stored in nibble 0 of the operand row.
+
+The paren level in each entry is the fence that makes `(` work: a reduce
+only pops entries whose level equals the current one, so `+` inside the
+parenthesis never touches the `×` outside it.
+
+Trace of `2 × ( 3 + 4 yˣ 2 ) =` (`tools/headless/ti59.py`):
+
+| Key | SCOM[12] (low nibbles) | Operands | SCOM[13] nibbles 2/1 (depth, paren) |
+|---|---|---|---|
+| `×` | `40` | S1 = 2 | 1, 0 |
+| `(` | `40` | | 1, 1 |
+| `+` | `40 21` | S2 = 3 | 2, 1 |
+| `yˣ` | `40 21 61` | S3 = 4 | 3, 1 |
+| `)` | `40 21` → `40` (yˣ, then + run) | | 1, 0 |
+| `=` | empty (× runs) | | 0, 0 |
+
+`yˣ` with precedence 6 does not reduce the `+` below it (2 < 6), so both
+wait. `)` brings precedence 1, lower than both, so it pops and runs them;
+it stops at `40`, which belongs to paren level 0.
 
 - Precedences: `+ −` 2, `× ÷` 4, `y^x` (and its INV root) 6; `)` arrives
   with 1 and `=` with 0.
