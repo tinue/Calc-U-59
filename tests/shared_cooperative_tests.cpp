@@ -219,7 +219,7 @@ TEST(cooperative_runner_paces_by_the_wall_clock) {
     for (int i = 0; i < 60; ++i, t += std::chrono::microseconds(16'667)) runner.pump(t, nullptr);
     CHECK_EQ(batches, 50);  // one second of 20 ms batches
     uint64_t ticks = m->elapsedTicks() - t0;
-    CHECK(ticks >= 50u * 284u && ticks < 50u * 284u + 8u);
+    CHECK(ticks >= 50u * 284u && ticks < 50u * 284u + 142u + 8u);  // + the last batch's jitter offset
     CHECK(order == std::vector<int>{1});
     t += 5s;  // a stall: the schedule restarts instead of catching up
     runner.pump(t, nullptr);
@@ -229,6 +229,33 @@ TEST(cooperative_runner_paces_by_the_wall_clock) {
     CHECK(order == (std::vector<int>{1, 2, 3}));
     runner.pump(t + 1s, nullptr);
     CHECK_EQ(batches, 51);
+}
+
+// The TI-58's error-blink dark pass is 80 steps (through the card veto at
+// 0x0459), and a TI-58 batch 240: with fixed batches every batch ended on the
+// same instruction for the whole dark phase, and the CPU panel, which samples
+// between batches, stood still. Jittered batch ends land all over the loop
+// while the long-term rate stays exact.
+TEST(cooperative_runner_batch_ends_do_not_lock_onto_a_loop) {
+    auto m = testroms::makeMachine(Model::TI58);
+    testroms::runToScanLoop(*m, Model::TI58);
+    for (int k : {92, 35}) testroms::tap(*m, Model::TI58, k);  // 0 1/x: error blink
+    FreezeController freeze(Model::TI58);
+    EmulationRunner::Callbacks cb;
+    cb.jitterSeed = 59;
+    EmulationRunner runner(*m, Model::TI58, freeze, cb, Threading::Cooperative);
+    std::vector<uint16_t> ends;
+    runner.start();
+    auto t = Clock::time_point{} + 1h;
+    uint64_t t0 = m->elapsedTicks();
+    for (int i = 0; i < 180; ++i, t += std::chrono::microseconds(16'667))  // 3 s: a few blinks
+        runner.pump(t, [&](Clock::time_point) { ends.push_back(m->pc()); });
+    uint64_t ticks = m->elapsedTicks() - t0;
+    CHECK_EQ(ends.size(), size_t{150});
+    CHECK(ticks >= 150u * 240u && ticks < 150u * 240u + 120u + 8u);
+    size_t run = 1, longest = 1;
+    for (size_t i = 1; i < ends.size(); ++i) longest = std::max(longest, run = ends[i] == ends[i - 1] ? run + 1 : 1);
+    CHECK(longest <= 4);  // fixed batches: a whole dark phase, ~27
 }
 
 TEST(cooperative_runner_full_speed_runs_a_slice) {

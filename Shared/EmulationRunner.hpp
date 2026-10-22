@@ -34,6 +34,8 @@ public:
         std::function<void()> batchDone;                  ///< after every batch (TI-58C persist debounce)
         /// Cooperative: the clock that ends a full-speed slice (tests inject one).
         std::function<Clock::time_point()> wallClock = [] { return Clock::now(); };
+        /// Seeds the batch-end jitter (BatchJitter; tests fix it).
+        uint32_t jitterSeed = std::random_device{}();
     };
 
     /// Cooperative: how long one pump() may run batches back to back at full speed.
@@ -83,7 +85,7 @@ private:
     std::atomic<bool> m_running{false};
     std::atomic<bool> m_fullSpeed{false};
     const Threading m_threading;
-    const int32_t m_target;
+    BatchJitter m_jitter;  // emulation thread (Cooperative: pump()'s caller)
 
     // Cooperative run loop state.
     int32_t m_carry = 0;

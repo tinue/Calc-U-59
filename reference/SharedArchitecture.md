@@ -163,7 +163,13 @@ Core locking: `CoreArchitecture.md` § "Threading Model".
    batch target: the model's instruction rate × 20 ms (14,218.75 Hz → 284 on
    the TI-59; 12,000 Hz → 240 on the TI-58 and TI-58C).
    The overshoot carries into
-   the next batch, so the long-term rate stays exact.
+   the next batch, so the long-term rate stays exact. Each batch ends at a
+   random offset of 0 to half a batch past its grid point (`BatchJitter`:
+   batch n runs target + rₙ − rₙ₋₁, so the offsets never accumulate). The
+   frontends sample the CPU between batches; with fixed batches a ROM loop
+   whose length divides the target is caught at the same instruction every
+   frame — the TI-58's 80-step error-blink dark pass in 240 froze the CPU panel
+   (`cooperative_runner_batch_ends_do_not_lock_onto_a_loop`).
 2. Sleep until the batch's deadline. Deadlines are absolute, each 20 ms after
    the previous, so oversleep is paid back in the next batch. A lag over
    100 ms, or a batch that doesn't sleep, restarts the schedule. Timing

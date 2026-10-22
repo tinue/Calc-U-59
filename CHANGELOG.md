@@ -2,6 +2,9 @@
 
 ## [2.1.0] - work in progress
 
+### Fixes
+- **Debugger** The CPU tab no longer stands still during the TI-58's error blink, when the calculator runs the same short loop over and over.
+
 ## [2.0.0] - 2026-10-21
 - **Windows and Linux** New desktop app for Windows (x64, ARM64) and Linux (x86_64, aarch64), with the Mac app's features: both LED styles, cue cards, the physical keyboard, magnetic cards, presets, the PC-100C printer and the full debugger. Cards and TI-58C memory are kept in `~/Calc-U-59`; Settings picks the folders. <!-- appstore: skip -->
 - **Web calculator** The calculator on the website now runs the same emulator as the apps and behaves exactly like them. The installable web app loads faster and updates itself when a new version is out. <!-- appstore: skip -->
