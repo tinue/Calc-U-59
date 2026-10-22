@@ -247,6 +247,9 @@
 ; Δ [HW] TI-59 00A9: printer-present is sensed on KP at digit 10 (WAIT D11 +
 ; KEY [P]) instead of digit 0 (WAIT D1): the TI-58C board wires the printer's
 ; detect line to another digit-scan line. Same change at 0483 (Adv).
+; Probable reason: no D0 on the board — a TMC0580 DSCOM bonded for its own
+; clock oscillator (CLK on pin 14) loses D0, and the TI-58C has no clock chip
+; (rom/TI58C-ROM-Guide.md, "The printer-present line moved to digit 10").
 00A9: 0AB0  WAIT D11          ; printer present? (the next instruction samples digit 10)
 00AA: 08FB  KEY [P]
 00AB: 1B08  JC 022F           ; no → nothing
@@ -2191,15 +2194,16 @@
 ; MAIN IDLE LOOP — display multiplex + keyboard scan  (0x062A–0x0659, 0x0A25–0x0A30)
 ; The calculator's resting state and the first keyboard scan after reset.
 ; SET.IDLE hands the display to the hardware multiplexer. On the TI-58C the
-; CPU keeps its full instruction rate while idle (384 kHz / 32 = 12 000
-; instructions/s); the TI-59 drops to ¼ speed there. Hence the timings below.
+; CPU keeps its full instruction rate while idle (12 000 instructions/s at
+; the emulator's placeholder 384 kHz; the real RC clock varies by unit); the
+; TI-59 drops to ¼ speed there. Hence the timings below.
 ;
 ; KEY...ALL HOLDs across digit slots until it reaches D0 (never sampled):
 ;   • no key down  → COND stays 1 → the following JC jumps on
 ;   • key detected → COND=0 and KR := row (KR[4..7]) + K-line (KR[8..10]).
 ; The printer-present line is KP at D10 on the TI-58C (TI-59: D0, the last row
 ; a scan-all samples, where the TI-59 discards it as "row 0"), so the scans
-; here have to step around it.
+; here have to step around it. Probably D0 is lost to the clock: see 00A9.
 ;
 ; KEY ACCEPTANCE (trace-checked with the headless harness, TI-58C):
 ;   062D–063C — release gate on the way in (from reset or a finished key):
@@ -3656,7 +3660,7 @@
 ; ═══════════════════════════════════════════════════════════════════════════
 ; PRN_LINE_RESCAN  (0x0A25–0x0A30) — idle-loop continuation (from 0659).
 ; Δ [HW] TI-58C only. The printer-present line is KP at digit 10 (TI-59: D0,
-; below the scanned rows), so with a PC-100C attached the arming scan from
+; below the scanned rows; D0 is probably lost to the clock, see 00A9), so with a PC-100C attached the arming scan from
 ; D13 (0651) and the confirmation scan (0654) stop at "row 10" as if a key
 ; were held. 0656–0659 send rows 10/11 here; rows 14/15 are discarded.
 ; Both scans are repeated below the printer line, from D9: arming 0A2C–0A2E,

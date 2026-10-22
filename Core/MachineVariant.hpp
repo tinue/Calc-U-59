@@ -13,14 +13,18 @@ inline bool hasConstantMemory(MachineVariant v) { return v == MachineVariant::TI
 /// TI-58 and TI-58C both use 60 registers and lack a card reader.
 inline bool hasLargeMemory(MachineVariant v) { return v == MachineVariant::TI59; }
 
-/// Ceramic resonator frequency in Hz; ÷ 2 (two-phase) ÷ 16 (digit-serial) is the
-/// instruction rate. TI-59 455 kHz, TI-58 384 kHz, ±1% (TP0240 clock chip,
-/// http://www.datamath.org/Chips/TP0240.htm; the service manual names 455 kHz
-/// and allows the TI-58 a 384 kHz part, "the preferred part"). The TI-58C is
-/// assumed to use the TI-58's part: one real TI-58C measured PHI 194.7 kHz
-/// (389.4 kHz) and blinks to match, another blinks as at 400 kHz; neither is
-/// a known part. Real measurements are compared after normalising the unit's
-/// clock from its error blink (tests/core_tests.cpp).
+/// Clock oscillator frequency in Hz; ÷ 2 (two-phase) ÷ 16 (digit-serial) is the
+/// instruction rate. TI-59 455 kHz, TI-58 384 kHz, ±1% ceramic resonators
+/// (TP0240 clock chip, http://www.datamath.org/Chips/TP0240.htm; the service
+/// manual names 455 kHz and allows the TI-58 a 384 kHz part, "the preferred
+/// part"). The TI-58C has no clock chip and no resonator: its clock very
+/// probably comes from the oscillator built into a TMC0580 DSCOM (CD2400 or
+/// CD2401), set by external R/C parts (http://www.datamath.org/Chips/TMC0580.htm;
+/// reference/CoreArchitecture.md, "TI-58C clock"). Its 384 kHz here is a
+/// placeholder, not a known rate: one real TI-58C measured PHI 194.7 kHz
+/// (389.4 kHz) and blinks to match, another blinks as at 400 kHz. Real
+/// measurements are compared after normalising the unit's clock from its
+/// error blink (tests/core_tests.cpp).
 constexpr double resonatorHz(MachineVariant v) {
     return v == MachineVariant::TI59 ? 455000.0 : 384000.0;
 }

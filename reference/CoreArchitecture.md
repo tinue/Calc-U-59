@@ -60,7 +60,7 @@ per clock, so one instruction takes 16 digit times.
 ```
 TI-59:      455 kHz ÷ 2 (two-phase) ÷ 16 → 14,219 instructions/s
 TI-58:      384 kHz ÷ 2 ÷ 16             → 12,000 instructions/s
-TI-58C:     384 kHz ÷ 2 ÷ 16             → 12,000 instructions/s (assumed)
+TI-58C:     RC clock, rate unknown        (modelled as 384 kHz → 12,000 instructions/s)
 idle (display) mode: ÷ 4 more on the TI-59/58; full speed on the TI-58C
 ```
 
@@ -71,16 +71,55 @@ TP0240 clock chip page (http://www.datamath.org/Chips/TP0240.htm) — 455 kHz
 active. The TI-59 rates are confirmed on a real TI-59: videos (see "Printer
 line in the idle scan") and a logic analyser on its clock chip, whose PHI1/PHI2
 pins run at f/2 (226.6 kHz) while active and f/8 (56.7 kHz) while idle, for a
-453.3 kHz resonator. The TI-58C is assumed to use the TI-58's 384 kHz part; no
-TI-58C clock is documented. Measured units disagree: one shows PHI 194.7 kHz
-on a scope (389.4 kHz) and an error blink of 0.920 s that matches it
-exactly; another blinks 0.896 s, as at 400 kHz. The blink's length in
-instructions depends on the ROM path only, so a unit's blink gives its
-clock, and its other measurements are compared after normalising to that
-clock — whether the deviation is the resonator or the video's timing does
-not matter, as long as one unit's videos share it. The frequencies live in
-`resonatorHz()` (`Core/MachineVariant.hpp`); the instruction rates in
+453.3 kHz resonator. The frequencies live in `resonatorHz()`
+(`Core/MachineVariant.hpp`); the instruction rates in
 `Shared/MachineModelInfo.hpp` derive from it.
+
+### TI-58C clock
+
+The TI-58C has no clock chip and no resonator on its board, so it cannot use
+the TP0240 scheme above. The working theory, strong but not yet confirmed
+by opening a unit, is that it runs on the **clock generator built into a
+TMC0580 DSCOM**. Both of its ROM chips, CD2400 and CD2401, are TMC0580
+dies (http://www.datamath.org/Chips/TMC0580.htm).
+
+- **The oscillator.** The TMC0580 has a two-phase clock generator on an
+  extra bond pad (CLK), specified for PHI1/PHI2 up to 230 kHz. The
+  frequency is set by external parts on CLK: a resistor to VGG alone (an
+  internal capacitor sets the time constant), a resistor to VGG plus a
+  capacitor to VSS, or a PZT resonator to VSS. The datamath page names the
+  SR-51-II as the only known user, and says the TI-58C does not use it.
+  The evidence below says otherwise.
+- **The cost: D0.** In the 28-pin package the CLK pad and digit line D0
+  share pin 14, so a chip bonded for its oscillator has no D0. The
+  TI-59/58 sense the PC-100 printer cradle by a diode between D0 and KP.
+  The TI-58C ROM moved that test to D10 and rebuilt its idle loop around
+  it (`rom/TI58C-ROM-Guide.md`, "The printer-present line moved to digit
+  10"). That rework only makes sense if D0 was gone, which is the expected
+  result of bonding CLK to pin 14.
+- **No idle slow-down.** On the TI-59/58 the ÷ 4 idle divide is done by the
+  TP0240, which watches /IDLE. The TMC0580's oscillator has no such
+  divider, and the TI-58C runs idle instructions at full speed.
+- **Unit-to-unit spread.** An R or RC oscillator sets no standard
+  frequency and varies between units. That fits the measurements: one unit
+  shows PHI 194.7 kHz on a scope (389.4 kHz) and an error blink of
+  0.920 s that matches it exactly; another blinks 0.896 s, as at 400 kHz.
+  Both are within the 230 kHz PHI limit. The TI-59 needed a resonator so
+  that a card written on one calculator reads on another; the TI-58C has
+  no card reader.
+
+**Not yet known:** which chip and which parts generate the clock, the
+nominal rate, and how much it drifts with supply voltage and temperature.
+The 384 kHz in `resonatorHz()` is a placeholder (the TI-58's part). The
+blink's length in instructions depends on the ROM path only, so a unit's
+blink gives its clock. Its other measurements are compared after
+normalising to that clock. Whether the deviation is the oscillator or the
+video's timing does not matter, as long as one unit's videos share it.
+
+**Checks on real hardware:** an R (perhaps with a C) on pin 14 of one
+DSCOM, going to VGG; which digit line reaches the D0 pin of the printer
+connector (the board may route D10 there, so the PC-100C's single D0–KP
+diode is seen at D10); PHI against supply voltage.
 
 `step()` returns a **cycle weight** — 4 for an IDLE instruction on the
 TI-59/58, otherwise 1 (`getStepWeight()`) — so callers can pace in real time.

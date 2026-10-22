@@ -133,7 +133,7 @@ static double ti58cErrorBlinkTicks(bool printer) {
     return double(litStarts[3] - litStarts[1]) / 2;
 }
 
-// Pavel's TI-58C measured PHI 194.7 kHz on the scope (389.4 kHz resonator) and
+// Pavel's TI-58C measured PHI 194.7 kHz on the scope (389.4 kHz clock) and
 // blinks 0.9185 s stand-alone, 0.7234 s on the PC-100C (faster with the
 // printer, unlike the TI-59 and TI-58). At its clock that is 11,177 and 8,803
 // instructions. (Another unit blinks 0.896 s

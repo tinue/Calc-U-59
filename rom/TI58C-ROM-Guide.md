@@ -39,6 +39,7 @@ carries one of these tags:
 | Default partition | 479.59 (TI-58: 239.29) | 239.29 |
 | Card reader | yes (TI-58: code present, no reader) | no, code removed |
 | Printer-present line | KP at digit 0 | KP at digit 10 |
+| Clock | TP0240 clock chip, 455/384 kHz resonator | no clock chip: probably a DSCOM's own oscillator, rate unknown |
 | Idle instructions | ¼ speed | full speed |
 
 **How much is shared.**
@@ -83,6 +84,14 @@ causes compound:
      around this (see "Idle loop").
    - The trace gate, List, Adv, Prt and the new Op 40 all test the line at
      the new digit.
+   - *Probable reason:* the board has no D0. The TI-58C has no clock chip
+     and no resonator, so its clock very probably comes from the
+     oscillator built into one of its TMC0580 DSCOM chips (CD2400 or
+     CD2401). In the 28-pin package that oscillator's CLK pad is bonded to
+     pin 14, which otherwise carries D0
+     (http://www.datamath.org/Chips/TMC0580.htm). The TI-59's printer
+     test at D0 then had nowhere to go. Not yet confirmed on an opened unit;
+     the evidence is in `reference/CoreArchitecture.md`, "TI-58C clock".
 4. **The card-reader code went away.** That freed most of 1680–17FF, which
    now holds a factory self-test and relocated routines.
 5. **The ROM is a later revision.**
@@ -214,8 +223,10 @@ next to a stopwatch. On the TI-59 the printer-present line sits at D0, which
 its idle scan sees as a "row 0" key and discards: two extra digit sweeps per
 pass with a printer ("Printer line in the idle scan",
 `reference/CoreArchitecture.md`). The TI-58C times are computed from the emulator's model: 384 kHz ÷ 32 =
-12,000 instructions per second (the TI-58's part, assumed), idle at full
-speed. Real units vary: one measured PHI 194.7 kHz (389.4 kHz) and blinks
+12,000 instructions per second, idle at full speed. The 384 kHz is a
+placeholder: the TI-58C's clock is probably an RC oscillator with no
+documented rate ("TI-58C clock", `reference/CoreArchitecture.md`). Real
+units vary: one measured PHI 194.7 kHz (389.4 kHz) and blinks
 0.920 s, another blinks 0.896 s (as at 400 kHz); each unit's other
 measurements are compared at the clock its blink gives.
 The short Pause is real: a filmed TI-58C (the 0.896 s unit) shows each
