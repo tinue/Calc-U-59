@@ -161,7 +161,7 @@ Core locking: `CoreArchitecture.md` § "Threading Model".
 
 1. Call `step()` and add up the returned cycle weights until they reach the
    batch target: the model's instruction rate × 20 ms (14,218.75 Hz → 284 on
-   the TI-59; 12,000 Hz → 240 on the TI-58 and TI-58C).
+   the TI-59; 12,000 Hz → 240 on the TI-58; 12,375 Hz → 247 on the TI-58C).
    The overshoot carries into
    the next batch, so the long-term rate stays exact. Each batch ends at a
    random offset of 0 to half a batch past its grid point (`BatchJitter`:

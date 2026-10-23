@@ -281,7 +281,7 @@ void TMC0501::computeDisplayTraceState(uint8_t& displayOn, uint8_t& maxDigitDeca
 }
 
 uint32_t TMC0501::getPrinterBusyCycles() const {
-    // Printer busy time: 197.5 ms → TI-59 2808 cycles, TI-58/58C 2370.
+    // Printer busy time: 197.5 ms → TI-59 2808 cycles, TI-58 2370, TI-58C 2444.
     return static_cast<uint32_t>(0.1975 * instructionHz(m_variant));
 }
 

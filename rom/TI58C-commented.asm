@@ -247,7 +247,7 @@
 ; Δ [HW] TI-59 00A9: printer-present is sensed on KP at digit 10 (WAIT D11 +
 ; KEY [P]) instead of digit 0 (WAIT D1): the TI-58C board wires the printer's
 ; detect line to another digit-scan line. Same change at 0483 (Adv).
-; Probable reason: no D0 on the board — a TMC0580 DSCOM bonded for its own
+; Reason: no D0 on the board — a TMC0580 DSCOM bonded for its own
 ; clock oscillator (CLK on pin 14) loses D0, and the TI-58C has no clock chip
 ; (rom/TI58C-ROM-Guide.md, "The printer-present line moved to digit 10").
 00A9: 0AB0  WAIT D11          ; printer present? (the next instruction samples digit 10)
@@ -2194,8 +2194,8 @@
 ; MAIN IDLE LOOP — display multiplex + keyboard scan  (0x062A–0x0659, 0x0A25–0x0A30)
 ; The calculator's resting state and the first keyboard scan after reset.
 ; SET.IDLE hands the display to the hardware multiplexer. On the TI-58C the
-; CPU keeps its full instruction rate while idle (12 000 instructions/s at
-; the emulator's placeholder 384 kHz; the real RC clock varies by unit); the
+; CPU keeps its full instruction rate while idle (12 375 instructions/s at
+; the emulator's 396 kHz, one measured unit; the RC clock varies by unit); the
 ; TI-59 drops to ¼ speed there. Hence the timings below.
 ;
 ; KEY...ALL HOLDs across digit slots until it reaches D0 (never sampled):
@@ -2203,7 +2203,7 @@
 ;   • key detected → COND=0 and KR := row (KR[4..7]) + K-line (KR[8..10]).
 ; The printer-present line is KP at D10 on the TI-58C (TI-59: D0, the last row
 ; a scan-all samples, where the TI-59 discards it as "row 0"), so the scans
-; here have to step around it. Probably D0 is lost to the clock: see 00A9.
+; here have to step around it. D0 is lost to the clock: see 00A9.
 ;
 ; KEY ACCEPTANCE (trace-checked with the headless harness, TI-58C):
 ;   062D–063C — release gate on the way in (from reset or a finished key):
@@ -2212,13 +2212,13 @@
 ;       is the previous key still held: back to 0627 until it is released, so
 ;       a held key never repeats. fA[11] runs the window twice (063A–063C).
 ;   0650/0651 — ARMING scan, rows 12–1, all lines. The steady-state idle pass
-;       063D→0652 is 48 instructions (3 digit sweeps) ≈ 4.0 ms.
+;       063D→0652 is 48 instructions (3 digit sweeps) ≈ 3.9 ms.
 ;   0653/0654 — CONFIRMATION scan one sweep later (16 instructions ≈ 1.3 ms;
 ;       TI-59 ≈ 4.5 ms); the key must still be down. 0656–0659 accept rows
 ;       1–9 and 12, discard 14/15 and send rows 10/11 — the printer-present
 ;       line — to 0A25, which rescans rows 9–1 as the real arming scan and
 ;       re-enters the confirmation scan at 0654 (with a printer attached the
-;       idle pass is 80 instructions ≈ 6.7 ms).
+;       idle pass is 80 instructions ≈ 6.5 ms).
 ; Every pass also polls two test lines (064A–064F): KN at D15 → self-test,
 ; KR line at D10 → program at 0x1800.
 ; ═══════════════════════════════════════════════════════════════════════════
@@ -2260,10 +2260,10 @@
 ; swaps leave D's nibble 0 alone); the PARITY of its hundreds digit (nibble
 ; 3) drives the blink: odd → the display, blanked by CLR.IDLE at 063F, stays
 ; dark for the pass; even → SET.IDLE at 0649 re-lights it. +1 per pass in
-; both phases: 100 dark passes of 48 instructions (≈ 400 ms) alternate with
-; 100 lit passes of 64 (the WAIT D1 at 0648 adds a sweep, ≈ 533 ms). With a
+; both phases: 100 dark passes of 48 instructions (≈ 388 ms) alternate with
+; 100 lit passes of 64 (the WAIT D1 at 0648 adds a sweep, ≈ 517 ms). With a
 ; printer each pass also takes the 0A25 detour and 0A29–0A2B count one more:
-; 50 + 50 passes of 80 / 96 instructions (≈ 333 + 400 ms). The epilogue at
+; 50 + 50 passes of 80 / 96 instructions (≈ 323 + 388 ms). The epilogue at
 ; 0624 (D=LOAD MLSD1) leaves D[3] = 1, so the blink always opens dark. The
 ; arming scan keeps running, so any key stays live during the blink.
 ; ═══════════════════════════════════════════════════════════════════════════
@@ -2843,7 +2843,7 @@
 07CA: 11B6  JNC 08A5          ; yes → next step immediately (no key poll)
 ; Run-loop key polls (trace-checked, headless harness): holding the key at
 ; matrix row 6 / column 1 (GTO) while a RAM program runs makes every second
-; step light the display for 256 hold-loop passes (04E2; ≈ 64 ms on the
+; step light the display for 256 hold-loop passes (04E2; ≈ 62 ms on the
 ; TI-58C, ≈ 216 ms on the TI-59 whose idle runs at ¼ speed — the count was
 ; not adapted), showing the intermediate X values — an undocumented "peek".
 ; Holding R/S (row 9 / column 1) stops the run.
@@ -3660,7 +3660,7 @@
 ; ═══════════════════════════════════════════════════════════════════════════
 ; PRN_LINE_RESCAN  (0x0A25–0x0A30) — idle-loop continuation (from 0659).
 ; Δ [HW] TI-58C only. The printer-present line is KP at digit 10 (TI-59: D0,
-; below the scanned rows; D0 is probably lost to the clock, see 00A9), so with a PC-100C attached the arming scan from
+; below the scanned rows; D0 is lost to the clock, see 00A9), so with a PC-100C attached the arming scan from
 ; D13 (0651) and the confirmation scan (0654) stop at "row 10" as if a key
 ; were held. 0656–0659 send rows 10/11 here; rows 14/15 are discarded.
 ; Both scans are repeated below the printer line, from D9: arming 0A2C–0A2E,

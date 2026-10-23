@@ -99,9 +99,9 @@ enum : uint16_t {
 //
 // Clock: TI-59: 455 kHz oscillator ÷ 2 (two-phase) ÷ 16 (digit-serial cycle)
 //        ≈ 14,219 instructions/sec in active mode; ÷4 further in idle mode.
-//        TI-58/58C: 384 kHz oscillator ÷ 2 ÷ 16 = 12,000 instructions/sec
-//        (TI-58C: a placeholder rate for an RC clock that varies by unit;
-//        constant speed, no idle divisor). See resonatorHz().
+//        TI-58: 384 kHz oscillator ÷ 2 ÷ 16 = 12,000 instructions/sec.
+//        TI-58C: 396 kHz ÷ 2 ÷ 16 = 12,375 instructions/sec (one measured
+//        unit; the RC clock varies by unit), no idle divisor. See resonatorHz().
 
 class TMC0501 {
 public:

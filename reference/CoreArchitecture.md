@@ -60,7 +60,7 @@ per clock, so one instruction takes 16 digit times.
 ```
 TI-59:      455 kHz ÷ 2 (two-phase) ÷ 16 → 14,219 instructions/s
 TI-58:      384 kHz ÷ 2 ÷ 16             → 12,000 instructions/s
-TI-58C:     PHI from a DSCOM, ~195–200 kHz (modelled as 384 kHz → 12,000 instructions/s)
+TI-58C:     396 kHz ÷ 2 ÷ 16             → 12,375 instructions/s (2 × PHI of one unit; varies by unit)
 idle (display) mode: ÷ 4 more on the TI-59/58; full speed on the TI-58C
 ```
 
@@ -78,32 +78,44 @@ pins run at f/2 (226.6 kHz) while active and f/8 (56.7 kHz) while idle, for a
 ### TI-58C clock
 
 The TI-58C has no clock chip and no resonator on its board, so it cannot use
-the TP0240 scheme above. The working theory, strong but not yet confirmed
-by opening a unit, is that it runs on the **clock generator built into a
-TMC0580 DSCOM**. Both of its ROM chips, CD2400 and CD2401, are TMC0580
-dies (http://www.datamath.org/Chips/TMC0580.htm).
+the TP0240 scheme above. It runs on the **clock generator built into a
+TMC0580 DSCOM**: its CD2400 and CD2401 are TMC0580 dies
+(http://www.datamath.org/Chips/TMC0580.htm), mounted piggyback with their
+pins in parallel. Probes on an opened unit (unit B below) confirm it.
 
 - **The oscillator.** The TMC0580 has a two-phase clock generator on an
   extra bond pad (CLK), specified for PHI1/PHI2 up to 230 kHz. The
   frequency is set by external parts on CLK: a resistor to VGG alone (an
   internal capacitor sets the time constant), a resistor to VGG plus a
   capacitor to VSS, or a PZT resonator to VSS. The datamath page names the
-  SR-51-II as the only known user, and says the TI-58C does not use it.
-  The evidence below says otherwise.
+  SR-51-II as the only known user and says the TI-58C does not use it;
+  the measurements say otherwise.
 - **The cost: D0.** In the 28-pin package the CLK pad and digit line D0
-  share pin 14, so a chip bonded for its oscillator has no D0. The
-  TI-59/58 sense the PC-100 printer cradle by a diode between D0 and KP.
-  The TI-58C ROM moved that test to D10 and rebuilt its idle loop around
-  it (`rom/TI58C-ROM-Guide.md`, "The printer-present line moved to digit
-  10"). That rework only makes sense if D0 was gone, which is the expected
-  result of bonding CLK to pin 14.
+  share pin 14, so a chip bonded for its oscillator has no D0. On unit B
+  the stack's pin 14 carries no digit pulses (D0 would pulse once per
+  instruction, ≈ 12.4 kHz) but the oscillator's timing node: narrow
+  spikes of varying height. **PHI = oscillator ÷ 4**: with pin 14 and
+  PHI1 captured together, every PHI1 period holds exactly four pin-14
+  cycles. Probing pin 14 loads the node and slows the oscillator to
+  about half: pin 14 then reads ≈ 420 kHz (424.9 kHz mean over 18.7 s)
+  and PHI1 ≈ 105 kHz, and the error blink takes about twice as long. So
+  the free-running oscillator is ≈ 4 × 197.8 ≈ 790 kHz, never directly
+  observable; its small timing capacitance is comparable to a probe's.
+  Single pin-14 periods read 2.1–2.7 µs, but four together are steady:
+  the spread is edge-timing noise on the spikes, not oscillator jitter.
+  The TI-59/58 sense the PC-100 printer cradle
+  by a diode between D0 and KP. Without D0 the TI-58C ROM moved that test
+  to D10 and rebuilt its idle loop around it (`rom/TI58C-ROM-Guide.md`,
+  "The printer-present line moved to digit 10").
+- **PHI reaches the other chips as usual.** The third ROM, the TMC0573, is
+  an 8-pin BROM (http://www.datamath.org/Chips/TMC0560.htm) whose pins 6
+  and 7 are the PHI2/PHI1 inputs; on unit B both carry 196.9 kHz, the
+  same PHI as pin 4 of the printer connector.
 - **No idle slow-down.** On the TI-59/58 the ÷ 4 idle divide is done by the
   TP0240, which watches /IDLE. The TMC0580's oscillator has no such
   divider, and the TI-58C runs idle instructions at full speed.
 - **Unit-to-unit spread.** An R or RC oscillator sets no standard
-  frequency and varies between units. That fits the measurements, given
-  here as PHI (the chip makes PHI directly; there is no faster base
-  clock):
+  frequency and varies between units:
 
   | Unit | PHI | Source |
   |---|---|---|
@@ -118,21 +130,17 @@ dies (http://www.datamath.org/Chips/TMC0580.htm).
 
 **Emulator model.** The emulator keeps a base clock for every variant,
 because the rest of the timing code derives from it (instruction rate =
-base ÷ 32). For the TI-58C that base is artificial: 2 × PHI. The
-384 kHz in `resonatorHz()` (PHI 192 kHz) is a placeholder taken from the
-TI-58's part, a few percent below the measured units.
+base ÷ 32). For the TI-58C that base is 2 × PHI, not a frequency found on
+the board. `resonatorHz()` uses 396 kHz: unit B's PHI of 197.8 kHz,
+doubled and rounded (12,375 instructions/s).
 
-**Not yet known:** which chip and which parts generate the clock, the
-nominal rate, and how much it drifts with temperature. The blink's length
-in instructions depends on the ROM path only, so a unit's blink gives its
-clock. Its other measurements are compared after normalising to that
-clock. Whether the deviation is the oscillator or the video's timing does
-not matter, as long as one unit's videos share it.
-
-**Checks on real hardware:** an R (perhaps with a C) on pin 14 of one
-DSCOM, going to VGG; which digit line reaches the D0 pin of the printer
-connector (the board may route D10 there, so the PC-100C's single D0–KP
-diode is seen at D10).
+**Not yet known:** which of the two stacked chips is bonded for the
+oscillator, which parts set its rate, the nominal rate, and how much it
+drifts with temperature. The blink's length in instructions depends on the
+ROM path only, so a unit's blink gives its clock. Its other measurements
+are compared after normalising to that clock. Whether the deviation is the
+oscillator or the video's timing does not matter, as long as one unit's
+videos share it.
 
 `step()` returns a **cycle weight** — 4 for an IDLE instruction on the
 TI-59/58, otherwise 1 (`getStepWeight()`) — so callers can pace in real time.
@@ -651,7 +659,7 @@ left-to-right line.
 | `PRT.FEED` | Blank line (paper advance); `FLG_BUSY` for 197.5 ms |
 
 197.5 ms (measured: 40 ADV lines in 7.9 s) is 2808 cycles on the TI-59 and
-2370 on the TI-58/58C, counted down in `step()`. The ~120 ms per line of
+2370 on the TI-58 and 2444 on the TI-58C, counted down in `step()`. The ~120 ms per line of
 serial transfer that a real LIST adds is not modelled.
 
 Text lines are queued at once (`drainPrinterLines()`); the dot-matrix line
@@ -711,13 +719,13 @@ debug events".
 | Feature | TI-59 | TI-58 | TI-58C |
 |---|---|---|---|
 | ROM | TMC0582/0583/0571B | same as TI-59 | CD2400/2401/TMC0573 |
-| Clock (instructions/s) | 14,219 | 12,000 | 12,000 |
+| Clock (instructions/s) | 14,219 | 12,000 | 12,375 |
 | IDLE weight | 4 | 4 | 1 |
 | RAM registers | 120 | 60 | 60 + E000–E003 |
 | RAM access | `RAM.OP` | `RAM.OP` | `MEMWR`/`MEMRD` |
 | Card reader | Yes (switch at digit 10) | No (D7–KR veto, digit 10 open) | No (digit 7 held; the ROM never reads it) |
 | Printer-present digit | 0 | 0 | 10 |
-| Printer BUSY | 2808 cycles | 2370 cycles | 2370 cycles |
+| Printer BUSY | 2808 cycles | 2370 cycles | 2444 cycles |
 | Library module | Yes | Yes | Yes |
 | Constant memory | No | No | Yes (`ti58c.mem` via `serialiseRAM`) |
 | Step dispatch / module fetch | `0837` / `082F` | same | `082B` / `0823` |
