@@ -12,9 +12,8 @@ function viewportSize() {
   const padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
   const w = (vv ? vv.width : window.innerWidth) - padX;
   const h = (vv ? vv.height : window.innerHeight) - padY;
-  // Not wider than the calculator at this height needs (a phone-shaped column).
-  const maxW = (h - 66) * (2064 / 4075) + 16;
-  return { width: Math.floor(Math.min(w, maxW, 560)), height: Math.floor(h) };
+  // The whole screen of the device it was installed on.
+  return { width: Math.floor(w), height: Math.floor(h) };
 }
 
 // Install affordance. Android/Chrome/Edge fire `beforeinstallprompt`, which
