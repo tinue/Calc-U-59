@@ -10,6 +10,17 @@
 const BAR_HEIGHT = 50;
 const FACE_PADDING = 8;
 const PRINTER_MIN = 220, PRINTER_MAX = 320, DEBUG_MIN = 220;
+// The narrowest artwork whose control bar still fits (labelled in wide, icons
+// in portrait). Below it the client keeps its size and the page scrolls, as
+// the apps' windows have a minimum size.
+const FACE_MIN = { wide: 400, portrait: 264 };
+const SPLITTERS = 1 + 5;  // the line after the calculator, the divider before the debugger
+
+/// The client's minimum width for a layout.
+function minimumWidth(portrait) {
+  return portrait ? FACE_MIN.portrait + 2 * FACE_PADDING
+    : FACE_MIN.wide + 2 * FACE_PADDING + PRINTER_MIN + DEBUG_MIN + SPLITTERS;
+}
 
 // A KeyboardEvent as Shared/KeyboardMap.hpp's KeyPress: the key's base
 // character (letters from the physical key, so Caps Lock and Shift don't
@@ -90,8 +101,9 @@ function Divider({ onDrag }) {
 
 function WideLayout({ engine, width, height, showSettings, onDialog, feedback }) {
   const aspect = 2064 / 4075;
-  const faceWidth = Math.max(240, Math.min(height ? (height - BAR_HEIGHT - 2 * FACE_PADDING) * aspect : 420, width * 0.4));
-  const total = height || faceWidth / aspect + 2 * FACE_PADDING + BAR_HEIGHT;
+  const faceWidth = Math.max(FACE_MIN.wide,
+    Math.min(height ? (height - BAR_HEIGHT - 2 * FACE_PADDING) * aspect : 420, width * 0.4));
+  const total = Math.max(height || 0, faceWidth / aspect + 2 * FACE_PADDING + BAR_HEIGHT);
   const [printerWidth, setPrinterWidth] = React.useState(260);
   const room = width - faceWidth - 2 * FACE_PADDING - 2;
   const pw = Math.max(PRINTER_MIN, Math.min(PRINTER_MAX, printerWidth, room - DEBUG_MIN));
@@ -109,8 +121,9 @@ function WideLayout({ engine, width, height, showSettings, onDialog, feedback })
 function PortraitLayout({ engine, width, height, showSettings, onDialog, feedback }) {
   const aspect = 2064 / 4075;
   const byWidth = width - 2 * FACE_PADDING;
-  const faceWidth = height ? Math.min(byWidth, (height - BAR_HEIGHT - 2 * FACE_PADDING) * aspect) : byWidth;
-  const total = height || faceWidth / aspect + 2 * FACE_PADDING + BAR_HEIGHT;
+  const faceWidth = Math.max(FACE_MIN.portrait,
+    height ? Math.min(byWidth, (height - BAR_HEIGHT - 2 * FACE_PADDING) * aspect) : byWidth);
+  const total = Math.max(height || 0, faceWidth / aspect + 2 * FACE_PADDING + BAR_HEIGHT);
   const [page, setPage] = React.useState("calc");
   const other = page === "calc" ? "printer" : "calc";
   const chevron = (side) => (
@@ -165,7 +178,7 @@ function PlayCalculator({
     ro.observe(el);
     return () => ro.disconnect();
   }, [width]);
-  const w = width || measured || (portrait ? 360 : 1100);
+  const w = Math.max(minimumWidth(portrait), width || measured || (portrait ? 360 : 1100));
 
   // Keyboard feedback on each key press (portrait).
   const feedback = React.useMemo(() => makeFeedback(portrait), [portrait]);

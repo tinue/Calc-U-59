@@ -42,6 +42,7 @@
 .calcu-device, .calcu-device * { box-sizing: border-box; }
 .calcu-device {
   position: relative;
+  flex: none;  /* its size is its minimum: a flex host must not shrink it */
   background: var(--calcu-panel);
   overflow: hidden;
   user-select: none;

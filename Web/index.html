@@ -5,38 +5,49 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Calc-U 59 — web client</title>
 <!-- The web client's demo and test page: PlayCalculator with the physical
-     keyboard, in the layout the query names (?layout=wide|portrait, default
-     wide; also ?width=, ?height=, ?model=, ?module=, ?preset=). Every path
-     is relative, like the rest of dist/ (reference/WebClient.md). -->
+     keyboard, sized to the window, in the layout the query names
+     (?layout=wide|portrait, default wide; also ?width=, ?height=, ?model=,
+     ?module=, ?preset=). Every path is relative, like the rest of dist/
+     (reference/WebClient.md). -->
 <link rel="stylesheet" href="calc.css">
 <style>
-  html, body { margin: 0; background: #000; color: #ccc; font: 13px -apple-system, "Segoe UI", sans-serif; }
-  main { padding: 16px; }
-  nav { margin-bottom: 12px; }
+  html, body { margin: 0; height: 100%; background: #000; color: #ccc; font: 13px -apple-system, "Segoe UI", sans-serif; }
+  body { display: flex; flex-direction: column; }
+  nav { flex: none; padding: 10px 16px; }
   nav a { color: #0a84ff; margin-right: 12px; }
-  #root { max-width: 1400px; }
-  body.portrait #root { max-width: 400px; }
+  /* Below the client's minimum size the page scrolls. */
+  main { flex: 1; min-height: 0; padding: 0 16px 16px; overflow: auto; }
+  #root { width: 100%; height: 100%; display: flex; justify-content: safe center; align-items: flex-start; }
 </style>
 </head>
 <body>
-<main>
-  <nav><a href="?layout=wide">Wide</a><a href="?layout=portrait">Portrait</a><a href="app/">App</a></nav>
-  <div id="root"></div>
-</main>
+<nav><a href="?layout=wide">Wide</a><a href="?layout=portrait">Portrait</a><a href="app/">App</a></nav>
+<main><div id="root"></div></main>
 
 <script src="vendor/react.production.min.js"></script>
 <script src="vendor/react-dom.production.min.js"></script>
 <script src="calc.js"></script>
 <script>
+  // Sized to the window, as the app sizes itself to the viewport; ?width= and
+  // ?height= fix either instead.
   const q = new URLSearchParams(location.search);
   const layout = q.get("layout") === "portrait" ? "portrait" : "wide";
-  document.body.classList.toggle("portrait", layout === "portrait");
   const num = (k) => (q.get(k) ? Number(q.get(k)) : undefined);
-  ReactDOM.createRoot(document.getElementById("root")).render(
-    React.createElement(PlayCalculator, {
-      layout, keyboard: true, width: num("width"), height: num("height"),
+  const root = document.getElementById("root");
+  const reactRoot = ReactDOM.createRoot(root);
+  function size() {
+    const w = root.clientWidth, h = root.clientHeight;
+    // Portrait: not wider than the calculator at this height needs.
+    const width = layout === "portrait" ? Math.min(w, (h - 66) * (2064 / 4075) + 16) : w;
+    return { width: num("width") || Math.floor(width), height: num("height") || Math.floor(h) };
+  }
+  function render() {
+    reactRoot.render(React.createElement(PlayCalculator, {
+      layout, keyboard: true, ...size(),
       model: q.get("model") || undefined, module: q.get("module") || undefined, preset: q.get("preset") || undefined,
     }));
+  }
+  new ResizeObserver(render).observe(root);
 </script>
 </body>
 </html>

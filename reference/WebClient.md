@@ -54,7 +54,7 @@ Web/calc-engine-worker.js ── wasm/ti59-core.{js,wasm} ◀── Web/bindings
 | `calc.css` | Tokens, fonts and every rule the client needs |
 | `fonts/` | Archivo (WOFF2, SIL OFL 1.1), for the cue card |
 | `app/` | The installable PWA: `index.html`, `app.jsx`, `app.css`, `sw.js`, `manifest.json` |
-| `index.html` | Demo and test page: `?layout=wide|portrait`, also `width`, `height`, `model`, `module`, `preset` |
+| `index.html` | Demo and test page, sized to the window: `?layout=wide|portrait`, also `width`, `height`, `model`, `module`, `preset` |
 | `presets.json` | The presets the preset picker offers (file in `examples/`, title) |
 | `vendor/` | React 18 and ReactDOM (shipped), Babel (build only), ReactDOMServer (tests only) |
 | `build.sh`, `build.js` | The build (below) |
@@ -147,6 +147,12 @@ the file names under `wasm/`, `img/` and `presets/` may change with any build.
 | `layout` | `"portrait"` | `"wide"` (calculator, printer, debugger side by side) or `"portrait"` (calculator and printer pages) |
 | `width` | the parent's width | CSS px the client may take. Wide: the calculator column takes up to 40 % (at most 420 px of artwork), the printer 220–320 px, the debugger the rest (at least 220 px) |
 | `height` | from the width | CSS px. Without it the height follows the artwork's aspect plus the 50 px bar; with it the artwork fits inside (the PWA passes the viewport) |
+
+The client has a minimum size, as the apps' windows do: the narrowest
+artwork whose control bar still fits (400 px wide, 264 px portrait), plus
+the printer's and debugger's minimums in wide — 862 × 856 px wide,
+280 × 587 px portrait. Given less, it keeps that size (it never shrinks as
+a flex item) and the host scrolls, as `index.html` does.
 | `keyboard` | `false` | The calculator is focusable and takes the physical keyboard while focused (`SharedArchitecture.md` § "Physical Keyboard Mapping") |
 | `settings` | `true` | Show the Settings gear |
 | `model` | stored setting | Start with this model: `"TI-59"`, `"TI-58"` or `"TI-58C"` |
