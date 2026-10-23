@@ -391,9 +391,9 @@ Field grammar: `StateFileFormat.md` § "CUECARD: Field Grammar".
   width 0.64 × size), never below 40 % of the template's size. Free-text
   rows truncate instead.
 
-The web client (`Web/src/cuecard.jsx`) gets the card, its spans and its ink
-from `Shared/` and draws it with DOM text: it measures the shrink-to-fit in
-the DOM and drops the bank badges.
+The web client gets the card as a draw list `Web/bindings.cpp` builds with
+these functions for the size the page reports, and paints it on a canvas
+(`Web/src/painters.js`), badges included.
 
 ### Printer
 

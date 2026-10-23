@@ -20,8 +20,9 @@ to write.
 | Web client (`Web/`) — browsers, embedded by the website | JS + React, engine in WASM | `Core/` + `Shared/` compiled with Emscripten; `Web/bindings.cpp` is the adapter (`WebClient.md`) |
 
 All three share all non-GUI code and are tracked in `FrontendParity.md`. The
-Swift and Qt apps are kept at feature parity; the web client is
-deliberately narrower: TI-59 only, no debugger, printer or traces.
+three are kept at feature parity, with a few deliberate exceptions in the
+web client (Classic LED only, session-only cards, no debugger in its
+portrait layout).
 
 ## If your GUI can call C++
 
@@ -54,7 +55,7 @@ packaging.
 
 Compile `Core/` and `Shared/` to something it can call, as the web build
 does with Emscripten (`Web/build.sh`), and write the adapter in C++
-on that side (`Web/bindings.cpp`, about 300 lines with the embind
+on that side (`Web/bindings.cpp`, about 800 lines with the embind
 surface):
 
 - **No threads?** Construct the `SessionController` with
@@ -66,7 +67,8 @@ surface):
   worker may make.
 - **Pass drawing data, not drawing.** The adapter posts what `changed()`
   names as plain data — segment masks and brightness per LED cell, the cue
-  card with its spans and ink, the LED geometry — and the GUI paints it.
+  card as a laid-out draw list, printer lines with their heights, debug rows
+  formatted by `DebugText`, the LED geometry — and the GUI paints it.
 
 What stays in the GUI's own language is the same as above: widgets and
 painting, events, file pickers and storage.

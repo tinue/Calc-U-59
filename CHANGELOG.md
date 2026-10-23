@@ -1,6 +1,7 @@
 # Changelog
 
 ## [2.1.0] - work in progress
+- **Web calculator** Rebuilt with the apps' features: the real calculator artwork, TI-59, TI-58 and TI-58C, the PC-100C printer, magnetic cards, presets (bundled or your own file), Settings, and, in the wide layout, the full debugger with trace downloads. A wide layout follows the Mac and Windows windows; a portrait layout, also used by the installable app, follows the iPhone, with the printer on its own page. The installable app runs all three calculators offline. Cards last for the browser session; download one to keep it. <!-- appstore: skip -->
 
 ### Fixes
 - **Debugger** The CPU tab no longer stands still during the TI-58's error blink, when the calculator runs the same short loop over and over.
