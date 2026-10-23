@@ -373,5 +373,7 @@ Wait: 1s
 92  0
 82  1
 62  7
+# Full speed through the whole printout: playback waits after R/S until the
+# program has stopped, and speed returns to regular when the script ends.
+FullSpeed:
 91  R/S
-WaitFullSpeed: 2s
