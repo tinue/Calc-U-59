@@ -63,7 +63,8 @@
 .calcu-splitter { width: 5px; flex: none; cursor: col-resize; background: #000; border-left: 2px solid var(--calcu-panel);
   border-right: 2px solid var(--calcu-panel); touch-action: none; }
 
-.calcu-portrait { position: relative; }
+.calcu-portrait { position: relative; display: flex; justify-content: center; }
+.calcu-column { position: relative; height: 100%; flex: none; }
 .calcu-page { position: absolute; inset: 0; display: flex; justify-content: center; }
 .calcu-page-printer { padding-top: 36px; }
 .calcu-page-printer > .calcu-printer { width: 100%; }

@@ -134,12 +134,17 @@ function PortraitLayout({ engine, width, height, showSettings, onDialog, feedbac
   );
   return (
     <div className="calcu-portrait" style={{ height: total }}>
-      <div className="calcu-page" hidden={page !== "calc"}>
-        <CalculatorColumn engine={engine} faceWidth={faceWidth} compact={true} showSettings={showSettings}
-          onDialog={onDialog} feedback={feedback} />
+      {/* Pages and chevrons share the calculator's column: on a screen wider
+          than the calculator (a tablet, a desktop window) the chevrons stay at
+          its corners instead of the screen's. */}
+      <div className="calcu-column" style={{ width: faceWidth + 2 * FACE_PADDING }}>
+        <div className="calcu-page" hidden={page !== "calc"}>
+          <CalculatorColumn engine={engine} faceWidth={faceWidth} compact={true} showSettings={showSettings}
+            onDialog={onDialog} feedback={feedback} />
+        </div>
+        {page === "printer" && <div className="calcu-page calcu-page-printer"><Printer engine={engine} /></div>}
+        {page === "calc" ? chevron("right") : chevron("left")}
       </div>
-      {page === "printer" && <div className="calcu-page calcu-page-printer"><Printer engine={engine} /></div>}
-      {page === "calc" ? chevron("right") : chevron("left")}
     </div>
   );
 }
