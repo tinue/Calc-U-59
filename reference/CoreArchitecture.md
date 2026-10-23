@@ -60,7 +60,7 @@ per clock, so one instruction takes 16 digit times.
 ```
 TI-59:      455 kHz ÷ 2 (two-phase) ÷ 16 → 14,219 instructions/s
 TI-58:      384 kHz ÷ 2 ÷ 16             → 12,000 instructions/s
-TI-58C:     RC clock, rate unknown        (modelled as 384 kHz → 12,000 instructions/s)
+TI-58C:     PHI from a DSCOM, ~195–200 kHz (modelled as 384 kHz → 12,000 instructions/s)
 idle (display) mode: ÷ 4 more on the TI-59/58; full speed on the TI-58C
 ```
 
@@ -101,25 +101,38 @@ dies (http://www.datamath.org/Chips/TMC0580.htm).
   TP0240, which watches /IDLE. The TMC0580's oscillator has no such
   divider, and the TI-58C runs idle instructions at full speed.
 - **Unit-to-unit spread.** An R or RC oscillator sets no standard
-  frequency and varies between units. That fits the measurements: one unit
-  shows PHI 194.7 kHz on a scope (389.4 kHz) and an error blink of
-  0.920 s that matches it exactly; another blinks 0.896 s, as at 400 kHz.
-  Both are within the 230 kHz PHI limit. The TI-59 needed a resonator so
-  that a card written on one calculator reads on another; the TI-58C has
-  no card reader.
+  frequency and varies between units. That fits the measurements, given
+  here as PHI (the chip makes PHI directly; there is no faster base
+  clock):
+
+  | Unit | PHI | Source |
+  |---|---|---|
+  | A | 194.7 kHz | scope; its error blink of 0.920 s matches exactly |
+  | B | 197.8 kHz | logic analyser on PHI1 (printer connector pin 4), mean of many periods |
+  | C | ≈ 200 kHz | error blink of 0.896 s only |
+
+  All are within the 230 kHz PHI limit. Unit B reads the same at a supply
+  of 4.4 V and 4.1 V, so the rate barely depends on the supply voltage.
+  The TI-59 needed a resonator so that a card written on one calculator
+  reads on another; the TI-58C has no card reader.
+
+**Emulator model.** The emulator keeps a base clock for every variant,
+because the rest of the timing code derives from it (instruction rate =
+base ÷ 32). For the TI-58C that base is artificial: 2 × PHI. The
+384 kHz in `resonatorHz()` (PHI 192 kHz) is a placeholder taken from the
+TI-58's part, a few percent below the measured units.
 
 **Not yet known:** which chip and which parts generate the clock, the
-nominal rate, and how much it drifts with supply voltage and temperature.
-The 384 kHz in `resonatorHz()` is a placeholder (the TI-58's part). The
-blink's length in instructions depends on the ROM path only, so a unit's
-blink gives its clock. Its other measurements are compared after
-normalising to that clock. Whether the deviation is the oscillator or the
-video's timing does not matter, as long as one unit's videos share it.
+nominal rate, and how much it drifts with temperature. The blink's length
+in instructions depends on the ROM path only, so a unit's blink gives its
+clock. Its other measurements are compared after normalising to that
+clock. Whether the deviation is the oscillator or the video's timing does
+not matter, as long as one unit's videos share it.
 
 **Checks on real hardware:** an R (perhaps with a C) on pin 14 of one
 DSCOM, going to VGG; which digit line reaches the D0 pin of the printer
 connector (the board may route D10 there, so the PC-100C's single D0–KP
-diode is seen at D10); PHI against supply voltage.
+diode is seen at D10).
 
 `step()` returns a **cycle weight** — 4 for an IDLE instruction on the
 TI-59/58, otherwise 1 (`getStepWeight()`) — so callers can pace in real time.

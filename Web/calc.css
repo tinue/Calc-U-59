@@ -115,7 +115,7 @@
 .calcu-pill:disabled { color: rgba(255,255,255,0.4); background: var(--calcu-bar); cursor: default; }
 .calcu-dot-on { color: var(--calcu-red); }
 .calcu-iconbutton { border: none; background: transparent; cursor: pointer; padding: 2px 6px; color: rgba(255,255,255,0.8); }
-.calcu-link { border: none; background: none; color: var(--calcu-blue); cursor: pointer; padding: 0; text-align: left; }
+.calcu-device .calcu-link { border: none; background: none; color: var(--calcu-blue); cursor: pointer; padding: 0; text-align: left; }
 .calcu-buttonrow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .calcu-filebutton-inline input, .calcu-filebutton input { display: none; }
 

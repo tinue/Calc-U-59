@@ -226,9 +226,9 @@ pass with a printer ("Printer line in the idle scan",
 12,000 instructions per second, idle at full speed. The 384 kHz is a
 placeholder: the TI-58C's clock is probably an RC oscillator with no
 documented rate ("TI-58C clock", `reference/CoreArchitecture.md`). Real
-units vary: one measured PHI 194.7 kHz (389.4 kHz) and blinks
-0.920 s, another blinks 0.896 s (as at 400 kHz); each unit's other
-measurements are compared at the clock its blink gives.
+units vary: PHI measured 194.7 kHz on one (it blinks 0.920 s) and
+197.8 kHz on another; a third blinks 0.896 s (PHI ≈ 200 kHz). Each
+unit's other measurements are compared at the clock its blink gives.
 The short Pause is real: a filmed TI-58C (the 0.896 s unit) shows each
 Pause lit for about 0.122 s; the model gives 0.118–0.120 s at that unit's
 clock.
