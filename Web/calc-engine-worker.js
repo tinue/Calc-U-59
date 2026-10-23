@@ -1,33 +1,30 @@
-// Background Worker for the web calculator (PlayCalculator.jsx). It owns
-// the WASM WebController (Web/bindings.cpp) — the real
-// cu59::SessionController from the main repo's Shared/ layer, run
-// single-threaded — and calls its 60 Hz tick. Everything that isn't drawing
-// (pacing, key timing, presets, cue cards, the card reader) happens in there;
-// this file only fetches files and passes messages. Every URL here is
-// relative to this script, so the client works wherever it is hosted.
+// Background Worker of the web client (src/engine.js starts it). It owns the
+// WASM WebController (Web/bindings.cpp) — the real cu59::SessionController
+// from Shared/, run single-threaded — and calls its 60 Hz tick. Everything
+// that isn't drawing happens in there; this file only fetches files and
+// passes messages. Every URL here is relative to this script, so the client
+// works wherever it is hosted.
 //
 // Protocol (postMessage), main thread -> worker:
-//   {type: "pointerDown", row, col}   -- on-screen key, 0-indexed grid position
-//   {type: "pointerUp"}
-//   {type: "keyDown", key, produced, isLetter, shift, command}  -- see playKeyPress() in src/PlayCalculator.jsx
-//   {type: "keyUp", key, produced, isLetter, shift, command}
-//   {type: "blur"}                    -- focus lost: release whatever is held
+//   {type: "init", settings, model, module}   -- first message: stored settings
+//        by key (strings), the host's model/module overrides ("" for none)
+//   {type: "call", method, args}       -- a WebController method (bindings.cpp)
+//   {type: "loadState", text}          -- a preset's contents -> stateLoaded
+//   {type: "insertCard", name, bytes}  -- a session card, or an upload (bytes)
+//   {type: "cardBytes", name}          -- -> {type: "cardFile", name, bytes}
+//   {type: "traceBytes", name}         -- -> {type: "traceFile", name, bytes}
+//   {type: "geometry", w, h}           -- LED shapes for a w × h digit cell
 //   {type: "pause"} / {type: "resume"} -- document.visibilitychange
-//   {type: "changeModule", id}
-//   {type: "loadState", text}         -- a preset's contents
-//   {type: "queueCard"}
-//   {type: "geometry", w, h}          -- LED shapes for a w × h digit cell
 //
-// worker -> main thread (all but ready, stateLoaded and geometry posted by
-// the WebController itself):
-//   {type: "ready", modules}          -- modules: [{id, menuTitle}] in menu order
-//   {type: "display", cells}          -- Float32Array [segments, level, dp] × 12, cell 0 rightmost
-//   {type: "cueCard", card}           -- null for none
-//   {type: "module", id}
-//   {type: "heldKey", key}            -- row×5 + col shown pressed, -1 none
-//   {type: "error", message}
+// worker -> main thread:
+//   {type: "ready", data}              -- staticData(): models, modules, layout,
+//                                         printer geometry and font, heatmap
 //   {type: "stateLoaded", errors}
 //   {type: "geometry", geometry}
+//   {type: "cardFile" | "traceFile", name, bytes}
+//   and what WebController posts on its own (bindings.cpp drain()):
+//   model, display, cueCard, runState, printer, card, live, cpu, heatmap,
+//   log, asm, traces, traceReady, settings, store, debugFont, error.
 
 importScripts("wasm/ti59-core.js");
 
@@ -39,9 +36,9 @@ let intervalId = null;
 const pending = [];
 
 // SessionController reads files synchronously; the start-up set is fetched
-// ahead (init), any other — a module chosen in the picker or named by a
-// preset — through this, a synchronous request (allowed in a worker).
-// Offline in the installed app only the Master Library is cached; another
+// ahead (init), any other — a module chosen later, another model's ROM —
+// through this, a synchronous request (allowed in a worker). Offline in the
+// installed app only what the service worker precached is there; another
 // module then fails to load and is reported.
 self.readRomFile = (name) => {
   try {
@@ -80,32 +77,29 @@ function stopLoop() {
 
 function handle(msg) {
   switch (msg.type) {
-    case "pointerDown": controller.pointerDown(msg.row, msg.col); break;
-    case "pointerUp": controller.pointerUp(); break;
-    case "keyDown":
-      controller.keyDown(msg.key, msg.produced, msg.isLetter, msg.shift, msg.command);
-      break;
-    case "keyUp":
-      controller.keyUp(msg.key, msg.produced, msg.isLetter, msg.shift, msg.command);
-      break;
-    case "blur": controller.blur(); break;
-    case "pause": controller.suspend(); stopLoop(); break;
-    case "resume": controller.resume(); startLoop(); break;
-    case "changeModule": controller.changeModule(msg.id); break;
+    case "call": controller[msg.method](...(msg.args || [])); break;
     case "loadState": {
       const errors = controller.loadState(new TextEncoder().encode(msg.text));
       postMessage({ type: "stateLoaded", errors });
       break;
     }
-    case "queueCard": controller.queueCard(); break;
+    case "insertCard": controller.insertCard(msg.name, msg.bytes || null); break;
+    case "cardBytes":
+      postMessage({ type: "cardFile", name: msg.name, bytes: controller.cardBytes(msg.name) });
+      break;
+    case "traceBytes":
+      postMessage({ type: "traceFile", name: msg.name, bytes: controller.traceBytes(msg.name) });
+      break;
     case "geometry":
       postMessage({ type: "geometry", geometry: Module.ledGeometry(msg.w, msg.h) });
       break;
+    case "pause": controller.suspend(); stopLoop(); break;
+    case "resume": controller.resume(); startLoop(); break;
     default: break;
   }
 }
 
-async function init() {
+async function init({ settings, model, module }) {
   // ti59-core.js resolves its .wasm next to this worker, not next to itself
   // (wasm/): locateFile points it back.
   const [mod, cuecards] = await Promise.all([
@@ -113,18 +107,22 @@ async function init() {
     fetchText("cuecards.txt"),
   ]);
   Module = mod;
-  const files = await fetchFiles(Module.requiredRomFiles(cuecards));
+  const plan = Module.startupPlan(settings, model || "", module || "", cuecards);
+  const files = await fetchFiles(plan.files);
   files["cuecards.txt"] = cuecards;
-  controller = new Module.WebController(files);
+  postMessage({ type: "ready", data: Module.staticData(cuecards) });
+  controller = new Module.WebController(files, settings, plan.model, plan.moduleID);
 
   startLoop();
-  postMessage({ type: "ready", modules: Module.modules(cuecards) });
   while (pending.length) handle(pending.shift());
 }
 
 onmessage = (e) => {
-  if (!controller) pending.push(e.data);
-  else handle(e.data);
+  if (e.data.type === "init") {
+    init(e.data).catch((err) => postMessage({ type: "error", message: String(err && err.message || err) }));
+  } else if (!controller) {
+    pending.push(e.data);
+  } else {
+    handle(e.data);
+  }
 };
-
-init();

@@ -1,13 +1,13 @@
 {
   "name": "Calc-U 59",
   "short_name": "Calc-U 59",
-  "description": "TI-59 emulator — the calculator face, installable to your home screen.",
+  "description": "TI-59, TI-58 and TI-58C emulator with the PC-100C printer.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#000000",
-  "theme_color": "#000000",
+  "background_color": "#1d1d1c",
+  "theme_color": "#1d1d1c",
   "icons": [
     {
       "src": "icon.png",

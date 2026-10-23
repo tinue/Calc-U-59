@@ -38,12 +38,13 @@ test('PlayCalculator renders server-side without fetch or Worker', async ({}, te
   run(path.join(WEB, 'vendor', 'react-dom-server-legacy.browser.production.min.js'));
   run(path.join(WEB, 'dist', 'calc.js'));
 
-  expect(Object.keys(ctx).filter((k) => /^(CalcKey|CALC_ROWS|CueCard|LedDisplayCanvas)$/.test(k)),
+  expect(Object.keys(ctx).filter((k) => /^(createEngine|useEngine|CalculatorFace|ControlBar|Printer|Debugger|paintLed)$/.test(k)),
          'calc.js leaks its internals into the global scope').toEqual([]);
 
-  for (const props of [{ controls: true, keyboard: true }, { controls: false }]) {
+  for (const props of [{ layout: 'wide', keyboard: true }, { layout: 'portrait' }]) {
     const html = ctx.ReactDOMServer.renderToStaticMarkup(ctx.React.createElement(ctx.PlayCalculator, props));
     expect(html).toContain('calcu-device');
-    expect(html.match(/<button/g).length).toBe(45 + (props.controls ? 2 : 0));
+    expect(html).toContain(`data-layout="${props.layout}"`);
+    expect(html).toContain('calcu-keyboard');
   }
 });

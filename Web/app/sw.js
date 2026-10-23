@@ -1,9 +1,9 @@
 // Service worker for the standalone Calc-U 59 app (scope: this directory).
-// Precaches the app shell plus the calculator's fixed dependencies — the
-// WASM engine, the TI-59 ROM files and module 01 (Master Library, the only
-// module the app uses — there's no module switcher), and the fonts and
-// scripts the calculator face renders with — so the installed app opens and
-// runs fully offline after the first launch.
+// Precaches the app shell plus everything the calculator needs to run all
+// three models offline — the WASM engine, every model's ROM and constants,
+// the artwork, module 01 (Master Library, the default module), the fonts and
+// scripts — so the installed app opens and runs fully offline after the
+// first launch. Another module needs the network once (it is then cached).
 //
 // Every path is relative to this script, so the app works wherever the
 // client is hosted. Web/build.js checks that each one exists in dist/ and
@@ -30,17 +30,28 @@ const CORE_ASSETS = [
 
   "../fonts/archivo-400.woff2",
   "../fonts/archivo-700.woff2",
-  "../fonts/barlow-condensed-600.woff2",
-  "../fonts/barlow-condensed-700.woff2",
+
+  "../img/ti59_base.png",
+  "../img/ti58_base.png",
+  "../img/CueCard.png",
+  "../img/MagnetCard.png",
+  "../img/SolidStateCard.png",
+
+  "../presets/manifest.json",
 
   "../wasm/ti59-core.js",
   "../wasm/ti59-core.wasm",
-  // Module.requiredRomFiles() in Web/bindings.cpp
+  // startupPlan() in Web/bindings.cpp: each model's ROM and constants
   "../wasm/roms/TMC0582.txt",
   "../wasm/roms/TMC0583.txt",
   "../wasm/roms/TMC0571B.txt",
   "../wasm/roms/TMC0582-CONST-K.txt",
   "../wasm/roms/TMC0583-CONST-K.txt",
+  "../wasm/roms/CD2400.txt",
+  "../wasm/roms/CD2401.txt",
+  "../wasm/roms/TMC0573.txt",
+  "../wasm/roms/CD2400-CONST-K.txt",
+  "../wasm/roms/CD2401-CONST-K.txt",
   "../wasm/roms/cuecards.txt",
   "../wasm/roms/TMC0541.txt",
 ];

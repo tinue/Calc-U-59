@@ -3,7 +3,7 @@
 html, body {
   margin: 0;
   height: 100%;
-  background: #000;
+  background: #1d1d1c;
   overscroll-behavior: none; /* no rubber-band/pull-to-refresh once installed */
 }
 
@@ -22,10 +22,8 @@ html, body {
   box-sizing: border-box;
   /* env(safe-area-inset-*) keeps the calculator clear of notches and the
      home-indicator bar when launched in standalone display mode. */
-  padding: max(16px, env(safe-area-inset-top))
-           max(16px, env(safe-area-inset-right))
-           max(16px, env(safe-area-inset-bottom))
-           max(16px, env(safe-area-inset-left));
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+           env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
 
 /* Fixed rather than laid out in #root's flex flow, so it floats over the
@@ -38,26 +36,22 @@ html, body {
   padding: 10px 14px calc(10px + env(safe-area-inset-bottom)) 14px;
   background: rgba(10, 8, 6, .92);
   backdrop-filter: blur(6px);
-  border-top: 1px solid var(--stroke);
-  font-family: var(--font-body);
+  border-top: 1px solid #333;
   font-size: 13px;
-  color: var(--fg-2);
+  color: #ddd;
 }
 .install-banner-text { flex: 1 1 auto; }
 .install-banner-cta {
   flex: 0 0 auto;
-  font-family: var(--font-key); font-weight: 700;
-  text-transform: uppercase; letter-spacing: .06em;
-  font-size: 12px; padding: 7px 14px;
+  font-weight: 700; font-size: 12px; padding: 7px 14px;
   border-radius: 6px; border: 0; cursor: pointer;
-  background: linear-gradient(180deg, var(--accent-yellow), var(--accent-yellow-2));
-  color: var(--fg-on-yellow);
+  background: #0a84ff; color: #fff;
 }
 .install-banner-close {
   flex: 0 0 auto;
   width: 24px; height: 24px;
   display: grid; place-items: center;
   background: transparent; border: 0; border-radius: 4px;
-  color: var(--fg-3); font-size: 16px; line-height: 1; cursor: pointer;
+  color: #999; font-size: 16px; line-height: 1; cursor: pointer;
 }
-.install-banner-close:hover { color: var(--fg); background: rgba(255,255,255,.06); }
+.install-banner-close:hover { color: #fff; background: rgba(255,255,255,.06); }

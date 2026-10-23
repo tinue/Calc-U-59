@@ -1,4 +1,12 @@
 [
   { "file": "diag.ti59", "title": "Calculator diagnostic" },
-  { "file": "Integer-Base-Conversion.ti59", "title": "Base conversion" }
+  { "file": "Integer-Base-Conversion.ti59", "title": "Base conversion" },
+  { "file": "sum.ti59", "title": "Sum of 1…n" },
+  { "file": "Frequency-Transformation.ti59", "title": "Frequency transformation" },
+  { "file": "characters.ti59", "title": "Printer character table" },
+  { "file": "stars-and-stripes.ti59", "title": "Stars and stripes (printer)" },
+  { "file": "texas-print.ti59", "title": "Texas (printer graphics)" },
+  { "file": "calendar-09-dispatch.ti59", "title": "Calendar printer" },
+  { "file": "diag.ti58", "title": "Calculator diagnostic (TI-58)" },
+  { "file": "repartition.ti58c", "title": "Repartitioning (TI-58C)" }
 ]

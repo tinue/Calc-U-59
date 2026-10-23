@@ -4,30 +4,39 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Calc-U 59 — web client</title>
-<!-- The web client's demo and test page: PlayCalculator with the controls
-     and the physical keyboard, as the website's /play/ page mounts it.
-     Every path is relative, like the rest of dist/ (reference/WebClient.md). -->
+<!-- The web client's demo and test page: PlayCalculator with the physical
+     keyboard, in the layout the query names (?layout=wide|portrait, default
+     wide; also ?width=, ?height=, ?model=, ?module=, ?preset=). Every path
+     is relative, like the rest of dist/ (reference/WebClient.md). -->
 <link rel="stylesheet" href="calc.css">
 <style>
-  html, body { margin: 0; background: #000; }
-  main { display: flex; justify-content: center; padding: 24px 16px; }
+  html, body { margin: 0; background: #000; color: #ccc; font: 13px -apple-system, "Segoe UI", sans-serif; }
+  main { padding: 16px; }
+  nav { margin-bottom: 12px; }
+  nav a { color: #0a84ff; margin-right: 12px; }
+  #root { max-width: 1400px; }
+  body.portrait #root { max-width: 400px; }
 </style>
 </head>
 <body>
-<main><div id="root" style="width: 100%; max-width: 512px; display: flex; justify-content: center"></div></main>
+<main>
+  <nav><a href="?layout=wide">Wide</a><a href="?layout=portrait">Portrait</a><a href="app/">App</a></nav>
+  <div id="root"></div>
+</main>
 
 <script src="vendor/react.production.min.js"></script>
 <script src="vendor/react-dom.production.min.js"></script>
 <script src="calc.js"></script>
 <script>
-  // Fit PlayCalculator's 360 px grid to the column, as /play/ does; 8 px is
-  // the focus ring it reserves around itself.
-  const root = document.getElementById("root");
-  const fitted = () => Math.max(0.7, Math.min(1.4, (root.clientWidth - 8) / 360));
-  const reactRoot = ReactDOM.createRoot(root);
-  const render = () => reactRoot.render(
-    React.createElement(PlayCalculator, { scale: fitted(), keyboard: true }));
-  new ResizeObserver(render).observe(root);
+  const q = new URLSearchParams(location.search);
+  const layout = q.get("layout") === "portrait" ? "portrait" : "wide";
+  document.body.classList.toggle("portrait", layout === "portrait");
+  const num = (k) => (q.get(k) ? Number(q.get(k)) : undefined);
+  ReactDOM.createRoot(document.getElementById("root")).render(
+    React.createElement(PlayCalculator, {
+      layout, keyboard: true, width: num("width"), height: num("height"),
+      model: q.get("model") || undefined, module: q.get("module") || undefined, preset: q.get("preset") || undefined,
+    }));
 </script>
 </body>
 </html>
