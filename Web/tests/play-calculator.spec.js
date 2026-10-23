@@ -270,9 +270,8 @@ test('a blank card is written, listed, and read back', async ({ page }) => {
 test('the printer prints, shows text, and cuts', async ({ page }) => {
   await gotoReady(page);
   const printer = page.locator('[data-panel=printer]');
-  await printer.getByRole('button', { name: /PC-100C/ }).click();
+  // Connected from the start, as in the apps.
   await expect(printer.getByRole('button', { name: /PC-100C/ })).toHaveAttribute('aria-pressed', 'true');
-  await page.waitForTimeout(1500);  // reset
   await pressKeys(page, ['4', '2', '2nd', '+/-']);  // 42 Prt
   await expect(printer.getByRole('button', { name: 'Cut' })).toBeEnabled({ timeout: 5000 });
   await printer.getByRole('button', { name: 'Text view' }).click();

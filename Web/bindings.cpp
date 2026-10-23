@@ -119,9 +119,6 @@ public:
         m_c = std::make_unique<cu59::SessionController>(
             *this, [this](const std::string& name) { return readFile(name); }, m_files["cuecards.txt"], moduleID,
             cu59::Threading::Cooperative);
-        // A stand-alone calculator until the user connects the PC-100C (a
-        // preset's PRINTER: line still applies).
-        m_c->setPrinterConnected(false);
         m_c->startMachine(static_cast<cu59::Model>(model));
         postSettings();
         drain();

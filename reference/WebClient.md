@@ -22,8 +22,8 @@ cards live in an in-memory folder for the page session (upload one to read
 it, download one to keep it); settings and the TI-58C constant memory are
 kept in `localStorage` (keys prefixed `calcu59/`, named as in
 `Shared/SettingsKeys.hpp`); traces are written to Emscripten's MEMFS
-(`/traces`) and handed to the page as downloads. The calculator starts
-without the printer connected, as a stand-alone calculator.
+(`/traces`) and handed to the page as downloads. Like the apps, it starts
+with the PC-100C connected.
 
 It is built into a self-contained folder, `Web/dist/`, that does not know
 where it is hosted. The website (https://calc-u.org/59/, repository
