@@ -152,7 +152,8 @@ typedef NS_ENUM(NSInteger, TIFreezeOwner) {
 @property (nonatomic, readonly) double printerStripHeightUnits;
 @property (nonatomic, readonly) BOOL printerConnected;
 @property (nonatomic, readonly) BOOL printerTrace;
-- (void)setPrinterConnected:(BOOL)connected;
+/// The connect button: plug the PC-100C in or out and reset the calculator.
+- (void)togglePrinterConnection;
 - (void)togglePrinterTrace;
 - (void)pressPrinterPrint:(BOOL)pressed;
 - (void)pressPrinterAdv:(BOOL)pressed;

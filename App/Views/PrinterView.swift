@@ -50,8 +50,7 @@ struct PrinterView: View {
             Spacer()
             // Printer toggle button
             Button {
-                viewModel.setPrinterConnected(!viewModel.printerConnected)
-                viewModel.resetMachine()
+                viewModel.togglePrinterConnection()
             } label: {
                 HStack(spacing: 6) {
                     Text("PC-100C")

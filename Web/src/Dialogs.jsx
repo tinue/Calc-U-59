@@ -40,10 +40,10 @@ function CardPicker({ engine, mode, onClose }) {
   const [name, setName] = React.useState(card.fileName);
   const save = mode === "save";
 
-  const read = (n) => { engine.post({ type: "insertCard", name: n }); onClose(); };
+  const read = (n) => { engine.call("insertCard", n, null); onClose(); };
   const upload = (e) => readFileInput(e, "bytes").then((f) => {
     if (!f) return;
-    engine.post({ type: "insertCard", name: f.name, bytes: f.content });
+    engine.call("insertCard", f.name, f.content);
     onClose();
   });
   const write = () => { engine.call("insertBlankCard", name.trim()); onClose(); };
@@ -97,11 +97,6 @@ function CardPicker({ engine, mode, onClose }) {
 
 // ── Presets ─────────────────────────────────────────────────────────────────
 
-function loadPresetText(engine, text) {
-  engine.setStatus("");
-  return engine.loadState(text);
-}
-
 function PresetPicker({ engine, onClose }) {
   const [presets, setPresets] = React.useState(null);
   React.useEffect(() => {
@@ -109,13 +104,13 @@ function PresetPicker({ engine, onClose }) {
   }, []);
   const pick = (file) => {
     onClose();
-    fetchBesideCalc(`presets/${file}`).then((text) => loadPresetText(engine, text))
+    fetchBesideCalc(`presets/${file}`).then((text) => engine.loadState(text))
       .catch((err) => engine.setStatus(String(err.message || err)));
   };
   const upload = (e) => readFileInput(e, "text").then((f) => {
     if (!f) return;
     onClose();
-    loadPresetText(engine, f.content);
+    engine.loadState(f.content);
   });
   return (
     <Dialog title="Load Preset" onClose={onClose}

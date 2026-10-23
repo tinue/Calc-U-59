@@ -265,7 +265,7 @@ struct PlatformAdapter : cu59::SessionController::Platform {
 - (double)printerStripHeightUnits { return _c->printerStripHeightUnits(); }
 - (BOOL)printerConnected { return _c->printerConnected(); }
 - (BOOL)printerTrace { return _c->printerTrace(); }
-- (void)setPrinterConnected:(BOOL)connected { _c->setPrinterConnected(connected == YES); }
+- (void)togglePrinterConnection { _c->togglePrinterConnection(); }
 - (void)togglePrinterTrace { _c->togglePrinterTrace(); }
 - (void)pressPrinterPrint:(BOOL)pressed { _c->pressPrinterPrint(pressed == YES); }
 - (void)pressPrinterAdv:(BOOL)pressed { _c->pressPrinterAdv(pressed == YES); }

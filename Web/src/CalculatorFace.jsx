@@ -21,6 +21,10 @@ const KEY_LABELS = [
   "R/S", "0", ".", "+/-", "=",
 ];
 
+// Shared/KeyboardLayout kCanvasAspect (width / height), known before the
+// engine is: the layout and the prerender need it.
+const CANVAS_ASPECT = 2064 / 4075;
+
 const artworkFor = (model) => (model === 0 ? "ti59_base" : "ti58_base");
 const PRESS_SHIFT = 3;
 
@@ -52,7 +56,7 @@ function CueCardCanvas({ engine, width, height }) {
   const ref = React.useRef(null);
   const card = useEngine(engine, (s) => s.cueCard);
   const ready = useEngine(engine, (s) => s.data !== null);
-  const [, setLoaded] = React.useState(0);
+  const [loaded, setLoaded] = React.useState(0);
 
   React.useEffect(() => {
     if (engine && ready) engine.call("setCueCardSize", width, height);
@@ -62,7 +66,7 @@ function CueCardCanvas({ engine, width, height }) {
     const ctx = sizeCanvas(ref.current, width, height);
     ctx.clearRect(0, 0, width, height);
     if (card && Math.abs(card.width - width) < 0.5) paintCueCard(ctx, card, () => setLoaded((n) => n + 1));
-  });
+  }, [card, width, height, loaded]);
 
   return (
     <canvas
@@ -80,9 +84,9 @@ function CalculatorFace({ engine, width }) {
   const model = useEngine(engine, (s) => (s.model ? s.model.model : 0));
   const heldKey = useEngine(engine, (s) => s.runState.heldKey);
   const fullSpeed = useEngine(engine, (s) => s.runState.fullSpeed);
-  const height = data ? width / data.layout.aspect : width * (4075 / 2064);
+  const height = width / CANVAS_ASPECT;
   const baseRef = React.useRef(null);
-  const [, setLoaded] = React.useState(0);
+  const [loaded, setLoaded] = React.useState(0);
   const pointerRef = React.useRef(null);
 
   // Artwork and the pressed key.
@@ -106,7 +110,7 @@ function CalculatorFace({ engine, width }) {
       ctx.drawImage(img, r.x * sx, r.y * sy, r.w * sx, r.h * sy, r.x + PRESS_SHIFT, r.y + PRESS_SHIFT, r.w, r.h);
       ctx.restore();
     }
-  });
+  }, [data, model, heldKey, width, height, loaded]);
 
   const point = (e) => {
     const rect = baseRef.current.getBoundingClientRect();

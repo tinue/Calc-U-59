@@ -5,6 +5,7 @@
 // draws them with the panels' dimming and colours.
 
 const STEP_REPEAT_MS = 250;
+const CURRENT_PC_RGB = [52, 199, 89];
 
 const grey = (white) => `rgba(255,255,255,${white})`;
 
@@ -136,10 +137,13 @@ function Heatmap({ engine, data, currentPC }) {
     canvas.height = rows;
     const ctx = canvas.getContext("2d");
     const img = ctx.createImageData(cols, rows);
-    const rgb = colors.map((c) => [1, 3, 5].map((k) => parseInt(c.slice(k, k + 2), 16)));
+    const d = img.data;
     for (let i = 0; i < cols * rows; i++) {
-      const c = currentPC === i ? [52, 199, 89] : rgb[steps ? steps[i] : 0];
-      img.data.set([c[0], c[1], c[2], 255], i * 4);
+      const c = currentPC === i ? CURRENT_PC_RGB : colors[steps ? steps[i] : 0];
+      d[i * 4] = c[0];
+      d[i * 4 + 1] = c[1];
+      d[i * 4 + 2] = c[2];
+      d[i * 4 + 3] = 255;
     }
     ctx.putImageData(img, 0, 0);
   }, [steps, currentPC]);
@@ -189,7 +193,8 @@ function CpuInspector({ engine, data, font, narrow }) {
   React.useEffect(() => setPicked(-1), [frozen]);
   const selected = frozen && picked >= 0 && picked < rows.length ? picked : auto;
   useScrollTo(listRef, selected, frozen ? "center" : "bottom", [rows]);
-  const f = rows[selected];
+  // Running, only the newest row carries registers (bindings.cpp postCpu).
+  const f = rows[selected] && rows[selected].registers ? rows[selected] : undefined;
   const value = grey(0.85);
   return (
     <div className="calcu-debug-tab" style={{ fontSize: font }}>

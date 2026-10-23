@@ -15,7 +15,7 @@ function PaperDots({ geo, printer }) {
   const scrollRef = React.useRef(null);
   const canvasRef = React.useRef(null);
   const [size, setSize] = React.useState({ w: 0, h: 0 });
-  const tops = React.useMemo(() => stripTops(printer.lines), [printer.version]);
+  const tops = React.useMemo(() => stripTops(printer.lines), [printer.lines]);
 
   React.useEffect(() => {
     const el = scrollRef.current;
@@ -47,7 +47,7 @@ function PaperDots({ geo, printer }) {
     const el = scrollRef.current;
     el.scrollTop = el.scrollHeight;
     draw();
-  }, [printer.version, size.w, size.h]);
+  }, [printer.lines, size.w, size.h]);
 
   return (
     <div className="calcu-paper">
@@ -61,7 +61,7 @@ function PaperDots({ geo, printer }) {
 
 function PaperText({ printer }) {
   const ref = React.useRef(null);
-  React.useLayoutEffect(() => { ref.current.scrollTop = ref.current.scrollHeight; }, [printer.version]);
+  React.useLayoutEffect(() => { ref.current.scrollTop = ref.current.scrollHeight; }, [printer.lines]);
   return <pre className="calcu-paper calcu-paper-text" ref={ref}>{printer.lines.map((l) => l.text).join("\n")}</pre>;
 }
 
@@ -126,7 +126,7 @@ function Printer({ engine }) {
         <span />
         <button type="button" className="calcu-pill" aria-pressed={printer.connected}
           title="Connect or disconnect the PC-100C (resets the calculator)"
-          onClick={() => engine.call("setPrinterConnected", !printer.connected)}>
+          onClick={() => engine.call("togglePrinterConnection")}>
           PC-100C <span className={printer.connected ? "calcu-dot-on" : ""}>{dot(printer.connected)}</span>
         </button>
         <button type="button" className="calcu-iconbutton" aria-label={textView ? "Dot view" : "Text view"}

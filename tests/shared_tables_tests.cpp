@@ -96,6 +96,29 @@ TEST(keyboard_layout_hit_test) {
     CHECK(!keyAt(0.18, 0.0, hit));  // gap between columns, above row 0's expansion
 }
 
+TEST(pointer_tracker) {
+    // A key's centre in canvas space.
+    auto at = [](int row, int col) {
+        const NRect& k = kKeyRects[row][col];
+        return std::pair{k.x + k.w / 2, kKeyboardYStart + (k.y + k.h / 2) * kKeyboardYScale};
+    };
+    PointerTracker p;
+    auto [x0, y0] = at(8, 4);
+    auto c = p.move(x0, y0);
+    CHECK(c.press == 44 && c.release == -1 && !c.fullSpeed);
+    CHECK(p.move(x0, y0).press == -1);  // same key: nothing
+    auto [x1, y1] = at(8, 3);
+    c = p.move(x1, y1);  // drag to the next key
+    CHECK(c.release == 44 && c.press == 43);
+    c = p.move(0.5, kDisplayRect.y + kDisplayRect.h / 2);  // onto the display
+    CHECK(c.fullSpeed == std::optional<bool>(true) && c.release == 43 && p.key() == -1);
+    c = p.up();
+    CHECK(c.fullSpeed == std::optional<bool>(false) && c.release == -1);
+    p.move(x0, y0);
+    c = p.move(0.5, 0.0);  // off the keyboard
+    CHECK(c.release == 44 && c.press == -1 && !c.fullSpeed);
+}
+
 TEST(model_info) {
     CHECK_EQ(info(Model::TI59).instructionHz, 14218.75);
     CHECK_EQ(info(Model::TI58C).instructionHz, 12000.0);

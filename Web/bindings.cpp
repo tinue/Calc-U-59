@@ -40,6 +40,8 @@
 #include "../Shared/SessionController.hpp"
 #include "../Shared/SettingsKeys.hpp"
 #include "../Shared/SevenSegment.hpp"
+#include "../Shared/StateFile.hpp"
+#include "../Shared/TraceWriter.hpp"
 
 using namespace emscripten;
 namespace fs = std::filesystem;
@@ -88,14 +90,11 @@ std::optional<int> storedInt(val settings, const char* key) {
 
 /// "TI-59" / "TI-58" / "TI-58C" (or a raw value) to a model.
 std::optional<cu59::Model> modelNamed(const std::string& name) {
-    for (int raw = 0; raw <= 2; ++raw) {
-        auto m = static_cast<cu59::Model>(raw);
-        if (name == cu59::info(m).displayName || name == std::to_string(raw)) return m;
-    }
+    if (auto m = cu59::modelFromName(name)) return m;
+    for (int raw = 0; raw <= 2; ++raw)
+        if (name == std::to_string(raw)) return static_cast<cu59::Model>(raw);
     return std::nullopt;
 }
-
-const char* textAlign(cu59::TextAlign a) { return cu59::toString(a); }
 
 class WebController : public cu59::SessionController::Platform {
 public:
@@ -154,22 +153,12 @@ public:
         postSettings();
     }
 
-    // ── Pointer (canvas-normalized, as Qt6/app/KeyboardWidget::pointer) ──────
+    // ── Pointer (canvas-normalized, Shared/KeyboardLayout PointerTracker) ────
     // Keys go through the keyboard path, so a click shorter than the ROM's
     // debounce still holds the key the minimum time.
-    void pointerDown(double nx, double ny) { pointer(nx, ny); drain(); }
-    void pointerMove(double nx, double ny) { pointer(nx, ny); drain(); }
-    void pointerUp() {
-        if (m_displayPressed) {
-            m_displayPressed = false;
-            m_c->setFullSpeed(false);
-        }
-        if (m_pointerKey >= 0) {
-            m_c->keyboardUp();
-            m_pointerKey = -1;
-        }
-        drain();
-    }
+    void pointerDown(double nx, double ny) { pointerMove(nx, ny); }
+    void pointerMove(double nx, double ny) { apply(m_pointer.move(nx, ny)); drain(); }
+    void pointerUp() { apply(m_pointer.up()); drain(); }
     /// A key by grid position (the page's accessible key buttons).
     void keyButtonDown(int row, int col) { m_c->keyboardDown({cu59::matrixCode(row, col)}); drain(); }
     void keyButtonUp() { m_c->keyboardUp(); drain(); }
@@ -187,12 +176,8 @@ public:
         drain();
     }
     void blur() {
+        if (auto full = m_pointer.up().fullSpeed) m_c->setFullSpeed(*full);
         m_c->keyboardRelease();
-        m_pointerKey = -1;
-        if (m_displayPressed) {
-            m_displayPressed = false;
-            m_c->setFullSpeed(false);
-        }
         drain();
     }
 
@@ -208,13 +193,6 @@ public:
     }
 
     // ── Card reader: an in-memory card folder for the page session ───────────
-    val listCards() const {
-        val out = val::array();
-        int n = 0;
-        for (const auto& [name, text] : m_cards)
-            if (cu59::isCardFileName(name)) out.set(n++, name);
-        return out;
-    }
     /// A session card by name, or an uploaded one (bytes given: kept in the folder).
     void insertCard(std::string name, val bytes) {
         if (!bytes.isUndefined() && !bytes.isNull()) {
@@ -241,19 +219,15 @@ public:
     }
 
     // ── Printer ──────────────────────────────────────────────────────────────
-    void setPrinterConnected(bool on) {
-        m_c->setPrinterConnected(on);
-        m_c->resetMachine();
-        drain();
-    }
+    void togglePrinterConnection() { m_c->togglePrinterConnection(); drain(); }
     void togglePrinterTrace() { m_c->togglePrinterTrace(); drain(); }
     void pressPrinterPrint(bool pressed) { m_c->pressPrinterPrint(pressed); drain(); }
     void pressPrinterAdv(bool pressed) { m_c->pressPrinterAdv(pressed); drain(); }
     void cutPaper() { m_c->cutPaper(); drain(); }
 
     // ── Debugger ─────────────────────────────────────────────────────────────
-    void setLiveDebugEnabled(bool on) { m_c->setLiveDebugEnabled(on); m_liveOn = on; postLive(); drain(); }
-    void setCpuDebugEnabled(bool on) { m_c->setCpuDebugEnabled(on); m_cpuOn = on; postCpu(); postHeatmap(); drain(); }
+    void setLiveDebugEnabled(bool on) { m_c->setLiveDebugEnabled(on); postLive(); drain(); }
+    void setCpuDebugEnabled(bool on) { m_c->setCpuDebugEnabled(on); postCpu(); postHeatmap(); drain(); }
     void freeze(bool cpu) { m_c->freeze(cpu ? cu59::FreezeOwner::Cpu : cu59::FreezeOwner::Calculator); drain(); }
     void resumeFrozen() { m_c->resume(); drain(); }
     void armPcChange() { m_c->armPcChange(); drain(); }
@@ -274,20 +248,6 @@ public:
     void runAsm() { m_c->runAsm(); drain(); }
     void clearAsm() { m_c->clearAsm(); drain(); }
 
-    /// The trace files in MEMFS: [{name, size}].
-    val listTraces() const {
-        val out = val::array();
-        int n = 0;
-        std::error_code ec;
-        for (const auto& e : fs::directory_iterator(kTraceDir, ec)) {
-            if (!e.is_regular_file()) continue;
-            val o = val::object();
-            o.set("name", e.path().filename().string());
-            o.set("size", static_cast<double>(e.file_size()));
-            out.set(n++, o);
-        }
-        return out;
-    }
     val traceBytes(std::string name) const {
         std::ifstream in(kTraceDir / fs::path(name).filename(), std::ios::binary);
         if (!in) return val::null();
@@ -326,39 +286,10 @@ private:
         return Uint8Array.new_(view);  // a copy: the view dies with `data`
     }
 
-    void pointer(double nx, double ny) {
-        // Holding the display runs the emulator at full speed.
-        if (cu59::kDisplayRect.contains(nx, ny)) {
-            if (!m_displayPressed) {
-                m_displayPressed = true;
-                m_c->setFullSpeed(true);
-                if (m_pointerKey >= 0) {
-                    m_c->keyboardUp();
-                    m_pointerKey = -1;
-                }
-            }
-            return;
-        }
-        if (m_displayPressed) {
-            m_displayPressed = false;
-            m_c->setFullSpeed(false);
-        }
-        double kbNy = (ny - cu59::kKeyboardYStart) / cu59::kKeyboardYScale;
-        const double margin = 0.025;  // room for the vertical hit expansion
-        if (kbNy < -margin || kbNy > 1 + margin) {
-            if (m_pointerKey >= 0) {
-                m_c->keyboardUp();
-                m_pointerKey = -1;
-            }
-            return;
-        }
-        cu59::KeyHit hit{};
-        if (!cu59::keyAt(nx, kbNy, hit)) return;
-        int id = hit.row * 5 + hit.col;
-        if (id == m_pointerKey) return;
-        if (m_pointerKey >= 0) m_c->keyboardUp();  // one key at a time
-        m_pointerKey = id;
-        m_c->keyboardDown({cu59::matrixCode(hit.row, hit.col)});
+    void apply(const cu59::PointerTracker::Change& c) {
+        if (c.fullSpeed) m_c->setFullSpeed(*c.fullSpeed);
+        if (c.release >= 0) m_c->keyboardUp();
+        if (c.press >= 0) m_c->keyboardDown({cu59::matrixCode(c.press / 5, c.press % 5)});
     }
 
     // ── Platform ──────────────────────────────────────────────────────────────
@@ -413,25 +344,38 @@ private:
             m_cardsChanged = false;
             post("card", "card", card());
         }
-        if (c & (S::LiveChanged | S::ListingChanged | S::RunStateChanged)) postLive();
-        if (c & (S::CpuChanged | S::RunStateChanged)) postCpu();
+        // Freezing switches the step window to the full listing and the CPU
+        // rows to every row's registers.
+        const bool freezeFlipped = m_c->isFrozen() != m_postedFrozen;
+        m_postedFrozen = m_c->isFrozen();
+        if ((c & (S::LiveChanged | S::ListingChanged)) || freezeFlipped) postLive();
+        if ((c & S::CpuChanged) || freezeFlipped) postCpu();
         if (c & S::HeatmapChanged) postHeatmap();
         if (c & (S::LogChanged | S::TraceChanged)) postLog();
         if (c & S::AsmChanged) post("asm", "asm", asmState());
         if (c & S::TraceChanged) {
             // A manual trace that just ended is offered as a download.
-            if (m_traceWasOn && !m_c->manualTrace()) post("traceReady", "name", val(manualTraceName()));
+            if (m_traceWasOn && !m_c->manualTrace())
+                post("traceReady", "name", val(cu59::TraceWriter::baseFileName(m_c->model())));
             m_traceWasOn = m_c->manualTrace();
         }
-        if (c & (S::TraceChanged | S::RunStateChanged | S::ModelChanged)) post("traces", "traces", listTraces());
+        if (c & (S::TraceChanged | S::RunStateChanged | S::ModelChanged)) postTraces();
     }
 
-    std::string manualTraceName() const {
-        switch (m_c->model()) {
-        case cu59::Model::TI58: return "CALCU58_TRACE.bin";
-        case cu59::Model::TI58C: return "CALCU58C_TRACE.bin";
-        default: return "CALCU59_TRACE.bin";
-        }
+    /// The trace files in MEMFS, [{name, size}], when they changed.
+    void postTraces() {
+        std::vector<std::pair<std::string, uintmax_t>> files;
+        std::error_code ec;
+        for (const auto& e : fs::directory_iterator(kTraceDir, ec))
+            if (e.is_regular_file()) files.emplace_back(e.path().filename().string(), e.file_size());
+        if (files == m_postedTraces) return;
+        m_postedTraces = files;
+        post("traces", "traces", array(files, [](const auto& f) {
+            val o = val::object();
+            o.set("name", f.first);
+            o.set("size", static_cast<double>(f.second));
+            return o;
+        }));
     }
 
     static void post(const char* type, const char* field, val payload) {
@@ -450,11 +394,8 @@ private:
     }
 
     val model() const {
-        const auto& i = cu59::info(m_c->model());
         val o = val::object();
         o.set("model", static_cast<int>(m_c->model()));
-        o.set("name", std::string(i.displayName));
-        o.set("hasCardReader", i.hasCardReader);
         o.set("moduleID", m_c->moduleID());
         return o;
     }
@@ -484,7 +425,6 @@ private:
         o.set("pcArmed", d.pcChangeArmed);
         o.set("scanArmed", d.scanLoopExitArmed);
         o.set("fullSpeed", m_c->fullSpeed());
-        o.set("playing", m_c->keystrokesPlaying());
         o.set("heldKey", m_c->heldKey());
         o.set("asmActive", m_c->asmActive());
         return o;
@@ -494,7 +434,11 @@ private:
         val o = val::object();
         o.set("swiping", m_c->cardState() == cu59::SessionController::CardState::Swiping);
         o.set("fileName", m_c->cardFileName());
-        o.set("cards", listCards());
+        val cards = val::array();
+        int n = 0;
+        for (const auto& [name, text] : m_cards)
+            if (cu59::isCardFileName(name)) cards.set(n++, name);
+        o.set("cards", cards);
         return o;
     }
 
@@ -576,16 +520,16 @@ private:
         };
         // Top row: Row1 text, or the A′–E′ grid.
         if (!card->row1.empty())
-            text(card->row1, g.gridFontSize, textAlign(card->row1Align), g.gridCenter, g.gridY0, g.gridWidth, boxed);
+            text(card->row1, g.gridFontSize, cu59::toString(card->row1Align), g.gridCenter, g.gridY0, g.gridWidth, boxed);
         else gridRow(0, g.gridY0);
         // Bottom row: Row2 / Row2R text, or the A–E grid.
         if (!card->row2.empty() || !card->row2R.empty()) {
             if (card->row2R.empty()) {
-                text(card->row2, g.gridFontSize, textAlign(card->row2Align), g.gridCenter, g.gridY1, g.gridWidth, boxed);
+                text(card->row2, g.gridFontSize, cu59::toString(card->row2Align), g.gridCenter, g.gridY1, g.gridWidth, boxed);
             } else {
-                text(card->row2, g.gridFontSize, textAlign(card->row2Align), g.row2Left.cx, g.row2Left.cy,
+                text(card->row2, g.gridFontSize, cu59::toString(card->row2Align), g.row2Left.cx, g.row2Left.cy,
                      g.row2Left.width, boxed);
-                text(card->row2R, g.gridFontSize, textAlign(card->row2RAlign), g.row2Right.cx, g.row2Right.cy,
+                text(card->row2R, g.gridFontSize, cu59::toString(card->row2RAlign), g.row2Right.cx, g.row2Right.cy,
                      g.row2Right.width, boxed);
             }
         } else {
@@ -644,7 +588,7 @@ private:
 
     // ── Debugger rows, formatted as Qt6/app/debug/*Widget do ─────────────────
     void postLive() {
-        if (!m_liveOn) return;
+        if (!m_c->liveDebugEnabled()) return;
         const cu59::LiveDebugSnapshot& s = m_c->debug().live();
         char buf[64];
         val o = val::object();
@@ -661,13 +605,9 @@ private:
         const auto& entries = frozen ? m_c->debug().listing() : s.programWindow;
         val steps = val::array();
         for (size_t i = 0; i < entries.size(); ++i) {
-            const auto& e = entries[i];
-            std::snprintf(buf, sizeof buf, "%03d  %02d  ", e.stepNum, e.keycode);
-            std::string t = buf + e.mnemonic;
-            if (e.isCurrent) t += "  " + cu59::currentStepMarker(frozen);
             val r = val::object();
-            r.set("text", t);
-            r.set("current", e.isCurrent);
+            r.set("text", cu59::programStepLine(entries[i], frozen));
+            r.set("current", entries[i].isCurrent);
             steps.set(i, r);
         }
         o.set("steps", steps);
@@ -681,9 +621,8 @@ private:
         val returns = val::array();
         for (int i = 0; i < 6; ++i) {
             int a = s.returnAddresses[static_cast<size_t>(i)];
-            std::snprintf(buf, sizeof buf, "L%d:%03d", i + 1, a);
             val r = val::object();
-            r.set("text", std::string(buf));
+            r.set("text", cu59::returnLevelLine(i + 1, a));
             r.set("color", hexColor(cu59::returnLevelColor(s.returnAddressSourceFlags[static_cast<size_t>(i)], a == 0)));
             returns.set(i, r);
         }
@@ -707,20 +646,24 @@ private:
         post("live", "live", o);
     }
 
+    /// The CPU rows; the registers only for the rows the panel can show —
+    /// the newest while running, any when frozen.
     void postCpu() {
-        if (!m_cpuOn) return;
+        if (!m_c->cpuDebugEnabled()) return;
         const auto& history = m_c->debug().cpuHistory();
+        const bool frozen = m_c->isFrozen();
         char buf[64];
         val rows = val::array();
         for (size_t i = 0; i < history.size(); ++i) {
             const auto& e = history[i];
             const CpuFrame& f = e.frame;
-            std::snprintf(buf, sizeof buf, "%04X  %04X  ", e.pc, e.opcode);
             val r = val::object();
-            r.set("text", buf + e.disasm);
+            r.set("text", cu59::inspectorLine(e));
             r.set("pc", e.pc);
             r.set("history", e.isHistory);
             r.set("current", e.isCurrent);
+            rows.set(i, r);
+            if (!frozen && i + 1 < history.size()) continue;
             val regs = val::array();
             const std::pair<const char*, const uint8_t*> named[] = {
                 {"A", f.A}, {"B", f.B}, {"C", f.C}, {"D", f.D}, {"E", f.E}, {"Sout", f.Sout}};
@@ -744,13 +687,12 @@ private:
             r.set("digit", std::string(buf));
             r.set("lit", "Lit: " + std::to_string(f.maxDigitDecay));
             r.set("displayOn", f.displayOn != 0);
-            rows.set(i, r);
         }
         post("cpu", "rows", rows);
     }
 
     void postHeatmap() {
-        if (!m_cpuOn) return;
+        if (!m_c->cpuDebugEnabled()) return;
         const auto& counts = m_c->debug().heatmapCounts();
         std::vector<uint8_t> steps(counts.size());
         for (size_t i = 0; i < counts.size(); ++i) steps[i] = cu59::heatStep(counts[i]);
@@ -779,13 +721,13 @@ private:
     std::map<std::string, std::string> m_cards;
     bool m_cardsChanged = false;
 
-    int m_pointerKey = -1;
-    bool m_displayPressed = false;
+    cu59::PointerTracker m_pointer;
 
     double m_cardW = 0, m_cardH = 0;
     size_t m_sentLines = 0, m_sentCodes = 0;
-    bool m_liveOn = false, m_cpuOn = false;
+    bool m_postedFrozen = false;
     bool m_traceWasOn = false;
+    std::vector<std::pair<std::string, uintmax_t>> m_postedTraces;
 };
 
 // ── Free functions ───────────────────────────────────────────────────────────
@@ -837,7 +779,6 @@ val staticData(std::string cuecards) {
     }));
 
     val layout = val::object();
-    layout.set("aspect", cu59::kCanvasAspect);
     const auto& d = cu59::kDisplayRect;
     const auto& c = cu59::kCardRect;
     layout.set("display", rectJS(d.x, d.y, d.w, d.h));
@@ -859,7 +800,6 @@ val staticData(std::string cuecards) {
     printer.set("dotRadiusFraction", PG::dotRadiusFraction);
     printer.set("paddingX", PG::paperPaddingX);
     printer.set("paddingY", PG::paperPaddingY);
-    printer.set("dotPitchMM", PG::dotPitchMM);
     val font = val::array();
     for (int ch = 0; ch < 64; ++ch) {
         val rows = val::array();
@@ -872,11 +812,13 @@ val staticData(std::string cuecards) {
     val heat = val::object();
     heat.set("cols", cu59::kHeatmapCols);
     heat.set("rows", cu59::kHeatmapRows);
-    val colors = val::array();
+    val colors = val::array();  // [r, g, b] per heat step
     for (int i = 0; i < 6; ++i) {
-        char buf[8];
-        std::snprintf(buf, sizeof buf, "#%02x%02x%02x", cu59::kHeatColors[i].r, cu59::kHeatColors[i].g, cu59::kHeatColors[i].b);
-        colors.set(i, std::string(buf));
+        val c = val::array();
+        c.set(0, cu59::kHeatColors[i].r);
+        c.set(1, cu59::kHeatColors[i].g);
+        c.set(2, cu59::kHeatColors[i].b);
+        colors.set(i, c);
     }
     heat.set("colors", colors);
     o.set("heatmap", heat);
@@ -951,12 +893,11 @@ EMSCRIPTEN_BINDINGS(ti59_web) {
         .function("keyUp", &WebController::keyUp)
         .function("blur", &WebController::blur)
         .function("loadState", &WebController::loadState)
-        .function("listCards", &WebController::listCards)
         .function("insertCard", &WebController::insertCard)
         .function("insertBlankCard", &WebController::insertBlankCard)
         .function("ejectCard", &WebController::ejectCard)
         .function("cardBytes", &WebController::cardBytes)
-        .function("setPrinterConnected", &WebController::setPrinterConnected)
+        .function("togglePrinterConnection", &WebController::togglePrinterConnection)
         .function("togglePrinterTrace", &WebController::togglePrinterTrace)
         .function("pressPrinterPrint", &WebController::pressPrinterPrint)
         .function("pressPrinterAdv", &WebController::pressPrinterAdv)
@@ -982,7 +923,6 @@ EMSCRIPTEN_BINDINGS(ti59_web) {
         .function("loadAsm", &WebController::loadAsm)
         .function("runAsm", &WebController::runAsm)
         .function("clearAsm", &WebController::clearAsm)
-        .function("listTraces", &WebController::listTraces)
         .function("traceBytes", &WebController::traceBytes)
         .function("setCueCardSize", &WebController::setCueCardSize)
         .function("setDebugWidth", &WebController::setDebugWidth);

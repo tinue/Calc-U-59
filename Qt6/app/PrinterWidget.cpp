@@ -121,8 +121,7 @@ PrinterWidget::PrinterWidget(EmulatorController& controller, QWidget* parent) : 
     hrow->setContentsMargins(8, 8, 8, 8);
     m_connect = pill(QString(), header);
     connect(m_connect, &QPushButton::clicked, this, [this] {
-        m_controller.setPrinterConnected(!m_controller.printerConnected());
-        m_controller.resetMachine();
+        m_controller.togglePrinterConnection();
     });
     m_mode = pill(QStringLiteral("•••"), header);
     m_mode->setToolTip(QStringLiteral("Dot / text view"));

@@ -2,7 +2,6 @@
 #include "AppSettings.hpp"
 #include "CueCardRenderer.hpp"
 #include "EmulatorController.hpp"
-#include "KeyboardLayout.hpp"
 #include "KeyboardMap.hpp"
 #include "LedRenderer.hpp"
 #include <QKeyEvent>
@@ -75,7 +74,7 @@ void KeyboardWidget::paintEvent(QPaintEvent* e) {
 
     // Pressed key (pointer or physical keyboard): black out the key and draw
     // its artwork shifted 3 px down-right.
-    int pk = m_pressedKey >= 0 ? m_pressedKey : m_controller.keyboardHeldKey();
+    int pk = m_pointer.key() >= 0 ? m_pointer.key() : m_controller.keyboardHeldKey();
     if (pk >= 0) {
         const cu59::NRect& r = cu59::kKeyRects[pk / 5][pk % 5];
         QRectF key(c.left() + r.x * c.width(), c.top() + (cu59::kKeyboardYStart + r.y * cu59::kKeyboardYScale) * c.height(),
@@ -98,60 +97,19 @@ void KeyboardWidget::mouseMoveEvent(QMouseEvent* e) {
 }
 
 void KeyboardWidget::mouseReleaseEvent(QMouseEvent* e) {
-    if (e->button() == Qt::LeftButton) releasePointer();
+    if (e->button() == Qt::LeftButton) apply(m_pointer.up());
 }
 
 void KeyboardWidget::pointer(const QPointF& pos) {
     QRectF c = canvasRect();
-    double nx = (pos.x() - c.left()) / c.width(), ny = (pos.y() - c.top()) / c.height();
-    // Holding the display runs the emulator at full speed.
-    const cu59::NRect& d = cu59::kDisplayRect;
-    if (nx >= d.x && nx <= d.x + d.w && ny >= d.y && ny <= d.y + d.h) {
-        if (!m_displayPressed) {
-            m_displayPressed = true;
-            m_controller.setFullSpeed(true);
-            if (m_pressedKey >= 0) {
-                m_controller.releaseKey(m_pressedKey / 5, m_pressedKey % 5);
-                m_pressedKey = -1;
-                update();
-            }
-        }
-        return;
-    }
-    if (m_displayPressed) {
-        m_displayPressed = false;
-        m_controller.setFullSpeed(false);
-    }
-    double kbNy = (ny - cu59::kKeyboardYStart) / cu59::kKeyboardYScale;
-    const double margin = 0.025;  // room for the vertical hit expansion
-    if (kbNy < -margin || kbNy > 1 + margin) {
-        if (m_pressedKey >= 0) {
-            m_controller.releaseKey(m_pressedKey / 5, m_pressedKey % 5);
-            m_pressedKey = -1;
-            update();
-        }
-        return;
-    }
-    cu59::KeyHit hit{};
-    if (!cu59::keyAt(nx, kbNy, hit)) return;
-    int id = hit.row * 5 + hit.col;
-    if (id == m_pressedKey) return;
-    if (m_pressedKey >= 0) m_controller.releaseKey(m_pressedKey / 5, m_pressedKey % 5);  // one key at a time
-    m_pressedKey = id;
-    m_controller.pressKey(hit.row, hit.col);
-    update();
+    apply(m_pointer.move((pos.x() - c.left()) / c.width(), (pos.y() - c.top()) / c.height()));
 }
 
-void KeyboardWidget::releasePointer() {
-    if (m_displayPressed) {
-        m_displayPressed = false;
-        m_controller.setFullSpeed(false);
-    }
-    if (m_pressedKey >= 0) {
-        m_controller.releaseKey(m_pressedKey / 5, m_pressedKey % 5);
-        m_pressedKey = -1;
-        update();
-    }
+void KeyboardWidget::apply(const cu59::PointerTracker::Change& c) {
+    if (c.fullSpeed) m_controller.setFullSpeed(*c.fullSpeed);
+    if (c.release >= 0) m_controller.releaseKey(c.release / 5, c.release % 5);
+    if (c.press >= 0) m_controller.pressKey(c.press / 5, c.press % 5);
+    if (c.release >= 0 || c.press >= 0) update();
 }
 
 std::vector<uint8_t> KeyboardWidget::matrixCodes(const QKeyEvent* e) const {
@@ -206,7 +164,7 @@ void KeyboardWidget::focusOutEvent(QFocusEvent* e) {
 }
 
 void KeyboardWidget::hideEvent(QHideEvent* e) {
-    releasePointer();
+    apply(m_pointer.up());
     m_controller.keyboardRelease();
     QWidget::hideEvent(e);
 }

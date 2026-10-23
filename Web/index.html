@@ -38,7 +38,7 @@
   function size() {
     const w = root.clientWidth, h = root.clientHeight;
     // Portrait: not wider than the calculator at this height needs.
-    const width = layout === "portrait" ? Math.min(w, (h - 66) * (2064 / 4075) + 16) : w;
+    const width = layout === "portrait" ? Math.min(w, PlayCalculator.portraitWidth(h)) : w;
     return { width: num("width") || Math.floor(width), height: num("height") || Math.floor(h) };
   }
   function render() {

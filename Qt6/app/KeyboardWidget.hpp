@@ -1,4 +1,5 @@
 #pragma once
+#include "KeyboardLayout.hpp"
 #include "LedGeometry.hpp"
 #include <QPixmap>
 #include <QWidget>
@@ -34,13 +35,12 @@ protected:
 private:
     QRectF canvasRect() const;
     void pointer(const QPointF& pos);
-    void releasePointer();
+    void apply(const cu59::PointerTracker::Change& c);
     std::vector<uint8_t> matrixCodes(const QKeyEvent* e) const;
 
     EmulatorController& m_controller;
     QPixmap m_base;
     QPixmap m_scaled;        ///< m_base at the canvas's device size
     cu59::LedStyle m_ledStyle = cu59::LedStyle::Modernized;
-    int m_pressedKey = -1;   ///< row × 5 + col held by the pointer
-    bool m_displayPressed = false;
+    cu59::PointerTracker m_pointer;
 };

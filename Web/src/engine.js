@@ -1,7 +1,8 @@
 // The engine: owns calc-engine-worker.js (the WASM SessionController) and
 // keeps what it posts in a small store the components subscribe to — the
 // web's Qt6/app/EmulatorController. Display frames bypass the store: the
-// LED canvas repaints from `frames` without a React render. Settings and the
+// LED canvas repaints from `frames`, once per animation frame, without a
+// React render. Settings and the
 // TI-58C constant memory the worker asks to keep go to localStorage.
 // Created in an effect only (the website prerenders without a Worker).
 
@@ -49,15 +50,13 @@ function downloadBytes(name, bytes) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-const EMPTY_PRINTER = { lines: [], connected: false, trace: false, heightUnits: 0, copyPixelsPerUnit: 1, version: 0 };
-
 const INITIAL_STATE = {
   data: null,          // staticData(): models, modules, layout, printer, heatmap
   status: "Starting the emulator…",
-  model: null,         // {model, name, hasCardReader, moduleID}
+  model: null,         // {model, moduleID}
   cueCard: null,       // draw list (bindings.cpp cueCard())
-  runState: { frozen: false, owner: null, pcArmed: false, scanArmed: false, fullSpeed: false, playing: false, heldKey: -1, asmActive: false },
-  printer: EMPTY_PRINTER,
+  runState: { frozen: false, owner: null, pcArmed: false, scanArmed: false, fullSpeed: false, heldKey: -1, asmActive: false },
+  printer: { lines: [], connected: false, trace: false, heightUnits: 0, copyPixelsPerUnit: 1 },
   card: { swiping: false, fileName: "card.U59", cards: [] },
   live: null,
   cpu: [],
@@ -74,7 +73,8 @@ function createEngine({ model, module }) {
   let state = INITIAL_STATE;
   const listeners = new Set();
   const frames = { cells: null, onFrame: null };
-  const waiting = { stateLoaded: [] };
+  let framePending = false;
+  const stateLoadedWaiters = [];
 
   const set = (patch) => {
     state = { ...state, ...patch };
@@ -90,7 +90,13 @@ function createEngine({ model, module }) {
       case "ready": set({ data: m.data, status: "" }); break;
       case "display":
         frames.cells = m.cells;
-        if (frames.onFrame) frames.onFrame();
+        if (!framePending) {
+          framePending = true;
+          requestAnimationFrame(() => {
+            framePending = false;
+            if (frames.onFrame) frames.onFrame();
+          });
+        }
         break;
       case "model": set({ model: m.model }); break;
       case "cueCard": set({ cueCard: m.card }); break;
@@ -98,7 +104,7 @@ function createEngine({ model, module }) {
       case "printer": {
         const p = m.printer;
         const lines = state.printer.lines.slice(0, p.from).concat(p.lines);
-        set({ printer: { ...p, lines, version: state.printer.version + 1 } });
+        set({ printer: { ...p, lines } });
         break;
       }
       case "card": set({ card: m.card }); break;
@@ -119,7 +125,7 @@ function createEngine({ model, module }) {
       case "geometry": set({ geometry: m.geometry }); break;
       case "stateLoaded": {
         set({ status: m.errors && m.errors.length ? m.errors.join("\n") : "" });
-        const resolve = waiting.stateLoaded.shift();
+        const resolve = stateLoadedWaiters.shift();
         if (resolve) resolve(m.errors || []);
         break;
       }
@@ -142,10 +148,9 @@ function createEngine({ model, module }) {
     post,
     /// A preset's text; resolves with its errors.
     loadState: (text) => new Promise((resolve) => {
-      waiting.stateLoaded.push(resolve);
+      stateLoadedWaiters.push(resolve);
       post({ type: "loadState", text });
     }),
-    clearStatus: () => set({ status: "" }),
     setStatus: (status) => set({ status }),
     destroy: () => {
       document.removeEventListener("visibilitychange", onVisibility);

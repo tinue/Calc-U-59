@@ -71,8 +71,8 @@ that changed, debug rows formatted by `DebugText`, heatmap steps
 (`heatStep`). Static data — models, modules, `KeyboardLayout` rects, the
 printer geometry and font, the heatmap colours — comes once with `ready`.
 The pointer is sent as canvas-normalized points; the hit test (widened
-rects, the display's full-speed hold, drag to another key) runs in C++ on
-`KeyboardLayout`, as in `Qt6/app/KeyboardWidget::pointer`.
+rects, the display's full-speed hold, drag to another key) runs in C++ in
+`KeyboardLayout`'s `PointerTracker`, as in `Qt6/app/KeyboardWidget`.
 
 ## Build
 

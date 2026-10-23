@@ -337,6 +337,11 @@ void SessionController::setPrinterConnected(bool connected) {
     emitChanged(PrinterChanged);
 }
 
+void SessionController::togglePrinterConnection() {
+    setPrinterConnected(!m_printerConnected);
+    resetMachine();
+}
+
 void SessionController::togglePrinterTrace() {
     if (!m_session) return;
     TI59Machine& m = m_session->machine();

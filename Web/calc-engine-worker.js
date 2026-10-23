@@ -10,7 +10,6 @@
 //        by key (strings), the host's model/module overrides ("" for none)
 //   {type: "call", method, args}       -- a WebController method (bindings.cpp)
 //   {type: "loadState", text}          -- a preset's contents -> stateLoaded
-//   {type: "insertCard", name, bytes}  -- a session card, or an upload (bytes)
 //   {type: "cardBytes", name}          -- -> {type: "cardFile", name, bytes}
 //   {type: "traceBytes", name}         -- -> {type: "traceFile", name, bytes}
 //   {type: "geometry", w, h}           -- LED shapes for a w × h digit cell
@@ -83,7 +82,6 @@ function handle(msg) {
       postMessage({ type: "stateLoaded", errors });
       break;
     }
-    case "insertCard": controller.insertCard(msg.name, msg.bytes || null); break;
     case "cardBytes":
       postMessage({ type: "cardFile", name: msg.name, bytes: controller.cardBytes(msg.name) });
       break;

@@ -16,6 +16,10 @@ const PRINTER_MIN = 220, PRINTER_MAX = 320, DEBUG_MIN = 220;
 const FACE_MIN = { wide: 400, portrait: 264 };
 const SPLITTERS = 1 + 5;  // the line after the calculator, the divider before the debugger
 
+/// The artwork's width that `height` leaves room for, and the column height for an artwork width.
+const faceWidthFor = (height) => (height - BAR_HEIGHT - 2 * FACE_PADDING) * CANVAS_ASPECT;
+const columnHeight = (faceWidth, height) => Math.max(height || 0, faceWidth / CANVAS_ASPECT + 2 * FACE_PADDING + BAR_HEIGHT);
+
 /// The client's minimum width for a layout.
 function minimumWidth(portrait) {
   return portrait ? FACE_MIN.portrait + 2 * FACE_PADDING
@@ -64,13 +68,21 @@ function makeFeedback(enabled) {
   };
 }
 
+// Keyboard feedback on each key press (portrait). A leaf of its own, so a
+// key press re-renders nothing else.
+function KeyFeedback({ engine, feedback }) {
+  const heldKey = useEngine(engine, (s) => s.runState.heldKey);
+  React.useEffect(() => { if (heldKey >= 0) feedback("key"); }, [heldKey]);
+  return null;
+}
+
 function StatusLine({ engine }) {
   const status = useEngine(engine, (s) => s.status);
   if (!status) return null;
   return (
     <div className="calcu-status" role="status">
       <span>{status}</span>
-      {engine && <button type="button" className="calcu-iconbutton" aria-label="Dismiss" onClick={engine.clearStatus}>×</button>}
+      {engine && <button type="button" className="calcu-iconbutton" aria-label="Dismiss" onClick={() => engine.setStatus("")}>×</button>}
     </div>
   );
 }
@@ -100,10 +112,8 @@ function Divider({ onDrag }) {
 }
 
 function WideLayout({ engine, width, height, showSettings, onDialog, feedback }) {
-  const aspect = 2064 / 4075;
-  const faceWidth = Math.max(FACE_MIN.wide,
-    Math.min(height ? (height - BAR_HEIGHT - 2 * FACE_PADDING) * aspect : 420, width * 0.4));
-  const total = Math.max(height || 0, faceWidth / aspect + 2 * FACE_PADDING + BAR_HEIGHT);
+  const faceWidth = Math.max(FACE_MIN.wide, Math.min(height ? faceWidthFor(height) : 420, width * 0.4));
+  const total = columnHeight(faceWidth, height);
   const [printerWidth, setPrinterWidth] = React.useState(260);
   const room = width - faceWidth - 2 * FACE_PADDING - 2;
   const pw = Math.max(PRINTER_MIN, Math.min(PRINTER_MAX, printerWidth, room - DEBUG_MIN));
@@ -119,11 +129,9 @@ function WideLayout({ engine, width, height, showSettings, onDialog, feedback })
 }
 
 function PortraitLayout({ engine, width, height, showSettings, onDialog, feedback }) {
-  const aspect = 2064 / 4075;
   const byWidth = width - 2 * FACE_PADDING;
-  const faceWidth = Math.max(FACE_MIN.portrait,
-    height ? Math.min(byWidth, (height - BAR_HEIGHT - 2 * FACE_PADDING) * aspect) : byWidth);
-  const total = Math.max(height || 0, faceWidth / aspect + 2 * FACE_PADDING + BAR_HEIGHT);
+  const faceWidth = Math.max(FACE_MIN.portrait, height ? Math.min(byWidth, faceWidthFor(height)) : byWidth);
+  const total = columnHeight(faceWidth, height);
   const [page, setPage] = React.useState("calc");
   const other = page === "calc" ? "printer" : "calc";
   const chevron = (side) => (
@@ -185,10 +193,7 @@ function PlayCalculator({
   }, [width]);
   const w = Math.max(minimumWidth(portrait), width || measured || (portrait ? 360 : 1100));
 
-  // Keyboard feedback on each key press (portrait).
   const feedback = React.useMemo(() => makeFeedback(portrait), [portrait]);
-  const heldKey = useEngine(engine, (s) => s.runState.heldKey);
-  React.useEffect(() => { if (heldKey >= 0) feedback("key"); }, [heldKey]);
 
   // ── Physical keyboard ────────────────────────────────────────────────
   // Only with keyboard={true}, and only while the calculator itself has
@@ -197,20 +202,24 @@ function PlayCalculator({
   // key, Escape and Enter is claimed while focused.
   const ownsKeys = (e) => keyboard && engine && !dialog &&
     (e.target === rootRef.current || (e.target.classList && e.target.classList.contains("calcu-key")));
-  const claims = (e) => {
+  // The key's KeyPress when the calculator takes it, else null.
+  const claimed = (e) => {
+    if (!ownsKeys(e)) return null;
     const k = keyPressOf(e);
-    return !k.command && (k.produced !== 0 || e.key === "Escape" || e.key === "Enter");
+    return !k.command && (k.produced !== 0 || e.key === "Escape" || e.key === "Enter") ? k : null;
   };
   const onKeyDown = (e) => {
-    if (!ownsKeys(e) || !claims(e)) return;
+    const k = claimed(e);
+    if (!k) return;
     e.preventDefault();
     // e.repeat: the matrix bit is a level — a held key can never re-trigger.
-    if (!e.repeat) engine.post({ type: "call", method: "keyDown", args: Object.values(keyPressOf(e)) });
+    if (!e.repeat) engine.call("keyDown", k.key, k.produced, k.isLetter, k.shift, k.command);
   };
   const onKeyUp = (e) => {
-    if (!ownsKeys(e) || !claims(e)) return;
+    const k = claimed(e);
+    if (!k) return;
     e.preventDefault();
-    engine.post({ type: "call", method: "keyUp", args: Object.values(keyPressOf(e)) });
+    engine.call("keyUp", k.key, k.produced, k.isLetter, k.shift, k.command);
   };
   const onBlur = (e) => {
     if (engine && !rootRef.current.contains(e.relatedTarget)) engine.call("blur");
@@ -247,9 +256,14 @@ function PlayCalculator({
     >
       <Layout engine={engine} width={w} height={height} showSettings={settings} onDialog={setDialog} feedback={feedback} />
       <StatusLine engine={engine} />
+      <KeyFeedback engine={engine} feedback={feedback} />
       {engine && <DialogHost engine={engine} dialog={dialog} setDialog={setDialog} portrait={portrait} />}
     </div>
   );
 }
+
+/// The portrait client's width for a height: no wider than the calculator
+/// at that height needs (the demo page sizes itself with it).
+PlayCalculator.portraitWidth = (height) => faceWidthFor(height) + 2 * FACE_PADDING;
 
 Object.assign(window, { PlayCalculator });

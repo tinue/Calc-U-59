@@ -24,7 +24,7 @@ the named one still to do (the Notes say why); `Swift only` / `Qt only` /
 | Calculator artwork, key hit test (widened rects) | `KeyboardView` | `KeyboardWidget` | `CalculatorFace`, `WebController` (hit test) | `KeyboardLayout` | All | Web: transparent key buttons for assistive technology |
 | Pressed-key effect (blacked out, shifted 3 px) | `KeyboardView` | `KeyboardWidget` | `CalculatorFace` | — | All | |
 | One key at a time; release on focus loss / teardown | `KeyboardView` | `KeyboardWidget` | `CalculatorFace`, `WebController` | — | All | |
-| Hold display for full speed | `KeyboardView` | `KeyboardWidget` | `CalculatorFace`, `WebController` | `Pacing` | All | |
+| Hold display for full speed | `KeyboardView` | `KeyboardWidget` | `CalculatorFace`, `WebController` | `Pacing`, `KeyboardLayout` (`PointerTracker`) | All | |
 | Physical keyboard (26 keys, Shift = 2nd, min. hold) | `KeyboardView` | `KeyboardWidget` | `PlayCalculator` (`keyboard` prop), `WebController` | `KeyboardMap`, `KeySequencer` | All | macOS only in the Swift app; web: only while the calculator has focus |
 | LED display, Modernized / Classic styles | `LEDDisplayView` | `LedRenderer` | `painters.js` | `SevenSegment`, `LedGeometry` | All | Glow: SwiftUI blur / box-blur layers / Canvas 2D blur; web: Classic only |
 | Digit and decimal-point brightness (persistence of vision), "C" indicator fade | `LEDDisplayView` | `LedRenderer` | `painters.js`, `WebController` | `FrameSampler`, `DisplayPov` | All | |

@@ -82,7 +82,7 @@ function ControlBar({ engine, compact, showSettings, onDialog, feedback }) {
   const data = useEngine(engine, (s) => s.data);
   const model = useEngine(engine, (s) => s.model);
   const swiping = useEngine(engine, (s) => s.card.swiping);
-  const hasReader = model && model.hasCardReader;
+  const hasReader = data && model && data.models[model.model].hasCardReader;
 
   return (
     <div className="calcu-bar">
