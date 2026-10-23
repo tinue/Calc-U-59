@@ -207,59 +207,49 @@ PROGRAM:
 # your own output, change them here, or delete this section and
 # enter the values manually.
 KEYSTROKES:
+# Full speed through every answer: playback waits after each key until the
+# program has stopped, and speed returns to regular when the script ends.
+FullSpeed:
 # Launch
 11  A
-WaitFullSpeed: 0.5s
 # X-MAX
 72  4
 91  R/S
-WaitFullSpeed: 0.5s
 # X-MIN
 72  4
 94  +/-
 91  R/S
-WaitFullSpeed: 0.5s
 # Y-MAX
 72  4
 91  R/S
-WaitFullSpeed: 0.5s
 # Y-MIN
 72  4
 94  +/-
 91  R/S
-WaitFullSpeed: 0.5s
 # Z-MAX
 82  1
 83  2
 91  R/S
-WaitFullSpeed: 0.5s
 # Z-MIN
 92  0
 91  R/S
-WaitFullSpeed: 0.5s
 # DIF-X
 82  1
 91  R/S
-WaitFullSpeed: 0.5s
 # DIF-Y
 82  1
 91  R/S
-WaitFullSpeed: 0.5s
 # ZEILEN
 63  8
 92  0
 91  R/S
-WaitFullSpeed: 0.5s
 # STREIFEN
 82  1
 91  R/S
-WaitFullSpeed: 0.5s
 # X-Y-WINKEL
 74  6
 73  5
 91  R/S
-WaitFullSpeed: 0.5s
 # VERDECKT
 82  1
 91 R/S
-WaitFullSpeed: 0.5s
