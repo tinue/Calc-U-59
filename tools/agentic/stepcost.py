@@ -17,6 +17,7 @@ from ti59file import Machine, LIB, IDLE_LO, IDLE_HI, FLG_IDLE, INSTR_PER_SEC, re
 
 FAST_ENTRY = ['82', '85', '83', '52', '82', '83', '94', '95', '61', '92', '92', '62', '41', '92', '42']
 NORMAL_ENTRY = ['61', '92', '92', '63', '91']        # GTO 008 R/S
+LIMIT_S = 300                                        # emulated seconds before measure() gives up
 REGS = {0: '10', 10: '2.000311000312', 11: '2.000311000312', 12: '2.000311000312', 22: '98.99', 4: '1000', 1: '5'}
 CASES = {
     'Nop': [68], 'digit 2': [2], 'x<>t': [32], 'RCL 22': [43, 22], 'STO 30': [42, 30], 'SUM 30': [44, 30],
@@ -45,6 +46,8 @@ def measure(body, reps, fast=True, regs=REGS):
     while quiet < 20:
         LIB.h_stepn(m.h, 25)
         quiet = quiet + 1 if _cpu_idle(m) else 0
+        if (m.elapsed() - t0) / INSTR_PER_SEC > LIMIT_S:
+            raise RuntimeError(f'program still running after {LIMIT_S} s (a jump that loops back?)')
     return m.elapsed() - t0
 
 

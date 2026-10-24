@@ -229,6 +229,11 @@ uv run python tools/agentic/runtime.py examples/calendar-09-dispatch.ti59
   2-digit vs 3-digit integer part shifts them).
 - **Fast mode:** the rules (no SBR, no labels as targets, safe endings) are
   in `rom/fastmode.md`; `examples/fastmode-sst.ti59` is the SST entry.
+- **Jumps in `stepcost.py` cases.** Each case is repeated 30 times in a
+  row, so a jump to a fixed address lands inside the repetitions and can
+  loop forever. `measure()` gives up after 300 emulated seconds with an
+  error. Measure a jump with a target that moves along with each
+  repetition instead.
 - **Settle overhead.** Key handling plus the idle checks cost ~1.6 s of
   emulated time per key. Don't sum the per-key times of `ti59file.run`;
   use `runtime.py`.
