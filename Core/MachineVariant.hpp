@@ -21,15 +21,16 @@ inline bool hasLargeMemory(MachineVariant v) { return v == MachineVariant::TI59;
 /// from the oscillator built into a TMC0580 DSCOM (CD2400 or CD2401), set by
 /// external R/C parts (http://www.datamath.org/Chips/TMC0580.htm;
 /// reference/CoreArchitecture.md, "TI-58C clock"). Its rate varies by unit;
-/// 396 kHz here is 2 × PHI of one real TI-58C (PHI 197.8 kHz measured),
-/// rounded. Others measured PHI 194.7 kHz, or blink as at PHI 200 kHz. Real
+/// 394 kHz here is one real TI-58C's clock, from its error blink with and
+/// without the printer (PHI 197.2 kHz; a logic analyser read 197.8).
+/// Others measured PHI 194.7 kHz, or blink as at PHI 200 kHz. Real
 /// measurements are compared after normalising the unit's clock from its
 /// error blink (tests/core_tests.cpp).
 constexpr double resonatorHz(MachineVariant v) {
     switch (v) {
     case MachineVariant::TI59: return 455000.0;
     case MachineVariant::TI58: return 384000.0;
-    case MachineVariant::TI58C: return 396000.0;
+    case MachineVariant::TI58C: return 394000.0;
     }
     return 455000.0;
 }

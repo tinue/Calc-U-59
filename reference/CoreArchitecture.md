@@ -60,7 +60,7 @@ per clock, so one instruction takes 16 digit times.
 ```
 TI-59:      455 kHz ÷ 2 (two-phase) ÷ 16 → 14,219 instructions/s
 TI-58:      384 kHz ÷ 2 ÷ 16             → 12,000 instructions/s
-TI-58C:     396 kHz ÷ 2 ÷ 16             → 12,375 instructions/s (2 × PHI of one unit; varies by unit)
+TI-58C:     394 kHz ÷ 2 ÷ 16             → 12,312.5 instructions/s (one unit's clock; varies by unit)
 idle (display) mode: ÷ 4 more on the TI-59/58; full speed on the TI-58C
 ```
 
@@ -120,7 +120,7 @@ pins in parallel. Probes on an opened unit (unit B below) confirm it.
   | Unit | PHI | Source |
   |---|---|---|
   | A | 194.7 kHz | scope; its error blink of 0.920 s matches exactly |
-  | B | 197.8 kHz | logic analyser on PHI1 (printer connector pin 4), mean of many periods |
+  | B | 197.2 kHz | error blink 0.9090 s stand-alone (battery pack in), 0.7140 s on the PC-100C; a logic analyser on PHI1 (printer connector pin 4) read 197.8 kHz |
   | C | ≈ 200 kHz | error blink of 0.896 s only |
 
   All are within the 230 kHz PHI limit. Unit B reads the same at a supply
@@ -131,8 +131,12 @@ pins in parallel. Probes on an opened unit (unit B below) confirm it.
 **Emulator model.** The emulator keeps a base clock for every variant,
 because the rest of the timing code derives from it (instruction rate =
 base ÷ 32). For the TI-58C that base is 2 × PHI, not a frequency found on
-the board. `resonatorHz()` uses 396 kHz: unit B's PHI of 197.8 kHz,
-doubled and rounded (12,375 instructions/s).
+the board. `resonatorHz()` uses 394 kHz, unit B's clock from its error
+blink (12,312.5 instructions/s); its blinks with and without the printer
+give the same rate. The analyser read 0.3% higher, probably because its
+probe on the printer connector shifts the oscillator a little. Unit B without its battery pack, on the
+charger alone, shows deep 100 Hz ripple on the display and blinks 0.912 s
+(0.3% slower): measure with the pack in.
 
 **Not yet known:** which of the two stacked chips is bonded for the
 oscillator, which parts set its rate, the nominal rate, and how much it
@@ -659,7 +663,7 @@ left-to-right line.
 | `PRT.FEED` | Blank line (paper advance); `FLG_BUSY` for 197.5 ms |
 
 197.5 ms (measured: 40 ADV lines in 7.9 s) is 2808 cycles on the TI-59 and
-2370 on the TI-58 and 2444 on the TI-58C, counted down in `step()`. The ~120 ms per line of
+2370 on the TI-58 and 2431 on the TI-58C, counted down in `step()`. The ~120 ms per line of
 serial transfer that a real LIST adds is not modelled.
 
 Text lines are queued at once (`drainPrinterLines()`); the dot-matrix line
@@ -719,13 +723,13 @@ debug events".
 | Feature | TI-59 | TI-58 | TI-58C |
 |---|---|---|---|
 | ROM | TMC0582/0583/0571B | same as TI-59 | CD2400/2401/TMC0573 |
-| Clock (instructions/s) | 14,219 | 12,000 | 12,375 |
+| Clock (instructions/s) | 14,219 | 12,000 | 12,312.5 |
 | IDLE weight | 4 | 4 | 1 |
 | RAM registers | 120 | 60 | 60 + E000–E003 |
 | RAM access | `RAM.OP` | `RAM.OP` | `MEMWR`/`MEMRD` |
 | Card reader | Yes (switch at digit 10) | No (D7–KR veto, digit 10 open) | No (digit 7 held; the ROM never reads it) |
 | Printer-present digit | 0 | 0 | 10 |
-| Printer BUSY | 2808 cycles | 2370 cycles | 2444 cycles |
+| Printer BUSY | 2808 cycles | 2370 cycles | 2431 cycles |
 | Library module | Yes | Yes | Yes |
 | Constant memory | No | No | Yes (`ti58c.mem` via `serialiseRAM`) |
 | Step dispatch / module fetch | `0837` / `082F` | same | `082B` / `0823` |
