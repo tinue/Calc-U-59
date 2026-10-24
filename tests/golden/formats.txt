@@ -19661,7 +19661,6 @@ step 477 77
 step 478 77
 step 479 77
 key 15
-waitFullSpeed 3
 cue template MagnetCard
 cue title CALCULATOR DIAGNOSTIC - Consult Owner's Manual
 cue banks 1 2
@@ -20023,7 +20022,6 @@ step 477 77
 step 478 77
 step 479 77
 key 15
-waitFullSpeed 3
 cue template MagnetCard
 cue title CALCULATOR DIAGNOSTIC - Consult Owner's Manual
 cue banks 1 2
@@ -20385,7 +20383,6 @@ step 477 77
 step 478 77
 step 479 77
 key 15
-waitFullSpeed 3
 cue template MagnetCard
 cue title CALCULATOR DIAGNOSTIC - Consult Owner's Manual
 cue banks 1 2
@@ -22682,8 +22679,8 @@ key 61
 key 72
 key 62
 key 84
+fullSpeed
 key 11
-waitFullSpeed 10
 cue template MagnetCard
 cue title Fast Grafik 3D Plot - Part 2
 cue banks 1 2
@@ -23334,8 +23331,8 @@ key 61
 key 72
 key 62
 key 84
+fullSpeed
 key 11
-waitFullSpeed 10
 cue template MagnetCard
 cue title Fast Grafik 3D Plot - Part 2
 cue banks 1 2
@@ -23992,8 +23989,8 @@ key 61
 key 72
 key 62
 key 84
+fullSpeed
 key 11
-waitFullSpeed 10
 cue template MagnetCard
 cue title Fast Grafik 3D Plot - Part 2
 cue banks 1 2
@@ -25133,7 +25130,6 @@ key 84
 key 84
 wait 1
 key 91
-waitFullSpeed 1
 key 21
 key 32
 wait 2
@@ -25144,8 +25140,8 @@ trace -
 key 31
 key 25
 key 81
+fullSpeed
 key 11
-waitFullSpeed 0.5
 module ML
 printer 1
 model -
@@ -25332,7 +25328,6 @@ key 84
 key 84
 wait 1
 key 91
-waitFullSpeed 1
 key 21
 key 32
 wait 2
@@ -25343,8 +25338,8 @@ trace -
 key 31
 key 25
 key 81
+fullSpeed
 key 11
-waitFullSpeed 0.5
 module ML
 printer 1
 model -
@@ -25531,7 +25526,6 @@ key 84
 key 84
 wait 1
 key 91
-waitFullSpeed 1
 key 21
 key 32
 wait 2
@@ -25542,8 +25536,8 @@ trace -
 key 31
 key 25
 key 81
+fullSpeed
 key 11
-waitFullSpeed 0.5
 module ML
 printer 1
 model -
@@ -30670,8 +30664,8 @@ reg 15 0 0900005371731371
 reg 16 0 0700000003235312
 reg 17 0 0700000041547162
 reg 18 0 0900002661533123
+fullSpeed
 key 15
-wait 5
 cue template MagnetCard
 cue title Stars & Stripes
 cue banks 1 4
@@ -30885,8 +30879,8 @@ reg 15 0 0900005371731371
 reg 16 0 0700000003235312
 reg 17 0 0700000041547162
 reg 18 0 0900002661533123
+fullSpeed
 key 15
-wait 5
 cue template MagnetCard
 cue title Stars & Stripes
 cue banks 1 4
@@ -31100,8 +31094,8 @@ reg 15 0 0900005371731371
 reg 16 0 0700000003235312
 reg 17 0 0700000041547162
 reg 18 0 0900002661533123
+fullSpeed
 key 15
-wait 5
 cue template MagnetCard
 cue title Stars & Stripes
 cue banks 1 4

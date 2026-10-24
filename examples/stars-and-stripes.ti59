@@ -74,5 +74,5 @@ REGISTERS:
 # The printout could be fully automated here, but in spirit of the original author's intent, we print the instructions
 # instead and then let the user follow them.
 KEYSTROKES:
+FullSpeed:
 15  E
-Wait: 5s
