@@ -54,7 +54,7 @@ real-hardware times of the calendar programs within a few seconds.
 
 ```bash
 uv run python tools/agentic/ti59file.py examples/calendar-09-dispatch.ti59 [--lines]
-# examples/calendar-09-dispatch.ti59:    95.9 s  finished=True  lines=113 (non-blank 85)  printer floor  22.3 s
+# examples/calendar-09-dispatch.ti59:    89.1 s  finished=True  lines=113 (non-blank 85)  printer floor  27.6 s
 ```
 
 Loads the file (PARTITION via `n Op 17`, PROGRAM, REGISTERS), plays its
@@ -62,8 +62,8 @@ KEYSTROKES, each key to idle, and times the **last** key until the program
 has stopped, the printer is idle and the CPU sits in the keyboard idle
 loop. That end condition includes a few seconds of trailing idle checks, so
 the figure is a little higher than the time of the last printed line (use
-`linetimes.py` for that). `printer floor` = lines × 0.1975 s, the printer's
-own minimum. `--lines` appends the printout.
+`linetimes.py` for that). `printer floor` = the printer's own minimum: 4168
+instruction cycles per printed line, 1370 per blank (PRT.FEED) line. `--lines` appends the printout.
 
 Library use (`sys.path.insert(0, 'tools/agentic')`):
 

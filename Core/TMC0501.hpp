@@ -16,7 +16,7 @@ class RAM;
 //
 // Each printed character-line produces one PrinterCodeLine.  rowCount is 7 for
 // a complete line; 1–6 when the print was aborted mid-stroke (a new PRT_PRINT
-// arrived before the previous line's 197 ms BUSY window elapsed).
+// arrived before the previous line's BUSY window (kPrinterLineCycles) elapsed).
 struct PrinterCodeLine {
     std::array<uint8_t, 20> codes{};
     uint8_t rowCount{7};   // dot-rows physically printed (1–7); 7 = complete
@@ -530,7 +530,16 @@ private:
     // in the last complete digit-counter revolution.
     void computeDisplayTraceState(uint8_t& displayOn, uint8_t& maxDigitDecay) const;
 
-    uint32_t getPrinterBusyCycles() const;
+    // PC-100 BUSY after PRT.GO (a printed line) and PRT.FEED (half a line; the
+    // ROM's Adv issues two). The printer runs on the calculator's PHI clock, so
+    // these are instruction cycles on every model, counted down once per step.
+    // Measured from recordings of List, Prt and Adv loops on a TI-59 and a
+    // TI-58C (reference/CoreArchitecture.md, "Printer (PC-100C)").
+    static constexpr uint32_t kPrinterLineCycles = 4168;
+    static constexpr uint32_t kPrinterFeedCycles = 1370;
+    // A printed line is 7 dot-row strokes from PRT.GO on, then the paper advance.
+    // A cut-short line keeps the rows whose stroke was at least half done.
+    static constexpr uint32_t kPrinterRowCycles = 508;
 
     int getStepWeight() const;
 };

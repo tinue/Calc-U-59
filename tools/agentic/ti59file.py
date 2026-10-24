@@ -20,7 +20,8 @@ sys.path.insert(0, os.path.join(ROOT, 'tools', 'headless'))
 from ti59 import Machine, LIB, INSTR_PER_SEC, IDLE_LO, IDLE_HI, FLG_IDLE  # noqa: E402
 
 FLG_BUSY = 0x8000              # printer busy
-LINE_TIME = 0.1975             # seconds per printed line at full printer speed
+# printer BUSY in instruction cycles (Core/TMC0501.hpp kPrinterLineCycles / kPrinterFeedCycles)
+LINE_CYCLES, FEED_CYCLES = 4168, 1370
 # KEYSTROKES matrix codes of the digit keys
 DIGIT = {'0': '92', '1': '82', '2': '83', '3': '84', '4': '72', '5': '73', '6': '74', '7': '62', '8': '63', '9': '64'}
 
@@ -144,10 +145,16 @@ def run(path, keys=None):
     return (m.elapsed() - t0) / INSTR_PER_SEC, m.printer_lines(), ok, m
 
 
+def printer_floor(lines):
+    """The printer's own minimum time for these lines; a blank line is one PRT.FEED"""
+    printed = sum(1 for l in lines if l.strip())
+    return (printed * LINE_CYCLES + (len(lines) - printed) * FEED_CYCLES) / INSTR_PER_SEC
+
+
 if __name__ == '__main__':
     path = sys.argv[1]
     t, lines, ok, m = run(path)
     print(f'{path}: {t:7.1f} s  finished={ok}  lines={len(lines)} '
-          f'(non-blank {sum(1 for l in lines if l.strip())})  printer floor {len(lines) * LINE_TIME:5.1f} s')
+          f'(non-blank {sum(1 for l in lines if l.strip())})  printer floor {printer_floor(lines):5.1f} s')
     if '--lines' in sys.argv:
         print('\n'.join(lines))

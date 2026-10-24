@@ -280,11 +280,6 @@ void TMC0501::computeDisplayTraceState(uint8_t& displayOn, uint8_t& maxDigitDeca
     maxDigitDecay = static_cast<uint8_t>(std::bitset<16>(m_drivenLastRev).count());
 }
 
-uint32_t TMC0501::getPrinterBusyCycles() const {
-    // Printer busy time: 197.5 ms → TI-59 2808 cycles, TI-58 2370, TI-58C 2431.
-    return static_cast<uint32_t>(0.1975 * instructionHz(m_variant));
-}
-
 int TMC0501::getStepWeight() const {
     return ((flags & FLG_IDLE) && !hasConstantMemory(m_variant)) ? 4 : 1;
 }
@@ -820,17 +815,13 @@ int TMC0501::step() {
                         m_prnLines.push_back(std::move(line));
                     }
                     flags |= FLG_BUSY;
-                    m_prnBusyCycles = getPrinterBusyCycles();
+                    m_prnBusyCycles = kPrinterLineCycles;
                 }
                 break;
             }
             case 0xB0: // PRT_FEED — advance paper (blank line)
-                // ADV button sends PRT_FEED continuously while held; BUSY gates the rate.
-                // Measured on real PC-100C hardware: 40 ADV lines in 7.9s → 197.5ms/line.
-                // Note: 40 LIST lines take 12.7s → 317.5ms/line; the extra 120ms/line is
-                // communication overhead (serial transfer of ~13 characters at ~9.5ms each).
-                // That overhead is not yet modelled — it requires per-output BUSY pulses that
-                // only fire when the ROM polls TST BUSY between characters.
+                // Half a line of paper; Adv (key, button or program step) issues two.
+                // BUSY gates the rate.
                 //
                 // If a PRT_PRINT is in progress (deferred code-line pending), flush it now
                 // so the print's code-line lands at the same index as its text line.
@@ -843,7 +834,7 @@ int TMC0501::step() {
                     m_prnCodeLines.emplace_back();  // zero-filled
                 }
                 flags |= FLG_BUSY;
-                m_prnBusyCycles = getPrinterBusyCycles();
+                m_prnBusyCycles = kPrinterFeedCycles;
                 break;
             case 0xF0: // RAM_OP — deferred decode: next Sout encodes operation + address
                 // Deferred operation: capture operation and address from Sout.
@@ -1250,9 +1241,8 @@ void TMC0501::flushPendingCodeLine(int rowCount) {
 
 void TMC0501::flushPendingIfActive() {
     if (!m_prnHasPending) return;
-    uint32_t total   = getPrinterBusyCycles();
-    uint32_t elapsed = total - m_prnBusyCycles;
-    flushPendingCodeLine(static_cast<int>(elapsed * 7u / total));
+    uint32_t elapsed = kPrinterLineCycles - m_prnBusyCycles;
+    flushPendingCodeLine(static_cast<int>((elapsed + kPrinterRowCycles / 2) / kPrinterRowCycles));
 }
 
 void TMC0501::pressPrinterPrint(bool pressed) {

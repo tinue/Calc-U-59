@@ -694,18 +694,50 @@ left-to-right line.
 | `PRT.OUT` | Store one character (6-bit code from `KR[9:4]`) |
 | `PRT.FUNC` | Store a 3-character function mnemonic (`PRN_STR` table) |
 | `PRT.STEP` | Store a blank |
-| `PRT.GO` | Print the line; `FLG_BUSY` for 197.5 ms |
-| `PRT.FEED` | Blank line (paper advance); `FLG_BUSY` for 197.5 ms |
+| `PRT.GO` | Print the line; `FLG_BUSY` for `kPrinterLineCycles` (4168) |
+| `PRT.FEED` | Half a line of paper; `FLG_BUSY` for `kPrinterFeedCycles` (1370) |
 
-197.5 ms (measured: 40 ADV lines in 7.9 s) is 2808 cycles on the TI-59 and
-2370 on the TI-58 and 2431 on the TI-58C, counted down in `step()`. The ~120 ms per line of
-serial transfer that a real LIST adds is not modelled.
+**Timing.** The PC-100 runs on the calculator's PHI clock (PHI1 is on the
+printer connector), so its BUSY times are instruction cycles, the same on
+every model, counted down once per `step()`. A TI-59 in IDLE still gets 16
+PHI1 pulses per instruction, so the per-step count holds there too. On the
+TI-59 (14,219/s) a printed line takes 293 ms and a feed 96 ms; on the TI-58C
+(12,312.5/s) 339 and 111 ms. Adv (calculator key, printer button or program
+step) issues two `PRT.FEED`s for one line on paper (`0F50`–`0F56` on the
+TI-58C, the same loop at `0F38` on the TI-59). The ROM does not wait after a
+print: it carries on (the next program steps, the next List line) and polls
+`TST.BUSY` right before its next print operation, so ROM work overlaps the
+printer's cycle.
+
+Measured from audio recordings of a PC-100A (2026-10-24), one unit each of
+TI-59 (453.5 kHz) and TI-58C (≈394.3 kHz). The loop period minus the ROM's
+own work after its last `TST.BUSY` (from the emulator) gives the printer's
+cycle, in instruction cycles:
+
+| Loop | TI-59 period | TI-58C period | Printer cycle TI-59 / TI-58C |
+|---|---|---|---|
+| List (empty program) | 307.0 ms | 356.9 ms | line 4165 / 4212 |
+| `1 SUM 00 Prt GTO 000` | 297.9 ms | 342.9 ms | line 4168 / 4171 |
+| `1 SUM 00 Adv GTO 000` | 332.9 ms | 398.8 ms | feed 1366 / 1377 |
+
+The Adv loop's other half (second feed to first feed) is ROM-bound: 3348
+cycles on the TI-59, 3534 on the TI-58C. In milliseconds the two models
+differ by 15%; in cycles they agree within the TI-58C's ≈1% session-to-session
+clock wander (see "TI-58C clock"). Two more recordings support the clock
+dependence: the dot-row strokes inside a printed line (≈7 per line, 35.9 ms
+on the TI-59, 41.3 ms on the TI-58C, ratio 1.150 = the clock ratio) and the
+paper motor's hum while ADV is held (146.77 Hz vs 128.20 Hz, ratio 1.145).
+The strokes take 7 × 508 ≈ 3556 of a line's 4168 cycles; the rest fits the
+paper advance to the next line. A real TI-59 + PC-100A prints 2 rows for
+the interrupts of `examples/printer-quirks.ti59` (1035–1049 cycles after
+PRT.GO): two strokes done, the third not.
 
 Text lines are queued at once (`drainPrinterLines()`); the dot-matrix line
 (`PrinterCodeLine`, `drainPrinterCodeLines()`) is committed when BUSY
 expires, with `rowCount` = 7. A `PRT.GO` while BUSY is the **printer
 interrupt**: the line in progress is committed with the rows printed so far
-(elapsed × 7 / total) and the new print is ignored. Firmware side and the
+(a row counts once its 508-cycle stroke is half done: `(elapsed + 254) / 508`,
+at most 7) and the new print is ignored. Firmware side and the
 1F keycode that triggers it: `rom/printerinterrupt.md`. A `PRT.FEED` during
 a print commits the pending line first, so lines keep their order.
 
@@ -764,7 +796,7 @@ debug events".
 | RAM access | `RAM.OP` | `RAM.OP` | `MEMWR`/`MEMRD` |
 | Card reader | Yes (switch at digit 10) | No (D7–KR veto, digit 10 open) | No (digit 7 held; the ROM never reads it) |
 | Printer-present digit | 0 | 0 | 10 |
-| Printer BUSY | 2808 cycles | 2370 cycles | 2431 cycles |
+| Printer BUSY (line / feed) | 4168 / 1370 cycles | same | same |
 | Library module | Yes | Yes | Yes |
 | Constant memory | No | No | Yes (`ti58c.mem` via `serialiseRAM`) |
 | Step dispatch / module fetch | `0837` / `082F` | same | `082B` / `0823` |
@@ -827,3 +859,12 @@ the stand-alone one (0.449 s blink). A later variant made the minimum depend
 on the clock (2, later 1, below 400 kHz; 3 above) to fit the TI-58. Both were removed
 when the printer model explained all three variants with `WAIT` releasing
 at once.
+
+### Printer BUSY
+
+Until 2026-10-24 `PRT.GO` and `PRT.FEED` both held BUSY for 197.5 ms
+(from "40 ADV lines in 7.9 s"), converted to each model's clock: 2808
+cycles on the TI-59, 2370 on the TI-58, 2431 on the TI-58C. The ~120 ms
+per List line it lacked was thought to be serial character transfer. The
+recordings in "Printer (PC-100C)" replaced it: a printed line is longer, a
+feed (half of an ADV line) shorter, and both are fixed cycle counts.

@@ -41,12 +41,12 @@
 # HOW THE INTERRUPT WORKS
 #
 # A = 0 Op 05 1F: Op 05 starts printing the line, and the printer prints
-# its 7 dot rows on its own for about 0.2 s. Meanwhile step 008 executes.
+# its 7 dot rows on its own (one stroke per 508 instruction cycles). Meanwhile step 008 executes.
 # The keycode dispatcher (ROM 0F53) turns the two digits of 1F into a jump
 # to 0EF1 without checking them. 0EF1 is the tail of the number-print
 # routine, three instructions before PRT.GO (0EFC), the "line finished,
 # advance paper" signal. PRT.GO arriving while the printer is busy stops it:
-# 1020 of 2808 instruction cycles have passed, so 2 rows are on paper. The
+# 1020 instruction cycles have passed, two 508-cycle strokes: 2 rows are on paper. The
 # code then continues at step 000 (INV SBR), which returns to 009 (RTN),
 # which returns from A. In the app the second line shows only 2 of its 7
 # dot rows; the text in a headless printout is always complete.

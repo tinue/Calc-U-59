@@ -2,8 +2,8 @@
 
 ## What the printer interrupt is
 
-The PC-100 printer prints a line as 7 rows of dots and needs about 0.2 s
-for it. It works on its own: the calculator sends the line and goes on with
+The PC-100 printer prints a line as 7 rows of dots, one stroke per 508
+instruction cycles (36 ms on a TI-59), then advances the paper. It works on its own: the calculator sends the line and goes on with
 the program. TI-59 users found a program step that stops the printer while
 it is still printing. The line then appears with only its first rows of
 dots. Programs use this for graphics with a finer vertical resolution than
@@ -79,7 +79,7 @@ hangs.
 
 **The printer.** Op 05 sent the line a moment before. The printer is still
 printing its dot rows. PRT.GO while it is busy makes it stop. In the
-example, 1020 of the 2808 instruction cycles of a line have passed, so 2 of
+example, 1020 instruction cycles have passed, two strokes of 508, so 2 of
 the 7 rows are on paper.
 
 **The way back.** After PRT.GO, execution continues at step 000, and the
