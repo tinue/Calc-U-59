@@ -97,7 +97,7 @@ last printed line: the figure used for the calendar comparisons.
 
 ```bash
 uv run python tools/agentic/runtime.py file.ti59 [--keys "83 92 83 74 11 ..."]
-# 11:0.15 42:78.39  total 78.5 s
+# 11:0.15 42:76.88  total 77.0 s
 ```
 
 Counts only the time a program is running (`fB[0]` set) for every key, so a
