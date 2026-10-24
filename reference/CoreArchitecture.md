@@ -60,7 +60,7 @@ per clock, so one instruction takes 16 digit times.
 ```
 TI-59:      455 kHz ÷ 2 (two-phase) ÷ 16 → 14,219 instructions/s
 TI-58:      384 kHz ÷ 2 ÷ 16             → 12,000 instructions/s
-TI-58C:     394 kHz ÷ 2 ÷ 16             → 12,312.5 instructions/s (one unit's clock; varies by unit)
+TI-58C:     394 kHz ÷ 2 ÷ 16             → 12,312.5 instructions/s (one unit's clock; see "TI-58C clock")
 idle (display) mode: ÷ 4 more on the TI-59/58; full speed on the TI-58C
 ```
 
@@ -87,64 +87,86 @@ pins in parallel. Probes on an opened unit (unit B below) confirm it.
   extra bond pad (CLK), specified for PHI1/PHI2 up to 230 kHz. The
   frequency is set by external parts on CLK: a resistor to VGG alone (an
   internal capacitor sets the time constant), a resistor to VGG plus a
-  capacitor to VSS, or a PZT resonator to VSS. The datamath page names the
-  SR-51-II as the only known user and says the TI-58C does not use it;
-  the measurements say otherwise.
+  capacitor to VSS, or a PZT resonator to VSS.
 - **The cost: D0.** In the 28-pin package the CLK pad and digit line D0
   share pin 14, so a chip bonded for its oscillator has no D0. On unit B
-  the stack's pin 14 carries no digit pulses (D0 would pulse once per
-  instruction, ≈ 12.4 kHz) but the oscillator's timing node: narrow
-  spikes of varying height. **PHI = oscillator ÷ 4**: with pin 14 and
-  PHI1 captured together, every PHI1 period holds exactly four pin-14
-  cycles. Probing pin 14 loads the node and slows the oscillator to
-  about half: pin 14 then reads ≈ 420 kHz (424.9 kHz mean over 18.7 s)
-  and PHI1 ≈ 105 kHz, and the error blink takes about twice as long. So
-  the free-running oscillator is ≈ 4 × 197.8 ≈ 790 kHz, never directly
-  observable; its small timing capacitance is comparable to a probe's.
-  Single pin-14 periods read 2.1–2.7 µs, but four together are steady:
-  the spread is edge-timing noise on the spikes, not oscillator jitter.
-  The TI-59/58 sense the PC-100 printer cradle
-  by a diode between D0 and KP. Without D0 the TI-58C ROM moved that test
-  to D10 and rebuilt its idle loop around it (`rom/TI58C-ROM-Guide.md`,
-  "The printer-present line moved to digit 10").
+  the stack's pin 14 carries no digit pulses but the oscillator's timing
+  node. **PHI = oscillator ÷ 4**: captured together, every PHI1 period
+  holds exactly four pin-14 cycles. A probe on pin 14 loads the node and
+  halves the rate, so the free-running oscillator (≈ 4 × PHI ≈ 790 kHz)
+  cannot be observed directly. The TI-59/58 sense the PC-100 printer
+  cradle by a diode between D0 and KP. Without D0 the TI-58C ROM moved
+  that test to D10 and rebuilt its idle loop around it
+  (`rom/TI58C-ROM-Guide.md`, "The printer-present line moved to digit 10").
 - **PHI reaches the other chips as usual.** The third ROM, the TMC0573, is
   an 8-pin BROM (http://www.datamath.org/Chips/TMC0560.htm) whose pins 6
-  and 7 are the PHI2/PHI1 inputs; on unit B both carry 196.9 kHz, the
-  same PHI as pin 4 of the printer connector.
+  and 7 are the PHI2/PHI1 inputs; they carry the same PHI as pin 4 of the
+  printer connector.
 - **No idle slow-down.** On the TI-59/58 the ÷ 4 idle divide is done by the
   TP0240, which watches /IDLE. The TMC0580's oscillator has no such
   divider, and the TI-58C runs idle instructions at full speed.
-- **Unit-to-unit spread.** An R or RC oscillator sets no standard
-  frequency and varies between units:
 
-  | Unit | PHI | Source |
-  |---|---|---|
-  | A | 194.7 kHz | scope; its error blink of 0.920 s matches exactly |
-  | B | 197.2 kHz | error blink 0.9090 s stand-alone (battery pack in), 0.7140 s on the PC-100C; a logic analyser on PHI1 (printer connector pin 4) read 197.8 kHz |
-  | C | ≈ 200 kHz | error blink of 0.896 s only |
+**Rate per unit.** An R or RC oscillator sets no standard frequency:
 
-  All are within the 230 kHz PHI limit. Unit B reads the same at a supply
-  of 4.4 V and 4.1 V, so the rate barely depends on the supply voltage.
-  The TI-59 needed a resonator so that a card written on one calculator
-  reads on another; the TI-58C has no card reader.
+| Unit | PHI | Measured |
+|---|---|---|
+| A | 194.7 kHz | scope on PHI; error blink 0.9185 s stand-alone, 0.7234 s on the PC-100C |
+| B | 196.1–197.8 kHz | logic analyser on PHI1 (printer connector pin 4), five readings over two days; error blink 0.9090 s stand-alone, 0.7140 s on the PC-100C (one session, PHI 197.2 kHz) |
+| C | ≈ 200 kHz | error blink 0.896 s only |
+
+All are within the 230 kHz PHI limit. The TI-59 needed a resonator so that
+a card written on one calculator reads on another; the TI-58C has no card
+reader.
+
+**Stability (unit B).** The rate wanders by about 0.8% between readings
+taken hours or days apart (PHI1 196.14 to 197.8 kHz) but holds within a session: lighting all ten
+digits slows it by only 68 ppm, and it drifts about 40 ppm over 8 s. It
+needs a clean supply: on the charger without its battery pack, the display
+shows deep 100 Hz ripple and the error blink slows by 0.3%. Measure with
+the pack in, or with a bench supply on the battery terminals.
 
 **Emulator model.** The emulator keeps a base clock for every variant,
 because the rest of the timing code derives from it (instruction rate =
 base ÷ 32). For the TI-58C that base is 2 × PHI, not a frequency found on
-the board. `resonatorHz()` uses 394 kHz, unit B's clock from its error
-blink (12,312.5 instructions/s); its blinks with and without the printer
-give the same rate. The analyser read 0.3% higher, probably because its
-probe on the printer connector shifts the oscillator a little. Unit B without its battery pack, on the
-charger alone, shows deep 100 Hz ripple on the display and blinks 0.912 s
-(0.3% slower): measure with the pack in.
+the board. `resonatorHz()` uses 394 kHz (12,312.5 instructions/s), unit B's
+rate from its error blinks with and without the printer.
+
+**Accuracy.** The emulator runs the TI-58C **instruction-exact**. On unit B,
+PHI1 cycles counted between IDLE events (÷ 16 = instructions) match the
+emulator to the instruction in every block of this loop, in every cycle:
+
+| Block (program `2 STO 00`, then the loop) | Instructions |
+|---|---|
+| `Pause Pause` (start to start) | 2,032 |
+| 20 × `Nop`, `Pause` | 6,256 |
+| 10 × `RCL 00`, `Pause` | 16,416 |
+| 10 × `STO 00`, `Pause` | 16,432 |
+| 10 × (`x²` `√x`), `Pause` | 16,720 |
+| `GTO 000`, `Pause` | 3,392 |
+
+Each `Pause` holds the display for exactly 1,489 IDLE instructions, on the
+unit and in the emulator. The error blink takes 11,200 instructions per
+period stand-alone and 8,800 on the PC-100C; both blinks of unit B give the
+same rate. So **a TI-58C rarely matches a live unit 100% in seconds**: the
+instruction counts agree, but the unit's clock of the day differs from the
+emulator's fixed 394 kHz, and between units by several percent.
+
+To compare a program with a real TI-58C:
+- **Exact:** count PHI1 cycles (printer connector pin 4) between edges of
+  IDLE (also on the printer connector) and divide by 16. IDLE pulses about
+  5 µs low once per instruction and stays low for a whole instruction while
+  the CPU is idle, so each `Pause` or idle phase is a run of long lows.
+  Clock, drift and supply drop out.
+- **On video:** film the error blink in the same session and power setup,
+  take the unit's rate from it (11,200 or 8,800 instructions per period),
+  and compare the program's times at that rate.
 
 **Not yet known:** which of the two stacked chips is bonded for the
-oscillator, which parts set its rate, the nominal rate, and how much it
-drifts with temperature. The blink's length in instructions depends on the
-ROM path only, so a unit's blink gives its clock. Its other measurements
-are compared after normalising to that clock. Whether the deviation is the
-oscillator or the video's timing does not matter, as long as one unit's
-videos share it.
+oscillator, which parts set its rate, the nominal rate, and what moves it
+between sessions (temperature, supply voltage, battery state).
+
+Earlier clock values and the explanations ruled out on the way: "Appendix:
+superseded models and measurements".
 
 `step()` returns a **cycle weight** — 4 for an IDLE instruction on the
 TI-59/58, otherwise 1 (`getStepWeight()`) — so callers can pace in real time.
@@ -506,9 +528,7 @@ about 0.28 s, dark about 0.40 s; filmed in a reflection); the emulator gives
 0.681 s (lit 0.278, dark 0.403). The TI-58C moved the line to D10; its idle
 loop sends rows 10 and 11 to `0A25`, which rescans below the line, and adds
 a blink-counter step there to keep the blink near its stand-alone rate
-(`rom/TI58C-commented.asm` at `0A25`). An earlier model put the extra time
-in a `WAIT` that could not release before its third execution; it fitted
-the printer-attached TI-59 but not the stand-alone one.
+(`rom/TI58C-commented.asm` at `0A25`).
 
 **`KR` after a scan-all hit:**
 
@@ -733,3 +753,62 @@ debug events".
 | Library module | Yes | Yes | Yes |
 | Constant memory | No | No | Yes (`ti58c.mem` via `serialiseRAM`) |
 | Step dispatch / module fetch | `0837` / `082F` | same | `082B` / `0823` |
+
+---
+
+## Appendix: superseded models and measurements
+
+Kept for the record; none of this describes the current model.
+
+### TI-58C clock rate
+
+The emulator's TI-58C base clock went through these values:
+
+| Value | Basis | Replaced because |
+|---|---|---|
+| 400 kHz | a user's scope video, PHI read ≈ 200 kHz at 5 µs/div | readings at that time base ran ≈ 2.8% high; the same video's error blink gave ≈ 389.6 kHz |
+| 384 kHz | assumed: the TI-58's resonator part (datamath's TP0240 page lists the TI-58C with that chip) | the TI-58C has no clock chip or resonator at all |
+| 396 kHz | 2 × PHI1 197.8 kHz, one logic-analyser reading on unit B (4.4 V bench supply) | unit B's error blinks gave 394.3 kHz |
+| 394 kHz | unit B's error blinks, with and without the printer | current |
+
+Datamath's TMC0580 page says the TI-58C does not use the chip's oscillator;
+the board shows otherwise. Before the TMC0573 was identified as a BROM with
+PHI inputs, it was a candidate for the clock source.
+
+Notes that turned out to be single-session readings: unit B read the same
+PHI at 4.4 V and 4.1 V on one day, but its rate wanders ≈ 0.8% between
+sessions. The 0.3% between the 197.8 kHz analyser reading and the blinks
+was first put down to the probe loading the oscillator; it is the same
+session-to-session wander.
+
+### Explanations ruled out by the cycle count (TI-58C)
+
+A video of the block loop in "Accuracy", normalised to an error blink filmed
+20 minutes earlier, made the computing blocks look 0.45% slower than the
+emulator, with the `Pause` block matching. Candidates considered:
+
+- a different ROM path in the real chips;
+- extra cycles per RAM access (`MEMRD`/`MEMWR`), or a HOLD from the RAM
+  interface;
+- different `WAIT`/`KEY` behaviour, which the blink calibration would hide;
+- slower instruction fetches from one ROM chip (the blocks run 26–31% of
+  their instructions from 0800–0FFF, the blink none);
+- a clock that changes with load (LEDs lit, CPU computing).
+
+Counting PHI1 cycles between IDLE events gave the emulator's instruction
+counts exactly, ruling out the first four; the LED load moves the clock by
+only 68 ppm. The 0.45% was the clock's wander between the two sessions.
+Earlier comparisons of other owners' TI-58C videos (counter loops 1–2% slow
+after normalising to a blink) were made under older core models and with
+clocks from other sessions; they are not evidence of a core difference.
+
+### WAIT minimum (TI-59, TI-58, TI-58C)
+
+Before the printer line at D0 was modelled ("Printer line in the idle
+scan"), the extra idle time of a TI-59 on the PC-100C was put into `WAIT`:
+it could not release before its third execution (read from the HOLD
+pipeline in US 3,900,722). That fitted the printer-attached TI-59 but not
+the stand-alone one (0.449 s blink). A later variant made the minimum depend
+on the clock (2, later 1, below 400 kHz; 3 above) to fit the TI-58. Both were removed
+when the printer model explained all three variants with `WAIT` releasing
+at once.

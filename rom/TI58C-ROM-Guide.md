@@ -211,7 +211,7 @@ speed. The ROM compensates in one place only:
 
 | Activity | TI-59 | TI-58C | Compensated? |
 |---|---|---|---|
-| Error blink | 4 counts per lit pass, both phases ≈ 450 ms with printer: period 0.90 s; stand-alone 0.45 s (both measured on a real TI-59) | 1 count per pass, 100 + 100 passes ≈ 390 + 520 ms: period 0.910 s (0.909 s measured on the 394 kHz unit; 0.920 s on a TI-58C with a 389.4 kHz clock, which the model gives at that clock); with printer 325 + 390 ms (0.714 s measured) | yes: the lit-phase +3 was dropped; the period stays ≈ 0.9 s |
+| Error blink | 4 counts per lit pass, both phases ≈ 450 ms with printer: period 0.90 s; stand-alone 0.45 s (both measured on a real TI-59) | 1 count per pass, 100 + 100 passes ≈ 390 + 520 ms: period 0.910 s; with printer 325 + 390 ms: 0.715 s | yes: the lit-phase +3 was dropped; the period stays ≈ 0.9 s |
 | Steady idle pass | 9.0 ms (18.0 ms with printer) | 3.9 ms (6.5 ms with printer) | — |
 | Key debounce gap (one digit sweep) | 4.5 ms | 1.30 ms | no |
 | Pause (DISPLAY_PEEK `04E2`, unchanged) | 432 ms | 125 ms | no |
@@ -221,16 +221,14 @@ The TI-59 blink and Pause figures were checked against a real TI-59 filmed
 next to a stopwatch. On the TI-59 the printer-present line sits at D0, which
 its idle scan sees as a "row 0" key and discards: two extra digit sweeps per
 pass with a printer ("Printer line in the idle scan",
-`reference/CoreArchitecture.md`). The TI-58C times are computed from the emulator's model: 394 kHz ÷ 32 =
-12,312.5 instructions per second, idle at full speed. The 394 kHz is one
-measured unit's clock (from its error blink, PHI 197.2 kHz): the TI-58C's clock is
-a DSCOM's own oscillator with no documented rate ("TI-58C clock",
-`reference/CoreArchitecture.md`). Real units vary: PHI measured 194.7 kHz on one (it blinks 0.920 s) and
-197.2 kHz on another (from its blink, 0.909 s); a third blinks 0.896 s (PHI ≈ 200 kHz). Each
-unit's other measurements are compared at the clock its blink gives.
-The short Pause is real: a filmed TI-58C (the 0.896 s unit) shows each
-Pause lit for about 0.122 s; the model gives 0.118–0.120 s at that unit's
-clock.
+`reference/CoreArchitecture.md`). The TI-58C times are the emulator's at
+394 kHz (12,312.5 instructions per second, idle at full speed). The
+instruction counts behind them match a real TI-58C exactly: the blink is
+11,200 instructions per period (8,800 with the printer), a Pause shows for
+1,489 idle instructions. In seconds a real unit differs, because its clock
+is a DSCOM's own oscillator: it differs between units (PHI ≈ 195–200 kHz)
+and wanders by about 0.8% between sessions ("TI-58C clock",
+`reference/CoreArchitecture.md`).
 
 ## Bug fixes
 
@@ -387,8 +385,8 @@ Both are recorded here and not fixed in `Core/`:
 
 ## Open questions
 
-- Real-hardware Pause, GTO-peek and error-blink durations (see "Idle loop
-  and timing").
+- The GTO-peek duration on real hardware (the Pause and the error blink are
+  confirmed: "Idle loop and timing").
 - What the test fixture drives on KN at digits 15, 8 and 9 and on KR at
   digit 10, and what lives at 0x1800.
 - Purpose not established:
