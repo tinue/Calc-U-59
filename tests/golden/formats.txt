@@ -20901,49 +20901,37 @@ step 476 61
 step 477 2
 step 478 88
 step 479 31
+fullSpeed
 key 11
-waitFullSpeed 0.5
 key 72
 key 91
-waitFullSpeed 0.5
 key 72
 key 94
 key 91
-waitFullSpeed 0.5
 key 72
 key 91
-waitFullSpeed 0.5
 key 72
 key 94
 key 91
-waitFullSpeed 0.5
 key 82
 key 83
 key 91
-waitFullSpeed 0.5
 key 92
 key 91
-waitFullSpeed 0.5
 key 82
 key 91
-waitFullSpeed 0.5
 key 82
 key 91
-waitFullSpeed 0.5
 key 63
 key 92
 key 91
-waitFullSpeed 0.5
 key 82
 key 91
-waitFullSpeed 0.5
 key 74
 key 73
 key 91
-waitFullSpeed 0.5
 key 82
 key 91
-waitFullSpeed 0.5
 cue template MagnetCard
 cue title Fast Grafik 3D Plot - Part 1
 cue banks 1 2
@@ -21459,49 +21447,37 @@ step 476 61
 step 477 2
 step 478 88
 step 479 31
+fullSpeed
 key 11
-waitFullSpeed 0.5
 key 72
 key 91
-waitFullSpeed 0.5
 key 72
 key 94
 key 91
-waitFullSpeed 0.5
 key 72
 key 91
-waitFullSpeed 0.5
 key 72
 key 94
 key 91
-waitFullSpeed 0.5
 key 82
 key 83
 key 91
-waitFullSpeed 0.5
 key 92
 key 91
-waitFullSpeed 0.5
 key 82
 key 91
-waitFullSpeed 0.5
 key 82
 key 91
-waitFullSpeed 0.5
 key 63
 key 92
 key 91
-waitFullSpeed 0.5
 key 82
 key 91
-waitFullSpeed 0.5
 key 74
 key 73
 key 91
-waitFullSpeed 0.5
 key 82
 key 91
-waitFullSpeed 0.5
 cue template MagnetCard
 cue title Fast Grafik 3D Plot - Part 1
 cue banks 1 2
@@ -22017,49 +21993,37 @@ step 476 61
 step 477 2
 step 478 88
 step 479 31
+fullSpeed
 key 11
-waitFullSpeed 0.5
 key 72
 key 91
-waitFullSpeed 0.5
 key 72
 key 94
 key 91
-waitFullSpeed 0.5
 key 72
 key 91
-waitFullSpeed 0.5
 key 72
 key 94
 key 91
-waitFullSpeed 0.5
 key 82
 key 83
 key 91
-waitFullSpeed 0.5
 key 92
 key 91
-waitFullSpeed 0.5
 key 82
 key 91
-waitFullSpeed 0.5
 key 82
 key 91
-waitFullSpeed 0.5
 key 63
 key 92
 key 91
-waitFullSpeed 0.5
 key 82
 key 91
-waitFullSpeed 0.5
 key 74
 key 73
 key 91
-waitFullSpeed 0.5
 key 82
 key 91
-waitFullSpeed 0.5
 cue template MagnetCard
 cue title Fast Grafik 3D Plot - Part 1
 cue banks 1 2
@@ -24803,6 +24767,189 @@ enc0 A: PRINT
 module -
 printer 1
 model -
+skipReset 0
+END
+STATE examples/printer-interrupt.ti59 479 0
+partition 479 0
+step 0 92
+step 1 0
+step 2 0
+step 3 76
+step 4 11
+step 5 0
+step 6 69
+step 7 5
+step 8 23
+step 9 53
+step 10 0
+step 11 0
+step 12 86
+step 13 0
+step 14 0
+step 15 91
+step 16 1
+step 17 3
+step 18 0
+step 19 1
+step 20 69
+step 21 4
+step 22 69
+step 23 5
+step 24 11
+step 25 98
+step 26 91
+key 82
+key 85
+key 72
+key 63
+key 52
+key 82
+key 83
+key 94
+key 95
+key 61
+key 92
+key 82
+key 83
+key 41
+key 92
+key 42
+key 31
+key 21
+key 41
+key 31
+key 25
+key 81
+key 61
+key 92
+key 82
+key 62
+key 91
+module -
+printer 1
+model TI-59
+skipReset 0
+END
+STATE examples/printer-interrupt.ti59 959 0
+partition 479 0
+step 0 92
+step 1 0
+step 2 0
+step 3 76
+step 4 11
+step 5 0
+step 6 69
+step 7 5
+step 8 23
+step 9 53
+step 10 0
+step 11 0
+step 12 86
+step 13 0
+step 14 0
+step 15 91
+step 16 1
+step 17 3
+step 18 0
+step 19 1
+step 20 69
+step 21 4
+step 22 69
+step 23 5
+step 24 11
+step 25 98
+step 26 91
+key 82
+key 85
+key 72
+key 63
+key 52
+key 82
+key 83
+key 94
+key 95
+key 61
+key 92
+key 82
+key 83
+key 41
+key 92
+key 42
+key 31
+key 21
+key 41
+key 31
+key 25
+key 81
+key 61
+key 92
+key 82
+key 62
+key 91
+module -
+printer 1
+model TI-59
+skipReset 0
+END
+STATE examples/printer-interrupt.ti59 479 1
+partition 479 0
+step 0 92
+step 1 0
+step 2 0
+step 3 76
+step 4 11
+step 5 0
+step 6 69
+step 7 5
+step 8 23
+step 9 53
+step 10 0
+step 11 0
+step 12 86
+step 13 0
+step 14 0
+step 15 91
+step 16 1
+step 17 3
+step 18 0
+step 19 1
+step 20 69
+step 21 4
+step 22 69
+step 23 5
+step 24 11
+step 25 98
+step 26 91
+key 82
+key 85
+key 72
+key 63
+key 52
+key 82
+key 83
+key 94
+key 95
+key 61
+key 92
+key 82
+key 83
+key 41
+key 92
+key 42
+key 31
+key 21
+key 41
+key 31
+key 25
+key 81
+key 61
+key 92
+key 82
+key 62
+key 91
+module -
+printer 1
+model TI-59
 skipReset 0
 END
 STATE examples/printer-quirks.ti59 479 0
@@ -31976,8 +32123,8 @@ key 61
 key 92
 key 82
 key 62
+fullSpeed
 key 91
-waitFullSpeed 2
 cue template MagnetCard
 cue title TI Logo
 cue banks 1 2
@@ -32835,8 +32982,8 @@ key 61
 key 92
 key 82
 key 62
+fullSpeed
 key 91
-waitFullSpeed 2
 cue template MagnetCard
 cue title TI Logo
 cue banks 1 2
@@ -33694,8 +33841,8 @@ key 61
 key 92
 key 82
 key 62
+fullSpeed
 key 91
-waitFullSpeed 2
 cue template MagnetCard
 cue title TI Logo
 cue banks 1 2
