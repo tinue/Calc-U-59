@@ -71,8 +71,9 @@ PROGRAM:
   number (0 up to the model's last physical step, 959 or 479) sets the
   position. The next token is the one keycode; anything after it is a
   label, even a number (`473 00 0`).
-- Steps not listed are 00. The program is written zero-padded to the
-  model's physical capacity, not to the partition.
+- Steps not listed are 00. On a full load the program is written
+  zero-padded to the model's physical capacity, not to the partition;
+  under `SKIP-RESET` only to the end of the program area ("SKIP-RESET").
 
 ---
 
@@ -341,7 +342,7 @@ second file of a multi-file screenshot sequence.
 | Section | Under SKIP-RESET |
 |---|---|
 | `PARTITION:` | Set only if given |
-| `PROGRAM:` | Written (zero-padded) only if it has steps |
+| `PROGRAM:` | Written only if it has steps, zero-padded to the end of the program area (the partition, or the last listed step if that is beyond it); the data registers are kept |
 | `REGISTERS:` | The listed registers are written |
 | `CUECARD:` | Replaces the card if present |
 | `KEYSTROKES:` | Played |
