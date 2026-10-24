@@ -81,7 +81,9 @@ The TI-58C has no clock chip and no resonator on its board, so it cannot use
 the TP0240 scheme above. It runs on the **clock generator built into a
 TMC0580 DSCOM**: its CD2400 and CD2401 are TMC0580 dies
 (http://www.datamath.org/Chips/TMC0580.htm), mounted piggyback with their
-pins in parallel. Probes on an opened unit (unit B below) confirm it.
+pins in parallel: on unit B every pin of both packages is soldered through,
+none bent away (visual inspection), pin 14 included. Probes on that unit
+confirm the oscillator.
 
 - **The oscillator.** The TMC0580 has a two-phase clock generator on an
   extra bond pad (CLK), specified for PHI1/PHI2 up to 230 kHz. The
@@ -161,8 +163,9 @@ To compare a program with a real TI-58C:
   take the unit's rate from it (11,200 or 8,800 instructions per period),
   and compare the program's times at that rate.
 
-**Not yet known:** which of the two stacked chips is bonded for the
-oscillator, which parts set its rate, the nominal rate, and what moves it
+**Not yet known:** whether one or both dies wire their CLK pad to pin 14
+inside the package (the shared pin carries no D0 pulses, so neither die
+drives D0 there), which parts set the rate, the nominal rate, and what moves it
 between sessions (temperature, supply voltage, battery state).
 
 Earlier clock values and the explanations ruled out on the way: "Appendix:
