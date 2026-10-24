@@ -4,6 +4,7 @@
 - **Web calculator** Rebuilt with the apps' features: the real calculator artwork, TI-59, TI-58 and TI-58C, the PC-100C printer, magnetic cards, presets (bundled or your own file), Settings, and, in the wide layout, the full debugger with trace downloads. A wide layout follows the Mac and Windows windows; a portrait layout, also used by the installable app, follows the iPhone, with the printer on its own page. The installable app runs all three calculators offline. Cards last for the browser session; download one to keep it. <!-- appstore: skip -->
 
 - **State Files** `WaitFullSpeed:` is gone: it took effect only after the program had stopped. Put `FullSpeed:` before the key that starts the program instead; the bundled presets now do, and the long ones finish at full speed. An unknown KEYSTROKES directive or a `Wait:` without a unit is now reported as an error instead of being read as keys.
+- **TI-58C** Runs at a real TI-58C's speed, measured on a unit: about 2.6% faster than before. Its error blink takes 0.91 s stand-alone and 0.71 s on the PC-100C, as on the real calculator.
 - **Printer** Prints at the real PC-100's speed, measured on a TI-59 and a TI-58C: a printed line takes about 0.29 s on the TI-59 (a List line 0.31 s, was 0.21 s), a blank line from Adv about 0.19 s (was 0.40 s). The printer runs on the calculator's clock, so on the slower TI-58C everything prints 15% slower, as on the real one.
 
 ### Fixes
