@@ -341,6 +341,7 @@ n + 2 (0 = floating); fB[15] = sci, fB[7] = eng.
   LRN (31) stops the run in LRN mode at the following step. 2nd (21), INV
   without a function (22), Ind (40), SST (41), Ins (46), BST (51) and Del
   (56) do nothing, so the digits around them run together into "712".
+  Codes with a hex digit: § "Pseudo-keycodes".
 - **Execution**: while fB[0] is set the pre-idle checks enter `RUN_LOOP`
   (`07C1`), which polls R/S, fetches the next step and dispatches it through
   `STEP_DISPATCH` (`0837`) — the keycode is turned back into a matrix
@@ -564,6 +565,111 @@ complete, an STO, RCL, SUM, Exc, Prd, Pgm, GTO or Op step recorded just
 before Ind is rewritten as 72, 73, 74, 63, 64, 62, 83 or 84 and the step
 counter moves back over it. Every other op keeps Ind as a step of its own
 (keycode 40): `Fix Ind 02` is 58 40 02 and `SBR Ind 22` is 71 40 22.
+
+## Pseudo-keycodes
+
+The units digit of step 8k is digit 0 of its program register, where the
+CPU computes in hexadecimal. Ins on a stale step buffer can leave A–F there
+(`rom/printerinterrupt.md` § "How the code is made"). TI PPC Notes called
+these "hex keycodes" and took them for internal instructions (Patrick
+Acosta, V6N9/10 p14–15; Dejan Ristanovic, V7N6 p8; summary at
+https://www.ti59.com/accom.htm). They are not instructions. To execute a
+step, and to skip it during a label search, the firmware builds computed
+jumps from its two digits and never checks them, so a hex digit sends the
+jump to an address built for something else. What runs there is a fragment
+of another operation, working on whatever its registers hold.
+
+The articles name a code by its display, which adds the hex digit
+decimally: code tU shows as (t+1)(U−10) (1F as 25 = "h25", 9E as 04 =
+"h04").
+
+All results come from a headless sweep of the 60 codes (tens 0–9, units
+A–F) at step 000, followed by R/S steps, on the TI-59 and the TI-58C, with
+the printer attached, TRACE off and on. Ins makes the codes only at step
+8k, and position matters: h54 below works at steps 008 and 016 and does
+nothing visible at the steps in between.
+
+**Where a code goes.**
+
+- **Tens 0** (0A–0F): `STEP_DISPATCH` treats it as a digit (`0846` →
+  number entry `04D3`). Label searches skip it like any digit step.
+- **Tens 1** (1A–1F): row 1 holds the label keys, so the step calls a label
+  (`KEY_USERDEF` `02D2`, return pushed at `0D50`). No label has the name, so
+  the search (`0F45`) walks on until it reaches the code itself. There the
+  scanner's own computed jump (`0F53–0F6D`, slot 0x0E⟨units⟩⟨tens⟩) lands
+  past its table: 1F at `0EF1` is the printer interrupt
+  (`rom/printerinterrupt.md`), 1E goes to `0EE1`.
+- **Tens 2–9**: `STEP_DISPATCH` (`0837–0855`) makes the code a keyboard
+  position, row = tens and column = units, and `06B1` jumps to
+  0x00⟨column⟩⟨row⟩ (§ "Computed-jump tables"). Column A is the column that
+  units 0 already uses (the 2nd functions of the fifth key column), so tA
+  runs as t0. Columns B–F land in the operation-sequence table, in the
+  middle of other operations' slot runs:
+
+| Tens | B | C | D | E | F |
+|---|---|---|---|---|---|
+| 2 | `00B2` trig: sin | `00C2` + − push ✱ | `00D2` ) ✱ | `00E2` Prd: read register | `00F2` GTO: transfer |
+| 3 | `00B3` trig: sin | `00C3` + − push: AOS_PUSH | `00D3` ): reduce | `00E3` Prd: × ÷ | `00F3` Dsz ✱ |
+| 4 | `00B4` trig: sin | `00C4` reduce: ADD | `00D4` Fix ✱ | `00E4` Prd: store back | `00F4` Dsz: collect digit |
+| 5 | `00B5` trig: function code left in R5 | `00C5` reduce loop | `00D5` Fix: collect digit | `00E5` Exc ✱ | `00F5` Dsz: read register |
+| 6 | `00B6` If flg ✱ | `00C6` × ÷ push ✱ | `00D6` Fix: set | `00E6` Exc: collect register | `00F6` Dsz: decrement |
+| 7 | `00B7` If flg: collect digit | `00C7` × ÷ push: AOS_PUSH | `00D7` SUM ✱ | `00E7` Exc: read register | `00F7` Dsz: write back |
+| 8 | `00B8` If flg: test | `00C8` reduce: MULDIV | `00D8` SUM: collect register | `00E8` Exc: swap | `00F8` Dsz: zero test |
+| 9 | `00B9` If flg: transfer | `00C9` reduce loop | `00D9` SUM: read register | `00E9` = ✱ | `00F9` Dsz: transfer |
+
+**After the landing.** For a real key the dispatch leaves 0x0100 in SR, the
+return to `KEY_RET` (`06A9–06AC`), and its delay slot sets KR to 0 (`06B2`).
+A slot whose routine is `NORM_CALL` (`041C`) parks KR + 1 as the
+continuation, and with KR = 0 that is address `0001`: the run falls into
+the cold-start clear (`0001–000E`), which zeroes every SCOM row, and then
+into `POWERON_SETUP`. These are the nine codes marked ✱. They clear the
+display, t, EE and Eng, the AOS levels and HIR registers, the user flags and
+the return stack, then stop at step 000. Program memory stays. On the TI-59
+the partition goes back to 479.59 because it lives in SCOM (719.29 before
+in the sweep); the TI-58C keeps its partition. A fragment that returns
+through SR ends as a key would, in `KEY_OP_ENTRY` (`0141`) with whatever op
+code is left in R5, so it can run on into a second operation: 3E and 7E
+continue as RCL nn (`00DC`) and take the next two steps as its register.
+
+**Trace mode.** With TRACE on, a step passes the print gate (`0689`) twice.
+The first pass encodes it for the print record (`KEY_ENCODE` `0788`), and
+the step is then dispatched from that encoding. `KEY_ENCODE` knows only the
+ten real columns, so a code with tens 2–9 is first folded into an ordinary
+keycode, which then runs exactly as that keycode:
+
+- tA, tB, tE and tF run as t0;
+- tC runs as (t+1)2 and tD as (t+1)3 (9C and 9D become the digits 2 and 3).
+  Of the tens-1 codes, 1C and 1D fold the same way, into INV and lnx.
+
+The printed mnemonic does not follow the fold: 4D prints EE but runs "("
+(53), 5C prints OSS and runs Pg\* (62), 6D prints \*ST and runs RC\* (73), 7C
+prints \*GT and runs HIR (82).
+
+**Label search.** A units digit A–F also sends the program scanner past its
+table (0x0E⟨units⟩⟨tens⟩ lies beyond `0E99`). That is Acosta's rule that
+hex codes stop label searches. In the sweep (code at 000, Lbl A at 001, key
+A) the search still found the label for 0A–0F, and by chance for 3B, 3C,
+4B, 4C, 4E, 5C, 8E and 9A; it lost it for every other code.
+
+**The articles against the sweep.** Acosta's results are from a TI-58C (he
+says so for the clear codes). Ristanovic worked with the printer attached
+and does not name the model.
+
+| Claim | Code | Where it lands, and the result |
+|---|---|---|
+| Acosta: h04 h32 h33 h45 h53 h64 h71 h72 h83 clear everything, go to step 000 and stop; Ristanovic: h53, h64 all clear | the ✱ codes | cold start, as above. The scan prints h45 as "nes". Acosta expected h04 might clear the program on a TI-58/59; on the TI-59 it keeps the program and resets the partition. |
+| Acosta: h31 h41 h51 act as sin | 2B 3B 4B | `00B2–00B4`, the trig run after its INV test |
+| Acosta: h54 copies t into the display right after x⇄t, pending operations kept | 4E | `00E4`, Prd's store-back. At step 8k only; `2 + 7 x⇄t h54 =` gives 9 on the TI-58C, 2 on the TI-59 |
+| Acosta: h24 reads the next seven steps one digit out of step, so 8 steps hold 15 | 1E | TI-58C only: the scanner's `0EE1` leads into the step-buffer code there (TI-58C `0C0B`), and `1E 10 20 30 10 09 91` enters the digits 123. On the TI-59, `0EE1` runs other code. |
+| Acosta: codes ending in A do nothing new (`examples/repartition.ti58c`); Ristanovic: h00 acts as List | tA, 9A | tA runs as t0; 9A is List (90) |
+| Acosta: all hex codes except h10–h15 disable label search | | mostly; see "Label search" |
+| Acosta: h11 as the operand of RCL, Fix, St flg, GTO, SBR, Dsz or x=t also runs SBR A | 0B | not checked |
+| Ristanovic: h44 acts as ln(0) | 3E | `00E3`, Prd's × ÷ on leftover operands; overflows to −9.9999999 99 |
+| Ristanovic: h84 and h85 act as a strange RCL | 7E 7F | 7E: Exc's register read (`00E7`), then RCL nn; 7F: Dsz's write-back (`00F7`) |
+| Ristanovic: h94 enters EE 12 | 8E | `00E8`, Exc's swap with a leftover register; no EE in the sweep |
+| Ristanovic: h93 needs a five-digit address and acts as a decimal point under SST | 8D | `00D8`, SUM's operand collector: the digits after it become an operand. It acts as "." (93) in Trace, but not under SST. |
+| Ristanovic, Trace: h64 \|x\|, h84 and h85 Rad, h94 Grad, h44 tan, h75 Deg, h53 EE; h62 OSS, h82 \*GT, h73 \*ST (prints a register) | 5E 7E 7F 8E 3E 6F 4D 5C 7C 6D | the Trace fold; h53, h62, h82 and h73 are what the printer shows (see "Trace mode") |
+| Ristanovic: `h75 16` jumps to Lbl A′ in Trace mode only | 6F | Normal: Dsz's tail, whose conditional transfer takes 16 as its address and does not jump. Trace: 6F is Deg (60) and 16 is an ordinary A′ call. `Lbl A′ 7 R/S` at 000 and `6F 16 5 R/S` at 008, run from 008, stop with 5 normally and with 7 in Trace. |
 
 ## Error conditions
 

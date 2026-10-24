@@ -66,10 +66,14 @@ the RTN get meaningless codes.
 
 ## How the interrupt works
 
-**Dispatch.** For every program step, the firmware splits the keycode into
-its two digits and builds a jump address from them (ROM `0F53`). Legal
-digits are 0–9. Nothing checks this, so the digit F builds an address too.
-For 1F it is `0EF1`.
+**Dispatch.** A step whose first digit is 1 works like the label keys A–E.
+The firmware pushes a return point and searches the program for a label.
+No label matches, so the search walks on until it reaches the 1F itself.
+To skip the operands of each step, the search splits the keycode into its
+two digits and builds a jump address from them (ROM `0F53`). Legal digits
+are 0–9. Nothing checks this, so the digit F builds an address too. For 1F
+it is `0EF1`. All codes with a hex digit go wrong in similar ways
+(`rom/TI59-ROM-Guide.md` § "Pseudo-keycodes").
 
 **The landing.** `0EF1` is in the middle of the routine that prints a
 number. Three instructions later that routine sends PRT.GO, the signal that

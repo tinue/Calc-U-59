@@ -355,6 +355,31 @@ Some fixed tables kept their addresses but changed content:
   but a different instruction sits there now. Listing it prints a "0" line
   where the TI-59 prints a blank one.
 
+### Pseudo-keycodes
+
+`rom/TI59-ROM-Guide.md` § "Pseudo-keycodes" covers both machines. Step
+dispatch, the keyboard table and the operation sequences are the same, so
+every code lands in the same slot. The nine cold-start codes and the
+Trace-mode fold are also the same. The differences come from the code that
+was moved and from constant memory:
+
+- **Cold start** keeps the partition, which the TI-59 resets to 479.59.
+- **1E (Acosta's h24)** lands at the scanner's `0EE1` on both machines.
+  On the TI-58C that address leads into the step-buffer code (`0C0B`
+  PRGREG_CACHE) and back to `STEP_DISPATCH` (`082B`), so the next steps are
+  read one digit out of step: `1E 10 20 30 10 09 91` enters the digits 123.
+  The TI-59 runs other code there.
+- **4E (h54)** at step 8k copies t into the display on both machines. On
+  the TI-58C, `2 + 7 x⇄t h54 =` gives 9, so the pending addition survives.
+  On the TI-59 it gives 2.
+- **Label search** past a code (code at 000, Lbl A at 001, key A) finds the
+  label only for 0A–0F and 4E. On the TI-59, eight more codes work by
+  chance. The scanner lands at the same addresses on both machines, but
+  the code there differs.
+
+Where the two machines differ (1E, 4E), Acosta's results (TI PPC Notes
+V6N9/10 p14) match the TI-58C. He names the TI-58C for the clear codes.
+
 ## SCOM and flag changes
 
 - **SCOM[9] nibble 1:** the high nibble of E000's address (3, or 7 with a
