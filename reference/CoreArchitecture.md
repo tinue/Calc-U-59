@@ -262,6 +262,14 @@ All variants load 6144 × 13-bit words (0x0000–0x17FF):
 - **TI-58C**: `CD2400` + `CD2401` + `TMC0573` (constant memory,
   `MEMWR`/`MEMRD`). Differences: `rom/TI58C-ROM-Guide.md`.
 
+Each DSCOM holds 2,560 words and the BROM 1,024, so the image splits
+0000–09FF (DSCOM at chip select 0), 0A00–13FF (second DSCOM), 1400–17FF
+(BROM 6). The CPU sends the address serially on EXT every cycle, the top
+three bits as the chip select; each chip's select code is mask-programmed,
+and only the matching chip drives IRG
+(http://www.datamath.org/Chips/TMC0580.htm). Which of CD2400/CD2401 (or
+TMC0582/TMC0583) is chip select 0 is not documented.
+
 `ROM::load` also accepts 5120 words (`TI58_WORDS`), which no variant uses.
 `read()` masks to 13 bits and returns 0 beyond the image. Addresses
 0x1800–0x1FFF can hold debug ASM overlay words (`loadDebugOverlay`;
@@ -794,8 +802,8 @@ emulator, with the `Pause` block matching. Candidates considered:
 - extra cycles per RAM access (`MEMRD`/`MEMWR`), or a HOLD from the RAM
   interface;
 - different `WAIT`/`KEY` behaviour, which the blink calibration would hide;
-- slower instruction fetches from one ROM chip (the blocks run 26–31% of
-  their instructions from 0800–0FFF, the blink none);
+- slower instruction fetches from one ROM chip (the blocks run 20–26% of
+  their instructions from the second DSCOM, 0A00–13FF, the blink none);
 - a clock that changes with load (LEDs lit, CPU computing).
 
 Counting PHI1 cycles between IDLE events gave the emulator's instruction
