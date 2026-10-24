@@ -11,7 +11,7 @@ Invoke the right skill before starting work in each area:
 | `calc-u-59-swift` | Swift/SwiftUI app (`App/`, `App/Views/`, `Bridge/`) |
 | `calc-u-59-qt` | Qt6 desktop app (`Qt6/`, `.github/workflows/build.yml`, Qt packaging) |
 | `calc-u-59-web` | Web client (`Web/`: React + WASM engine, PWA, `Web/build.sh`, `Web/dist/`, the `web` CI job) |
-| `calc-u-59-docs` | Documentation (`reference/`, root markdown files); the user guide lives in `../calc-u-site` |
+| `calc-u-59-docs` | Documentation (`reference/`, root markdown files); the user guide lives in `../calc-u-site` and is updated with them |
 | `calc-u-59-statefiles` | Writing `.ti59`/`.ti58`/`.ti58c` state files — format, matrix codes, KEYSTROKES sequences |
 | `calc-u-59-uitesting` | XCUITest UI tests (`Calc-U-59UITests/`) — file picker navigation, accessibility identifiers, orientation |
 

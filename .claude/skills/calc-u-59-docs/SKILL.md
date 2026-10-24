@@ -1,6 +1,6 @@
 ---
 name: calc-u-59-docs
-description: Use this skill when working on the Calc-U-59 developer documentation (reference/, root markdown files) or deciding where documentation belongs. Covers the developer-vs-end-user split (the user guide lives at calc-u.org/59/ in the separate calc-u-site repository) and the reference architecture docs. Trigger on any task that touches reference/*.md, README.md, CHANGELOG.md, TODO.md, or PRIVACY.md. Also trigger when the user says "update documentation" (or similar) after finishing Core/, Shared/, App/, Qt6/ or Web/ work on a release branch — see the Release Documentation Update Workflow section.
+description: Use this skill when working on the Calc-U-59 developer documentation (reference/, root markdown files) or deciding where documentation belongs. Covers the developer-vs-end-user split (the user guide lives at calc-u.org/59/ in the separate calc-u-site repository) and the reference architecture docs. Trigger on any task that touches reference/*.md, README.md, CHANGELOG.md, TODO.md, or PRIVACY.md. Also trigger when the user says "update documentation" (or similar) after finishing Core/, Shared/, App/, Qt6/ or Web/ work on a release branch — see the Release Documentation Update Workflow section, which updates the user guide in ../calc-u-site as well.
 user-invocable: true
 ---
 
@@ -123,11 +123,11 @@ Triggered by the user saying **"update documentation"** (or similar) after finis
 
 4. **Update reference docs** (`reference/CoreArchitecture.md`, `reference/SharedArchitecture.md`, `reference/AppArchitecture.md`, `reference/DebugAPI.md`, `reference/StateFileFormat.md`, `reference/FrontendParity.md`, `reference/WebClient.md`) for anything the diff invalidated: register model, SCOM layout, PC encoding, machine variants, bridge/debug API surface, settings, file formats. Keep each file's provenance notice intact.
 
-5. **Note what the user guide needs.** If a change is user-facing in any GUI — new settings, module behavior, install steps (Mac, iOS, Windows, Linux), state-file directives — list it for the user as a follow-up in `calc-u-site` (its `site-59` skill, § "After a Calc-U-59 release"). Don't edit that repository from here unless the user asks. A change only needing a website update, with nothing in `Core/`/`Shared/`/`App/`/`Qt6/`/`Web/`/`roms/`, does not need a `CHANGELOG.md` entry.
+5. **Update the user guide in `../calc-u-site` too.** Every documentation update covers both repositories. Invoke the site's `site-59` skill and follow that repository's `CLAUDE.md`. Update its pages for anything user-facing in any GUI: new settings, module behavior, install steps (Mac, iOS, Windows, Linux), state-file directives, speed or accuracy. Also update the site's copies of files that came from here: articles derived from `rom/*.md` and the example files under `59/software-files/` (its software sync check finds the drift). Build, check and test the site as its skill says, and commit there. Leave the web client alone: the site fetches `59/calc/` from a release by its own rules (`site-59`, § "After a Calc-U-59 release", step 1), so pinning a build is not part of this step. A change that only needs a website update, with nothing in `Core/`/`Shared/`/`App/`/`Qt6/`/`Web/`/`roms/`, needs no `CHANGELOG.md` entry.
 
 6. **The web client** (`Web/`): if the diff touched `Core/`, `Shared/`, `roms/` or `Web/`, build and test it as the calc-u-59-web skill says. The site picks up a new build by pinning the release's `Calc-U-59-web.zip`.
 
-7. **Commit, never push.** Main-repo changes (`CHANGELOG.md`, `reference/`, `README.md`, `TODO.md`, `tools/`) commit from the repo root, following the "commit often, never push" rule below.
+7. **Commit, never push, in both repositories.** Main-repo changes (`CHANGELOG.md`, `reference/`, `README.md`, `TODO.md`, `tools/`) commit from this repo's root; site changes commit in `../calc-u-site`, where a push publishes the site, so push there only when the user asks.
 
 ---
 
