@@ -267,8 +267,12 @@ Each DSCOM holds 2,560 words and the BROM 1,024, so the image splits
 (BROM 6). The CPU sends the address serially on EXT every cycle, the top
 three bits as the chip select; each chip's select code is mask-programmed,
 and only the matching chip drives IRG
-(http://www.datamath.org/Chips/TMC0580.htm). Which of CD2400/CD2401 (or
-TMC0582/TMC0583) is chip select 0 is not documented.
+(http://www.datamath.org/Chips/TMC0580.htm). The `roms/calculator` dumps
+(datamath's ROM recorder, one file per chip) put 0000–09FF in CD2400 and
+0A00–13FF in CD2401. The recorder plays the CPU, so a chip read on its own
+answers only its own range; if the stacked pair was read in place, the two
+names could be swapped. Either way the image is correct by address, which
+is all the emulator uses.
 
 `ROM::load` also accepts 5120 words (`TI58_WORDS`), which no variant uses.
 `read()` masks to 13 bits and returns 0 beyond the image. Addresses
