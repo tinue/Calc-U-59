@@ -49,7 +49,7 @@ TI-59. Steps are the program length without trailing zero steps.
 | `calendar-06-cargile.ti59` | 2:57 | 2:56 | 320 | HIR print-code processing with chosen integer/fraction parts: the integer part 2 of an entry is also the pointer step (the "2-trick"). As much code in line as memory allows. |
 | `calendar-07-calidas.ti59` | 2:38.6 | 2:38 | 366 | Full 13-digit data packing. One division (start weekday + month length) / 7 gives the number of full rows and the next month's start day. The last line is packed in reverse order. |
 | `calendar-08-acosta.ti59` | 1:23 | 1:21 | 398 | Fast mode (Neef, applied to Galidas' program by Hanson). Separate print commands so that calculation goes on while the printer runs (Snow). The "hi2" fast-mode entry from inside the program, which frees the ML-20 module for the preparation. |
-| `calendar-09-dispatch.ti59` | (2026) | 1:18 | 399 | Each month record holds the address of a small routine for the change of month length (GTO Ind). The routine copies at most four table entries and sets a threshold. The number of rows follows from one comparison. The preparation is plain arithmetic in fast mode, so no module is needed. The SST fast-mode entry is typed. |
+| `calendar-09-dispatch.ti59` | (2026) | 1:16 | 397 | Each month record holds the address of a small routine for the change of month length (GTO Ind). The month loop reads the record first and jumps to the routine, which copies at most four table entries, sets a threshold and goes on to the header lines. A 13th record ends the run, so no month counter is needed. The number of rows follows from one comparison. The preparation is plain arithmetic in fast mode, so no module is needed. The SST fast-mode entry is typed. |
 
 The emulator times match the published ones within a few seconds, although
 the published times are for other years. The last four programs share one
@@ -65,12 +65,12 @@ preparation):
 
 | Year | Acosta | `calendar-09-dispatch` |
 |---|---|---|
-| 1900 | 82.6 s | 78.1 s |
-| 2000 | 83.5 s | 80.1 s |
-| 2024 | 81.8 s | 78.1 s |
-| 2026 | 80.8 s | 77.0 s |
+| 1900 | 82.6 s | 76.3 s |
+| 2000 | 83.5 s | 78.3 s |
+| 2024 | 81.8 s | 76.4 s |
+| 2026 | 80.8 s | 75.2 s |
 
-Both programs print the same lines for every year tested (1900, 1999-2027,
-2100), and the dates agree with Python's `calendar` module. Acosta's program
+Both programs print the same lines for every year from 1899 to 2101, and
+the dates agree with Python's `calendar` module. Acosta's program
 prints any number of months from any start month; the new one prints one
 whole year.

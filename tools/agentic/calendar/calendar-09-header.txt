@@ -4,7 +4,7 @@
 # (examples/CALENDAR_PROGRAMS.md, calendar-01 to calendar-08). Written in
 # 2026 with the Calc-U-59 headless harness. It prints a whole year, January
 # to December, in exactly the format of Patrick Acosta's program
-# (calendar-08-acosta.ti59), and is about 4% faster.
+# (calendar-08-acosta.ti59), and is about 7% faster.
 #
 # USE
 #
@@ -23,14 +23,15 @@
 #   this program the preparation in fast mode):
 #
 #     year   this program   Acosta
-#     1900      78.1 s      82.6 s
-#     2000      80.1 s      83.5 s
-#     2024      78.1 s      81.8 s
-#     2026      77.0 s      80.8 s
+#     1900      76.3 s      82.6 s
+#     2000      78.3 s      83.5 s
+#     2024      76.4 s      81.8 s
+#     2026      75.2 s      80.8 s
 #
 #   Acosta's published time for 2000 is 1:23 on a real TI-59. The output was
 #   checked against Python's calendar module and against Acosta's printout
-#   for 1900, 1999-2027 and 2100: identical in every line.
+#   for every year from 1899 to 2101: identical in every line. Several years
+#   in a row also print correctly.
 #
 # HOW IT WORKS
 #
@@ -54,34 +55,42 @@
 #
 # Month records. R50-R61 hold one value per month. Its integer part is a
 # program address, its low ten digits are the month name. The month loop
-# prints the header line (the year with Op 06, the name in chunk 4), builds
-# and prints the weekday line, and jumps to the address with GTO Ind 67.
-# Each address starts a small routine for the change of month length:
+# reads the record, puts the name into chunk 4 of the print buffer and jumps
+# to the address with GTO Ind 67 (GTO Ind ignores the fraction). Each
+# address starts a small routine for the change of month length:
 #
 #     F28  31 -> 28 days      R30  30 -> 31 days
 #     F29  31 -> 29 days      MAR  28/29 -> 31 days
 #     F30  31 -> 30 days      J    31 -> 31 days (JAN, AUG): nothing to copy
 #
-# In a leap year the preparation adds the distance F29 - F28 to the FEB
-# record, and the end of the run subtracts it again. Each routine also puts
-# the threshold 6 + L + 1 into t: the pointer value of day L + 1.
+# Each routine puts the threshold 6 + L + 1 into t, the pointer value of day
+# L + 1, and goes on to the header code: the year with Op 06 (the name is
+# already in chunk 4), then the weekday line. In a leap year the preparation
+# adds the distance F29 - F28 to the FEB record, and F29 subtracts it again.
+# R62 is a 13th record: the address of the end of the run, so the loop needs
+# no month counter.
 #
 # Rows per month. Four row copies always print. Row 5 prints in every month
-# except a 28-day February that starts on a Sunday; that February enters the
-# row code one copy later (ROWS2) and so gets four rows. After row 5,
-# RCL 00 x>=t ends the month when the pointer has reached day L + 1;
-# otherwise the loop prints row 6.
+# except a 28-day February that starts on a Sunday. February has its own
+# copy of the header code and enters the row code one copy later (ROWS2),
+# so it gets four rows from the copies and its 5th from the loop at R5.
+# After row 5, RCL 00 INV x>=t prints row 6 while the pointer is below day
+# L + 1, and otherwise falls into the end-of-month code.
 #
 # Next month. At the end the pointer stands at day L + 1 + d, where d is the
 # number of empty places at the end of the last row. The next month starts
 # with 7 - d empty places, so its pointer is 6 + 1 - (7 - d) = R00 - t. When
-# d = 0 the next month starts on Sunday and the pointer is 7 instead.
+# d = 0 the next month starts on Sunday and the pointer is 7 instead
+# (x=t, out of line).
 #
 # Preparation, in fast mode and part of the measured time.
 # E(z) = Int(z/4) - Int(z/100) + Int(z/400) counts the leap days of the
 # Gregorian calendar up to year z. A two-pass loop computes E(Y) and
 # E(Y-1). Y is a leap year when they differ. January 1 of year Y falls on
-# weekday (Y + E(Y-1)) mod 7, with Sunday = 0. No ML-20 call is needed.
+# weekday n mod 7, n = Y + E(Y-1), with Sunday = 0. No ML-20 call is needed.
+# The preparation ends with t = n and X = 7 Int(n/7) + 7 and falls into the
+# end-of-month code, which turns them into the first pointer 7 - (n mod 7);
+# its Adv prints the two leading blank lines.
 #
 # No subroutines. An earlier version called the end-of-month routine with
 # SBR. In fast mode its RTN returned to a wrong address. This version uses
@@ -101,12 +110,19 @@
 # - No ML module and no Pgm 12 / LRN Ins Ins ritual. The fast-mode entry is
 #   typed.
 # - The rows cost the same: 0.89 s each, 61 to 64 rows a year. The gain is
-#   in the work per month, about 0.3 s. Acosta computes the number of rows
+#   in the work per month, about 0.45 s. Acosta computes the number of rows
 #   and the next start day by division by 7 (Galidas' method) and packs the
 #   last row backwards from its end with a computed GTO Ind. This program
 #   copies at most four table entries, chosen by the month record, and
 #   decides the number of rows with one comparison.
 #
+# HISTORY
+#
+# The first version (Calc-U-59 2.0.0) printed the header lines before the
+# jump to the fix-up routine and counted the months with Dsz: 77.0 s for
+# 2026. This version reads the record first, ends the run with the 13th
+# record, and gives February its own header code: 1.8 s faster.
+#
 # Registers: R00 pointer, R01-R42 day table, R43-R49 entries for the end of
-# the month, R50-R61 month records, R62-R64 weekday line, R65 98.99,
-# R66 month counter, R67 fix-up address, R68 month pointer, R69 year.
+# the month, R50-R61 month records, R62 end record, R63-R65 weekday line,
+# R66 98.99, R67 fix-up address, R68 month pointer, R69 year.

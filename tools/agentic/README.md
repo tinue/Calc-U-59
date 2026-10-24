@@ -54,7 +54,7 @@ real-hardware times of the calendar programs within a few seconds.
 
 ```bash
 uv run python tools/agentic/ti59file.py examples/calendar-09-dispatch.ti59 [--lines]
-# examples/calendar-09-dispatch.ti59:    89.1 s  finished=True  lines=113 (non-blank 85)  printer floor  27.6 s
+# examples/calendar-09-dispatch.ti59:    89.0 s  finished=True  lines=113 (non-blank 85)  printer floor  27.6 s
 ```
 
 Loads the file (PARTITION via `n Op 17`, PROGRAM, REGISTERS), plays its
@@ -97,7 +97,7 @@ last printed line: the figure used for the calendar comparisons.
 
 ```bash
 uv run python tools/agentic/runtime.py file.ti59 [--keys "83 92 83 74 11 ..."]
-# 11:0.15 42:76.88  total 77.0 s
+# 11:0.15 42:75.06  total 75.2 s
 ```
 
 Counts only the time a program is running (`fB[0]` set) for every key, so a
