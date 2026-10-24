@@ -3,12 +3,13 @@
 ## What the printer interrupt is
 
 The PC-100 printer prints a line as 7 rows of dots, one stroke per 508
-instruction cycles (36 ms on a TI-59), then advances the paper. It works on its own: the calculator sends the line and goes on with
-the program. TI-59 users found a program step that stops the printer while
-it is still printing. The line then appears with only its first rows of
-dots. Programs use this for graphics with a finer vertical resolution than
-whole characters (`examples/texas-print.ti59`, the TI logo) or to show
-truncated characters (`examples/printer-quirks.ti59`).
+instruction cycles (36 ms on a TI-59), then advances the paper. It works on
+its own: the calculator sends the line and goes on with the program. TI-59
+users found a program step that stops the printer while it is still
+printing. The line then appears with only its first rows of dots. Programs
+use this for graphics with a finer vertical resolution than whole
+characters (`examples/texas-print.ti59`, the TI logo) or to show truncated
+characters (`examples/printer-quirks.ti59`).
 
 `examples/printer-interrupt.ti59` is the smallest example. It prints "A0"
 once in full and once cut off after 2 rows.
