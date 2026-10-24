@@ -164,6 +164,20 @@ int h_printer_lines(void* m, char* out, int cap) {
     return n;
 }
 
+// Printer code lines (the dot-matrix queue, separate from the text lines):
+// 21 bytes each, the 20 character codes then the rows printed (1-7).
+// Returns the number of lines written; lines beyond cap are dropped.
+int h_printer_code_lines(void* m, uint8_t* out, int cap) {
+    int n = 0;
+    for (auto& l : static_cast<TI59Machine*>(m)->drainPrinterCodeLines()) {
+        if (n == cap) break;
+        memcpy(out + 21 * n, l.codes.data(), 20);
+        out[21 * n + 20] = l.rowCount;
+        ++n;
+    }
+    return n;
+}
+
 int h_disasm(uint16_t pc, uint16_t op, char* out, int cap) {
     std::string s = TI59Machine::disassemble(pc, op);
     int n = static_cast<int>(s.size()) < cap - 1 ? static_cast<int>(s.size()) : cap - 1;

@@ -85,7 +85,8 @@ def _lib():
     for name in ("h_free", "h_reset", "h_press",
                  "h_release", "h_printer", "h_trace_sw", "h_stepn", "h_record", "h_snapshot",
                  "h_ram_read", "h_ram_write", "h_write_program", "h_display", "h_pc",
-                 "h_lib_exec_pc", "h_printer_lines", "h_printer_print", "h_printer_adv"):
+                 "h_lib_exec_pc", "h_printer_lines", "h_printer_code_lines", "h_printer_print",
+                 "h_printer_adv"):
         getattr(lib, name).argtypes = None
     lib.h_stepn.argtypes = [C.c_void_p, C.c_uint32]
     lib.h_load_model_roms.argtypes = [C.c_void_p, C.c_int, C.c_char_p]
@@ -302,6 +303,16 @@ class Machine:
         b = C.create_string_buffer(65536)
         n = LIB.h_printer_lines(self.h, b, 65536)
         return b.raw[:n].decode("utf-8", "replace").splitlines()
+
+    def printer_code_lines(self) -> list[tuple[list[int], int]]:
+        """New dot-matrix lines since the last call: (20 printer codes, rows printed)."""
+        out = []
+        while True:
+            b = C.create_string_buffer(21 * 1024)
+            n = LIB.h_printer_code_lines(self.h, b, 1024)
+            out += [(list(b.raw[21 * i : 21 * i + 20]), b.raw[21 * i + 20]) for i in range(n)]
+            if n < 1024:
+                return out
 
     # ── formatting ─────────────────────────────────────────────────────────
     @staticmethod
