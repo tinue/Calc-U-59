@@ -1,0 +1,230 @@
+# switzerland.ti59
+#
+# The outline of Switzerland, printed with the printer interrupt: 41 lines
+# cut off after their first 2 of 7 dot rows, so they stack with no gap
+# (rom/printerinterrupt.md). The print runs at full speed; at the normal
+# speed it takes about 1:25 (emulated).
+#
+# Written by ti59-printer-art, a separate tool that fits a line drawing to
+# the 34 tiles the first two dot rows of the 64 characters give.
+# printer-art: orientation upright
+#
+# Loading the file runs everything automatically (KEYSTROKES below). By hand:
+#
+#   RCL 00  GTO 012  SST  0  STO     fast-mode hack: Prg Src := 8, stop at 007
+#   LRN  2nd Ins  LRN                step 008 becomes 1F, 009 RTN
+#   CLR  RST
+#   GTO 017  R/S                     print the picture
+#
+# The interrupt at 008 is made as in examples/printer-interrupt.ti59; R00
+# holds its constant 1.000000000048. The listing below shows memory before
+# the Ins, which moves every step from 016 on up by one.
+#
+# HOW IT WORKS
+#
+# Each 5-character chunk of a line that isn't blank takes one register,
+# R03-R89 (87 chunks). Its integer part is the address of a routine, its low
+# ten digits are the print codes, as in the month records of
+# calendar-09-dispatch.ti59. The loop at 022 moves the pointer R01 on (Op
+# 21), reads the chunk (RC* 01) and jumps to its routine (GO* 02). The
+# routine puts the chunk into the print buffer with HIR 05-08 and either
+# reads the next chunk or, for the last one of the line, calls A (0 Op 05
+# 1F) and clears the buffer. R90 holds the address of the final R/S.
+
+MODEL: TI-59
+PRINTER: on
+PARTITION: 159.99
+
+PROGRAM:
+000  92  INV SBR   # the interrupt continues here: return to 009
+001  00  0
+002  00  0
+003  76  Lbl
+004  11  A         # A: print the line, interrupted
+005  00  0         # display must be 0
+006  69  Op
+007  05  05        # start printing the line …
+008  23  lnx       # … becomes 1F: the interrupt
+009  53  (         # becomes 92 RTN
+010  00  0
+011  00  0
+012  86  St flg    # hack trigger (overwritten by the Ins)
+013  00  0         # swallowed by the hack
+014  00  0         # makes X displayable before the R/S
+015  91  R/S       # stops the hack's run (moves to 016)
+# From here on, each step moves up one during the Ins: 016 runs as 017.
+016  69  Op
+017  00  00        # clear the print buffer
+018  02  2
+019  42  STO
+020  01  01        # pointer before the first chunk
+021  69  Op
+022  21  21        # next chunk
+023  73  RC*
+024  01  01
+025  42  STO
+026  02  02
+027  83  GO*
+028  02  02        # to its routine
+029  71  SBR
+030  11  A         # print the line
+031  69  Op
+032  00  00        # clear the print buffer
+033  61  GTO
+034  00  00  # → loop (022)
+035  22  22
+099  82  HIR
+100  05  05        # into chunk 1
+101  61  GTO
+102  00  00  # → loop (022)
+103  22  22
+104  82  HIR
+105  06  06        # into chunk 2
+106  61  GTO
+107  00  00  # → loop (022)
+108  22  22
+109  82  HIR
+110  07  07        # into chunk 3
+111  61  GTO
+112  00  00  # → loop (022)
+113  22  22
+114  82  HIR
+115  08  08        # into chunk 4
+116  61  GTO
+117  00  00  # → loop (022)
+118  22  22
+119  82  HIR
+120  05  05        # into chunk 1, last of the line
+121  61  GTO
+122  00  00  # → line (030)
+123  30  30
+124  82  HIR
+125  06  06        # into chunk 2, last of the line
+126  61  GTO
+127  00  00  # → line (030)
+128  30  30
+129  82  HIR
+130  07  07        # into chunk 3, last of the line
+131  61  GTO
+132  00  00  # → line (030)
+133  30  30
+134  82  HIR
+135  08  08        # into chunk 4, last of the line
+136  61  GTO
+137  00  00  # → line (030)
+138  30  30
+139  91  R/S       # end of the picture
+
+REGISTERS:
+00 = 1.000000000048   # RCL 00 before the hack
+03 = 130.0053270000   # line 1
+04 = 130.0007240000   # line 2
+05 = 130.0027555000   # line 3
+06 = 130.0061007727   # line 4
+07 = 105.0000002753   # line 5
+08 = 130.1437000010
+09 = 105.0000553066   # line 6
+10 = 110.0067000000
+11 = 135.2700000000
+12 = 105.0527020000   # line 7
+13 = 135.1000000000
+14 = 105.5260270000   # line 8
+15 = 135.0027000000
+16 = 105.2725000000   # line 9
+17 = 135.0027000000
+18 = 105.7000000000   # line 10
+19 = 135.5327000000
+20 = 105.0700000000   # line 11
+21 = 135.2500000000
+22 = 105.2700000000   # line 12
+23 = 135.5500000000
+24 = 100.0000000025   # line 13
+25 = 135.0500000000
+26 = 100.0000000055   # line 14
+27 = 135.6200000000
+28 = 100.0000000007   # line 15
+29 = 135.5600000000
+30 = 100.0000000027   # line 16
+31 = 135.2510000000
+32 = 100.0000005500   # line 17
+33 = 135.0000270070
+34 = 100.0000000700   # line 18
+35 = 135.0000275556
+36 = 100.0000002700   # line 19
+37 = 135.0000100255
+38 = 100.0000002700   # line 20
+39 = 135.0000002765
+40 = 100.0000002700   # line 21
+41 = 135.0000000047
+42 = 100.0000532700   # line 22
+43 = 135.0000000002
+44 = 100.0000050000   # line 23
+45 = 135.0000000002
+46 = 100.0000270000   # line 24
+47 = 135.0000000056
+48 = 100.0025000000   # line 25
+49 = 135.0000001455
+50 = 100.0055000000   # line 26
+51 = 135.0000002767
+52 = 100.0005000000   # line 27
+53 = 110.0000000053
+54 = 135.2700250000
+55 = 100.0056005227   # line 28
+56 = 110.0027000025
+57 = 135.0200007000
+58 = 100.0056532765   # line 29
+59 = 110.2502000025
+60 = 135.4700000200
+61 = 100.0025070062   # line 30
+62 = 110.0502000025
+63 = 135.5625702700
+64 = 100.0055470056   # line 31
+65 = 110.0227000025
+66 = 135.2577052400
+67 = 100.0006020005   # line 32
+68 = 110.2702000055
+69 = 135.0000250200
+70 = 100.0027270062   # line 33
+71 = 110.2756000062
+72 = 135.0000002700
+73 = 100.0067000062   # line 34
+74 = 130.2725000027
+75 = 100.0000000025   # line 35
+76 = 105.0000000025
+77 = 130.0000700027
+78 = 100.0000000025   # line 36
+79 = 105.2700000055
+80 = 130.0000252527
+81 = 105.2700000051   # line 37
+82 = 130.0000252500
+83 = 105.0200522727   # line 38
+84 = 130.0000002300
+85 = 105.5352276700   # line 39
+86 = 130.0000002727
+87 = 105.0027000000   # line 40
+88 = 130.0000002300
+89 = 130.0000001000   # line 41
+90 = 140   # end
+
+KEYSTROKES:
+43          # RCL
+92          # 0
+92          # 0      X = 1.000000000048
+61          # GTO
+92          # 0
+82          # 1
+83          # 2      → step 012
+41          # SST    St flg executes, operand pending
+92          # 0      first operand digit
+42          # STO    ends it: Prg Src 8, run stops at 007
+31          # LRN    008, buffer loaded from ROM row 17
+21 41       # Ins    008 := 1F, 009 := RTN
+31          # LRN
+25          # CLR
+81          # RST    Prg Src 0
+61          # GTO
+92          # 0
+82          # 1
+62          # 7      → step 017
+FullSpeed:
+91          # R/S    print the picture
