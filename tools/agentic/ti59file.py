@@ -79,7 +79,9 @@ def parse(path):
         if re.match(r'^[A-Za-z]+:', l):
             keys.append(l.split(':')[0] + ':')
         else:
-            keys += re.findall(r'\b\d\d\b', l)[:2] if l.startswith('21') else re.findall(r'^\d\d', l)
+            # as parseKeystrokeLine (Shared/StateFile.cpp): every 1-2 digit
+            # token, 11-95 a key, 99 the paper-trace toggle, others ignored
+            keys += [t for t in l.split() if len(t) <= 2 and t.isdigit() and (11 <= int(t) <= 95 or t == '99')]
     return [prog.get(i, 0) for i in range(max(prog) + 1 if prog else 0)], regs, part, keys
 
 
@@ -89,7 +91,12 @@ def real_keys(keys):
 
 
 def press(m, code, hold=6000):
-    """press and release a key (matrix code), holding it for `hold` instructions"""
+    """press and release a key (matrix code), holding it for `hold` instructions;
+    99 toggles the printer's paper-trace switch"""
+    if code == '99':
+        m.paper_trace = not getattr(m, 'paper_trace', False)
+        LIB.h_trace_sw(m.h, int(m.paper_trace))
+        return
     m.press(code); LIB.h_stepn(m.h, hold); m.release(code)
 
 
