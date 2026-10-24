@@ -177,7 +177,6 @@ private:
     uint16_t pc() override { return m_machine->pc(); }
     bool isFrozen() override { return m_frozen.load(); }
     void heldKeyChanged(int id) override { m_listener.heldKeyChanged(id); }
-    bool fullSpeed() override { return m_runner->fullSpeed(); }
     void togglePrinterTrace() override { m_listener.togglePrinterTrace(); }
     void scriptedTrace(const std::optional<std::string>& fileName) override;
     void zeroElapseTime() override { m_elapseBaseline = m_machine->elapsedTicks(); }

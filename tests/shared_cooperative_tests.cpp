@@ -42,7 +42,6 @@ struct FakeHost : KeySequencer::Host {
     uint16_t pc() override { return idle ? idlePC : 0; }
     bool isFrozen() override { return false; }
     void heldKeyChanged(int id) override { note("held " + std::to_string(id)); }
-    bool fullSpeed() override { return full; }
     void setFullSpeed(bool on) override { full = on; note(on ? "full" : "regular"); }
     void togglePrinterTrace() override { note("trace"); }
     void scriptedTrace(const std::optional<std::string>&) override {}
@@ -122,9 +121,10 @@ TEST(cooperative_script_holds_each_key_and_waits_for_the_scan_loop) {
     CHECK(r.host.names() == (std::vector<std::string>{"started", "press 25", "release 25", "press 83", "release 83", "finished"}));
 }
 
-TEST(cooperative_wait_full_speed_restores_the_speed) {
+TEST(cooperative_wait_runs_at_the_speed_set_before_it) {
     VirtualRig r;
-    r.keys.play({event(KeystrokeEvent::Kind::WaitFullSpeed, 0.5), event(KeystrokeEvent::Kind::ZeroElapseTime)});
+    r.keys.play({event(KeystrokeEvent::Kind::FullSpeed), event(KeystrokeEvent::Kind::Wait, 0.5),
+                 event(KeystrokeEvent::Kind::RegularSpeed), event(KeystrokeEvent::Kind::ZeroElapseTime)});
     r.run(400ms);
     CHECK(r.host.full.load());
     r.run(200ms);
@@ -181,7 +181,7 @@ TEST(threaded_and_cooperative_sequencers_agree) {
     {
         KeySequencer keys(Model::TI59, host);
         auto events = keyEvents({25, 83});
-        events.push_back(event(KeystrokeEvent::Kind::WaitFullSpeed, 0.05));
+        events.push_back(event(KeystrokeEvent::Kind::Wait, 0.05));
         keys.play(events);
         auto end = Clock::now() + 2s;
         while (keys.isPlaying() || host.names().empty()) {
@@ -192,7 +192,7 @@ TEST(threaded_and_cooperative_sequencers_agree) {
     }
     VirtualRig r;
     auto events = keyEvents({25, 83});
-    events.push_back(event(KeystrokeEvent::Kind::WaitFullSpeed, 0.05));
+    events.push_back(event(KeystrokeEvent::Kind::Wait, 0.05));
     r.keys.play(events);
     r.run(1s);
     CHECK(host.names() == r.host.names());

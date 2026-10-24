@@ -32098,7 +32098,6 @@ key 72
 key 72
 wait 1
 key 91
-waitFullSpeed 1
 key 21
 key 32
 key 31
@@ -32957,7 +32956,6 @@ key 72
 key 72
 wait 1
 key 91
-waitFullSpeed 1
 key 21
 key 32
 key 31
@@ -33816,7 +33814,6 @@ key 72
 key 72
 wait 1
 key 91
-waitFullSpeed 1
 key 21
 key 32
 key 31
@@ -34234,7 +34231,6 @@ key 83
 key 95
 wait 1.5
 wait 0.25
-waitFullSpeed 2
 fullSpeed
 regularSpeed
 zeroElapseTime
@@ -34327,7 +34323,6 @@ key 83
 key 95
 wait 1.5
 wait 0.25
-waitFullSpeed 2
 fullSpeed
 regularSpeed
 zeroElapseTime
@@ -34421,7 +34416,6 @@ key 83
 key 95
 wait 1.5
 wait 0.25
-waitFullSpeed 2
 fullSpeed
 regularSpeed
 zeroElapseTime

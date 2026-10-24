@@ -454,6 +454,10 @@ void SessionController::loadStateFile(const std::optional<std::vector<uint8_t>>&
 void SessionController::applyState(const LoadStateResult& parsed) {
     if (!m_session) return;
     TI59Machine& m = m_session->machine();
+    if (auto e = stateFilePartitionError(parsed, m_model)) {
+        m_platform.error("State file load error", *e);
+        return;
+    }
     if (parsed.skipReset) {
         // Only partition (if explicit), program, registers, cue card, keystrokes.
         std::vector<std::string> ignored;
@@ -470,10 +474,6 @@ void SessionController::applyState(const LoadStateResult& parsed) {
             refreshCueCard();
         }
     } else {
-        if (auto e = stateFilePartitionError(parsed, m_model)) {
-            m_platform.error("State file load error", *e);
-            return;
-        }
         m_session->stop();
         m_session->clearFreeze();
         m_activeProgram = 0;

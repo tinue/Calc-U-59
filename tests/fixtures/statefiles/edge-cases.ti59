@@ -28,7 +28,6 @@ Trace: my trace.bin
 21 84 65 83 95   # [2nd][pi] x 2 =
 Wait: 1.5s
 Wait: 250ms
-WaitFullSpeed: 2S
 FullSpeed:
 RegularSpeed:
 ZeroElapseTime:

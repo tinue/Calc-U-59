@@ -61,7 +61,6 @@ std::string dumpState(const LoadStateResult& r) {
         case K::Key: out += "key " + std::to_string(k.code) + "\n"; break;
         case K::ToggleTrace: out += "toggleTrace\n"; break;
         case K::Wait: out += "wait " + num(k.seconds) + "\n"; break;
-        case K::WaitFullSpeed: out += "waitFullSpeed " + num(k.seconds) + "\n"; break;
         case K::Trace: out += "trace " + k.traceName.value_or("-") + "\n"; break;
         case K::FullSpeed: out += "fullSpeed\n"; break;
         case K::RegularSpeed: out += "regularSpeed\n"; break;
@@ -139,6 +138,14 @@ TEST(state_and_card_files_match_swift) {
     }
     CHECK(states >= 140);
     CHECK(cards >= 5);
+}
+
+TEST(keystroke_directives_unknown_or_without_unit_are_errors) {
+    auto r = parseStateFile("KEYSTROKES:\nWait: 15\nWaitFullSpeed: 2s\nFoo-Bar: 1\nWait: 2s\n11\n");
+    CHECK_EQ(r.errors.size(), size_t{3});
+    CHECK(r.errors.size() == 3 && r.errors[1].find("FullSpeed:") != std::string::npos);
+    CHECK_EQ(r.keystrokes.size(), size_t{2});  // Wait: 2s and key 11; "Wait: 15" is not key 15
+    CHECK(r.keystrokes.size() == 2 && r.keystrokes[0].kind == KeystrokeEvent::Kind::Wait);
 }
 
 TEST(bcd_regline_math_match_swift) {
