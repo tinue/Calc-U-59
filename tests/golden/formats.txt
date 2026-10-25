@@ -17857,6 +17857,552 @@ printer -
 model -
 skipReset 0
 END
+STATE examples/debug/printer-interrupt-bits.ti59 479 0
+partition 479 0
+step 0 92
+step 1 76
+step 2 11
+step 3 61
+step 4 0
+step 5 17
+step 6 69
+step 7 5
+step 8 23
+step 9 53
+step 10 0
+step 11 0
+step 12 86
+step 13 0
+step 14 0
+step 15 91
+step 16 1
+step 17 0
+step 18 42
+step 19 0
+step 20 42
+step 21 9
+step 22 43
+step 23 1
+step 24 69
+step 25 1
+step 26 43
+step 27 2
+step 28 69
+step 29 2
+step 30 43
+step 31 4
+step 32 69
+step 33 4
+step 34 73
+step 35 0
+step 36 69
+step 37 3
+step 38 69
+step 39 5
+step 40 25
+step 41 71
+step 42 0
+step 43 6
+step 44 98
+step 45 69
+step 46 20
+step 47 97
+step 48 9
+step 49 0
+step 50 23
+step 51 91
+reg 1 0 0900004623460023
+reg 2 0 0900000000460023
+reg 4 0 0700000000460023
+reg 10 0 0000000000000000
+reg 11 0 0100000000000001
+reg 12 0 0100000000000073
+reg 13 0 0100000000000007
+reg 14 0 0300000000000701
+reg 15 0 0300000000000773
+reg 16 0 0300000000000707
+reg 17 0 0500000000070701
+reg 18 0 0500000000070773
+reg 19 0 0500000000070707
+key 82
+key 85
+key 72
+key 63
+key 52
+key 82
+key 83
+key 94
+key 95
+key 61
+key 92
+key 82
+key 83
+key 41
+key 92
+key 42
+key 31
+key 21
+key 41
+key 31
+key 25
+key 81
+key 11
+module -
+printer 1
+model TI-59
+skipReset 0
+END
+STATE examples/debug/printer-interrupt-bits.ti59 959 0
+partition 479 0
+step 0 92
+step 1 76
+step 2 11
+step 3 61
+step 4 0
+step 5 17
+step 6 69
+step 7 5
+step 8 23
+step 9 53
+step 10 0
+step 11 0
+step 12 86
+step 13 0
+step 14 0
+step 15 91
+step 16 1
+step 17 0
+step 18 42
+step 19 0
+step 20 42
+step 21 9
+step 22 43
+step 23 1
+step 24 69
+step 25 1
+step 26 43
+step 27 2
+step 28 69
+step 29 2
+step 30 43
+step 31 4
+step 32 69
+step 33 4
+step 34 73
+step 35 0
+step 36 69
+step 37 3
+step 38 69
+step 39 5
+step 40 25
+step 41 71
+step 42 0
+step 43 6
+step 44 98
+step 45 69
+step 46 20
+step 47 97
+step 48 9
+step 49 0
+step 50 23
+step 51 91
+reg 1 0 0900004623460023
+reg 2 0 0900000000460023
+reg 4 0 0700000000460023
+reg 10 0 0000000000000000
+reg 11 0 0100000000000001
+reg 12 0 0100000000000073
+reg 13 0 0100000000000007
+reg 14 0 0300000000000701
+reg 15 0 0300000000000773
+reg 16 0 0300000000000707
+reg 17 0 0500000000070701
+reg 18 0 0500000000070773
+reg 19 0 0500000000070707
+key 82
+key 85
+key 72
+key 63
+key 52
+key 82
+key 83
+key 94
+key 95
+key 61
+key 92
+key 82
+key 83
+key 41
+key 92
+key 42
+key 31
+key 21
+key 41
+key 31
+key 25
+key 81
+key 11
+module -
+printer 1
+model TI-59
+skipReset 0
+END
+STATE examples/debug/printer-interrupt-bits.ti59 479 1
+partition 479 0
+step 0 92
+step 1 76
+step 2 11
+step 3 61
+step 4 0
+step 5 17
+step 6 69
+step 7 5
+step 8 23
+step 9 53
+step 10 0
+step 11 0
+step 12 86
+step 13 0
+step 14 0
+step 15 91
+step 16 1
+step 17 0
+step 18 42
+step 19 0
+step 20 42
+step 21 9
+step 22 43
+step 23 1
+step 24 69
+step 25 1
+step 26 43
+step 27 2
+step 28 69
+step 29 2
+step 30 43
+step 31 4
+step 32 69
+step 33 4
+step 34 73
+step 35 0
+step 36 69
+step 37 3
+step 38 69
+step 39 5
+step 40 25
+step 41 71
+step 42 0
+step 43 6
+step 44 98
+step 45 69
+step 46 20
+step 47 97
+step 48 9
+step 49 0
+step 50 23
+step 51 91
+reg 1 0 0900004623460023
+reg 2 0 0900000000460023
+reg 4 0 0700000000460023
+reg 10 0 0000000000000000
+reg 11 0 0100000000000001
+reg 12 0 0100000000000073
+reg 13 0 0100000000000007
+reg 14 0 0300000000000701
+reg 15 0 0300000000000773
+reg 16 0 0300000000000707
+reg 17 0 0500000000070701
+reg 18 0 0500000000070773
+reg 19 0 0500000000070707
+key 82
+key 85
+key 72
+key 63
+key 52
+key 82
+key 83
+key 94
+key 95
+key 61
+key 92
+key 82
+key 83
+key 41
+key 92
+key 42
+key 31
+key 21
+key 41
+key 31
+key 25
+key 81
+key 11
+module -
+printer 1
+model TI-59
+skipReset 0
+END
+STATE examples/debug/printer-interrupt-sweep.ti58c 479 0
+partition 239 1
+step 0 92
+step 1 68
+step 2 68
+step 3 68
+step 4 68
+step 5 69
+step 6 5
+step 7 59
+step 8 23
+step 9 53
+step 10 0
+step 11 0
+step 12 86
+step 13 0
+step 14 0
+step 15 91
+step 16 43
+step 17 1
+step 18 99
+step 19 43
+step 20 2
+step 21 69
+step 22 1
+step 23 69
+step 24 2
+step 25 69
+step 26 3
+step 27 69
+step 28 4
+step 29 43
+step 30 1
+step 31 94
+step 32 22
+step 33 28
+step 34 71
+step 35 0
+step 36 5
+step 37 98
+step 38 69
+step 39 21
+step 40 43
+step 41 3
+step 42 32
+step 43 43
+step 44 1
+step 45 22
+step 46 77
+step 47 0
+step 48 17
+step 49 91
+reg 1 0 0100000000000011
+reg 2 0 0900000075345071
+reg 3 0 0200000000000001
+key 82
+key 85
+key 72
+key 63
+key 52
+key 82
+key 83
+key 94
+key 95
+key 61
+key 92
+key 82
+key 83
+key 41
+key 92
+key 42
+key 31
+key 21
+key 41
+key 31
+key 25
+key 81
+key 61
+key 92
+key 82
+key 62
+key 91
+module -
+printer 1
+model TI-58C
+skipReset 0
+END
+STATE examples/debug/printer-interrupt-sweep.ti58c 959 0
+partition 239 1
+step 0 92
+step 1 68
+step 2 68
+step 3 68
+step 4 68
+step 5 69
+step 6 5
+step 7 59
+step 8 23
+step 9 53
+step 10 0
+step 11 0
+step 12 86
+step 13 0
+step 14 0
+step 15 91
+step 16 43
+step 17 1
+step 18 99
+step 19 43
+step 20 2
+step 21 69
+step 22 1
+step 23 69
+step 24 2
+step 25 69
+step 26 3
+step 27 69
+step 28 4
+step 29 43
+step 30 1
+step 31 94
+step 32 22
+step 33 28
+step 34 71
+step 35 0
+step 36 5
+step 37 98
+step 38 69
+step 39 21
+step 40 43
+step 41 3
+step 42 32
+step 43 43
+step 44 1
+step 45 22
+step 46 77
+step 47 0
+step 48 17
+step 49 91
+reg 1 0 0100000000000011
+reg 2 0 0900000075345071
+reg 3 0 0200000000000001
+key 82
+key 85
+key 72
+key 63
+key 52
+key 82
+key 83
+key 94
+key 95
+key 61
+key 92
+key 82
+key 83
+key 41
+key 92
+key 42
+key 31
+key 21
+key 41
+key 31
+key 25
+key 81
+key 61
+key 92
+key 82
+key 62
+key 91
+module -
+printer 1
+model TI-58C
+skipReset 0
+END
+STATE examples/debug/printer-interrupt-sweep.ti58c 479 1
+partition 239 1
+step 0 92
+step 1 68
+step 2 68
+step 3 68
+step 4 68
+step 5 69
+step 6 5
+step 7 59
+step 8 23
+step 9 53
+step 10 0
+step 11 0
+step 12 86
+step 13 0
+step 14 0
+step 15 91
+step 16 43
+step 17 1
+step 18 99
+step 19 43
+step 20 2
+step 21 69
+step 22 1
+step 23 69
+step 24 2
+step 25 69
+step 26 3
+step 27 69
+step 28 4
+step 29 43
+step 30 1
+step 31 94
+step 32 22
+step 33 28
+step 34 71
+step 35 0
+step 36 5
+step 37 98
+step 38 69
+step 39 21
+step 40 43
+step 41 3
+step 42 32
+step 43 43
+step 44 1
+step 45 22
+step 46 77
+step 47 0
+step 48 17
+step 49 91
+reg 1 0 0100000000000011
+reg 2 0 0900000075345071
+reg 3 0 0200000000000001
+key 82
+key 85
+key 72
+key 63
+key 52
+key 82
+key 83
+key 94
+key 95
+key 61
+key 92
+key 82
+key 83
+key 41
+key 92
+key 42
+key 31
+key 21
+key 41
+key 31
+key 25
+key 81
+key 61
+key 92
+key 82
+key 62
+key 91
+module -
+printer 1
+model TI-58C
+skipReset 0
+END
 STATE examples/debug/printer-timing.ti59 479 0
 partition 479 0
 step 0 76
@@ -28802,9 +29348,8 @@ key 71
 key 72
 key 72
 key 72
-fullSpeed
+wait 1
 key 91
-regularSpeed
 key 21
 key 32
 key 31
@@ -28818,12 +29363,45 @@ key 21
 key 64
 key 82
 key 62
+wait 1
 key 61
 key 92
 key 82
 key 62
 fullSpeed
 key 91
+cue template MagnetCard
+cue title TI Logo
+cue banks 1 2
+cue id 
+cue label0 
+cue label1 
+cue label2 
+cue label3 
+cue label4 
+cue label5 
+cue label6 
+cue label7 
+cue label8 
+cue label9 
+cue row1 See PPX Exchange March/April 1982
+cue row1Align center
+cue row2 for instructions to run
+cue row2Align center
+cue row2R 
+cue row2RAlign left
+cue style none
+cue color black
+enc Template: MagnetCard
+enc Title: TI Logo
+enc Banks: 1, 2
+enc Row1: See PPX Exchange March/April 1982
+enc Row2: for instructions to run
+enc Row2Align: center
+enc0 Title: TI Logo
+enc0 Row1: See PPX Exchange March/April 1982
+enc0 Row2: for instructions to run
+enc0 Row2Align: center
 module ML
 printer 1
 model TI-59
@@ -29628,9 +30206,8 @@ key 71
 key 72
 key 72
 key 72
-fullSpeed
+wait 1
 key 91
-regularSpeed
 key 21
 key 32
 key 31
@@ -29644,12 +30221,45 @@ key 21
 key 64
 key 82
 key 62
+wait 1
 key 61
 key 92
 key 82
 key 62
 fullSpeed
 key 91
+cue template MagnetCard
+cue title TI Logo
+cue banks 1 2
+cue id 
+cue label0 
+cue label1 
+cue label2 
+cue label3 
+cue label4 
+cue label5 
+cue label6 
+cue label7 
+cue label8 
+cue label9 
+cue row1 See PPX Exchange March/April 1982
+cue row1Align center
+cue row2 for instructions to run
+cue row2Align center
+cue row2R 
+cue row2RAlign left
+cue style none
+cue color black
+enc Template: MagnetCard
+enc Title: TI Logo
+enc Banks: 1, 2
+enc Row1: See PPX Exchange March/April 1982
+enc Row2: for instructions to run
+enc Row2Align: center
+enc0 Title: TI Logo
+enc0 Row1: See PPX Exchange March/April 1982
+enc0 Row2: for instructions to run
+enc0 Row2Align: center
 module ML
 printer 1
 model TI-59
@@ -30454,9 +31064,8 @@ key 71
 key 72
 key 72
 key 72
-fullSpeed
+wait 1
 key 91
-regularSpeed
 key 21
 key 32
 key 31
@@ -30470,12 +31079,45 @@ key 21
 key 64
 key 82
 key 62
+wait 1
 key 61
 key 92
 key 82
 key 62
 fullSpeed
 key 91
+cue template MagnetCard
+cue title TI Logo
+cue banks 1 2
+cue id 
+cue label0 
+cue label1 
+cue label2 
+cue label3 
+cue label4 
+cue label5 
+cue label6 
+cue label7 
+cue label8 
+cue label9 
+cue row1 See PPX Exchange March/April 1982
+cue row1Align center
+cue row2 for instructions to run
+cue row2Align center
+cue row2R 
+cue row2RAlign left
+cue style none
+cue color black
+enc Template: MagnetCard
+enc Title: TI Logo
+enc Banks: 1, 2
+enc Row1: See PPX Exchange March/April 1982
+enc Row2: for instructions to run
+enc Row2Align: center
+enc0 Title: TI Logo
+enc0 Row1: See PPX Exchange March/April 1982
+enc0 Row2: for instructions to run
+enc0 Row2Align: center
 module ML
 printer 1
 model TI-59
