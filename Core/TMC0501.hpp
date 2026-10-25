@@ -547,7 +547,7 @@ private:
     // r·508 + 18 + (5 − c)·64 cycles after PRT.GO. How dark the last column
     // of a cut comes out depends on how long it was heated (partialHeat;
     // Shared/PrinterFont.hpp inkAlpha). Measured on a TI-58C and a TI-59
-    // with one PC-100A (examples/printer-interrupt-sweep.ti58c and
+    // with one PC-100A (examples/debug/printer-interrupt-sweep.ti58c and
     // printer-interrupt-bits.ti59; reference/CoreArchitecture.md, "Printer
     // (PC-100C)").
     static constexpr uint32_t kPrinterRowCycles = 508;

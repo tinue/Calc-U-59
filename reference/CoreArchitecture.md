@@ -755,7 +755,7 @@ That unit's head has dead and flaky elements (a test line of 20 `Π`, code
 18, flaky in several columns of characters 2, 9, 10, 11 and 20. Only dots on
 working elements count below.
 
-*TI-58C, `examples/printer-interrupt-sweep.ti58c`*, cuts 16 cycles apart.
+*TI-58C, `examples/debug/printer-interrupt-sweep.ti58c`*, cuts 16 cycles apart.
 The first cut at which each column shows, with the last cut before it where
 it doesn't:
 
@@ -767,7 +767,7 @@ it doesn't:
 Row 5 allows an offset from 18 to 33 cycles, row 6 from 22 to 37. Rows 1–4
 were complete at 1905 cycles and later.
 
-*TI-59, `examples/printer-interrupt-bits.ti59`.* Ten lines differ only in
+*TI-59, `examples/debug/printer-interrupt-bits.ti59`.* Ten lines differ only in
 the 1-bits of three character codes. Op 05 takes longer to send codes with
 more bits, which moves its `PRT.GO` against the CPU's digit counter, and the
 1F path ends in a `WAIT D0` (05A9) that waits 0–15 cycles for digit 0. So

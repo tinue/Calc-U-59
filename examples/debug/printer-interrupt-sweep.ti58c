@@ -55,7 +55,7 @@
 # KEYING IT IN (TI-58C, default partition 239.29)
 #
 # 1. LRN, key the PROGRAM below (steps 000–049), LRN.
-# 2. Make the 1F at 008 (the fast-mode hack of printer-interrupt.ti59):
+# 2. Make the 1F at 008 (the fast-mode hack of examples/printer-interrupt.ti59):
 #      1 + 48 EE 12 +/- =     X := 1.000000000048
 #      GTO 012  SST  0  STO   Prg Src := 8, the run stops at 007
 #      LRN  2nd Ins  LRN      008 := 1F, 009 := RTN, 016 on move up one

@@ -92,7 +92,7 @@ characters one after the other, right to left; the third row's rightmost
 column would have started 14 cycles later. A later cut leaves the
 rightmost columns of the row in progress, and a column cut in the first
 few cycles of its heating leaves a faint dot. The timing was measured on
-a real TI-58C + PC-100A with `examples/printer-interrupt-sweep.ti58c`
+a real TI-58C + PC-100A with `examples/debug/printer-interrupt-sweep.ti58c`
 (reference/CoreArchitecture.md § "Dot timing within a line").
 
 **The way back.** After PRT.GO, execution continues at step 000, and the
@@ -153,7 +153,7 @@ with the source still 8.
   as with the article's sequence.
 - **Real hardware.** A TI-59 and a TI-58C, each on a PC-100A, print the
   2 rows of `printer-interrupt.ti59` and `printer-quirks.ti59`.
-  `examples/printer-interrupt-sweep.ti58c` cut lines 16 cycles apart on
+  `examples/debug/printer-interrupt-sweep.ti58c` cut lines 16 cycles apart on
   the TI-58C; the scans gave the column timing.
 - **Limits.** The article blames "the calculator-printer combination" for
   differences between machines. The printer runs on the calculator's

@@ -1,6 +1,6 @@
 # printer-interrupt-bits.ti59
 #
-# A short version of printer-quirks.ti59 for checking the emulator's
+# A short version of examples/printer-quirks.ti59 for checking the emulator's
 # printer interrupt against a real TI-59 + PC-100. It prints 10 lines,
 # each once in full and once cut short by the interrupt, like the
 # article's table, but the cut lines differ only in when they are cut.
@@ -43,7 +43,7 @@
 # KEYING IT IN (TI-59)
 #
 # 1. LRN, key the PROGRAM below (steps 000–051), LRN.
-# 2. Make the 1F at 008 (as printer-interrupt.ti59):
+# 2. Make the 1F at 008 (as examples/printer-interrupt.ti59):
 #      1 + 48 EE 12 +/- =     X := 1.000000000048
 #      GTO 012  SST  0  STO   Prg Src := 8, the run stops at 007
 #      LRN  2nd Ins  LRN      008 := 1F, 009 := RTN, 016 on move up one

@@ -212,7 +212,7 @@ TEST(printer_print_key_emits_line) {
 
 // The printer interrupt cuts a line mid-row: the head fires a row's columns
 // right to left, 64 cycles apart (Core/TMC0501.hpp kPrinterColumnCycles).
-// examples/printer-interrupt-sweep.ti58c on the TI-58C, one line per k: the
+// examples/debug/printer-interrupt-sweep.ti58c on the TI-58C, one line per k: the
 // interrupt comes 2049 + 16·(k − 21) cycles after the print starts, roughly.
 // Expected values are what a real TI-58C + PC-100A printed (2026-10-25 scans,
 // reference/CoreArchitecture.md "Dot timing within a line").
