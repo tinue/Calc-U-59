@@ -18,15 +18,17 @@
 #
 # TIMING
 #
-#   Program run time after the year is keyed in (headless emulator; for
+#   Program run time after the year is keyed in, as a stopwatch on the
+#   real calculator sees it: from each key press until the display lights
+#   up again, added up over A and the keys after it (headless emulator; for
 #   Acosta this includes its normal-mode preparation after the last R/S, for
 #   this program the preparation in fast mode):
 #
 #     year   this program   Acosta
-#     1900      76.3 s      82.6 s
-#     2000      78.3 s      83.5 s
-#     2024      76.4 s      81.8 s
-#     2026      75.2 s      80.8 s
+#     1900      77.1 s      84.0 s
+#     2000      79.2 s      84.8 s
+#     2024      77.2 s      83.2 s
+#     2026      76.1 s      82.1 s
 #
 #   Acosta's published time for 2000 is 1:23 on a real TI-59. The output was
 #   checked against Python's calendar module and against Acosta's printout
@@ -119,7 +121,7 @@
 # HISTORY
 #
 # The first version (Calc-U-59 2.0.0) printed the header lines before the
-# jump to the fix-up routine and counted the months with Dsz: 77.0 s for
+# jump to the fix-up routine and counted the months with Dsz: 77.9 s for
 # 2026. This version reads the record first, ends the run with the 13th
 # record, and gives February its own header code: 1.8 s faster.
 #

@@ -34,18 +34,19 @@ Still to capture from the source page: the two Palmer Hanson programs (v5n7 and 
 ## Comparison of the programs
 
 Times are emulated seconds in the Calc-U-59 headless harness for 2026, from
-the key that starts the year's printing to the last printed line. Each
-program's own preparation after that key is included. "Published" is the
+the key that starts the year's printing until the display lights up again,
+as a stopwatch on the real calculator would see it. Each program's own
+preparation after that key is included. "Published" is the
 time given in the article, for 1978 (52 Notes) or 2000 (Acosta) on a real
 TI-59. Steps are the program length without trailing zero steps.
 
 | File | Published | Emulator (2026) | Steps | Technique introduced |
 |---|---|---|---|---|
 | `calendar-01-Weinberger.ti59` | 34 min | 34:55 | 442 | ML-20 gives the weekday of each 1st, and February's length from a day-number difference. Each line fills a block of 7 registers with day numbers and converts them to print codes with a translator routine. (This file prints a February 29 in 2026; not investigated.) |
-| `calendar-02-cargile.ti59` | 34 min | 34:37 | 382 | Month lengths by tests (leap year, February, odd/even month, July/August). A "quasi base seven" counter supplies the print code of each next day directly. |
+| `calendar-02-cargile.ti59` | 34 min | 34:38 | 382 | Month lengths by tests (leap year, February, odd/even month, July/August). A "quasi base seven" counter supplies the print code of each next day directly. |
 | `calendar-03-vanderburgh.ti59` | 26 min | 25:59 | 452 | ML-20 SBR 086 day numbers give the month length as a difference, SBR 177 the weekday. One general print-buffer packing routine serves every line. |
 | `calendar-04-skillman.ti59` | 7.5 min | 7:28 | 308 | A block of consecutive registers, each holding the print code of one day, from which any line is packed. The revision replaces x:t comparisons by INV Dsz and uses equally spaced GTOs for a double-indirect jump. |
-| `calendar-05-vanderburgh.ti59` | under 5 min | 4:51 | 720 | Swinnen's doubled print codes (two days per register, via Galidas). HIR 5-8 fill the print buffer directly instead of Op 1-4. Prestored data in the program area. |
+| `calendar-05-vanderburgh.ti59` | under 5 min | 4:52 | 720 | Swinnen's doubled print codes (two days per register, via Galidas). HIR 5-8 fill the print buffer directly instead of Op 1-4. Prestored data in the program area. |
 | `calendar-06-cargile.ti59` | 2:57 | 2:56 | 320 | HIR print-code processing with chosen integer/fraction parts: the integer part 2 of an entry is also the pointer step (the "2-trick"). As much code in line as memory allows. |
 | `calendar-07-calidas.ti59` | 2:38.6 | 2:38 | 366 | Full 13-digit data packing. One division (start weekday + month length) / 7 gives the number of full rows and the next month's start day. The last line is packed in reverse order. |
 | `calendar-08-acosta.ti59` | 1:23 | 1:21 | 398 | Fast mode (Neef, applied to Galidas' program by Hanson). Separate print commands so that calculation goes on while the printer runs (Snow). The "hi2" fast-mode entry from inside the program, which frees the ML-20 module for the preparation. |
@@ -59,16 +60,16 @@ come from the work per month. Fast mode and its entry methods, including
 Acosta's "hi2", are explained in `rom/fastmode.md`; the timing tools are in
 `tools/agentic/`.
 
-Measured the same way, counting all program run time after the year is
-keyed in (Acosta's normal-mode preparation, the new program's fast-mode
+Measured the same way, adding up every key after the year is keyed in
+(Acosta's normal-mode preparation, the new program's fast-mode
 preparation):
 
 | Year | Acosta | `calendar-09-dispatch` |
 |---|---|---|
-| 1900 | 82.6 s | 76.3 s |
-| 2000 | 83.5 s | 78.3 s |
-| 2024 | 81.8 s | 76.4 s |
-| 2026 | 80.8 s | 75.2 s |
+| 1900 | 84.0 s | 77.1 s |
+| 2000 | 84.8 s | 79.2 s |
+| 2024 | 83.2 s | 77.2 s |
+| 2026 | 82.1 s | 76.1 s |
 
 Both programs print the same lines for every year from 1899 to 2101, and
 the dates agree with Python's `calendar` module. Acosta's program

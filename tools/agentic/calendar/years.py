@@ -5,7 +5,8 @@ CLI: years.py file.ti59 year...
   code 11) in the file's KEYSTROKES, runs it, checks the day rows against
   Python's calendar module and compares the printout line for line with
   Acosta's program (examples/calendar-08-acosta.ti59) run for the same year.
-  The printed time is from the last key until idle (ti59file.run).
+  The printed time is from the last key until the display lights up
+  again (ti59file.run).
 Library: with_year(path, year) -> keys for runtime.key_runtimes etc."""
 import os
 import sys
