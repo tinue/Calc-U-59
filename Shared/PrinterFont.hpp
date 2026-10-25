@@ -1,4 +1,5 @@
 #pragma once
+#include "../Core/TMC0501.hpp"
 #include <cmath>
 #include <cstdint>
 
@@ -66,11 +67,35 @@ struct PrinterGeometry {
         return 0.05 + 0.95 * std::pow(heat < 0 ? 0.0 : heat / double(fullInkCycles), 2.5);
     }
 
+    /// How a printed line goes on paper, from Core's PrinterCodeLine (nullptr:
+    /// a complete line). The GUIs draw font row `r` masked by inked[r], its
+    /// faint[r] dots at faintAlpha.
+    struct LineDots {
+        bool complete = true;       ///< all 7 rows, followed by the paper advance
+        int drawnRows = 7;          ///< dot rows on paper (1–7)
+        uint8_t inked[7] = {0x1F, 0x1F, 0x1F, 0x1F, 0x1F, 0x1F, 0x1F};
+        uint8_t faint[7] = {};
+        double faintAlpha = 1.0;
+    };
+    static LineDots lineDots(const PrinterCodeLine* line) {
+        LineDots d;
+        if (!line || line->rowCount >= 7) return d;
+        d.complete = false;
+        d.drawnRows = drawnRows(line->rowCount, line->partialColumns);
+        for (int r = 0; r < 7; ++r) {
+            d.inked[r] = inkedColumns(line->rowCount, line->partialColumns, r);
+            d.faint[r] = faintColumns(line->rowCount, line->partialColumns, line->partialHeat, r);
+        }
+        d.faintAlpha = inkAlpha(line->partialHeat);
+        return d;
+    }
+
     /// Height of one strip line: a PRT_FEED blank line, a complete line (7 rows
     /// plus the stepper's advance) or a cut-short one (its rows, no advance).
-    static constexpr double lineHeightUnits(bool isFeed, int rowCount, int partialColumns) {
+    static double lineHeightUnits(bool isFeed, const PrinterCodeLine* line) {
         if (isFeed) return feedHeightUnits;
-        return rowCount >= 7 ? heightUnits : drawnRows(rowCount, partialColumns);
+        const LineDots d = lineDots(line);
+        return d.complete ? heightUnits : d.drawnRows;
     }
 
     /// Copy-as-image scale: physical size at 600 dpi, backed off for long tapes

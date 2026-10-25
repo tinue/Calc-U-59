@@ -354,10 +354,9 @@ void SessionController::pressPrinterAdv(bool pressed) { if (m_session) m_session
 
 double SessionController::printerStripHeightUnits() const {
     double units = 0;
-    for (size_t i = 0; i < m_printerLines.size(); ++i) {
-        const PrinterCodeLine* l = i < m_printerCodeLines.size() ? &m_printerCodeLines[i] : nullptr;
-        units += PrinterGeometry::lineHeightUnits(m_printerLines[i].empty(), l ? l->rowCount : 7, l ? l->partialColumns : 0);
-    }
+    for (size_t i = 0; i < m_printerLines.size(); ++i)
+        units += PrinterGeometry::lineHeightUnits(m_printerLines[i].empty(),
+                                                  i < m_printerCodeLines.size() ? &m_printerCodeLines[i] : nullptr);
     return units;
 }
 

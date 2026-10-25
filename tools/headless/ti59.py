@@ -101,6 +101,8 @@ def _lib():
     lib.h_disasm.argtypes = [C.c_uint16, C.c_uint16, C.c_char_p, C.c_int]
     lib.h_instruction_hz.argtypes = [C.c_int]
     lib.h_instruction_hz.restype = C.c_double
+    lib.h_printer_busy_cycles.argtypes = [C.c_int]
+    lib.h_printer_busy_cycles.restype = C.c_uint32
     lib.h_idle_range.argtypes = [C.c_int, C.POINTER(C.c_int)]
     assert lib.h_rec_size() == C.sizeof(HRec), "HRec layout mismatch with capi.cpp"
     return lib
@@ -308,14 +310,11 @@ class Machine:
         """New dot-matrix lines since the last call: (20 printer codes, rows,
         columns of the next row started before a cut, cycles the leftmost of
         them was heated)."""
-        out = []
-        while True:
-            b = C.create_string_buffer(23 * 1024)
-            n = LIB.h_printer_code_lines(self.h, b, 1024)
-            out += [(list(b.raw[23 * i : 23 * i + 20]), b.raw[23 * i + 20], b.raw[23 * i + 21],
-                     b.raw[23 * i + 22]) for i in range(n)]
-            if n < 1024:
-                return out
+        cap = 65536  # the C side drains its whole queue; lines past cap are lost
+        b = C.create_string_buffer(23 * cap)
+        n = LIB.h_printer_code_lines(self.h, b, cap)
+        return [(list(b.raw[23 * i : 23 * i + 20]), b.raw[23 * i + 20], b.raw[23 * i + 21],
+                 b.raw[23 * i + 22]) for i in range(n)]
 
     # ── formatting ─────────────────────────────────────────────────────────
     @staticmethod

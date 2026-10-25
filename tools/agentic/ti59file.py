@@ -20,8 +20,7 @@ sys.path.insert(0, os.path.join(ROOT, 'tools', 'headless'))
 from ti59 import Machine, LIB, INSTR_PER_SEC, IDLE_LO, IDLE_HI, FLG_IDLE  # noqa: E402
 
 FLG_BUSY = 0x8000              # printer busy
-# printer BUSY in instruction cycles (Core/TMC0501.hpp kPrinterLineCycles / kPrinterFeedCycles)
-LINE_CYCLES, FEED_CYCLES = 4165, 1370
+LINE_CYCLES, FEED_CYCLES = LIB.h_printer_busy_cycles(0), LIB.h_printer_busy_cycles(1)  # printer BUSY
 # KEYSTROKES matrix codes of the digit keys
 DIGIT = {'0': '92', '1': '82', '2': '83', '3': '84', '4': '72', '5': '73', '6': '74', '7': '62', '8': '63', '9': '64'}
 

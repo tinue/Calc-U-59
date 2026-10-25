@@ -564,19 +564,18 @@ private:
             const bool feed = lines[i].empty();
             val l = val::object();
             l.set("text", lines[i]);
-            const int rowCount = line ? line->rowCount : 7, partial = line ? line->partialColumns : 0;
-            l.set("height", cu59::PrinterGeometry::lineHeightUnits(feed, rowCount, partial));
+            l.set("height", cu59::PrinterGeometry::lineHeightUnits(feed, line));
             if (line && !feed) {
-                const int rows = cu59::PrinterGeometry::drawnRows(rowCount, partial);
-                l.set("rows", rows);
+                const auto dots = cu59::PrinterGeometry::lineDots(line);
+                l.set("rows", dots.drawnRows);
                 val inked = val::array(), faint = val::array();
-                for (int r = 0; r < rows; ++r) {
-                    inked.set(r, cu59::PrinterGeometry::inkedColumns(rowCount, partial, r));
-                    faint.set(r, cu59::PrinterGeometry::faintColumns(rowCount, partial, line->partialHeat, r));
+                for (int r = 0; r < dots.drawnRows; ++r) {
+                    inked.set(r, dots.inked[r]);
+                    faint.set(r, dots.faint[r]);
                 }
                 l.set("inked", inked);
                 l.set("faint", faint);
-                l.set("faintAlpha", cu59::PrinterGeometry::inkAlpha(line->partialHeat));
+                l.set("faintAlpha", dots.faintAlpha);
                 val cs = val::array();
                 for (size_t ch = 0; ch < 20; ++ch) cs.set(ch, line->codes[ch] & 0x3F);
                 l.set("codes", cs);

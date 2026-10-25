@@ -184,8 +184,7 @@ function paintStrip(ctx, lines, tops, pitch, geo, color, top, bottom) {
     const line = lines[i];
     if (!line.codes) continue;
     const y = tops[i] * pitch;
-    const faintDots = new Path2D();
-    let faint = false;
+    let faintDots = null;
     for (let row = 0; row < line.rows; row++) {
       const cy = y + (row + 0.5) * pitch;
       for (let ch = 0; ch < 20; ch++) {
@@ -196,15 +195,13 @@ function paintStrip(ctx, lines, tops, pitch, geo, color, top, bottom) {
           const mask = 0x10 >> col;
           if (!(bits & mask)) continue;
           const cx = cx0 + (col + 0.5) * pitch;
-          const isFaint = (line.faint[row] & mask) !== 0;
-          const path = isFaint ? faintDots : dots;
-          faint ||= isFaint;
+          const path = line.faint[row] & mask ? (faintDots ??= new Path2D()) : dots;
           path.moveTo(cx + radius, cy);
           path.arc(cx, cy, radius, 0, Math.PI * 2);
         }
       }
     }
-    if (faint) {
+    if (faintDots) {
       ctx.globalAlpha = line.faintAlpha;
       ctx.fill(faintDots);
       ctx.globalAlpha = 1;

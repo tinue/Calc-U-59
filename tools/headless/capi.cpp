@@ -50,6 +50,8 @@ int h_rec_size() { return static_cast<int>(sizeof(HRec)); }
 
 // Shared/MachineModelInfo.hpp facts of `model`, so Python keeps no copies.
 double h_instruction_hz(int model) { return cu59::info(static_cast<cu59::Model>(model)).instructionHz; }
+// Printer BUSY in instruction cycles: a printed line, or one PRT.FEED.
+uint32_t h_printer_busy_cycles(int feed) { return feed ? TMC0501::kPrinterFeedCycles : TMC0501::kPrinterLineCycles; }
 // The idle/key-detect range: out = {lo, hi, extraLo, extraHi} (extra empty when lo > hi).
 void h_idle_range(int model, int* out) {
     const cu59::PcRange& r = cu59::info(static_cast<cu59::Model>(model)).idleAndKeyDetect;
@@ -167,7 +169,8 @@ int h_printer_lines(void* m, char* out, int cap) {
 // Printer code lines (the dot-matrix queue, separate from the text lines):
 // 23 bytes each: the 20 character codes, the complete rows (0-7), the
 // columns of the next row started before a cut (0-5), and the cycles the
-// leftmost of them was heated (capped at 255). Returns the number of lines written; lines beyond cap are dropped.
+// leftmost of them was heated (capped at 255). Returns the number of lines
+// written; the queue is drained, so lines beyond cap are lost.
 int h_printer_code_lines(void* m, uint8_t* out, int cap) {
     int n = 0;
     for (auto& l : static_cast<TI59Machine*>(m)->drainPrinterCodeLines()) {

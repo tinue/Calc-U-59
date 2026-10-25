@@ -808,9 +808,6 @@ int TMC0501::step() {
                         line += m_prnBuf[i];
                         m_prnPending.codes[19 - i] = m_prnCodeBuf[i];
                     }
-                    m_prnPending.rowCount = 7;
-                    m_prnPending.partialColumns = 0;
-                    m_prnPending.partialHeat = 0;
                     m_prnHasPending = true;
                     {
                         std::lock_guard<std::mutex> lk(m_prnMutex);
@@ -1246,8 +1243,8 @@ void TMC0501::flushPendingCodeLine(uint32_t elapsed) {
         heat = fired - (cols - 1) * kPrinterColumnCycles;
     }
     m_prnPending.rowCount = static_cast<uint8_t>(std::min<uint32_t>(7, rows));
-    m_prnPending.partialColumns = static_cast<uint8_t>(m_prnPending.rowCount < 7 ? cols : 0);
-    m_prnPending.partialHeat = static_cast<uint8_t>(m_prnPending.partialColumns > 0 ? std::min<uint32_t>(255, heat) : 0);
+    m_prnPending.partialColumns = static_cast<uint8_t>(cols);
+    m_prnPending.partialHeat = static_cast<uint8_t>(std::min<uint32_t>(255, heat));
     std::lock_guard<std::mutex> lk(m_prnMutex);
     m_prnCodeLines.push_back(m_prnPending);
     m_prnHasPending = false;

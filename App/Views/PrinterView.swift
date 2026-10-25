@@ -288,14 +288,11 @@ struct PrinterCodeLine: Equatable {
     static let blank = PrinterCodeLine(codes: Array(repeating: 0, count: 20), complete: true, drawnRows: 7,
                                        inkedColumns: Array(repeating: 0x1F, count: 7),
                                        faintColumns: Array(repeating: 0, count: 7), faintAlpha: 1)
+}
 
-    init(codes: [UInt8], complete: Bool, drawnRows: Int, inkedColumns: [UInt8], faintColumns: [UInt8],
-         faintAlpha: Double) {
-        self.codes = codes; self.complete = complete; self.drawnRows = drawnRows
-        self.inkedColumns = inkedColumns; self.faintColumns = faintColumns; self.faintAlpha = faintAlpha
-    }
+extension PrinterCodeLine {
     init(_ t: TIPrinterLine) {
-        self.init(codes: [UInt8](t.codes), complete: t.rowCount >= 7, drawnRows: t.drawnRows,
+        self.init(codes: [UInt8](t.codes), complete: t.complete, drawnRows: t.drawnRows,
                   inkedColumns: [UInt8](t.inkedColumns), faintColumns: [UInt8](t.faintColumns),
                   faintAlpha: Double(t.faintAlpha))
     }

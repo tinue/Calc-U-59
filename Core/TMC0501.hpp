@@ -238,6 +238,14 @@ public:
     /// Pure function — disassembles one 13-bit opcode to a mnemonic string.
     static std::string disassemble(uint16_t pc, uint16_t opcode);
 
+    // PC-100 BUSY after PRT.GO (a printed line) and PRT.FEED (half a line; the
+    // ROM's Adv issues two). The printer runs on the calculator's PHI clock, so
+    // these are instruction cycles on every model, counted down once per step.
+    // Measured from recordings of List, Prt and Adv loops on a TI-59 and a
+    // TI-58C (reference/CoreArchitecture.md, "Printer (PC-100C)").
+    static constexpr uint32_t kPrinterLineCycles = 4165;
+    static constexpr uint32_t kPrinterFeedCycles = 1370;
+
     // ── Printer hardware buttons ──────────────────────────────────────────────
     void pressPrinterPrint(bool pressed);
     void pressPrinterAdv(bool pressed);
@@ -534,13 +542,6 @@ private:
     // in the last complete digit-counter revolution.
     void computeDisplayTraceState(uint8_t& displayOn, uint8_t& maxDigitDecay) const;
 
-    // PC-100 BUSY after PRT.GO (a printed line) and PRT.FEED (half a line; the
-    // ROM's Adv issues two). The printer runs on the calculator's PHI clock, so
-    // these are instruction cycles on every model, counted down once per step.
-    // Measured from recordings of List, Prt and Adv loops on a TI-59 and a
-    // TI-58C (reference/CoreArchitecture.md, "Printer (PC-100C)").
-    static constexpr uint32_t kPrinterLineCycles = 4165;
-    static constexpr uint32_t kPrinterFeedCycles = 1370;
     // A printed line is 7 dot-row strokes from PRT.GO on, then the paper advance.
     // Each stroke fires the 5 dot columns of all 20 characters one column at a
     // time, right to left: column c (5 = rightmost) of row r starts

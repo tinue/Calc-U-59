@@ -45,23 +45,21 @@ public:
         double y = 0;
         for (int i = 0; i < lines.size() && y < visibleBottom; ++i) {
             const PrinterCodeLine* line = static_cast<size_t>(i) < codes.size() ? &codes[static_cast<size_t>(i)] : nullptr;
-            const int rowCount = line ? line->rowCount : 7, partial = line ? line->partialColumns : 0;
-            const double lineHeight = PrinterGeometry::lineHeightUnits(lines[i].isEmpty(), rowCount, partial) * pitch;
-            if (lines[i].isEmpty() || y + lineHeight < visibleTop) {
+            const double lineHeight = PrinterGeometry::lineHeightUnits(lines[i].isEmpty(), line) * pitch;
+            if (!line || lines[i].isEmpty() || y + lineHeight < visibleTop) {
                 y += lineHeight;
                 continue;
             }
-            const int rows = PrinterGeometry::drawnRows(rowCount, partial);
-            for (int row = 0; row < rows && line; ++row) {
-                const uint8_t inked = PrinterGeometry::inkedColumns(rowCount, partial, row);
-                const uint8_t faint = PrinterGeometry::faintColumns(rowCount, partial, line->partialHeat, row);
+            const auto dots = PrinterGeometry::lineDots(line);
+            for (int row = 0; row < dots.drawnRows; ++row) {
+                const uint8_t inked = dots.inked[row], faint = dots.faint[row];
                 double cy = y + (row + 0.5) * pitch;
                 for (int ch = 0; ch < 20; ++ch) {
                     uint8_t bits = cu59::kPC100CFont[line->codes[static_cast<size_t>(ch)] & 0x3F][row] & inked;
                     double cx0 = ch * PrinterGeometry::charStepUnits * pitch;
                     for (int col = 0; col < 5; ++col) {
                         if (!(bits & (0x10 >> col))) continue;
-                        p.setOpacity((faint & (0x10 >> col)) ? PrinterGeometry::inkAlpha(line->partialHeat) : 1.0);
+                        p.setOpacity((faint & (0x10 >> col)) ? dots.faintAlpha : 1.0);
                         p.drawEllipse(QPointF(cx0 + (col + 0.5) * pitch, cy), radius, radius);
                     }
                 }
