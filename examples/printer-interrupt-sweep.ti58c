@@ -1,0 +1,180 @@
+# printer-interrupt-sweep.ti58c
+#
+# Where does the printer interrupt cut a dot row? A sweep for the real
+# TI-58C + PC-100A: 89 interrupted lines, each cut about 16 instruction
+# cycles later than the one before, from 1905 to 3137 cycles after the
+# print starts. A dot row lasts 508 cycles, so the sweep covers the end
+# of row 4, rows 5 and 6 and the start of row 7 (counting from 1), about
+# 32 lines per row. Photographed, it shows when each column of a row is
+# fired, how long it is heated, and where a row starts relative to the
+# print.
+#
+# THE PRINTOUT
+#
+# For each k = 11 … 99:
+#   k            Prt, a complete line: the number of the test
+#   E4W, E4W,…   the test line, cut short by the interrupt
+#   (blank)      Adv
+# The cut line shows its first rows complete and the row being printed
+# at the cut partly. Every column of rows 4–7 has a dot in at least one
+# of E, 4, W and the comma, and row 5 of "4" and row 7 of "E" are full
+# rows, so each column shows whether it was fired.
+#
+# WHY NOT NOPS
+#
+# A Nop costs 224 cycles, almost half a row; one column takes about 60.
+# The delay comes from Int instead: Int of 10^-k is 0, and Int takes
+# about 16 cycles longer per step of k (for k ≥ 11). The program computes
+# 10^-k itself, so nothing has to be keyed in per line.
+#
+# Cut times: k, instruction cycles from the PRT.GO of Op 05 to the
+# PRT.GO of the 1F (emulator, TI-58C ROM, which the real unit runs
+# unchanged), and the same in rows of 508 cycles. The fraction is the
+# point within the row if rows start right at PRT.GO; finding the real
+# start is one aim of the sweep. Pairs with the same time (18/19, 20/21,
+# …) are repeats of each other.
+#  11 1905 3.75  12 1921 3.78  13 1937 3.81  14 1953 3.84  15 1969 3.88
+#  16 1985 3.91  17 2001 3.94  18 2017 3.97  19 2017 3.97  20 2049 4.03
+#  21 2049 4.03  22 2065 4.06  23 2081 4.10  24 2097 4.13  25 2113 4.16
+#  26 2129 4.19  27 2129 4.19  28 2145 4.22  29 2161 4.25  30 2193 4.32
+#  31 2193 4.32  32 2209 4.35  33 2225 4.38  34 2241 4.41  35 2241 4.41
+#  36 2257 4.44  37 2273 4.47  38 2289 4.51  39 2305 4.54  40 2337 4.60
+#  41 2337 4.60  42 2353 4.63  43 2353 4.63  44 2369 4.66  45 2385 4.69
+#  46 2401 4.73  47 2417 4.76  48 2433 4.79  49 2449 4.82  50 2481 4.88
+#  51 2465 4.85  52 2481 4.88  53 2497 4.92  54 2513 4.95  55 2529 4.98
+#  56 2545 5.01  57 2561 5.04  58 2577 5.07  59 2577 5.07  60 2593 5.10
+#  61 2609 5.14  62 2625 5.17  63 2641 5.20  64 2657 5.23  65 2673 5.26
+#  66 2689 5.29  67 2689 5.29  68 2705 5.32  69 2721 5.36  70 2737 5.39
+#  71 2753 5.42  72 2769 5.45  73 2785 5.48  74 2801 5.51  75 2801 5.51
+#  76 2817 5.55  77 2833 5.58  78 2849 5.61  79 2865 5.64  80 2881 5.67
+#  81 2897 5.70  82 2913 5.73  83 2913 5.73  84 2929 5.77  85 2945 5.80
+#  86 2961 5.83  87 2977 5.86  88 2993 5.89  89 3009 5.92  90 3025 5.95
+#  91 3025 5.95  92 3041 5.99  93 3057 6.02  94 3073 6.05  95 3089 6.08
+#  96 3105 6.11  97 3121 6.14  98 3137 6.18  99 3137 6.18
+#
+# KEYING IT IN (TI-58C, default partition 239.29)
+#
+# 1. LRN, key the PROGRAM below (steps 000–049), LRN.
+# 2. Make the 1F at 008 (the fast-mode hack of printer-interrupt.ti59):
+#      1 + 48 EE 12 +/- =     X := 1.000000000048
+#      GTO 012  SST  0  STO   Prg Src := 8, the run stops at 007
+#      LRN  2nd Ins  LRN      008 := 1F, 009 := RTN, 016 on move up one
+#      CLR  RST
+#    The constant memory keeps the 1F: it has to be made only once.
+# 3. 11 STO 01   1705435700 STO 02   100 STO 03
+# 4. GTO 017  R/S
+# R01 is the next k and R03 one past the last: 40 STO 01  61 STO 03
+# GTO 017 R/S repeats k = 40 … 60.
+#
+# THE CLOCK DRIFT
+#
+# The cut time counts instruction cycles of the calculator, and the
+# printer runs on the calculator's clock. A drifting clock changes the
+# length of a cycle, not the number of cycles, so the cut point within a
+# row stays where it is. What can change is the heat a dot gets: at a
+# slower clock every heating pulse lasts longer in milliseconds, so a
+# half-heated dot may come out a little darker.
+#
+# WHY THE PROGRAM LOOKS LIKE THIS
+#
+# - 000 INV SBR, 008 1F, 009 RTN: the interrupt continues at step 000,
+#   which returns to 009, which returns from the SBR 005 (as in
+#   printer-interrupt.ti59).
+# - No labels: the 1F stops every label search that reaches it, so a
+#   label after 008 can never be found. The driver uses SBR 005 and a
+#   branch to 017 instead.
+# - Op 05 Int 1F: Op 05 starts the line, Int of 10^-k is the delay, and
+#   leaves the 0 that the 1F needs. The 0 must be a result. A 0 being
+#   keyed in, or CLR just before the 1F, makes the interrupt hang.
+# - Steps 001–004 are Nops so that the 1F stays at 008; they run before
+#   the print and don't change the delay.
+
+MODEL: TI-58C
+PRINTER: on
+PARTITION: 239.29
+
+PROGRAM:
+000  92  INV SBR   # the interrupt continues here: return to 009
+001  68  Nop
+002  68  Nop
+003  68  Nop
+004  68  Nop
+005  69  Op        # SBR 005 enters here
+006  05  05        # start printing the line …
+007  59  Int       # … Int(10^-k) = 0, its time is the delay
+008  23  lnx       # becomes 1F: the interrupt
+009  53  (         # becomes 92 RTN
+010  00  0
+011  00  0
+012  86  St flg    # hack trigger (overwritten by the Ins)
+013  00  0         # swallowed by the hack
+014  00  0         # makes X displayable before the R/S
+015  91  R/S       # stops the hack's run (moves to 016)
+# From here on, each step moves up one during the Ins: 016 runs as 017.
+016  43  RCL       # 017: start of the loop
+017  01  01
+018  99  Prt       # print k
+019  43  RCL
+020  02  02        # E4W,  E4W,  E4W,  E4W,
+021  69  Op
+022  01  01
+023  69  Op
+024  02  02
+025  69  Op
+026  03  03
+027  69  Op
+028  04  04
+029  43  RCL
+030  01  01
+031  94  +/-
+032  22  INV
+033  28  log       # 10^-k
+034  71  SBR
+035  00  0
+036  05  05        # SBR 005: the interrupted line
+037  98  Adv
+038  69  Op
+039  21  21        # k := k + 1
+040  43  RCL
+041  03  03
+042  32  x<>t      # t := end
+043  43  RCL
+044  01  01
+045  22  INV
+046  77  x>=t
+047  00  0
+048  17  17        # k < end: next line (017)
+049  91  R/S
+
+REGISTERS:
+01 = 11            # first k
+02 = 1705435700    # print codes E 4 W , space
+03 = 100           # one past the last k
+
+KEYSTROKES:
+82          # 1
+85          # +
+72          # 4
+63          # 8
+52          # EE
+82          # 1
+83          # 2
+94          # +/-
+95          # =      X = 1.000000000048
+61          # GTO
+92          # 0
+82          # 1
+83          # 2      → step 012
+41          # SST    St flg executes, operand pending
+92          # 0      first operand digit
+42          # STO    ends it: Prg Src 8, run stops at 007
+31          # LRN    008, buffer loaded from ROM row 17
+21 41       # Ins    008 := 1F, 009 := RTN
+31          # LRN
+25          # CLR
+81          # RST    Prg Src 0
+61          # GTO
+92          # 0
+82          # 1
+62          # 7      → step 017
+91          # R/S    the sweep
