@@ -767,7 +767,8 @@ Two runs of `printer-quirks.ti59` on the TI-59 put the specks on the same
 lines, table rows 0–3, only darker or lighter. The emulator cuts rows 0, 3, 5
 and 6 at 1049 and the others at 1035, so for some rows its cut lands a few
 cycles off the real one. Which rows depends on each row's computation before
-the print; no line busy time from 4152 to 4184 gives rows 0–3, and the cause
+the print; no line busy time from 4152 to 4184 and no feed time from 1350
+to 1390 gives rows 0–3, and the cause
 is open. How dark a dot cut in its first cycles comes out varies from run to
 run, as do the repeats with the same cut time in the sweep (k = 26/27 and
 30/31: once weak, once dark). Faint dots appeared only on
