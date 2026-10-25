@@ -763,13 +763,14 @@ agrees: `printer-quirks.ti59` cuts its lines 1035 or 1049 cycles after
 `PRT.GO`, and on paper half of them show barely heated specks where column 5
 of row 3 starts (at 1049 with offset 33).
 
-The start of a column is not tied to the exact cycle. Repeats with the same
-cut time (k = 26/27 and 30/31 of the sweep) came out once weak and once dark,
-and the specks of `printer-quirks.ti59` are on table rows 0–3, while the
-emulator cuts rows 0, 3, 5 and 6 at 1049 (no line busy time from 4152 to
-4184 gives rows 0–3). The real printer varies by a few cycles, probably less
-than 16, which the emulator doesn't model: near a column's start it shows
-that faint dots occur, not on which lines. Faint dots appeared only on
+Two runs of `printer-quirks.ti59` on the TI-59 put the specks on the same
+lines, table rows 0–3, only darker or lighter. The emulator cuts rows 0, 3, 5
+and 6 at 1049 and the others at 1035, so for some rows its cut lands a few
+cycles off the real one. Which rows depends on each row's computation before
+the print; no line busy time from 4152 to 4184 gives rows 0–3, and the cause
+is open. How dark a dot cut in its first cycles comes out varies from run to
+run, as do the repeats with the same cut time in the sweep (k = 26/27 and
+30/31: once weak, once dark). Faint dots appeared only on
 cuts within ≈12 cycles of a column's start; how faint depends on the paper and
 the head, not just the timing.
 
