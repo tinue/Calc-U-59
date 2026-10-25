@@ -53,8 +53,8 @@ struct BatchResult {
     Stop stop = Stop::None;
     FreezeOwner freezeOwner = FreezeOwner::Cpu;  ///< for Stop::Freeze
     /// A step this batch was a confirmed spin-wait retrying a keyboard scan or
-    /// printer BUSY test (step() bit 30) — real-world state that full speed
-    /// must not race through.
+    /// card-switch poll (step() bit 30) — real-world state that full speed
+    /// must not race through. A printer BUSY wait does not set it.
     bool polledHardware = false;
 };
 

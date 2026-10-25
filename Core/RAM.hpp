@@ -19,7 +19,7 @@ public:
     void           writeReg(int reg, const uint8_t* src);
     void           clearReg(int reg, int count = 1);  // clear `count` consecutive regs
 
-    /// Limit accessible registers (60 for TI-58/58C, 120 for TI-59).
+    /// Limit accessible registers (60 for TI-58, 64 for TI-58C, 120 for TI-59).
     void setLimit(int n) { m_maxRegs = (n > 0 && n <= TOTAL_REGS) ? n : TOTAL_REGS; }
 
     /// Returns the accessible register count for the current model.

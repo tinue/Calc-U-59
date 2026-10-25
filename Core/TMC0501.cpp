@@ -625,8 +625,8 @@ int TMC0501::step() {
             // The counter is decremented before this test (see above). The ROM
             // encodes the target as n+1: WAIT D1 fires when digit==1 so the
             // *next* instruction runs at digit==0.  E.g. WAIT D1 + KEY FB
-            // samples key[0] (KP.D0).  WAIT D0 (encoded 0) wraps: fires at
-            // digit==15 (benign; not used meaningfully in TI-59 ROMs).
+            // samples key[0] (KP.D0).  WAIT D0 (encoded 0) releases at digit==0
+            // (the printer-interrupt path's WAIT D0 at 05A9 waits for it).
             // It releases at the first matching digit, even on its first
             // execution: a stand-alone TI-59's error blink (0.449 s, where the
             // idle loop's WAITs reach their digit after 1-2 executions) allows

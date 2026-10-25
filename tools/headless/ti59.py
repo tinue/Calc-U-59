@@ -11,7 +11,7 @@ Library use:
     print(m.format(recs))    # annotated trace
 
 CLI:
-    tools/headless/ti59.py 5 + 7 = [--full] [--module ML] [--quiet-idle]
+    tools/headless/ti59.py 5 + 7 = [--full] [--module ML]
 Each argument is one key name (see KEYS); "2nd:x" style is not needed —
 press "2nd" then the key, as on the hardware.
 """
