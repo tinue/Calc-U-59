@@ -19,7 +19,7 @@ enum : uint32_t {
 //
 // Combines TraceEvent and CPUSnapshot into a single struct.
 // Reduces ring buffers from 2 to 1 and eliminates parallel-array mismatch risk.
-// ~397 bytes per frame; 1024-deep ring = ~406 KB.
+// ~392 bytes per frame; 1024-deep ring = ~401 KB.
 
 struct CpuFrame {
     // Identity (always captured)

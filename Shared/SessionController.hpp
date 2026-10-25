@@ -135,6 +135,8 @@ public:
     bool printerConnected() const { return m_printerConnected; }
     bool printerTrace() const { return m_session && m_session->machine().printerTrace(); }
     void setPrinterConnected(bool connected);
+    /// The printer panel's connect button: plug the PC-100C in or out and reset the calculator.
+    void togglePrinterConnection();
     void togglePrinterTrace();
     void pressPrinterPrint(bool pressed);
     void pressPrinterAdv(bool pressed);
@@ -155,6 +157,8 @@ public:
     // ── Debugger ─────────────────────────────────────────────────────────────
     void setLiveDebugEnabled(bool on);
     void setCpuDebugEnabled(bool on);
+    bool liveDebugEnabled() const { return m_liveDebugEnabled; }
+    bool cpuDebugEnabled() const { return m_cpuDebugEnabled; }
     DebugState debugState() const { return m_debugState; }
     bool isFrozen() const { return m_debugState.frozen; }
     void freeze(FreezeOwner owner);

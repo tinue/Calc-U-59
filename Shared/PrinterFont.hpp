@@ -1,4 +1,6 @@
 #pragma once
+#include "../Core/TMC0501.hpp"
+#include <cmath>
 #include <cstdint>
 
 // PC-100C printer font: 64 characters × 7 rows, indexed by the printer's
@@ -28,15 +30,72 @@ struct PrinterGeometry {
     /// Margins of the on-screen paper strip, in points / pixels.
     static constexpr double paperPaddingX = 6, paperPaddingY = 8;
 
-    /// Dot rows of a printed line: 7 for a complete line, 1–6 where printing was cut short.
-    static constexpr int clampRowCount(int rowCount) { return rowCount < 1 ? 1 : rowCount > 7 ? 7 : rowCount; }
+    /// Dot rows a printed line takes on paper: 7 for a complete line; for one
+    /// cut short (the printer interrupt), its complete rows plus the row in
+    /// progress if any of its columns fired (at least 1, so the line is visible).
+    /// rowCount, partialColumns and partialHeat are those of Core's PrinterCodeLine.
+    static constexpr int drawnRows(int rowCount, int partialColumns) {
+        int rows = rowCount + (partialColumns > 0 ? 1 : 0);
+        return rows < 1 ? 1 : rows > 7 ? 7 : rows;
+    }
+
+    /// Columns of dot row `row` that got ink, as a font row mask (bit 4 =
+    /// leftmost column): all of a complete row, the rightmost partialColumns of
+    /// the row in progress (the head fires right to left), none after it.
+    static constexpr uint8_t inkedColumns(int rowCount, int partialColumns, int row) {
+        if (row < rowCount) return 0x1F;
+        if (row == rowCount && partialColumns > 0) return static_cast<uint8_t>((1u << (partialColumns > 5 ? 5 : partialColumns)) - 1);
+        return 0;
+    }
+
+    /// Heating cycles after which a dot is fully dark.
+    static constexpr int fullInkCycles = 20;
+
+    /// The column of dot row `row` whose heating was cut early (partialHeat
+    /// below fullInkCycles): a faint dot, drawn with inkAlpha(partialHeat).
+    static constexpr uint8_t faintColumns(int rowCount, int partialColumns, int partialHeat, int row) {
+        if (row != rowCount || partialHeat >= fullInkCycles || partialColumns < 1 || partialColumns > 5) return 0;
+        return static_cast<uint8_t>(1u << (partialColumns - 1));
+    }
+
+    /// Ink of a dot heated `heat` cycles, relative to a normal one. Fitted to
+    /// a PC-100A's cut-short dots (reference/CoreArchitecture.md, "Dot timing
+    /// within a line"): barely visible at 0–4 cycles, ≈30% at 12, weak to dark
+    /// at 15–19, full from 20.
+    static double inkAlpha(int heat) {
+        if (heat >= fullInkCycles) return 1.0;
+        return 0.05 + 0.95 * std::pow(heat < 0 ? 0.0 : heat / double(fullInkCycles), 2.5);
+    }
+
+    /// How a printed line goes on paper, from Core's PrinterCodeLine (nullptr:
+    /// a complete line). The GUIs draw font row `r` masked by inked[r], its
+    /// faint[r] dots at faintAlpha.
+    struct LineDots {
+        bool complete = true;       ///< all 7 rows, followed by the paper advance
+        int drawnRows = 7;          ///< dot rows on paper (1–7)
+        uint8_t inked[7] = {0x1F, 0x1F, 0x1F, 0x1F, 0x1F, 0x1F, 0x1F};
+        uint8_t faint[7] = {};
+        double faintAlpha = 1.0;
+    };
+    static LineDots lineDots(const PrinterCodeLine* line) {
+        LineDots d;
+        if (!line || line->rowCount >= 7) return d;
+        d.complete = false;
+        d.drawnRows = drawnRows(line->rowCount, line->partialColumns);
+        for (int r = 0; r < 7; ++r) {
+            d.inked[r] = inkedColumns(line->rowCount, line->partialColumns, r);
+            d.faint[r] = faintColumns(line->rowCount, line->partialColumns, line->partialHeat, r);
+        }
+        d.faintAlpha = inkAlpha(line->partialHeat);
+        return d;
+    }
 
     /// Height of one strip line: a PRT_FEED blank line, a complete line (7 rows
     /// plus the stepper's advance) or a cut-short one (its rows, no advance).
-    static constexpr double lineHeightUnits(bool isFeed, int rowCount) {
+    static double lineHeightUnits(bool isFeed, const PrinterCodeLine* line) {
         if (isFeed) return feedHeightUnits;
-        int rows = clampRowCount(rowCount);
-        return rows == 7 ? heightUnits : rows;
+        const LineDots d = lineDots(line);
+        return d.complete ? heightUnits : d.drawnRows;
     }
 
     /// Copy-as-image scale: physical size at 600 dpi, backed off for long tapes

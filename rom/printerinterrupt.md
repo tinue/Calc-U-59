@@ -2,13 +2,14 @@
 
 ## What the printer interrupt is
 
-The PC-100 printer prints a line as 7 rows of dots and needs about 0.2 s
-for it. It works on its own: the calculator sends the line and goes on with
-the program. TI-59 users found a program step that stops the printer while
-it is still printing. The line then appears with only its first rows of
-dots. Programs use this for graphics with a finer vertical resolution than
-whole characters (`examples/texas-print.ti59`, the TI logo) or to show
-truncated characters (`examples/printer-quirks.ti59`).
+The PC-100 printer prints a line as 7 rows of dots, one stroke per 508
+instruction cycles (36 ms on a TI-59), then advances the paper. It works on
+its own: the calculator sends the line and goes on with the program. TI-59
+users found a program step that stops the printer while it is still
+printing. The line then appears with only its first rows of dots. Programs
+use this for graphics with a finer vertical resolution than whole
+characters (`examples/texas-print.ti59`, the TI logo) or to show truncated
+characters (`examples/printer-quirks.ti59`).
 
 `examples/printer-interrupt.ti59` is the smallest example. It prints "A0"
 once in full and once cut off after 2 rows.
@@ -28,7 +29,9 @@ printer is still busy with the line before, and the early signal stops it.
 
 - Put it right after the print: `0 Op 05 1F`. The number of rows printed
   depends on the time between the two. With nothing in between, 2 of 7
-  rows are printed; slower steps in between give more.
+  rows are printed; slower steps in between give more. A cut can also
+  leave part of the next row: the head fires a row's 5 dot columns right
+  to left, 64 instruction cycles apart.
 - The display must be 0, with no EE mode and no error, when 1F runs.
 - Step 000 must hold `INV SBR`, and the step after 1F must be RTN. After
   the interrupt the program continues at step 000. `INV SBR` there returns
@@ -65,10 +68,14 @@ the RTN get meaningless codes.
 
 ## How the interrupt works
 
-**Dispatch.** For every program step, the firmware splits the keycode into
-its two digits and builds a jump address from them (ROM `0F53`). Legal
-digits are 0–9. Nothing checks this, so the digit F builds an address too.
-For 1F it is `0EF1`.
+**Dispatch.** A step whose first digit is 1 works like the label keys A–E.
+The firmware pushes a return point and searches the program for a label.
+No label matches, so the search walks on until it reaches the 1F itself.
+To skip the operands of each step, the search splits the keycode into its
+two digits and builds a jump address from them (ROM `0F53`). Legal digits
+are 0–9. Nothing checks this, so the digit F builds an address too. For 1F
+it is `0EF1`. All codes with a hex digit go wrong in similar ways
+(`rom/TI59-ROM-Guide.md` § "Pseudo-keycodes").
 
 **The landing.** `0EF1` is in the middle of the routine that prints a
 number. Three instructions later that routine sends PRT.GO, the signal that
@@ -79,8 +86,14 @@ hangs.
 
 **The printer.** Op 05 sent the line a moment before. The printer is still
 printing its dot rows. PRT.GO while it is busy makes it stop. In the
-example, 1020 of the 2808 instruction cycles of a line have passed, so 2 of
-the 7 rows are on paper.
+example, 1020 instruction cycles have passed, two strokes of 508, so 2 of
+the 7 rows are on paper. Each stroke fires the 5 dot columns of all 20
+characters one after the other, right to left; the third row's rightmost
+column would have started 14 cycles later. A later cut leaves the
+rightmost columns of the row in progress, and a column cut in the first
+few cycles of its heating leaves a faint dot. The timing was measured on
+a real TI-58C + PC-100A with `examples/debug/printer-interrupt-sweep.ti58c`
+(reference/CoreArchitecture.md § "Dot timing within a line").
 
 **The way back.** After PRT.GO, execution continues at step 000, and the
 step after 1F is left as a return point, as after a subroutine call. The
@@ -138,7 +151,13 @@ with the source still 8.
 - **Side-by-side runs.** Both methods give the same 1F and RTN.
   `examples/texas-print.ti59` made with the fast-mode hack prints the same
   as with the article's sequence.
-- **Limits.** Everything was observed on the emulator, not on a real TI-59.
-  The number of rows depends on the timing of the calculator and printer;
-  real machines differ, as the article notes. The headless printout shows
-  text only, so the rows were taken from the busy timing, not from paper.
+- **Real hardware.** A TI-59 and a TI-58C, each on a PC-100A, print the
+  2 rows of `printer-interrupt.ti59` and `printer-quirks.ti59`.
+  `examples/debug/printer-interrupt-sweep.ti58c` cut lines 16 cycles apart on
+  the TI-58C; the scans gave the column timing.
+- **Limits.** The article blames "the calculator-printer combination" for
+  differences between machines. The printer runs on the calculator's
+  clock, so the rows and columns depend on the cycles between print and
+  cut, which only the ROM and the program decide; a drifting clock does
+  not move them. How dark a cut-short dot comes out depends on the paper
+  and the head. Only one PC-100A was measured, no PC-100C.

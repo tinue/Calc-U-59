@@ -337,6 +337,11 @@ void SessionController::setPrinterConnected(bool connected) {
     emitChanged(PrinterChanged);
 }
 
+void SessionController::togglePrinterConnection() {
+    setPrinterConnected(!m_printerConnected);
+    resetMachine();
+}
+
 void SessionController::togglePrinterTrace() {
     if (!m_session) return;
     TI59Machine& m = m_session->machine();
@@ -351,7 +356,7 @@ double SessionController::printerStripHeightUnits() const {
     double units = 0;
     for (size_t i = 0; i < m_printerLines.size(); ++i)
         units += PrinterGeometry::lineHeightUnits(m_printerLines[i].empty(),
-                                                  i < m_printerCodeLines.size() ? m_printerCodeLines[i].rowCount : 7);
+                                                  i < m_printerCodeLines.size() ? &m_printerCodeLines[i] : nullptr);
     return units;
 }
 
@@ -449,6 +454,10 @@ void SessionController::loadStateFile(const std::optional<std::vector<uint8_t>>&
 void SessionController::applyState(const LoadStateResult& parsed) {
     if (!m_session) return;
     TI59Machine& m = m_session->machine();
+    if (auto e = stateFilePartitionError(parsed, m_model)) {
+        m_platform.error("State file load error", *e);
+        return;
+    }
     if (parsed.skipReset) {
         // Only partition (if explicit), program, registers, cue card, keystrokes.
         std::vector<std::string> ignored;
@@ -465,10 +474,6 @@ void SessionController::applyState(const LoadStateResult& parsed) {
             refreshCueCard();
         }
     } else {
-        if (auto e = stateFilePartitionError(parsed, m_model)) {
-            m_platform.error("State file load error", *e);
-            return;
-        }
         m_session->stop();
         m_session->clearFreeze();
         m_activeProgram = 0;

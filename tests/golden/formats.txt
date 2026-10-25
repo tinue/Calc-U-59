@@ -14282,397 +14282,395 @@ step 4 69
 step 5 91
 step 6 0
 step 7 86
-step 8 98
-step 9 22
-step 10 52
-step 11 43
-step 12 69
-step 13 42
-step 14 0
-step 15 2
-step 16 42
-step 17 66
-step 18 43
-step 19 0
-step 20 55
-step 21 4
-step 22 95
-step 23 42
-step 24 68
-step 25 59
-step 26 75
-step 27 53
-step 28 43
-step 29 68
-step 30 55
-step 31 2
-step 32 5
-step 33 54
-step 34 59
-step 35 85
-step 36 53
-step 37 43
-step 38 68
-step 39 55
-step 40 1
-step 41 0
-step 42 0
-step 43 54
-step 44 59
-step 45 95
-step 46 48
-step 47 67
-step 48 69
-step 49 30
-step 50 97
-step 51 66
-step 52 0
-step 53 18
-step 54 75
-step 55 43
-step 56 67
-step 57 95
-step 58 65
-step 59 2
-step 60 7
-step 61 95
-step 62 82
-step 63 4
-step 64 44
-step 65 51
+step 8 22
+step 9 52
+step 10 43
+step 11 69
+step 12 42
+step 13 0
+step 14 2
+step 15 42
+step 16 68
+step 17 43
+step 18 0
+step 19 55
+step 20 4
+step 21 95
+step 22 59
+step 23 75
+step 24 53
+step 25 43
+step 26 0
+step 27 55
+step 28 1
+step 29 0
+step 30 0
+step 31 54
+step 32 59
+step 33 85
+step 34 53
+step 35 43
+step 36 0
+step 37 55
+step 38 4
+step 39 0
+step 40 0
+step 41 54
+step 42 59
+step 43 95
+step 44 48
+step 45 67
+step 46 69
+step 47 30
+step 48 97
+step 49 68
+step 50 0
+step 51 17
+step 52 75
+step 53 43
+step 54 67
+step 55 95
+step 56 65
+step 57 4
+step 58 0
+step 59 95
+step 60 44
+step 61 51
+step 62 4
+step 63 9
+step 64 42
+step 65 68
 step 66 43
 step 67 67
 step 68 85
 step 69 43
 step 70 69
 step 71 95
-step 72 75
-step 73 53
-step 74 24
-step 75 55
-step 76 7
-step 77 54
-step 78 59
-step 79 65
-step 80 7
+step 72 42
+step 73 0
+step 74 32
+step 75 43
+step 76 0
+step 77 55
+step 78 7
+step 79 85
+step 80 1
 step 81 95
-step 82 94
-step 83 85
+step 82 59
+step 83 65
 step 84 7
 step 85 95
-step 86 42
-step 87 0
-step 88 1
-step 89 2
-step 90 42
-step 91 66
-step 92 5
-step 93 0
+step 86 61
+step 87 3
+step 88 10
+step 89 3
+step 90 7
+step 91 32
+step 92 43
+step 93 49
 step 94 42
-step 95 68
-step 96 73
-step 97 68
-step 98 82
-step 99 8
-step 100 59
-step 101 42
-step 102 67
+step 95 36
+step 96 43
+step 97 1
+step 98 42
+step 99 37
+step 100 61
+step 101 1
+step 102 22
 step 103 43
-step 104 69
-step 105 69
-step 106 6
+step 104 43
+step 105 42
+step 106 34
 step 107 43
-step 108 63
-step 109 82
-step 110 7
-step 111 22
-step 112 59
-step 113 82
-step 114 6
+step 108 44
+step 109 42
+step 110 35
+step 111 43
+step 112 45
+step 113 42
+step 114 36
 step 115 43
-step 116 62
-step 117 82
-step 118 5
-step 119 43
-step 120 64
-step 121 82
-step 122 8
+step 116 46
+step 117 42
+step 118 37
+step 119 3
+step 120 8
+step 121 32
+step 122 43
 step 123 69
-step 124 5
-step 125 83
-step 126 67
-step 127 3
-step 128 5
-step 129 32
-step 130 43
-step 131 47
-step 132 42
-step 133 34
+step 124 69
+step 125 6
+step 126 43
+step 127 64
+step 128 82
+step 129 7
+step 130 22
+step 131 59
+step 132 82
+step 133 6
 step 134 43
-step 135 1
-step 136 42
-step 137 35
-step 138 42
-step 139 36
-step 140 42
-step 141 37
-step 142 43
-step 143 0
-step 144 85
-step 145 2
-step 146 8
-step 147 95
-step 148 77
-step 149 2
-step 150 31
-step 151 61
-step 152 1
-step 153 99
-step 154 3
-step 155 6
-step 156 32
-step 157 43
-step 158 48
-step 159 42
-step 160 35
-step 161 43
-step 162 1
-step 163 61
-step 164 1
-step 165 38
-step 166 3
+step 135 63
+step 136 82
+step 137 5
+step 138 43
+step 139 65
+step 140 82
+step 141 8
+step 142 69
+step 143 5
+step 144 73
+step 145 0
+step 146 82
+step 147 5
+step 148 44
+step 149 0
+step 150 73
+step 151 0
+step 152 82
+step 153 6
+step 154 43
+step 155 66
+step 156 82
+step 157 36
+step 158 69
+step 159 20
+step 160 73
+step 161 0
+step 162 44
+step 163 0
+step 164 22
+step 165 59
+step 166 82
 step 167 7
-step 168 32
-step 169 43
-step 170 49
-step 171 42
-step 172 36
-step 173 43
-step 174 1
-step 175 42
-step 176 37
-step 177 61
-step 178 1
-step 179 99
-step 180 43
-step 181 43
-step 182 42
-step 183 34
-step 184 43
-step 185 44
-step 186 42
-step 187 35
-step 188 43
-step 189 45
-step 190 42
-step 191 36
-step 192 43
-step 193 46
-step 194 42
-step 195 37
-step 196 3
-step 197 8
-step 198 32
-step 199 73
-step 200 0
-step 201 82
-step 202 5
-step 203 44
-step 204 0
-step 205 73
-step 206 0
-step 207 82
-step 208 6
-step 209 43
-step 210 65
-step 211 82
-step 212 36
-step 213 69
-step 214 20
-step 215 73
-step 216 0
-step 217 44
-step 218 0
-step 219 22
-step 220 59
-step 221 82
-step 222 7
-step 223 73
-step 224 0
-step 225 44
-step 226 0
-step 227 82
-step 228 8
-step 229 69
-step 230 5
-step 231 73
-step 232 0
-step 233 82
-step 234 5
-step 235 44
-step 236 0
-step 237 73
-step 238 0
-step 239 82
-step 240 6
-step 241 43
-step 242 65
-step 243 82
-step 244 36
-step 245 69
-step 246 20
-step 247 73
-step 248 0
-step 249 44
-step 250 0
-step 251 22
-step 252 59
-step 253 82
-step 254 7
-step 255 73
-step 256 0
-step 257 44
-step 258 0
-step 259 82
-step 260 8
-step 261 69
-step 262 5
-step 263 73
-step 264 0
-step 265 82
-step 266 5
-step 267 44
-step 268 0
-step 269 73
-step 270 0
-step 271 82
-step 272 6
-step 273 43
-step 274 65
-step 275 82
-step 276 36
-step 277 69
-step 278 20
-step 279 73
-step 280 0
-step 281 44
-step 282 0
-step 283 22
-step 284 59
-step 285 82
-step 286 7
-step 287 73
-step 288 0
-step 289 44
-step 290 0
-step 291 82
-step 292 8
-step 293 69
-step 294 5
-step 295 73
-step 296 0
-step 297 82
-step 298 5
-step 299 44
-step 300 0
-step 301 73
-step 302 0
-step 303 82
-step 304 6
-step 305 43
-step 306 65
-step 307 82
-step 308 36
-step 309 69
-step 310 20
-step 311 73
-step 312 0
-step 313 44
-step 314 0
-step 315 22
-step 316 59
-step 317 82
-step 318 7
-step 319 73
-step 320 0
+step 168 73
+step 169 0
+step 170 44
+step 171 0
+step 172 82
+step 173 8
+step 174 69
+step 175 5
+step 176 73
+step 177 0
+step 178 82
+step 179 5
+step 180 44
+step 181 0
+step 182 73
+step 183 0
+step 184 82
+step 185 6
+step 186 43
+step 187 66
+step 188 82
+step 189 36
+step 190 69
+step 191 20
+step 192 73
+step 193 0
+step 194 44
+step 195 0
+step 196 22
+step 197 59
+step 198 82
+step 199 7
+step 200 73
+step 201 0
+step 202 44
+step 203 0
+step 204 82
+step 205 8
+step 206 69
+step 207 5
+step 208 73
+step 209 0
+step 210 82
+step 211 5
+step 212 44
+step 213 0
+step 214 73
+step 215 0
+step 216 82
+step 217 6
+step 218 43
+step 219 66
+step 220 82
+step 221 36
+step 222 69
+step 223 20
+step 224 73
+step 225 0
+step 226 44
+step 227 0
+step 228 22
+step 229 59
+step 230 82
+step 231 7
+step 232 73
+step 233 0
+step 234 44
+step 235 0
+step 236 82
+step 237 8
+step 238 69
+step 239 5
+step 240 73
+step 241 0
+step 242 82
+step 243 5
+step 244 44
+step 245 0
+step 246 73
+step 247 0
+step 248 82
+step 249 6
+step 250 43
+step 251 66
+step 252 82
+step 253 36
+step 254 69
+step 255 20
+step 256 73
+step 257 0
+step 258 44
+step 259 0
+step 260 22
+step 261 59
+step 262 82
+step 263 7
+step 264 73
+step 265 0
+step 266 44
+step 267 0
+step 268 82
+step 269 8
+step 270 69
+step 271 5
+step 272 73
+step 273 0
+step 274 82
+step 275 5
+step 276 44
+step 277 0
+step 278 73
+step 279 0
+step 280 82
+step 281 6
+step 282 43
+step 283 66
+step 284 82
+step 285 36
+step 286 69
+step 287 20
+step 288 73
+step 289 0
+step 290 44
+step 291 0
+step 292 22
+step 293 59
+step 294 82
+step 295 7
+step 296 73
+step 297 0
+step 298 44
+step 299 0
+step 300 82
+step 301 8
+step 302 69
+step 303 5
+step 304 43
+step 305 0
+step 306 22
+step 307 77
+step 308 2
+step 309 72
+step 310 59
+step 311 67
+step 312 3
+step 313 34
+step 314 75
+step 315 32
+step 316 95
+step 317 42
+step 318 0
+step 319 98
+step 320 1
 step 321 44
-step 322 0
-step 323 82
-step 324 8
-step 325 69
-step 326 5
-step 327 73
-step 328 0
-step 329 82
-step 330 5
-step 331 44
-step 332 0
-step 333 73
-step 334 0
-step 335 82
-step 336 6
-step 337 43
-step 338 65
-step 339 82
-step 340 36
-step 341 69
-step 342 20
-step 343 73
-step 344 0
-step 345 44
-step 346 0
-step 347 22
-step 348 59
-step 349 82
-step 350 7
-step 351 73
-step 352 0
-step 353 44
-step 354 0
-step 355 82
-step 356 8
+step 322 68
+step 323 73
+step 324 68
+step 325 82
+step 326 8
+step 327 42
+step 328 67
+step 329 83
+step 330 67
+step 331 98
+step 332 25
+step 333 81
+step 334 7
+step 335 42
+step 336 0
+step 337 61
+step 338 3
+step 339 19
+step 340 3
+step 341 5
+step 342 32
+step 343 43
+step 344 47
+step 345 42
+step 346 34
+step 347 43
+step 348 1
+step 349 42
+step 350 35
+step 351 42
+step 352 36
+step 353 42
+step 354 37
+step 355 43
+step 356 69
 step 357 69
-step 358 5
+step 358 6
 step 359 43
-step 360 0
-step 361 77
-step 362 3
-step 363 67
-step 364 61
-step 365 3
-step 366 27
-step 367 59
-step 368 67
-step 369 3
-step 370 93
-step 371 42
-step 372 0
-step 373 32
-step 374 22
-step 375 44
-step 376 0
-step 377 98
+step 360 64
+step 361 82
+step 362 7
+step 363 22
+step 364 59
+step 365 82
+step 366 6
+step 367 43
+step 368 63
+step 369 82
+step 370 5
+step 371 43
+step 372 65
+step 373 82
+step 374 8
+step 375 69
+step 376 5
+step 377 61
 step 378 1
-step 379 44
-step 380 68
-step 381 97
-step 382 66
-step 383 0
-step 384 96
-step 385 98
-step 386 82
-step 387 14
-step 388 22
-step 389 44
-step 390 51
-step 391 25
-step 392 81
-step 393 7
-step 394 42
-step 395 0
-step 396 61
-step 397 3
-step 398 77
+step 379 76
+step 380 3
+step 381 6
+step 382 32
+step 383 43
+step 384 48
+step 385 42
+step 386 35
+step 387 4
+step 388 0
+step 389 22
+step 390 44
+step 391 51
+step 392 43
+step 393 1
+step 394 61
+step 395 3
+step 396 51
 reg 1 0 0000000000000102
 reg 2 0 0000000000000102
 reg 3 0 0000000000000102
@@ -14722,22 +14720,23 @@ reg 46 0 0000000002040102
 reg 47 0 0000000001130102
 reg 48 0 0000000002130102
 reg 49 0 0000000001040102
-reg 50 0 0201331520000691
-reg 51 0 0204171120000721
-reg 52 0 0205331030000081
-reg 53 0 0205333310000661
-reg 54 0 0205431030000881
-reg 55 0 0207113145200661
-reg 56 0 0205472145200881
-reg 57 0 0202214310000691
-reg 58 0 0207333716300661
-reg 59 0 0207351230000881
-reg 60 0 0202423130000661
-reg 61 0 0205171610000881
-reg 62 0 0000300006300001
-reg 63 0 0000073000034101
-reg 64 0 0006300001200001
-reg 65 0 0100000000009989
+reg 50 0 0201331520000911
+reg 51 0 0204171120000043
+reg 52 0 0205331030000301
+reg 53 0 0105333310000098
+reg 54 0 0205431030000111
+reg 55 0 0107113145200098
+reg 56 0 0205472145200111
+reg 57 0 0202214310000911
+reg 58 0 0107333716300098
+reg 59 0 0207351230000111
+reg 60 0 0102423130000098
+reg 61 0 0205171610000111
+reg 62 0 0200000000000133
+reg 63 0 0000300006300001
+reg 64 0 0000073000034101
+reg 65 0 0006300001200001
+reg 66 0 0100000000009989
 fullSpeed
 key 83
 key 92
@@ -14808,397 +14807,395 @@ step 4 69
 step 5 91
 step 6 0
 step 7 86
-step 8 98
-step 9 22
-step 10 52
-step 11 43
-step 12 69
-step 13 42
-step 14 0
-step 15 2
-step 16 42
-step 17 66
-step 18 43
-step 19 0
-step 20 55
-step 21 4
-step 22 95
-step 23 42
-step 24 68
-step 25 59
-step 26 75
-step 27 53
-step 28 43
-step 29 68
-step 30 55
-step 31 2
-step 32 5
-step 33 54
-step 34 59
-step 35 85
-step 36 53
-step 37 43
-step 38 68
-step 39 55
-step 40 1
-step 41 0
-step 42 0
-step 43 54
-step 44 59
-step 45 95
-step 46 48
-step 47 67
-step 48 69
-step 49 30
-step 50 97
-step 51 66
-step 52 0
-step 53 18
-step 54 75
-step 55 43
-step 56 67
-step 57 95
-step 58 65
-step 59 2
-step 60 7
-step 61 95
-step 62 82
-step 63 4
-step 64 44
-step 65 51
+step 8 22
+step 9 52
+step 10 43
+step 11 69
+step 12 42
+step 13 0
+step 14 2
+step 15 42
+step 16 68
+step 17 43
+step 18 0
+step 19 55
+step 20 4
+step 21 95
+step 22 59
+step 23 75
+step 24 53
+step 25 43
+step 26 0
+step 27 55
+step 28 1
+step 29 0
+step 30 0
+step 31 54
+step 32 59
+step 33 85
+step 34 53
+step 35 43
+step 36 0
+step 37 55
+step 38 4
+step 39 0
+step 40 0
+step 41 54
+step 42 59
+step 43 95
+step 44 48
+step 45 67
+step 46 69
+step 47 30
+step 48 97
+step 49 68
+step 50 0
+step 51 17
+step 52 75
+step 53 43
+step 54 67
+step 55 95
+step 56 65
+step 57 4
+step 58 0
+step 59 95
+step 60 44
+step 61 51
+step 62 4
+step 63 9
+step 64 42
+step 65 68
 step 66 43
 step 67 67
 step 68 85
 step 69 43
 step 70 69
 step 71 95
-step 72 75
-step 73 53
-step 74 24
-step 75 55
-step 76 7
-step 77 54
-step 78 59
-step 79 65
-step 80 7
+step 72 42
+step 73 0
+step 74 32
+step 75 43
+step 76 0
+step 77 55
+step 78 7
+step 79 85
+step 80 1
 step 81 95
-step 82 94
-step 83 85
+step 82 59
+step 83 65
 step 84 7
 step 85 95
-step 86 42
-step 87 0
-step 88 1
-step 89 2
-step 90 42
-step 91 66
-step 92 5
-step 93 0
+step 86 61
+step 87 3
+step 88 10
+step 89 3
+step 90 7
+step 91 32
+step 92 43
+step 93 49
 step 94 42
-step 95 68
-step 96 73
-step 97 68
-step 98 82
-step 99 8
-step 100 59
-step 101 42
-step 102 67
+step 95 36
+step 96 43
+step 97 1
+step 98 42
+step 99 37
+step 100 61
+step 101 1
+step 102 22
 step 103 43
-step 104 69
-step 105 69
-step 106 6
+step 104 43
+step 105 42
+step 106 34
 step 107 43
-step 108 63
-step 109 82
-step 110 7
-step 111 22
-step 112 59
-step 113 82
-step 114 6
+step 108 44
+step 109 42
+step 110 35
+step 111 43
+step 112 45
+step 113 42
+step 114 36
 step 115 43
-step 116 62
-step 117 82
-step 118 5
-step 119 43
-step 120 64
-step 121 82
-step 122 8
+step 116 46
+step 117 42
+step 118 37
+step 119 3
+step 120 8
+step 121 32
+step 122 43
 step 123 69
-step 124 5
-step 125 83
-step 126 67
-step 127 3
-step 128 5
-step 129 32
-step 130 43
-step 131 47
-step 132 42
-step 133 34
+step 124 69
+step 125 6
+step 126 43
+step 127 64
+step 128 82
+step 129 7
+step 130 22
+step 131 59
+step 132 82
+step 133 6
 step 134 43
-step 135 1
-step 136 42
-step 137 35
-step 138 42
-step 139 36
-step 140 42
-step 141 37
-step 142 43
-step 143 0
-step 144 85
-step 145 2
-step 146 8
-step 147 95
-step 148 77
-step 149 2
-step 150 31
-step 151 61
-step 152 1
-step 153 99
-step 154 3
-step 155 6
-step 156 32
-step 157 43
-step 158 48
-step 159 42
-step 160 35
-step 161 43
-step 162 1
-step 163 61
-step 164 1
-step 165 38
-step 166 3
+step 135 63
+step 136 82
+step 137 5
+step 138 43
+step 139 65
+step 140 82
+step 141 8
+step 142 69
+step 143 5
+step 144 73
+step 145 0
+step 146 82
+step 147 5
+step 148 44
+step 149 0
+step 150 73
+step 151 0
+step 152 82
+step 153 6
+step 154 43
+step 155 66
+step 156 82
+step 157 36
+step 158 69
+step 159 20
+step 160 73
+step 161 0
+step 162 44
+step 163 0
+step 164 22
+step 165 59
+step 166 82
 step 167 7
-step 168 32
-step 169 43
-step 170 49
-step 171 42
-step 172 36
-step 173 43
-step 174 1
-step 175 42
-step 176 37
-step 177 61
-step 178 1
-step 179 99
-step 180 43
-step 181 43
-step 182 42
-step 183 34
-step 184 43
-step 185 44
-step 186 42
-step 187 35
-step 188 43
-step 189 45
-step 190 42
-step 191 36
-step 192 43
-step 193 46
-step 194 42
-step 195 37
-step 196 3
-step 197 8
-step 198 32
-step 199 73
-step 200 0
-step 201 82
-step 202 5
-step 203 44
-step 204 0
-step 205 73
-step 206 0
-step 207 82
-step 208 6
-step 209 43
-step 210 65
-step 211 82
-step 212 36
-step 213 69
-step 214 20
-step 215 73
-step 216 0
-step 217 44
-step 218 0
-step 219 22
-step 220 59
-step 221 82
-step 222 7
-step 223 73
-step 224 0
-step 225 44
-step 226 0
-step 227 82
-step 228 8
-step 229 69
-step 230 5
-step 231 73
-step 232 0
-step 233 82
-step 234 5
-step 235 44
-step 236 0
-step 237 73
-step 238 0
-step 239 82
-step 240 6
-step 241 43
-step 242 65
-step 243 82
-step 244 36
-step 245 69
-step 246 20
-step 247 73
-step 248 0
-step 249 44
-step 250 0
-step 251 22
-step 252 59
-step 253 82
-step 254 7
-step 255 73
-step 256 0
-step 257 44
-step 258 0
-step 259 82
-step 260 8
-step 261 69
-step 262 5
-step 263 73
-step 264 0
-step 265 82
-step 266 5
-step 267 44
-step 268 0
-step 269 73
-step 270 0
-step 271 82
-step 272 6
-step 273 43
-step 274 65
-step 275 82
-step 276 36
-step 277 69
-step 278 20
-step 279 73
-step 280 0
-step 281 44
-step 282 0
-step 283 22
-step 284 59
-step 285 82
-step 286 7
-step 287 73
-step 288 0
-step 289 44
-step 290 0
-step 291 82
-step 292 8
-step 293 69
-step 294 5
-step 295 73
-step 296 0
-step 297 82
-step 298 5
-step 299 44
-step 300 0
-step 301 73
-step 302 0
-step 303 82
-step 304 6
-step 305 43
-step 306 65
-step 307 82
-step 308 36
-step 309 69
-step 310 20
-step 311 73
-step 312 0
-step 313 44
-step 314 0
-step 315 22
-step 316 59
-step 317 82
-step 318 7
-step 319 73
-step 320 0
+step 168 73
+step 169 0
+step 170 44
+step 171 0
+step 172 82
+step 173 8
+step 174 69
+step 175 5
+step 176 73
+step 177 0
+step 178 82
+step 179 5
+step 180 44
+step 181 0
+step 182 73
+step 183 0
+step 184 82
+step 185 6
+step 186 43
+step 187 66
+step 188 82
+step 189 36
+step 190 69
+step 191 20
+step 192 73
+step 193 0
+step 194 44
+step 195 0
+step 196 22
+step 197 59
+step 198 82
+step 199 7
+step 200 73
+step 201 0
+step 202 44
+step 203 0
+step 204 82
+step 205 8
+step 206 69
+step 207 5
+step 208 73
+step 209 0
+step 210 82
+step 211 5
+step 212 44
+step 213 0
+step 214 73
+step 215 0
+step 216 82
+step 217 6
+step 218 43
+step 219 66
+step 220 82
+step 221 36
+step 222 69
+step 223 20
+step 224 73
+step 225 0
+step 226 44
+step 227 0
+step 228 22
+step 229 59
+step 230 82
+step 231 7
+step 232 73
+step 233 0
+step 234 44
+step 235 0
+step 236 82
+step 237 8
+step 238 69
+step 239 5
+step 240 73
+step 241 0
+step 242 82
+step 243 5
+step 244 44
+step 245 0
+step 246 73
+step 247 0
+step 248 82
+step 249 6
+step 250 43
+step 251 66
+step 252 82
+step 253 36
+step 254 69
+step 255 20
+step 256 73
+step 257 0
+step 258 44
+step 259 0
+step 260 22
+step 261 59
+step 262 82
+step 263 7
+step 264 73
+step 265 0
+step 266 44
+step 267 0
+step 268 82
+step 269 8
+step 270 69
+step 271 5
+step 272 73
+step 273 0
+step 274 82
+step 275 5
+step 276 44
+step 277 0
+step 278 73
+step 279 0
+step 280 82
+step 281 6
+step 282 43
+step 283 66
+step 284 82
+step 285 36
+step 286 69
+step 287 20
+step 288 73
+step 289 0
+step 290 44
+step 291 0
+step 292 22
+step 293 59
+step 294 82
+step 295 7
+step 296 73
+step 297 0
+step 298 44
+step 299 0
+step 300 82
+step 301 8
+step 302 69
+step 303 5
+step 304 43
+step 305 0
+step 306 22
+step 307 77
+step 308 2
+step 309 72
+step 310 59
+step 311 67
+step 312 3
+step 313 34
+step 314 75
+step 315 32
+step 316 95
+step 317 42
+step 318 0
+step 319 98
+step 320 1
 step 321 44
-step 322 0
-step 323 82
-step 324 8
-step 325 69
-step 326 5
-step 327 73
-step 328 0
-step 329 82
-step 330 5
-step 331 44
-step 332 0
-step 333 73
-step 334 0
-step 335 82
-step 336 6
-step 337 43
-step 338 65
-step 339 82
-step 340 36
-step 341 69
-step 342 20
-step 343 73
-step 344 0
-step 345 44
-step 346 0
-step 347 22
-step 348 59
-step 349 82
-step 350 7
-step 351 73
-step 352 0
-step 353 44
-step 354 0
-step 355 82
-step 356 8
+step 322 68
+step 323 73
+step 324 68
+step 325 82
+step 326 8
+step 327 42
+step 328 67
+step 329 83
+step 330 67
+step 331 98
+step 332 25
+step 333 81
+step 334 7
+step 335 42
+step 336 0
+step 337 61
+step 338 3
+step 339 19
+step 340 3
+step 341 5
+step 342 32
+step 343 43
+step 344 47
+step 345 42
+step 346 34
+step 347 43
+step 348 1
+step 349 42
+step 350 35
+step 351 42
+step 352 36
+step 353 42
+step 354 37
+step 355 43
+step 356 69
 step 357 69
-step 358 5
+step 358 6
 step 359 43
-step 360 0
-step 361 77
-step 362 3
-step 363 67
-step 364 61
-step 365 3
-step 366 27
-step 367 59
-step 368 67
-step 369 3
-step 370 93
-step 371 42
-step 372 0
-step 373 32
-step 374 22
-step 375 44
-step 376 0
-step 377 98
+step 360 64
+step 361 82
+step 362 7
+step 363 22
+step 364 59
+step 365 82
+step 366 6
+step 367 43
+step 368 63
+step 369 82
+step 370 5
+step 371 43
+step 372 65
+step 373 82
+step 374 8
+step 375 69
+step 376 5
+step 377 61
 step 378 1
-step 379 44
-step 380 68
-step 381 97
-step 382 66
-step 383 0
-step 384 96
-step 385 98
-step 386 82
-step 387 14
-step 388 22
-step 389 44
-step 390 51
-step 391 25
-step 392 81
-step 393 7
-step 394 42
-step 395 0
-step 396 61
-step 397 3
-step 398 77
+step 379 76
+step 380 3
+step 381 6
+step 382 32
+step 383 43
+step 384 48
+step 385 42
+step 386 35
+step 387 4
+step 388 0
+step 389 22
+step 390 44
+step 391 51
+step 392 43
+step 393 1
+step 394 61
+step 395 3
+step 396 51
 reg 1 0 0000000000000102
 reg 2 0 0000000000000102
 reg 3 0 0000000000000102
@@ -15248,22 +15245,23 @@ reg 46 0 0000000002040102
 reg 47 0 0000000001130102
 reg 48 0 0000000002130102
 reg 49 0 0000000001040102
-reg 50 0 0201331520000691
-reg 51 0 0204171120000721
-reg 52 0 0205331030000081
-reg 53 0 0205333310000661
-reg 54 0 0205431030000881
-reg 55 0 0207113145200661
-reg 56 0 0205472145200881
-reg 57 0 0202214310000691
-reg 58 0 0207333716300661
-reg 59 0 0207351230000881
-reg 60 0 0202423130000661
-reg 61 0 0205171610000881
-reg 62 0 0000300006300001
-reg 63 0 0000073000034101
-reg 64 0 0006300001200001
-reg 65 0 0100000000009989
+reg 50 0 0201331520000911
+reg 51 0 0204171120000043
+reg 52 0 0205331030000301
+reg 53 0 0105333310000098
+reg 54 0 0205431030000111
+reg 55 0 0107113145200098
+reg 56 0 0205472145200111
+reg 57 0 0202214310000911
+reg 58 0 0107333716300098
+reg 59 0 0207351230000111
+reg 60 0 0102423130000098
+reg 61 0 0205171610000111
+reg 62 0 0200000000000133
+reg 63 0 0000300006300001
+reg 64 0 0000073000034101
+reg 65 0 0006300001200001
+reg 66 0 0100000000009989
 fullSpeed
 key 83
 key 92
@@ -15334,397 +15332,395 @@ step 4 69
 step 5 91
 step 6 0
 step 7 86
-step 8 98
-step 9 22
-step 10 52
-step 11 43
-step 12 69
-step 13 42
-step 14 0
-step 15 2
-step 16 42
-step 17 66
-step 18 43
-step 19 0
-step 20 55
-step 21 4
-step 22 95
-step 23 42
-step 24 68
-step 25 59
-step 26 75
-step 27 53
-step 28 43
-step 29 68
-step 30 55
-step 31 2
-step 32 5
-step 33 54
-step 34 59
-step 35 85
-step 36 53
-step 37 43
-step 38 68
-step 39 55
-step 40 1
-step 41 0
-step 42 0
-step 43 54
-step 44 59
-step 45 95
-step 46 48
-step 47 67
-step 48 69
-step 49 30
-step 50 97
-step 51 66
-step 52 0
-step 53 18
-step 54 75
-step 55 43
-step 56 67
-step 57 95
-step 58 65
-step 59 2
-step 60 7
-step 61 95
-step 62 82
-step 63 4
-step 64 44
-step 65 51
+step 8 22
+step 9 52
+step 10 43
+step 11 69
+step 12 42
+step 13 0
+step 14 2
+step 15 42
+step 16 68
+step 17 43
+step 18 0
+step 19 55
+step 20 4
+step 21 95
+step 22 59
+step 23 75
+step 24 53
+step 25 43
+step 26 0
+step 27 55
+step 28 1
+step 29 0
+step 30 0
+step 31 54
+step 32 59
+step 33 85
+step 34 53
+step 35 43
+step 36 0
+step 37 55
+step 38 4
+step 39 0
+step 40 0
+step 41 54
+step 42 59
+step 43 95
+step 44 48
+step 45 67
+step 46 69
+step 47 30
+step 48 97
+step 49 68
+step 50 0
+step 51 17
+step 52 75
+step 53 43
+step 54 67
+step 55 95
+step 56 65
+step 57 4
+step 58 0
+step 59 95
+step 60 44
+step 61 51
+step 62 4
+step 63 9
+step 64 42
+step 65 68
 step 66 43
 step 67 67
 step 68 85
 step 69 43
 step 70 69
 step 71 95
-step 72 75
-step 73 53
-step 74 24
-step 75 55
-step 76 7
-step 77 54
-step 78 59
-step 79 65
-step 80 7
+step 72 42
+step 73 0
+step 74 32
+step 75 43
+step 76 0
+step 77 55
+step 78 7
+step 79 85
+step 80 1
 step 81 95
-step 82 94
-step 83 85
+step 82 59
+step 83 65
 step 84 7
 step 85 95
-step 86 42
-step 87 0
-step 88 1
-step 89 2
-step 90 42
-step 91 66
-step 92 5
-step 93 0
+step 86 61
+step 87 3
+step 88 10
+step 89 3
+step 90 7
+step 91 32
+step 92 43
+step 93 49
 step 94 42
-step 95 68
-step 96 73
-step 97 68
-step 98 82
-step 99 8
-step 100 59
-step 101 42
-step 102 67
+step 95 36
+step 96 43
+step 97 1
+step 98 42
+step 99 37
+step 100 61
+step 101 1
+step 102 22
 step 103 43
-step 104 69
-step 105 69
-step 106 6
+step 104 43
+step 105 42
+step 106 34
 step 107 43
-step 108 63
-step 109 82
-step 110 7
-step 111 22
-step 112 59
-step 113 82
-step 114 6
+step 108 44
+step 109 42
+step 110 35
+step 111 43
+step 112 45
+step 113 42
+step 114 36
 step 115 43
-step 116 62
-step 117 82
-step 118 5
-step 119 43
-step 120 64
-step 121 82
-step 122 8
+step 116 46
+step 117 42
+step 118 37
+step 119 3
+step 120 8
+step 121 32
+step 122 43
 step 123 69
-step 124 5
-step 125 83
-step 126 67
-step 127 3
-step 128 5
-step 129 32
-step 130 43
-step 131 47
-step 132 42
-step 133 34
+step 124 69
+step 125 6
+step 126 43
+step 127 64
+step 128 82
+step 129 7
+step 130 22
+step 131 59
+step 132 82
+step 133 6
 step 134 43
-step 135 1
-step 136 42
-step 137 35
-step 138 42
-step 139 36
-step 140 42
-step 141 37
-step 142 43
-step 143 0
-step 144 85
-step 145 2
-step 146 8
-step 147 95
-step 148 77
-step 149 2
-step 150 31
-step 151 61
-step 152 1
-step 153 99
-step 154 3
-step 155 6
-step 156 32
-step 157 43
-step 158 48
-step 159 42
-step 160 35
-step 161 43
-step 162 1
-step 163 61
-step 164 1
-step 165 38
-step 166 3
+step 135 63
+step 136 82
+step 137 5
+step 138 43
+step 139 65
+step 140 82
+step 141 8
+step 142 69
+step 143 5
+step 144 73
+step 145 0
+step 146 82
+step 147 5
+step 148 44
+step 149 0
+step 150 73
+step 151 0
+step 152 82
+step 153 6
+step 154 43
+step 155 66
+step 156 82
+step 157 36
+step 158 69
+step 159 20
+step 160 73
+step 161 0
+step 162 44
+step 163 0
+step 164 22
+step 165 59
+step 166 82
 step 167 7
-step 168 32
-step 169 43
-step 170 49
-step 171 42
-step 172 36
-step 173 43
-step 174 1
-step 175 42
-step 176 37
-step 177 61
-step 178 1
-step 179 99
-step 180 43
-step 181 43
-step 182 42
-step 183 34
-step 184 43
-step 185 44
-step 186 42
-step 187 35
-step 188 43
-step 189 45
-step 190 42
-step 191 36
-step 192 43
-step 193 46
-step 194 42
-step 195 37
-step 196 3
-step 197 8
-step 198 32
-step 199 73
-step 200 0
-step 201 82
-step 202 5
-step 203 44
-step 204 0
-step 205 73
-step 206 0
-step 207 82
-step 208 6
-step 209 43
-step 210 65
-step 211 82
-step 212 36
-step 213 69
-step 214 20
-step 215 73
-step 216 0
-step 217 44
-step 218 0
-step 219 22
-step 220 59
-step 221 82
-step 222 7
-step 223 73
-step 224 0
-step 225 44
-step 226 0
-step 227 82
-step 228 8
-step 229 69
-step 230 5
-step 231 73
-step 232 0
-step 233 82
-step 234 5
-step 235 44
-step 236 0
-step 237 73
-step 238 0
-step 239 82
-step 240 6
-step 241 43
-step 242 65
-step 243 82
-step 244 36
-step 245 69
-step 246 20
-step 247 73
-step 248 0
-step 249 44
-step 250 0
-step 251 22
-step 252 59
-step 253 82
-step 254 7
-step 255 73
-step 256 0
-step 257 44
-step 258 0
-step 259 82
-step 260 8
-step 261 69
-step 262 5
-step 263 73
-step 264 0
-step 265 82
-step 266 5
-step 267 44
-step 268 0
-step 269 73
-step 270 0
-step 271 82
-step 272 6
-step 273 43
-step 274 65
-step 275 82
-step 276 36
-step 277 69
-step 278 20
-step 279 73
-step 280 0
-step 281 44
-step 282 0
-step 283 22
-step 284 59
-step 285 82
-step 286 7
-step 287 73
-step 288 0
-step 289 44
-step 290 0
-step 291 82
-step 292 8
-step 293 69
-step 294 5
-step 295 73
-step 296 0
-step 297 82
-step 298 5
-step 299 44
-step 300 0
-step 301 73
-step 302 0
-step 303 82
-step 304 6
-step 305 43
-step 306 65
-step 307 82
-step 308 36
-step 309 69
-step 310 20
-step 311 73
-step 312 0
-step 313 44
-step 314 0
-step 315 22
-step 316 59
-step 317 82
-step 318 7
-step 319 73
-step 320 0
+step 168 73
+step 169 0
+step 170 44
+step 171 0
+step 172 82
+step 173 8
+step 174 69
+step 175 5
+step 176 73
+step 177 0
+step 178 82
+step 179 5
+step 180 44
+step 181 0
+step 182 73
+step 183 0
+step 184 82
+step 185 6
+step 186 43
+step 187 66
+step 188 82
+step 189 36
+step 190 69
+step 191 20
+step 192 73
+step 193 0
+step 194 44
+step 195 0
+step 196 22
+step 197 59
+step 198 82
+step 199 7
+step 200 73
+step 201 0
+step 202 44
+step 203 0
+step 204 82
+step 205 8
+step 206 69
+step 207 5
+step 208 73
+step 209 0
+step 210 82
+step 211 5
+step 212 44
+step 213 0
+step 214 73
+step 215 0
+step 216 82
+step 217 6
+step 218 43
+step 219 66
+step 220 82
+step 221 36
+step 222 69
+step 223 20
+step 224 73
+step 225 0
+step 226 44
+step 227 0
+step 228 22
+step 229 59
+step 230 82
+step 231 7
+step 232 73
+step 233 0
+step 234 44
+step 235 0
+step 236 82
+step 237 8
+step 238 69
+step 239 5
+step 240 73
+step 241 0
+step 242 82
+step 243 5
+step 244 44
+step 245 0
+step 246 73
+step 247 0
+step 248 82
+step 249 6
+step 250 43
+step 251 66
+step 252 82
+step 253 36
+step 254 69
+step 255 20
+step 256 73
+step 257 0
+step 258 44
+step 259 0
+step 260 22
+step 261 59
+step 262 82
+step 263 7
+step 264 73
+step 265 0
+step 266 44
+step 267 0
+step 268 82
+step 269 8
+step 270 69
+step 271 5
+step 272 73
+step 273 0
+step 274 82
+step 275 5
+step 276 44
+step 277 0
+step 278 73
+step 279 0
+step 280 82
+step 281 6
+step 282 43
+step 283 66
+step 284 82
+step 285 36
+step 286 69
+step 287 20
+step 288 73
+step 289 0
+step 290 44
+step 291 0
+step 292 22
+step 293 59
+step 294 82
+step 295 7
+step 296 73
+step 297 0
+step 298 44
+step 299 0
+step 300 82
+step 301 8
+step 302 69
+step 303 5
+step 304 43
+step 305 0
+step 306 22
+step 307 77
+step 308 2
+step 309 72
+step 310 59
+step 311 67
+step 312 3
+step 313 34
+step 314 75
+step 315 32
+step 316 95
+step 317 42
+step 318 0
+step 319 98
+step 320 1
 step 321 44
-step 322 0
-step 323 82
-step 324 8
-step 325 69
-step 326 5
-step 327 73
-step 328 0
-step 329 82
-step 330 5
-step 331 44
-step 332 0
-step 333 73
-step 334 0
-step 335 82
-step 336 6
-step 337 43
-step 338 65
-step 339 82
-step 340 36
-step 341 69
-step 342 20
-step 343 73
-step 344 0
-step 345 44
-step 346 0
-step 347 22
-step 348 59
-step 349 82
-step 350 7
-step 351 73
-step 352 0
-step 353 44
-step 354 0
-step 355 82
-step 356 8
+step 322 68
+step 323 73
+step 324 68
+step 325 82
+step 326 8
+step 327 42
+step 328 67
+step 329 83
+step 330 67
+step 331 98
+step 332 25
+step 333 81
+step 334 7
+step 335 42
+step 336 0
+step 337 61
+step 338 3
+step 339 19
+step 340 3
+step 341 5
+step 342 32
+step 343 43
+step 344 47
+step 345 42
+step 346 34
+step 347 43
+step 348 1
+step 349 42
+step 350 35
+step 351 42
+step 352 36
+step 353 42
+step 354 37
+step 355 43
+step 356 69
 step 357 69
-step 358 5
+step 358 6
 step 359 43
-step 360 0
-step 361 77
-step 362 3
-step 363 67
-step 364 61
-step 365 3
-step 366 27
-step 367 59
-step 368 67
-step 369 3
-step 370 93
-step 371 42
-step 372 0
-step 373 32
-step 374 22
-step 375 44
-step 376 0
-step 377 98
+step 360 64
+step 361 82
+step 362 7
+step 363 22
+step 364 59
+step 365 82
+step 366 6
+step 367 43
+step 368 63
+step 369 82
+step 370 5
+step 371 43
+step 372 65
+step 373 82
+step 374 8
+step 375 69
+step 376 5
+step 377 61
 step 378 1
-step 379 44
-step 380 68
-step 381 97
-step 382 66
-step 383 0
-step 384 96
-step 385 98
-step 386 82
-step 387 14
-step 388 22
-step 389 44
-step 390 51
-step 391 25
-step 392 81
-step 393 7
-step 394 42
-step 395 0
-step 396 61
-step 397 3
-step 398 77
+step 379 76
+step 380 3
+step 381 6
+step 382 32
+step 383 43
+step 384 48
+step 385 42
+step 386 35
+step 387 4
+step 388 0
+step 389 22
+step 390 44
+step 391 51
+step 392 43
+step 393 1
+step 394 61
+step 395 3
+step 396 51
 reg 1 0 0000000000000102
 reg 2 0 0000000000000102
 reg 3 0 0000000000000102
@@ -15774,22 +15770,23 @@ reg 46 0 0000000002040102
 reg 47 0 0000000001130102
 reg 48 0 0000000002130102
 reg 49 0 0000000001040102
-reg 50 0 0201331520000691
-reg 51 0 0204171120000721
-reg 52 0 0205331030000081
-reg 53 0 0205333310000661
-reg 54 0 0205431030000881
-reg 55 0 0207113145200661
-reg 56 0 0205472145200881
-reg 57 0 0202214310000691
-reg 58 0 0207333716300661
-reg 59 0 0207351230000881
-reg 60 0 0202423130000661
-reg 61 0 0205171610000881
-reg 62 0 0000300006300001
-reg 63 0 0000073000034101
-reg 64 0 0006300001200001
-reg 65 0 0100000000009989
+reg 50 0 0201331520000911
+reg 51 0 0204171120000043
+reg 52 0 0205331030000301
+reg 53 0 0105333310000098
+reg 54 0 0205431030000111
+reg 55 0 0107113145200098
+reg 56 0 0205472145200111
+reg 57 0 0202214310000911
+reg 58 0 0107333716300098
+reg 59 0 0207351230000111
+reg 60 0 0102423130000098
+reg 61 0 0205171610000111
+reg 62 0 0200000000000133
+reg 63 0 0000300006300001
+reg 64 0 0000073000034101
+reg 65 0 0006300001200001
+reg 66 0 0100000000009989
 fullSpeed
 key 83
 key 92
@@ -17860,6 +17857,552 @@ printer -
 model -
 skipReset 0
 END
+STATE examples/debug/printer-interrupt-bits.ti59 479 0
+partition 479 0
+step 0 92
+step 1 76
+step 2 11
+step 3 61
+step 4 0
+step 5 17
+step 6 69
+step 7 5
+step 8 23
+step 9 53
+step 10 0
+step 11 0
+step 12 86
+step 13 0
+step 14 0
+step 15 91
+step 16 1
+step 17 0
+step 18 42
+step 19 0
+step 20 42
+step 21 9
+step 22 43
+step 23 1
+step 24 69
+step 25 1
+step 26 43
+step 27 2
+step 28 69
+step 29 2
+step 30 43
+step 31 4
+step 32 69
+step 33 4
+step 34 73
+step 35 0
+step 36 69
+step 37 3
+step 38 69
+step 39 5
+step 40 25
+step 41 71
+step 42 0
+step 43 6
+step 44 98
+step 45 69
+step 46 20
+step 47 97
+step 48 9
+step 49 0
+step 50 23
+step 51 91
+reg 1 0 0900004623460023
+reg 2 0 0900000000460023
+reg 4 0 0700000000460023
+reg 10 0 0000000000000000
+reg 11 0 0100000000000001
+reg 12 0 0100000000000073
+reg 13 0 0100000000000007
+reg 14 0 0300000000000701
+reg 15 0 0300000000000773
+reg 16 0 0300000000000707
+reg 17 0 0500000000070701
+reg 18 0 0500000000070773
+reg 19 0 0500000000070707
+key 82
+key 85
+key 72
+key 63
+key 52
+key 82
+key 83
+key 94
+key 95
+key 61
+key 92
+key 82
+key 83
+key 41
+key 92
+key 42
+key 31
+key 21
+key 41
+key 31
+key 25
+key 81
+key 11
+module -
+printer 1
+model TI-59
+skipReset 0
+END
+STATE examples/debug/printer-interrupt-bits.ti59 959 0
+partition 479 0
+step 0 92
+step 1 76
+step 2 11
+step 3 61
+step 4 0
+step 5 17
+step 6 69
+step 7 5
+step 8 23
+step 9 53
+step 10 0
+step 11 0
+step 12 86
+step 13 0
+step 14 0
+step 15 91
+step 16 1
+step 17 0
+step 18 42
+step 19 0
+step 20 42
+step 21 9
+step 22 43
+step 23 1
+step 24 69
+step 25 1
+step 26 43
+step 27 2
+step 28 69
+step 29 2
+step 30 43
+step 31 4
+step 32 69
+step 33 4
+step 34 73
+step 35 0
+step 36 69
+step 37 3
+step 38 69
+step 39 5
+step 40 25
+step 41 71
+step 42 0
+step 43 6
+step 44 98
+step 45 69
+step 46 20
+step 47 97
+step 48 9
+step 49 0
+step 50 23
+step 51 91
+reg 1 0 0900004623460023
+reg 2 0 0900000000460023
+reg 4 0 0700000000460023
+reg 10 0 0000000000000000
+reg 11 0 0100000000000001
+reg 12 0 0100000000000073
+reg 13 0 0100000000000007
+reg 14 0 0300000000000701
+reg 15 0 0300000000000773
+reg 16 0 0300000000000707
+reg 17 0 0500000000070701
+reg 18 0 0500000000070773
+reg 19 0 0500000000070707
+key 82
+key 85
+key 72
+key 63
+key 52
+key 82
+key 83
+key 94
+key 95
+key 61
+key 92
+key 82
+key 83
+key 41
+key 92
+key 42
+key 31
+key 21
+key 41
+key 31
+key 25
+key 81
+key 11
+module -
+printer 1
+model TI-59
+skipReset 0
+END
+STATE examples/debug/printer-interrupt-bits.ti59 479 1
+partition 479 0
+step 0 92
+step 1 76
+step 2 11
+step 3 61
+step 4 0
+step 5 17
+step 6 69
+step 7 5
+step 8 23
+step 9 53
+step 10 0
+step 11 0
+step 12 86
+step 13 0
+step 14 0
+step 15 91
+step 16 1
+step 17 0
+step 18 42
+step 19 0
+step 20 42
+step 21 9
+step 22 43
+step 23 1
+step 24 69
+step 25 1
+step 26 43
+step 27 2
+step 28 69
+step 29 2
+step 30 43
+step 31 4
+step 32 69
+step 33 4
+step 34 73
+step 35 0
+step 36 69
+step 37 3
+step 38 69
+step 39 5
+step 40 25
+step 41 71
+step 42 0
+step 43 6
+step 44 98
+step 45 69
+step 46 20
+step 47 97
+step 48 9
+step 49 0
+step 50 23
+step 51 91
+reg 1 0 0900004623460023
+reg 2 0 0900000000460023
+reg 4 0 0700000000460023
+reg 10 0 0000000000000000
+reg 11 0 0100000000000001
+reg 12 0 0100000000000073
+reg 13 0 0100000000000007
+reg 14 0 0300000000000701
+reg 15 0 0300000000000773
+reg 16 0 0300000000000707
+reg 17 0 0500000000070701
+reg 18 0 0500000000070773
+reg 19 0 0500000000070707
+key 82
+key 85
+key 72
+key 63
+key 52
+key 82
+key 83
+key 94
+key 95
+key 61
+key 92
+key 82
+key 83
+key 41
+key 92
+key 42
+key 31
+key 21
+key 41
+key 31
+key 25
+key 81
+key 11
+module -
+printer 1
+model TI-59
+skipReset 0
+END
+STATE examples/debug/printer-interrupt-sweep.ti58c 479 0
+partition 239 1
+step 0 92
+step 1 68
+step 2 68
+step 3 68
+step 4 68
+step 5 69
+step 6 5
+step 7 59
+step 8 23
+step 9 53
+step 10 0
+step 11 0
+step 12 86
+step 13 0
+step 14 0
+step 15 91
+step 16 43
+step 17 1
+step 18 99
+step 19 43
+step 20 2
+step 21 69
+step 22 1
+step 23 69
+step 24 2
+step 25 69
+step 26 3
+step 27 69
+step 28 4
+step 29 43
+step 30 1
+step 31 94
+step 32 22
+step 33 28
+step 34 71
+step 35 0
+step 36 5
+step 37 98
+step 38 69
+step 39 21
+step 40 43
+step 41 3
+step 42 32
+step 43 43
+step 44 1
+step 45 22
+step 46 77
+step 47 0
+step 48 17
+step 49 91
+reg 1 0 0100000000000011
+reg 2 0 0900000075345071
+reg 3 0 0200000000000001
+key 82
+key 85
+key 72
+key 63
+key 52
+key 82
+key 83
+key 94
+key 95
+key 61
+key 92
+key 82
+key 83
+key 41
+key 92
+key 42
+key 31
+key 21
+key 41
+key 31
+key 25
+key 81
+key 61
+key 92
+key 82
+key 62
+key 91
+module -
+printer 1
+model TI-58C
+skipReset 0
+END
+STATE examples/debug/printer-interrupt-sweep.ti58c 959 0
+partition 239 1
+step 0 92
+step 1 68
+step 2 68
+step 3 68
+step 4 68
+step 5 69
+step 6 5
+step 7 59
+step 8 23
+step 9 53
+step 10 0
+step 11 0
+step 12 86
+step 13 0
+step 14 0
+step 15 91
+step 16 43
+step 17 1
+step 18 99
+step 19 43
+step 20 2
+step 21 69
+step 22 1
+step 23 69
+step 24 2
+step 25 69
+step 26 3
+step 27 69
+step 28 4
+step 29 43
+step 30 1
+step 31 94
+step 32 22
+step 33 28
+step 34 71
+step 35 0
+step 36 5
+step 37 98
+step 38 69
+step 39 21
+step 40 43
+step 41 3
+step 42 32
+step 43 43
+step 44 1
+step 45 22
+step 46 77
+step 47 0
+step 48 17
+step 49 91
+reg 1 0 0100000000000011
+reg 2 0 0900000075345071
+reg 3 0 0200000000000001
+key 82
+key 85
+key 72
+key 63
+key 52
+key 82
+key 83
+key 94
+key 95
+key 61
+key 92
+key 82
+key 83
+key 41
+key 92
+key 42
+key 31
+key 21
+key 41
+key 31
+key 25
+key 81
+key 61
+key 92
+key 82
+key 62
+key 91
+module -
+printer 1
+model TI-58C
+skipReset 0
+END
+STATE examples/debug/printer-interrupt-sweep.ti58c 479 1
+partition 239 1
+step 0 92
+step 1 68
+step 2 68
+step 3 68
+step 4 68
+step 5 69
+step 6 5
+step 7 59
+step 8 23
+step 9 53
+step 10 0
+step 11 0
+step 12 86
+step 13 0
+step 14 0
+step 15 91
+step 16 43
+step 17 1
+step 18 99
+step 19 43
+step 20 2
+step 21 69
+step 22 1
+step 23 69
+step 24 2
+step 25 69
+step 26 3
+step 27 69
+step 28 4
+step 29 43
+step 30 1
+step 31 94
+step 32 22
+step 33 28
+step 34 71
+step 35 0
+step 36 5
+step 37 98
+step 38 69
+step 39 21
+step 40 43
+step 41 3
+step 42 32
+step 43 43
+step 44 1
+step 45 22
+step 46 77
+step 47 0
+step 48 17
+step 49 91
+reg 1 0 0100000000000011
+reg 2 0 0900000075345071
+reg 3 0 0200000000000001
+key 82
+key 85
+key 72
+key 63
+key 52
+key 82
+key 83
+key 94
+key 95
+key 61
+key 92
+key 82
+key 83
+key 41
+key 92
+key 42
+key 31
+key 21
+key 41
+key 31
+key 25
+key 81
+key 61
+key 92
+key 82
+key 62
+key 91
+module -
+printer 1
+model TI-58C
+skipReset 0
+END
 STATE examples/debug/printer-timing.ti59 479 0
 partition 479 0
 step 0 76
@@ -19661,7 +20204,6 @@ step 477 77
 step 478 77
 step 479 77
 key 15
-waitFullSpeed 3
 cue template MagnetCard
 cue title CALCULATOR DIAGNOSTIC - Consult Owner's Manual
 cue banks 1 2
@@ -20023,7 +20565,6 @@ step 477 77
 step 478 77
 step 479 77
 key 15
-waitFullSpeed 3
 cue template MagnetCard
 cue title CALCULATOR DIAGNOSTIC - Consult Owner's Manual
 cue banks 1 2
@@ -20385,7 +20926,6 @@ step 477 77
 step 478 77
 step 479 77
 key 15
-waitFullSpeed 3
 cue template MagnetCard
 cue title CALCULATOR DIAGNOSTIC - Consult Owner's Manual
 cue banks 1 2
@@ -20901,49 +21441,37 @@ step 476 61
 step 477 2
 step 478 88
 step 479 31
+fullSpeed
 key 11
-waitFullSpeed 0.5
 key 72
 key 91
-waitFullSpeed 0.5
 key 72
 key 94
 key 91
-waitFullSpeed 0.5
 key 72
 key 91
-waitFullSpeed 0.5
 key 72
 key 94
 key 91
-waitFullSpeed 0.5
 key 82
 key 83
 key 91
-waitFullSpeed 0.5
 key 92
 key 91
-waitFullSpeed 0.5
 key 82
 key 91
-waitFullSpeed 0.5
 key 82
 key 91
-waitFullSpeed 0.5
 key 63
 key 92
 key 91
-waitFullSpeed 0.5
 key 82
 key 91
-waitFullSpeed 0.5
 key 74
 key 73
 key 91
-waitFullSpeed 0.5
 key 82
 key 91
-waitFullSpeed 0.5
 cue template MagnetCard
 cue title Fast Grafik 3D Plot - Part 1
 cue banks 1 2
@@ -21459,49 +21987,37 @@ step 476 61
 step 477 2
 step 478 88
 step 479 31
+fullSpeed
 key 11
-waitFullSpeed 0.5
 key 72
 key 91
-waitFullSpeed 0.5
 key 72
 key 94
 key 91
-waitFullSpeed 0.5
 key 72
 key 91
-waitFullSpeed 0.5
 key 72
 key 94
 key 91
-waitFullSpeed 0.5
 key 82
 key 83
 key 91
-waitFullSpeed 0.5
 key 92
 key 91
-waitFullSpeed 0.5
 key 82
 key 91
-waitFullSpeed 0.5
 key 82
 key 91
-waitFullSpeed 0.5
 key 63
 key 92
 key 91
-waitFullSpeed 0.5
 key 82
 key 91
-waitFullSpeed 0.5
 key 74
 key 73
 key 91
-waitFullSpeed 0.5
 key 82
 key 91
-waitFullSpeed 0.5
 cue template MagnetCard
 cue title Fast Grafik 3D Plot - Part 1
 cue banks 1 2
@@ -22017,49 +22533,37 @@ step 476 61
 step 477 2
 step 478 88
 step 479 31
+fullSpeed
 key 11
-waitFullSpeed 0.5
 key 72
 key 91
-waitFullSpeed 0.5
 key 72
 key 94
 key 91
-waitFullSpeed 0.5
 key 72
 key 91
-waitFullSpeed 0.5
 key 72
 key 94
 key 91
-waitFullSpeed 0.5
 key 82
 key 83
 key 91
-waitFullSpeed 0.5
 key 92
 key 91
-waitFullSpeed 0.5
 key 82
 key 91
-waitFullSpeed 0.5
 key 82
 key 91
-waitFullSpeed 0.5
 key 63
 key 92
 key 91
-waitFullSpeed 0.5
 key 82
 key 91
-waitFullSpeed 0.5
 key 74
 key 73
 key 91
-waitFullSpeed 0.5
 key 82
 key 91
-waitFullSpeed 0.5
 cue template MagnetCard
 cue title Fast Grafik 3D Plot - Part 1
 cue banks 1 2
@@ -22718,8 +23222,8 @@ key 61
 key 72
 key 62
 key 84
+fullSpeed
 key 11
-waitFullSpeed 10
 cue template MagnetCard
 cue title Fast Grafik 3D Plot - Part 2
 cue banks 1 2
@@ -23370,8 +23874,8 @@ key 61
 key 72
 key 62
 key 84
+fullSpeed
 key 11
-waitFullSpeed 10
 cue template MagnetCard
 cue title Fast Grafik 3D Plot - Part 2
 cue banks 1 2
@@ -24028,8 +24532,8 @@ key 61
 key 72
 key 62
 key 84
+fullSpeed
 key 11
-waitFullSpeed 10
 cue template MagnetCard
 cue title Fast Grafik 3D Plot - Part 2
 cue banks 1 2
@@ -24805,6 +25309,189 @@ printer 1
 model -
 skipReset 0
 END
+STATE examples/printer-interrupt.ti59 479 0
+partition 479 0
+step 0 92
+step 1 0
+step 2 0
+step 3 76
+step 4 11
+step 5 0
+step 6 69
+step 7 5
+step 8 23
+step 9 53
+step 10 0
+step 11 0
+step 12 86
+step 13 0
+step 14 0
+step 15 91
+step 16 1
+step 17 3
+step 18 0
+step 19 1
+step 20 69
+step 21 4
+step 22 69
+step 23 5
+step 24 11
+step 25 98
+step 26 91
+key 82
+key 85
+key 72
+key 63
+key 52
+key 82
+key 83
+key 94
+key 95
+key 61
+key 92
+key 82
+key 83
+key 41
+key 92
+key 42
+key 31
+key 21
+key 41
+key 31
+key 25
+key 81
+key 61
+key 92
+key 82
+key 62
+key 91
+module -
+printer 1
+model TI-59
+skipReset 0
+END
+STATE examples/printer-interrupt.ti59 959 0
+partition 479 0
+step 0 92
+step 1 0
+step 2 0
+step 3 76
+step 4 11
+step 5 0
+step 6 69
+step 7 5
+step 8 23
+step 9 53
+step 10 0
+step 11 0
+step 12 86
+step 13 0
+step 14 0
+step 15 91
+step 16 1
+step 17 3
+step 18 0
+step 19 1
+step 20 69
+step 21 4
+step 22 69
+step 23 5
+step 24 11
+step 25 98
+step 26 91
+key 82
+key 85
+key 72
+key 63
+key 52
+key 82
+key 83
+key 94
+key 95
+key 61
+key 92
+key 82
+key 83
+key 41
+key 92
+key 42
+key 31
+key 21
+key 41
+key 31
+key 25
+key 81
+key 61
+key 92
+key 82
+key 62
+key 91
+module -
+printer 1
+model TI-59
+skipReset 0
+END
+STATE examples/printer-interrupt.ti59 479 1
+partition 479 0
+step 0 92
+step 1 0
+step 2 0
+step 3 76
+step 4 11
+step 5 0
+step 6 69
+step 7 5
+step 8 23
+step 9 53
+step 10 0
+step 11 0
+step 12 86
+step 13 0
+step 14 0
+step 15 91
+step 16 1
+step 17 3
+step 18 0
+step 19 1
+step 20 69
+step 21 4
+step 22 69
+step 23 5
+step 24 11
+step 25 98
+step 26 91
+key 82
+key 85
+key 72
+key 63
+key 52
+key 82
+key 83
+key 94
+key 95
+key 61
+key 92
+key 82
+key 83
+key 41
+key 92
+key 42
+key 31
+key 21
+key 41
+key 31
+key 25
+key 81
+key 61
+key 92
+key 82
+key 62
+key 91
+module -
+printer 1
+model TI-59
+skipReset 0
+END
 STATE examples/printer-quirks.ti59 479 0
 partition 479 0
 step 0 92
@@ -24986,7 +25673,6 @@ key 84
 key 84
 wait 1
 key 91
-waitFullSpeed 1
 key 21
 key 32
 wait 2
@@ -24997,8 +25683,8 @@ trace -
 key 31
 key 25
 key 81
+fullSpeed
 key 11
-waitFullSpeed 0.5
 module ML
 printer 1
 model -
@@ -25185,7 +25871,6 @@ key 84
 key 84
 wait 1
 key 91
-waitFullSpeed 1
 key 21
 key 32
 wait 2
@@ -25196,8 +25881,8 @@ trace -
 key 31
 key 25
 key 81
+fullSpeed
 key 11
-waitFullSpeed 0.5
 module ML
 printer 1
 model -
@@ -25384,7 +26069,6 @@ key 84
 key 84
 wait 1
 key 91
-waitFullSpeed 1
 key 21
 key 32
 wait 2
@@ -25395,8 +26079,8 @@ trace -
 key 31
 key 25
 key 81
+fullSpeed
 key 11
-waitFullSpeed 0.5
 module ML
 printer 1
 model -
@@ -28664,9 +29348,8 @@ key 71
 key 72
 key 72
 key 72
-fullSpeed
+wait 1
 key 91
-regularSpeed
 key 21
 key 32
 key 31
@@ -28680,12 +29363,45 @@ key 21
 key 64
 key 82
 key 62
+wait 1
 key 61
 key 92
 key 82
 key 62
 fullSpeed
 key 91
+cue template MagnetCard
+cue title TI Logo
+cue banks 1 2
+cue id 
+cue label0 
+cue label1 
+cue label2 
+cue label3 
+cue label4 
+cue label5 
+cue label6 
+cue label7 
+cue label8 
+cue label9 
+cue row1 See PPX Exchange March/April 1982
+cue row1Align center
+cue row2 for instructions to run
+cue row2Align center
+cue row2R 
+cue row2RAlign left
+cue style none
+cue color black
+enc Template: MagnetCard
+enc Title: TI Logo
+enc Banks: 1, 2
+enc Row1: See PPX Exchange March/April 1982
+enc Row2: for instructions to run
+enc Row2Align: center
+enc0 Title: TI Logo
+enc0 Row1: See PPX Exchange March/April 1982
+enc0 Row2: for instructions to run
+enc0 Row2Align: center
 module ML
 printer 1
 model TI-59
@@ -29490,9 +30206,8 @@ key 71
 key 72
 key 72
 key 72
-fullSpeed
+wait 1
 key 91
-regularSpeed
 key 21
 key 32
 key 31
@@ -29506,12 +30221,45 @@ key 21
 key 64
 key 82
 key 62
+wait 1
 key 61
 key 92
 key 82
 key 62
 fullSpeed
 key 91
+cue template MagnetCard
+cue title TI Logo
+cue banks 1 2
+cue id 
+cue label0 
+cue label1 
+cue label2 
+cue label3 
+cue label4 
+cue label5 
+cue label6 
+cue label7 
+cue label8 
+cue label9 
+cue row1 See PPX Exchange March/April 1982
+cue row1Align center
+cue row2 for instructions to run
+cue row2Align center
+cue row2R 
+cue row2RAlign left
+cue style none
+cue color black
+enc Template: MagnetCard
+enc Title: TI Logo
+enc Banks: 1, 2
+enc Row1: See PPX Exchange March/April 1982
+enc Row2: for instructions to run
+enc Row2Align: center
+enc0 Title: TI Logo
+enc0 Row1: See PPX Exchange March/April 1982
+enc0 Row2: for instructions to run
+enc0 Row2Align: center
 module ML
 printer 1
 model TI-59
@@ -30316,9 +31064,8 @@ key 71
 key 72
 key 72
 key 72
-fullSpeed
+wait 1
 key 91
-regularSpeed
 key 21
 key 32
 key 31
@@ -30332,12 +31079,45 @@ key 21
 key 64
 key 82
 key 62
+wait 1
 key 61
 key 92
 key 82
 key 62
 fullSpeed
 key 91
+cue template MagnetCard
+cue title TI Logo
+cue banks 1 2
+cue id 
+cue label0 
+cue label1 
+cue label2 
+cue label3 
+cue label4 
+cue label5 
+cue label6 
+cue label7 
+cue label8 
+cue label9 
+cue row1 See PPX Exchange March/April 1982
+cue row1Align center
+cue row2 for instructions to run
+cue row2Align center
+cue row2R 
+cue row2RAlign left
+cue style none
+cue color black
+enc Template: MagnetCard
+enc Title: TI Logo
+enc Banks: 1, 2
+enc Row1: See PPX Exchange March/April 1982
+enc Row2: for instructions to run
+enc Row2Align: center
+enc0 Title: TI Logo
+enc0 Row1: See PPX Exchange March/April 1982
+enc0 Row2: for instructions to run
+enc0 Row2Align: center
 module ML
 printer 1
 model TI-59
@@ -30523,8 +31303,8 @@ reg 15 0 0900005371731371
 reg 16 0 0700000003235312
 reg 17 0 0700000041547162
 reg 18 0 0900002661533123
+fullSpeed
 key 15
-wait 5
 cue template MagnetCard
 cue title Stars & Stripes
 cue banks 1 4
@@ -30738,8 +31518,8 @@ reg 15 0 0900005371731371
 reg 16 0 0700000003235312
 reg 17 0 0700000041547162
 reg 18 0 0900002661533123
+fullSpeed
 key 15
-wait 5
 cue template MagnetCard
 cue title Stars & Stripes
 cue banks 1 4
@@ -30953,8 +31733,8 @@ reg 15 0 0900005371731371
 reg 16 0 0700000003235312
 reg 17 0 0700000041547162
 reg 18 0 0900002661533123
+fullSpeed
 key 15
-wait 5
 cue template MagnetCard
 cue title Stars & Stripes
 cue banks 1 4
@@ -31154,6 +31934,591 @@ enc0 A: Sum
 module -
 printer -
 model -
+skipReset 0
+END
+STATE examples/switzerland.ti59 479 0
+partition 159 1
+step 0 92
+step 1 0
+step 2 0
+step 3 76
+step 4 11
+step 5 0
+step 6 69
+step 7 5
+step 8 23
+step 9 53
+step 10 0
+step 11 0
+step 12 86
+step 13 0
+step 14 0
+step 15 91
+step 16 69
+step 17 0
+step 18 2
+step 19 42
+step 20 1
+step 21 69
+step 22 21
+step 23 73
+step 24 1
+step 25 42
+step 26 2
+step 27 83
+step 28 2
+step 29 71
+step 30 11
+step 31 69
+step 32 0
+step 33 61
+step 34 0
+step 35 22
+step 99 82
+step 100 5
+step 101 61
+step 102 0
+step 103 22
+step 104 82
+step 105 6
+step 106 61
+step 107 0
+step 108 22
+step 109 82
+step 110 7
+step 111 61
+step 112 0
+step 113 22
+step 114 82
+step 115 8
+step 116 61
+step 117 0
+step 118 22
+step 119 82
+step 120 5
+step 121 61
+step 122 0
+step 123 30
+step 124 82
+step 125 6
+step 126 61
+step 127 0
+step 128 30
+step 129 82
+step 130 7
+step 131 61
+step 132 0
+step 133 30
+step 134 82
+step 135 8
+step 136 61
+step 137 0
+step 138 30
+step 139 91
+reg 0 0 0008400000000001
+reg 3 0 0200000723500031
+reg 4 0 0200000427000031
+reg 5 0 0200005557200031
+reg 6 0 0207277001600031
+reg 7 0 0203572000000501
+reg 8 0 0200100007341031
+reg 9 0 0206603550000501
+reg 10 0 0200000007600011
+reg 11 0 0200000000072531
+reg 12 0 0200000207250501
+reg 13 0 0200000000001531
+reg 14 0 0200000720625501
+reg 15 0 0200000007200531
+reg 16 0 0200000005272501
+reg 17 0 0200000007200531
+reg 18 0 0200000000007501
+reg 19 0 0200000007235531
+reg 20 0 0200000000070501
+reg 21 0 0200000000052531
+reg 22 0 0200000000072501
+reg 23 0 0200000000055531
+reg 24 0 0205200000000001
+reg 25 0 0200000000050531
+reg 26 0 0205500000000001
+reg 27 0 0200000000026531
+reg 28 0 0207000000000001
+reg 29 0 0200000000065531
+reg 30 0 0207200000000001
+reg 31 0 0200000000152531
+reg 32 0 0200055000000001
+reg 33 0 0200700720000531
+reg 34 0 0200070000000001
+reg 35 0 0206555720000531
+reg 36 0 0200072000000001
+reg 37 0 0205520010000531
+reg 38 0 0200072000000001
+reg 39 0 0205672000000531
+reg 40 0 0200072000000001
+reg 41 0 0207400000000531
+reg 42 0 0200072350000001
+reg 43 0 0202000000000531
+reg 44 0 0200000500000001
+reg 45 0 0202000000000531
+reg 46 0 0200000720000001
+reg 47 0 0206500000000531
+reg 48 0 0200000005200001
+reg 49 0 0205541000000531
+reg 50 0 0200000005500001
+reg 51 0 0207672000000531
+reg 52 0 0200000005000001
+reg 53 0 0203500000000011
+reg 54 0 0200000520072531
+reg 55 0 0207225006500001
+reg 56 0 0205200007200011
+reg 57 0 0200007000020531
+reg 58 0 0205672356500001
+reg 59 0 0205200002052011
+reg 60 0 0200020000074531
+reg 61 0 0202600705200001
+reg 62 0 0205200002050011
+reg 63 0 0200072075265531
+reg 64 0 0206500745500001
+reg 65 0 0205200007220011
+reg 66 0 0200042507752531
+reg 67 0 0205000206000001
+reg 68 0 0205500002072011
+reg 69 0 0200020520000531
+reg 70 0 0202600727200001
+reg 71 0 0202600006572011
+reg 72 0 0200072000000531
+reg 73 0 0202600007600001
+reg 74 0 0207200005272031
+reg 75 0 0205200000000001
+reg 76 0 0205200000000501
+reg 77 0 0207200070000031
+reg 78 0 0205200000000001
+reg 79 0 0205500000072501
+reg 80 0 0207252520000031
+reg 81 0 0201500000072501
+reg 82 0 0200052520000031
+reg 83 0 0207272250020501
+reg 84 0 0200032000000031
+reg 85 0 0200076722535501
+reg 86 0 0207272000000031
+reg 87 0 0200000007200501
+reg 88 0 0200032000000031
+reg 89 0 0200001000000031
+reg 90 0 0200000000000041
+key 43
+key 92
+key 92
+key 61
+key 92
+key 82
+key 83
+key 41
+key 92
+key 42
+key 31
+key 21
+key 41
+key 31
+key 25
+key 81
+key 61
+key 92
+key 82
+key 62
+fullSpeed
+key 91
+module -
+printer 1
+model TI-59
+skipReset 0
+END
+STATE examples/switzerland.ti59 959 0
+partition 159 1
+step 0 92
+step 1 0
+step 2 0
+step 3 76
+step 4 11
+step 5 0
+step 6 69
+step 7 5
+step 8 23
+step 9 53
+step 10 0
+step 11 0
+step 12 86
+step 13 0
+step 14 0
+step 15 91
+step 16 69
+step 17 0
+step 18 2
+step 19 42
+step 20 1
+step 21 69
+step 22 21
+step 23 73
+step 24 1
+step 25 42
+step 26 2
+step 27 83
+step 28 2
+step 29 71
+step 30 11
+step 31 69
+step 32 0
+step 33 61
+step 34 0
+step 35 22
+step 99 82
+step 100 5
+step 101 61
+step 102 0
+step 103 22
+step 104 82
+step 105 6
+step 106 61
+step 107 0
+step 108 22
+step 109 82
+step 110 7
+step 111 61
+step 112 0
+step 113 22
+step 114 82
+step 115 8
+step 116 61
+step 117 0
+step 118 22
+step 119 82
+step 120 5
+step 121 61
+step 122 0
+step 123 30
+step 124 82
+step 125 6
+step 126 61
+step 127 0
+step 128 30
+step 129 82
+step 130 7
+step 131 61
+step 132 0
+step 133 30
+step 134 82
+step 135 8
+step 136 61
+step 137 0
+step 138 30
+step 139 91
+reg 0 0 0008400000000001
+reg 3 0 0200000723500031
+reg 4 0 0200000427000031
+reg 5 0 0200005557200031
+reg 6 0 0207277001600031
+reg 7 0 0203572000000501
+reg 8 0 0200100007341031
+reg 9 0 0206603550000501
+reg 10 0 0200000007600011
+reg 11 0 0200000000072531
+reg 12 0 0200000207250501
+reg 13 0 0200000000001531
+reg 14 0 0200000720625501
+reg 15 0 0200000007200531
+reg 16 0 0200000005272501
+reg 17 0 0200000007200531
+reg 18 0 0200000000007501
+reg 19 0 0200000007235531
+reg 20 0 0200000000070501
+reg 21 0 0200000000052531
+reg 22 0 0200000000072501
+reg 23 0 0200000000055531
+reg 24 0 0205200000000001
+reg 25 0 0200000000050531
+reg 26 0 0205500000000001
+reg 27 0 0200000000026531
+reg 28 0 0207000000000001
+reg 29 0 0200000000065531
+reg 30 0 0207200000000001
+reg 31 0 0200000000152531
+reg 32 0 0200055000000001
+reg 33 0 0200700720000531
+reg 34 0 0200070000000001
+reg 35 0 0206555720000531
+reg 36 0 0200072000000001
+reg 37 0 0205520010000531
+reg 38 0 0200072000000001
+reg 39 0 0205672000000531
+reg 40 0 0200072000000001
+reg 41 0 0207400000000531
+reg 42 0 0200072350000001
+reg 43 0 0202000000000531
+reg 44 0 0200000500000001
+reg 45 0 0202000000000531
+reg 46 0 0200000720000001
+reg 47 0 0206500000000531
+reg 48 0 0200000005200001
+reg 49 0 0205541000000531
+reg 50 0 0200000005500001
+reg 51 0 0207672000000531
+reg 52 0 0200000005000001
+reg 53 0 0203500000000011
+reg 54 0 0200000520072531
+reg 55 0 0207225006500001
+reg 56 0 0205200007200011
+reg 57 0 0200007000020531
+reg 58 0 0205672356500001
+reg 59 0 0205200002052011
+reg 60 0 0200020000074531
+reg 61 0 0202600705200001
+reg 62 0 0205200002050011
+reg 63 0 0200072075265531
+reg 64 0 0206500745500001
+reg 65 0 0205200007220011
+reg 66 0 0200042507752531
+reg 67 0 0205000206000001
+reg 68 0 0205500002072011
+reg 69 0 0200020520000531
+reg 70 0 0202600727200001
+reg 71 0 0202600006572011
+reg 72 0 0200072000000531
+reg 73 0 0202600007600001
+reg 74 0 0207200005272031
+reg 75 0 0205200000000001
+reg 76 0 0205200000000501
+reg 77 0 0207200070000031
+reg 78 0 0205200000000001
+reg 79 0 0205500000072501
+reg 80 0 0207252520000031
+reg 81 0 0201500000072501
+reg 82 0 0200052520000031
+reg 83 0 0207272250020501
+reg 84 0 0200032000000031
+reg 85 0 0200076722535501
+reg 86 0 0207272000000031
+reg 87 0 0200000007200501
+reg 88 0 0200032000000031
+reg 89 0 0200001000000031
+reg 90 0 0200000000000041
+key 43
+key 92
+key 92
+key 61
+key 92
+key 82
+key 83
+key 41
+key 92
+key 42
+key 31
+key 21
+key 41
+key 31
+key 25
+key 81
+key 61
+key 92
+key 82
+key 62
+fullSpeed
+key 91
+module -
+printer 1
+model TI-59
+skipReset 0
+END
+STATE examples/switzerland.ti59 479 1
+partition 159 1
+step 0 92
+step 1 0
+step 2 0
+step 3 76
+step 4 11
+step 5 0
+step 6 69
+step 7 5
+step 8 23
+step 9 53
+step 10 0
+step 11 0
+step 12 86
+step 13 0
+step 14 0
+step 15 91
+step 16 69
+step 17 0
+step 18 2
+step 19 42
+step 20 1
+step 21 69
+step 22 21
+step 23 73
+step 24 1
+step 25 42
+step 26 2
+step 27 83
+step 28 2
+step 29 71
+step 30 11
+step 31 69
+step 32 0
+step 33 61
+step 34 0
+step 35 22
+step 99 82
+step 100 5
+step 101 61
+step 102 0
+step 103 22
+step 104 82
+step 105 6
+step 106 61
+step 107 0
+step 108 22
+step 109 82
+step 110 7
+step 111 61
+step 112 0
+step 113 22
+step 114 82
+step 115 8
+step 116 61
+step 117 0
+step 118 22
+step 119 82
+step 120 5
+step 121 61
+step 122 0
+step 123 30
+step 124 82
+step 125 6
+step 126 61
+step 127 0
+step 128 30
+step 129 82
+step 130 7
+step 131 61
+step 132 0
+step 133 30
+step 134 82
+step 135 8
+step 136 61
+step 137 0
+step 138 30
+step 139 91
+reg 0 0 0008400000000001
+reg 3 0 0200000723500031
+reg 4 0 0200000427000031
+reg 5 0 0200005557200031
+reg 6 0 0207277001600031
+reg 7 0 0203572000000501
+reg 8 0 0200100007341031
+reg 9 0 0206603550000501
+reg 10 0 0200000007600011
+reg 11 0 0200000000072531
+reg 12 0 0200000207250501
+reg 13 0 0200000000001531
+reg 14 0 0200000720625501
+reg 15 0 0200000007200531
+reg 16 0 0200000005272501
+reg 17 0 0200000007200531
+reg 18 0 0200000000007501
+reg 19 0 0200000007235531
+reg 20 0 0200000000070501
+reg 21 0 0200000000052531
+reg 22 0 0200000000072501
+reg 23 0 0200000000055531
+reg 24 0 0205200000000001
+reg 25 0 0200000000050531
+reg 26 0 0205500000000001
+reg 27 0 0200000000026531
+reg 28 0 0207000000000001
+reg 29 0 0200000000065531
+reg 30 0 0207200000000001
+reg 31 0 0200000000152531
+reg 32 0 0200055000000001
+reg 33 0 0200700720000531
+reg 34 0 0200070000000001
+reg 35 0 0206555720000531
+reg 36 0 0200072000000001
+reg 37 0 0205520010000531
+reg 38 0 0200072000000001
+reg 39 0 0205672000000531
+reg 40 0 0200072000000001
+reg 41 0 0207400000000531
+reg 42 0 0200072350000001
+reg 43 0 0202000000000531
+reg 44 0 0200000500000001
+reg 45 0 0202000000000531
+reg 46 0 0200000720000001
+reg 47 0 0206500000000531
+reg 48 0 0200000005200001
+reg 49 0 0205541000000531
+reg 50 0 0200000005500001
+reg 51 0 0207672000000531
+reg 52 0 0200000005000001
+reg 53 0 0203500000000011
+reg 54 0 0200000520072531
+reg 55 0 0207225006500001
+reg 56 0 0205200007200011
+reg 57 0 0200007000020531
+reg 58 0 0205672356500001
+reg 59 0 0205200002052011
+reg 60 0 0200020000074531
+reg 61 0 0202600705200001
+reg 62 0 0205200002050011
+reg 63 0 0200072075265531
+reg 64 0 0206500745500001
+reg 65 0 0205200007220011
+reg 66 0 0200042507752531
+reg 67 0 0205000206000001
+reg 68 0 0205500002072011
+reg 69 0 0200020520000531
+reg 70 0 0202600727200001
+reg 71 0 0202600006572011
+reg 72 0 0200072000000531
+reg 73 0 0202600007600001
+reg 74 0 0207200005272031
+reg 75 0 0205200000000001
+reg 76 0 0205200000000501
+reg 77 0 0207200070000031
+reg 78 0 0205200000000001
+reg 79 0 0205500000072501
+reg 80 0 0207252520000031
+reg 81 0 0201500000072501
+reg 82 0 0200052520000031
+reg 83 0 0207272250020501
+reg 84 0 0200032000000031
+reg 85 0 0200076722535501
+reg 86 0 0207272000000031
+reg 87 0 0200000007200501
+reg 88 0 0200032000000031
+reg 89 0 0200001000000031
+reg 90 0 0200000000000041
+key 43
+key 92
+key 92
+key 61
+key 92
+key 82
+key 83
+key 41
+key 92
+key 42
+key 31
+key 21
+key 41
+key 31
+key 25
+key 81
+key 61
+key 92
+key 82
+key 62
+fullSpeed
+key 91
+module -
+printer 1
+model TI-59
 skipReset 0
 END
 STATE examples/texas-print.ti59 479 0
@@ -31957,7 +33322,6 @@ key 72
 key 72
 wait 1
 key 91
-waitFullSpeed 1
 key 21
 key 32
 key 31
@@ -31976,8 +33340,8 @@ key 61
 key 92
 key 82
 key 62
+fullSpeed
 key 91
-waitFullSpeed 2
 cue template MagnetCard
 cue title TI Logo
 cue banks 1 2
@@ -32816,7 +34180,6 @@ key 72
 key 72
 wait 1
 key 91
-waitFullSpeed 1
 key 21
 key 32
 key 31
@@ -32835,8 +34198,8 @@ key 61
 key 92
 key 82
 key 62
+fullSpeed
 key 91
-waitFullSpeed 2
 cue template MagnetCard
 cue title TI Logo
 cue banks 1 2
@@ -33675,7 +35038,6 @@ key 72
 key 72
 wait 1
 key 91
-waitFullSpeed 1
 key 21
 key 32
 key 31
@@ -33694,8 +35056,8 @@ key 61
 key 92
 key 82
 key 62
+fullSpeed
 key 91
-waitFullSpeed 2
 cue template MagnetCard
 cue title TI Logo
 cue banks 1 2
@@ -34093,7 +35455,6 @@ key 83
 key 95
 wait 1.5
 wait 0.25
-waitFullSpeed 2
 fullSpeed
 regularSpeed
 zeroElapseTime
@@ -34186,7 +35547,6 @@ key 83
 key 95
 wait 1.5
 wait 0.25
-waitFullSpeed 2
 fullSpeed
 regularSpeed
 zeroElapseTime
@@ -34280,7 +35640,6 @@ key 83
 key 95
 wait 1.5
 wait 0.25
-waitFullSpeed 2
 fullSpeed
 regularSpeed
 zeroElapseTime

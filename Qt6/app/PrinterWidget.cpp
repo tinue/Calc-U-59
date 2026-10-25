@@ -45,21 +45,26 @@ public:
         double y = 0;
         for (int i = 0; i < lines.size() && y < visibleBottom; ++i) {
             const PrinterCodeLine* line = static_cast<size_t>(i) < codes.size() ? &codes[static_cast<size_t>(i)] : nullptr;
-            const double lineHeight = PrinterGeometry::lineHeightUnits(lines[i].isEmpty(), line ? line->rowCount : 7) * pitch;
-            if (lines[i].isEmpty() || y + lineHeight < visibleTop) {
+            const double lineHeight = PrinterGeometry::lineHeightUnits(lines[i].isEmpty(), line) * pitch;
+            if (!line || lines[i].isEmpty() || y + lineHeight < visibleTop) {
                 y += lineHeight;
                 continue;
             }
-            int rows = PrinterGeometry::clampRowCount(line ? line->rowCount : 7);
-            for (int row = 0; row < rows; ++row) {
+            const auto dots = PrinterGeometry::lineDots(line);
+            for (int row = 0; row < dots.drawnRows; ++row) {
+                const uint8_t inked = dots.inked[row], faint = dots.faint[row];
                 double cy = y + (row + 0.5) * pitch;
-                for (int ch = 0; ch < 20 && line; ++ch) {
-                    uint8_t bits = cu59::kPC100CFont[line->codes[static_cast<size_t>(ch)] & 0x3F][row];
+                for (int ch = 0; ch < 20; ++ch) {
+                    uint8_t bits = cu59::kPC100CFont[line->codes[static_cast<size_t>(ch)] & 0x3F][row] & inked;
                     double cx0 = ch * PrinterGeometry::charStepUnits * pitch;
-                    for (int col = 0; col < 5; ++col)
-                        if (bits & (0x10 >> col)) p.drawEllipse(QPointF(cx0 + (col + 0.5) * pitch, cy), radius, radius);
+                    for (int col = 0; col < 5; ++col) {
+                        if (!(bits & (0x10 >> col))) continue;
+                        p.setOpacity((faint & (0x10 >> col)) ? dots.faintAlpha : 1.0);
+                        p.drawEllipse(QPointF(cx0 + (col + 0.5) * pitch, cy), radius, radius);
+                    }
                 }
             }
+            p.setOpacity(1.0);
             y += lineHeight;  // a complete line ends with the stepper's advance; a cut-short one doesn't
         }
     }
@@ -121,8 +126,7 @@ PrinterWidget::PrinterWidget(EmulatorController& controller, QWidget* parent) : 
     hrow->setContentsMargins(8, 8, 8, 8);
     m_connect = pill(QString(), header);
     connect(m_connect, &QPushButton::clicked, this, [this] {
-        m_controller.setPrinterConnected(!m_controller.printerConnected());
-        m_controller.resetMachine();
+        m_controller.togglePrinterConnection();
     });
     m_mode = pill(QStringLiteral("•••"), header);
     m_mode->setToolTip(QStringLiteral("Dot / text view"));

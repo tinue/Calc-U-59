@@ -28,7 +28,7 @@ final class PresetLoadTests: XCTestCase {
 
     /// Loading diag.ti59 via the file picker must trigger keystroke playback.
     ///
-    /// diag.ti59 contains "KEYSTROKES: 15 + WaitFullSpeed: 3s" which auto-starts
+    /// test_diag.ti59 contains "KEYSTROKES: FullSpeed: + 15" which auto-starts
     /// the diagnostic. The keystroke-playback-status element transitions to
     /// "playing" — that is the proof of a successful load.
     @MainActor

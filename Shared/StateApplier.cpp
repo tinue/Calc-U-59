@@ -11,15 +11,19 @@ namespace {
 /// stack and display driver once program/data are written.
 constexpr uint32_t kStartupSteps = 300'000;
 
-/// Program steps zero-padded to the model's physical capacity — not the
-/// PARTITION boundary: some listings deliberately load registers as programs
-/// and programs as registers (examples/calendar-05-vanderburgh.ti59), so
-/// PROGRAM: and REGISTERS: are trusted as written.
-void writeProgram(TI59Machine& m, const LoadStateResult& r, Model model) {
+/// Program steps zero-padded to `steps` (at least up to the last listed step).
+/// A full load pads to the model's physical capacity — not the PARTITION
+/// boundary: some listings deliberately load registers as programs and
+/// programs as registers (examples/calendar-05-vanderburgh.ti59), so PROGRAM:
+/// and REGISTERS: are trusted as written.
+void writeProgram(TI59Machine& m, const LoadStateResult& r, Model model, int steps) {
     int physicalMaxStep = info(model).maxStep();
-    std::vector<uint8_t> program(static_cast<size_t>(physicalMaxStep + 1), 0);
     for (const auto& s : r.programSteps)
-        if (s.stepAddr >= 0 && s.stepAddr <= physicalMaxStep) program[static_cast<size_t>(s.stepAddr)] = s.keycode;
+        if (s.stepAddr >= steps && s.stepAddr <= physicalMaxStep) steps = s.stepAddr + 1;
+    std::vector<uint8_t> program(static_cast<size_t>(std::min(steps, physicalMaxStep + 1)), 0);
+    for (const auto& s : r.programSteps)
+        if (s.stepAddr >= 0 && static_cast<size_t>(s.stepAddr) < program.size())
+            program[static_cast<size_t>(s.stepAddr)] = s.keycode;
     m.writeProgram(program.data(), static_cast<int>(program.size()));
 }
 
@@ -62,13 +66,16 @@ void applyState(TI59Machine& m, const LoadStateResult& r, Model model) {
     int clearUpTo = mi.hasConstantMemory ? kExtraRegisterBase : 120;
     for (int reg = 0; reg < clearUpTo; ++reg) m.writeRAMReg(reg, zero);
 
-    writeProgram(m, r, model);
+    writeProgram(m, r, model, mi.maxStep() + 1);
     writeRegisters(m, r);
 }
 
+// The running machine's data registers are kept: the program is padded only
+// to the end of the program area, as a program read from cards or keyed in
+// would be (examples/fast-grafik-3d-plot-part2.ti59 needs part 1's registers).
 void applySkipResetState(TI59Machine& m, const LoadStateResult& r, Model model) {
     if (r.partitionWasExplicit) setPartition(m, r.partitionMaxStep);
-    if (!r.programSteps.empty()) writeProgram(m, r, model);
+    if (!r.programSteps.empty()) writeProgram(m, r, model, m.partitionProgramRegs() * 8);
     writeRegisters(m, r);
 }
 

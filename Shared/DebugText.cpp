@@ -63,6 +63,26 @@ uint32_t xRegisterColor(double value, const std::string& raw) {
 
 std::string currentStepMarker(bool frozen) { return frozen ? "← next" : "← running"; }
 
+std::string programStepLine(const StepEntry& e, bool frozen) {
+    char buf[16];
+    std::snprintf(buf, sizeof buf, "%03d  %02d  ", e.stepNum, e.keycode);
+    std::string s = buf + e.mnemonic;
+    if (e.isCurrent) s += "  " + currentStepMarker(frozen);
+    return s;
+}
+
+std::string returnLevelLine(int level, int address) {
+    char buf[16];
+    std::snprintf(buf, sizeof buf, "L%d:%03d", level, address);
+    return buf;
+}
+
+std::string inspectorLine(const InspectorEntry& e) {
+    char buf[16];
+    std::snprintf(buf, sizeof buf, "%04X  %04X  ", e.pc, e.opcode);
+    return buf + e.disasm;
+}
+
 uint32_t returnLevelColor(uint8_t sourceFlag, bool zero) {
     switch (sourceFlag) {
     case 0: return zero ? rgb(0.10, 0.30, 0.10) : rgb(0.25, 0.60, 0.25);

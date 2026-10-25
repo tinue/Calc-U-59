@@ -50,8 +50,7 @@ struct PrinterView: View {
             Spacer()
             // Printer toggle button
             Button {
-                viewModel.setPrinterConnected(!viewModel.printerConnected)
-                viewModel.resetMachine()
+                viewModel.togglePrinterConnection()
             } label: {
                 HStack(spacing: 6) {
                     Text("PC-100C")
@@ -279,13 +278,24 @@ struct PrinterView: View {
 
 /// One printed line's dot codes (Bridge TIPrinterLine).
 struct PrinterCodeLine: Equatable {
-    var codes: [UInt8]  // 20 raw character codes (0–63)
-    var rowCount: Int   // dot rows printed: 7 complete, 1–6 cut short
+    var codes: [UInt8]         // 20 raw character codes (0–63)
+    var complete: Bool         // all 7 rows printed, followed by the paper advance
+    var drawnRows: Int         // dot rows on paper (1–7)
+    var inkedColumns: [UInt8]  // per row: font columns that got ink (Shared PrinterGeometry)
+    var faintColumns: [UInt8]  // per row: faint dots, heating cut short
+    var faintAlpha: Double     // ink of the faint dots
 
-    static let blank = PrinterCodeLine(codes: Array(repeating: 0, count: 20), rowCount: 7)
+    static let blank = PrinterCodeLine(codes: Array(repeating: 0, count: 20), complete: true, drawnRows: 7,
+                                       inkedColumns: Array(repeating: 0x1F, count: 7),
+                                       faintColumns: Array(repeating: 0, count: 7), faintAlpha: 1)
+}
 
-    init(codes: [UInt8], rowCount: Int) { self.codes = codes; self.rowCount = rowCount }
-    init(_ t: TIPrinterLine) { self.init(codes: [UInt8](t.codes), rowCount: t.rowCount) }
+extension PrinterCodeLine {
+    init(_ t: TIPrinterLine) {
+        self.init(codes: [UInt8](t.codes), complete: t.complete, drawnRows: t.drawnRows,
+                  inkedColumns: [UInt8](t.inkedColumns), faintColumns: [UInt8](t.faintColumns),
+                  faintAlpha: Double(t.faintAlpha))
+    }
 }
 
 struct PrinterDotLine: View {
@@ -310,8 +320,6 @@ struct PrinterDotLine: View {
     private static let dotRadiusFraction = TIViewRules.printerDotRadiusFraction  // of the dot pitch
     private static let interLineGap      = TIViewRules.printerInterLineGap       // ≈ 3.18 dp stepper advance
 
-    // 7 = complete line; 1–6 = aborted mid-stroke (partial dot-rows visible on paper).
-    private var rowCount: Int { TIViewRules.printerClampRowCount(line.rowCount) }
 
     // Dot-row model: each row is a separate Canvas with aspect ratio widthUnits:1
     // (one dot-pitch tall, full line width). This gives SwiftUI a concrete height per
@@ -322,10 +330,10 @@ struct PrinterDotLine: View {
     // the stepper's paper advance. Partial lines have no spacer — the motor stopped hard.
     var body: some View {
         VStack(spacing: 0) {
-            ForEach(0..<rowCount, id: \.self) { rowIdx in
+            ForEach(0..<line.drawnRows, id: \.self) { rowIdx in
                 singleRow(rowIdx)
             }
-            if rowCount == 7 {
+            if line.complete {
                 Color.clear
                     .aspectRatio(Self.widthUnits / Self.interLineGap, contentMode: .fit)
             }
@@ -339,15 +347,20 @@ struct PrinterDotLine: View {
             let charStep = (5.0 + Self.charGap) * dotPitch
             let dotY     = size.height * 0.5  // vertically centred in the one-row canvas
 
+            // A line cut short by the printer interrupt: the row in progress has
+            // only its rightmost columns, the last of them possibly faint.
+            let inked = line.inkedColumns[rowIdx], faint = line.faintColumns[rowIdx]
             for charIdx in 0..<min(codes.count, 20) {
-                let bits = TISharedTables.printerFontRow(forCode: codes[charIdx], row: rowIdx)
+                let bits = TISharedTables.printerFontRow(forCode: codes[charIdx], row: rowIdx) & inked
                 let charX = Double(charIdx) * charStep
                 for colIdx in 0..<5 {
-                    guard bits & (0x10 >> colIdx) != 0 else { continue }
+                    let mask = UInt8(0x10 >> colIdx)
+                    guard bits & mask != 0 else { continue }
                     let dotX = charX + (Double(colIdx) + 0.5) * dotPitch
                     let rect = CGRect(x: dotX - dotR, y: dotY - dotR,
                                       width: 2 * dotR, height: 2 * dotR)
-                    ctx.fill(Path(ellipseIn: rect), with: .color(dotColor))
+                    ctx.fill(Path(ellipseIn: rect),
+                             with: .color(faint & mask != 0 ? dotColor.opacity(line.faintAlpha) : dotColor))
                 }
             }
         }

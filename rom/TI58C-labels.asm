@@ -27,7 +27,7 @@
 0784  KEY_ENCODE         [T] pack key row/col into 2-digit position code in D
 02CA  KEY_USERDEF        [D] keyboard row 1 (A–E user-defined label keys); bypasses KEY_TABLE
 02D9  DISP_REBUILD       [T] entry display build (02D9–02E9, continued at 0417–0432): control image in B for the number being typed in A (sign marker, dp position, EE layout); drops pending trace record (02DA)
-063F  ERR_BLINK          [T] error-blink service: runs each idle pass while fB[9] set; D[1..3] pass counter, hundreds-digit parity gates SET.IDLE (100 dark : 100 lit passes, ≈ 400 + 533 ms; TI-59 counts 4 per lit pass to offset its ¼-speed idle)
+063F  ERR_BLINK          [T] error-blink service: runs each idle pass while fB[9] set; D[1..3] pass counter, hundreds-digit parity gates SET.IDLE (100 dark : 100 lit passes, ≈ 388 + 517 ms; TI-59 counts 4 per lit pass to offset its ¼-speed idle)
 
 ; ── Keyboard dispatch table and key handlers ────────────────────────────────
 ; The computed jump at 06A9 lands at 0x0<col><row>. Slots at x1–x9 only;

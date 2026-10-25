@@ -11,9 +11,9 @@ the headless harness. Statements marked *derived* come from reading the code
 without a trace that shows them directly.
 
 ```bash
-tools/headless/ti59.py --variant TI58C 5 + 7 =       # TI-58C trace
-tools/headless/ti59.py 5 + 7 =                       # the same on the TI-59
-tools/headless/coverage.py --variant TI58C show 0350 03A6
+uv run python tools/headless/ti59.py --variant TI58C 5 + 7 =       # TI-58C trace
+uv run python tools/headless/ti59.py 5 + 7 =                       # the same on the TI-59
+uv run python tools/headless/coverage.py --variant TI58C show 0350 03A6
 ```
 
 Addresses are TI-58C ROM addresses unless written "TI-59 XXXX". The listing
@@ -39,6 +39,7 @@ carries one of these tags:
 | Default partition | 479.59 (TI-58: 239.29) | 239.29 |
 | Card reader | yes (TI-58: code present, no reader) | no, code removed |
 | Printer-present line | KP at digit 0 | KP at digit 10 |
+| Clock | TP0240 clock chip, 455/384 kHz resonator | no clock chip: a DSCOM's own oscillator, PHI ≈ 195–200 kHz |
 | Idle instructions | ¼ speed | full speed |
 
 **How much is shared.**
@@ -83,6 +84,13 @@ causes compound:
      around this (see "Idle loop").
    - The trace gate, List, Adv, Prt and the new Op 40 all test the line at
      the new digit.
+   - *Reason:* the board has no D0. The TI-58C has no clock chip and no
+     resonator; its clock comes from the oscillator built into one of its
+     TMC0580 DSCOM chips (CD2400 or CD2401). In the 28-pin package that
+     oscillator's CLK pad is bonded to pin 14, which otherwise carries D0
+     (http://www.datamath.org/Chips/TMC0580.htm). The TI-59's printer
+     test at D0 then had nowhere to go. Measured on an opened unit:
+     `reference/CoreArchitecture.md`, "TI-58C clock".
 4. **The card-reader code went away.** That freed most of 1680–17FF, which
    now holds a factory self-test and relocated routines.
 5. **The ROM is a later revision.**
@@ -203,24 +211,24 @@ speed. The ROM compensates in one place only:
 
 | Activity | TI-59 | TI-58C | Compensated? |
 |---|---|---|---|
-| Error blink | 4 counts per lit pass, both phases ≈ 450 ms with printer: period 0.90 s; stand-alone 0.45 s (both measured on a real TI-59) | 1 count per pass, 100 + 100 passes ≈ 400 + 533 ms: period 0.933 s (0.920 s measured on a real TI-58C with a 389.4 kHz clock, which the model gives at that clock); with printer 333 + 400 ms | yes: the lit-phase +3 was dropped; the period stays ≈ 0.9 s |
-| Steady idle pass | 9.0 ms (18.0 ms with printer) | 4.0 ms (6.7 ms with printer) | — |
-| Key debounce gap (one digit sweep) | 4.5 ms | 1.33 ms | no |
-| Pause (DISPLAY_PEEK `04E2`, unchanged) | 432 ms | 128 ms | no |
-| GTO peek while running | 216 ms | 64 ms | no |
+| Error blink | 4 counts per lit pass, both phases ≈ 450 ms with printer: period 0.90 s; stand-alone 0.45 s (both measured on a real TI-59) | 1 count per pass, 100 + 100 passes ≈ 390 + 520 ms: period 0.910 s; with printer 325 + 390 ms: 0.715 s | yes: the lit-phase +3 was dropped; the period stays ≈ 0.9 s |
+| Steady idle pass | 9.0 ms (18.0 ms with printer) | 3.9 ms (6.5 ms with printer) | — |
+| Key debounce gap (one digit sweep) | 4.5 ms | 1.30 ms | no |
+| Pause (DISPLAY_PEEK `04E2`, unchanged) | 432 ms | 121 ms | no |
+| GTO peek while running | 216 ms | 60 ms | no |
 
 The TI-59 blink and Pause figures were checked against a real TI-59 filmed
 next to a stopwatch. On the TI-59 the printer-present line sits at D0, which
 its idle scan sees as a "row 0" key and discards: two extra digit sweeps per
 pass with a printer ("Printer line in the idle scan",
-`reference/CoreArchitecture.md`). The TI-58C times are computed from the emulator's model: 384 kHz ÷ 32 =
-12,000 instructions per second (the TI-58's part, assumed), idle at full
-speed. Real units vary: one measured PHI 194.7 kHz (389.4 kHz) and blinks
-0.920 s, another blinks 0.896 s (as at 400 kHz); each unit's other
-measurements are compared at the clock its blink gives.
-The short Pause is real: a filmed TI-58C (the 0.896 s unit) shows each
-Pause lit for about 0.122 s; the model gives 0.118–0.120 s at that unit's
-clock.
+`reference/CoreArchitecture.md`). The TI-58C times are the emulator's at
+394 kHz (12,312.5 instructions per second, idle at full speed). The
+instruction counts behind them match a real TI-58C exactly: the blink is
+11,200 instructions per period (8,800 with the printer), a Pause shows for
+1,489 idle instructions. In seconds a real unit differs, because its clock
+is a DSCOM's own oscillator: it differs between units (PHI ≈ 195–200 kHz)
+and wanders by about 0.8% between sessions ("TI-58C clock",
+`reference/CoreArchitecture.md`).
 
 ## Bug fixes
 
@@ -347,6 +355,31 @@ Some fixed tables kept their addresses but changed content:
   but a different instruction sits there now. Listing it prints a "0" line
   where the TI-59 prints a blank one.
 
+### Pseudo-keycodes
+
+`rom/TI59-ROM-Guide.md` § "Pseudo-keycodes" covers both machines. Step
+dispatch, the keyboard table and the operation sequences are the same, so
+every code lands in the same slot. The nine cold-start codes and the
+Trace-mode fold are also the same. The differences come from the code that
+was moved and from constant memory:
+
+- **Cold start** keeps the partition, which the TI-59 resets to 479.59.
+- **1E (Acosta's h24)** lands at the scanner's `0EE1` on both machines.
+  On the TI-58C that address leads into the step-buffer code (`0C0B`
+  PRGREG_CACHE) and back to `STEP_DISPATCH` (`082B`), so the next steps are
+  read one digit out of step: `1E 10 20 30 10 09 91` enters the digits 123.
+  The TI-59 runs other code there.
+- **4E (h54)** at step 8k copies t into the display on both machines. On
+  the TI-58C, `2 + 7 x⇄t h54 =` gives 9, so the pending addition survives.
+  On the TI-59 it gives 2.
+- **Label search** past a code (code at 000, Lbl A at 001, key A) finds the
+  label only for 0A–0F and 4E. On the TI-59, eight more codes work by
+  chance. The scanner lands at the same addresses on both machines, but
+  the code there differs.
+
+Where the two machines differ (1E, 4E), Acosta's results (TI PPC Notes
+V6N9/10 p14) match the TI-58C. He names the TI-58C for the clear codes.
+
 ## SCOM and flag changes
 
 - **SCOM[9] nibble 1:** the high nibble of E000's address (3, or 7 with a
@@ -377,13 +410,13 @@ Both are recorded here and not fixed in `Core/`:
 
 ## Open questions
 
-- Real-hardware Pause, GTO-peek and error-blink durations (see "Idle loop
-  and timing").
+- The GTO-peek duration on real hardware (the Pause and the error blink are
+  confirmed: "Idle loop and timing").
 - What the test fixture drives on KN at digits 15, 8 and 9 and on KR at
   digit 10, and what lives at 0x1800.
 - Purpose not established:
   - `08A6` CLR fA[9] at every step fetch;
-  - `047F` and `16B2`, jumps to the next word between a `MEMRD` and the
+  - `047E` and `16B2`, jumps to the next word between a `MEMRD` and the
     following operation;
   - the KR[4..7] parking around the SCOM[10] store in LRN_STORE
     (`1467–1473`);

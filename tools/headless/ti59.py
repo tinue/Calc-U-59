@@ -11,7 +11,7 @@ Library use:
     print(m.format(recs))    # annotated trace
 
 CLI:
-    tools/headless/ti59.py 5 + 7 = [--full] [--module ML] [--quiet-idle]
+    tools/headless/ti59.py 5 + 7 = [--full] [--module ML]
 Each argument is one key name (see KEYS); "2nd:x" style is not needed —
 press "2nd" then the key, as on the hardware.
 """
@@ -85,7 +85,8 @@ def _lib():
     for name in ("h_free", "h_reset", "h_press",
                  "h_release", "h_printer", "h_trace_sw", "h_stepn", "h_record", "h_snapshot",
                  "h_ram_read", "h_ram_write", "h_write_program", "h_display", "h_pc",
-                 "h_lib_exec_pc", "h_printer_lines", "h_printer_print", "h_printer_adv"):
+                 "h_lib_exec_pc", "h_printer_lines", "h_printer_code_lines", "h_printer_print",
+                 "h_printer_adv"):
         getattr(lib, name).argtypes = None
     lib.h_stepn.argtypes = [C.c_void_p, C.c_uint32]
     lib.h_load_model_roms.argtypes = [C.c_void_p, C.c_int, C.c_char_p]
@@ -100,6 +101,8 @@ def _lib():
     lib.h_disasm.argtypes = [C.c_uint16, C.c_uint16, C.c_char_p, C.c_int]
     lib.h_instruction_hz.argtypes = [C.c_int]
     lib.h_instruction_hz.restype = C.c_double
+    lib.h_printer_busy_cycles.argtypes = [C.c_int]
+    lib.h_printer_busy_cycles.restype = C.c_uint32
     lib.h_idle_range.argtypes = [C.c_int, C.POINTER(C.c_int)]
     assert lib.h_rec_size() == C.sizeof(HRec), "HRec layout mismatch with capi.cpp"
     return lib
@@ -302,6 +305,16 @@ class Machine:
         b = C.create_string_buffer(65536)
         n = LIB.h_printer_lines(self.h, b, 65536)
         return b.raw[:n].decode("utf-8", "replace").splitlines()
+
+    def printer_code_lines(self) -> list[tuple[list[int], int, int, int]]:
+        """New dot-matrix lines since the last call: (20 printer codes, rows,
+        columns of the next row started before a cut, cycles the leftmost of
+        them was heated)."""
+        cap = 65536  # the C side drains its whole queue; lines past cap are lost
+        b = C.create_string_buffer(23 * cap)
+        n = LIB.h_printer_code_lines(self.h, b, cap)
+        return [(list(b.raw[23 * i : 23 * i + 20]), b.raw[23 * i + 20], b.raw[23 * i + 21],
+                 b.raw[23 * i + 22]) for i in range(n)]
 
     # ── formatting ─────────────────────────────────────────────────────────
     @staticmethod

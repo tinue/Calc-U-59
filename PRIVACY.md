@@ -1,6 +1,6 @@
 # Privacy Policy — Calc-U-59
 
-**Last updated: 2026-10-21**
+**Last updated: 2026-10-25**
 
 Calc-U-59 is a cycle-accurate emulator of three famous programmable calculators of the late 1970s and early 1980s. This policy covers the macOS, iOS and iPadOS app, the Windows and Linux app, and the website at calc-u.org.
 
@@ -30,7 +30,9 @@ stores card files and the TI-58C constant memory file in a local folder
 The website sets no cookies and uses no analytics or tracking. Fonts,
 scripts and images are all served from the site itself; nothing is loaded
 from third-party servers. The web calculator stores its own files in your
-browser's cache so it also works offline; that copy stays on your device.
+browser's cache so it also works offline, and keeps its settings and the
+TI-58C's constant memory in your browser's local storage; all of that stays
+on your device.
 
 The site is hosted on GitHub Pages. GitHub logs the IP addresses of
 visitors for security purposes, as described in the

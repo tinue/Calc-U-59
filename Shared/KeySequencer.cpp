@@ -164,8 +164,6 @@ std::optional<KeySequencer::Clock::time_point> KeySequencer::step(Lane& lane, Ta
             return poll();
         case P::Sleeping:
             if (now < task.wake && !lane.cancelled(task.generation)) return task.wake;
-            if (task.restoreSpeed) m_host.setFullSpeed(*task.restoreSpeed);
-            task.restoreSpeed.reset();
             task.phase = P::Next;
             break;
         case P::Next: {
@@ -185,12 +183,6 @@ std::optional<KeySequencer::Clock::time_point> KeySequencer::step(Lane& lane, Ta
                 break;
             case K::ToggleTrace: m_host.togglePrinterTrace(); break;
             case K::Wait:
-                task.wake = now + seconds(e.seconds);
-                task.phase = P::Sleeping;
-                break;
-            case K::WaitFullSpeed:
-                task.restoreSpeed = m_host.fullSpeed();
-                m_host.setFullSpeed(true);
                 task.wake = now + seconds(e.seconds);
                 task.phase = P::Sleeping;
                 break;

@@ -43,6 +43,15 @@ uint32_t returnLevelColor(uint8_t sourceFlag, bool zeroAddress);
 /// about to execute), "← running" while running.
 std::string currentStepMarker(bool frozen);
 
+/// A program step: "038  42  STO", with the current-step marker on the current one.
+std::string programStepLine(const StepEntry& e, bool frozen);
+
+/// Return-stack level n (1–6): "L1:038".
+std::string returnLevelLine(int level, int address);
+
+/// A CPU inspector row: "0837  0A12  " and the disassembly.
+std::string inspectorLine(const InspectorEntry& e);
+
 /// Background of the current program step: yellow ROM, blue module, green otherwise.
 uint32_t stepHighlightColor(ProgramSource source);
 

@@ -51,7 +51,6 @@ public:
         /// The key shown pressed (row×5 + col, 0-based), -1 for none.
         virtual void heldKeyChanged(int highlightID) = 0;
         // KEYSTROKES playback
-        virtual bool fullSpeed() = 0;
         virtual void setFullSpeed(bool on) = 0;
         virtual void togglePrinterTrace() = 0;
         virtual void scriptedTrace(const std::optional<std::string>& fileName) = 0;  ///< nullopt = stop
@@ -102,7 +101,7 @@ private:
             WaitingToPress,  ///< poll every kScanPoll until the CPU is in the scan loop, then press
             Holding,         ///< key down until `wake` (a cancel does not cut it short)
             WaitingIdle,     ///< key up; poll every kScanPoll until the CPU is in the scan loop
-            Sleeping,        ///< Wait / WaitFullSpeed until `wake` (a cancel ends it)
+            Sleeping,        ///< Wait until `wake` (a cancel ends it)
         };
         std::vector<KeystrokeEvent> events;  ///< a keyboard tap sequence holds Key events only
         bool script = false;
@@ -111,7 +110,6 @@ private:
         Phase phase = Phase::Next;
         Clock::time_point wake{};
         uint8_t code = 0;                    ///< the key being tapped
-        std::optional<bool> restoreSpeed;    ///< WaitFullSpeed: the speed to go back to
     };
 
     /// A serial queue of tasks; cancel() bumps the generation, which drops

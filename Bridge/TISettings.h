@@ -11,6 +11,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (class, readonly) NSString *solidStateModuleIDKey;
 @property (class, readonly) NSString *traceMaxFileSizeMBKey;
 @property (class, readonly) NSString *ledFontStyleKey;
+@property (class, readonly) NSString *keyboardFeedbackKey;
 
 @property (class, readonly) NSInteger startupLastUsed;
 @property (class, readonly) NSInteger defaultTraceMaxMB;

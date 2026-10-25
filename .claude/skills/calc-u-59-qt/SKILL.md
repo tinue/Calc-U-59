@@ -22,9 +22,10 @@ Everything that isn't drawing: `reference/SharedArchitecture.md`.
 
 ## Rules
 
-1. **Parity with the Swift app** (CLAUDE.md § "Frontend Parity"): a
-   user-visible change here needs the matching Swift change on the same
-   branch, or a `Pending (Swift)` row in `reference/FrontendParity.md`.
+1. **Parity with the Swift app and the web client** (CLAUDE.md § "Frontend
+   Parity"): a user-visible change here needs the matching Swift change, and
+   the web change if the feature is in the web's scope, on the same branch —
+   or a `Pending (Swift)` / `Pending (Web)` row in `reference/FrontendParity.md`.
    Update the table either way.
 2. **No logic in `Qt6/app/`.** Anything that isn't Qt widgets, painting or
    file dialogs belongs in `Shared/` (calc-u-59-shared skill) so the Swift app

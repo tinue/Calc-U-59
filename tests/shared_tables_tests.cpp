@@ -96,9 +96,32 @@ TEST(keyboard_layout_hit_test) {
     CHECK(!keyAt(0.18, 0.0, hit));  // gap between columns, above row 0's expansion
 }
 
+TEST(pointer_tracker) {
+    // A key's centre in canvas space.
+    auto at = [](int row, int col) {
+        const NRect& k = kKeyRects[row][col];
+        return std::pair{k.x + k.w / 2, kKeyboardYStart + (k.y + k.h / 2) * kKeyboardYScale};
+    };
+    PointerTracker p;
+    auto [x0, y0] = at(8, 4);
+    auto c = p.move(x0, y0);
+    CHECK(c.press == 44 && c.release == -1 && !c.fullSpeed);
+    CHECK(p.move(x0, y0).press == -1);  // same key: nothing
+    auto [x1, y1] = at(8, 3);
+    c = p.move(x1, y1);  // drag to the next key
+    CHECK(c.release == 44 && c.press == 43);
+    c = p.move(0.5, kDisplayRect.y + kDisplayRect.h / 2);  // onto the display
+    CHECK(c.fullSpeed == std::optional<bool>(true) && c.release == 43 && p.key() == -1);
+    c = p.up();
+    CHECK(c.fullSpeed == std::optional<bool>(false) && c.release == -1);
+    p.move(x0, y0);
+    c = p.move(0.5, 0.0);  // off the keyboard
+    CHECK(c.release == 44 && c.press == -1 && !c.fullSpeed);
+}
+
 TEST(model_info) {
     CHECK_EQ(info(Model::TI59).instructionHz, 14218.75);
-    CHECK_EQ(info(Model::TI58C).instructionHz, 12000.0);
+    CHECK_EQ(info(Model::TI58C).instructionHz, 12312.5);
     CHECK(info(Model::TI59).hasCardReader && !info(Model::TI58).hasCardReader);
     CHECK(info(Model::TI58C).scanLoop.contains(0x0A2E) && !info(Model::TI58C).scanLoop.contains(0x065A));
     CHECK(info(Model::TI59).scanLoop.contains(0x0660));  // printer line at D0: confirm scan every pass
@@ -107,11 +130,39 @@ TEST(model_info) {
 
 TEST(printer_strip_geometry) {
     using G = PrinterGeometry;
-    CHECK_EQ(G::lineHeightUnits(true, 7), G::feedHeightUnits);
-    CHECK_EQ(G::lineHeightUnits(false, 7), G::heightUnits);
-    CHECK_EQ(G::lineHeightUnits(false, 3), 3.0);   // cut short: rows only, no advance
-    CHECK_EQ(G::lineHeightUnits(false, 0), 1.0);   // clamped to 1–7
-    CHECK_EQ(G::lineHeightUnits(false, 9), G::heightUnits);
+    auto cut = [](int rows, int cols, int heat = 20) {
+        PrinterCodeLine l;
+        l.rowCount = static_cast<uint8_t>(rows);
+        l.partialColumns = static_cast<uint8_t>(cols);
+        l.partialHeat = static_cast<uint8_t>(heat);
+        return l;
+    };
+    const PrinterCodeLine l70 = cut(7, 0), l30 = cut(3, 0), l32 = cut(3, 2), l65 = cut(6, 5), l00 = cut(0, 0);
+    CHECK_EQ(G::lineHeightUnits(true, &l70), G::feedHeightUnits);
+    CHECK_EQ(G::lineHeightUnits(false, &l70), G::heightUnits);
+    CHECK_EQ(G::lineHeightUnits(false, nullptr), G::heightUnits);  // no code line: complete
+    CHECK_EQ(G::lineHeightUnits(false, &l30), 3.0);   // cut short: rows only, no advance
+    CHECK_EQ(G::lineHeightUnits(false, &l32), 4.0);   // plus the row in progress
+    CHECK_EQ(G::lineHeightUnits(false, &l65), 7.0);   // 7 rows, but no advance
+    CHECK_EQ(G::lineHeightUnits(false, &l00), 1.0);   // at least 1 row
+    const PrinterCodeLine l42 = cut(4, 2, 5);
+    const auto d = G::lineDots(&l42);
+    CHECK(!d.complete && d.drawnRows == 5);
+    CHECK(d.inked[3] == 0x1F && d.inked[4] == 0x03 && d.inked[5] == 0);
+    CHECK(d.faint[4] == 0x02 && d.faint[3] == 0 && d.faintAlpha == G::inkAlpha(5));
+    // The head fires right to left: 2 columns of row 4 are its 2 rightmost.
+    CHECK_EQ(G::inkedColumns(4, 2, 3), 0x1F);
+    CHECK_EQ(G::inkedColumns(4, 2, 4), 0x03);
+    CHECK_EQ(G::inkedColumns(4, 2, 5), 0);
+    CHECK_EQ(G::inkedColumns(4, 0, 4), 0);
+    CHECK_EQ(G::faintColumns(4, 2, 5, 4), 0x02);
+    CHECK_EQ(G::faintColumns(4, 2, 20, 4), 0);
+    CHECK_EQ(G::faintColumns(4, 2, 5, 3), 0);
+    // Ink grows with the heating time: faint at first, full from 20 cycles.
+    CHECK(G::inkAlpha(0) < 0.1 && G::inkAlpha(4) < 0.1);
+    CHECK(G::inkAlpha(12) > 0.25 && G::inkAlpha(12) < 0.35);
+    CHECK(G::inkAlpha(16) > G::inkAlpha(12));
+    CHECK_EQ(G::inkAlpha(20), 1.0);
     double px = G::dotPitchMM / 25.4 * 600;
     CHECK_EQ(G::copyPixelsPerUnit(100), px);
     CHECK_EQ(G::copyPixelsPerUnit(10000), 16000.0 / 10000);

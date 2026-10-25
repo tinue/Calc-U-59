@@ -73,6 +73,14 @@ TEST(apply_skip_reset_touches_only_given_sections) {
     auto rewritten = programSteps(*m);
     CHECK_EQ(rewritten[0], 99);
     CHECK_EQ(rewritten[1], 0);   // zero-padded rewrite
+    CHECK_EQ(reg(*m, 1), 5.0);   // ...up to the partition only: data registers kept
+    CHECK_EQ(reg(*m, 2), 6.0);
+    // A listed step beyond the partition is still written (registers as program).
+    applySkipResetState(*m, parseStateFile("PROGRAM:\n940 77\n", 959), Model::TI59);
+    uint8_t r2[16];
+    m->copyRAMReg(117, r2);      // steps 936-943 = R02 (RAM[119 - 2])
+    CHECK_EQ(r2[(940 & 7) * 2] + 10 * r2[(940 & 7) * 2 + 1], 77);
+    CHECK_EQ(reg(*m, 1), 5.0);
 }
 
 TEST(apply_every_example_file) {

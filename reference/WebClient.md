@@ -8,11 +8,22 @@
 The web client is the third GUI on `Core/` + `Shared/`, next to the Swift
 app (`App/`) and the Qt6 app (`Qt6/`): the real `cu59::SessionController`
 compiled to WebAssembly and run single-threaded in a Web Worker, with React
-components that only draw what it posts and forward input to it. It is
-TI-59 only, with no printer, debugger or traces (`FrontendParity.md` has the
-feature table). It starts with no printer connected, so the calculator runs
-as a stand-alone TI-59 (e.g. its 0.45 s error blink); a preset's `PRINTER:`
-line still connects the invisible one.
+components that only draw what it posts and forward input to it. It has the
+apps' features (`FrontendParity.md`, the Web column) in two layouts:
+
+- **wide** — calculator | printer | debugger, as the macOS window and the
+  Qt `MainWindow`;
+- **portrait** — one page at a time, calculator or printer, switched with
+  corner chevrons, as the iPhone layout; no debugger, no traces. The
+  installable PWA (`app/`) uses it.
+
+Deliberately different from the apps: the LED is Classic only; magnetic
+cards live in an in-memory folder for the page session (upload one to read
+it, download one to keep it); settings and the TI-58C constant memory are
+kept in `localStorage` (keys prefixed `calcu59/`: settings named as in
+`Shared/SettingsKeys.hpp`, the TI-58C memory as `ti58c.mem`); traces are written to Emscripten's MEMFS
+(`/traces`) and handed to the page as downloads. Like the apps, it starts
+with the PC-100C connected.
 
 It is built into a self-contained folder, `Web/dist/`, that does not know
 where it is hosted. The website (https://calc-u.org/59/, repository
@@ -21,29 +32,47 @@ repository, or a local `Web/dist/` for testing) and mounts the calculator
 from it. This document is the contract between the two.
 
 ```
-Web/src/*.jsx ──(Babel, in Node)──▶ calc.js: PlayCalculator ─┐ postMessage
-                                                             ▼
+Web/src/* ──(Babel, in Node)──▶ calc.js: PlayCalculator ─┐ postMessage
+                                                         ▼
 Web/calc-engine-worker.js ── wasm/ti59-core.{js,wasm} ◀── Web/bindings.cpp + Shared/ + Core/ (emcc)
 ```
 
 ## Layout of `Web/`
 
-| Path | Role |
+| Path | Role (Qt counterpart) |
 |---|---|
-| `src/Calculator.jsx` | Key bank (`CALC_ROWS`, grid positions = matrix rows/columns) and `<CalcKey>` |
-| `src/cuecard.jsx` | Draws the cue card `Shared/CueCard` resolved and laid out |
-| `src/led-display.jsx` | Paints the LED canvas from `Shared/SevenSegment` + `LedGeometry` data |
-| `src/PlayCalculator.jsx` | The component: owns the worker, forwards keys, pointer and controls |
+| `src/engine.js` | Starts the worker, keeps what it posts in a store the components subscribe to (`useEngine`), writes `localStorage`, hands out downloads (`EmulatorController`) |
+| `src/painters.js` | Canvas painting: the LED (`LedRenderer`), the cue card's draw list (`CueCardRenderer`), the printer strip (`PrinterWidget::paintStrip`) |
+| `src/CalculatorFace.jsx` | Artwork, LED and cue card overlays, pressed-key effect; pointer input; transparent key buttons for assistive technology (`KeyboardWidget`) |
+| `src/ControlBar.jsx` | Reset / clean reset, model picker, card buttons, Preset, Settings (`ControlBar`) |
+| `src/Dialogs.jsx` | Card picker, preset picker, Settings, About (`CardPickerDialog`, `SettingsDialog`, `AboutDialog`) |
+| `src/Printer.jsx` | The PC-100C panel (`PrinterWidget`) |
+| `src/Debugger.jsx` | CALCULATOR / CPU / LOG tabs, heatmap, ASM overlay (`debug/*`) |
+| `src/PlayCalculator.jsx` | The component: the two layouts, focus and physical keyboard, drag and drop, keyboard feedback (`MainWindow`) |
 | `calc-engine-worker.js` | The Web Worker: loads the engine and ROM files, ticks at 60 Hz, passes messages (protocol in its header) |
 | `bindings.cpp` | The adapter to `Shared/` (`WebController`, embind) — the web's `Qt6/app/EmulatorController` |
-| `calc.css` | Tokens, fonts and the cue-card rules the calculator needs |
-| `fonts/` | Archivo and Barlow Condensed (WOFF2, SIL OFL 1.1) |
+| `calc.css` | Tokens, fonts and every rule the client needs |
+| `fonts/` | Archivo (WOFF2, SIL OFL 1.1), for the cue card |
 | `app/` | The installable PWA: `index.html`, `app.jsx`, `app.css`, `sw.js`, `manifest.json` |
-| `index.html` | Demo and test page: `PlayCalculator` with controls and keyboard |
+| `index.html` | Demo and test page, sized to the window: `?layout=wide|portrait`, also `width`, `height`, `model`, `module`, `preset` |
 | `presets.json` | The presets the preset picker offers (file in `examples/`, title) |
 | `vendor/` | React 18 and ReactDOM (shipped), Babel (build only), ReactDOMServer (tests only) |
 | `build.sh`, `build.js` | The build (below) |
 | `tests/`, `run-tests.sh`, `playwright.config.js`, `package.json` | Playwright tests |
+
+### What the worker posts
+
+`bindings.cpp` forwards every `SessionController` change flag
+(`Platform::changed`) as one message per kind, already in the form the page
+draws: LED cells (`ledCell`), the cue card as a draw list laid out by
+`cueCardGeometry` and friends for the size the page reports, printer lines
+with their heights (`PrinterGeometry::lineHeightUnits`) from the first one
+that changed, debug rows formatted by `DebugText`, heatmap steps
+(`heatStep`). Static data — models, modules, `KeyboardLayout` rects, the
+printer geometry and font, the heatmap colours — comes once with `ready`.
+The pointer is sent as canvas-normalized points; the hit test (widened
+rects, the display's full-speed hold, drag to another key) runs in C++ in
+`KeyboardLayout`'s `PointerTracker`, as in `Qt6/app/KeyboardWidget`.
 
 ## Build
 
@@ -60,15 +89,18 @@ Web/run-tests.sh      # Playwright against dist/; build first
    on to send the COOP/COEP headers `SharedArrayBuffer` needs), with
    `-fexceptions` (Shared/ reports ROM and file errors with exceptions),
    `MODULARIZE` as `createTI59CoreModule`;
-2. copies the TI-59 ROM, constants, `cuecards.txt` and every module image
-   from `roms/` to `dist/wasm/roms/`;
-3. copies the static files, React, the fonts and the app icon (derived from
+2. copies every model's ROM and constants, `cuecards.txt` and every module
+   image from `roms/` to `dist/wasm/roms/`, and the artwork (`ti59_base`,
+   `ti58_base` and the three cue-card templates) from `App/Assets.xcassets`
+   to `dist/img/`;
+3. copies the static files, React, the font and the app icon (derived from
    `App/AppIcon.icon` by `tools/gen_qt_icons.sh`);
-4. runs `build.js`: compiles the JSX with the vendored Babel in Node (no npm
-   dependencies) — `src/*.jsx` into one `calc.js`, `app/app.jsx` into
-   `app/app.js` — copies the presets from `examples/`, stamps the service
-   worker's cache name with a hash of what it precaches (and fails if a
-   precached file is missing), and writes `MANIFEST.json`.
+4. runs `build.js`: compiles the sources with the vendored Babel in Node (no
+   npm dependencies) — `src/*` into one `calc.js` (in `SOURCES` order, with
+   the version stamped in), `app/app.jsx` into `app/app.js` — copies the
+   presets from `examples/`, stamps the service worker's cache name with a
+   hash of what it precaches (and fails if a precached file is missing), and
+   writes `MANIFEST.json`.
 
 Re-run it whenever `Core/`, `Shared/`, `roms/` or anything in `Web/` changes.
 CI uploads `dist/` zipped as `Calc-U-59-web-<version>.zip` (artifact
@@ -85,6 +117,7 @@ downloads and pins.
 | `calc.css` | Everything the calculator needs to look right: tokens, `@font-face`, cue-card rules |
 | `calc-engine-worker.js` | The engine's Web Worker |
 | `wasm/` | `ti59-core.js`, `ti59-core.wasm` and `roms/` |
+| `img/` | The calculator artwork and cue-card templates |
 | `fonts/` | The WOFF2 files `calc.css` names, with their licences |
 | `presets/` | `manifest.json` (`[{file, title}]`) and the preset files |
 | `app/` | The PWA (below) |
@@ -94,7 +127,7 @@ downloads and pins.
 
 Everything else in `dist/` is internal: a host references only `calc.js`,
 `calc.css` and the `PlayCalculator` props. The worker's message protocol,
-the file names under `wasm/` and `presets/` may change with any build.
+the file names under `wasm/`, `img/` and `presets/` may change with any build.
 
 ### Mounting it
 
@@ -105,15 +138,29 @@ the file names under `wasm/` and `presets/` may change with any build.
 <script src="calc/calc.js"></script>
 <script>
   ReactDOM.createRoot(el).render(
-    React.createElement(PlayCalculator, { scale: 1.2, keyboard: true }));
+    React.createElement(PlayCalculator, { layout: "portrait", width: 400, keyboard: true }));
 </script>
 ```
 
 | Prop | Default | Meaning |
 |---|---|---|
-| `scale` | `1` | Size factor. The calculator is `360 × scale` px wide, plus a 2 px focus ring 2 px outside it (reserve 8 px). It doesn't fit itself: the host measures its column, as `index.html` does |
-| `controls` | `true` | Module picker, preset picker, Queue Card and upload below the keys |
+| `layout` | `"portrait"` | `"wide"` (calculator, printer, debugger side by side) or `"portrait"` (calculator and printer pages) |
+| `width` | the parent's width | CSS px the client may take. Wide: the calculator artwork takes 40 % (at most 420 px without `height`, never below 400 px), the printer 220–320 px, the debugger the rest (at least 220 px) |
+| `height` | from the width | CSS px. Without it the height follows the artwork's aspect plus the 50 px bar; with it the artwork fits inside (the PWA passes the viewport) |
 | `keyboard` | `false` | The calculator is focusable and takes the physical keyboard while focused (`SharedArchitecture.md` § "Physical Keyboard Mapping") |
+| `settings` | `true` | Show the Settings gear |
+| `model` | stored setting | Start with this model: `"TI-59"`, `"TI-58"` or `"TI-58C"` |
+| `module` | stored setting | Start with this Solid State module id (e.g. `"ML"`) |
+| `preset` | none | Load this file from `presets/` once started |
+
+The client has a minimum size, as the apps' windows do: the narrowest
+artwork whose control bar still fits (400 px wide, 264 px portrait), plus
+the printer's and debugger's minimums in wide — 862 × 856 px wide,
+280 × 587 px portrait. Given less, it keeps that size (it never shrinks as
+a flex item) and the host scrolls, as `index.html` does.
+
+The client sizes itself from these: it has no `scale`. Dialogs (cards,
+presets, Settings) open inside its own box, so it needs no room outside it.
 
 Requirements on the host:
 
@@ -127,9 +174,13 @@ Requirements on the host:
   synchronous `XMLHttpRequest`; `file://` doesn't allow either.
 
 Stable hooks a host's tests may rely on: the root element's class
-`calcu-device`, the cue card's `.cuecard`, one `<canvas>` (the LED), the
-two `<select>`s (module, then preset) and the buttons named by their key
-labels.
+`calcu-device` with `data-layout="wide|portrait"`, the artwork canvas
+`canvas.calcu-keyboard`, the LED `canvas.calcu-led`, the cue card
+`canvas.cuecard` (its `aria-label` holds the card's text), the key buttons
+named by their face labels (`2nd`, `−`, `R/S`, …) with `aria-pressed`, the
+panels `[data-panel=printer]` and `[data-panel=debug]`, and the control
+bar's buttons by name (`Reset`, `Crd`, `Eject Card`, `Preset`, `Settings`)
+and the `Calculator model` select.
 
 ### Location independence
 
@@ -137,8 +188,8 @@ labels.
 `/anything/calc/`). No URL in the client is root-relative:
 
 - `calc.js` captures `document.currentScript.src` while it runs and resolves
-  the worker and the presets against that directory (`PLAY_BASE` in
-  `src/PlayCalculator.jsx`).
+  the worker, the artwork and the presets against that directory
+  (`CALC_BASE` in `src/engine.js`).
 - The worker resolves `wasm/…` against its own URL; the engine's `.wasm` is
   pointed back there with `locateFile`.
 - `app/` refers to `../calc.js`, `../calc.css`, `../vendor/…` relatively; its
@@ -162,20 +213,22 @@ leaks no globals besides `PlayCalculator`.
 
 ### Styling
 
-`calc.css` defines its tokens (colours, fonts, a radius) on `.calcu-client`
-— the calculator's root element and the PWA's `<body>` — not on `:root`, so
-the host's own tokens neither leak in nor get overridden. They are a copy of
-the website's design tokens, duplicated on purpose so the two can change
-independently. The calculator's sizes are inline styles derived from
-`scale`; the host styles only its own layout around it.
+`calc.css` defines its tokens (the apps' dark chrome colours from
+`Qt6/app/ChromeStyle.hpp`, fonts) on `.calcu-client` — the calculator's root
+element and the PWA's `<body>` — not on `:root`, so the host's own tokens
+neither leak in nor get overridden. Sizes that follow the width are inline
+styles; the host styles only its own layout around the client.
 
 ### The PWA (`app/`)
 
-`app/index.html` mounts `PlayCalculator` with `controls={false}`, sized to
-the viewport, with an install banner. Its service worker's scope is `app/`.
-It precaches the shell, `calc.js`, `calc.css`, the worker, the engine, the
-TI-59 ROM files and module 01 (Master Library), so the installed app runs
-offline; another module needs the network. The cache is named
+`app/index.html` mounts `PlayCalculator` in the portrait layout, sized to
+the viewport (inside the safe area), with the keyboard and an install
+banner. Its service worker's scope is `app/`. It precaches the shell,
+`calc.js`, `calc.css`, the worker, the engine, the artwork, every model's
+ROM files and module 01 (Master Library), so the installed app runs all
+three models offline; another module needs the network once. A model
+switch reads its ROM with a synchronous request from the worker, which the
+service worker answers from the cache. The cache is named
 `calcu59-app <scope> <hash>`: a new build is a new cache, and the old one of
 the same scope is deleted on activation — other caches on the origin (the
 host's, another copy of the client) are left alone.
@@ -185,7 +238,7 @@ host's, another copy of the client) are left alone.
 ```json
 {
   "name": "Calc-U-59-web",
-  "version": "2.0.0",
+  "version": "<MARKETING_VERSION>",
   "commit": "<git rev-parse HEAD>[-dirty]",
   "files": { "calc.js": "<sha256 hex>", "…": "…" }
 }

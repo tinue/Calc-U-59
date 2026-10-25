@@ -4,7 +4,7 @@
 # (examples/CALENDAR_PROGRAMS.md, calendar-01 to calendar-08). Written in
 # 2026 with the Calc-U-59 headless harness. It prints a whole year, January
 # to December, in exactly the format of Patrick Acosta's program
-# (calendar-08-acosta.ti59), and is about 4% faster.
+# (calendar-08-acosta.ti59), and is about 7% faster.
 #
 # USE
 #
@@ -23,14 +23,15 @@
 #   this program the preparation in fast mode):
 #
 #     year   this program   Acosta
-#     1900      79.5 s      84.0 s
-#     2000      81.5 s      84.8 s
-#     2024      79.5 s      83.3 s
-#     2026      78.5 s      82.1 s
+#     1900      76.3 s      82.6 s
+#     2000      78.3 s      83.5 s
+#     2024      76.4 s      81.8 s
+#     2026      75.2 s      80.8 s
 #
 #   Acosta's published time for 2000 is 1:23 on a real TI-59. The output was
 #   checked against Python's calendar module and against Acosta's printout
-#   for 1900, 1999-2027 and 2100: identical in every line.
+#   for every year from 1899 to 2101: identical in every line. Several years
+#   in a row also print correctly.
 #
 # HOW IT WORKS
 #
@@ -54,34 +55,42 @@
 #
 # Month records. R50-R61 hold one value per month. Its integer part is a
 # program address, its low ten digits are the month name. The month loop
-# prints the header line (the year with Op 06, the name in chunk 4), builds
-# and prints the weekday line, and jumps to the address with GTO Ind 67.
-# Each address starts a small routine for the change of month length:
+# reads the record, puts the name into chunk 4 of the print buffer and jumps
+# to the address with GTO Ind 67 (GTO Ind ignores the fraction). Each
+# address starts a small routine for the change of month length:
 #
 #     F28  31 -> 28 days      R30  30 -> 31 days
 #     F29  31 -> 29 days      MAR  28/29 -> 31 days
 #     F30  31 -> 30 days      J    31 -> 31 days (JAN, AUG): nothing to copy
 #
-# In a leap year the preparation adds the distance F29 - F28 to the FEB
-# record, and the end of the run subtracts it again. Each routine also puts
-# the threshold 6 + L + 1 into t: the pointer value of day L + 1.
+# Each routine puts the threshold 6 + L + 1 into t, the pointer value of day
+# L + 1, and goes on to the header code: the year with Op 06 (the name is
+# already in chunk 4), then the weekday line. In a leap year the preparation
+# adds the distance F29 - F28 to the FEB record, and F29 subtracts it again.
+# R62 is a 13th record: the address of the end of the run, so the loop needs
+# no month counter.
 #
 # Rows per month. Four row copies always print. Row 5 prints in every month
-# except a 28-day February that starts on a Sunday; that February enters the
-# row code one copy later (ROWS2) and so gets four rows. After row 5,
-# RCL 00 x>=t ends the month when the pointer has reached day L + 1;
-# otherwise the loop prints row 6.
+# except a 28-day February that starts on a Sunday. February has its own
+# copy of the header code and enters the row code one copy later (ROWS2),
+# so it gets four rows from the copies and its 5th from the loop at R5.
+# After row 5, RCL 00 INV x>=t prints row 6 while the pointer is below day
+# L + 1, and otherwise falls into the end-of-month code.
 #
 # Next month. At the end the pointer stands at day L + 1 + d, where d is the
 # number of empty places at the end of the last row. The next month starts
 # with 7 - d empty places, so its pointer is 6 + 1 - (7 - d) = R00 - t. When
-# d = 0 the next month starts on Sunday and the pointer is 7 instead.
+# d = 0 the next month starts on Sunday and the pointer is 7 instead
+# (x=t, out of line).
 #
 # Preparation, in fast mode and part of the measured time.
 # E(z) = Int(z/4) - Int(z/100) + Int(z/400) counts the leap days of the
 # Gregorian calendar up to year z. A two-pass loop computes E(Y) and
 # E(Y-1). Y is a leap year when they differ. January 1 of year Y falls on
-# weekday (Y + E(Y-1)) mod 7, with Sunday = 0. No ML-20 call is needed.
+# weekday n mod 7, n = Y + E(Y-1), with Sunday = 0. No ML-20 call is needed.
+# The preparation ends with t = n and X = 7 Int(n/7) + 7 and falls into the
+# end-of-month code, which turns them into the first pointer 7 - (n mod 7);
+# its Adv prints the two leading blank lines.
 #
 # No subroutines. An earlier version called the end-of-month routine with
 # SBR. In fast mode its RTN returned to a wrong address. This version uses
@@ -101,15 +110,22 @@
 # - No ML module and no Pgm 12 / LRN Ins Ins ritual. The fast-mode entry is
 #   typed.
 # - The rows cost the same: 0.89 s each, 61 to 64 rows a year. The gain is
-#   in the work per month, about 0.3 s. Acosta computes the number of rows
+#   in the work per month, about 0.45 s. Acosta computes the number of rows
 #   and the next start day by division by 7 (Galidas' method) and packs the
 #   last row backwards from its end with a computed GTO Ind. This program
 #   copies at most four table entries, chosen by the month record, and
 #   decides the number of rows with one comparison.
 #
+# HISTORY
+#
+# The first version (Calc-U-59 2.0.0) printed the header lines before the
+# jump to the fix-up routine and counted the months with Dsz: 77.0 s for
+# 2026. This version reads the record first, ends the run with the 13th
+# record, and gives February its own header code: 1.8 s faster.
+#
 # Registers: R00 pointer, R01-R42 day table, R43-R49 entries for the end of
-# the month, R50-R61 month records, R62-R64 weekday line, R65 98.99,
-# R66 month counter, R67 fix-up address, R68 month pointer, R69 year.
+# the month, R50-R61 month records, R62 end record, R63-R65 weekday line,
+# R66 98.99, R67 fix-up address, R68 month pointer, R69 year.
 
 MODEL: TI-59
 PRINTER: on
@@ -136,429 +152,433 @@ PROGRAM:
 # Fast-mode trigger: GTO 007 SST, a digit, STO.
 007  86 StFlg
 # Fast mode from here. INV EE leaves the entry's scientific format.
-008  98 Adv
-009  22 INV
-010  52 EE
+008  22 INV
+009  52 EE
 # E(z) = Int(z/4) - Int(z/100) + Int(z/400) for z = Y, then Y - 1.
-011  43 RCL
-012  69 69
-013  42 STO
-014  00 00
-015  02 2
-016  42 STO
-017  66 66
+010  43 RCL
+011  69 69
+012  42 STO
+013  00 00
+014  02 2
+015  42 STO
+016  68 68
 # E:
-018  43 RCL
-019  00 00
-020  55 /
-021  04 4
-022  95 =
-023  42 STO
-024  68 68
-025  59 Int
-026  75 -
-027  53 (
-028  43 RCL
-029  68 68
-030  55 /
-031  02 2
-032  05 5
-033  54 )
-034  59 Int
-035  85 +
-036  53 (
-037  43 RCL
-038  68 68
-039  55 /
-040  01 1
-041  00 0
-042  00 0
-043  54 )
-044  59 Int
-045  95 =
+017  43 RCL
+018  00 00
+019  55 /
+020  04 4
+021  95 =
+022  59 Int
+023  75 -
+024  53 (
+025  43 RCL
+026  00 00
+027  55 /
+028  01 1
+029  00 0
+030  00 0
+031  54 )
+032  59 Int
+033  85 +
+034  53 (
+035  43 RCL
+036  00 00
+037  55 /
+038  04 4
+039  00 0
+040  00 0
+041  54 )
+042  59 Int
+043  95 =
 # Op 30: z - 1. After two passes x = E(Y), FIX = E(Y-1).
-046  48 Exc
-047  67 67
-048  69 Op
-049  30 30
-050  97 Dsz
-051  66 66
-052  00 E
-053  18
-# Leap year E(Y) - E(Y-1): FEB then dispatches to F29; kept in HIR 4.
-054  75 -
-055  43 RCL
-056  67 67
-057  95 =
-058  65 *
-059  02 27
-060  07
-061  95 =
-062  82 HIR
-063  04 04
-064  44 SUM
-065  51 51
-# Weekday of Jan 1 (Sun = 0): s = (Y + E(Y-1)) mod 7. Pointer = P(1 - s).
+044  48 Exc
+045  67 67
+046  69 Op
+047  30 30
+048  97 Dsz
+049  68 68
+050  00 E
+051  17
+# Leap year E(Y) - E(Y-1): FEB then dispatches to F29, which subtracts it again.
+052  75 -
+053  43 RCL
+054  67 67
+055  95 =
+056  65 *
+057  04 40
+058  00
+059  95 =
+060  44 SUM
+061  51 51
+# Month pointer: NEXT adds 1 before reading the JAN record.
+062  04 4
+063  09 9
+064  42 STO
+065  68 68
+# n = Y + E(Y-1); Jan 1 falls on weekday n mod 7 (Sun = 0). t = n and
+# x = 7 Int(n/7) + 7: END makes the pointer x - t = 7 - (n mod 7) = P(1 - s).
 066  43 RCL
 067  67 67
 068  85 +
 069  43 RCL
 070  69 69
 071  95 =
-072  75 -
-073  53 (
-074  24 CE
-075  55 /
-076  07 7
-077  54 )
-078  59 Int
-079  65 *
-080  07 7
+072  42 STO
+073  00 00
+074  32 x<>t
+075  43 RCL
+076  00 00
+077  55 /
+078  07 7
+079  85 +
+080  01 1
 081  95 =
-082  94 +/-
-083  85 +
+082  59 Int
+083  65 *
 084  07 7
 085  95 =
-086  42 STO
-087  00 00
-088  01 1
-089  02 2
-090  42 STO
-091  66 66
-092  05 5
-093  00 0
-094  42 STO
-095  68 68
-# MONTH:
-# Name into the print buffer, fix-up address into R67, header line.
-096  73 RC*
-097  68 68
-098  82 HIR
-099  08 08
-100  59 Int
-101  42 STO
-102  67 67
-103  43 RCL
-104  69 69
-105  69 Op
-106  06 06
-# Weekday line.
-107  43 RCL
-108  63 63
-109  82 HIR
-110  07 07
-111  22 INV
-112  59 Int
-113  82 HIR
-114  06 06
-115  43 RCL
-116  62 62
-117  82 HIR
-118  05 05
-119  43 RCL
-120  64 64
-121  82 HIR
-122  08 08
-123  69 Op
-124  05 05
-125  83 GO*
-126  67 67
-# F28:
-# 31 -> 28 days: t = threshold, P28 = "28", P29-P31 blank.
-127  03 3
-128  05 5
-129  32 x<>t
-130  43 RCL
-131  47 47
-132  42 STO
-133  34 34
-134  43 RCL
-135  01 01
-136  42 STO
-137  35 35
-# X:
-138  42 STO
-139  36 36
-140  42 STO
-141  37 37
-# Feb 1 on a Sunday: 4 rows, enter one row copy later. (F29 never branches.)
-142  43 RCL
-143  00 00
-144  85 +
-145  02 2
-146  08 8
-147  95 =
-148  77 x>=t
-149  02 ROWS2
-150  31
-151  61 GTO
-152  01 ROWS
-153  99
-# F29:
-# 31 -> 29 days.
-154  03 3
-155  06 6
-156  32 x<>t
-157  43 RCL
-158  48 48
-159  42 STO
-160  35 35
-161  43 RCL
-162  01 01
-163  61 GTO
-164  01 X
-165  38
+086  61 GTO
+087  03 END
+088  10
 # F30:
-# 31 -> 30 days.
-166  03 3
-167  07 7
-168  32 x<>t
-169  43 RCL
-170  49 49
-171  42 STO
-172  36 36
-173  43 RCL
-174  01 01
-175  42 STO
-176  37 37
-177  61 GTO
-178  01 ROWS
-179  99
+# 31 -> 30 days: t = threshold, P30 = "30", P31 blank.
+089  03 3
+090  07 7
+091  32 x<>t
+092  43 RCL
+093  49 49
+094  42 STO
+095  36 36
+096  43 RCL
+097  01 01
+098  42 STO
+099  37 37
+100  61 GTO
+101  01 HEADER
+102  22
 # MAR:
 # 28/29 -> 31 days: restore P28-P31 ...
-180  43 RCL
-181  43 43
-182  42 STO
-183  34 34
-184  43 RCL
-185  44 44
-186  42 STO
-187  35 35
+103  43 RCL
+104  43 43
+105  42 STO
+106  34 34
+107  43 RCL
+108  44 44
+109  42 STO
+110  35 35
 # R30:
 # 30 -> 31 days: restore P30, P31.
-188  43 RCL
-189  45 45
-190  42 STO
-191  36 36
-192  43 RCL
-193  46 46
-194  42 STO
-195  37 37
+111  43 RCL
+112  45 45
+113  42 STO
+114  36 36
+115  43 RCL
+116  46 46
+117  42 STO
+118  37 37
 # J:
 # 31 -> 31 days (JAN, AUG): only the threshold.
-196  03 3
-197  08 8
-198  32 x<>t
+119  03 3
+120  08 8
+121  32 x<>t
+# HEADER:
+# Header line: the year (Op 06) with the name from NEXT in chunk 4. Weekday line.
+122  43 RCL
+123  69 69
+124  69 Op
+125  06 06
+126  43 RCL
+127  64 64
+128  82 HIR
+129  07 07
+130  22 INV
+131  59 Int
+132  82 HIR
+133  06 06
+134  43 RCL
+135  63 63
+136  82 HIR
+137  05 05
+138  43 RCL
+139  65 65
+140  82 HIR
+141  08 08
+142  69 Op
+143  05 05
 # ROWS:
 # Four row copies: one printed line of 7 days each.
-199  73 RC*
-200  00 00
-201  82 HIR
-202  05 05
-203  44 SUM
-204  00 00
-205  73 RC*
-206  00 00
-207  82 HIR
-208  06 06
-209  43 RCL
-210  65 65
-211  82 HIR
-212  36 36
-213  69 Op
-214  20 20
-215  73 RC*
-216  00 00
-217  44 SUM
-218  00 00
-219  22 INV
-220  59 Int
-221  82 HIR
-222  07 07
-223  73 RC*
-224  00 00
-225  44 SUM
-226  00 00
-227  82 HIR
-228  08 08
-229  69 Op
-230  05 05
+144  73 RC*
+145  00 00
+146  82 HIR
+147  05 05
+148  44 SUM
+149  00 00
+150  73 RC*
+151  00 00
+152  82 HIR
+153  06 06
+154  43 RCL
+155  66 66
+156  82 HIR
+157  36 36
+158  69 Op
+159  20 20
+160  73 RC*
+161  00 00
+162  44 SUM
+163  00 00
+164  22 INV
+165  59 Int
+166  82 HIR
+167  07 07
+168  73 RC*
+169  00 00
+170  44 SUM
+171  00 00
+172  82 HIR
+173  08 08
+174  69 Op
+175  05 05
 # ROWS2:
-231  73 RC*
-232  00 00
-233  82 HIR
-234  05 05
-235  44 SUM
-236  00 00
-237  73 RC*
-238  00 00
-239  82 HIR
-240  06 06
-241  43 RCL
-242  65 65
-243  82 HIR
-244  36 36
-245  69 Op
-246  20 20
-247  73 RC*
-248  00 00
-249  44 SUM
-250  00 00
-251  22 INV
-252  59 Int
-253  82 HIR
-254  07 07
-255  73 RC*
-256  00 00
-257  44 SUM
-258  00 00
-259  82 HIR
-260  08 08
-261  69 Op
-262  05 05
-263  73 RC*
-264  00 00
-265  82 HIR
-266  05 05
-267  44 SUM
-268  00 00
-269  73 RC*
-270  00 00
-271  82 HIR
-272  06 06
-273  43 RCL
-274  65 65
-275  82 HIR
-276  36 36
-277  69 Op
-278  20 20
-279  73 RC*
-280  00 00
-281  44 SUM
-282  00 00
-283  22 INV
-284  59 Int
-285  82 HIR
-286  07 07
-287  73 RC*
-288  00 00
-289  44 SUM
-290  00 00
-291  82 HIR
-292  08 08
-293  69 Op
-294  05 05
-295  73 RC*
-296  00 00
-297  82 HIR
-298  05 05
-299  44 SUM
-300  00 00
-301  73 RC*
-302  00 00
-303  82 HIR
-304  06 06
-305  43 RCL
-306  65 65
-307  82 HIR
-308  36 36
-309  69 Op
-310  20 20
-311  73 RC*
-312  00 00
-313  44 SUM
-314  00 00
-315  22 INV
-316  59 Int
-317  82 HIR
-318  07 07
-319  73 RC*
-320  00 00
-321  44 SUM
-322  00 00
-323  82 HIR
-324  08 08
-325  69 Op
-326  05 05
+176  73 RC*
+177  00 00
+178  82 HIR
+179  05 05
+180  44 SUM
+181  00 00
+182  73 RC*
+183  00 00
+184  82 HIR
+185  06 06
+186  43 RCL
+187  66 66
+188  82 HIR
+189  36 36
+190  69 Op
+191  20 20
+192  73 RC*
+193  00 00
+194  44 SUM
+195  00 00
+196  22 INV
+197  59 Int
+198  82 HIR
+199  07 07
+200  73 RC*
+201  00 00
+202  44 SUM
+203  00 00
+204  82 HIR
+205  08 08
+206  69 Op
+207  05 05
+208  73 RC*
+209  00 00
+210  82 HIR
+211  05 05
+212  44 SUM
+213  00 00
+214  73 RC*
+215  00 00
+216  82 HIR
+217  06 06
+218  43 RCL
+219  66 66
+220  82 HIR
+221  36 36
+222  69 Op
+223  20 20
+224  73 RC*
+225  00 00
+226  44 SUM
+227  00 00
+228  22 INV
+229  59 Int
+230  82 HIR
+231  07 07
+232  73 RC*
+233  00 00
+234  44 SUM
+235  00 00
+236  82 HIR
+237  08 08
+238  69 Op
+239  05 05
+240  73 RC*
+241  00 00
+242  82 HIR
+243  05 05
+244  44 SUM
+245  00 00
+246  73 RC*
+247  00 00
+248  82 HIR
+249  06 06
+250  43 RCL
+251  66 66
+252  82 HIR
+253  36 36
+254  69 Op
+255  20 20
+256  73 RC*
+257  00 00
+258  44 SUM
+259  00 00
+260  22 INV
+261  59 Int
+262  82 HIR
+263  07 07
+264  73 RC*
+265  00 00
+266  44 SUM
+267  00 00
+268  82 HIR
+269  08 08
+270  69 Op
+271  05 05
 # R5:
 # Row 5, and row 6 while the pointer is below day L + 1.
-327  73 RC*
-328  00 00
-329  82 HIR
-330  05 05
-331  44 SUM
-332  00 00
-333  73 RC*
-334  00 00
-335  82 HIR
-336  06 06
-337  43 RCL
-338  65 65
-339  82 HIR
-340  36 36
-341  69 Op
-342  20 20
-343  73 RC*
-344  00 00
-345  44 SUM
-346  00 00
-347  22 INV
-348  59 Int
-349  82 HIR
-350  07 07
-351  73 RC*
-352  00 00
-353  44 SUM
-354  00 00
-355  82 HIR
-356  08 08
-357  69 Op
-358  05 05
-359  43 RCL
-360  00 00
-361  77 x>=t
-362  03 END
-363  67
-364  61 GTO
-365  03 R5
-366  27
+272  73 RC*
+273  00 00
+274  82 HIR
+275  05 05
+276  44 SUM
+277  00 00
+278  73 RC*
+279  00 00
+280  82 HIR
+281  06 06
+282  43 RCL
+283  66 66
+284  82 HIR
+285  36 36
+286  69 Op
+287  20 20
+288  73 RC*
+289  00 00
+290  44 SUM
+291  00 00
+292  22 INV
+293  59 Int
+294  82 HIR
+295  07 07
+296  73 RC*
+297  00 00
+298  44 SUM
+299  00 00
+300  82 HIR
+301  08 08
+302  69 Op
+303  05 05
+304  43 RCL
+305  00 00
+306  22 INV
+307  77 x>=t
+308  02 R5
+309  72
 # END:
-# Next pointer = R00 - t, or P(1) when the last row was full.
-367  59 Int
-368  67 x=t
-369  03 ZERO
-370  93
-371  42 STO
-372  00 00
-373  32 x<>t
-374  22 INV
-375  44 SUM
-376  00 00
+# Next pointer = Int(R00) - t, or P(1) when the last row was full (Z).
+310  59 Int
+311  67 x=t
+312  03 Z
+313  34
+# S:
+314  75 -
+315  32 x<>t
+316  95 =
+317  42 STO
+318  00 00
 # NEXT:
-377  98 Adv
-378  01 1
-379  44 SUM
-380  68 68
-381  97 Dsz
-382  66 66
-383  00 MONTH
-384  96
-# Year done: restore the FEB record, leave fast mode (RST, then R/S at 000).
-385  98 Adv
-386  82 HIR
-387  14 14
-388  22 INV
-389  44 SUM
-390  51 51
-391  25 CLR
-392  81 RST
-# ZERO:
-393  07 7
-394  42 STO
-395  00 00
-396  61 GTO
-397  03 NEXT
-398  77
+# Two blank lines, then the next record: name into chunk 4, jump to its fix-up.
+319  98 Adv
+320  01 1
+321  44 SUM
+322  68 68
+323  73 RC*
+324  68 68
+325  82 HIR
+326  08 08
+327  42 STO
+328  67 67
+329  83 GO*
+330  67 67
+# EXIT:
+# 13th record: year done. Leave fast mode (RST, then R/S at 000).
+331  98 Adv
+332  25 CLR
+333  81 RST
+# Z:
+# The month ended on Saturday: the next one starts on Sunday.
+334  07 7
+335  42 STO
+336  00 00
+337  61 GTO
+338  03 NEXT
+339  19
+# F28:
+# 31 -> 28 days: P28 = "28", P29-P31 blank.
+340  03 3
+341  05 5
+342  32 x<>t
+343  43 RCL
+344  47 47
+345  42 STO
+346  34 34
+347  43 RCL
+348  01 01
+349  42 STO
+350  35 35
+# X:
+351  42 STO
+352  36 36
+353  42 STO
+354  37 37
+# February's own header code, then the second row copy: 4 rows from the copies,
+# a 5th from R5 unless the 28-day February started on Sunday.
+355  43 RCL
+356  69 69
+357  69 Op
+358  06 06
+359  43 RCL
+360  64 64
+361  82 HIR
+362  07 07
+363  22 INV
+364  59 Int
+365  82 HIR
+366  06 06
+367  43 RCL
+368  63 63
+369  82 HIR
+370  05 05
+371  43 RCL
+372  65 65
+373  82 HIR
+374  08 08
+375  69 Op
+376  05 05
+377  61 GTO
+378  01 ROWS2
+379  76
+# F29:
+# 31 -> 29 days. Restores the FEB record.
+380  03 3
+381  06 6
+382  32 x<>t
+383  43 RCL
+384  48 48
+385  42 STO
+386  35 35
+387  04 40
+388  00
+389  22 INV
+390  44 SUM
+391  51 51
+392  43 RCL
+393  01 01
+394  61 GTO
+395  03 X
+396  51
 
 REGISTERS:
 01 = 2.010000000000   # P(-5)
@@ -610,22 +630,23 @@ REGISTERS:
 47 = 2.010311000000   # P(28) of a 28-day month
 48 = 2.010312000000   # P(29) of a 29-day month
 49 = 2.010401000000   # P(30) of a 30-day month
-50 = 196.0000251331   # JAN, fix-up J at 196
-51 = 127.0000211714   # FEB, fix-up F28 at 127
-52 = 180.0000301335   # MAR, fix-up MAR at 180
-53 = 166.0000133335   # APR, fix-up F30 at 166
-54 = 188.0000301345   # MAY, fix-up R30 at 188
-55 = 166.0025413117   # JUNE, fix-up F30 at 166
-56 = 188.0025412745   # JULY, fix-up R30 at 188
-57 = 196.0000134122   # AUG, fix-up J at 196
-58 = 166.0036173337   # SEPT, fix-up F30 at 166
-59 = 188.0000321537   # OCT, fix-up R30 at 188
-60 = 166.0000313242   # NOV, fix-up F30 at 166
-61 = 188.0000161715   # DEC, fix-up R30 at 188
-62 = 1.000036000030   # weekday line, chunk 1
-63 = 1.014300003700   # chunks 3 and 2
-64 = 1.000021000036   # chunk 4
-65 = 98.99            # shifts chunk 2 by two digits
+50 = 119.0000251331   # JAN, fix-up J at 119
+51 = 340.0000211714   # FEB, fix-up F28 at 340
+52 = 103.0000301335   # MAR, fix-up MAR at 103
+53 = 89.00000133335   # APR, fix-up F30 at 89
+54 = 111.0000301345   # MAY, fix-up R30 at 111
+55 = 89.00025413117   # JUNE, fix-up F30 at 89
+56 = 111.0025412745   # JULY, fix-up R30 at 111
+57 = 119.0000134122   # AUG, fix-up J at 119
+58 = 89.00036173337   # SEPT, fix-up F30 at 89
+59 = 111.0000321537   # OCT, fix-up R30 at 111
+60 = 89.00000313242   # NOV, fix-up F30 at 89
+61 = 111.0000161715   # DEC, fix-up R30 at 111
+62 = 331              # end of the year: EXIT at 331
+63 = 1.000036000030   # weekday line, chunk 1
+64 = 1.014300003700   # chunks 3 and 2
+65 = 1.000021000036   # chunk 4
+66 = 98.99            # shifts chunk 2 by two digits
 
 KEYSTROKES:
 FullSpeed:

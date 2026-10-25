@@ -26,7 +26,7 @@ for tool in em++ node; do
 done
 
 rm -rf "$DIST"
-mkdir -p "$DIST/wasm/roms" "$DIST/app" "$DIST/vendor" "$DIST/fonts"
+mkdir -p "$DIST/wasm/roms" "$DIST/app" "$DIST/vendor" "$DIST/fonts" "$DIST/img"
 
 em++ \
   -O3 \
@@ -43,12 +43,16 @@ em++ \
   "$REPO_ROOT"/Shared/*.cpp \
   "$WEB/bindings.cpp"
 
-# The TI-59's ROM and constants, the module catalogue and every module image:
-# the files the worker hands SessionController's ResourceReader.
-cp "$REPO_ROOT"/roms/calculator/TMC0582.txt "$REPO_ROOT"/roms/calculator/TMC0583.txt \
-   "$REPO_ROOT"/roms/calculator/TMC0571B.txt \
-   "$REPO_ROOT"/roms/calculator/TMC0582-CONST-K.txt "$REPO_ROOT"/roms/calculator/TMC0583-CONST-K.txt \
-   "$REPO_ROOT"/roms/solid-state/*.txt "$DIST/wasm/roms/"
+# Every model's ROM and constants, the module catalogue and every module
+# image: the files the worker hands SessionController's ResourceReader.
+cp "$REPO_ROOT"/roms/calculator/*.txt "$REPO_ROOT"/roms/solid-state/*.txt "$DIST/wasm/roms/"
+rm -f "$DIST/wasm/roms/files.txt"
+
+# The calculator artwork and the cue-card templates (one source: the Xcode
+# asset catalogue, as for the Qt app).
+for img in ti59_base ti58_base CueCard MagnetCard SolidStateCard; do
+  cp "$REPO_ROOT/App/Assets.xcassets/$img.imageset/$img.png" "$DIST/img/"
+done
 
 cp "$WEB/index.html" "$WEB/calc.css" "$WEB/calc-engine-worker.js" "$DIST/"
 cp "$WEB"/fonts/* "$DIST/fonts/"

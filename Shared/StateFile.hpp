@@ -20,8 +20,7 @@ struct KeystrokeEvent {
     enum class Kind {
         Key,              ///< press matrix code `code` (row×10 + col)
         ToggleTrace,      ///< virtual key 99: toggle the printer's TRACE latch
-        Wait,             ///< explicit pause of `seconds`, normal speed
-        WaitFullSpeed,    ///< full speed for `seconds`, then back to normal
+        Wait,             ///< explicit pause of `seconds`, at the current speed
         Trace,            ///< start a CPU trace to `traceName`, or stop it (nullopt)
         FullSpeed,        ///< persistent full speed until RegularSpeed / end of script
         RegularSpeed,

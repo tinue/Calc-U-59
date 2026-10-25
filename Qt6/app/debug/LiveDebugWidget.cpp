@@ -177,10 +177,7 @@ void LiveDebugWidget::refresh() {
     m_steps->clear();
     int current = -1;
     for (const auto& e : entries) {
-        QString text = QStringLiteral("%1  %2  %3").arg(e.stepNum, 3, 10, QLatin1Char('0')).arg(e.keycode, 2, 10, QLatin1Char('0'))
-                           .arg(QString::fromStdString(e.mnemonic));
-        if (e.isCurrent) text += QStringLiteral("  ") + qs(cu59::currentStepMarker(frozen));
-        auto* item = new QListWidgetItem(text, m_steps);
+        auto* item = new QListWidgetItem(qs(cu59::programStepLine(e, frozen)), m_steps);
         item->setFont(mono);
         item->setForeground(e.isCurrent ? Qt::white : ChromeStyle::gray(0.6));
         if (e.isCurrent) {
@@ -199,7 +196,7 @@ void LiveDebugWidget::refresh() {
 
     auto level = [&](int i) {
         int a = s.returnAddresses[static_cast<size_t>(i)];
-        return spanColor(QStringLiteral("L%1:%2").arg(i + 1).arg(a, 3, 10, QLatin1Char('0')),
+        return spanColor(qs(cu59::returnLevelLine(i + 1, a)),
                          ChromeStyle::fromRgb(cu59::returnLevelColor(s.returnAddressSourceFlags[static_cast<size_t>(i)], a == 0)));
     };
     set(m_returns, level(5) + sp + level(4) + sp + level(3) + QStringLiteral("<br>") + level(2) + sp + level(1) + sp + level(0));

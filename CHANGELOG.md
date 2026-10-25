@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.1.0] - 2026-10-25
+- **Web calculator** Rebuilt with the apps' features: the real calculator artwork, TI-59, TI-58 and TI-58C, the PC-100C printer, magnetic cards, presets (bundled or your own file), Settings, and, in the wide layout, the full debugger with trace downloads. A wide layout follows the Mac and Windows windows; a portrait layout, also used by the installable app, follows the iPhone, with the printer on its own page. The installable app runs all three calculators offline. Cards last for the browser session; download one to keep it. <!-- appstore: skip -->
+
+- **State Files** `WaitFullSpeed:` is gone: it took effect only after the program had stopped. Put `FullSpeed:` before the key that starts the program instead; the bundled presets now do, and the long ones finish at full speed. An unknown KEYSTROKES directive or a `Wait:` without a unit is now reported as an error instead of being read as keys.
+- **TI-58C** Runs at a real TI-58C's speed, measured on a unit: about 2.6% faster than before. Its error blink takes 0.91 s stand-alone and 0.71 s on the PC-100C, as on the real calculator.
+- **Printer** Prints at the real PC-100's speed, measured on a TI-59 and a TI-58C: a printed line takes about 0.29 s on the TI-59 (a List line 0.31 s, was 0.21 s), a blank line from Adv about 0.19 s (was 0.40 s). The printer runs on the calculator's clock, so on the slower TI-58C everything prints 15% slower, as on the real one.
+- **Printer** The printer interrupt now cuts a line the way the real printer does: the row it interrupts keeps the dot columns already fired (right to left), and a dot cut early in its heating comes out faint. Measured on a TI-58C and a TI-59 with a PC-100A.
+- **Examples** `calendar-09-dispatch.ti59` prints a year 1.8 s faster: 75 s for 2026, 7% faster than Acosta's 1981 program.
+
+### Fixes
+- **State Files** A `PARTITION:` too large for the calculator now aborts a `SKIP-RESET` load too, as it already did a normal load.
+- **State Files** A file with `SKIP-RESET` and a `PROGRAM:` no longer clears the data registers: `fast-grafik-3d-plot-part2.ti59` plots again with the values entered in part 1, instead of stopping at once with "1.".
+- **Debugger** The CPU tab no longer stands still during the TI-58's error blink, when the calculator runs the same short loop over and over.
+
 ## [2.0.0] - 2026-10-21
 - **Windows and Linux** New desktop app for Windows (x64, ARM64) and Linux (x86_64, aarch64), with the Mac app's features: both LED styles, cue cards, the physical keyboard, magnetic cards, presets, the PC-100C printer and the full debugger. Cards and TI-58C memory are kept in `~/Calc-U-59`; Settings picks the folders. <!-- appstore: skip -->
 - **Web calculator** The calculator on the website now runs the same emulator as the apps and behaves exactly like them. The installable web app loads faster and updates itself when a new version is out. <!-- appstore: skip -->

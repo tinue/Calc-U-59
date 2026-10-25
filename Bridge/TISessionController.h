@@ -52,7 +52,11 @@ typedef NS_ENUM(NSInteger, TIFreezeOwner) {
 /// One printed line's dot codes (Core PrinterCodeLine).
 @interface TIPrinterLine : NSObject
 @property (nonatomic, readonly, copy) NSData *codes;   ///< 20 character codes (0–63)
-@property (nonatomic, readonly) NSInteger rowCount;    ///< dot rows printed: 7 complete, 1–6 cut short
+@property (nonatomic, readonly) BOOL complete;        ///< all 7 rows printed, followed by the paper advance
+@property (nonatomic, readonly) NSInteger drawnRows;   ///< dot rows the line takes on paper (1–7)
+@property (nonatomic, readonly, copy) NSData *inkedColumns;  ///< 7 font-row masks: columns that got ink
+@property (nonatomic, readonly, copy) NSData *faintColumns;  ///< 7 font-row masks: faint dots (cut early)
+@property (nonatomic, readonly) CGFloat faintAlpha;          ///< ink of the faint dots (0–1)
 @end
 
 /// ProgramSource raw values follow the C++ enumerator order:
@@ -152,7 +156,8 @@ typedef NS_ENUM(NSInteger, TIFreezeOwner) {
 @property (nonatomic, readonly) double printerStripHeightUnits;
 @property (nonatomic, readonly) BOOL printerConnected;
 @property (nonatomic, readonly) BOOL printerTrace;
-- (void)setPrinterConnected:(BOOL)connected;
+/// The connect button: plug the PC-100C in or out and reset the calculator.
+- (void)togglePrinterConnection;
 - (void)togglePrinterTrace;
 - (void)pressPrinterPrint:(BOOL)pressed;
 - (void)pressPrinterAdv:(BOOL)pressed;

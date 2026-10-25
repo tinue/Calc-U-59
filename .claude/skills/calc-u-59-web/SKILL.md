@@ -8,7 +8,10 @@ user-invocable: true
 
 The third GUI next to the Swift and Qt6 apps: `Core/` + `Shared/` compiled
 with Emscripten, run single-threaded in a Web Worker; React only draws and
-forwards input. TI-59 only — no printer, debugger or traces.
+forwards input. Two layouts: wide (as the macOS/Qt window: calculator,
+printer, debugger) and portrait (as the iPhone: calculator and printer
+pages; the PWA). Orient new GUI work on the Qt app's widget of the same
+name (`WebClient.md` § "Layout of `Web/`" maps them).
 
 Layout, build steps, the `dist/` contract, mounting, location independence,
 the render rule, styling, the PWA and `MANIFEST.json`:
@@ -32,7 +35,7 @@ copies are generated or retired.
    `Pending` row in `FrontendParity.md` — and the reverse. Update the table
    either way.
 3. **Location-independent.** No root-relative URL anywhere: resolve against
-   `PLAY_BASE` (`calc.js`'s own URL), the worker's or the service worker's
+   `CALC_BASE` (`calc.js`'s own URL, `src/engine.js`), the worker's or the service worker's
    location, or the page (`app/`). New files the PWA needs offline go into
    `app/sw.js`'s `CORE_ASSETS` (build.js fails on a missing one).
 4. **Render has no side effects.** `fetch`, `new Worker`, listeners and
@@ -41,14 +44,15 @@ copies are generated or retired.
    throw.
 5. **`calc.js` exposes `PlayCalculator` only.** The sources are concatenated
    into one closure; a new file goes into `SOURCES` in `build.js`, in load
-   order. Its props (`scale`, `controls`, `keyboard`) are the contract —
-   changing them is a change for the website too.
+   order. Its props (`WebClient.md` § "Mounting it") and the stable hooks
+   are the contract — changing them is a change for the website too.
 6. **The client brings its own styling.** Tokens live in `calc.css` on
    `.calcu-client`, never `:root`; don't depend on the host's CSS. Fonts and
    React are self-hosted in `Web/` (no CDN).
-7. **Assets have one source:** ROMs from `roms/`, presets from `examples/`
-   (listed in `presets.json`), the icon from `Qt6/resources/linux/` (derived
-   from `App/AppIcon.icon`). `build.sh` copies them; never commit copies.
+7. **Assets have one source:** ROMs from `roms/`, artwork from
+   `App/Assets.xcassets`, presets from `examples/` (listed in
+   `presets.json`), the icon from `Qt6/resources/linux/` (derived from
+   `App/AppIcon.icon`). `build.sh` copies them; never commit copies.
 8. **Build and test before committing:** `Web/build.sh && Web/run-tests.sh`.
    Also after any `Core/` or `Shared/` change (CLAUDE.md).
 9. **Commit often, never push.**
@@ -64,8 +68,11 @@ python3 -m http.server 8000 -d Web/dist   # look at it: http://localhost:8000/
 
 The tests (`tests/play-calculator.spec.js`) drive `dist/index.html` and
 `dist/app/` through the real engine: arithmetic by bitmap identity of the LED
-canvas, the physical keyboard, module cue cards, presets, the card reader,
-the service worker's precache. `tests/prerender.spec.js` renders `calc.js`
+canvas, the hit test and drag, the physical keyboard, models and the TI-58C
+constant memory, settings, cue cards, presets, the card folder, the printer,
+the debugger and trace download, the portrait pages, the service worker's
+precache. Key presses after a program stops can extend its last entry, as
+on the real calculator — press CLR first. `tests/prerender.spec.js` renders `calc.js`
 in Node. Ports 8059 and 8060 (`CALCU_WEB_PORT` moves both).
 
 CI: job `web` in `.github/workflows/build.yml` (emsdk pinned to the local

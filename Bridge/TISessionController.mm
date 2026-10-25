@@ -1,6 +1,7 @@
 #import "TISessionController.h"
 #import "BridgeConvert.h"
 #import "TIFileFormats+Cpp.h"
+#include "../Shared/PrinterFont.hpp"
 #include "../Shared/SessionController.hpp"
 #include <memory>
 
@@ -8,7 +9,11 @@
 
 @interface TIPrinterLine ()
 @property (nonatomic, readwrite, copy) NSData *codes;
-@property (nonatomic, readwrite) NSInteger rowCount;
+@property (nonatomic, readwrite) BOOL complete;
+@property (nonatomic, readwrite) NSInteger drawnRows;
+@property (nonatomic, readwrite, copy) NSData *inkedColumns;
+@property (nonatomic, readwrite, copy) NSData *faintColumns;
+@property (nonatomic, readwrite) CGFloat faintAlpha;
 @end
 @implementation TIPrinterLine
 @end
@@ -257,7 +262,12 @@ struct PlatformAdapter : cu59::SessionController::Platform {
     for (size_t i = static_cast<size_t>(MAX(start, 0)); i < lines.size(); ++i) {
         TIPrinterLine* line = [[TIPrinterLine alloc] init];
         line.codes = [NSData dataWithBytes:lines[i].codes.data() length:lines[i].codes.size()];
-        line.rowCount = lines[i].rowCount;
+        const auto dots = cu59::PrinterGeometry::lineDots(&lines[i]);
+        line.complete = dots.complete;
+        line.drawnRows = dots.drawnRows;
+        line.inkedColumns = [NSData dataWithBytes:dots.inked length:7];
+        line.faintColumns = [NSData dataWithBytes:dots.faint length:7];
+        line.faintAlpha = dots.faintAlpha;
         [out addObject:line];
     }
     return out;
@@ -265,7 +275,7 @@ struct PlatformAdapter : cu59::SessionController::Platform {
 - (double)printerStripHeightUnits { return _c->printerStripHeightUnits(); }
 - (BOOL)printerConnected { return _c->printerConnected(); }
 - (BOOL)printerTrace { return _c->printerTrace(); }
-- (void)setPrinterConnected:(BOOL)connected { _c->setPrinterConnected(connected == YES); }
+- (void)togglePrinterConnection { _c->togglePrinterConnection(); }
 - (void)togglePrinterTrace { _c->togglePrinterTrace(); }
 - (void)pressPrinterPrint:(BOOL)pressed { _c->pressPrinterPrint(pressed == YES); }
 - (void)pressPrinterAdv:(BOOL)pressed { _c->pressPrinterAdv(pressed == YES); }

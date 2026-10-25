@@ -7,6 +7,9 @@
 // keyboard section (canvas y from kKeyboardYStart, height kKeyboardYScale).
 // Key rects were extracted from key_rectangles.png.
 
+#include <optional>
+#include <utility>
+
 namespace cu59 {
 
 struct NRect {
@@ -70,5 +73,63 @@ inline bool keyAt(double nx, double ny, KeyHit& out) {
             if (expandedKeyRect(row, col).contains(nx, ny)) { out = {row, col}; return true; }
     return false;
 }
+
+/// The pointer on the calculator canvas, as every frontend handles it:
+/// holding the display runs the emulator at full speed, a key under the
+/// pointer is held (one at a time; a drag moves it to another key), leaving
+/// the keyboard releases it. Points are canvas-normalized; each call returns
+/// what to do, which the frontend applies to its controller.
+class PointerTracker {
+public:
+    struct Change {
+        std::optional<bool> fullSpeed;  ///< switch full speed on or off
+        int release = -1;               ///< key (row × 5 + col) to release
+        int press = -1;                 ///< key to press
+    };
+
+    Change move(double nx, double ny) {
+        Change c;
+        if (kDisplayRect.contains(nx, ny)) {
+            if (!m_onDisplay) {
+                m_onDisplay = true;
+                c.fullSpeed = true;
+                c.release = std::exchange(m_key, -1);
+            }
+            return c;
+        }
+        if (m_onDisplay) {
+            m_onDisplay = false;
+            c.fullSpeed = false;
+        }
+        const double kbNy = (ny - kKeyboardYStart) / kKeyboardYScale;
+        const double margin = 0.025;  // room for the vertical hit expansion
+        if (kbNy < -margin || kbNy > 1 + margin) {
+            c.release = std::exchange(m_key, -1);
+            return c;
+        }
+        KeyHit hit{};
+        if (!keyAt(nx, kbNy, hit) || hit.row * 5 + hit.col == m_key) return c;
+        c.release = m_key;
+        c.press = m_key = hit.row * 5 + hit.col;
+        return c;
+    }
+
+    Change up() {
+        Change c;
+        if (m_onDisplay) {
+            m_onDisplay = false;
+            c.fullSpeed = false;
+        }
+        c.release = std::exchange(m_key, -1);
+        return c;
+    }
+
+    /// The key the pointer holds (row × 5 + col), -1 for none.
+    int key() const { return m_key; }
+
+private:
+    int m_key = -1;
+    bool m_onDisplay = false;
+};
 
 } // namespace cu59

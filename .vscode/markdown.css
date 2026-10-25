@@ -1,0 +1,9 @@
+/* VS Code Markdown preview: register-map tables (class="regmap"), e.g. the
+   SCOM map in rom/TI59-ROM-Guide.md. GitHub strips classes and shows a plain grid. */
+table.regmap { border-collapse: collapse; }
+table.regmap th,
+table.regmap td {
+  border: 1px solid rgba(128, 128, 128, 0.6);
+  padding: 4px 8px;
+}
+table.regmap th { background: rgba(128, 128, 128, 0.25); text-align: center; }

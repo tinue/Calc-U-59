@@ -54,7 +54,7 @@ real-hardware times of the calendar programs within a few seconds.
 
 ```bash
 uv run python tools/agentic/ti59file.py examples/calendar-09-dispatch.ti59 [--lines]
-# examples/calendar-09-dispatch.ti59:    95.9 s  finished=True  lines=113 (non-blank 85)  printer floor  22.3 s
+# examples/calendar-09-dispatch.ti59:    89.0 s  finished=True  lines=113 (non-blank 85)  printer floor  27.6 s
 ```
 
 Loads the file (PARTITION via `n Op 17`, PROGRAM, REGISTERS), plays its
@@ -62,8 +62,8 @@ KEYSTROKES, each key to idle, and times the **last** key until the program
 has stopped, the printer is idle and the CPU sits in the keyboard idle
 loop. That end condition includes a few seconds of trailing idle checks, so
 the figure is a little higher than the time of the last printed line (use
-`linetimes.py` for that). `printer floor` = lines × 0.1975 s, the printer's
-own minimum. `--lines` appends the printout.
+`linetimes.py` for that). `printer floor` = the printer's own minimum: 4165
+instruction cycles per printed line, 1370 per blank (PRT.FEED) line. `--lines` appends the printout.
 
 Library use (`sys.path.insert(0, 'tools/agentic')`):
 
@@ -81,10 +81,10 @@ kept in `keys` as `'Name:'` entries and skipped when keys are played.
 
 ```bash
 uv run python tools/agentic/linetimes.py file.ti59 [--lines] [--limit S]
-# blank  n= 28 avg  0.29s  total    8.1s  min 0.00 max 0.44
-# text   n= 24 avg  0.45s  total   10.7s  min 0.37 max 0.48
-# week   n= 61 avg  0.97s  total   59.4s  min 0.89 max 1.34
-# total 79.04
+# blank  n= 28 avg  0.31s  total    8.6s  min 0.08 max 2.92
+# text   n= 24 avg  0.53s  total   12.8s  min 0.42 max 0.79
+# week   n= 61 avg  0.89s  total   54.5s  min 0.89 max 1.01
+# total 75.85
 ```
 
 Seconds from the last key to each printed line. The summary groups the gaps
@@ -97,7 +97,7 @@ last printed line: the figure used for the calendar comparisons.
 
 ```bash
 uv run python tools/agentic/runtime.py file.ti59 [--keys "83 92 83 74 11 ..."]
-# 11:0.15 42:78.39  total 78.5 s
+# 11:0.15 42:75.06  total 75.2 s
 ```
 
 Counts only the time a program is running (`fB[0]` set) for every key, so a
@@ -112,8 +112,8 @@ replaces the file's KEYSTROKES (matrix codes).
 
 ```bash
 uv run python tools/agentic/hotsteps.py file.ti59 [--until S]
-# ...: 20s  printer busy 24% of samples, print-wait spin 0%, Prg Src {2: 2869}
-# hottest program steps: 377:2.2%, 124:1.4%, ...
+# ...: 20s  printer busy 33% of samples, print-wait spin 0%, Prg Src {2: 2869}
+# hottest program steps: 319:2.0%, 207:1.3%, ...
 uv run python tools/agentic/hotsteps.py file.ti59 --window A B
 # 049:2 050:11 051:29 ... 018:14 019:20 ...
 ```
@@ -142,7 +142,7 @@ Each sequence runs 30 times from step 008, once in fast mode (SST entry) and
 once in normal mode, minus an empty program. Registers are preset (see the
 docstring); choose register numbers in the cases accordingly. Useful values
 from the table: RCL/STO ≈ 580, SUM/Exc ≈ 650–700, RC* ≈ 930, Op 05 (print a
-line) ≈ 3200, a digit ≈ 120 instructions in fast mode. Normal mode costs about
+line) ≈ 4500, a digit ≈ 120 instructions in fast mode. Normal mode costs about
 twice as much.
 
 ### fastmode_matrix.py — what works in fast mode
@@ -229,6 +229,11 @@ uv run python tools/agentic/runtime.py examples/calendar-09-dispatch.ti59
   2-digit vs 3-digit integer part shifts them).
 - **Fast mode:** the rules (no SBR, no labels as targets, safe endings) are
   in `rom/fastmode.md`; `examples/fastmode-sst.ti59` is the SST entry.
+- **Jumps in `stepcost.py` cases.** Each case is repeated 30 times in a
+  row, so a jump to a fixed address lands inside the repetitions and can
+  loop forever. `measure()` gives up after 300 emulated seconds with an
+  error. Measure a jump with a target that moves along with each
+  repetition instead.
 - **Settle overhead.** Key handling plus the idle checks cost ~1.6 s of
   emulated time per key. Don't sum the per-key times of `ti59file.run`;
   use `runtime.py`.

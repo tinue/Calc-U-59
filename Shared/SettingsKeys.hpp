@@ -3,10 +3,10 @@
 #include <optional>
 #include <string>
 
-// Settings both apps store (UserDefaults in the Swift app, QSettings in the
-// Qt app): the key names, their defaults and how a stored value resolves.
-// Keys only one app has stay in that app (App/AppSettings.swift,
-// Qt6/app/AppSettings.hpp).
+// Settings more than one frontend stores (UserDefaults in the Swift app,
+// QSettings in the Qt app, localStorage in the web client): the key names,
+// their defaults and how a stored value resolves. Keys only one app has stay
+// in that app (App/AppSettings.swift, Qt6/app/AppSettings.hpp).
 
 namespace cu59::settings {
 
@@ -15,10 +15,12 @@ inline constexpr const char* kLastUsedModel = "lastUsedModel";          ///< Int
 inline constexpr const char* kSolidStateModuleID = "solidStateModuleID"; ///< String
 inline constexpr const char* kTraceMaxFileSizeMB = "traceMaxFileSizeMB"; ///< Int: MB
 inline constexpr const char* kLedFontStyle = "ledFontStyle";             ///< Int: 0 modernized, 1 classic
+inline constexpr const char* kKeyboardFeedback = "keyboardFeedback";     ///< Int: 0 off, 1 haptic, 2 click (Swift, web)
 
 inline constexpr int kStartupLastUsed = -1;
 inline constexpr int kDefaultTraceMaxMB = 50;
 inline constexpr int kDefaultLedFontStyle = 0;
+inline constexpr int kDefaultKeyboardFeedback = 0;
 inline constexpr const char* kDefaultModuleID = "ML";
 
 inline bool isModelRaw(int raw) { return raw >= 0 && raw <= 2; }

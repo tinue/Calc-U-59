@@ -3,7 +3,8 @@
 > **Provenance notice.** This document was consolidated by an AI (Claude)
 > from the parser, the `calc-u-59-statefiles` skill and an earlier section
 > of `reference/DebugAPI.md`. The parser is `Shared/StateFile.cpp`, shared
-> by the Swift and Qt6 apps; where they disagree, the code wins.
+> by the Swift and Qt6 apps and the web client; where they disagree, the
+> code wins.
 
 A state file (a "preset" in the GUI) is UTF-8 text that sets the
 calculator's state: program, data registers, module, printer, cue card,
@@ -23,9 +24,9 @@ point readers at the user guide, https://calc-u.org/59/.
 | `REGISTERS:` | Data registers, see below |
 | `KEYSTROKES:` | Keys and directives played after the load, see below |
 | `CUECARD:` | The user's cue card, see "CUECARD: Field Grammar" |
-| `SOLID-STATE-MODULE: ID` | Insert a module: `ML ST RE SY NG AV LE SA BD MU EE SE AG RP` (`roms/solid-state/cuecards.txt`) |
-| `PRINTER: on` | Connect the printer: `on`, `true` or `1`; anything else disconnects it |
-| `SKIP-RESET: on` | Load without a reset, see "SKIP-RESET" |
+| `SOLID-STATE-MODULE: ID` | Insert a module: `ML ST RE SY NG AV LE SA BD MU EE SE AG RP` (`roms/solid-state/cuecards.txt`). Without the line the current module stays |
+| `PRINTER: on` | Connect the printer: `on`, `true` or `1`; anything else disconnects it. Without the line the printer setting stays |
+| `SKIP-RESET: on` | Load without a reset (`on`, `true` or `1`), see "SKIP-RESET" |
 
 - Keywords are case-insensitive. `PROGRAM:`, `REGISTERS:`, `KEYSTROKES:`,
   `CUECARD:` and `PARTITION:` end the current section; lines after
@@ -34,8 +35,9 @@ point readers at the user guide, https://calc-u.org/59/.
   even inside a section.
 - `#` starts a comment, anywhere on a line. A value therefore cannot
   contain `#`, not even a cue-card title or a trace file name.
-- Errors (unknown model, bad register value, bad `Trace:` line) are shown
-  after parsing; the load goes on without the bad line.
+- Errors (unknown model, bad register value, bad `Trace:` line, unknown
+  KEYSTROKES directive, `Wait:` without a unit) are shown after parsing;
+  the load goes on without the bad line.
 
 ---
 
@@ -49,7 +51,7 @@ point readers at the user guide, https://calc-u.org/59/.
 - **Default when omitted:** TI-59 479 (480 steps, 60 data registers);
   TI-58/58C 239.
 - A value above the model's last step (479 on the TI-58/58C) aborts the
-  load.
+  load, with or without `SKIP-RESET`.
 
 ---
 
@@ -71,8 +73,11 @@ PROGRAM:
   number (0 up to the model's last physical step, 959 or 479) sets the
   position. The next token is the one keycode; anything after it is a
   label, even a number (`473 00 0`).
-- Steps not listed are 00. The program is written zero-padded to the
-  model's physical capacity, not to the partition.
+- **Gap marker:** a line that is exactly `...` is skipped; the steps it
+  stands for stay 00 until the next step number.
+- Steps not listed are 00. On a full load the program is written
+  zero-padded to the model's physical capacity, not to the partition;
+  under `SKIP-RESET` only to the end of the program area ("SKIP-RESET").
 
 ---
 
@@ -87,11 +92,12 @@ H01 = 7.77E22
 
 - **`NN = value`, NN = 00–99:** the `STO`/`RCL` register number. All of
   00–99 are ordinary registers on the TI-59; only 00–59 exist on the
-  TI-58/58C.
+  TI-58/58C, and lines for 60–99 are silently ignored there.
 - **`HNN = value`, NN = 00–03, TI-58C only:** the 4 extra RAM cells beyond
   the 60 registers, reachable only by `MEMWR`/`MEMRD`. They are not
   registers 60–63 (`CoreArchitecture.md` § "TI-58C Extra (Constant Memory)
-  Registers"). In a `.ti59` or `.ti58` file this is an error.
+  Registers"). They are an error unless the file loads into a TI-58C (its
+  `MODEL:`, or the current model); the file extension doesn't matter.
 - The value is a decimal literal (exponent allowed). Integers are stored
   digit for digit, anything else rounded to 13 significant digits
   (`cu59::encodeBcd`, `Shared/Bcd.hpp`).
@@ -236,9 +242,12 @@ Operand rules: `stepsAfter()` and `argumentSteps()` in `Shared/KeyNames.cpp`.
 
 ## KEYSTROKES Syntax
 
-Every token of 1–2 digits is one press and release: 11–95 a key, 99 the
-virtual key below; other numbers and words are ignored, so a line can
-carry a comment-like mnemonic. `21 31` on one line is two presses.
+Every token of 1–2 digits is one press and release: 11–95 a key (a code
+with no key, such as 16, presses nothing but still takes a press's time),
+99 the virtual key below; other numbers and words are ignored, so a line can
+carry a comment-like mnemonic. `21 31` on one line is two presses. A line
+that starts with `Word:` is a directive (below), never keys; an unknown
+one is an error.
 
 ```
 KEYSTROKES:
@@ -257,8 +266,7 @@ back in the keyboard scan loop, so no key is lost to a busy calculator
 
 | Directive | Effect |
 |---|---|
-| `Wait: 2s`, `Wait: 500ms` | Pause; the calculator runs at its current speed. The unit is required |
-| `WaitFullSpeed: 5s` | Full speed for the interval, then the previous speed. Use it after a key that starts a long computation |
+| `Wait: 2s`, `Wait: 500ms` | Pause, for the user to see something; the calculator runs at its current speed. The unit is required |
 | `FullSpeed:` / `RegularSpeed:` | Switch speed until the other one or the end of the script |
 | `Trace: <name>` | Start a binary CPU trace to `<name>` in the trace folder (format: `DebugAPI.md` § "Trace File Format") |
 | `Trace: Off` | Stop it |
@@ -269,6 +277,12 @@ back in the keyboard scan loop, so no key is lost to a busy calculator
   `/` and `\` are errors. An existing file is overwritten. A new `Trace:`
   closes the previous one; each file gets the full size limit from
   Settings. The trace runs independently of the manual trace button.
+- **Full speed for a program run:** put `FullSpeed:` before the key that
+  starts it. Playback waits on that key until the program stops, so the
+  whole run is at full speed; speed returns to regular at the end of the
+  script, or at a `RegularSpeed:` after the key. (`WaitFullSpeed:` existed
+  until 2.1.0; it started only after the program had stopped and is now
+  an error.)
 - When the script ends, speed returns to regular and an open `Trace:` file
   is closed.
 - **Adv (`21 93`) needs `RegularSpeed:`.** Adv repeats while held, gated by
@@ -341,11 +355,14 @@ second file of a multi-file screenshot sequence.
 | Section | Under SKIP-RESET |
 |---|---|
 | `PARTITION:` | Set only if given |
-| `PROGRAM:` | Written (zero-padded) only if it has steps |
+| `PROGRAM:` | Written only if it has steps, zero-padded to the end of the program area (the partition, or the last listed step if that is beyond it); the data registers are kept |
 | `REGISTERS:` | The listed registers are written |
 | `CUECARD:` | Replaces the card if present |
 | `KEYSTROKES:` | Played |
 | `MODEL:`, `SOLID-STATE-MODULE:`, `PRINTER:` | Ignored, with a line in the LOG tab |
+
+The printer paper is not cut (the strip continues), a debugger freeze is
+released, and the TI-58C saves its memory as after a full load.
 
 ---
 

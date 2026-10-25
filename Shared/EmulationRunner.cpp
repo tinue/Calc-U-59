@@ -20,7 +20,7 @@ bool lagging(EmulationRunner::Clock::time_point deadline, EmulationRunner::Clock
 EmulationRunner::EmulationRunner(TI59Machine& m, Model model, FreezeController& freeze, Callbacks callbacks,
                                  Threading threading)
     : m_machine(m), m_model(model), m_freeze(freeze), m_callbacks(std::move(callbacks)), m_threading(threading),
-      m_target(batchTargetCycles(model)) {
+      m_jitter(batchTargetCycles(model), m_callbacks.jitterSeed) {
     requireThreadSupport(threading);
     if (threading == Threading::Threads) m_thread = std::thread([this] { threadMain(); });
 }
@@ -39,6 +39,7 @@ void EmulationRunner::start() {
     if (m_running.exchange(true)) return;
     if (m_threading == Threading::Cooperative) {
         m_carry = 0;
+        m_jitter.reset();
         m_deadline = {};  // lagging: pump() starts the schedule at its `now`
         post(nullptr);
     } else {
@@ -88,7 +89,7 @@ void EmulationRunner::threadMain() {
 }
 
 EmulationRunner::BatchEnd EmulationRunner::runOneBatch(int32_t& carry) {
-    BatchResult r = runBatch(m_machine, carry, m_target, m_freeze);
+    BatchResult r = runBatch(m_machine, carry, m_jitter.next(), m_freeze);
     if (r.stop == BatchResult::Stop::Breakpoint) {  // Core breakpoints are set by headless tools only
         m_running = false;
         return BatchEnd::Stopped;
@@ -108,6 +109,7 @@ void EmulationRunner::runLoop() {
     // each batch from a fresh now() (as before) lost both every batch — about
     // 17% of real time on macOS. A full-speed batch restarts the schedule.
     int32_t carry = 0;
+    m_jitter.reset();
     auto deadline = Clock::now();
     while (m_running) {
         deadline += kBatch;

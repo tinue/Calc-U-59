@@ -15,11 +15,15 @@ class RAM;
 // ── Printer output line ───────────────────────────────────────────────────────
 //
 // Each printed character-line produces one PrinterCodeLine.  rowCount is 7 for
-// a complete line; 1–6 when the print was aborted mid-stroke (a new PRT_PRINT
-// arrived before the previous line's 197 ms BUSY window elapsed).
+// a complete line; 0–6 when the print was aborted mid-stroke (a new PRT_PRINT
+// arrived before the previous line's BUSY window (kPrinterLineCycles) elapsed).
+// The head fires a row one dot column at a time, right to left, so a cut can
+// also leave the rightmost partialColumns columns of the next row on paper.
 struct PrinterCodeLine {
     std::array<uint8_t, 20> codes{};
-    uint8_t rowCount{7};   // dot-rows physically printed (1–7); 7 = complete
+    uint8_t rowCount{7};        // dot rows started in full (0–7); 7 = complete line
+    uint8_t partialColumns{0};  // columns of row rowCount started before the cut (0–5, from the right)
+    uint8_t partialHeat{0};     // cycles the leftmost of them was heated before the cut (capped at 255)
 };
 
 // ── Display snapshot ──────────────────────────────────────────────────────────
@@ -99,8 +103,9 @@ enum : uint16_t {
 //
 // Clock: TI-59: 455 kHz oscillator ÷ 2 (two-phase) ÷ 16 (digit-serial cycle)
 //        ≈ 14,219 instructions/sec in active mode; ÷4 further in idle mode.
-//        TI-58/58C: 384 kHz oscillator ÷ 2 ÷ 16 = 12,000 instructions/sec
-//        (TI-58C: constant speed, no idle divisor). See resonatorHz().
+//        TI-58: 384 kHz oscillator ÷ 2 ÷ 16 = 12,000 instructions/sec.
+//        TI-58C: 394 kHz ÷ 2 ÷ 16 = 12,312.5 instructions/sec (one measured
+//        unit; the RC clock varies by unit), no idle divisor. See resonatorHz().
 
 class TMC0501 {
 public:
@@ -232,6 +237,14 @@ public:
 
     /// Pure function — disassembles one 13-bit opcode to a mnemonic string.
     static std::string disassemble(uint16_t pc, uint16_t opcode);
+
+    // PC-100 BUSY after PRT.GO (a printed line) and PRT.FEED (half a line; the
+    // ROM's Adv issues two). The printer runs on the calculator's PHI clock, so
+    // these are instruction cycles on every model, counted down once per step.
+    // Measured from recordings of List, Prt and Adv loops on a TI-59 and a
+    // TI-58C (reference/CoreArchitecture.md, "Printer (PC-100C)").
+    static constexpr uint32_t kPrinterLineCycles = 4165;
+    static constexpr uint32_t kPrinterFeedCycles = 1370;
 
     // ── Printer hardware buttons ──────────────────────────────────────────────
     void pressPrinterPrint(bool pressed);
@@ -405,8 +418,8 @@ private:
     std::vector<std::string>      m_prnLines;      // Thread-safe text output queue
     std::vector<PrinterCodeLine>  m_prnCodeLines;  // Parallel raw-code queue (deferred commits)
     mutable std::mutex            m_prnMutex;
-    void flushPendingCodeLine(int rowCount);  // commit m_prnPending with the given rowCount
-    void flushPendingIfActive();              // flush with elapsed-proportional rowCount; no-op if !m_prnHasPending
+    void flushPendingCodeLine(uint32_t elapsed);  // commit m_prnPending cut `elapsed` cycles after PRT.GO
+    void flushPendingIfActive();                  // flush at the current BUSY count; no-op if !m_prnHasPending
 
     // ── Display state (shared between CPU thread and UI thread) ───────
     // Per-digit live buffers: updated during each digit's strobe phase when IDLE.
@@ -529,7 +542,18 @@ private:
     // in the last complete digit-counter revolution.
     void computeDisplayTraceState(uint8_t& displayOn, uint8_t& maxDigitDecay) const;
 
-    uint32_t getPrinterBusyCycles() const;
+    // A printed line is 7 dot-row strokes from PRT.GO on, then the paper advance.
+    // Each stroke fires the 5 dot columns of all 20 characters one column at a
+    // time, right to left: column c (5 = rightmost) of row r starts
+    // r·508 + 18 + (5 − c)·64 cycles after PRT.GO. How dark the last column
+    // of a cut comes out depends on how long it was heated (partialHeat;
+    // Shared/PrinterFont.hpp inkAlpha). Measured on a TI-58C and a TI-59
+    // with one PC-100A (examples/debug/printer-interrupt-sweep.ti58c and
+    // printer-interrupt-bits.ti59; reference/CoreArchitecture.md, "Printer
+    // (PC-100C)").
+    static constexpr uint32_t kPrinterRowCycles = 508;
+    static constexpr uint32_t kPrinterRowStartCycles = 18;
+    static constexpr uint32_t kPrinterColumnCycles = 64;
 
     int getStepWeight() const;
 };

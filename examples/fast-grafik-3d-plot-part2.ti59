@@ -160,6 +160,7 @@ KEYSTROKES:
 #63          # 8
 #63          # 8
 #31          # LRN
-# Program entry finished, now launch the plot.
+# Program entry finished, now launch the plot. It takes about an hour at
+# regular speed, so it runs at full speed; speed returns to regular after.
+FullSpeed:
 11           # A
-WaitFullSpeed: 10s

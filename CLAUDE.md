@@ -11,7 +11,7 @@ Invoke the right skill before starting work in each area:
 | `calc-u-59-swift` | Swift/SwiftUI app (`App/`, `App/Views/`, `Bridge/`) |
 | `calc-u-59-qt` | Qt6 desktop app (`Qt6/`, `.github/workflows/build.yml`, Qt packaging) |
 | `calc-u-59-web` | Web client (`Web/`: React + WASM engine, PWA, `Web/build.sh`, `Web/dist/`, the `web` CI job) |
-| `calc-u-59-docs` | Documentation (`reference/`, root markdown files); the user guide lives in `../calc-u-site` |
+| `calc-u-59-docs` | Documentation (`reference/`, root markdown files); the user guide lives in `../calc-u-site` and is updated with them |
 | `calc-u-59-statefiles` | Writing `.ti59`/`.ti58`/`.ti58c` state files — format, matrix codes, KEYSTROKES sequences |
 | `calc-u-59-uitesting` | XCUITest UI tests (`Calc-U-59UITests/`) — file picker navigation, accessibility identifiers, orientation |
 
@@ -44,7 +44,8 @@ Three GUIs share `Core/` (hardware) and `Shared/` (everything else that isn't
 drawing): the Swift app (macOS, iOS — the Mac product, with iCloud), the
 Qt6 app (Windows and Linux; its macOS build is for development only, never
 shipped and never built in CI) and the web client (`Web/`, embedded by the
-website; TI-59 only, no printer, debugger or traces). Keep them in step:
+website; no iCloud, debugger only in its wide layout — its column in
+`reference/FrontendParity.md` has the scope). Keep them in step:
 
 - **Non-GUI logic goes in `Shared/` only** — parsing, file formats, timing,
   key sequencing, snapshot building, layout rules and numbers the renderers

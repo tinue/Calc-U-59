@@ -280,11 +280,6 @@ void TMC0501::computeDisplayTraceState(uint8_t& displayOn, uint8_t& maxDigitDeca
     maxDigitDecay = static_cast<uint8_t>(std::bitset<16>(m_drivenLastRev).count());
 }
 
-uint32_t TMC0501::getPrinterBusyCycles() const {
-    // Printer busy time: 197.5 ms → TI-59 2808 cycles, TI-58/58C 2370.
-    return static_cast<uint32_t>(0.1975 * instructionHz(m_variant));
-}
-
 int TMC0501::getStepWeight() const {
     return ((flags & FLG_IDLE) && !hasConstantMemory(m_variant)) ? 4 : 1;
 }
@@ -472,7 +467,7 @@ int TMC0501::step() {
     if (m_prnBusyCycles > 0) {
         if (--m_prnBusyCycles == 0) {
             flags &= ~FLG_BUSY;
-            flushPendingCodeLine(7);  // complete: all 7 dot-rows printed
+            flushPendingCodeLine(kPrinterLineCycles);  // complete: all 7 dot-rows printed
         }
     }
 
@@ -630,8 +625,8 @@ int TMC0501::step() {
             // The counter is decremented before this test (see above). The ROM
             // encodes the target as n+1: WAIT D1 fires when digit==1 so the
             // *next* instruction runs at digit==0.  E.g. WAIT D1 + KEY FB
-            // samples key[0] (KP.D0).  WAIT D0 (encoded 0) wraps: fires at
-            // digit==15 (benign; not used meaningfully in TI-59 ROMs).
+            // samples key[0] (KP.D0).  WAIT D0 (encoded 0) releases at digit==0
+            // (the printer-interrupt path's WAIT D0 at 05A9 waits for it).
             // It releases at the first matching digit, even on its first
             // execution: a stand-alone TI-59's error blink (0.449 s, where the
             // idle loop's WAITs reach their digit after 1-2 executions) allows
@@ -813,24 +808,19 @@ int TMC0501::step() {
                         line += m_prnBuf[i];
                         m_prnPending.codes[19 - i] = m_prnCodeBuf[i];
                     }
-                    m_prnPending.rowCount = 7;
                     m_prnHasPending = true;
                     {
                         std::lock_guard<std::mutex> lk(m_prnMutex);
                         m_prnLines.push_back(std::move(line));
                     }
                     flags |= FLG_BUSY;
-                    m_prnBusyCycles = getPrinterBusyCycles();
+                    m_prnBusyCycles = kPrinterLineCycles;
                 }
                 break;
             }
             case 0xB0: // PRT_FEED — advance paper (blank line)
-                // ADV button sends PRT_FEED continuously while held; BUSY gates the rate.
-                // Measured on real PC-100C hardware: 40 ADV lines in 7.9s → 197.5ms/line.
-                // Note: 40 LIST lines take 12.7s → 317.5ms/line; the extra 120ms/line is
-                // communication overhead (serial transfer of ~13 characters at ~9.5ms each).
-                // That overhead is not yet modelled — it requires per-output BUSY pulses that
-                // only fire when the ROM polls TST BUSY between characters.
+                // Half a line of paper; Adv (key, button or program step) issues two.
+                // BUSY gates the rate.
                 //
                 // If a PRT_PRINT is in progress (deferred code-line pending), flush it now
                 // so the print's code-line lands at the same index as its text line.
@@ -843,7 +833,7 @@ int TMC0501::step() {
                     m_prnCodeLines.emplace_back();  // zero-filled
                 }
                 flags |= FLG_BUSY;
-                m_prnBusyCycles = getPrinterBusyCycles();
+                m_prnBusyCycles = kPrinterFeedCycles;
                 break;
             case 0xF0: // RAM_OP — deferred decode: next Sout encodes operation + address
                 // Deferred operation: capture operation and address from Sout.
@@ -1240,9 +1230,21 @@ std::vector<PrinterCodeLine> TMC0501::drainPrinterCodeLines() {
     return std::move(m_prnCodeLines);
 }
 
-void TMC0501::flushPendingCodeLine(int rowCount) {
+void TMC0501::flushPendingCodeLine(uint32_t elapsed) {
     if (!m_prnHasPending) return;
-    m_prnPending.rowCount = static_cast<uint8_t>(std::max(0, std::min(7, rowCount)));
+    // Rows before the one in progress are on paper; of the row in progress,
+    // the columns that have started (right to left), and how long the last
+    // of them was heated.
+    uint32_t rows = elapsed / kPrinterRowCycles, cols = 0, heat = 0;
+    uint32_t into = elapsed % kPrinterRowCycles;
+    if (rows < 7 && into >= kPrinterRowStartCycles) {
+        uint32_t fired = into - kPrinterRowStartCycles;
+        cols = std::min<uint32_t>(5, fired / kPrinterColumnCycles + 1);
+        heat = fired - (cols - 1) * kPrinterColumnCycles;
+    }
+    m_prnPending.rowCount = static_cast<uint8_t>(std::min<uint32_t>(7, rows));
+    m_prnPending.partialColumns = static_cast<uint8_t>(cols);
+    m_prnPending.partialHeat = static_cast<uint8_t>(std::min<uint32_t>(255, heat));
     std::lock_guard<std::mutex> lk(m_prnMutex);
     m_prnCodeLines.push_back(m_prnPending);
     m_prnHasPending = false;
@@ -1250,9 +1252,7 @@ void TMC0501::flushPendingCodeLine(int rowCount) {
 
 void TMC0501::flushPendingIfActive() {
     if (!m_prnHasPending) return;
-    uint32_t total   = getPrinterBusyCycles();
-    uint32_t elapsed = total - m_prnBusyCycles;
-    flushPendingCodeLine(static_cast<int>(elapsed * 7u / total));
+    flushPendingCodeLine(kPrinterLineCycles - m_prnBusyCycles);
 }
 
 void TMC0501::pressPrinterPrint(bool pressed) {

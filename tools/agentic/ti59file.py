@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.join(ROOT, 'tools', 'headless'))
 from ti59 import Machine, LIB, INSTR_PER_SEC, IDLE_LO, IDLE_HI, FLG_IDLE  # noqa: E402
 
 FLG_BUSY = 0x8000              # printer busy
-LINE_TIME = 0.1975             # seconds per printed line at full printer speed
+LINE_CYCLES, FEED_CYCLES = LIB.h_printer_busy_cycles(0), LIB.h_printer_busy_cycles(1)  # printer BUSY
 # KEYSTROKES matrix codes of the digit keys
 DIGIT = {'0': '92', '1': '82', '2': '83', '3': '84', '4': '72', '5': '73', '6': '74', '7': '62', '8': '63', '9': '64'}
 
@@ -78,7 +78,9 @@ def parse(path):
         if re.match(r'^[A-Za-z]+:', l):
             keys.append(l.split(':')[0] + ':')
         else:
-            keys += re.findall(r'\b\d\d\b', l)[:2] if l.startswith('21') else re.findall(r'^\d\d', l)
+            # as parseKeystrokeLine (Shared/StateFile.cpp): every 1-2 digit
+            # token, 11-95 a key, 99 the paper-trace toggle, others ignored
+            keys += [t for t in l.split() if len(t) <= 2 and t.isdigit() and (11 <= int(t) <= 95 or t == '99')]
     return [prog.get(i, 0) for i in range(max(prog) + 1 if prog else 0)], regs, part, keys
 
 
@@ -88,7 +90,12 @@ def real_keys(keys):
 
 
 def press(m, code, hold=6000):
-    """press and release a key (matrix code), holding it for `hold` instructions"""
+    """press and release a key (matrix code), holding it for `hold` instructions;
+    99 toggles the printer's paper-trace switch"""
+    if code == '99':
+        m.paper_trace = not getattr(m, 'paper_trace', False)
+        LIB.h_trace_sw(m.h, int(m.paper_trace))
+        return
     m.press(code); LIB.h_stepn(m.h, hold); m.release(code)
 
 
@@ -144,10 +151,16 @@ def run(path, keys=None):
     return (m.elapsed() - t0) / INSTR_PER_SEC, m.printer_lines(), ok, m
 
 
+def printer_floor(lines):
+    """The printer's own minimum time for these lines; a blank line is one PRT.FEED"""
+    printed = sum(1 for l in lines if l.strip())
+    return (printed * LINE_CYCLES + (len(lines) - printed) * FEED_CYCLES) / INSTR_PER_SEC
+
+
 if __name__ == '__main__':
     path = sys.argv[1]
     t, lines, ok, m = run(path)
     print(f'{path}: {t:7.1f} s  finished={ok}  lines={len(lines)} '
-          f'(non-blank {sum(1 for l in lines if l.strip())})  printer floor {len(lines) * LINE_TIME:5.1f} s')
+          f'(non-blank {sum(1 for l in lines if l.strip())})  printer floor {printer_floor(lines):5.1f} s')
     if '--lines' in sys.argv:
         print('\n'.join(lines))

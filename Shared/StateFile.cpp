@@ -1,5 +1,6 @@
 #include "StateFile.hpp"
 #include "TextUtil.hpp"
+#include <cctype>
 
 namespace cu59 {
 
@@ -94,6 +95,16 @@ void parseKeystrokeLine(std::string_view line, std::vector<KeystrokeEvent>& out)
         }
         out.push_back(e);
     }
+}
+
+/// "Word:" at the start of a KEYSTROKES line: a directive, never key codes —
+/// an unknown one is an error rather than read as keys ("Wait: 15" is not E).
+bool isDirectiveLine(std::string_view line) {
+    size_t colon = line.find(':');
+    if (colon == std::string_view::npos || colon == 0) return false;
+    for (char c : line.substr(0, colon))
+        if (!std::isalpha(static_cast<unsigned char>(c)) && c != '-') return false;
+    return true;
 }
 
 /// "<prefix> <value>s" or "<prefix> <value>ms" (case-insensitive) → seconds.
@@ -212,14 +223,12 @@ LoadStateResult parseStateFile(std::string_view text, int maxStepAddr, bool allo
             parseRegLine(line, allowHiddenRegisters, r);
             break;
         case Section::Keystrokes:
-            if (auto t = parseWaitInterval(line, upper, "WAITFULLSPEED:")) {
-                KeystrokeEvent e = simple(KeystrokeEvent::Kind::WaitFullSpeed);
-                e.seconds = *t;
-                r.keystrokes.push_back(e);
-            } else if (auto w = parseWaitInterval(line, upper, "WAIT:")) {
+            if (auto w = parseWaitInterval(line, upper, "WAIT:")) {
                 KeystrokeEvent e = simple(KeystrokeEvent::Kind::Wait);
                 e.seconds = *w;
                 r.keystrokes.push_back(e);
+            } else if (startsWith(upper, "WAIT:")) {
+                r.errors.push_back("\"" + std::string(line) + "\": Wait: needs a time with its unit, e.g. 2s or 500ms.");
             } else if (startsWith(upper, "TRACE:")) {
                 parseTraceLine(line, r);
             } else if (startsWith(upper, "FULLSPEED:")) {
@@ -230,6 +239,11 @@ LoadStateResult parseStateFile(std::string_view text, int maxStepAddr, bool allo
                 r.keystrokes.push_back(simple(KeystrokeEvent::Kind::ZeroElapseTime));
             } else if (startsWith(upper, "REPORTELAPSETIME:")) {
                 r.keystrokes.push_back(simple(KeystrokeEvent::Kind::ReportElapseTime));
+            } else if (startsWith(upper, "WAITFULLSPEED:")) {
+                r.errors.push_back("WaitFullSpeed: no longer exists: put FullSpeed: before the key that starts the "
+                                   "program; playback waits until it stops, and the script ends at regular speed.");
+            } else if (isDirectiveLine(line)) {
+                r.errors.push_back("Unknown KEYSTROKES directive: \"" + std::string(line) + "\"");
             } else {
                 parseKeystrokeLine(line, r.keystrokes);
             }

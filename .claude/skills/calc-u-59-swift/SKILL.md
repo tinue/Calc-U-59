@@ -21,8 +21,9 @@ This skill covers all work inside `App/`, `App/Views/`, and `Bridge/`.
    sequencing, snapshot building and the numbers the views draw with belong
    in `Shared/`, reached through `EmulatorViewModel` → `TISessionController`
    or a `Bridge/` wrapper. Views are thin bindings over `EmulatorViewModel`.
-2. **Parity.** A user-visible change here needs the matching Qt change on
-   the same branch, or a `Pending (Qt)` row in `reference/FrontendParity.md`.
+2. **Parity.** A user-visible change here needs the matching Qt change, and
+   the web change if the feature is in the web's scope, on the same branch —
+   or a `Pending (Qt)` / `Pending (Web)` row in `reference/FrontendParity.md`.
    Update the table either way (CLAUDE.md § "Frontend Parity").
 3. **Bridge wrappers translate types only.** Per-frame work that walks
    registers or program memory runs in C++ and crosses the bridge once as a

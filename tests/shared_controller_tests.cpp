@@ -59,6 +59,11 @@ TEST(controller_reports_parse_errors_and_partition_errors) {
     CHECK(c.startMachine(Model::TI58));
     c.loadStateFile(bytes("PARTITION: 959\n"));  // beyond the TI-58's 479
     CHECK_EQ(p.errors.size(), size_t{1});
+    CHECK(waitForScanLoop(c));
+    int regs = c.session()->machine().partitionProgramRegs();
+    c.loadStateFile(bytes("SKIP-RESET: on\nPARTITION: 959\n"));  // checked without a reset too
+    CHECK_EQ(p.errors.size(), size_t{2});
+    CHECK_EQ(c.session()->machine().partitionProgramRegs(), regs);
     c.loadStateFile(std::nullopt);
     CHECK_EQ(p.errors.back(), std::string("State file load error: Cannot read file."));
     c.loadStateFile(bytes("\xff\xfe"));

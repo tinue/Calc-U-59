@@ -257,7 +257,7 @@ class EmulatorViewModel {
     func pressPrinterPrint(_ pressed: Bool) { controller.pressPrinterPrint(pressed) }
     func pressPrinterAdv(_ pressed: Bool) { controller.pressPrinterAdv(pressed) }
     func togglePrinterTrace() { controller.togglePrinterTrace() }
-    func setPrinterConnected(_ connected: Bool) { controller.setPrinterConnected(connected) }
+    func togglePrinterConnection() { controller.togglePrinterConnection() }
     func cutPaper() { controller.cutPaper() }
     /// The strip's height in dot pitches (Shared pairs text and dot lines).
     var printerStripHeightUnits: Double { controller.printerStripHeightUnits }

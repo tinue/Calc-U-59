@@ -52,7 +52,7 @@ public:
     double printerStripHeightUnits() const { return m_c->printerStripHeightUnits(); }
     bool printerConnected() const { return m_c->printerConnected(); }
     bool printerTrace() const { return m_c->printerTrace(); }
-    void setPrinterConnected(bool connected) { m_c->setPrinterConnected(connected); }
+    void togglePrinterConnection() { m_c->togglePrinterConnection(); }
     void togglePrinterTrace() { m_c->togglePrinterTrace(); }
     void pressPrinterPrint(bool pressed) { m_c->pressPrinterPrint(pressed); }
     void pressPrinterAdv(bool pressed) { m_c->pressPrinterAdv(pressed); }

@@ -10,9 +10,9 @@ The debugger has three layers:
 |---|---|---|
 | Core | `TI59Machine`, `TMC0501` (`Core/`) | RAM, program and SCOM access, the trace ring, step-boundary latch, debug events, the ASM overlay, breakpoints |
 | Shared | `EmulatorSession`, `DebugModel`, `DebugSnapshots`, `DebugText`, `DebugLog`, `TraceWriter`, `AsmOverlay` (`Shared/`) | Freeze and step, the panels' data and text, the LOG, trace files |
-| GUI | Swift: `EmulatorViewModel` → `Bridge/TISessionController`, views in `App/Views/` (`DebugView`, `LiveDebugView`, `CPUInspectorView`). Qt: `EmulatorController`, widgets in `Qt6/app/debug/` (`DebugPanel`, `LiveDebugWidget`, `CpuInspectorWidget`, `RomHeatmapWidget`, `AsmOverlayBox`, `LogWidget`) | Drawing only |
+| GUI | Swift: `EmulatorViewModel` → `Bridge/TISessionController`, views in `App/Views/` (`DebugView`, `LiveDebugView`, `CPUInspectorView`). Qt: `EmulatorController`, widgets in `Qt6/app/debug/` (`DebugPanel`, `LiveDebugWidget`, `CpuInspectorWidget`, `RomHeatmapWidget`, `AsmOverlayBox`, `LogWidget`). Web: `WebController` (`Web/bindings.cpp`), `Web/src/Debugger.jsx` (`LiveDebug`, `FreezeHeader`, `CpuInspector`, `Heatmap`, `AsmOverlay`, `LogTab`; wide layout only) | Drawing only |
 
-Both apps call the same `SessionController` methods; the panels draw what
+All three GUIs call the same `SessionController` methods; the panels draw what
 `DebugModel` holds. Which panel lives where: `FrontendParity.md`
 § "Debugger". The session and controller: `SharedArchitecture.md`. Panel
 behaviour from a user's point of view: the user guide,
@@ -59,7 +59,9 @@ writes what the ROM's Op 17 writes, with no key simulation:
 ## Freeze / Step Controls
 
 The freeze state lives in `EmulatorSession`; `SessionController` mirrors it
-and rebuilds the panels (`DebugModel`).
+and rebuilds the panels (`DebugModel`). The web client's `WebController`
+exposes these under the `SessionController` names, except `resume()`, which
+it calls `resumeFrozen` (its `resume` ends a page suspend).
 
 | `SessionController` | Swift `EmulatorViewModel` | Qt `EmulatorController` |
 |---|---|---|
@@ -332,7 +334,8 @@ Qt `logText()`).
 | `dumpMemory()` | `debugDumpMemory()` | Every non-zero RAM register by physical index, in the `ti58c.mem` register-line format |
 | `cycleDebugLevel()`, `clearLog()` | `toggleDebug()`, `clearDebug()` | Level Off → Info → Debug → Off; clear |
 
-Qt has the same names as `SessionController` for the four dumps. The level
+Qt and the web client have the same names as `SessionController` for the
+four dumps and the level. The level
 is passed to the core (`TI59Machine::setDebugLevel`). Shared code logs
 through `SessionController` (or `EmulatorSession::Listener::logLine`).
 

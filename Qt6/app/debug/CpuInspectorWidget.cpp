@@ -174,7 +174,7 @@ void CpuInspectorWidget::refreshList() {
     int current = -1;
     for (size_t i = 0; i < history.size(); ++i) {
         const auto& e = history[i];
-        auto* item = new QListWidgetItem(QString::asprintf("%04X  %04X  ", e.pc, e.opcode) + QString::fromStdString(e.disasm), m_list);
+        auto* item = new QListWidgetItem(QString::fromStdString(cu59::inspectorLine(e)), m_list);
         item->setFont(mono);
         // Executed instructions full strength, the predicted next one dimmed.
         item->setForeground(QColor(255, 255, 255, e.isHistory ? 230 : 90));

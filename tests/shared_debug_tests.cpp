@@ -321,6 +321,14 @@ TEST(debug_panel_text) {
     CHECK_EQ(returnLevelColor(2, true), returnLevelColor(1, true));
     CHECK_EQ(returnLevelColor(5, false), 0xCCCCCCu);
     CHECK_EQ(currentStepMarker(true), std::string("← next"));
+    CHECK_EQ(programStepLine({38, 42, "STO", false}, true), std::string("038  42  STO"));
+    CHECK_EQ(programStepLine({7, 5, "5", true}, false), std::string("007  05  5  ← running"));
+    CHECK_EQ(returnLevelLine(1, 38), std::string("L1:038"));
+    InspectorEntry e{};
+    e.pc = 0x0837;
+    e.opcode = 0x0A12;
+    e.disasm = "BRC 0x0840";
+    CHECK_EQ(inspectorLine(e), std::string("0837  0A12  BRC 0x0840"));
     CHECK_EQ(stepHighlightColor(ProgramSource::FastMode), stepHighlightColor(ProgramSource::UserProgram));
     CHECK(condFlag(0x0800) && !condFlag(0x0001) && idleFlag(0x0001));
     uint8_t n[16] = {0x15, 0xA};  // high bits are masked

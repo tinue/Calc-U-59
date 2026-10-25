@@ -37,17 +37,17 @@ enum KeyboardFeedbackType: Int, CaseIterable, Identifiable {
 // MARK: - UserDefaults keys
 
 enum SettingsKey {
-    // Shared with the Qt app (Shared/SettingsKeys.hpp)
+    // Shared with the Qt app or the web client (Shared/SettingsKeys.hpp)
     static let startupModel           = TISettings.startupModelKey        // Int: MachineModel.rawValue, or -1 = last used
     static let lastUsedModel          = TISettings.lastUsedModelKey       // Int: MachineModel.rawValue
     static let solidStateModuleID     = TISettings.solidStateModuleIDKey  // String: module ID
     static let traceMaxFileSizeMB     = TISettings.traceMaxFileSizeMBKey  // Int: maximum trace file size in MB
     static let ledFontStyle           = TISettings.ledFontStyleKey        // Int: LEDFontStyle.rawValue
+    static let keyboardFeedback       = TISettings.keyboardFeedbackKey    // Int: KeyboardFeedbackType.rawValue
     // Swift only
     static let traceLocation          = "traceLocation"            // Int: TraceLocation.rawValue
     static let traceCustomPath        = "traceCustomPath"          // String: absolute directory path (macOS only)
     static let traceCustomPathBookmark = "traceCustomPathBookmark" // Data: security-scoped bookmark for custom path
-    static let keyboardFeedback       = "keyboardFeedback"         // Int: KeyboardFeedbackType.rawValue
     static let portraitDebugPage      = "portraitDebugPage"        // Bool: show Debug as third portrait page (default false)
 }
 

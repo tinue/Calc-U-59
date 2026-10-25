@@ -60,7 +60,7 @@ per clock, so one instruction takes 16 digit times.
 ```
 TI-59:      455 kHz ÷ 2 (two-phase) ÷ 16 → 14,219 instructions/s
 TI-58:      384 kHz ÷ 2 ÷ 16             → 12,000 instructions/s
-TI-58C:     384 kHz ÷ 2 ÷ 16             → 12,000 instructions/s (assumed)
+TI-58C:     394 kHz ÷ 2 ÷ 16             → 12,312.5 instructions/s (one unit's clock; see "TI-58C clock")
 idle (display) mode: ÷ 4 more on the TI-59/58; full speed on the TI-58C
 ```
 
@@ -71,16 +71,105 @@ TP0240 clock chip page (http://www.datamath.org/Chips/TP0240.htm) — 455 kHz
 active. The TI-59 rates are confirmed on a real TI-59: videos (see "Printer
 line in the idle scan") and a logic analyser on its clock chip, whose PHI1/PHI2
 pins run at f/2 (226.6 kHz) while active and f/8 (56.7 kHz) while idle, for a
-453.3 kHz resonator. The TI-58C is assumed to use the TI-58's 384 kHz part; no
-TI-58C clock is documented. Measured units disagree: one shows PHI 194.7 kHz
-on a scope (389.4 kHz) and an error blink of 0.920 s that matches it
-exactly; another blinks 0.896 s, as at 400 kHz. The blink's length in
-instructions depends on the ROM path only, so a unit's blink gives its
-clock, and its other measurements are compared after normalising to that
-clock — whether the deviation is the resonator or the video's timing does
-not matter, as long as one unit's videos share it. The frequencies live in
-`resonatorHz()` (`Core/MachineVariant.hpp`); the instruction rates in
+453.3 kHz resonator. The frequencies live in `resonatorHz()`
+(`Core/MachineVariant.hpp`); the instruction rates in
 `Shared/MachineModelInfo.hpp` derive from it.
+
+### TI-58C clock
+
+The TI-58C has no clock chip and no resonator on its board, so it cannot use
+the TP0240 scheme above. It runs on the **clock generator built into a
+TMC0580 DSCOM**: its CD2400 and CD2401 are TMC0580 dies
+(http://www.datamath.org/Chips/TMC0580.htm), mounted piggyback with their
+pins in parallel: on unit B every pin of both packages is soldered through,
+none bent away (visual inspection), pin 14 included. Probes on that unit
+confirm the oscillator.
+
+- **The oscillator.** The TMC0580 has a two-phase clock generator on an
+  extra bond pad (CLK), specified for PHI1/PHI2 up to 230 kHz. The
+  frequency is set by external parts on CLK: a resistor to VGG alone (an
+  internal capacitor sets the time constant), a resistor to VGG plus a
+  capacitor to VSS, or a PZT resonator to VSS.
+- **The cost: D0.** In the 28-pin package the CLK pad and digit line D0
+  share pin 14, so a chip bonded for its oscillator has no D0. On unit B
+  the stack's pin 14 carries no digit pulses but the oscillator's timing
+  node. **PHI = oscillator ÷ 4**: captured together, every PHI1 period
+  holds exactly four pin-14 cycles. A probe on pin 14 loads the node and
+  halves the rate, so the free-running oscillator (≈ 4 × PHI ≈ 790 kHz)
+  cannot be observed directly. The TI-59/58 sense the PC-100 printer
+  cradle by a diode between D0 and KP. Without D0 the TI-58C ROM moved
+  that test to D10 and rebuilt its idle loop around it
+  (`rom/TI58C-ROM-Guide.md`, "The printer-present line moved to digit 10").
+- **PHI reaches the other chips as usual.** The third ROM, the TMC0573, is
+  an 8-pin BROM (http://www.datamath.org/Chips/TMC0560.htm) whose pins 6
+  and 7 are the PHI2/PHI1 inputs; they carry the same PHI as pin 4 of the
+  printer connector.
+- **No idle slow-down.** On the TI-59/58 the ÷ 4 idle divide is done by the
+  TP0240, which watches /IDLE. The TMC0580's oscillator has no such
+  divider, and the TI-58C runs idle instructions at full speed.
+
+**Rate per unit.** An R or RC oscillator sets no standard frequency:
+
+| Unit | PHI | Measured |
+|---|---|---|
+| A | 194.7 kHz | scope on PHI; error blink 0.9185 s stand-alone, 0.7234 s on the PC-100C |
+| B | 196.1–197.8 kHz | logic analyser on PHI1 (printer connector pin 4), five readings over two days; error blink 0.9090 s stand-alone, 0.7140 s on the PC-100C (one session, PHI 197.2 kHz) |
+| C | ≈ 200 kHz | error blink 0.896 s only |
+
+All are within the 230 kHz PHI limit. The TI-59 needed a resonator so that
+a card written on one calculator reads on another; the TI-58C has no card
+reader.
+
+**Stability (unit B).** The rate wanders by about 0.8% between readings
+taken hours or days apart (PHI1 196.14 to 197.8 kHz) but holds within a session: lighting all ten
+digits slows it by only 68 ppm, and it drifts about 40 ppm over 8 s. It
+needs a clean supply: on the charger without its battery pack, the display
+shows deep 100 Hz ripple and the error blink slows by 0.3%. Measure with
+the pack in, or with a bench supply on the battery terminals.
+
+**Emulator model.** The emulator keeps a base clock for every variant,
+because the rest of the timing code derives from it (instruction rate =
+base ÷ 32). For the TI-58C that base is 2 × PHI, not a frequency found on
+the board. `resonatorHz()` uses 394 kHz (12,312.5 instructions/s), unit B's
+rate from its error blinks with and without the printer.
+
+**Accuracy.** The emulator runs the TI-58C **instruction-exact**. On unit B,
+PHI1 cycles counted between IDLE events (÷ 16 = instructions) match the
+emulator to the instruction in every block of this loop, in every cycle:
+
+| Block (program `2 STO 00`, then the loop) | Instructions |
+|---|---|
+| `Pause Pause` (start to start) | 2,032 |
+| 20 × `Nop`, `Pause` | 6,256 |
+| 10 × `RCL 00`, `Pause` | 16,416 |
+| 10 × `STO 00`, `Pause` | 16,432 |
+| 10 × (`x²` `√x`), `Pause` | 16,720 |
+| `GTO 000`, `Pause` | 3,392 |
+
+Each `Pause` holds the display for exactly 1,489 IDLE instructions, on the
+unit and in the emulator. The error blink takes 11,200 instructions per
+period stand-alone and 8,800 on the PC-100C; both blinks of unit B give the
+same rate. So **a TI-58C rarely matches a live unit 100% in seconds**: the
+instruction counts agree, but the unit's clock of the day differs from the
+emulator's fixed 394 kHz, and between units by several percent.
+
+To compare a program with a real TI-58C:
+- **Exact:** count PHI1 cycles (printer connector pin 4) between edges of
+  IDLE (also on the printer connector) and divide by 16. IDLE pulses about
+  5 µs low once per instruction and stays low for a whole instruction while
+  the CPU is idle, so each `Pause` or idle phase is a run of long lows.
+  Clock, drift and supply drop out.
+- **On video:** film the error blink in the same session and power setup,
+  take the unit's rate from it (11,200 or 8,800 instructions per period),
+  and compare the program's times at that rate.
+
+**Not yet known:** whether one or both dies wire their CLK pad to pin 14
+inside the package (the shared pin carries no D0 pulses, so neither die
+drives D0 there), which parts set the rate, the nominal rate, and what moves it
+between sessions (temperature, supply voltage, battery state).
+
+Earlier clock values and the explanations ruled out on the way: "Appendix:
+superseded models and measurements".
 
 `step()` returns a **cycle weight** — 4 for an IDLE instruction on the
 TI-59/58, otherwise 1 (`getStepWeight()`) — so callers can pace in real time.
@@ -172,6 +261,18 @@ All variants load 6144 × 13-bit words (0x0000–0x17FF):
   in RAM size, which the ROM autodetects (see below).
 - **TI-58C**: `CD2400` + `CD2401` + `TMC0573` (constant memory,
   `MEMWR`/`MEMRD`). Differences: `rom/TI58C-ROM-Guide.md`.
+
+Each DSCOM holds 2,560 words and the BROM 1,024, so the image splits
+0000–09FF (DSCOM at chip select 0), 0A00–13FF (second DSCOM), 1400–17FF
+(BROM 6). The CPU sends the address serially on EXT every cycle, the top
+three bits as the chip select; each chip's select code is mask-programmed,
+and only the matching chip drives IRG
+(http://www.datamath.org/Chips/TMC0580.htm). The `roms/calculator` dumps
+(datamath's ROM recorder, one file per chip) put 0000–09FF in CD2400 and
+0A00–13FF in CD2401. The recorder plays the CPU, so a chip read on its own
+answers only its own range; if the stacked pair was read in place, the two
+names could be swapped. Either way the image is correct by address, which
+is all the emulator uses.
 
 `ROM::load` also accepts 5120 words (`TI58_WORDS`), which no variant uses.
 `read()` masks to 13 bits and returns 0 beyond the image. Addresses
@@ -338,7 +439,7 @@ counts as "no jump" (see `rom/TI58C-ROM-Guide.md` § "Emulator issues found").
 4. **HOLD** — clear `FLG_HOLD`; `WAIT`/`KEY … ALL` re-assert it.
 5. **Validity windows** — `EXT` and `Sout` survive one cycle after they are
    written, then read as 0.
-6. **Decode and execute** — a branch sets `addr` and skips step 8.
+6. **Decode and execute** — a branch sets `addr` and skips steps 8 and 10.
 7. **Display strobe** (`postOperation()`) — see "Display Subsystem".
 8. **Advance** — unless HOLD: PREG redirect if pending, else `addr++`.
 9. **Accounting** — weight, trace post-step, C-indicator and poll counters,
@@ -352,7 +453,7 @@ The return value carries the weight in `kWeightMask` and two bits:
   `TST.BUSY` poll executed just before it: a spin-wait on a key, the card
   switch and so on, whose real duration does not depend on CPU speed.
   `Shared/Pacing` throttles full-speed runs on it. A `TST.BUSY` retry counts
-  only while the printer is not busy, so full speed also speeds up printing.
+  only while the KR line is active and the printer is not busy, so full speed also speeds up printing.
 - **`kStepBoundary`** — the next instruction is the interpreter's step
   dispatch, `stepDispatchPC()` = `0837` (TI-59/58) or `082B` (TI-58C), which
   every executed program byte (keycode or operand) passes once, from RAM,
@@ -442,9 +543,7 @@ about 0.28 s, dark about 0.40 s; filmed in a reflection); the emulator gives
 0.681 s (lit 0.278, dark 0.403). The TI-58C moved the line to D10; its idle
 loop sends rows 10 and 11 to `0A25`, which rescans below the line, and adds
 a blink-counter step there to keep the blink near its stand-alone rate
-(`rom/TI58C-commented.asm` at `0A25`). An earlier model put the extra time
-in a `WAIT` that could not release before its third execution; it fitted
-the printer-attached TI-59 but not the stand-alone one.
+(`rom/TI58C-commented.asm` at `0A25`).
 
 **`KR` after a scan-all hit:**
 
@@ -595,20 +694,104 @@ left-to-right line.
 | `PRT.OUT` | Store one character (6-bit code from `KR[9:4]`) |
 | `PRT.FUNC` | Store a 3-character function mnemonic (`PRN_STR` table) |
 | `PRT.STEP` | Store a blank |
-| `PRT.GO` | Print the line; `FLG_BUSY` for 197.5 ms |
-| `PRT.FEED` | Blank line (paper advance); `FLG_BUSY` for 197.5 ms |
+| `PRT.GO` | Print the line; `FLG_BUSY` for `kPrinterLineCycles` (4165) |
+| `PRT.FEED` | Half a line of paper; `FLG_BUSY` for `kPrinterFeedCycles` (1370) |
 
-197.5 ms (measured: 40 ADV lines in 7.9 s) is 2808 cycles on the TI-59 and
-2370 on the TI-58/58C, counted down in `step()`. The ~120 ms per line of
-serial transfer that a real LIST adds is not modelled.
+**Timing.** The PC-100 runs on the calculator's PHI clock (PHI1 is on the
+printer connector), so its BUSY times are instruction cycles, the same on
+every model, counted down once per `step()`. A TI-59 in IDLE still gets 16
+PHI1 pulses per instruction, so the per-step count holds there too. On the
+TI-59 (14,219/s) a printed line takes 293 ms and a feed 96 ms; on the TI-58C
+(12,312.5/s) 338 and 111 ms. Adv (calculator key, printer button or program
+step) issues two `PRT.FEED`s for one line on paper (`0F50`–`0F56` on the
+TI-58C, the same loop at `0F38` on the TI-59). The ROM does not wait after a
+print: it carries on (the next program steps, the next List line) and polls
+`TST.BUSY` right before its next print operation, so ROM work overlaps the
+printer's cycle.
+
+Measured from audio recordings of a PC-100A (2026-10-24), one unit each of
+TI-59 (453.5 kHz) and TI-58C (≈394.3 kHz). The loop period minus the ROM's
+own work after its last `TST.BUSY` (from the emulator) gives the printer's
+cycle, in instruction cycles:
+
+| Loop | TI-59 period | TI-58C period | Printer cycle TI-59 / TI-58C |
+|---|---|---|---|
+| List (empty program) | 307.0 ms | 356.9 ms | line 4165 / 4212 |
+| `1 SUM 00 Prt GTO 000` | 297.9 ms | 342.9 ms | line 4168 / 4171 |
+| `1 SUM 00 Adv GTO 000` | 332.9 ms | 398.8 ms | feed 1366 / 1377 |
+
+The Adv loop's other half (second feed to first feed) is ROM-bound: 3348
+cycles on the TI-59, 3534 on the TI-58C. In milliseconds the two models
+differ by 15%; in cycles they agree within the TI-58C's ≈1% session-to-session
+clock wander (see "TI-58C clock"). Two more recordings support the clock
+dependence: the dot-row strokes inside a printed line (≈7 per line, 35.9 ms
+on the TI-59, 41.3 ms on the TI-58C, ratio 1.150 = the clock ratio) and the
+paper motor's hum while ADV is held (146.77 Hz vs 128.20 Hz, ratio 1.145).
+The strokes take 7 × 508 ≈ 3556 of a line's 4165 cycles; the rest fits the
+paper advance to the next line. Of the measured 4165–4168 for a printed
+line, 4165 is used: the TI-59 printer-interrupt lines below fit it and not
+4168 (see "Dot timing within a line").
 
 Text lines are queued at once (`drainPrinterLines()`); the dot-matrix line
 (`PrinterCodeLine`, `drainPrinterCodeLines()`) is committed when BUSY
-expires, with `rowCount` = 7. A `PRT.GO` while BUSY is the **printer
-interrupt**: the line in progress is committed with the rows printed so far
-(elapsed × 7 / total) and the new print is ignored. Firmware side and the
+expires, with `rowCount` = 7. A `PRT.GO` while a line is printing is the
+**printer interrupt** (during a feed's BUSY it prints normally): the line
+in progress is committed with what is on paper so far, and the new print
+is ignored. Firmware side and the
 1F keycode that triggers it: `rom/printerinterrupt.md`. A `PRT.FEED` during
-a print commits the pending line first, so lines keep their order.
+a print commits the pending line first, cut short at that moment like an
+interrupt, so lines keep their order; `reset()` does the same.
+
+**Dot timing within a line.** A stroke fires the 5 dot columns of all 20
+characters one column at a time, right to left. Column c (5 = rightmost) of
+row r (from 0) starts `r·508 + 18 + (5 − c)·64` cycles after `PRT.GO`, so a
+row's columns take 320 of its 508 cycles. A cut leaves `rowCount` complete
+rows and `partialColumns` (0–5) columns of the next one, the last of them
+heated `partialHeat` cycles. `PrinterGeometry` (`Shared/PrinterFont.hpp`)
+turns these into the dots each renderer draws; `inkAlpha` gives the last
+column's ink from its heating time (the darkness below; full from 20 cycles).
+
+Measured on the user's PC-100A (2026-10-25), on a TI-58C and on a TI-59.
+That unit's head has dead and flaky elements (a test line of 20 `Π`, code
+76): dead in columns 4–5 of characters 7, 9, 12, 13 and column 5 of 16 and
+18, flaky in several columns of characters 2, 9, 10, 11 and 20. Only dots on
+working elements count below.
+
+*TI-58C, `examples/debug/printer-interrupt-sweep.ti58c`*, cuts 16 cycles apart.
+The first cut at which each column shows, with the last cut before it where
+it doesn't:
+
+| Row (from 1) | Column 5 | 4 | 3 | 2 | 1 |
+|---|---|---|---|---|---|
+| 5 | 2049 → 2065 | 2113 → 2129 | 2161 → 2193 | 2241 → 2257 | 2305 → 2337 |
+| 6 | | 2625 → 2641 | 2689 → 2705 | | |
+
+Row 5 allows an offset from 18 to 33 cycles, row 6 from 22 to 37. Rows 1–4
+were complete at 1905 cycles and later.
+
+*TI-59, `examples/debug/printer-interrupt-bits.ti59`.* Ten lines differ only in
+the 1-bits of three character codes. Op 05 takes longer to send codes with
+more bits, which moves its `PRT.GO` against the CPU's digit counter, and the
+1F path ends in a `WAIT D0` (05A9) that waits 0–15 cycles for digit 0. So
+the cut time depends on the digit phase left by the busy wait before the
+print, and with it on the line busy time. With 4165 the lines are cut 1034,
+1035, 1034, 1046, 1045, 1044, 1042, 1040, 1036 and 1035 cycles after
+`PRT.GO`. All ten show column 5 of row 3, between barely and about 30% dark;
+in two runs line 4 was the darkest, lines 5–8 next, the rest faintest, in
+the order of the cut times. No other line busy time from 4160 to 4191 gives
+that order, and 4168 makes lines 2, 3, 9 and 10 (cut 1047–1049) the latest,
+though they are among the faintest. All lines marking means column 5 starts
+by 1034: an offset of 18 or less. `printer-quirks.ti59` agrees: cut at 1036
+and 1038, it shows barely visible specks on most rows with a candidate dot.
+
+18 fits both calculators if a dot heated for only 0–4 cycles may or may not
+show: the TI-58C's row 6 had no new column at cuts 3 cycles after its start
+(k = 62, 67), and the TI-59's faintest lines are cut 0–2 cycles after it.
+Darkness grows with the heating time before the cut: barely visible at 0–4
+cycles, about 30% at 12, weak or dark at 15–19 (the TI-58C's first cuts of
+each column), a normal dot after that. Repeats with the same cut time came
+out once weaker, once darker; near the threshold the paper and the head
+decide.
 
 ---
 
@@ -644,12 +827,12 @@ pure). The full lock policy is the comment above `m_keyMutex` in
 | `TRACE_REGS_FULL` | High | + A–E, SCOM, Sout, EXT, PREG, library address |
 | `TRACE_BREAKPOINTS` | Binary search per step | Stop at a ROM address |
 
-Frames go into a 1024-entry ring (~397 bytes each) with **post-execution
+Frames go into a 1024-entry ring (~392 bytes each) with **post-execution
 semantics**: `beginNextStep()` patches the previous frame with the state
 after its instruction. Seqno gaps mean ring overflow; `drainCpuFrames`
 reports the lost count. Field list and the trace file:
-`reference/DebugAPI.md` § "CPU / Trace API (Layer 1)". `emitDebug()` events
-(`setDebugLevel`, `drainDebugEvents`): `reference/DebugAPI.md` § "C-core
+`reference/DebugAPI.md` § "CPU Inspector" and § "Trace File Format". `emitDebug()` events
+(`setDebugLevel`, `drainDebugEvents`): `reference/DebugAPI.md` § "Core
 debug events".
 
 ---
@@ -659,13 +842,81 @@ debug events".
 | Feature | TI-59 | TI-58 | TI-58C |
 |---|---|---|---|
 | ROM | TMC0582/0583/0571B | same as TI-59 | CD2400/2401/TMC0573 |
-| Clock (instructions/s) | 14,219 | 12,000 | 12,000 |
+| Clock (instructions/s) | 14,219 | 12,000 | 12,312.5 |
 | IDLE weight | 4 | 4 | 1 |
 | RAM registers | 120 | 60 | 60 + E000–E003 |
 | RAM access | `RAM.OP` | `RAM.OP` | `MEMWR`/`MEMRD` |
 | Card reader | Yes (switch at digit 10) | No (D7–KR veto, digit 10 open) | No (digit 7 held; the ROM never reads it) |
 | Printer-present digit | 0 | 0 | 10 |
-| Printer BUSY | 2808 cycles | 2370 cycles | 2370 cycles |
+| Printer BUSY (line / feed) | 4165 / 1370 cycles | same | same |
 | Library module | Yes | Yes | Yes |
 | Constant memory | No | No | Yes (`ti58c.mem` via `serialiseRAM`) |
 | Step dispatch / module fetch | `0837` / `082F` | same | `082B` / `0823` |
+
+---
+
+## Appendix: superseded models and measurements
+
+Kept for the record; none of this describes the current model.
+
+### TI-58C clock rate
+
+The emulator's TI-58C base clock went through these values:
+
+| Value | Basis | Replaced because |
+|---|---|---|
+| 400 kHz | a user's scope video, PHI read ≈ 200 kHz at 5 µs/div | readings at that time base ran ≈ 2.8% high; the same video's error blink gave ≈ 389.6 kHz |
+| 384 kHz | assumed: the TI-58's resonator part (datamath's TP0240 page lists the TI-58C with that chip) | the TI-58C has no clock chip or resonator at all |
+| 396 kHz | 2 × PHI1 197.8 kHz, one logic-analyser reading on unit B (4.4 V bench supply) | unit B's error blinks gave 394.3 kHz |
+| 394 kHz | unit B's error blinks, with and without the printer | current |
+
+Datamath's TMC0580 page says the TI-58C does not use the chip's oscillator;
+the board shows otherwise. Before the TMC0573 was identified as a BROM with
+PHI inputs, it was a candidate for the clock source.
+
+Notes that turned out to be single-session readings: unit B read the same
+PHI at 4.4 V and 4.1 V on one day, but its rate wanders ≈ 0.8% between
+sessions. The 0.3% between the 197.8 kHz analyser reading and the blinks
+was first put down to the probe loading the oscillator; it is the same
+session-to-session wander.
+
+### Explanations ruled out by the cycle count (TI-58C)
+
+A video of the block loop in "Accuracy", normalised to an error blink filmed
+20 minutes earlier, made the computing blocks look 0.45% slower than the
+emulator, with the `Pause` block matching. Candidates considered:
+
+- a different ROM path in the real chips;
+- extra cycles per RAM access (`MEMRD`/`MEMWR`), or a HOLD from the RAM
+  interface;
+- different `WAIT`/`KEY` behaviour, which the blink calibration would hide;
+- slower instruction fetches from one ROM chip (the blocks run 20–26% of
+  their instructions from the second DSCOM, 0A00–13FF, the blink none);
+- a clock that changes with load (LEDs lit, CPU computing).
+
+Counting PHI1 cycles between IDLE events gave the emulator's instruction
+counts exactly, ruling out the first four; the LED load moves the clock by
+only 68 ppm. The 0.45% was the clock's wander between the two sessions.
+Earlier comparisons of other owners' TI-58C videos (counter loops 1–2% slow
+after normalising to a blink) were made under older core models and with
+clocks from other sessions; they are not evidence of a core difference.
+
+### WAIT minimum (TI-59, TI-58, TI-58C)
+
+Before the printer line at D0 was modelled ("Printer line in the idle
+scan"), the extra idle time of a TI-59 on the PC-100C was put into `WAIT`:
+it could not release before its third execution (read from the HOLD
+pipeline in US 3,900,722). That fitted the printer-attached TI-59 but not
+the stand-alone one (0.449 s blink). A later variant made the minimum depend
+on the clock (2, later 1, below 400 kHz; 3 above) to fit the TI-58. Both were removed
+when the printer model explained all three variants with `WAIT` releasing
+at once.
+
+### Printer BUSY
+
+Until 2026-10-24 `PRT.GO` and `PRT.FEED` both held BUSY for 197.5 ms
+(from "40 ADV lines in 7.9 s"), converted to each model's clock: 2808
+cycles on the TI-59, 2370 on the TI-58, 2431 on the TI-58C. The ~120 ms
+per List line it lacked was thought to be serial character transfer. The
+recordings in "Printer (PC-100C)" replaced it: a printed line is longer, a
+feed (half of an ADV line) shorter, and both are fixed cycle counts.

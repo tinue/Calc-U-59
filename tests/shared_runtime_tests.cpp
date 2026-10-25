@@ -48,7 +48,7 @@ TEST(pacing_batches_are_cycle_weighted_with_carry) {
     FreezeController freeze(Model::TI59);
     int32_t target = batchTargetCycles(Model::TI59);
     CHECK_EQ(target, 284);
-    CHECK_EQ(batchTargetCycles(Model::TI58C), 240);
+    CHECK_EQ(batchTargetCycles(Model::TI58C), 246);
     uint64_t before = m->elapsedTicks();
     int32_t carry = 0;
     for (int i = 0; i < 50; ++i) {  // one emulated second

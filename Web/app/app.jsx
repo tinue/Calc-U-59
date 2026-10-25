@@ -1,14 +1,19 @@
-// Standalone Calc-U 59 app — mounts PlayCalculator (../calc.js) with controls={false}
-// (calculator face only: no module switcher, preset picker, Queue Card, or
-// file upload) and a scale computed from the viewport instead of the one
-// /play/ fits to its article column.
+// Standalone Calc-U 59 app — mounts PlayCalculator (../calc.js) in the
+// portrait layout, sized to the viewport (minus the safe-area padding), as
+// the iPhone app: calculator and printer pages, the control bar, Settings.
 
 const { useState: useAppState, useEffect: useAppEffect, useRef: useAppRef } = React;
 
-function computeScale() {
-  const width = window.visualViewport ? window.visualViewport.width : window.innerWidth;
-  const safeWidth = width - 32; // leaves room for #root's padding
-  return Math.max(0.8, Math.min(1.6, safeWidth / 360));
+function viewportSize() {
+  const vv = window.visualViewport;
+  const root = document.getElementById("root");
+  const cs = getComputedStyle(root);
+  const padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+  const padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+  const w = (vv ? vv.width : window.innerWidth) - padX;
+  const h = (vv ? vv.height : window.innerHeight) - padY;
+  // The whole screen of the device it was installed on.
+  return { width: Math.floor(w), height: Math.floor(h) };
 }
 
 // Install affordance. Android/Chrome/Edge fire `beforeinstallprompt`, which
@@ -79,7 +84,7 @@ function InstallBanner({ mode, onInstall, onDismiss }) {
   if (mode === "none") return null;
   return (
     <div className="install-banner">
-      {mode === "ios" && <SymbolShare size={16} color="var(--accent)" />}
+      {mode === "ios" && <SymbolShare size={16} color="#0a84ff" />}
       <span className="install-banner-text">
         {mode === "installable"
           ? "Install Calc-U 59 for one-tap, full-screen launches."
@@ -94,12 +99,12 @@ function InstallBanner({ mode, onInstall, onDismiss }) {
 }
 
 function StandaloneApp() {
-  const [scale, setScale] = useAppState(computeScale());
+  const [size, setSize] = useAppState(viewportSize);
   const [installMode, install] = useInstallPrompt();
   const [dismissed, setDismissed] = useAppState(false);
 
   useAppEffect(() => {
-    function onResize() { setScale(computeScale()); }
+    function onResize() { setSize(viewportSize()); }
     window.addEventListener("resize", onResize);
     window.addEventListener("orientationchange", onResize);
     return () => {
@@ -110,7 +115,7 @@ function StandaloneApp() {
 
   return (
     <>
-      <PlayCalculator scale={scale} controls={false} />
+      <PlayCalculator layout="portrait" width={size.width} height={size.height} keyboard={true} />
       {!dismissed && (
         <InstallBanner mode={installMode} onInstall={install} onDismiss={() => setDismissed(true)} />
       )}

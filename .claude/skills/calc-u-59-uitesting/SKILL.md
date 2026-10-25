@@ -20,7 +20,7 @@ This skill covers all work inside `Calc-U-59UITests/`.
 | `PresetLoadTests.swift` | End-to-end load of `test_diag.ti59` via the file picker; verifies keystroke playback starts |
 | `ScreenshotTests.swift` | App Store screenshot capture (driven by `bin/run-screenshots`); writes PNGs to the dir named in `/tmp/calc-u-59-screenshot-dir` |
 | `Calc_U_59UITestsLaunchTests.swift` | Default launch test (auto-generated, rarely edited) |
-| `UIRegressionTests.xctestplan` | Test plan used by CI |
+| `UIRegressionTests.xctestplan` | Local regression test plan (no CI job runs XCUITests) |
 | `Screenshots.xctestplan` | Test plan for the screenshot run (`bin/run-screenshots`) |
 
 The file-picker, preset and orientation tests are `#if !os(macOS)` guarded; `LayoutTests` also has macOS branches.

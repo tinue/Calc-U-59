@@ -80,8 +80,6 @@ NS_ASSUME_NONNULL_BEGIN
 @property (class, readonly) CGFloat printerDotRadiusFraction;
 @property (class, readonly) CGFloat printerPaperPaddingX;
 @property (class, readonly) CGFloat printerPaperPaddingY;
-/// Dot rows drawn for a line's rowCount: 7 complete, 1–6 cut short.
-+ (NSInteger)printerClampRowCount:(NSInteger)rowCount;
 /// Copy-as-image pixels per dot pitch: 600 dpi, capped at 16000 px for the whole strip.
 + (CGFloat)printerCopyPixelsPerUnit:(CGFloat)stripHeightUnits;
 

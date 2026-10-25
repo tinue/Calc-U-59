@@ -20,24 +20,28 @@ to write.
 | Web client (`Web/`) — browsers, embedded by the website | JS + React, engine in WASM | `Core/` + `Shared/` compiled with Emscripten; `Web/bindings.cpp` is the adapter (`WebClient.md`) |
 
 All three share all non-GUI code and are tracked in `FrontendParity.md`. The
-Swift and Qt apps are kept at feature parity; the web client is
-deliberately narrower: TI-59 only, no debugger, printer or traces.
+three are kept at feature parity, with a few deliberate exceptions in the
+web client (Classic LED only, session-only cards, no debugger in its
+portrait layout).
 
 ## If your GUI can call C++
 
 Build on `Shared/` (`SharedArchitecture.md`). The Qt app is the worked
-example: `Qt6/app/EmulatorController` is the whole adapter, about 120 lines.
+example: `Qt6/app/EmulatorController` is the whole adapter, about 270 lines
+(header and source).
 
 1. **Own one `cu59::SessionController`** on your UI thread. Give it a
-   `ResourceReader` for the ROM text files in `roms/` and the text of
-   `roms/solid-state/cuecards.txt`.
+   `ResourceReader` for the ROM text files in `roms/`, the text of
+   `roms/solid-state/cuecards.txt` and the saved module ID (plus
+   `Threading::Cooperative` if your platform has no threads).
 2. **Implement `SessionController::Platform`**: queue jobs on your UI thread,
    read and write `ti58c.mem` and card files, give the trace folder and size
    limit, store the last model and module, show errors, and redraw on
    `changed(mask)`.
 3. **Call `tick(now)` at 60 Hz.** Redraw only what the `Change` bits name.
 4. **Forward input**: `pressKey`/`releaseKey` with matrix codes (hit test with
-   `KeyboardLayout`, convert with `matrixCode`), `keyboardDown`/`keyboardUp`
+   `KeyboardLayout`, convert with `matrixCode`; `PointerTracker` turns
+   pointer moves into presses, releases and full speed), `keyboardDown`/`keyboardUp`
    with `KeyboardMap` codes, `keyboardRelease` on focus loss, `setFullSpeed`
    while the display is held, and the file, printer and debugger actions.
 5. **Draw** with the shared rules (`SharedArchitecture.md` § "Drawing
@@ -54,7 +58,7 @@ packaging.
 
 Compile `Core/` and `Shared/` to something it can call, as the web build
 does with Emscripten (`Web/build.sh`), and write the adapter in C++
-on that side (`Web/bindings.cpp`, about 300 lines with the embind
+on that side (`Web/bindings.cpp`, about 950 lines with the embind
 surface):
 
 - **No threads?** Construct the `SessionController` with
@@ -66,7 +70,8 @@ surface):
   worker may make.
 - **Pass drawing data, not drawing.** The adapter posts what `changed()`
   names as plain data — segment masks and brightness per LED cell, the cue
-  card with its spans and ink, the LED geometry — and the GUI paints it.
+  card as a laid-out draw list, printer lines with their heights, debug rows
+  formatted by `DebugText`, the LED geometry — and the GUI paints it.
 
 What stays in the GUI's own language is the same as above: widgets and
 painting, events, file pickers and storage.
