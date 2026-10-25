@@ -467,7 +467,7 @@ int TMC0501::step() {
     if (m_prnBusyCycles > 0) {
         if (--m_prnBusyCycles == 0) {
             flags &= ~FLG_BUSY;
-            flushPendingCodeLine(7);  // complete: all 7 dot-rows printed
+            flushPendingCodeLine(kPrinterLineCycles);  // complete: all 7 dot-rows printed
         }
     }
 
@@ -809,6 +809,8 @@ int TMC0501::step() {
                         m_prnPending.codes[19 - i] = m_prnCodeBuf[i];
                     }
                     m_prnPending.rowCount = 7;
+                    m_prnPending.partialColumns = 0;
+                    m_prnPending.partialFaint = false;
                     m_prnHasPending = true;
                     {
                         std::lock_guard<std::mutex> lk(m_prnMutex);
@@ -1231,9 +1233,22 @@ std::vector<PrinterCodeLine> TMC0501::drainPrinterCodeLines() {
     return std::move(m_prnCodeLines);
 }
 
-void TMC0501::flushPendingCodeLine(int rowCount) {
+void TMC0501::flushPendingCodeLine(uint32_t elapsed) {
     if (!m_prnHasPending) return;
-    m_prnPending.rowCount = static_cast<uint8_t>(std::max(0, std::min(7, rowCount)));
+    // Rows whose 5 columns have all started are on paper; of the row in
+    // progress, the columns that have started (right to left).
+    uint32_t rows = elapsed / kPrinterRowCycles, cols = 0;
+    bool faint = false;
+    uint32_t into = elapsed % kPrinterRowCycles;
+    if (rows < 7 && into >= kPrinterRowStartCycles) {
+        uint32_t fired = into - kPrinterRowStartCycles;
+        cols = std::min<uint32_t>(5, fired / kPrinterColumnCycles + 1);
+        faint = fired - (cols - 1) * kPrinterColumnCycles < kPrinterFaintCycles;
+        if (cols == 5 && !faint) { ++rows; cols = 0; }
+    }
+    m_prnPending.rowCount = static_cast<uint8_t>(std::min<uint32_t>(7, rows));
+    m_prnPending.partialColumns = static_cast<uint8_t>(m_prnPending.rowCount < 7 ? cols : 0);
+    m_prnPending.partialFaint = m_prnPending.partialColumns > 0 && faint;
     std::lock_guard<std::mutex> lk(m_prnMutex);
     m_prnCodeLines.push_back(m_prnPending);
     m_prnHasPending = false;
@@ -1241,8 +1256,7 @@ void TMC0501::flushPendingCodeLine(int rowCount) {
 
 void TMC0501::flushPendingIfActive() {
     if (!m_prnHasPending) return;
-    uint32_t elapsed = kPrinterLineCycles - m_prnBusyCycles;
-    flushPendingCodeLine(static_cast<int>((elapsed + kPrinterRowCycles / 2) / kPrinterRowCycles));
+    flushPendingCodeLine(kPrinterLineCycles - m_prnBusyCycles);
 }
 
 void TMC0501::pressPrinterPrint(bool pressed) {

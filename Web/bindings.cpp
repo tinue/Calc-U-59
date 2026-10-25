@@ -564,9 +564,18 @@ private:
             const bool feed = lines[i].empty();
             val l = val::object();
             l.set("text", lines[i]);
-            l.set("height", cu59::PrinterGeometry::lineHeightUnits(feed, line ? line->rowCount : 7));
+            const int rowCount = line ? line->rowCount : 7, partial = line ? line->partialColumns : 0;
+            l.set("height", cu59::PrinterGeometry::lineHeightUnits(feed, rowCount, partial));
             if (line && !feed) {
-                l.set("rows", cu59::PrinterGeometry::clampRowCount(line->rowCount));
+                const int rows = cu59::PrinterGeometry::drawnRows(rowCount, partial);
+                l.set("rows", rows);
+                val inked = val::array(), faint = val::array();
+                for (int r = 0; r < rows; ++r) {
+                    inked.set(r, cu59::PrinterGeometry::inkedColumns(rowCount, partial, r));
+                    faint.set(r, cu59::PrinterGeometry::faintColumns(rowCount, partial, line->partialFaint, r));
+                }
+                l.set("inked", inked);
+                l.set("faint", faint);
                 val cs = val::array();
                 for (size_t ch = 0; ch < 20; ++ch) cs.set(ch, line->codes[ch] & 0x3F);
                 l.set("codes", cs);
@@ -798,6 +807,7 @@ val staticData(std::string cuecards) {
     printer.set("widthUnits", PG::widthUnits);
     printer.set("charStepUnits", PG::charStepUnits);
     printer.set("dotRadiusFraction", PG::dotRadiusFraction);
+    printer.set("faintDotAlpha", PG::faintDotAlpha);
     printer.set("paddingX", PG::paperPaddingX);
     printer.set("paddingY", PG::paperPaddingY);
     val font = val::array();

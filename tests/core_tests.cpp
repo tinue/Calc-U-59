@@ -4,6 +4,7 @@
 
 #include "TestHarness.hpp"
 #include "TestRoms.hpp"
+#include "../Shared/Bcd.hpp"
 
 #include <vector>
 
@@ -207,6 +208,47 @@ TEST(printer_print_key_emits_line) {
     m->stepN(200000, false);
     auto lines = m->drainPrinterLines();
     CHECK(!lines.empty());
+}
+
+// The printer interrupt cuts a line mid-row: the head fires a row's columns
+// right to left, 64 cycles apart (Core/TMC0501.hpp kPrinterColumnCycles).
+// examples/printer-interrupt-sweep.ti58c on the TI-58C, one line per k: the
+// interrupt comes 2049 + 16·(k − 21) cycles after the print starts, roughly.
+// Expected values are what a real TI-58C + PC-100A printed (2026-10-25 scans,
+// reference/CoreArchitecture.md "Dot timing within a line").
+static PrinterCodeLine sweepLine(int k) {
+    const Model model = Model::TI58C;
+    auto m = testroms::makeMachine(model);
+    m->setPrinterConnected(true);
+    testroms::runToScanLoop(*m, model);
+    // 000 INV SBR, 001–004 Nop, 005 Op 05 Int, 008 1F, 009 RTN;
+    // 100: RCL 01 +/- INV log SBR 005 R/S (prints 10^-k's Int cut short).
+    std::vector<uint8_t> p(240, 0);
+    const uint8_t head[] = {92, 68, 68, 68, 68, 69, 5, 59, 23, 92};
+    const uint8_t drv[] = {43, 1, 94, 22, 28, 71, 0, 5, 91};
+    std::copy(std::begin(head), std::end(head), p.begin());
+    std::copy(std::begin(drv), std::end(drv), p.begin() + 100);
+    m->writeProgram(p.data(), static_cast<int>(p.size()));
+    uint8_t r[16];
+    m->copyRAMReg(1, r);  // steps 008–015: step 008's digits become 1F
+    r[0] = 0xF; r[1] = 1;
+    m->writeRAMReg(1, r);
+    auto k01 = cu59::encodeBcd(std::to_string(k));
+    m->writeRAMReg(59 - 1, k01.data());  // R01
+    for (int key : {61, 82, 92, 92, 91}) testroms::tap(*m, model, key);  // GTO 100 R/S
+    m->stepN(static_cast<uint32_t>(cu59::info(model).instructionHz), false);
+    auto lines = m->drainPrinterCodeLines();
+    return lines.empty() ? PrinterCodeLine{} : lines[0];
+}
+
+TEST(printer_interrupt_partial_rows) {
+    struct Case { int k, rows, columns; };
+    for (Case c : {Case{21, 4, 0}, {22, 4, 1}, {26, 4, 2}, {30, 4, 3}, {36, 4, 4}, {39, 4, 4},
+                   {40, 5, 0}, {62, 5, 1}, {63, 5, 2}, {69, 5, 3}}) {
+        PrinterCodeLine l = sweepLine(c.k);
+        CHECK_EQ(static_cast<int>(l.rowCount), c.rows);
+        CHECK_EQ(static_cast<int>(l.partialColumns), c.columns);
+    }
 }
 
 TEST(breakpoint_sets_step_bit31) {

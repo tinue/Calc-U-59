@@ -176,7 +176,9 @@ function paintStrip(ctx, lines, tops, pitch, geo, color, top, bottom) {
     if ((tops[mid] + lines[mid].height) * pitch < top) lo = mid + 1;
     else hi = mid;
   }
-  ctx.beginPath();
+  // Dots of a line cut short by the printer interrupt: `inked` masks the
+  // columns each row got, `faint` the ones whose heating was cut early.
+  const dots = new Path2D(), faintDots = new Path2D();
   for (let i = lo; i < lines.length && tops[i] * pitch < bottom; i++) {
     const line = lines[i];
     if (!line.codes) continue;
@@ -184,19 +186,24 @@ function paintStrip(ctx, lines, tops, pitch, geo, color, top, bottom) {
     for (let row = 0; row < line.rows; row++) {
       const cy = y + (row + 0.5) * pitch;
       for (let ch = 0; ch < 20; ch++) {
-        const bits = geo.font[line.codes[ch]][row];
+        const bits = geo.font[line.codes[ch]][row] & line.inked[row];
         if (!bits) continue;
         const cx0 = ch * geo.charStepUnits * pitch;
         for (let col = 0; col < 5; col++) {
-          if (!(bits & (0x10 >> col))) continue;
+          const mask = 0x10 >> col;
+          if (!(bits & mask)) continue;
           const cx = cx0 + (col + 0.5) * pitch;
-          ctx.moveTo(cx + radius, cy);
-          ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+          const path = line.faint[row] & mask ? faintDots : dots;
+          path.moveTo(cx + radius, cy);
+          path.arc(cx, cy, radius, 0, Math.PI * 2);
         }
       }
     }
   }
-  ctx.fill();
+  ctx.fill(dots);
+  ctx.globalAlpha = geo.faintDotAlpha;
+  ctx.fill(faintDots);
+  ctx.globalAlpha = 1;
 }
 
 /// Cumulative line tops, in dot pitches.

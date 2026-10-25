@@ -51,6 +51,7 @@ the named one still to do (the Notes say why); `Swift only` / `Qt only` /
 |---|---|---|---|---|---|---|
 | PC-100C connect toggle (resets) | `PrinterView` | `PrinterWidget` | `Printer` | `SessionController` | All | |
 | Dot view at PC-100C proportions; text view | `PrinterView` | `PrinterWidget` | `Printer`, `painters.js` | `PrinterFont` PrinterGeometry | All | |
+| Printer interrupt: cut-short lines, the interrupted row's fired columns, faint dots | `PrinterView` (`PrinterDotLine`) | `PrinterWidget` | `painters.js` | `PrinterFont` PrinterGeometry (`drawnRows`, `inkedColumns`, `faintColumns`) | All | |
 | PRINT / ADV (hold), T (TRACE latch) | `PrinterView` | `PrinterWidget` | `Printer` | `SessionController` | All | |
 | Copy (text + 600 dpi image), cut | `PrinterView` | `PrinterWidget` | `Printer` | `SessionController` (strip, cut), `PrinterFont` PrinterGeometry (strip height, copy scale) | All | web: image where the browser's clipboard takes one, else text |
 

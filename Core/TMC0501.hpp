@@ -15,11 +15,15 @@ class RAM;
 // ── Printer output line ───────────────────────────────────────────────────────
 //
 // Each printed character-line produces one PrinterCodeLine.  rowCount is 7 for
-// a complete line; 1–6 when the print was aborted mid-stroke (a new PRT_PRINT
+// a complete line; 0–6 when the print was aborted mid-stroke (a new PRT_PRINT
 // arrived before the previous line's BUSY window (kPrinterLineCycles) elapsed).
+// The head fires a row one dot column at a time, right to left, so a cut can
+// also leave the rightmost partialColumns columns of the next row on paper.
 struct PrinterCodeLine {
     std::array<uint8_t, 20> codes{};
-    uint8_t rowCount{7};   // dot-rows physically printed (1–7); 7 = complete
+    uint8_t rowCount{7};        // complete dot rows on paper (0–7); 7 = complete line
+    uint8_t partialColumns{0};  // columns of row rowCount fired before the cut (0–5, from the right)
+    bool partialFaint{false};   // the leftmost of them was cut early in its pulse: a faint dot
 };
 
 // ── Display snapshot ──────────────────────────────────────────────────────────
@@ -406,8 +410,8 @@ private:
     std::vector<std::string>      m_prnLines;      // Thread-safe text output queue
     std::vector<PrinterCodeLine>  m_prnCodeLines;  // Parallel raw-code queue (deferred commits)
     mutable std::mutex            m_prnMutex;
-    void flushPendingCodeLine(int rowCount);  // commit m_prnPending with the given rowCount
-    void flushPendingIfActive();              // flush with elapsed-proportional rowCount; no-op if !m_prnHasPending
+    void flushPendingCodeLine(uint32_t elapsed);  // commit m_prnPending cut `elapsed` cycles after PRT.GO
+    void flushPendingIfActive();                  // flush at the current BUSY count; no-op if !m_prnHasPending
 
     // ── Display state (shared between CPU thread and UI thread) ───────
     // Per-digit live buffers: updated during each digit's strobe phase when IDLE.
@@ -538,8 +542,16 @@ private:
     static constexpr uint32_t kPrinterLineCycles = 4168;
     static constexpr uint32_t kPrinterFeedCycles = 1370;
     // A printed line is 7 dot-row strokes from PRT.GO on, then the paper advance.
-    // A cut-short line keeps the rows whose stroke was at least half done.
+    // Each stroke fires the 5 dot columns of all 20 characters one column at a
+    // time, right to left: column c (5 = rightmost) of row r starts
+    // r·508 + 33 + (5 − c)·64 cycles after PRT.GO. A column cut within its
+    // first 12 cycles leaves a faint dot. Measured on a TI-58C + PC-100A with
+    // examples/printer-interrupt-sweep.ti58c (reference/CoreArchitecture.md,
+    // "Printer (PC-100C)").
     static constexpr uint32_t kPrinterRowCycles = 508;
+    static constexpr uint32_t kPrinterRowStartCycles = 33;
+    static constexpr uint32_t kPrinterColumnCycles = 64;
+    static constexpr uint32_t kPrinterFaintCycles = 12;
 
     int getStepWeight() const;
 };

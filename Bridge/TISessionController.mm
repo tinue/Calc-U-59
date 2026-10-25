@@ -1,6 +1,7 @@
 #import "TISessionController.h"
 #import "BridgeConvert.h"
 #import "TIFileFormats+Cpp.h"
+#include "../Shared/PrinterFont.hpp"
 #include "../Shared/SessionController.hpp"
 #include <memory>
 
@@ -9,6 +10,9 @@
 @interface TIPrinterLine ()
 @property (nonatomic, readwrite, copy) NSData *codes;
 @property (nonatomic, readwrite) NSInteger rowCount;
+@property (nonatomic, readwrite) NSInteger drawnRows;
+@property (nonatomic, readwrite, copy) NSData *inkedColumns;
+@property (nonatomic, readwrite, copy) NSData *faintColumns;
 @end
 @implementation TIPrinterLine
 @end
@@ -257,7 +261,16 @@ struct PlatformAdapter : cu59::SessionController::Platform {
     for (size_t i = static_cast<size_t>(MAX(start, 0)); i < lines.size(); ++i) {
         TIPrinterLine* line = [[TIPrinterLine alloc] init];
         line.codes = [NSData dataWithBytes:lines[i].codes.data() length:lines[i].codes.size()];
-        line.rowCount = lines[i].rowCount;
+        const auto& l = lines[i];
+        line.rowCount = l.rowCount;
+        line.drawnRows = cu59::PrinterGeometry::drawnRows(l.rowCount, l.partialColumns);
+        uint8_t inked[7], faint[7];
+        for (int r = 0; r < 7; ++r) {
+            inked[r] = cu59::PrinterGeometry::inkedColumns(l.rowCount, l.partialColumns, r);
+            faint[r] = cu59::PrinterGeometry::faintColumns(l.rowCount, l.partialColumns, l.partialFaint, r);
+        }
+        line.inkedColumns = [NSData dataWithBytes:inked length:7];
+        line.faintColumns = [NSData dataWithBytes:faint length:7];
         [out addObject:line];
     }
     return out;

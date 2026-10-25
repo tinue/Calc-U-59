@@ -45,21 +45,28 @@ public:
         double y = 0;
         for (int i = 0; i < lines.size() && y < visibleBottom; ++i) {
             const PrinterCodeLine* line = static_cast<size_t>(i) < codes.size() ? &codes[static_cast<size_t>(i)] : nullptr;
-            const double lineHeight = PrinterGeometry::lineHeightUnits(lines[i].isEmpty(), line ? line->rowCount : 7) * pitch;
+            const int rowCount = line ? line->rowCount : 7, partial = line ? line->partialColumns : 0;
+            const double lineHeight = PrinterGeometry::lineHeightUnits(lines[i].isEmpty(), rowCount, partial) * pitch;
             if (lines[i].isEmpty() || y + lineHeight < visibleTop) {
                 y += lineHeight;
                 continue;
             }
-            int rows = PrinterGeometry::clampRowCount(line ? line->rowCount : 7);
-            for (int row = 0; row < rows; ++row) {
+            const int rows = PrinterGeometry::drawnRows(rowCount, partial);
+            for (int row = 0; row < rows && line; ++row) {
+                const uint8_t inked = PrinterGeometry::inkedColumns(rowCount, partial, row);
+                const uint8_t faint = PrinterGeometry::faintColumns(rowCount, partial, line->partialFaint, row);
                 double cy = y + (row + 0.5) * pitch;
-                for (int ch = 0; ch < 20 && line; ++ch) {
-                    uint8_t bits = cu59::kPC100CFont[line->codes[static_cast<size_t>(ch)] & 0x3F][row];
+                for (int ch = 0; ch < 20; ++ch) {
+                    uint8_t bits = cu59::kPC100CFont[line->codes[static_cast<size_t>(ch)] & 0x3F][row] & inked;
                     double cx0 = ch * PrinterGeometry::charStepUnits * pitch;
-                    for (int col = 0; col < 5; ++col)
-                        if (bits & (0x10 >> col)) p.drawEllipse(QPointF(cx0 + (col + 0.5) * pitch, cy), radius, radius);
+                    for (int col = 0; col < 5; ++col) {
+                        if (!(bits & (0x10 >> col))) continue;
+                        p.setOpacity((faint & (0x10 >> col)) ? PrinterGeometry::faintDotAlpha : 1.0);
+                        p.drawEllipse(QPointF(cx0 + (col + 0.5) * pitch, cy), radius, radius);
+                    }
                 }
             }
+            p.setOpacity(1.0);
             y += lineHeight;  // a complete line ends with the stepper's advance; a cut-short one doesn't
         }
     }

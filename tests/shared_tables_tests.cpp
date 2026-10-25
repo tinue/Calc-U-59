@@ -130,11 +130,21 @@ TEST(model_info) {
 
 TEST(printer_strip_geometry) {
     using G = PrinterGeometry;
-    CHECK_EQ(G::lineHeightUnits(true, 7), G::feedHeightUnits);
-    CHECK_EQ(G::lineHeightUnits(false, 7), G::heightUnits);
-    CHECK_EQ(G::lineHeightUnits(false, 3), 3.0);   // cut short: rows only, no advance
-    CHECK_EQ(G::lineHeightUnits(false, 0), 1.0);   // clamped to 1–7
-    CHECK_EQ(G::lineHeightUnits(false, 9), G::heightUnits);
+    CHECK_EQ(G::lineHeightUnits(true, 7, 0), G::feedHeightUnits);
+    CHECK_EQ(G::lineHeightUnits(false, 7, 0), G::heightUnits);
+    CHECK_EQ(G::lineHeightUnits(false, 3, 0), 3.0);   // cut short: rows only, no advance
+    CHECK_EQ(G::lineHeightUnits(false, 3, 2), 4.0);   // plus the row in progress
+    CHECK_EQ(G::lineHeightUnits(false, 6, 5), 7.0);   // 7 rows, but no advance
+    CHECK_EQ(G::lineHeightUnits(false, 0, 0), 1.0);   // at least 1 row
+    CHECK_EQ(G::lineHeightUnits(false, 9, 0), G::heightUnits);
+    // The head fires right to left: 2 columns of row 4 are its 2 rightmost.
+    CHECK_EQ(G::inkedColumns(4, 2, 3), 0x1F);
+    CHECK_EQ(G::inkedColumns(4, 2, 4), 0x03);
+    CHECK_EQ(G::inkedColumns(4, 2, 5), 0);
+    CHECK_EQ(G::inkedColumns(4, 0, 4), 0);
+    CHECK_EQ(G::faintColumns(4, 2, true, 4), 0x02);
+    CHECK_EQ(G::faintColumns(4, 2, false, 4), 0);
+    CHECK_EQ(G::faintColumns(4, 2, true, 3), 0);
     double px = G::dotPitchMM / 25.4 * 600;
     CHECK_EQ(G::copyPixelsPerUnit(100), px);
     CHECK_EQ(G::copyPixelsPerUnit(10000), 16000.0 / 10000);

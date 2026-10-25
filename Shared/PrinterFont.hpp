@@ -28,15 +28,38 @@ struct PrinterGeometry {
     /// Margins of the on-screen paper strip, in points / pixels.
     static constexpr double paperPaddingX = 6, paperPaddingY = 8;
 
-    /// Dot rows of a printed line: 7 for a complete line, 1–6 where printing was cut short.
-    static constexpr int clampRowCount(int rowCount) { return rowCount < 1 ? 1 : rowCount > 7 ? 7 : rowCount; }
+    /// Dot rows a printed line takes on paper: 7 for a complete line; for one
+    /// cut short (the printer interrupt), its complete rows plus the row in
+    /// progress if any of its columns fired (at least 1, so the line is visible).
+    /// rowCount and partialColumns are those of Core's PrinterCodeLine.
+    static constexpr int drawnRows(int rowCount, int partialColumns) {
+        int rows = rowCount + (partialColumns > 0 ? 1 : 0);
+        return rows < 1 ? 1 : rows > 7 ? 7 : rows;
+    }
+
+    /// Columns of dot row `row` that got ink, as a font row mask (bit 4 =
+    /// leftmost column): all of a complete row, the rightmost partialColumns of
+    /// the row in progress (the head fires right to left), none after it.
+    static constexpr uint8_t inkedColumns(int rowCount, int partialColumns, int row) {
+        if (row < rowCount) return 0x1F;
+        if (row == rowCount && partialColumns > 0) return static_cast<uint8_t>((1u << (partialColumns > 5 ? 5 : partialColumns)) - 1);
+        return 0;
+    }
+
+    /// The column of dot row `row` whose heating was cut early: a faint dot.
+    static constexpr uint8_t faintColumns(int rowCount, int partialColumns, bool partialFaint, int row) {
+        if (row != rowCount || !partialFaint || partialColumns < 1 || partialColumns > 5) return 0;
+        return static_cast<uint8_t>(1u << (partialColumns - 1));
+    }
+
+    /// Ink of a faint dot, relative to a normal one.
+    static constexpr double faintDotAlpha = 0.4;
 
     /// Height of one strip line: a PRT_FEED blank line, a complete line (7 rows
     /// plus the stepper's advance) or a cut-short one (its rows, no advance).
-    static constexpr double lineHeightUnits(bool isFeed, int rowCount) {
+    static constexpr double lineHeightUnits(bool isFeed, int rowCount, int partialColumns) {
         if (isFeed) return feedHeightUnits;
-        int rows = clampRowCount(rowCount);
-        return rows == 7 ? heightUnits : rows;
+        return rowCount >= 7 ? heightUnits : drawnRows(rowCount, partialColumns);
     }
 
     /// Copy-as-image scale: physical size at 600 dpi, backed off for long tapes

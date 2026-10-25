@@ -735,11 +735,35 @@ PRT.GO): two strokes done, the third not.
 Text lines are queued at once (`drainPrinterLines()`); the dot-matrix line
 (`PrinterCodeLine`, `drainPrinterCodeLines()`) is committed when BUSY
 expires, with `rowCount` = 7. A `PRT.GO` while BUSY is the **printer
-interrupt**: the line in progress is committed with the rows printed so far
-(a row counts once its 508-cycle stroke is half done: `(elapsed + 254) / 508`,
-at most 7) and the new print is ignored. Firmware side and the
+interrupt**: the line in progress is committed with what is on paper so far,
+and the new print is ignored. Firmware side and the
 1F keycode that triggers it: `rom/printerinterrupt.md`. A `PRT.FEED` during
 a print commits the pending line first, so lines keep their order.
+
+**Dot timing within a line.** A stroke fires the 5 dot columns of all 20
+characters one column at a time, right to left. Column c (5 = rightmost) of
+row r (from 0) starts `r·508 + 33 + (5 − c)·64` cycles after `PRT.GO`, so a
+row's columns take 320 of its 508 cycles. A cut leaves `rowCount` complete
+rows and `partialColumns` (0–5) columns of the next one; a column cut within
+its first 12 cycles is a faint dot (`partialFaint`). `PrinterGeometry`
+(`Shared/PrinterFont.hpp`) turns these into the dots each renderer draws.
+
+Measured on the user's TI-58C + PC-100A (2026-10-25) with
+`examples/printer-interrupt-sweep.ti58c`, cuts 16 cycles apart. The first
+cut at which each column shows, with the last cut before it where it doesn't:
+
+| Row (from 1) | Column 5 | 4 | 3 | 2 | 1 |
+|---|---|---|---|---|---|
+| 5 | 2049 → 2065 | 2113 → 2129 | 2161 → 2193 | 2241 → 2257 | 2305 → 2337 |
+| 6 | | 2625 → 2641 | 2689 → 2705 | | |
+
+Both rows allow an offset of 22–33 cycles. 33 is used because the TI-59 +
+PC-100A printed no dot of row 3 in `printer-quirks.ti59`, cut 1035 and 1049
+cycles after `PRT.GO`. At 1049 the emulator still starts column 5 and draws a
+faint dot there, so the two units differ by about one cycle. Rows 1–4 were
+complete at 1905 cycles and later, as the model predicts. Faint dots appeared only on
+cuts within ≈12 cycles of a column's start; how faint depends on the paper and
+the head, not just the timing.
 
 ---
 

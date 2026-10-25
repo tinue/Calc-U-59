@@ -171,9 +171,7 @@ static std::vector<cu59::LabelSpan> spansFrom(NSArray<TILabelSpan*>* spans) {
 + (CGFloat)printerFeedHeightUnits { return cu59::PrinterGeometry::feedHeightUnits; }
 + (CGFloat)printerPaperPaddingX { return cu59::PrinterGeometry::paperPaddingX; }
 + (CGFloat)printerPaperPaddingY { return cu59::PrinterGeometry::paperPaddingY; }
-+ (NSInteger)printerClampRowCount:(NSInteger)rowCount {
-    return cu59::PrinterGeometry::clampRowCount(static_cast<int>(rowCount));
-}
++ (CGFloat)printerFaintDotAlpha { return cu59::PrinterGeometry::faintDotAlpha; }
 + (CGFloat)printerCopyPixelsPerUnit:(CGFloat)stripHeightUnits {
     return cu59::PrinterGeometry::copyPixelsPerUnit(stripHeightUnits);
 }
