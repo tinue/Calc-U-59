@@ -744,9 +744,10 @@ a print commits the pending line first, so lines keep their order.
 characters one column at a time, right to left. Column c (5 = rightmost) of
 row r (from 0) starts `r·508 + 18 + (5 − c)·64` cycles after `PRT.GO`, so a
 row's columns take 320 of its 508 cycles. A cut leaves `rowCount` complete
-rows and `partialColumns` (0–5) columns of the next one; a column cut within
-its first 16 cycles is a faint dot (`partialFaint`). `PrinterGeometry`
-(`Shared/PrinterFont.hpp`) turns these into the dots each renderer draws.
+rows and `partialColumns` (0–5) columns of the next one, the last of them
+heated `partialHeat` cycles. `PrinterGeometry` (`Shared/PrinterFont.hpp`)
+turns these into the dots each renderer draws; `inkAlpha` gives the last
+column's ink from its heating time (the darkness below; full from 20 cycles).
 
 Measured on the user's PC-100A (2026-10-25), on a TI-58C and on a TI-59.
 That unit's head has dead and flaky elements (a test line of 20 `Π`, code

@@ -54,14 +54,14 @@ public:
             const int rows = PrinterGeometry::drawnRows(rowCount, partial);
             for (int row = 0; row < rows && line; ++row) {
                 const uint8_t inked = PrinterGeometry::inkedColumns(rowCount, partial, row);
-                const uint8_t faint = PrinterGeometry::faintColumns(rowCount, partial, line->partialFaint, row);
+                const uint8_t faint = PrinterGeometry::faintColumns(rowCount, partial, line->partialHeat, row);
                 double cy = y + (row + 0.5) * pitch;
                 for (int ch = 0; ch < 20; ++ch) {
                     uint8_t bits = cu59::kPC100CFont[line->codes[static_cast<size_t>(ch)] & 0x3F][row] & inked;
                     double cx0 = ch * PrinterGeometry::charStepUnits * pitch;
                     for (int col = 0; col < 5; ++col) {
                         if (!(bits & (0x10 >> col))) continue;
-                        p.setOpacity((faint & (0x10 >> col)) ? PrinterGeometry::faintDotAlpha : 1.0);
+                        p.setOpacity((faint & (0x10 >> col)) ? PrinterGeometry::inkAlpha(line->partialHeat) : 1.0);
                         p.drawEllipse(QPointF(cx0 + (col + 0.5) * pitch, cy), radius, radius);
                     }
                 }

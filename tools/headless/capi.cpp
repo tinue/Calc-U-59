@@ -166,8 +166,8 @@ int h_printer_lines(void* m, char* out, int cap) {
 
 // Printer code lines (the dot-matrix queue, separate from the text lines):
 // 23 bytes each: the 20 character codes, the complete rows (0-7), the
-// columns of the next row fired before a cut (0-5), and 1 if the leftmost of
-// them is faint. Returns the number of lines written; lines beyond cap are dropped.
+// columns of the next row started before a cut (0-5), and the cycles the
+// leftmost of them was heated (capped at 255). Returns the number of lines written; lines beyond cap are dropped.
 int h_printer_code_lines(void* m, uint8_t* out, int cap) {
     int n = 0;
     for (auto& l : static_cast<TI59Machine*>(m)->drainPrinterCodeLines()) {
@@ -175,7 +175,7 @@ int h_printer_code_lines(void* m, uint8_t* out, int cap) {
         memcpy(out + 23 * n, l.codes.data(), 20);
         out[23 * n + 20] = l.rowCount;
         out[23 * n + 21] = l.partialColumns;
-        out[23 * n + 22] = l.partialFaint ? 1 : 0;
+        out[23 * n + 22] = l.partialHeat;
         ++n;
     }
     return n;

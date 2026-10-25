@@ -13,6 +13,7 @@
 @property (nonatomic, readwrite) NSInteger drawnRows;
 @property (nonatomic, readwrite, copy) NSData *inkedColumns;
 @property (nonatomic, readwrite, copy) NSData *faintColumns;
+@property (nonatomic, readwrite) CGFloat faintAlpha;
 @end
 @implementation TIPrinterLine
 @end
@@ -267,10 +268,11 @@ struct PlatformAdapter : cu59::SessionController::Platform {
         uint8_t inked[7], faint[7];
         for (int r = 0; r < 7; ++r) {
             inked[r] = cu59::PrinterGeometry::inkedColumns(l.rowCount, l.partialColumns, r);
-            faint[r] = cu59::PrinterGeometry::faintColumns(l.rowCount, l.partialColumns, l.partialFaint, r);
+            faint[r] = cu59::PrinterGeometry::faintColumns(l.rowCount, l.partialColumns, l.partialHeat, r);
         }
         line.inkedColumns = [NSData dataWithBytes:inked length:7];
         line.faintColumns = [NSData dataWithBytes:faint length:7];
+        line.faintAlpha = cu59::PrinterGeometry::inkAlpha(l.partialHeat);
         [out addObject:line];
     }
     return out;

@@ -304,15 +304,16 @@ class Machine:
         n = LIB.h_printer_lines(self.h, b, 65536)
         return b.raw[:n].decode("utf-8", "replace").splitlines()
 
-    def printer_code_lines(self) -> list[tuple[list[int], int, int, bool]]:
-        """New dot-matrix lines since the last call: (20 printer codes, complete
-        rows, columns of the next row fired before a cut, leftmost of them faint)."""
+    def printer_code_lines(self) -> list[tuple[list[int], int, int, int]]:
+        """New dot-matrix lines since the last call: (20 printer codes, rows,
+        columns of the next row started before a cut, cycles the leftmost of
+        them was heated)."""
         out = []
         while True:
             b = C.create_string_buffer(23 * 1024)
             n = LIB.h_printer_code_lines(self.h, b, 1024)
             out += [(list(b.raw[23 * i : 23 * i + 20]), b.raw[23 * i + 20], b.raw[23 * i + 21],
-                     bool(b.raw[23 * i + 22])) for i in range(n)]
+                     b.raw[23 * i + 22]) for i in range(n)]
             if n < 1024:
                 return out
 

@@ -80,8 +80,6 @@ NS_ASSUME_NONNULL_BEGIN
 @property (class, readonly) CGFloat printerDotRadiusFraction;
 @property (class, readonly) CGFloat printerPaperPaddingX;
 @property (class, readonly) CGFloat printerPaperPaddingY;
-/// Ink of a faint dot (the printer interrupt cut its heating short), relative to a normal one.
-@property (class, readonly) CGFloat printerFaintDotAlpha;
 /// Copy-as-image pixels per dot pitch: 600 dpi, capped at 16000 px for the whole strip.
 + (CGFloat)printerCopyPixelsPerUnit:(CGFloat)stripHeightUnits;
 

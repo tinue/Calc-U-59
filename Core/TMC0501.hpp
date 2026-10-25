@@ -21,9 +21,9 @@ class RAM;
 // also leave the rightmost partialColumns columns of the next row on paper.
 struct PrinterCodeLine {
     std::array<uint8_t, 20> codes{};
-    uint8_t rowCount{7};        // complete dot rows on paper (0–7); 7 = complete line
-    uint8_t partialColumns{0};  // columns of row rowCount fired before the cut (0–5, from the right)
-    bool partialFaint{false};   // the leftmost of them was cut early in its pulse: a faint dot
+    uint8_t rowCount{7};        // dot rows started in full (0–7); 7 = complete line
+    uint8_t partialColumns{0};  // columns of row rowCount started before the cut (0–5, from the right)
+    uint8_t partialHeat{0};     // cycles the leftmost of them was heated before the cut (capped at 255)
 };
 
 // ── Display snapshot ──────────────────────────────────────────────────────────
@@ -544,15 +544,15 @@ private:
     // A printed line is 7 dot-row strokes from PRT.GO on, then the paper advance.
     // Each stroke fires the 5 dot columns of all 20 characters one column at a
     // time, right to left: column c (5 = rightmost) of row r starts
-    // r·508 + 18 + (5 − c)·64 cycles after PRT.GO. A column cut within its
-    // first 16 cycles leaves a faint dot. Measured on a TI-58C and a TI-59
+    // r·508 + 18 + (5 − c)·64 cycles after PRT.GO. How dark the last column
+    // of a cut comes out depends on how long it was heated (partialHeat;
+    // Shared/PrinterFont.hpp inkAlpha). Measured on a TI-58C and a TI-59
     // with one PC-100A (examples/printer-interrupt-sweep.ti58c and
     // printer-interrupt-bits.ti59; reference/CoreArchitecture.md, "Printer
     // (PC-100C)").
     static constexpr uint32_t kPrinterRowCycles = 508;
     static constexpr uint32_t kPrinterRowStartCycles = 18;
     static constexpr uint32_t kPrinterColumnCycles = 64;
-    static constexpr uint32_t kPrinterFaintCycles = 16;
 
     int getStepWeight() const;
 };

@@ -572,10 +572,11 @@ private:
                 val inked = val::array(), faint = val::array();
                 for (int r = 0; r < rows; ++r) {
                     inked.set(r, cu59::PrinterGeometry::inkedColumns(rowCount, partial, r));
-                    faint.set(r, cu59::PrinterGeometry::faintColumns(rowCount, partial, line->partialFaint, r));
+                    faint.set(r, cu59::PrinterGeometry::faintColumns(rowCount, partial, line->partialHeat, r));
                 }
                 l.set("inked", inked);
                 l.set("faint", faint);
+                l.set("faintAlpha", cu59::PrinterGeometry::inkAlpha(line->partialHeat));
                 val cs = val::array();
                 for (size_t ch = 0; ch < 20; ++ch) cs.set(ch, line->codes[ch] & 0x3F);
                 l.set("codes", cs);
@@ -807,7 +808,6 @@ val staticData(std::string cuecards) {
     printer.set("widthUnits", PG::widthUnits);
     printer.set("charStepUnits", PG::charStepUnits);
     printer.set("dotRadiusFraction", PG::dotRadiusFraction);
-    printer.set("faintDotAlpha", PG::faintDotAlpha);
     printer.set("paddingX", PG::paperPaddingX);
     printer.set("paddingY", PG::paperPaddingY);
     val font = val::array();

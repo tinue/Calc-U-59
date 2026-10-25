@@ -283,18 +283,21 @@ struct PrinterCodeLine: Equatable {
     var drawnRows: Int         // dot rows on paper (1–7)
     var inkedColumns: [UInt8]  // per row: font columns that got ink (Shared PrinterGeometry)
     var faintColumns: [UInt8]  // per row: faint dots, heating cut short
+    var faintAlpha: Double     // ink of the faint dots
 
     static let blank = PrinterCodeLine(codes: Array(repeating: 0, count: 20), complete: true, drawnRows: 7,
                                        inkedColumns: Array(repeating: 0x1F, count: 7),
-                                       faintColumns: Array(repeating: 0, count: 7))
+                                       faintColumns: Array(repeating: 0, count: 7), faintAlpha: 1)
 
-    init(codes: [UInt8], complete: Bool, drawnRows: Int, inkedColumns: [UInt8], faintColumns: [UInt8]) {
+    init(codes: [UInt8], complete: Bool, drawnRows: Int, inkedColumns: [UInt8], faintColumns: [UInt8],
+         faintAlpha: Double) {
         self.codes = codes; self.complete = complete; self.drawnRows = drawnRows
-        self.inkedColumns = inkedColumns; self.faintColumns = faintColumns
+        self.inkedColumns = inkedColumns; self.faintColumns = faintColumns; self.faintAlpha = faintAlpha
     }
     init(_ t: TIPrinterLine) {
         self.init(codes: [UInt8](t.codes), complete: t.rowCount >= 7, drawnRows: t.drawnRows,
-                  inkedColumns: [UInt8](t.inkedColumns), faintColumns: [UInt8](t.faintColumns))
+                  inkedColumns: [UInt8](t.inkedColumns), faintColumns: [UInt8](t.faintColumns),
+                  faintAlpha: Double(t.faintAlpha))
     }
 }
 
@@ -320,7 +323,6 @@ struct PrinterDotLine: View {
     private static let dotRadiusFraction = TIViewRules.printerDotRadiusFraction  // of the dot pitch
     private static let interLineGap      = TIViewRules.printerInterLineGap       // ≈ 3.18 dp stepper advance
 
-    private static let faintAlpha = TIViewRules.printerFaintDotAlpha
 
     // Dot-row model: each row is a separate Canvas with aspect ratio widthUnits:1
     // (one dot-pitch tall, full line width). This gives SwiftUI a concrete height per
@@ -361,7 +363,7 @@ struct PrinterDotLine: View {
                     let rect = CGRect(x: dotX - dotR, y: dotY - dotR,
                                       width: 2 * dotR, height: 2 * dotR)
                     ctx.fill(Path(ellipseIn: rect),
-                             with: .color(faint & mask != 0 ? dotColor.opacity(Self.faintAlpha) : dotColor))
+                             with: .color(faint & mask != 0 ? dotColor.opacity(line.faintAlpha) : dotColor))
                 }
             }
         }

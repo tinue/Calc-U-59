@@ -142,9 +142,14 @@ TEST(printer_strip_geometry) {
     CHECK_EQ(G::inkedColumns(4, 2, 4), 0x03);
     CHECK_EQ(G::inkedColumns(4, 2, 5), 0);
     CHECK_EQ(G::inkedColumns(4, 0, 4), 0);
-    CHECK_EQ(G::faintColumns(4, 2, true, 4), 0x02);
-    CHECK_EQ(G::faintColumns(4, 2, false, 4), 0);
-    CHECK_EQ(G::faintColumns(4, 2, true, 3), 0);
+    CHECK_EQ(G::faintColumns(4, 2, 5, 4), 0x02);
+    CHECK_EQ(G::faintColumns(4, 2, 20, 4), 0);
+    CHECK_EQ(G::faintColumns(4, 2, 5, 3), 0);
+    // Ink grows with the heating time: faint at first, full from 20 cycles.
+    CHECK(G::inkAlpha(0) < 0.1 && G::inkAlpha(4) < 0.1);
+    CHECK(G::inkAlpha(12) > 0.25 && G::inkAlpha(12) < 0.35);
+    CHECK(G::inkAlpha(16) > G::inkAlpha(12));
+    CHECK_EQ(G::inkAlpha(20), 1.0);
     double px = G::dotPitchMM / 25.4 * 600;
     CHECK_EQ(G::copyPixelsPerUnit(100), px);
     CHECK_EQ(G::copyPixelsPerUnit(10000), 16000.0 / 10000);

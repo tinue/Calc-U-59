@@ -1,4 +1,5 @@
 #pragma once
+#include <cmath>
 #include <cstdint>
 
 // PC-100C printer font: 64 characters × 7 rows, indexed by the printer's
@@ -31,7 +32,7 @@ struct PrinterGeometry {
     /// Dot rows a printed line takes on paper: 7 for a complete line; for one
     /// cut short (the printer interrupt), its complete rows plus the row in
     /// progress if any of its columns fired (at least 1, so the line is visible).
-    /// rowCount and partialColumns are those of Core's PrinterCodeLine.
+    /// rowCount, partialColumns and partialHeat are those of Core's PrinterCodeLine.
     static constexpr int drawnRows(int rowCount, int partialColumns) {
         int rows = rowCount + (partialColumns > 0 ? 1 : 0);
         return rows < 1 ? 1 : rows > 7 ? 7 : rows;
@@ -46,14 +47,24 @@ struct PrinterGeometry {
         return 0;
     }
 
-    /// The column of dot row `row` whose heating was cut early: a faint dot.
-    static constexpr uint8_t faintColumns(int rowCount, int partialColumns, bool partialFaint, int row) {
-        if (row != rowCount || !partialFaint || partialColumns < 1 || partialColumns > 5) return 0;
+    /// Heating cycles after which a dot is fully dark.
+    static constexpr int fullInkCycles = 20;
+
+    /// The column of dot row `row` whose heating was cut early (partialHeat
+    /// below fullInkCycles): a faint dot, drawn with inkAlpha(partialHeat).
+    static constexpr uint8_t faintColumns(int rowCount, int partialColumns, int partialHeat, int row) {
+        if (row != rowCount || partialHeat >= fullInkCycles || partialColumns < 1 || partialColumns > 5) return 0;
         return static_cast<uint8_t>(1u << (partialColumns - 1));
     }
 
-    /// Ink of a faint dot, relative to a normal one.
-    static constexpr double faintDotAlpha = 0.4;
+    /// Ink of a dot heated `heat` cycles, relative to a normal one. Fitted to
+    /// a PC-100A's cut-short dots (reference/CoreArchitecture.md, "Dot timing
+    /// within a line"): barely visible at 0–4 cycles, ≈30% at 12, weak to dark
+    /// at 15–19, full from 20.
+    static double inkAlpha(int heat) {
+        if (heat >= fullInkCycles) return 1.0;
+        return 0.05 + 0.95 * std::pow(heat < 0 ? 0.0 : heat / double(fullInkCycles), 2.5);
+    }
 
     /// Height of one strip line: a PRT_FEED blank line, a complete line (7 rows
     /// plus the stepper's advance) or a cut-short one (its rows, no advance).

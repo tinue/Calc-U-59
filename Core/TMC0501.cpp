@@ -810,7 +810,7 @@ int TMC0501::step() {
                     }
                     m_prnPending.rowCount = 7;
                     m_prnPending.partialColumns = 0;
-                    m_prnPending.partialFaint = false;
+                    m_prnPending.partialHeat = 0;
                     m_prnHasPending = true;
                     {
                         std::lock_guard<std::mutex> lk(m_prnMutex);
@@ -1235,20 +1235,19 @@ std::vector<PrinterCodeLine> TMC0501::drainPrinterCodeLines() {
 
 void TMC0501::flushPendingCodeLine(uint32_t elapsed) {
     if (!m_prnHasPending) return;
-    // Rows whose 5 columns have all started are on paper; of the row in
-    // progress, the columns that have started (right to left).
-    uint32_t rows = elapsed / kPrinterRowCycles, cols = 0;
-    bool faint = false;
+    // Rows before the one in progress are on paper; of the row in progress,
+    // the columns that have started (right to left), and how long the last
+    // of them was heated.
+    uint32_t rows = elapsed / kPrinterRowCycles, cols = 0, heat = 0;
     uint32_t into = elapsed % kPrinterRowCycles;
     if (rows < 7 && into >= kPrinterRowStartCycles) {
         uint32_t fired = into - kPrinterRowStartCycles;
         cols = std::min<uint32_t>(5, fired / kPrinterColumnCycles + 1);
-        faint = fired - (cols - 1) * kPrinterColumnCycles < kPrinterFaintCycles;
-        if (cols == 5 && !faint) { ++rows; cols = 0; }
+        heat = fired - (cols - 1) * kPrinterColumnCycles;
     }
     m_prnPending.rowCount = static_cast<uint8_t>(std::min<uint32_t>(7, rows));
     m_prnPending.partialColumns = static_cast<uint8_t>(m_prnPending.rowCount < 7 ? cols : 0);
-    m_prnPending.partialFaint = m_prnPending.partialColumns > 0 && faint;
+    m_prnPending.partialHeat = static_cast<uint8_t>(m_prnPending.partialColumns > 0 ? std::min<uint32_t>(255, heat) : 0);
     std::lock_guard<std::mutex> lk(m_prnMutex);
     m_prnCodeLines.push_back(m_prnPending);
     m_prnHasPending = false;

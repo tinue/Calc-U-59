@@ -56,6 +56,7 @@ typedef NS_ENUM(NSInteger, TIFreezeOwner) {
 @property (nonatomic, readonly) NSInteger drawnRows;   ///< dot rows the line takes on paper (1–7)
 @property (nonatomic, readonly, copy) NSData *inkedColumns;  ///< 7 font-row masks: columns that got ink
 @property (nonatomic, readonly, copy) NSData *faintColumns;  ///< 7 font-row masks: faint dots (cut early)
+@property (nonatomic, readonly) CGFloat faintAlpha;          ///< ink of the faint dots (0–1)
 @end
 
 /// ProgramSource raw values follow the C++ enumerator order:
