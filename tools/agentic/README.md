@@ -81,10 +81,10 @@ kept in `keys` as `'Name:'` entries and skipped when keys are played.
 
 ```bash
 uv run python tools/agentic/linetimes.py file.ti59 [--lines] [--limit S]
-# blank  n= 28 avg  0.29s  total    8.1s  min 0.00 max 0.44
-# text   n= 24 avg  0.45s  total   10.7s  min 0.37 max 0.48
-# week   n= 61 avg  0.97s  total   59.4s  min 0.89 max 1.34
-# total 79.04
+# blank  n= 28 avg  0.31s  total    8.6s  min 0.08 max 2.92
+# text   n= 24 avg  0.53s  total   12.8s  min 0.42 max 0.79
+# week   n= 61 avg  0.89s  total   54.5s  min 0.89 max 1.01
+# total 75.85
 ```
 
 Seconds from the last key to each printed line. The summary groups the gaps
@@ -112,8 +112,8 @@ replaces the file's KEYSTROKES (matrix codes).
 
 ```bash
 uv run python tools/agentic/hotsteps.py file.ti59 [--until S]
-# ...: 20s  printer busy 24% of samples, print-wait spin 0%, Prg Src {2: 2869}
-# hottest program steps: 377:2.2%, 124:1.4%, ...
+# ...: 20s  printer busy 33% of samples, print-wait spin 0%, Prg Src {2: 2869}
+# hottest program steps: 319:2.0%, 207:1.3%, ...
 uv run python tools/agentic/hotsteps.py file.ti59 --window A B
 # 049:2 050:11 051:29 ... 018:14 019:20 ...
 ```
@@ -142,7 +142,7 @@ Each sequence runs 30 times from step 008, once in fast mode (SST entry) and
 once in normal mode, minus an empty program. Registers are preset (see the
 docstring); choose register numbers in the cases accordingly. Useful values
 from the table: RCL/STO ≈ 580, SUM/Exc ≈ 650–700, RC* ≈ 930, Op 05 (print a
-line) ≈ 3200, a digit ≈ 120 instructions in fast mode. Normal mode costs about
+line) ≈ 4500, a digit ≈ 120 instructions in fast mode. Normal mode costs about
 twice as much.
 
 ### fastmode_matrix.py — what works in fast mode

@@ -44,7 +44,8 @@ Three GUIs share `Core/` (hardware) and `Shared/` (everything else that isn't
 drawing): the Swift app (macOS, iOS — the Mac product, with iCloud), the
 Qt6 app (Windows and Linux; its macOS build is for development only, never
 shipped and never built in CI) and the web client (`Web/`, embedded by the
-website; TI-59 only, no printer, debugger or traces). Keep them in step:
+website; no iCloud, debugger only in its wide layout — its column in
+`reference/FrontendParity.md` has the scope). Keep them in step:
 
 - **Non-GUI logic goes in `Shared/` only** — parsing, file formats, timing,
   key sequencing, snapshot building, layout rules and numbers the renderers

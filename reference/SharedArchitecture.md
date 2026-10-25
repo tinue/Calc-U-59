@@ -64,7 +64,7 @@ wrappers in `Bridge/`, which only translate types (`AppArchitecture.md`
 | **Tables and drawing rules** | |
 | `MachineModelInfo` | Per-model facts: instruction rate, RAM, card reader, ROM files, scan-loop PC ranges |
 | `KeyMatrix` | Matrix code ↔ key grid, K-line bit and digit slot |
-| `KeyboardLayout` | Canvas geometry, key rects, widened hit test |
+| `KeyboardLayout` | Canvas geometry, key rects, widened hit test; `PointerTracker` (hold the display for full speed, one held key, drag between keys — Qt and web) |
 | `KeyboardMap` | Computer keyboard → matrix codes |
 | `KeyNames` | Keycode mnemonics, operand-step grammar |
 | `SevenSegment` | 7-segment pattern of every display glyph |
@@ -178,7 +178,8 @@ Core locking: `CoreArchitecture.md` § "Threading Model".
 3. Full speed skips the sleep, except while the PC is in the model's
    scan/key-detect range or the batch polled hardware (`shouldSleep`).
 
-`step()` returns the cycle weight in bits 29:0. Bit 30 marks a confirmed
+`step()` returns the cycle weight in the low 8 bits (`kWeightMask`). Bit 29
+marks a step boundary (the CALCULATOR freeze stops on it). Bit 30 marks a confirmed
 hardware poll (a key or card-switch wait; not a printer BUSY wait, which is
 counted in emulated cycles, so full speed speeds up printing). Bit 31 marks
 a breakpoint: core breakpoints are set only by the headless tools, and the
@@ -222,8 +223,8 @@ only second functions a keyboard reaches are A′–E′.
 
 1. A binding resolves to one or two matrix codes. 2nd functions are reached
    as on hardware: 2nd, then the key.
-2. Shift + letter means "2nd, then that letter's key". Only `a`–`e` are
-   bound, so this gives A′–E′.
+2. Shift + letter means "2nd, then that letter's key". Only `a`–`e` and
+   `x` (×) are bound, so this gives A′–E′ and, with `x`, Deg.
 3. Non-letters resolve on the character the keyboard produced, so Shift is
    not a 2nd prefix for them: `Shift+.` is `>` → EE. Lookup goes by produced
    character, never by scan code, so non-US layouts work wherever they put
@@ -303,12 +304,13 @@ reference order: `StateFileFormat.md`.
 1. UTF-8 check; `prescanStateFile` (`MODEL:`, `SKIP-RESET:`); `parseStateFile`
    with the target model's limits. Parse errors are reported and the load
    continues.
-2. `MODEL:` names another model → `startMachine(target)` first.
+2. `MODEL:` names another model → `startMachine(target)` first. Then the
+   partition check (`stateFilePartitionError`) aborts either path below.
 3. With `SKIP-RESET:`: stop the loop, unfreeze, and on the emulation thread
    write only the partition (if explicit), program and registers
    (`applySkipResetState`). The ignored `MODEL:`, `SOLID-STATE-MODULE:` and
    `PRINTER:` are logged to the LOG tab.
-4. Otherwise: partition check (`stateFilePartitionError`), stop the loop,
+4. Otherwise: stop the loop,
    unfreeze, and on the emulation thread `applyState` (`StateApplier`):
    reset, run the ROM's power-on routine (300,000 steps, a safe upper bound),
    set the partition, clear RAM (the TI-58C keeps registers 60–63), write the
@@ -331,6 +333,7 @@ in `DebugAPI.md`) through the platform, which decides where the file lives.
 | Machine start | Power-on routine, then the saved RAM restored (`powerOn`), so startup code can't overwrite it |
 | 0.5 s after a run-loop batch | Rewritten if its contents changed |
 | Model switch, preset load, `suspend()` | Written at once if changed |
+| Reset | Reset, then the saved RAM restored (`softReset`) |
 | Clean reset | RAM zeroed, reset, written at once |
 
 ## ROM Loading
@@ -363,8 +366,8 @@ differ.
   suppressed positions as not driven; `ledCell` blanks a position at
   level 0. All three renderers call it.
 - Shapes: `LedGeometry` — hexagonal segments (modernized) or dot grids
-  (classic), the decimal point, and per style the slant (shear 0.14, about
-  8°, bottom fixed), colours and glow radii. The decimal point is not
+  (classic), the decimal point, and per style the slant (bottom fixed; shear
+  0.14, about 8°, modernized; 0.1139, about 6.5°, classic), colours and glow radii. The decimal point is not
   sheared.
 - Brightness: `LedFrame` gives 0–255 per digit and decimal point
   (`DisplayPov`).
@@ -400,6 +403,11 @@ these functions for the size the page reports, and paints it on a canvas
 `PrinterFont` holds the PC-100C 5×7 font and the paper geometry measured
 from a real unit: dot pitch ≈ 0.430 mm, line heights including lines cut
 short, and the copy-as-image scale (600 dpi, capped for long strips).
+`PrinterGeometry::lineDots` turns a line cut short by the printer interrupt
+(Core's `PrinterCodeLine`) into the dot rows drawn and, per row, the inked
+and faint columns; `inkAlpha(heat)` gives a faint dot's ink (full from 20
+heating cycles), `lineHeightUnits` the line's height on the strip. All three
+renderers draw from these.
 
 ## Solid-State Program Display
 
@@ -426,7 +434,10 @@ Snapshot fields and freeze semantics: `DebugAPI.md`.
 
 ## Tests and goldens
 
-`tests/` (CTest target `CalcU59Tests`, run from the repo root) covers every
-module, with the ROMs from `roms/`. Ports of Swift code are checked against
+`tests/` (CTest target `CalcU59Tests`, run from the repo root) covers the
+modules, with the ROMs from `roms/` (`LedGeometry` has no test of its own;
+`BatchJitter` is covered through the cooperative runner). A second target,
+`CalcU59TraceReader`, runs `tools/read_trace.py` on the trace the tests wrote
+(`build/trace-test.bin`), so the reader stays in step with `TraceWriter`. Ports of Swift code are checked against
 goldens produced by compiling the Swift original (`tools/goldens/`,
 `tests/golden/`).

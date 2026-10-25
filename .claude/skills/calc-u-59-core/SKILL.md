@@ -86,8 +86,9 @@ uv run python tools/disasm.py --emit-cpp > /tmp/generated.cpp
 
 ## Global Rules
 
-1. **Build both, don't run.** A `Core/` change must pass the CMake build with
-   its tests and the Xcode build (commands: CLAUDE.md § "Frontend Parity").
+1. **Build all, don't run.** A `Core/` change must pass all builds — CMake
+   with its tests, Xcode, and the web client (commands: CLAUDE.md § "Frontend
+   Parity").
    Do not launch the iOS Simulator or the built app — that is the user's job.
    When runtime verification is needed, ask the user to launch the app and
    say precisely what to look for. Headless runs (`tools/headless/`,

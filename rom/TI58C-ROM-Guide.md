@@ -11,9 +11,9 @@ the headless harness. Statements marked *derived* come from reading the code
 without a trace that shows them directly.
 
 ```bash
-tools/headless/ti59.py --variant TI58C 5 + 7 =       # TI-58C trace
-tools/headless/ti59.py 5 + 7 =                       # the same on the TI-59
-tools/headless/coverage.py --variant TI58C show 0350 03A6
+uv run python tools/headless/ti59.py --variant TI58C 5 + 7 =       # TI-58C trace
+uv run python tools/headless/ti59.py 5 + 7 =                       # the same on the TI-59
+uv run python tools/headless/coverage.py --variant TI58C show 0350 03A6
 ```
 
 Addresses are TI-58C ROM addresses unless written "TI-59 XXXX". The listing
@@ -214,8 +214,8 @@ speed. The ROM compensates in one place only:
 | Error blink | 4 counts per lit pass, both phases ≈ 450 ms with printer: period 0.90 s; stand-alone 0.45 s (both measured on a real TI-59) | 1 count per pass, 100 + 100 passes ≈ 390 + 520 ms: period 0.910 s; with printer 325 + 390 ms: 0.715 s | yes: the lit-phase +3 was dropped; the period stays ≈ 0.9 s |
 | Steady idle pass | 9.0 ms (18.0 ms with printer) | 3.9 ms (6.5 ms with printer) | — |
 | Key debounce gap (one digit sweep) | 4.5 ms | 1.30 ms | no |
-| Pause (DISPLAY_PEEK `04E2`, unchanged) | 432 ms | 125 ms | no |
-| GTO peek while running | 216 ms | 62 ms | no |
+| Pause (DISPLAY_PEEK `04E2`, unchanged) | 432 ms | 121 ms | no |
+| GTO peek while running | 216 ms | 60 ms | no |
 
 The TI-59 blink and Pause figures were checked against a real TI-59 filmed
 next to a stopwatch. On the TI-59 the printer-present line sits at D0, which
@@ -416,7 +416,7 @@ Both are recorded here and not fixed in `Core/`:
   digit 10, and what lives at 0x1800.
 - Purpose not established:
   - `08A6` CLR fA[9] at every step fetch;
-  - `047F` and `16B2`, jumps to the next word between a `MEMRD` and the
+  - `047E` and `16B2`, jumps to the next word between a `MEMRD` and the
     following operation;
   - the KR[4..7] parking around the SCOM[10] store in LRN_STORE
     (`1467–1473`);

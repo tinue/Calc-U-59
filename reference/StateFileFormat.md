@@ -73,6 +73,8 @@ PROGRAM:
   number (0 up to the model's last physical step, 959 or 479) sets the
   position. The next token is the one keycode; anything after it is a
   label, even a number (`473 00 0`).
+- **Gap marker:** a line that is exactly `...` is skipped; the steps it
+  stands for stay 00 until the next step number.
 - Steps not listed are 00. On a full load the program is written
   zero-padded to the model's physical capacity, not to the partition;
   under `SKIP-RESET` only to the end of the program area ("SKIP-RESET").
@@ -90,7 +92,7 @@ H01 = 7.77E22
 
 - **`NN = value`, NN = 00–99:** the `STO`/`RCL` register number. All of
   00–99 are ordinary registers on the TI-59; only 00–59 exist on the
-  TI-58/58C.
+  TI-58/58C, and lines for 60–99 are silently ignored there.
 - **`HNN = value`, NN = 00–03, TI-58C only:** the 4 extra RAM cells beyond
   the 60 registers, reachable only by `MEMWR`/`MEMRD`. They are not
   registers 60–63 (`CoreArchitecture.md` § "TI-58C Extra (Constant Memory)
@@ -240,8 +242,9 @@ Operand rules: `stepsAfter()` and `argumentSteps()` in `Shared/KeyNames.cpp`.
 
 ## KEYSTROKES Syntax
 
-Every token of 1–2 digits is one press and release: 11–95 a key, 99 the
-virtual key below; other numbers and words are ignored, so a line can
+Every token of 1–2 digits is one press and release: 11–95 a key (a code
+with no key, such as 16, presses nothing but still takes a press's time),
+99 the virtual key below; other numbers and words are ignored, so a line can
 carry a comment-like mnemonic. `21 31` on one line is two presses. A line
 that starts with `Word:` is a directive (below), never keys; an unknown
 one is an error.

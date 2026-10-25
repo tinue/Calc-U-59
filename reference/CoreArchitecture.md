@@ -439,7 +439,7 @@ counts as "no jump" (see `rom/TI58C-ROM-Guide.md` § "Emulator issues found").
 4. **HOLD** — clear `FLG_HOLD`; `WAIT`/`KEY … ALL` re-assert it.
 5. **Validity windows** — `EXT` and `Sout` survive one cycle after they are
    written, then read as 0.
-6. **Decode and execute** — a branch sets `addr` and skips step 8.
+6. **Decode and execute** — a branch sets `addr` and skips steps 8 and 10.
 7. **Display strobe** (`postOperation()`) — see "Display Subsystem".
 8. **Advance** — unless HOLD: PREG redirect if pending, else `addr++`.
 9. **Accounting** — weight, trace post-step, C-indicator and poll counters,
@@ -453,7 +453,7 @@ The return value carries the weight in `kWeightMask` and two bits:
   `TST.BUSY` poll executed just before it: a spin-wait on a key, the card
   switch and so on, whose real duration does not depend on CPU speed.
   `Shared/Pacing` throttles full-speed runs on it. A `TST.BUSY` retry counts
-  only while the printer is not busy, so full speed also speeds up printing.
+  only while the KR line is active and the printer is not busy, so full speed also speeds up printing.
 - **`kStepBoundary`** — the next instruction is the interpreter's step
   dispatch, `stepDispatchPC()` = `0837` (TI-59/58) or `082B` (TI-58C), which
   every executed program byte (keycode or operand) passes once, from RAM,
@@ -702,7 +702,7 @@ printer connector), so its BUSY times are instruction cycles, the same on
 every model, counted down once per `step()`. A TI-59 in IDLE still gets 16
 PHI1 pulses per instruction, so the per-step count holds there too. On the
 TI-59 (14,219/s) a printed line takes 293 ms and a feed 96 ms; on the TI-58C
-(12,312.5/s) 339 and 111 ms. Adv (calculator key, printer button or program
+(12,312.5/s) 338 and 111 ms. Adv (calculator key, printer button or program
 step) issues two `PRT.FEED`s for one line on paper (`0F50`–`0F56` on the
 TI-58C, the same loop at `0F38` on the TI-59). The ROM does not wait after a
 print: it carries on (the next program steps, the next List line) and polls
@@ -734,11 +734,13 @@ line, 4165 is used: the TI-59 printer-interrupt lines below fit it and not
 
 Text lines are queued at once (`drainPrinterLines()`); the dot-matrix line
 (`PrinterCodeLine`, `drainPrinterCodeLines()`) is committed when BUSY
-expires, with `rowCount` = 7. A `PRT.GO` while BUSY is the **printer
-interrupt**: the line in progress is committed with what is on paper so far,
-and the new print is ignored. Firmware side and the
+expires, with `rowCount` = 7. A `PRT.GO` while a line is printing is the
+**printer interrupt** (during a feed's BUSY it prints normally): the line
+in progress is committed with what is on paper so far, and the new print
+is ignored. Firmware side and the
 1F keycode that triggers it: `rom/printerinterrupt.md`. A `PRT.FEED` during
-a print commits the pending line first, so lines keep their order.
+a print commits the pending line first, cut short at that moment like an
+interrupt, so lines keep their order; `reset()` does the same.
 
 **Dot timing within a line.** A stroke fires the 5 dot columns of all 20
 characters one column at a time, right to left. Column c (5 = rightmost) of
@@ -825,12 +827,12 @@ pure). The full lock policy is the comment above `m_keyMutex` in
 | `TRACE_REGS_FULL` | High | + A–E, SCOM, Sout, EXT, PREG, library address |
 | `TRACE_BREAKPOINTS` | Binary search per step | Stop at a ROM address |
 
-Frames go into a 1024-entry ring (~397 bytes each) with **post-execution
+Frames go into a 1024-entry ring (~392 bytes each) with **post-execution
 semantics**: `beginNextStep()` patches the previous frame with the state
 after its instruction. Seqno gaps mean ring overflow; `drainCpuFrames`
 reports the lost count. Field list and the trace file:
-`reference/DebugAPI.md` § "CPU / Trace API (Layer 1)". `emitDebug()` events
-(`setDebugLevel`, `drainDebugEvents`): `reference/DebugAPI.md` § "C-core
+`reference/DebugAPI.md` § "CPU Inspector" and § "Trace File Format". `emitDebug()` events
+(`setDebugLevel`, `drainDebugEvents`): `reference/DebugAPI.md` § "Core
 debug events".
 
 ---

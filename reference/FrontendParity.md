@@ -51,7 +51,7 @@ the named one still to do (the Notes say why); `Swift only` / `Qt only` /
 |---|---|---|---|---|---|---|
 | PC-100C connect toggle (resets) | `PrinterView` | `PrinterWidget` | `Printer` | `SessionController` | All | |
 | Dot view at PC-100C proportions; text view | `PrinterView` | `PrinterWidget` | `Printer`, `painters.js` | `PrinterFont` PrinterGeometry | All | |
-| Printer interrupt: cut-short lines, the interrupted row's fired columns, faint dots | `PrinterView` (`PrinterDotLine`) | `PrinterWidget` | `painters.js` | `PrinterFont` PrinterGeometry (`drawnRows`, `inkedColumns`, `faintColumns`) | All | |
+| Printer interrupt: cut-short lines, the interrupted row's fired columns, faint dots | `PrinterView` (`PrinterDotLine`) | `PrinterWidget` | `painters.js` | `PrinterFont` PrinterGeometry (`lineDots`: `drawnRows`, `inkedColumns`, `faintColumns`, `inkAlpha`) | All | |
 | PRINT / ADV (hold), T (TRACE latch) | `PrinterView` | `PrinterWidget` | `Printer` | `SessionController` | All | |
 | Copy (text + 600 dpi image), cut | `PrinterView` | `PrinterWidget` | `Printer` | `SessionController` (strip, cut), `PrinterFont` PrinterGeometry (strip height, copy scale) | All | web: image where the browser's clipboard takes one, else text |
 
@@ -77,9 +77,10 @@ the named one still to do (the Notes say why); `Swift only` / `Qt only` /
 | Feature | Swift | Qt | Web | Shared | Status | Notes |
 |---|---|---|---|---|---|---|
 | About (version, links) | `AppInfo` | `AboutDialog` | `Dialogs` (About) | — | All | |
-| Settings | `SettingsView` | `SettingsDialog` | `Dialogs` (Settings) | — | All | Qt: preset, card and trace folders instead of the trace location; web: no folders, no segment style |
+| Settings | `SettingsView` | `SettingsDialog` | `Dialogs` (Settings) | `SettingsKeys` | All | Qt: preset, card and trace folders instead of the trace location; Swift: Keyboard Feedback and Debug Page in Portrait on iOS only; web: no folders, no segment style, Keyboard Feedback in portrait only, Maximum Trace File Size in wide only |
+| Help (user guide link) | — | Help menu | `Dialogs` (Settings, About) | — | Pending (Swift) | opens `https://calc-u.org/59/`; the Swift app has no Help command yet |
 | iOS layouts (portrait pages, iPhone), haptics, click sound | `CalculatorView`, `KeyboardView` | — | `PlayCalculator` (portrait layout, keyboard feedback) | — | Swift only / Web only | Swift: iOS only; web: vibrate where the browser can (not iOS Safari), click via WebAudio |
 | UI test automation hooks | `CalculatorView` | — | — | — | Swift only | |
 | `--grab <png>` offscreen screenshot | — | `main.cpp` | — | — | Qt only | developer check |
 | Installable PWA, offline | — | — | `app/` | — | Web only | portrait layout; all three models offline |
-| Pause while the page is hidden | — | — | `engine.js` (`visibilitychange`) | `SessionController` suspend/resume | Web only | |
+| Pause while hidden / in the background | `Calc-U-59App` (`scenePhase`), `EmulatorViewModel` | — | `engine.js` (`visibilitychange`) | `SessionController::suspend` / `resumeAfterSuspend` | Swift only / Web only | Qt keeps running, as a desktop app does |

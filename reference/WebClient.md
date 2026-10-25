@@ -20,8 +20,8 @@ apps' features (`FrontendParity.md`, the Web column) in two layouts:
 Deliberately different from the apps: the LED is Classic only; magnetic
 cards live in an in-memory folder for the page session (upload one to read
 it, download one to keep it); settings and the TI-58C constant memory are
-kept in `localStorage` (keys prefixed `calcu59/`, named as in
-`Shared/SettingsKeys.hpp`); traces are written to Emscripten's MEMFS
+kept in `localStorage` (keys prefixed `calcu59/`: settings named as in
+`Shared/SettingsKeys.hpp`, the TI-58C memory as `ti58c.mem`); traces are written to Emscripten's MEMFS
 (`/traces`) and handed to the page as downloads. Like the apps, it starts
 with the PC-100C connected.
 
@@ -145,19 +145,19 @@ the file names under `wasm/`, `img/` and `presets/` may change with any build.
 | Prop | Default | Meaning |
 |---|---|---|
 | `layout` | `"portrait"` | `"wide"` (calculator, printer, debugger side by side) or `"portrait"` (calculator and printer pages) |
-| `width` | the parent's width | CSS px the client may take. Wide: the calculator column takes up to 40 % (at most 420 px of artwork), the printer 220–320 px, the debugger the rest (at least 220 px) |
+| `width` | the parent's width | CSS px the client may take. Wide: the calculator artwork takes 40 % (at most 420 px without `height`, never below 400 px), the printer 220–320 px, the debugger the rest (at least 220 px) |
 | `height` | from the width | CSS px. Without it the height follows the artwork's aspect plus the 50 px bar; with it the artwork fits inside (the PWA passes the viewport) |
+| `keyboard` | `false` | The calculator is focusable and takes the physical keyboard while focused (`SharedArchitecture.md` § "Physical Keyboard Mapping") |
+| `settings` | `true` | Show the Settings gear |
+| `model` | stored setting | Start with this model: `"TI-59"`, `"TI-58"` or `"TI-58C"` |
+| `module` | stored setting | Start with this Solid State module id (e.g. `"ML"`) |
+| `preset` | none | Load this file from `presets/` once started |
 
 The client has a minimum size, as the apps' windows do: the narrowest
 artwork whose control bar still fits (400 px wide, 264 px portrait), plus
 the printer's and debugger's minimums in wide — 862 × 856 px wide,
 280 × 587 px portrait. Given less, it keeps that size (it never shrinks as
 a flex item) and the host scrolls, as `index.html` does.
-| `keyboard` | `false` | The calculator is focusable and takes the physical keyboard while focused (`SharedArchitecture.md` § "Physical Keyboard Mapping") |
-| `settings` | `true` | Show the Settings gear |
-| `model` | stored setting | Start with this model: `"TI-59"`, `"TI-58"` or `"TI-58C"` |
-| `module` | stored setting | Start with this Solid State module id (e.g. `"ML"`) |
-| `preset` | none | Load this file from `presets/` once started |
 
 The client sizes itself from these: it has no `scale`. Dialogs (cards,
 presets, Settings) open inside its own box, so it needs no room outside it.
@@ -238,7 +238,7 @@ host's, another copy of the client) are left alone.
 ```json
 {
   "name": "Calc-U-59-web",
-  "version": "2.0.0",
+  "version": "<MARKETING_VERSION>",
   "commit": "<git rev-parse HEAD>[-dirty]",
   "files": { "calc.js": "<sha256 hex>", "…": "…" }
 }

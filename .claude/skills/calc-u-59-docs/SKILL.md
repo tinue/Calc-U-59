@@ -61,16 +61,9 @@ branch that served `www.calcu59.ch`) is retired: don't edit it.
 
 These are AI-generated documents produced by reading the source code alongside hardware documentation. They describe the emulator's internals, not the user-facing app.
 
-| File | Content |
-|------|---------|
-| `reference/CoreArchitecture.md` | C++ emulation core (`Core/`): TMC0501, SCOM, register model |
-| `reference/SharedArchitecture.md` | Shared C++ layer (`Shared/`) both GUIs use: modules, SessionController, threads, run loop and timing, key input and keyboard map, card/state-file/ROM loading, drawing rules, tests and goldens |
-| `reference/AppArchitecture.md` | Swift app (`App/`) and the ObjC++ `Bridge/` |
-| `reference/FrontendParity.md` | Feature table of the Swift app, the Qt6 app and the web client: where each feature lives, what is pending on which side |
-| `reference/WebClient.md` | The web client (`Web/`): layout, build, the `Web/dist/` contract the website embeds |
-| `reference/DebugAPI.md` | Debug panel and debug API, including the ASM overlay feature |
-| `reference/StateFileFormat.md` | `.ti59`/`.ti58`/`.ti58c` file format: sections, PARTITION/PROGRAM/REGISTERS, matrix codes, KEYSTROKES syntax, CUECARD grammar |
-| `reference/NewGUIGuide.md` | Porting guide for another GUI frontend: building on `Shared/` (the Qt6 app as the example), or compiling `Shared/` for a platform without threads (the web client) |
+The list of documents with a line on each is `README.md` § "Appendix:
+Documentation Index" (`reference/` and `rom/`); keep it current when adding
+or removing a document.
 
 The Qt6 app has no reference doc of its own: its class map and build live in
 the `calc-u-59-qt` skill, its feature placement in `FrontendParity.md`.
@@ -89,11 +82,11 @@ When updating these files, keep the provenance notice at the top intact — it s
 
 | File | Purpose |
 |------|---------|
-| `README.md` | Project overview for GitHub, how to build both apps, and the index of every developer document — keep the index current when adding or removing a document |
+| `README.md` | Project overview for GitHub, how to build the apps and the web client, and the index of every developer document — keep the index current when adding or removing a document |
 | `CHANGELOG.md` | Version history (keep entries under the correct version heading) |
 | `TODO.md` | Development task list |
 | `PRIVACY.md` | App Store privacy policy |
-| `THIRD-PARTY-NOTICES.md` | Qt6 (LGPLv3) and ROM-image notices; shipped with the Windows build |
+| `THIRD-PARTY-NOTICES.md` | Qt6 (LGPLv3), web-client (React, Archivo) and ROM-image notices; shipped with the Windows and Linux packages |
 | `ideas/*.md` | Unimplemented design proposals and feasibility analyses (e.g. `KeypressLatch.md`, `Pico.md`, `CardRecovery.md`) — not current behavior, don't treat as authoritative |
 
 ---
@@ -103,7 +96,7 @@ When updating these files, keep the provenance notice at the top intact — it s
 Triggered by the user saying **"update documentation"** (or similar) after finishing work on `Core/`, `Shared/`, `App/`, `Qt6/` or `Web/` for a release. The current dev branch (`dev-X.Y.Z`) always starts at the HEAD of the previous release tag — that tag, not `main` and not an arbitrary commit count, is the diff base.
 
 1. **Find the base commit — verify, don't trust a single command blindly.**
-   This repo has at least one tag anomaly (`v1.6.0` and `v1.5.0` point at the exact same commit — a past tagging mistake), so `git describe --tags --abbrev=0` alone can silently mislead. Cross-check two ways:
+   `git describe --tags --abbrev=0` alone can mislead (a mistagged or extra tag), so cross-check two ways:
    ```bash
    git branch --show-current                        # e.g. dev-1.6.0 → target release 1.6.0
    git tag --list --sort=-v:refname                  # find the entry just below the target version

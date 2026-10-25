@@ -23,6 +23,17 @@ GitHub Actions run log (`.github/workflows/build.yml`).
 
 The Swift app for macOS and iOS does not use Qt.
 
+## Web client
+
+The web client (`Web/`, released as `Calc-U-59-web.zip`) includes:
+
+- [React](https://react.dev/) 18.3.1 (`react`, `react-dom`), (c) Facebook,
+  Inc. and its affiliates, under the MIT license (notice kept in
+  `vendor/react*.min.js`).
+- The [Archivo](https://github.com/Omnibus-Type/Archivo) font, (c) 2020 The
+  Archivo Project Authors, under the SIL Open Font License 1.1
+  (`fonts/Archivo-OFL.txt`).
+
 ## ROM images
 
 The ROM images under `roms/` are third-party copyrighted firmware belonging

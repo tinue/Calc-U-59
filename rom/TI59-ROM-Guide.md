@@ -15,9 +15,9 @@ self-test) are in `rom/TI58C-ROM-Guide.md`.
 ## Reproducing the traces
 
 ```bash
-tools/headless/ti59.py 5 + 7 '*' 3 =        # annotated trace of each key
-tools/headless/coverage.py build            # which scenario runs which ROM word
-tools/headless/coverage.py show 0140 0236   # per-address scenario list
+uv run python tools/headless/ti59.py 5 + 7 '*' 3 =        # annotated trace of each key
+uv run python tools/headless/coverage.py build            # which scenario runs which ROM word
+uv run python tools/headless/coverage.py show 0140 0236   # per-address scenario list
 ```
 
 Every claim tagged "trace-confirmed" in the listing can be re-checked this
@@ -517,7 +517,7 @@ KR[4..9], filled right to left), PRT.GO prints the line, TST.BUSY paces it.
 - **Mnemonics**: every keycode has a 3-character mnemonic in the table at
   `0x1000–0x1151` (slot 0x1000 + 32·tens + 3·units, rightmost character
   first), produced through the INC KR character slide at `0x1399`.
-- **Values** (`PRT_VALUE` `152B`): digits from the display image as code
+- **Values** (`PRT_VALUE_FMT` `152B`): digits from the display image as code
   digit+1, point = 32, minus = 16; with TRACE the key's mnemonic is queued
   first (`1422`) and printed with the result.
 - **List** (`0D28`): per step the LRN-style fetch, the scanner (so operands
@@ -618,8 +618,8 @@ nothing visible at the steps in between.
 | 9 | `00B9` If flg: transfer | `00C9` reduce loop | `00D9` SUM: read register | `00E9` = ✱ | `00F9` Dsz: transfer |
 
 **After the landing.** For a real key the dispatch leaves 0x0100 in SR, the
-return to `KEY_RET` (`06A9–06AC`), and its delay slot sets KR to 0 (`06B2`).
-A slot whose routine is `NORM_CALL` (`041C`) parks KR + 1 as the
+return to `KEY_RET` (`0010`, set up at `06A9–06AC`), and its delay slot sets
+KR to 0 (`06B2`). A slot whose routine is `NORM_CALL` (`041C`) parks KR + 1 as the
 continuation, and with KR = 0 that is address `0001`: the run falls into
 the cold-start clear (`0001–000E`), which zeroes every SCOM row, and then
 into `POWERON_SETUP`. These are the nine codes marked ✱. They clear the
