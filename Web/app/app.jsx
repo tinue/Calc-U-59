@@ -4,16 +4,33 @@
 
 const { useState: useAppState, useEffect: useAppEffect, useRef: useAppRef } = React;
 
+// The page's height. Installed on iOS with the black-translucent status bar,
+// WebKit reports the viewport without the status bar (an iPhone 18 Pro Max:
+// 894 of 956 points) although the page fills the screen and the safe-area
+// insets cover the status bar too; full width in standalone means the whole
+// screen, so its height is the screen's. Only iOS: `navigator.standalone` is
+// Apple's, and elsewhere (Android) `screen` includes the system bars the page
+// doesn't cover, while the viewport is right.
+function pageHeight() {
+  const vv = window.visualViewport;
+  const h = vv ? vv.height : window.innerHeight;
+  if (window.navigator.standalone !== true) return h;
+  const portrait = window.innerWidth <= window.innerHeight;
+  const [short, long] = [Math.min(screen.width, screen.height), Math.max(screen.width, screen.height)];
+  const [sw, sh] = portrait ? [short, long] : [long, short];
+  return window.innerWidth === sw ? Math.max(h, sh) : h;
+}
+
 function viewportSize() {
   const vv = window.visualViewport;
   const root = document.getElementById("root");
   const cs = getComputedStyle(root);
   const padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
   const padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+  const page = pageHeight();
   const w = (vv ? vv.width : window.innerWidth) - padX;
-  const h = (vv ? vv.height : window.innerHeight) - padY;
   // The whole screen of the device it was installed on.
-  return { width: Math.floor(w), height: Math.floor(h) };
+  return { width: Math.floor(w), height: Math.floor(page - padY), page };
 }
 
 // Install affordance. Android/Chrome/Edge fire `beforeinstallprompt`, which
@@ -112,6 +129,12 @@ function StandaloneApp() {
       window.removeEventListener("orientationchange", onResize);
     };
   }, []);
+
+  // app.css sizes html, body and #root by this rather than by 100%/100dvh,
+  // which are the short viewport.
+  useAppEffect(() => {
+    document.documentElement.style.setProperty("--app-height", `${size.page}px`);
+  }, [size.page]);
 
   return (
     <>
