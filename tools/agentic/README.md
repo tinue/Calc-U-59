@@ -62,7 +62,7 @@ KEYSTROKES, each key to idle, and times the **last** key until the program
 has stopped, the printer is idle and the CPU sits in the keyboard idle
 loop. That end condition includes a few seconds of trailing idle checks, so
 the figure is a little higher than the time of the last printed line (use
-`linetimes.py` for that). `printer floor` = the printer's own minimum: 4168
+`linetimes.py` for that). `printer floor` = the printer's own minimum: 4165
 instruction cycles per printed line, 1370 per blank (PRT.FEED) line. `--lines` appends the printout.
 
 Library use (`sys.path.insert(0, 'tools/agentic')`):

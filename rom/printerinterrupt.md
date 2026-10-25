@@ -89,7 +89,7 @@ printing its dot rows. PRT.GO while it is busy makes it stop. In the
 example, 1020 instruction cycles have passed, two strokes of 508, so 2 of
 the 7 rows are on paper. Each stroke fires the 5 dot columns of all 20
 characters one after the other, right to left; the third row's rightmost
-column would have started 29 cycles later. A later cut leaves the
+column would have started 14 cycles later. A later cut leaves the
 rightmost columns of the row in progress, and a column cut in the first
 few cycles of its heating leaves a faint dot. The timing was measured on
 a real TI-58C + PC-100A with `examples/printer-interrupt-sweep.ti58c`

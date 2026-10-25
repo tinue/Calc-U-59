@@ -6,7 +6,7 @@
 - **State Files** `WaitFullSpeed:` is gone: it took effect only after the program had stopped. Put `FullSpeed:` before the key that starts the program instead; the bundled presets now do, and the long ones finish at full speed. An unknown KEYSTROKES directive or a `Wait:` without a unit is now reported as an error instead of being read as keys.
 - **TI-58C** Runs at a real TI-58C's speed, measured on a unit: about 2.6% faster than before. Its error blink takes 0.91 s stand-alone and 0.71 s on the PC-100C, as on the real calculator.
 - **Printer** Prints at the real PC-100's speed, measured on a TI-59 and a TI-58C: a printed line takes about 0.29 s on the TI-59 (a List line 0.31 s, was 0.21 s), a blank line from Adv about 0.19 s (was 0.40 s). The printer runs on the calculator's clock, so on the slower TI-58C everything prints 15% slower, as on the real one.
-- **Printer** The printer interrupt now cuts a line the way the real printer does: the row it interrupts keeps the dot columns already fired (right to left), and a dot cut early in its heating comes out faint. Measured on a TI-58C and PC-100A with the new example `printer-interrupt-sweep.ti58c`.
+- **Printer** The printer interrupt now cuts a line the way the real printer does: the row it interrupts keeps the dot columns already fired (right to left), and a dot cut early in its heating comes out faint. Measured on a TI-58C and a TI-59 with a PC-100A, with the new examples `printer-interrupt-sweep.ti58c` and `printer-interrupt-bits.ti59`.
 - **Examples** `calendar-09-dispatch.ti59` prints a year 1.8 s faster: 75 s for 2026, 7% faster than Acosta's 1981 program.
 
 ### Fixes

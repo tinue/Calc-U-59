@@ -694,7 +694,7 @@ left-to-right line.
 | `PRT.OUT` | Store one character (6-bit code from `KR[9:4]`) |
 | `PRT.FUNC` | Store a 3-character function mnemonic (`PRN_STR` table) |
 | `PRT.STEP` | Store a blank |
-| `PRT.GO` | Print the line; `FLG_BUSY` for `kPrinterLineCycles` (4168) |
+| `PRT.GO` | Print the line; `FLG_BUSY` for `kPrinterLineCycles` (4165) |
 | `PRT.FEED` | Half a line of paper; `FLG_BUSY` for `kPrinterFeedCycles` (1370) |
 
 **Timing.** The PC-100 runs on the calculator's PHI clock (PHI1 is on the
@@ -727,10 +727,10 @@ clock wander (see "TI-58C clock"). Two more recordings support the clock
 dependence: the dot-row strokes inside a printed line (≈7 per line, 35.9 ms
 on the TI-59, 41.3 ms on the TI-58C, ratio 1.150 = the clock ratio) and the
 paper motor's hum while ADV is held (146.77 Hz vs 128.20 Hz, ratio 1.145).
-The strokes take 7 × 508 ≈ 3556 of a line's 4168 cycles; the rest fits the
-paper advance to the next line. A real TI-59 + PC-100A prints 2 rows for
-the interrupts of `examples/printer-quirks.ti59` (1035–1049 cycles after
-PRT.GO): two strokes done, the third not.
+The strokes take 7 × 508 ≈ 3556 of a line's 4165 cycles; the rest fits the
+paper advance to the next line. Of the measured 4165–4168 for a printed
+line, 4165 is used: the TI-59 printer-interrupt lines below fit it and not
+4168 (see "Dot timing within a line").
 
 Text lines are queued at once (`drainPrinterLines()`); the dot-matrix line
 (`PrinterCodeLine`, `drainPrinterCodeLines()`) is committed when BUSY
@@ -742,42 +742,53 @@ a print commits the pending line first, so lines keep their order.
 
 **Dot timing within a line.** A stroke fires the 5 dot columns of all 20
 characters one column at a time, right to left. Column c (5 = rightmost) of
-row r (from 0) starts `r·508 + 33 + (5 − c)·64` cycles after `PRT.GO`, so a
+row r (from 0) starts `r·508 + 18 + (5 − c)·64` cycles after `PRT.GO`, so a
 row's columns take 320 of its 508 cycles. A cut leaves `rowCount` complete
 rows and `partialColumns` (0–5) columns of the next one; a column cut within
-its first 12 cycles is a faint dot (`partialFaint`). `PrinterGeometry`
+its first 16 cycles is a faint dot (`partialFaint`). `PrinterGeometry`
 (`Shared/PrinterFont.hpp`) turns these into the dots each renderer draws.
 
-Measured on the user's TI-58C + PC-100A (2026-10-25) with
-`examples/printer-interrupt-sweep.ti58c`, cuts 16 cycles apart. The first
-cut at which each column shows, with the last cut before it where it doesn't:
+Measured on the user's PC-100A (2026-10-25), on a TI-58C and on a TI-59.
+That unit's head has dead and flaky elements (a test line of 20 `Π`, code
+76): dead in columns 4–5 of characters 7, 9, 12, 13 and column 5 of 16 and
+18, flaky in several columns of characters 2, 9, 10, 11 and 20. Only dots on
+working elements count below.
+
+*TI-58C, `examples/printer-interrupt-sweep.ti58c`*, cuts 16 cycles apart.
+The first cut at which each column shows, with the last cut before it where
+it doesn't:
 
 | Row (from 1) | Column 5 | 4 | 3 | 2 | 1 |
 |---|---|---|---|---|---|
 | 5 | 2049 → 2065 | 2113 → 2129 | 2161 → 2193 | 2241 → 2257 | 2305 → 2337 |
 | 6 | | 2625 → 2641 | 2689 → 2705 | | |
 
-Both rows allow an offset of 22–33 cycles; 33 is used. Rows 1–4 were
-complete at 1905 cycles and later, as the model predicts. A TI-59 + PC-100A
-agrees: `printer-quirks.ti59` cuts its lines 1035 or 1049 cycles after
-`PRT.GO`, and on paper half of them show barely heated specks where column 5
-of row 3 starts (at 1049 with offset 33).
+Row 5 allows an offset from 18 to 33 cycles, row 6 from 22 to 37. Rows 1–4
+were complete at 1905 cycles and later.
 
-Two runs of `printer-quirks.ti59` on the TI-59 put the specks on the same
-lines and characters, only darker or lighter. Table columns 1–4 never show
-one: that unit's head has dead or flaky elements in column 5 of characters
-7, 9, 11 and 13 (a test line of 20 `Π`, code 76). Of the lines with a
-candidate dot on a working element, table rows 0, 1, 2, 3 and 6 show it and
-row 5 does not; rows 4 and 7 have candidates only on dead elements. The emulator cuts rows 0, 3, 5 and 6 at 1049 and
-rows 1, 2, 4 and 7 at 1035, so it disagrees on rows 1, 2 and 5: for some
-rows its cut lands a few cycles off the real one. No line busy time from
-4152 to 4184, no feed time from 1350 to 1390 and no free-running printer
-tick (period 16–508 cycles) reproduces the real rows; the cause is open.
-How dark a dot cut in its first cycles comes out varies from run to run, as
-do the repeats with the same cut time in the sweep (k = 26/27 and 30/31:
-once weak, once dark). Faint dots appeared only on
-cuts within ≈12 cycles of a column's start; how faint depends on the paper and
-the head, not just the timing.
+*TI-59, `examples/printer-interrupt-bits.ti59`.* Ten lines differ only in
+the 1-bits of three character codes. Op 05 takes longer to send codes with
+more bits, which moves its `PRT.GO` against the CPU's digit counter, and the
+1F path ends in a `WAIT D0` (05A9) that waits 0–15 cycles for digit 0. So
+the cut time depends on the digit phase left by the busy wait before the
+print, and with it on the line busy time. With 4165 the lines are cut 1034,
+1035, 1034, 1046, 1045, 1044, 1042, 1040, 1036 and 1035 cycles after
+`PRT.GO`. All ten show column 5 of row 3, between barely and about 30% dark;
+in two runs line 4 was the darkest, lines 5–8 next, the rest faintest, in
+the order of the cut times. No other line busy time from 4160 to 4191 gives
+that order, and 4168 makes lines 2, 3, 9 and 10 (cut 1047–1049) the latest,
+though they are among the faintest. All lines marking means column 5 starts
+by 1034: an offset of 18 or less. `printer-quirks.ti59` agrees: cut at 1036
+and 1038, it shows barely visible specks on most rows with a candidate dot.
+
+18 fits both calculators if a dot heated for only 0–4 cycles may or may not
+show: the TI-58C's row 6 had no new column at cuts 3 cycles after its start
+(k = 62, 67), and the TI-59's faintest lines are cut 0–2 cycles after it.
+Darkness grows with the heating time before the cut: barely visible at 0–4
+cycles, about 30% at 12, weak or dark at 15–19 (the TI-58C's first cuts of
+each column), a normal dot after that. Repeats with the same cut time came
+out once weaker, once darker; near the threshold the paper and the head
+decide.
 
 ---
 
@@ -834,7 +845,7 @@ debug events".
 | RAM access | `RAM.OP` | `RAM.OP` | `MEMWR`/`MEMRD` |
 | Card reader | Yes (switch at digit 10) | No (D7–KR veto, digit 10 open) | No (digit 7 held; the ROM never reads it) |
 | Printer-present digit | 0 | 0 | 10 |
-| Printer BUSY (line / feed) | 4168 / 1370 cycles | same | same |
+| Printer BUSY (line / feed) | 4165 / 1370 cycles | same | same |
 | Library module | Yes | Yes | Yes |
 | Constant memory | No | No | Yes (`ti58c.mem` via `serialiseRAM`) |
 | Step dispatch / module fetch | `0837` / `082F` | same | `082B` / `0823` |

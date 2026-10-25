@@ -1,0 +1,152 @@
+# printer-interrupt-bits.ti59
+#
+# A short version of printer-quirks.ti59 for checking the emulator's
+# printer interrupt against a real TI-59 + PC-100. It prints 10 lines,
+# each once in full and once cut short by the interrupt, like the
+# article's table, but the cut lines differ only in when they are cut.
+#
+# WHY THE CUT TIME VARIES
+#
+# The cut copy is printed by `CLR SBR 006`: Op 05 at 006 sends the line,
+# the 1F at 008 cuts it (rom/printerinterrupt.md). Op 05 first waits for
+# the full line before it to finish, then sends the 20 characters. The
+# time this takes depends on the number of 1-bits in the tens digits of
+# the character codes, and that moves PRT.GO against the CPU's 16-cycle
+# step timing, and the 1F path ends in a WAIT D0 that waits 0–15 cycles
+# for the digit counter. In printer-quirks.ti59 this is why some rows are
+# cut at 1036 and others at 1038 instruction cycles after PRT.GO.
+#
+# Here only characters 13–15 change from line to line, with 0 to 9 such
+# bits. The emulator cuts the lines at these cycles after PRT.GO:
+#
+#   line     1    2    3    4    5    6    7    8    9   10
+#   bits     0    1    2    3    4    5    6    7    8    9
+#   cut   1034 1035 1034 1046 1045 1044 1042 1040 1036 1035
+#
+# The third row's rightmost column starts at 1034 (reference/
+# CoreArchitecture.md, "Dot timing within a line"), so every line shows
+# it, faint: barely on lines 1, 3 and 10, darkest on line 4. A real
+# TI-59 + PC-100A printed the same (2026-10-25, two runs): all ten, line
+# 4 darkest, lines 5–8 next, the rest faintest. These printouts set the
+# printer's line BUSY time to 4165 cycles and the column offset to 18.
+#
+# WHAT TO LOOK AT
+#
+# The visible characters stand on print-head positions 1, 3, 4, 5, 6, 8,
+# 17 and 19, which work on the user's PC-100A (the head has dead
+# elements elsewhere): "O" and "=". Both have a dot in the rightmost
+# column of the third dot row, and "=" fills that whole row. A cut line
+# shows the first 2 dot rows of "O"; the question is whether the third
+# row's rightmost dot appears, faint or not. Characters 13–15 ("7", "T",
+# "²", or blank) have no dot there, so they can't be mistaken for it.
+#
+# KEYING IT IN (TI-59)
+#
+# 1. LRN, key the PROGRAM below (steps 000–051), LRN.
+# 2. Make the 1F at 008 (as printer-interrupt.ti59):
+#      1 + 48 EE 12 +/- =     X := 1.000000000048
+#      GTO 012  SST  0  STO   Prg Src := 8, the run stops at 007
+#      LRN  2nd Ins  LRN      008 := 1F, 009 := RTN, 016 on move up one
+#      CLR  RST
+# 3. Print codes:  3200643264 STO 01   3200640000 STO 02   32006400 STO 04
+#    Line values:  0 STO 10   10 STO 11   37 STO 12   70 STO 13
+#                  1070 STO 14   3770 STO 15   7070 STO 16
+#                  107070 STO 17   377070 STO 18   707070 STO 19
+# 4. Press A. It prints all 10 pairs; A again repeats them.
+
+MODEL: TI-59
+PRINTER: on
+
+PROGRAM:
+000  92  RTN       # the interrupt continues here: return to 009
+001  76  Lbl
+002  11  A
+003  61  GTO
+004  00  0
+005  17  17        # A: GTO 017
+006  69  Op        # SBR 006: send the line …
+007  05  05
+008  23  lnx       # … becomes 1F: the interrupt
+009  53  (         # becomes 92 RTN
+010  00  0
+011  00  0
+012  86  St flg    # hack trigger (overwritten by the Ins)
+013  00  0         # swallowed by the hack
+014  00  0         # makes X displayable before the R/S
+015  91  R/S       # stops the hack's run (moves to 016)
+# From here on, each step moves up one during the Ins: 016 runs as 017.
+016  01  1
+017  00  0
+018  42  STO
+019  00  00        # R00 := 10, the first line value
+020  42  STO
+021  09  09        # R09 := 10 lines
+022  43  RCL       # 023: start of a line
+023  01  01
+024  69  Op
+025  01  01        # characters 1–5:   O _ = O =
+026  43  RCL
+027  02  02
+028  69  Op
+029  02  02        # characters 6–10:  O _ = _ _
+030  43  RCL
+031  04  04
+032  69  Op
+033  04  04        # characters 16–20: _ O _ = _
+034  73  RC*
+035  00  00
+036  69  Op
+037  03  03        # characters 11–15: this line's value
+038  69  Op
+039  05  05        # print the line in full
+040  25  CLR
+041  71  SBR
+042  00  0
+043  06  06        # print it again, cut short
+044  98  Adv
+045  69  Op
+046  20  20        # next line value
+047  97  Dsz
+048  09  09
+049  00  0
+050  23  23        # next line (023)
+051  91  R/S
+
+REGISTERS:
+01 = 3200643264    # O _ = O =
+02 = 3200640000    # O _ = _ _
+04 = 32006400      # _ O _ = _
+10 = 0             # line 1:  0 bits
+11 = 10            # line 2:  "7"            1 bit
+12 = 37            # line 3:  "T"            2 bits
+13 = 70            # line 4:  "²"            3 bits
+14 = 1070          # line 5:  "7²"           4 bits
+15 = 3770          # line 6:  "T²"           5 bits
+16 = 7070          # line 7:  "²²"           6 bits
+17 = 107070        # line 8:  "7²²"          7 bits
+18 = 377070        # line 9:  "T²²"          8 bits
+19 = 707070        # line 10: "²²²"          9 bits
+
+KEYSTROKES:
+82          # 1
+85          # +
+72          # 4
+63          # 8
+52          # EE
+82          # 1
+83          # 2
+94          # +/-
+95          # =      X = 1.000000000048
+61          # GTO
+92          # 0
+82          # 1
+83          # 2      → step 012
+41          # SST    St flg executes, operand pending
+92          # 0      first operand digit
+42          # STO    ends it: Prg Src 8, run stops at 007
+31          # LRN    008, buffer loaded from ROM row 17
+21 41       # Ins    008 := 1F, 009 := RTN
+31          # LRN
+25          # CLR
+81          # RST    Prg Src 0
+11          # A      print the 10 pairs

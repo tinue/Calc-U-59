@@ -539,19 +539,20 @@ private:
     // these are instruction cycles on every model, counted down once per step.
     // Measured from recordings of List, Prt and Adv loops on a TI-59 and a
     // TI-58C (reference/CoreArchitecture.md, "Printer (PC-100C)").
-    static constexpr uint32_t kPrinterLineCycles = 4168;
+    static constexpr uint32_t kPrinterLineCycles = 4165;
     static constexpr uint32_t kPrinterFeedCycles = 1370;
     // A printed line is 7 dot-row strokes from PRT.GO on, then the paper advance.
     // Each stroke fires the 5 dot columns of all 20 characters one column at a
     // time, right to left: column c (5 = rightmost) of row r starts
-    // r·508 + 33 + (5 − c)·64 cycles after PRT.GO. A column cut within its
-    // first 12 cycles leaves a faint dot. Measured on a TI-58C + PC-100A with
-    // examples/printer-interrupt-sweep.ti58c (reference/CoreArchitecture.md,
-    // "Printer (PC-100C)").
+    // r·508 + 18 + (5 − c)·64 cycles after PRT.GO. A column cut within its
+    // first 16 cycles leaves a faint dot. Measured on a TI-58C and a TI-59
+    // with one PC-100A (examples/printer-interrupt-sweep.ti58c and
+    // printer-interrupt-bits.ti59; reference/CoreArchitecture.md, "Printer
+    // (PC-100C)").
     static constexpr uint32_t kPrinterRowCycles = 508;
-    static constexpr uint32_t kPrinterRowStartCycles = 33;
+    static constexpr uint32_t kPrinterRowStartCycles = 18;
     static constexpr uint32_t kPrinterColumnCycles = 64;
-    static constexpr uint32_t kPrinterFaintCycles = 12;
+    static constexpr uint32_t kPrinterFaintCycles = 16;
 
     int getStepWeight() const;
 };

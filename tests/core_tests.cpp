@@ -244,7 +244,7 @@ static PrinterCodeLine sweepLine(int k) {
 TEST(printer_interrupt_partial_rows) {
     struct Case { int k, rows, columns; };
     for (Case c : {Case{21, 4, 0}, {22, 4, 1}, {26, 4, 2}, {30, 4, 3}, {36, 4, 4}, {39, 4, 4},
-                   {40, 5, 0}, {62, 5, 1}, {63, 5, 2}, {69, 5, 3}}) {
+                   {40, 5, 0}, {60, 5, 1}, {63, 5, 2}, {69, 5, 3}}) {
         PrinterCodeLine l = sweepLine(c.k);
         CHECK_EQ(static_cast<int>(l.rowCount), c.rows);
         CHECK_EQ(static_cast<int>(l.partialColumns), c.columns);
