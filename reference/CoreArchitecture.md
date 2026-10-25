@@ -764,14 +764,19 @@ agrees: `printer-quirks.ti59` cuts its lines 1035 or 1049 cycles after
 of row 3 starts (at 1049 with offset 33).
 
 Two runs of `printer-quirks.ti59` on the TI-59 put the specks on the same
-lines, table rows 0–3, only darker or lighter. The emulator cuts rows 0, 3, 5
-and 6 at 1049 and the others at 1035, so for some rows its cut lands a few
-cycles off the real one. Which rows depends on each row's computation before
-the print; no line busy time from 4152 to 4184 and no feed time from 1350
-to 1390 gives rows 0–3, and the cause
-is open. How dark a dot cut in its first cycles comes out varies from run to
-run, as do the repeats with the same cut time in the sweep (k = 26/27 and
-30/31: once weak, once dark). Faint dots appeared only on
+lines and characters, only darker or lighter. They show only at some
+head positions: columns −1, 0, 5, 6 and 7 of the table (line positions 1,
+4, 14, 16, 18), never at columns 1–4, even where the character has a dot
+there. Where a marking position has a candidate dot, table rows 0, 1, 2, 3
+and 6 show it and row 5 does not; rows 4 and 7 have candidates only at
+non-marking positions. The emulator cuts rows 0, 3, 5 and 6 at 1049 and
+rows 1, 2, 4 and 7 at 1035, so it disagrees on rows 1, 2 and 5: for some
+rows its cut lands a few cycles off the real one. No line busy time from
+4152 to 4184, no feed time from 1350 to 1390 and no free-running printer
+tick (period 16–508 cycles) reproduces the real rows; the cause is open.
+How dark a dot cut in its first cycles comes out varies from run to run, as
+do the repeats with the same cut time in the sweep (k = 26/27 and 30/31:
+once weak, once dark). Faint dots appeared only on
 cuts within ≈12 cycles of a column's start; how faint depends on the paper and
 the head, not just the timing.
 
