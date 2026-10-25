@@ -64,7 +64,7 @@ const INITIAL_STATE = {
   log: { text: "", level: 0, trace: false },
   asm: { fileName: "", words: 0, status: "", active: false },
   traces: [],
-  settings: { startupModel: -1, traceMaxMB: 50 },
+  settings: { startupModel: -1, traceMaxMB: 50, keyboardFeedback: 0 },
   debugFont: 11,
   geometry: null,
 };

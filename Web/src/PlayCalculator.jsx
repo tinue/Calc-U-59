@@ -58,10 +58,10 @@ function playClick(count) {
     }
   } catch (e) { /* no audio */ }
 }
-function makeFeedback(enabled) {
+function makeFeedback(engine, enabled) {
   return (kind) => {
-    if (!enabled) return;
-    const mode = Number(storageGet(FEEDBACK_KEY) || 0);
+    if (!enabled || !engine) return;
+    const mode = engine.getState().settings.keyboardFeedback;
     const count = kind === "clean" ? 2 : 1;
     if (mode === 1 && navigator.vibrate) navigator.vibrate(count === 2 ? [15, 100, 15] : 15);
     else if (mode === 2) playClick(count);
@@ -193,7 +193,7 @@ function PlayCalculator({
   }, [width]);
   const w = Math.max(minimumWidth(portrait), width || measured || (portrait ? 360 : 1100));
 
-  const feedback = React.useMemo(() => makeFeedback(portrait), [portrait]);
+  const feedback = React.useMemo(() => makeFeedback(engine, portrait), [engine, portrait]);
 
   // ── Physical keyboard ────────────────────────────────────────────────
   // Only with keyboard={true}, and only while the calculator itself has

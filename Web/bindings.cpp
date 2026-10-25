@@ -112,6 +112,7 @@ public:
         m_constantMemory = stored(settings, kConstantMemoryKey);
         m_traceMaxMB = keys::resolveTraceMaxMB(storedInt(settings, keys::kTraceMaxFileSizeMB));
         m_startupModel = storedInt(settings, keys::kStartupModel).value_or(keys::kStartupLastUsed);
+        m_keyboardFeedback = storedInt(settings, keys::kKeyboardFeedback).value_or(keys::kDefaultKeyboardFeedback);
         std::error_code ec;
         fs::create_directories(kTraceDir, ec);
 
@@ -150,6 +151,11 @@ public:
     void setTraceMaxMB(int mb) {
         m_traceMaxMB = keys::resolveTraceMaxMB(mb);
         store(keys::kTraceMaxFileSizeMB, std::to_string(m_traceMaxMB));
+        postSettings();
+    }
+    void setKeyboardFeedback(int mode) {
+        m_keyboardFeedback = mode;
+        store(keys::kKeyboardFeedback, std::to_string(mode));
         postSettings();
     }
 
@@ -390,6 +396,7 @@ private:
         val o = val::object();
         o.set("startupModel", m_startupModel);
         o.set("traceMaxMB", m_traceMaxMB);
+        o.set("keyboardFeedback", m_keyboardFeedback);
         post("settings", "settings", o);
     }
 
@@ -725,6 +732,7 @@ private:
 
     std::optional<std::string> m_constantMemory;
     int m_traceMaxMB = keys::kDefaultTraceMaxMB;
+    int m_keyboardFeedback = keys::kDefaultKeyboardFeedback;
     int m_startupModel = keys::kStartupLastUsed;
 
     std::map<std::string, std::string> m_cards;
@@ -893,6 +901,7 @@ EMSCRIPTEN_BINDINGS(ti59_web) {
         .function("resume", &WebController::resume)
         .function("setStartupModel", &WebController::setStartupModel)
         .function("setTraceMaxMB", &WebController::setTraceMaxMB)
+        .function("setKeyboardFeedback", &WebController::setKeyboardFeedback)
         .function("pointerDown", &WebController::pointerDown)
         .function("pointerMove", &WebController::pointerMove)
         .function("pointerUp", &WebController::pointerUp)

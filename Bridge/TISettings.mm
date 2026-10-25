@@ -15,6 +15,7 @@ std::optional<int> opt(NSNumber* n) { return n ? std::optional<int>(n.intValue) 
 + (NSString *)solidStateModuleIDKey { return @(s::kSolidStateModuleID); }
 + (NSString *)traceMaxFileSizeMBKey { return @(s::kTraceMaxFileSizeMB); }
 + (NSString *)ledFontStyleKey { return @(s::kLedFontStyle); }
++ (NSString *)keyboardFeedbackKey { return @(s::kKeyboardFeedback); }
 
 + (NSInteger)startupLastUsed { return s::kStartupLastUsed; }
 + (NSInteger)defaultTraceMaxMB { return s::kDefaultTraceMaxMB; }
