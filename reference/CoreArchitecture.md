@@ -764,12 +764,11 @@ agrees: `printer-quirks.ti59` cuts its lines 1035 or 1049 cycles after
 of row 3 starts (at 1049 with offset 33).
 
 Two runs of `printer-quirks.ti59` on the TI-59 put the specks on the same
-lines and characters, only darker or lighter. They show only at some
-head positions: columns −1, 0, 5, 6 and 7 of the table (line positions 1,
-4, 14, 16, 18), never at columns 1–4, even where the character has a dot
-there. Where a marking position has a candidate dot, table rows 0, 1, 2, 3
-and 6 show it and row 5 does not; rows 4 and 7 have candidates only at
-non-marking positions. The emulator cuts rows 0, 3, 5 and 6 at 1049 and
+lines and characters, only darker or lighter. Table columns 1–4 never show
+one: that unit's head has dead or flaky elements in column 5 of characters
+7, 9, 11 and 13 (a test line of 20 `Π`, code 76). Of the lines with a
+candidate dot on a working element, table rows 0, 1, 2, 3 and 6 show it and
+row 5 does not; rows 4 and 7 have candidates only on dead elements. The emulator cuts rows 0, 3, 5 and 6 at 1049 and
 rows 1, 2, 4 and 7 at 1035, so it disagrees on rows 1, 2 and 5: for some
 rows its cut lands a few cycles off the real one. No line busy time from
 4152 to 4184, no feed time from 1350 to 1390 and no free-running printer
