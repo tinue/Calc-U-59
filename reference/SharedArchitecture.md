@@ -291,6 +291,10 @@ controller's side:
    written bank and saves it, with the current cue card, through
    `Platform::writeCard`.
 
+Presets feed cards through the same insert path (`ArmCard:` / `InsertCard:`,
+§ "State File Loading"); `Platform::cardFile(name)` resolves a card file name
+in the frontend's card folder.
+
 Card files are written as text ("Calc-U-59 Card 1.0", `Shared/CardFile.hpp`).
 Still read: the 13-byte `Calc-U-59-CRD` header + 246 bytes, and headerless
 246- or 984-byte files.
@@ -317,7 +321,40 @@ reference order: `StateFileFormat.md`.
    program zero-padded to the model's capacity, write the registers. Then
    reset the heatmap baseline, start the loop and cut the paper, and apply
    `SOLID-STATE-MODULE:`, `PRINTER:` and the cue card.
+   A full load first drops the previous preset's queued and memory cards
+   (`dropPresetCards`).
 5. Persist `ti58c.mem`, then play `KEYSTROKES:`.
+
+**Reloads and preset cards during playback** (`StateFileFormat.md` §
+"Reloads", § "CARD"). The parser puts each reload stage and `CARD:` block
+into the keystroke events (`shared_ptr`). This is the order of operations:
+
+1. A `Reload` or `InsertCard` event waits for the scan loop like a key. It
+   then calls a `KeySequencer::Host` hook (`EmulatorSession`), which raises
+   the session's host-pending count.
+2. The sequencer waits until that count drops.
+3. A reload hops to the UI thread (`Listener::reloadRequested`). There
+   `SessionController::applyReloadStage` stops the loop, runs `applyReload`
+   on the emulation thread, restarts the loop (unless frozen), and updates
+   the cue card. It then calls `hostDone()`. A posted job would not do: it
+   runs only after the run loop exits.
+4. `ArmCard` and `InsertCard` queue their card in the session (`QueuedCard`,
+   under a mutex).
+5. On each 60 Hz `tick()` with an empty reader, `takeQueuedCard()` hands out
+   the front card:
+   - an `InsertCard` card when the PC is in the scan loop;
+   - an `ArmCard` card when the PC is in `ModelInfo::cardWait` and the core
+     reports a card wait.
+6. `feedQueuedCard` resolves the card:
+   - a `mem:` card from its written bank, its `CARD:` block
+     (`buildCardBank`, at the current partition), or blank;
+   - a file through `Platform::cardFile`.
+
+   It inserts the card as the card picker would. On eject, a written bank
+   goes to the memory card or to the file, and an `InsertCard` calls
+   `hostDone()`.
+7. `playbackFinished` clears the pending count. Queued cards stay until the
+   next full load, reset or model switch.
 
 Skipping the power-on routine leaves stale SCOM flags that confuse the
 display and AOS.

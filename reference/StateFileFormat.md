@@ -24,15 +24,18 @@ point readers at the user guide, https://calc-u.org/59/.
 | `REGISTERS:` | Data registers, see below |
 | `KEYSTROKES:` | Keys and directives played after the load, see below |
 | `CUECARD:` | The user's cue card, see "CUECARD: Field Grammar" |
+| `CARD: mem:name` … `END-CARD` | An in-memory magnetic card, see "CARD" |
 | `SOLID-STATE-MODULE: ID` | Insert a module: `ML ST RE SY NG AV LE SA BD MU EE SE AG RP` (`roms/solid-state/cuecards.txt`). Without the line the current module stays |
 | `PRINTER: on` | Connect the printer: `on`, `true` or `1`; anything else disconnects it. Without the line the printer setting stays |
 | `SKIP-RESET: on` | Load without a reset (`on`, `true` or `1`), see "SKIP-RESET" |
 
 - Keywords are case-insensitive. `PROGRAM:`, `REGISTERS:`, `KEYSTROKES:`,
-  `CUECARD:` and `PARTITION:` end the current section; lines after
+  `CUECARD:`, `PARTITION:` and `CARD:` end the current section; lines after
   `PARTITION:` are ignored until the next section keyword. `MODEL:`,
   `SOLID-STATE-MODULE:`, `PRINTER:` and `SKIP-RESET:` may stand anywhere,
   even inside a section.
+- `PROGRAM:`, `REGISTERS:`, `CUECARD:` and `PARTITION:` after a
+  `KEYSTROKES:` section are a reload, played in turn ("Reloads").
 - `#` starts a comment, anywhere on a line. A value therefore cannot
   contain `#`, not even a cue-card title or a trace file name.
 - Errors (unknown model, bad register value, bad `Trace:` line, unknown
@@ -272,6 +275,8 @@ back in the keyboard scan loop, so no key is lost to a busy calculator
 | `Trace: Off` | Stop it |
 | `ZeroElapseTime:` | Take the core's elapsed-time counter (`elapsedTicks()`) as the baseline |
 | `ReportElapseTime:` | Log `Elapsed: m:ss.mmm` since the baseline (or reset) to the LOG tab |
+| `ArmCard: <card>` | Queue a card for the next card wait of `Write` / `INV Write`, see "Cards in KEYSTROKES" |
+| `InsertCard: <card>` | Insert a card once the calculator is idle; playback waits until it has passed |
 
 - `Trace:` takes the rest of the line as the file name, spaces included;
   `/` and `\` are errors. An existing file is overwritten. A new `Trace:`
@@ -301,6 +306,119 @@ FullSpeed:
 RegularSpeed:
 ReportElapseTime:
 ```
+
+---
+
+## Reloads
+
+A preset can hold a program larger than one calculator load, the way the
+user would read the next set of cards when the first part stops.
+`PROGRAM:`, `REGISTERS:`, `CUECARD:` and `PARTITION:` sections before the
+first `KEYSTROKES:` section are the load itself. After a `KEYSTROKES:`
+section they are a **reload**: consecutive ones form one, and a further
+`KEYSTROKES:` section continues the script after it.
+
+```
+PROGRAM:             # part 1, loaded as usual
+…
+KEYSTROKES:
+11                   # A: part 1 runs and stops
+PARTITION: 639.39    # reload: applied when part 1 has stopped
+PROGRAM:
+…
+CUECARD:
+Title: Part 2
+KEYSTROKES:
+11                   # A: part 2 runs
+```
+
+- Playback reaches the reload, waits for the scan loop as a key would, and
+  applies it as a SKIP-RESET load does: the partition if given, the
+  program zero-padded to the end of the program area, the listed
+  registers. Other registers keep part 1's values. A `CUECARD:` replaces
+  the card shown.
+- A reload's `PROGRAM:` starts at step 000 again.
+- A reload's partition above the model's last step is skipped, with a line
+  in the LOG tab.
+- `MODEL:`, `SOLID-STATE-MODULE:`, `PRINTER:` and `SKIP-RESET:` belong to
+  the whole file, wherever they stand.
+- Example: `examples/fast-grafik-3d-plot.ti59` (two parts that were two
+  files with `SKIP-RESET` up to 2.2).
+
+---
+
+## CARD
+
+Some programs read or write cards themselves: `n Write` or `n INV Write`
+in a program waits for a card without stopping. The ROM loops at
+0x16B2–0x16B7 until the card switch opens or R/S is pressed
+(`ModelInfo::cardWait`). Such a program needs cards fed by the preset. A
+card is named in one of two ways:
+
+| Name | Card |
+|---|---|
+| `mem:Scratch` (prefix in any case) | In-memory: built from a `CARD:` block, or blank. A bank written to it is kept and read back by the next use |
+| `Results` / `Results.U59` | The card file in the card folder (Swift: iCloud or Documents; Qt: the card folder in Settings; web: the session's cards). `.U59` is added when there is no extension. A missing file goes in as a blank card, so a `Write` creates it |
+
+A `CARD:` block defines an in-memory card. It may stand anywhere in the
+file and ends at `END-CARD`:
+
+```
+CARD: mem:MyVars
+Bank: 3              # required, 1–4
+Protected: no        # optional: yes / no (or on / off); written as −n Write
+Partition: 479.59    # optional header; default: the calculator's when the card goes in
+REGISTERS:           # R30–R59: bank 3
+30 = 1.5
+31 = 2.25
+PROGRAM:             # steps 480–719: bare keycodes start at 480
+…
+CUECARD:             # shown when the card goes in, like a card file's
+Template: MagnetCard
+Title: My Vars
+END-CARD
+```
+
+- Bank n holds raw RAM registers 30·(n−1)…+29: program steps
+  240·(n−1)…+239, and data registers 120 − 30·n … 149 − 30·n (bank 4 =
+  R00–R29, bank 3 = R30–R59, bank 2 = R60–R89, bank 1 = R90–R99).
+  Contents outside the bank are an error and left out. The bank is built
+  as the ROM writes it, header and checksum included
+  (`buildCardBank`, `Shared/CardFile.hpp`; bank format:
+  `rom/TI59-ROM-Guide.md` § "Magnetic cards").
+- The header's partition must equal the calculator's when the card is read
+  without a bank number (an idle insert). That is why it defaults to the
+  partition at insert time.
+- Errors: a `CARD:` name without `mem:` (card files are used by name,
+  never defined here), a missing or wrong `Bank:`, a missing `END-CARD`,
+  the same name twice (the last counts).
+
+### Cards in KEYSTROKES
+
+```
+KEYSTROKES:
+ArmCard: mem:MyVars      # for the program's 3 INV Write
+ArmCard: mem:Scratch     # blank: the program's 4 Write fills it …
+ArmCard: mem:Scratch     # … and 4 INV Write reads it back
+11                       # A
+InsertCard: Results      # once stopped: read Results.U59 as the user would
+```
+
+- **`ArmCard:`** queues the card and goes on at once. Cards queue in order.
+  The controller feeds the next one when the CPU is in the card wait
+  (0x16B2–0x16B7) and the reader is empty. The idle loop polls the card
+  switch too, so the PC tells the two apart. A bank the machine writes
+  goes to the memory card or the card file.
+- **`InsertCard:`** waits for the scan loop and inserts the card (the ROM
+  reads it as if the user had pushed it in, partition check included).
+  Playback goes on only after the card has passed. It still queues behind
+  armed cards: give it after they are used.
+- Queued and memory cards last until the next full load, reset or model
+  switch, not just to the end of the script: a `Write` keyed in last, or a
+  run the user starts later, still gets its card. A card never fed is
+  logged then.
+- TI-59 only. On the TI-58/58C, `CARD:`, `ArmCard:` and `InsertCard:` are an
+  error and the directives are dropped.
 
 ---
 
@@ -350,7 +468,8 @@ and `^{…}` / `_{…}` super- and subscripts. The table is `kMathTokens` in
 ## SKIP-RESET
 
 `SKIP-RESET: on` loads into the running machine without a reset, e.g. the
-second file of a multi-file screenshot sequence.
+second file of a multi-file screenshot sequence. Within one file, a reload
+does the same ("Reloads").
 
 | Section | Under SKIP-RESET |
 |---|---|
@@ -379,4 +498,5 @@ Without `SKIP-RESET`, in this order (code: `SessionController::loadStateFile`,
 6. The loop restarts and the printer paper is cut. Then
    `SOLID-STATE-MODULE:`, `PRINTER:` and `CUECARD:` (no `CUECARD:` clears
    the user's card). The TI-58C saves its memory.
-7. `KEYSTROKES:` play.
+7. `KEYSTROKES:` play, with any reloads and cards in between. A full load
+   first drops the previous preset's queued and memory cards.

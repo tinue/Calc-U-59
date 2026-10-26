@@ -8,7 +8,8 @@ user-invocable: true
 
 The format — sections, PARTITION, PROGRAM and REGISTERS notation, print-code
 register values, matrix codes vs. keycodes, the 2nd-function table,
-KEYSTROKES directives, SKIP-RESET, the CUECARD grammar — is in
+KEYSTROKES directives, reloads, `CARD:` blocks and `ArmCard:`/`InsertCard:`,
+SKIP-RESET, the CUECARD grammar — is in
 **`reference/StateFileFormat.md`**. Read it before writing or editing a
 file. The parser, `Shared/StateFile.cpp`, wins if the two disagree.
 
@@ -18,9 +19,13 @@ file. The parser, `Shared/StateFile.cpp`, wins if the two disagree.
   Digit 1 is `82` in KEYSTROKES and `01` in PROGRAM.
 - **A 2nd function in KEYSTROKES is two presses:** `21`, then the key.
 - **`#` starts a comment anywhere**, also inside a cue-card value.
+- **Order matters:** `PROGRAM:`/`REGISTERS:`/`CUECARD:`/`PARTITION:` after
+  `KEYSTROKES:` are a reload played mid-script, not part of the load. Put
+  them first unless that is what you mean.
 - **Adv (`21 93`) needs `RegularSpeed:`** or the paper runs away.
 - **Check a file by loading it:** `tools/agentic/` runs `.ti59` files
-  headless (`tools/agentic/README.md`).
+  headless (`tools/agentic/README.md`). It doesn't know reloads or preset
+  cards; check those in an app or with a controller test.
 
 ## Transcribing magazine listings (52-Notes)
 

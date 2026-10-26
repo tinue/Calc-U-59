@@ -1,6 +1,7 @@
 # Changelog
 
 ## [2.2.0] - work in progress
+- **State Files** One preset can now hold a program that needs several loads. A `PROGRAM:`, `REGISTERS:` or `CUECARD:` after `KEYSTROKES:` is loaded once the calculator has stopped, as if you had read the next cards. Programs that read or write cards themselves (`Write`, `INV Write`) get them from the preset: `ArmCard:` feeds a card file or an in-memory card when the program waits for one, `InsertCard:` slides a card in, and a `CARD:` block defines an in-memory card with its registers and steps. `fast-grafik-3d-plot.ti59` is now one file instead of two.
 - **iPhone Duo** Opened flat, the calculator, the printer and the debugger sit side by side, as on the iPad, whatever "Debug Page in Portrait" is set to; the printer tape is narrower there, its print scaled down to fit. Half open like a laptop, closed, or held tall, it shows the pages as on the iPhone.
 
 ### Fixes

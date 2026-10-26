@@ -247,3 +247,9 @@ uv run python tools/agentic/runtime.py examples/calendar-09-dispatch.ti59
 - **Harness requirements.** The tools need `h_elapsed` in
   `tools/headless/capi.cpp` and `Machine.elapsed()` / `INSTR_PER_SEC` in
   `tools/headless/ti59.py`.
+- **No reloads or preset cards.** `ti59file.py` has its own parser, which
+  merges all sections of one kind into one load and plays all keys after it.
+  A preset with reloads (sections after `KEYSTROKES:`), `CARD:` blocks or
+  `ArmCard:`/`InsertCard:` (`reference/StateFileFormat.md` § "Reloads",
+  § "CARD") does not run correctly here. (Follow-up: teach it reloads and
+  cards; the harness has `card_insert`, `card_eject` and `card_waiting`.)
