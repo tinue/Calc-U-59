@@ -971,7 +971,7 @@ configuration — bin/simulators.yaml is the single source of truth
   - name: iPhone 17 Pro Max     exact simulator name (xcrun simctl list devicetypes)
     ios: 26                     iOS major (newest installed 26.x is used), or
                                 major.minor such as 26.0 to pin that release
-    screenshots: iphone         iphone | ipad — role for bin/run-screenshots; omit to skip
+    screenshots: iphone         iphone | ipad | duo — role for bin/run-screenshots; omit to skip
 
   Devices are only ever kept on the newest installed patch of their major, so a
   new iOS patch means: download it, recreate the devices, delete the old ones.
@@ -1047,7 +1047,7 @@ def build_parser():
 
     sp = add("resolve", cmd_resolve, "Print the UDID of a configured simulator.")
     g = sp.add_mutually_exclusive_group(required=True)
-    g.add_argument("--role", choices=["iphone", "ipad"], help="screenshots role from the config")
+    g.add_argument("--role", choices=["iphone", "ipad", "duo"], help="screenshots role from the config")
     g.add_argument("--name", help="exact device name from the config")
 
     add("boot", cmd_boot, "Boot the configured simulators.", only=True)

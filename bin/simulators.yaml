@@ -3,7 +3,7 @@
 #
 # ios: iOS major (e.g. 27 — the newest installed 27.x is used) or a pinned
 #      major.minor (e.g. 27.0 — that release, never 27.1).
-# screenshots: iphone | ipad  — role in bin/run-screenshots; omit to skip screenshots.
+# screenshots: iphone | ipad | duo  — role in bin/run-screenshots; omit to skip screenshots.
 #
 # To add a device: append an entry, then run  bin/simulators setup.
 # To remove: delete the entry, then run       bin/simulators cleanup --delete.
@@ -30,3 +30,4 @@
 
 - name: iPhone Duo
   ios: 27.1
+  screenshots: duo

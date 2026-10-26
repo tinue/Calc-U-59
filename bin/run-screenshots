@@ -4,9 +4,11 @@
 # Output follows the naming convention required by `release ios --release`:
 #   iphone-NN-<name>.png   (APP_IPHONE_67,         1320 × 2868 px)
 #   ipad-NN-<name>.png     (APP_IPAD_PRO_3GEN_129, 2752 × 2064 px)
+#   iphoneduo-NN-<name>.png (iPhone Duo opened flat, 2852 × 2006 px; not yet
+#                           uploaded by `release`, whose iphone-* skips it)
 #
-# The two target simulators are the ones marked `screenshots: iphone` and
-# `screenshots: ipad` in bin/simulators.yaml; bin/simulators resolves them to
+# The target simulators are the ones marked `screenshots: iphone`, `ipad` and
+# `duo` in bin/simulators.yaml; bin/simulators resolves them to
 # UDIDs, so nothing needs rehardcoding after an iOS patch release.
 #
 # Usage:
@@ -54,11 +56,25 @@ run_named_test() {
 echo "Resolving simulators…"
 IPHONE_UDID=$("$SRCROOT/bin/simulators" resolve --role iphone)
 IPAD_UDID=$("$SRCROOT/bin/simulators" resolve --role ipad)
+DUO_UDID=$("$SRCROOT/bin/simulators" resolve --role duo)
 echo "  iphone: $IPHONE_UDID"
 echo "  ipad:   $IPAD_UDID"
+echo "  duo:    $DUO_UDID"
 echo ""
 
 mkdir -p "$SCREENSHOT_DIR"
+
+# The Duo is shot opened flat; simctl cannot unfold it, so check that the
+# inner (larger) display is the active one. Device Hub: hold Option for the
+# hinge slider.
+duo_is_open() {
+    xcrun simctl bootstatus "$DUO_UDID" -b >/dev/null
+    xcrun devicectl device info displays -d "$DUO_UDID" -q -j - 2>/dev/null | python3 -c '
+import json, sys
+displays = json.load(sys.stdin)["result"]["displays"]
+inner = max(displays, key=lambda d: d["nativeSize"][0] * d["nativeSize"][1])
+sys.exit(0 if inner.get("active") else 1)'
+}
 
 # ── Run tests ──────────────────────────────────────────────────────────────────
 # run_named_test writes the target filename to /tmp before each xcodebuild call;
@@ -73,6 +89,13 @@ run_named_test "iphone-05-settings"         "$IPHONE_UDID" Settings
 run_named_test "ipad-01-assembly"           "$IPAD_UDID"   Assembly
 run_named_test "ipad-02-calc-debugger"      "$IPAD_UDID"   CalcDebugger
 run_named_test "ipad-03-texas"              "$IPAD_UDID"   Texas
+if [[ -z "$FILTER" || "iphoneduo-03-calc-debugger" == *"$FILTER"* ]]; then
+    if duo_is_open; then
+        run_named_test "iphoneduo-03-calc-debugger" "$DUO_UDID" CalcDebugger
+    else
+        echo "⚠ iPhone Duo is folded — open it flat in Device Hub, then: bin/run-screenshots iphoneduo"
+    fi
+fi
 
 echo ""
 echo "Screenshots in $SCREENSHOT_DIR:"

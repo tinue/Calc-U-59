@@ -46,9 +46,9 @@ final class ScreenshotTests: XCTestCase {
     /// (or `<fallbackName>-<device>.png` when run straight from Xcode).
     ///
     /// Since Xcode 27 (Device Hub), XCUIScreen hands back landscape shots in
-    /// portrait pixel order, the content turned clockwise. Such a shot is
-    /// turned back here; one that already matches the orientation is written
-    /// as is, so it is never rotated twice.
+    /// portrait pixel order, tagged with the orientation that turns them
+    /// upright (.left on the iPad, .right on the open iPhone Duo). Drawing the
+    /// image applies that tag; an untagged shot is written as is.
     private func saveScreenshot(fallbackName: String) throws {
         let dest = URL(fileURLWithPath: "\(screenshotDir)/\(screenshotName ?? "\(fallbackName)-\(UIDevice.current.name)").png")
         // The largest screen: XCUIScreen.main is the iPhone Duo's outer
@@ -56,25 +56,16 @@ final class ScreenshotTests: XCTestCase {
         let shot = XCUIScreen.screens.map { $0.screenshot() }.max {
             $0.image.size.width * $0.image.size.height < $1.image.size.width * $1.image.size.height
         } ?? XCUIScreen.main.screenshot()
-        let orientation = XCUIDevice.shared.orientation
-        guard orientation.isLandscape, let cg = shot.image.cgImage, cg.width < cg.height else {
+        let image = shot.image
+        guard image.imageOrientation != .up else {
             try shot.pngRepresentation.write(to: dest)
             return
         }
-        let w = CGFloat(cg.width), h = CGFloat(cg.height)
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1
-        let renderer = UIGraphicsImageRenderer(size: CGSize(width: h, height: w), format: format)
-        let png = renderer.pngData { ctx in
-            // landscapeLeft: turn counter-clockwise; landscapeRight: clockwise.
-            if orientation == .landscapeLeft {
-                ctx.cgContext.translateBy(x: 0, y: w)
-                ctx.cgContext.rotate(by: -.pi / 2)
-            } else {
-                ctx.cgContext.translateBy(x: h, y: 0)
-                ctx.cgContext.rotate(by: .pi / 2)
-            }
-            UIImage(cgImage: cg).draw(in: CGRect(x: 0, y: 0, width: w, height: h))
+        let size = CGSize(width: image.size.width * image.scale, height: image.size.height * image.scale)
+        let png = UIGraphicsImageRenderer(size: size, format: format).pngData { _ in
+            image.draw(in: CGRect(origin: .zero, size: size))
         }
         try png.write(to: dest)
     }
