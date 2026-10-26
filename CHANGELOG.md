@@ -3,6 +3,10 @@
 ## [2.2.0] - work in progress
 - **iPhone Duo** Opened flat, the calculator, the printer and the debugger sit side by side, as on the iPad, whatever "Debug Page in Portrait" is set to; the printer tape is narrower there, its print scaled down to fit. Half open like a laptop, closed, or held tall, it shows the pages as on the iPhone.
 
+### Fixes
+- **iPad** The debugger's background no longer reaches into the status bar and below the bottom edge.
+- **Web calculator** The installed web app on the iPhone now fills the screen; it came out about 60 points short at the bottom. <!-- appstore: skip -->
+
 ## [2.1.0] - 2026-10-25
 - **Web calculator** Rebuilt with the apps' features: the real calculator artwork, TI-59, TI-58 and TI-58C, the PC-100C printer, magnetic cards, presets (bundled or your own file), Settings, and, in the wide layout, the full debugger with trace downloads. A wide layout follows the Mac and Windows windows; a portrait layout, also used by the installable app, follows the iPhone, with the printer on its own page. The installable app runs all three calculators offline. Cards last for the browser session; download one to keep it. <!-- appstore: skip -->
 

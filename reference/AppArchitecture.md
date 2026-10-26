@@ -48,7 +48,7 @@ EmulatorViewModel (@Observable, main thread)
 | `AppSettings.swift` | UserDefaults keys and resolution: shared keys from `TISettings`, plus the Swift-only trace location, keyboard feedback and portrait debug page |
 | `AppInfo.swift` | Version and About panel content |
 | `CueCardContent.swift` | Swift cue-card value type and its `TICueCard` conversion |
-| `Views/CalculatorView.swift` | Root view; macOS side-by-side and iOS layouts — pages, or side by side with or without the debugger, as `TIViewRules.mobileLayout` (Shared `mobileLayout`) says for the window's size and an active fold (iPhone Duo); Reset / Clean (Cmd held; iOS: 1 s long press); preset and ASM file importer; UI-test hooks (`--UITesting`) |
+| `Views/CalculatorView.swift` | Root view; macOS side-by-side and iOS layouts — pages, or side by side with or without the debugger, as `TIViewRules.mobileLayout` (Shared `mobileLayout`) says for the window's size and an active fold (iPhone Duo), with the printer's width (`mobilePrinterWidth`) and a top margin for windows without a top inset (`mobileTopMargin`); Reset / Clean (Cmd held; iOS: 1 s long press); preset and ASM file importer; UI-test hooks (`--UITesting`) |
 | `Views/KeyboardView.swift` | Calculator art, hit test (`TISharedTables.keyIndex`), pressed-key effect, hold display for full speed, haptics / click, `PhysicalKeyboardModifier` (macOS) |
 | `Views/UIKitTouchTracking.swift` | iOS raw-touch tracker that replaces `DragGesture` for keys (iOS 27 fires `onEnded` early) |
 | `Views/LEDDisplayView.swift` | 12-digit LED in a SwiftUI `Canvas` |
@@ -100,7 +100,7 @@ imports the public ones.
 |---|---|
 | `TISessionController.{h,mm}` | `SessionController`; its `Platform` as the `TIPlatform` protocol (held weakly); `TIChange` = `Change` bits; value objects `TILiveDebugSnapshot`, `TIStepEntry`, `TIRegEntry`, `TIInspectorEntry`, `TIPrinterLine`, built when Swift reads them after a change |
 | `TISharedTables.{h,mm}` | `KeyboardMap`, `SevenSegment`, `PrinterFont` (font rows), `KeyboardLayout`, `KeyMatrix` |
-| `TIViewRules.{h,mm}` | `CueCard` (spans, geometry, inks), `LedGeometry`, `PrinterFont` (`PrinterGeometry`), `RomHeatmap`, `ModuleImage` (program source), `DebugText` (incl. the iOS `mobileLayout`) |
+| `TIViewRules.{h,mm}` | `CueCard` (spans, geometry, inks), `LedGeometry`, `PrinterFont` (`PrinterGeometry`), `RomHeatmap`, `ModuleImage` (program source), `DebugText` (incl. the iOS `mobileLayout`, `mobilePrinterWidth`, `mobileTopMargin`) |
 | `TIFileFormats.{h,mm}` | `TICueCard`, card file names (`CardFile`), `cuecards.txt` module list (`ModuleCatalog`); `TIResourceReader` |
 | `TISettings.{h,mm}` | `SettingsKeys` |
 | `TITypes.h` | `TIDisplaySnapshot` (mirrors `LedFrame`: glyph, control nibble and brightness 0–255 per digit and decimal point) and `TICpuFrame` (mirrors `CpuFrame`) |
