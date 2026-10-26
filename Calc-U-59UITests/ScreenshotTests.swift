@@ -51,7 +51,11 @@ final class ScreenshotTests: XCTestCase {
     /// as is, so it is never rotated twice.
     private func saveScreenshot(fallbackName: String) throws {
         let dest = URL(fileURLWithPath: "\(screenshotDir)/\(screenshotName ?? "\(fallbackName)-\(UIDevice.current.name)").png")
-        let shot = XCUIScreen.main.screenshot()
+        // The largest screen: XCUIScreen.main is the iPhone Duo's outer
+        // display, dark while the device is open.
+        let shot = XCUIScreen.screens.map { $0.screenshot() }.max {
+            $0.image.size.width * $0.image.size.height < $1.image.size.width * $1.image.size.height
+        } ?? XCUIScreen.main.screenshot()
         let orientation = XCUIDevice.shared.orientation
         guard orientation.isLandscape, let cg = shot.image.cgImage, cg.width < cg.height else {
             try shot.pngRepresentation.write(to: dest)
@@ -273,9 +277,10 @@ final class ScreenshotTests: XCTestCase {
         attachScreenshot(app, name: "CPU Inspector — 5 steps after reset")
     }
 
-    /// Calc Debugger screenshot — iPad landscape or iPhone portrait.
+    /// Calc Debugger screenshot — landscape where the debugger sits beside the
+    /// calculator (iPad, iPhone Duo opened flat), else iPhone portrait.
     ///
-    /// iPad (landscape): debug panel is visible alongside the calculator; no panel navigation needed.
+    /// Side by side (landscape): debug panel is visible alongside the calculator; no panel navigation needed.
     /// iPhone (portrait): navigate left to debug panel to arm freeze, then right back to calculator,
     ///                    load the second file, then navigate left again for the screenshot.
     ///
@@ -290,8 +295,15 @@ final class ScreenshotTests: XCTestCase {
     ///
     /// Both files must be present on the device — run bin/setup-simulator-state-files first.
     func testScreenshotCalcDebugger() throws {
-        let isPad = UIDevice.current.userInterfaceIdiom == .pad
-        let app = launchApp(orientation: isPad ? .landscapeLeft : .portrait)
+        // Try landscape; a plain iPhone stays in portrait (page arrows), so
+        // relaunch it upright for the paged flow and an unrotated screenshot.
+        var app = launchApp(orientation: .landscapeLeft)
+        XCTAssertTrue(app.buttons["btn-preset"].waitForExistence(timeout: 5), "Preset button not found")
+        let isPad = !app.buttons["btn-page-right"].exists  // side by side
+        if !isPad {
+            app.terminate()
+            app = launchApp(orientation: .portrait)
+        }
 
         let presetButton = app.buttons["btn-preset"]
         XCTAssertTrue(presetButton.waitForExistence(timeout: 5), "Preset button not found")
