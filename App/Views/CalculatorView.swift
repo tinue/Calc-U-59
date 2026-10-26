@@ -252,8 +252,11 @@ struct CalculatorView: View {
                         .frame(minWidth: printerWidth.min, maxWidth: printerWidth.max)
                     if layout == .calcPrinterDebugger {
                         Divider()
+                        // Clipped: its .background(Color) fills would otherwise
+                        // spread into the safe area, past the other two columns.
                         DebugView(activeFilePickerMode: filePickerModeBinding)
                             .frame(minWidth: 220)
+                            .clipped()
                     }
                 }
             } else {
