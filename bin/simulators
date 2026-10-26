@@ -2,7 +2,7 @@
 """Manage the iOS simulators this project tests and takes screenshots on.
 
 bin/simulators.yaml is the single source of truth for which devices exist and
-which iOS major version each one runs. This script realises that file: it
+which iOS version each one runs. This script realises that file: it
 creates the devices, provisions them with example state files, reports drift,
 and cleans up everything that is not in the config.
 
@@ -92,7 +92,8 @@ def human_size(n):
 def load_config(path):
     """Parse the small subset of YAML used by simulators.yaml.
 
-    Recognised keys per entry: name (str), ios (int major), screenshots (str).
+    Recognised keys per entry: name (str), ios (str: major "27" or pinned
+    major.minor "27.0"), screenshots (str).
     """
     if not path.exists():
         die(f"config not found: {path}")
@@ -111,6 +112,7 @@ def load_config(path):
     for d in devs:
         if "name" not in d or "ios" not in d:
             die(f"config entry missing name or ios: {d}")
+        d["ios"] = str(d["ios"])
     if not devs:
         die(f"no devices configured in {path}")
     return devs
@@ -175,10 +177,22 @@ def build_key(b):
     return tuple(int(p) if p.isdigit() else p for p in re.findall(r"\d+|[A-Za-z]+", b))
 
 
+def version_matches(version, want):
+    """True if version falls under the configured ios value: "27" matches any
+    27.x, "27.0" matches 27.0 and its patches (27.0.1) but not 27.1."""
+    w = version_key(want)
+    return version_key(version)[:len(w)] == w
+
+
+def ios_versions(config):
+    """Distinct configured ios values, oldest first."""
+    return sorted({d["ios"] for d in config}, key=version_key)
+
+
 def latest_runtime_for_major(major, runtimes):
-    """Newest installed runtime for an iOS major version, or None."""
+    """Newest installed runtime matching a configured ios value, or None."""
     for r in runtimes:
-        if version_key(r["version"])[0] == int(major):
+        if version_matches(r["version"], major):
             return r
     return None
 
@@ -296,8 +310,23 @@ def downloadable_runtimes(index, include_prereleases=False):
 
 def newest_offered(major, offered):
     for c in offered:
-        if version_key(c["version"])[0] == int(major):
+        if version_matches(c["version"], major):
             return c
+    return None
+
+
+def pin_note(major, offered):
+    """Remark for a major.minor pin when Apple offers a newer release of the
+    same major (27.0 pinned, 27.2 offered), or None. A pin is kept on purpose,
+    so this is a hint to reconsider it, not something that needs fixing."""
+    want = version_key(major)
+    if len(want) < 2:
+        return None
+    for c in offered:
+        v = version_key(c["version"])
+        if v[0] == want[0] and v[:len(want)] > want:
+            return (f"pinned — iOS {c['version']} ({c['build']}) is offered; "
+                    f"raise the pin in bin/simulators.yaml if it should move")
     return None
 
 
@@ -360,7 +389,7 @@ def sync_runtimes(config, args):
     offered = downloadable_runtimes(index, args.include_prereleases)
     runtimes = installed_runtimes()
     changed = False
-    for major in sorted({d["ios"] for d in config}):
+    for major in ios_versions(config):
         installed, newest, verdict = runtime_state(major, runtimes, offered, True)
         if verdict in ("outdated", "missing", "rebuilt") and newest:
             have = f"{installed['version']} ({installed['buildversion']})" if installed else "none"
@@ -613,7 +642,7 @@ def cmd_status(args):
     print("\nRuntimes")
     sizes = runtime_sizes()
     stale_runtimes = False
-    for major in sorted({d["ios"] for d in config}, reverse=True):
+    for major in reversed(ios_versions(config)):
         installed, newest, verdict = runtime_state(major, runtimes, offered, index is not None)
         have = (f"{installed['version']} ({installed['buildversion']})"
                 f"  {dim(human_size(sizes.get(installed['identifier'], 0)))}"
@@ -631,6 +660,9 @@ def cmd_status(args):
                           f"{human_size(newest['size'])})")
             problems, stale_runtimes = problems + 1, True
         print(f"  iOS {major}: {have}  {tail}")
+        note_ = pin_note(major, offered)
+        if note_:
+            print(f"    {yellow(note_)}")
 
     if args.include_prereleases and offered:
         pre = next((c for c in offered if c["prerelease"]), None)
@@ -682,7 +714,7 @@ def cmd_runtimes(args):
     offered = downloadable_runtimes(index, args.include_prereleases)
 
     print("\nOffered by Apple, for the configured iOS majors")
-    for major in sorted({d["ios"] for d in config}, reverse=True):
+    for major in reversed(ios_versions(config)):
         installed, newest, verdict = runtime_state(major, runtimes, offered, True)
         if not newest:
             print(f"  iOS {major}: nothing offered")
@@ -690,6 +722,9 @@ def cmd_runtimes(args):
         state = green("installed") if verdict == "current" else yellow(verdict)
         print(f"  iOS {major}: {newest['version']} ({newest['build']}, "
               f"{human_size(newest['size'])})  {state}")
+        note_ = pin_note(major, offered)
+        if note_:
+            print(f"    {yellow(note_)}")
     newest_overall = offered[0] if offered else None
     if newest_overall:
         print(dim(f"  newest offered overall: {newest_overall['name']} "
@@ -860,13 +895,16 @@ def cmd_update(args):
         index = fetch_index(offline=args.offline, refresh=args.refresh)
         offered = downloadable_runtimes(index, args.include_prereleases)
         runtimes = installed_runtimes()
-        for major in sorted({d["ios"] for d in config}):
+        for major in ios_versions(config):
             _, newest, verdict = runtime_state(major, runtimes, offered, index is not None)
             if verdict in ("outdated", "missing", "rebuilt"):
                 print(f"  iOS {major}: newer offered ({newest['version']}) "
                       f"— re-run with --download to fetch it")
             else:
                 print(f"  iOS {major}: {verdict}")
+            note_ = pin_note(major, offered)
+            if note_:
+                print(f"    {yellow(note_)}")
     print("")
     cmd_setup(args)
     print("")
@@ -931,7 +969,8 @@ typical workflows
 
 configuration — bin/simulators.yaml is the single source of truth
   - name: iPhone 17 Pro Max     exact simulator name (xcrun simctl list devicetypes)
-    ios: 26                     iOS major; the newest installed patch is used
+    ios: 26                     iOS major (newest installed 26.x is used), or
+                                major.minor such as 26.0 to pin that release
     screenshots: iphone         iphone | ipad — role for bin/run-screenshots; omit to skip
 
   Devices are only ever kept on the newest installed patch of their major, so a
