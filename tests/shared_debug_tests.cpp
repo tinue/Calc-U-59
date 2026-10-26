@@ -310,9 +310,9 @@ TEST(debug_panel_text) {
 
 TEST(mobile_layout) {
     CHECK(mobileLayout(440, 956, false) == MobileLayout::Paged);               // iPhone portrait
-    CHECK(mobileLayout(956, 440, false) == MobileLayout::CalcPrinter);         // iPhone landscape
-    CHECK(mobileLayout(951, 669, false) == MobileLayout::CalcPrinterDebugger); // iPhone Duo open
-    CHECK(mobileLayout(951, 669, true) == MobileLayout::Paged);                // Duo laptop pose
+    CHECK(mobileLayout(832, 419, false) == MobileLayout::CalcPrinter);         // iPhone landscape (safe area)
+    CHECK(mobileLayout(880, 645, false) == MobileLayout::CalcPrinterDebugger); // iPhone Duo open (safe area)
+    CHECK(mobileLayout(880, 645, true) == MobileLayout::Paged);                // Duo laptop pose
     CHECK(mobileLayout(669, 951, false) == MobileLayout::Paged);               // Duo open, tall
     CHECK(mobileLayout(1133, 744, false) == MobileLayout::CalcPrinterDebugger); // iPad mini landscape
     CHECK_EQ(partitionLine(60, 60), std::string("Steps: 480, Registers: 60 (479.59)"));

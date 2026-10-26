@@ -22,9 +22,11 @@ enum class MobileLayout {
 /// The layout for a window of width × height points. Taller-than-wide windows
 /// page; so does a wide one split by a horizontal fold (iPhone Duo half open,
 /// "laptop" pose), as its upper half alone is too short. A wide window takes
-/// the debugger when it is tall enough for the calculator face to leave room
-/// for it: iPhone Duo open is 951 × 669 pt, the widest plain iPhone in
-/// landscape about 956 × 440 pt.
+/// the debugger when it is tall enough to set the three panels side by side
+/// (calculator face about 340 pt wide at the Duo's height, printer at least
+/// 290, debugger 220). The size is the safe area: iPhone Duo open is 951 ×
+/// 669 pt less its status-bar column and home indicator, the widest plain
+/// iPhone in landscape about 830 × 420 pt.
 MobileLayout mobileLayout(double width, double height, bool horizontalFold);
 
 /// "Steps: 480, Registers: 60 (479.59)" — "(479.)" when no data registers.

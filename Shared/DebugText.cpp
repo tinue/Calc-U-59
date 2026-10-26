@@ -15,7 +15,7 @@ int debugPanelFontSize(double width) { return width < 350 ? 9 : width < 500 ? 11
 
 MobileLayout mobileLayout(double width, double height, bool horizontalFold) {
     if (width <= height || horizontalFold) return MobileLayout::Paged;
-    return width >= 900 && height >= 600 ? MobileLayout::CalcPrinterDebugger : MobileLayout::CalcPrinter;
+    return width >= 820 && height >= 560 ? MobileLayout::CalcPrinterDebugger : MobileLayout::CalcPrinter;
 }
 
 std::string partitionLine(int programRegCount, int dataRegCount) {
