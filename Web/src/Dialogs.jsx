@@ -140,7 +140,6 @@ function Settings({ engine, portrait, onClose, onAbout }) {
   const model = useEngine(engine, (s) => s.model);
   const settings = useEngine(engine, (s) => s.settings);
   const [moduleID, setModuleID] = React.useState(model ? model.moduleID : "ML");
-  const [feedback, setFeedback] = React.useState(settings.keyboardFeedback);  // 0 off, 1 vibrate, 2 click
   const [traceMB, setTraceMB] = React.useState(settings.traceMaxMB);
 
   // The module applies when the dialog closes, as in both apps.
@@ -167,7 +166,7 @@ function Settings({ engine, portrait, onClose, onAbout }) {
         </label>
         {portrait && (
           <label>Keyboard Feedback
-            <select value={feedback} onChange={(e) => { setFeedback(Number(e.target.value)); engine.call("setKeyboardFeedback", Number(e.target.value)); }}>
+            <select value={settings.keyboardFeedback} onChange={(e) => engine.call("setKeyboardFeedback", Number(e.target.value))}>  {/* 0 off, 1 vibrate, 2 click */}
               <option value={0}>Off</option>
               <option value={1}>Vibrate</option>
               <option value={2}>Click Sound</option>

@@ -293,7 +293,6 @@ TEST(control_directives) {
         CHECK(!r.keystrokes[6].on);
         CHECK(r.keystrokes[7].panel == DebugPanel::Cpu && r.keystrokes[7].count == 3);
         CHECK(r.keystrokes[8].count == 1);
-        CHECK(r.keystrokes[0].isControl() && !KeystrokeEvent{}.isControl());
     }
     auto bad = parseStateFile("KEYSTROKES:\nPrinterTrace:\nDebugPanel: ASM\nFreeze: Log\nStep: CPU 0\nResume: now\n");
     CHECK_EQ(bad.errors.size(), size_t{5});

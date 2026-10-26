@@ -142,8 +142,8 @@ struct PrinterView: View {
 
     private var buttonBar: some View {
         GeometryReader { geo in
-            // Compact below 280 pt: the narrow tape beside the debugger (iPhone Duo).
-            let compact = geo.size.width < 280
+            // The narrow tape beside the debugger (iPhone Duo).
+            let compact = TIViewRules.compactPrinterBar(geo.size.width)
             let printLabel = compact ? "PRN" : "PRINT"
             HStack(spacing: compact ? 6 : 12) {
                 printerButton(printLabel, compact: compact) {
@@ -161,13 +161,7 @@ struct PrinterView: View {
                             .fill(viewModel.printerTrace ? Color.red : Color.gray.opacity(0.4))
                             .frame(width: 8, height: 8)
                     }
-                    .font(.caption.bold())
-                    .foregroundStyle(.white)
-                    .frame(minWidth: compact ? 30 : 36)
-                    .padding(.horizontal, compact ? 6 : 10)
-                    .padding(.vertical, 6)
-                    .background(Color(white: 0.25))
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .printerButtonChrome(compact: compact, shade: 0.25)
                 }
                 .buttonStyle(.plain)
 
@@ -261,13 +255,7 @@ struct PrinterView: View {
         onRelease: @escaping () -> Void
     ) -> some View {
         Text(label)
-            .font(.caption.bold())
-            .foregroundStyle(.white)
-            .frame(minWidth: compact ? 30 : 36)
-            .padding(.horizontal, compact ? 6 : 10)
-            .padding(.vertical, 6)
-            .background(Color(white: 0.28))
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .printerButtonChrome(compact: compact, shade: 0.28)
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { _ in onPress() }
@@ -387,4 +375,17 @@ struct PrinterDotLine: View {
     return PrinterView()
         .environment(vm)
         .frame(width: 220, height: 400)
+}
+
+private extension View {
+    /// The printer bar's button look; `compact` on the narrow tape.
+    func printerButtonChrome(compact: Bool, shade: Double) -> some View {
+        font(.caption.bold())
+            .foregroundStyle(.white)
+            .frame(minWidth: compact ? 30 : 36)
+            .padding(.horizontal, compact ? 6 : 10)
+            .padding(.vertical, 6)
+            .background(Color(white: shade))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+    }
 }

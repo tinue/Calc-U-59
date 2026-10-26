@@ -43,6 +43,8 @@ public:
     // ── State file load helpers ───────────────────────────────────────────────
     /// Write keycodes[0..count-1] to program RAM starting at step 0.
     void writeProgram(const uint8_t* keycodes, int count);
+    /// Write one program step; the others stay as they are.
+    void writeProgramStep(int stepAddr, uint8_t keycode);
 
     /// Write 16 nibbles to data register regNum (see dataRegCount()).
     void writeDataRegister(int regNum, const uint8_t* nibbles16);
@@ -175,6 +177,7 @@ public:
 private:
     int dataRegCountLocked() const;
     int dataRegRAMIndexLocked(int regNum) const;  // -1: no RAM behind it
+    void storeProgramStep(int stepAddr, uint8_t keycode);  // caller holds m_keyMutex
     MachineVariant m_variant;
     ROM            m_rom;
     RAM            m_ram;

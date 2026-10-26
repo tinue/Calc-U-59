@@ -181,7 +181,7 @@ struct PlatformAdapter : cu59::SessionController::Platform {
     void showDebugPanel(cu59::DebugPanel panel) override { [platform showDebugPanel:static_cast<NSInteger>(panel)]; }
     CardFileRef cardFile(const std::string& fileName) override {
         NSString* path = [platform cardFilePath:ns(fileName)];
-        NSData* data = [NSData dataWithContentsOfFile:path];
+        NSData* data = [platform readCardFile:path];
         if (!data) return {std::nullopt, cpp(path)};
         auto* bytes = static_cast<const uint8_t*>(data.bytes);
         return {std::vector<uint8_t>(bytes, bytes + data.length), cpp(path)};

@@ -37,6 +37,9 @@ struct WidthRange {
     double min, max;
 };
 WidthRange mobilePrinterWidth(MobileLayout layout, double width);
+/// The printer's button bar goes compact (short labels, tighter buttons) on a
+/// tape narrower than the wide range above: the one beside the debugger.
+bool compactPrinterBar(double printerWidth);
 
 /// Space (points) above a side-by-side layout. A window with no top inset
 /// (iPhone Duo open, iOS 27.1 simulator) doesn't deliver touches in its top

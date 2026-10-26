@@ -438,7 +438,7 @@ void SessionController::feedQueuedCard() {
     m_queuedCardInReader = card->insertNow;
     if (isMemoryCardName(card->name)) {
         // A bank written to it earlier in the preset, else its CARD: block, else blank.
-        std::string key = card->name.substr(4);
+        std::string key(memoryCardKey(card->name));
         std::vector<uint8_t> bank;
         std::optional<CueCardContent> cueCard;
         if (auto it = m_memoryCards.find(key); it != m_memoryCards.end()) {
@@ -563,7 +563,9 @@ void SessionController::applyControl(const KeystrokeEvent& e) {
         emitChanged(PrinterChanged);
         break;
     case K::CutPaper: cutPaper(); break;
-    case K::ShowPanel: m_platform.showDebugPanel(e.panel); break;
+    case K::ShowPanel:
+        if (!(m_asmActive && e.panel == DebugPanel::Calculator)) m_platform.showDebugPanel(e.panel);  // the overlay keeps the CPU tab
+        break;
     case K::Freeze:
         if (!m_debugState.frozen) freeze(owner);
         break;

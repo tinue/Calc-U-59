@@ -75,26 +75,27 @@ def parse(path):
         part = int(sections['PARTITION'][0].split('.')[0]) + 1
     keys = []
     for l in sections.get('KEYSTROKES', []):
-        if re.match(r'^[A-Za-z]+:', l):
+        if re.match(r'^PrinterTrace:', l, re.I):
+            keys.append('PrinterTrace:' + l.split(':', 1)[1].strip().lower())
+        elif re.match(r'^[A-Za-z]+:', l):
             keys.append(l.split(':')[0] + ':')
         else:
             # as parseKeystrokeLine (Shared/StateFile.cpp): every 1-2 digit
-            # token, 11-95 a key, 99 the paper-trace toggle, others ignored
-            keys += [t for t in l.split() if len(t) <= 2 and t.isdigit() and (11 <= int(t) <= 95 or t == '99')]
+            # token, 11-95 a key, others ignored
+            keys += [t for t in l.split() if len(t) <= 2 and t.isdigit() and 11 <= int(t) <= 95]
     return [prog.get(i, 0) for i in range(max(prog) + 1 if prog else 0)], regs, part, keys
 
 
 def real_keys(keys):
-    """keys without the directive entries"""
+    """keys without the directive entries (PrinterTrace: stays, press() sets it)"""
     return [k for k in keys if not k.endswith(':')]
 
 
 def press(m, code, hold=6000):
     """press and release a key (matrix code), holding it for `hold` instructions;
-    99 toggles the printer's paper-trace switch"""
-    if code == '99':
-        m.paper_trace = not getattr(m, 'paper_trace', False)
-        LIB.h_trace_sw(m.h, int(m.paper_trace))
+    a 'PrinterTrace:on' / 'PrinterTrace:off' entry sets the printer's paper-trace switch"""
+    if code.startswith('PrinterTrace:'):
+        LIB.h_trace_sw(m.h, int(code.endswith(':on')))
         return
     m.press(code); LIB.h_stepn(m.h, hold); m.release(code)
 
@@ -118,7 +119,7 @@ def dark_time(m, code, limit_s=4000, hold=6000, chunk=100):
     the calculator has stopped (a Pause flash doesn't end it; the blinking
     of an error display after the stop doesn't move it), 0 if it never went
     dark. Returns (seconds, finished, ran): ran = the key ran a program (fB[0])."""
-    if code == '99':                      # the paper-trace switch, not a key
+    if code.startswith('PrinterTrace:'):  # the paper-trace switch, not a key
         press(m, code)
         return 0.0, True, False
     t0 = m.elapsed(); lit(m)

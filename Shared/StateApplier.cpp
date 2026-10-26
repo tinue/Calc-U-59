@@ -75,17 +75,8 @@ void applyState(TI59Machine& m, const LoadStateResult& r, Model model) {
 void applyReload(TI59Machine& m, const ReloadStage& stage, Model model) {
     if (stage.partitionMaxStep) setPartition(m, *stage.partitionMaxStep);
     int physicalMaxStep = info(model).maxStep();
-    int last = -1;
     for (const auto& s : stage.programSteps)
-        if (s.stepAddr <= physicalMaxStep) last = std::max(last, s.stepAddr);
-    if (last >= 0) {
-        // The core writes from step 000: keep what is there up to the last listed step.
-        std::vector<uint8_t> program(static_cast<size_t>(last + 1));
-        for (int i = 0; i <= last; ++i) program[static_cast<size_t>(i)] = m.readProgramStep(i);
-        for (const auto& s : stage.programSteps)
-            if (s.stepAddr >= 0 && s.stepAddr <= last) program[static_cast<size_t>(s.stepAddr)] = s.keycode;
-        m.writeProgram(program.data(), last + 1);
-    }
+        if (s.stepAddr <= physicalMaxStep) m.writeProgramStep(s.stepAddr, s.keycode);
     writeRegisters(m, stage.registers);
 }
 

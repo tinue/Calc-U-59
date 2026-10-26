@@ -67,7 +67,7 @@ public:
         /// Queue the card of an ArmCard / InsertCard event; an InsertCard card
         /// keeps hostPending() true until it has passed through the reader.
         virtual void queueCard(const KeystrokeEvent& event) = 0;
-        /// A GUI control (KeystrokeEvent::isControl); hostPending() until done.
+        /// A GUI control (PrinterTrace … Resume); hostPending() until done.
         virtual void control(const KeystrokeEvent& event) = 0;
         /// A reload, an inserted card or a control is not done yet.
         virtual bool hostPending() = 0;

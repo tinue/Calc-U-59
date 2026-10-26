@@ -51,6 +51,8 @@ struct CardDefinition {
 
 /// "mem:" names an in-memory card; anything else a file in the card folder.
 bool isMemoryCardName(std::string_view name);
+/// The part of a memory card's name after "mem:".
+std::string_view memoryCardKey(std::string_view name);
 
 /// A debugger panel, as KEYSTROKES directives name it.
 enum class DebugPanel { Calculator, Cpu, Log };
@@ -87,9 +89,6 @@ struct KeystrokeEvent {
     bool on = true;
     DebugPanel panel = DebugPanel::Calculator;
     int count = 1;
-
-    /// A GUI control: the host does it, and playback waits until it is done.
-    bool isControl() const { return kind >= Kind::PrinterTrace; }
 };
 
 struct LoadStateResult {

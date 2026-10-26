@@ -83,15 +83,21 @@ void TI59Machine::writeProgram(const uint8_t* keycodes, int count) {
     std::lock_guard<std::mutex> lock(m_keyMutex);
     // 8 steps per register; never write past the physical 120-register RAM.
     if (count > RAM::TOTAL_REGS * 8) count = RAM::TOTAL_REGS * 8;
-    for (int stepAddr = 0; stepAddr < count; stepAddr++) {
-        uint8_t keycode = keycodes[stepAddr];
-        // Keycodes are 2-digit decimal (00-99); ROM stores/reads them as BCD decimal digits.
-        // nibble at (step&7)*2   = units digit (BCD LSD)
-        // nibble at (step&7)*2+1 = tens  digit (BCD MSD)
-        int regIdx = stepAddr >> 3;
-        m_ram.write(regIdx, (stepAddr & 7) * 2,       keycode % 10);
-        m_ram.write(regIdx, ((stepAddr & 7) * 2) + 1, keycode / 10);
-    }
+    for (int stepAddr = 0; stepAddr < count; stepAddr++) storeProgramStep(stepAddr, keycodes[stepAddr]);
+}
+
+void TI59Machine::writeProgramStep(int stepAddr, uint8_t keycode) {
+    std::lock_guard<std::mutex> lock(m_keyMutex);
+    if (stepAddr >= 0 && stepAddr < RAM::TOTAL_REGS * 8) storeProgramStep(stepAddr, keycode);
+}
+
+void TI59Machine::storeProgramStep(int stepAddr, uint8_t keycode) {
+    // Keycodes are 2-digit decimal (00-99); ROM stores/reads them as BCD decimal digits.
+    // nibble at (step&7)*2   = units digit (BCD LSD)
+    // nibble at (step&7)*2+1 = tens  digit (BCD MSD)
+    int regIdx = stepAddr >> 3;
+    m_ram.write(regIdx, (stepAddr & 7) * 2,       keycode % 10);
+    m_ram.write(regIdx, ((stepAddr & 7) * 2) + 1, keycode / 10);
 }
 
 void TI59Machine::writeDataRegister(int regNum, const uint8_t* nibbles16) {

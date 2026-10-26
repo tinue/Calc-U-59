@@ -2,6 +2,7 @@
 #include "TextUtil.hpp"
 #include <algorithm>
 #include <cctype>
+#include <map>
 
 namespace cu59 {
 
@@ -166,7 +167,7 @@ std::optional<int> parsePartition(std::string_view rest) {
 void parseCardDirective(std::string_view line, size_t prefixLength, KeystrokeEvent::Kind kind, LoadStateResult& r) {
     std::string_view name = trim(line.substr(prefixLength));
     std::string_view word = line.substr(0, prefixLength);
-    if (name.empty() || (isMemoryCardName(name) && name.size() == 4)) {
+    if (name.empty() || (isMemoryCardName(name) && memoryCardKey(name).empty())) {
         r.errors.push_back(std::string(word) + " needs a card name: a file in the card folder, or mem:<name>.");
         return;
     }
@@ -189,7 +190,7 @@ bool registerInBank(int reg, int bank) { return reg >= 120 - 30 * bank && reg <=
 /// Check a finished CARD: block; nullptr if it can't be used.
 std::shared_ptr<CardDefinition> finishCard(std::shared_ptr<CardDefinition> card, std::vector<std::string>& errors) {
     const std::string what = "CARD: " + card->name;
-    if (!isMemoryCardName(card->name) || card->name.size() == 4) {
+    if (!isMemoryCardName(card->name) || memoryCardKey(card->name).empty()) {
         errors.push_back(what + ": only an in-memory card (mem:<name>) can be defined; a card file is used by its name.");
         return nullptr;
     }
@@ -216,14 +217,10 @@ std::shared_ptr<CardDefinition> finishCard(std::shared_ptr<CardDefinition> card,
     return card;
 }
 
-/// The part of a memory card's name after "mem:".
-std::string_view memoryCardKey(std::string_view name) { return name.substr(4); }
-
 /// The GUI-control directives (PrinterTrace:, CutPaper:, DebugPanel:, Freeze:,
-/// FreezeOnStart:, Step:, Resume:). nullopt: not one of them; a Key event: one
-/// of them, but its value was wrong (the error is recorded).
-std::optional<KeystrokeEvent> parseControl(std::string_view line, std::string_view upper,
-                                           std::vector<std::string>& errors) {
+/// FreezeOnStart:, Step:, Resume:): appended to the keystrokes, or its error
+/// recorded. False: not one of them.
+bool parseControl(std::string_view line, std::string_view upper, LoadStateResult& r) {
     using K = KeystrokeEvent::Kind;
     static const std::pair<const char*, K> kWords[] = {
         {"PRINTERTRACE:", K::PrinterTrace}, {"CUTPAPER:", K::CutPaper}, {"DEBUGPANEL:", K::ShowPanel},
@@ -233,14 +230,13 @@ std::optional<KeystrokeEvent> parseControl(std::string_view line, std::string_vi
     K kind = K::Key;
     for (const auto& [w, k] : kWords)
         if (startsWith(upper, w)) { word = w; kind = k; break; }
-    if (!word) return std::nullopt;
+    if (!word) return false;
     KeystrokeEvent e = simple(kind);
-    KeystrokeEvent bad;  // kind Key: dropped by the caller
     const std::string name(line.substr(0, std::string_view(word).size()));
     auto args = splitWhitespace(line.substr(std::string_view(word).size()));
     auto fail = [&](const std::string& what) {
-        errors.push_back("\"" + std::string(line) + "\": " + name + " " + what);
-        return bad;
+        r.errors.push_back("\"" + std::string(line) + "\": " + name + " " + what);
+        return true;
     };
     // A panel name: Calculator, CPU or (DebugPanel: only) Log.
     auto panel = [&](std::string_view arg, bool allowLog) -> std::optional<DebugPanel> {
@@ -255,33 +251,33 @@ std::optional<KeystrokeEvent> parseControl(std::string_view line, std::string_vi
         std::string v = args.size() == 1 ? toLower(args[0]) : "";
         if (v != "on" && v != "off") return fail("needs on or off.");
         e.on = v == "on";
-        return e;
+        break;
     }
     case K::CutPaper:
     case K::Resume:
         if (!args.empty()) return fail("takes no value.");
-        return e;
+        break;
     case K::ShowPanel: {
         auto p = args.size() == 1 ? panel(args[0], true) : std::nullopt;
         if (!p) return fail("needs Calculator, CPU or Log.");
         e.panel = *p;
-        return e;
+        break;
     }
     case K::Freeze: {
         auto p = args.size() == 1 ? panel(args[0], false) : std::nullopt;
         if (!p) return fail("needs Calculator or CPU.");
         e.panel = *p;
-        return e;
+        break;
     }
     case K::FreezeOnStart: {
         if (args.size() == 1 && toLower(args[0]) == "off") {
             e.on = false;
-            return e;
+            break;
         }
         auto p = args.size() == 1 ? panel(args[0], false) : std::nullopt;
         if (!p) return fail("needs Calculator, CPU or Off.");
         e.panel = *p;
-        return e;
+        break;
     }
     case K::Step: {
         auto p = !args.empty() && args.size() <= 2 ? panel(args[0], false) : std::nullopt;
@@ -292,16 +288,20 @@ std::optional<KeystrokeEvent> parseControl(std::string_view line, std::string_vi
             if (!n || *n < 1 || *n > 100000) return fail("count must be 1–100000.");
             e.count = static_cast<int>(*n);
         }
-        return e;
+        break;
     }
     default:
-        return std::nullopt;
+        break;
     }
+    r.keystrokes.push_back(e);
+    return true;
 }
 
 } // namespace
 
 bool isMemoryCardName(std::string_view name) { return name.size() >= 4 && toLower(name.substr(0, 4)) == "mem:"; }
+
+std::string_view memoryCardKey(std::string_view name) { return name.substr(4); }
 
 std::optional<Model> modelFromName(std::string_view name) {
     std::string v = toUpper(trim(name));
@@ -321,15 +321,12 @@ LoadStateResult parseStateFile(std::string_view text, int maxStepAddr, bool allo
     bool afterKeystrokes = false;
     std::shared_ptr<ReloadStage> reload;
     std::shared_ptr<CardDefinition> card;
-    std::vector<std::shared_ptr<CardDefinition>> cards;
+    std::map<std::string, std::shared_ptr<CardDefinition>> cards;  // by memoryCardKey
     auto closeCard = [&] {
         if (auto c = finishCard(std::move(card), r.errors)) {
-            for (auto& other : cards)
-                if (memoryCardKey(other->name) == memoryCardKey(c->name)) {
-                    r.errors.push_back("CARD: " + c->name + " is defined twice; the last one counts.");
-                    other = nullptr;
-                }
-            cards.push_back(std::move(c));
+            std::string key(memoryCardKey(c->name));
+            if (cards.count(key)) r.errors.push_back("CARD: " + c->name + " is defined twice; the last one counts.");
+            cards[key] = std::move(c);
         }
         card = nullptr;
         section = Section::None;
@@ -418,23 +415,8 @@ LoadStateResult parseStateFile(std::string_view text, int maxStepAddr, bool allo
                 r.errors.push_back("CARD: " + card->name + " has no END-CARD.");
                 closeCard();
                 // and on: KEYSTROKES: below
-            } else {
-                switch (section) {
-                case Section::Program: {
-                    if (line == "...") break;
-                    std::optional<int> start;
-                    std::vector<uint8_t> codes;
-                    parseProgLine(line, maxStepAddr, start, codes);
-                    if (start) currentStep = *start;
-                    for (uint8_t c : codes) card->programSteps.push_back({currentStep++, c});
-                    break;
-                }
-                case Section::Registers: parseRegLine(line, false, card->registers, r.errors); break;
-                case Section::CueCard: card->cueCard->parseLine(line); break;
-                default:
-                    r.errors.push_back("CARD: " + card->name + ": unexpected line \"" + std::string(line) + "\".");
-                    break;
-                }
+            } else if (section != Section::Program && section != Section::Registers && section != Section::CueCard) {
+                r.errors.push_back("CARD: " + card->name + ": unexpected line \"" + std::string(line) + "\".");
                 continue;
             }
         }
@@ -465,9 +447,9 @@ LoadStateResult parseStateFile(std::string_view text, int maxStepAddr, bool allo
             continue;
         }
 
-        auto& steps = reload ? reload->programSteps : r.programSteps;
-        auto& registers = reload ? reload->registers : r.registers;
-        auto& cueCard = reload ? reload->cueCard : r.cueCard;
+        auto& steps = card ? card->programSteps : reload ? reload->programSteps : r.programSteps;
+        auto& registers = card ? card->registers : reload ? reload->registers : r.registers;
+        auto& cueCard = card ? card->cueCard : reload ? reload->cueCard : r.cueCard;
         switch (section) {
         case Section::None:
         case Section::Partition:
@@ -482,7 +464,7 @@ LoadStateResult parseStateFile(std::string_view text, int maxStepAddr, bool allo
             break;
         }
         case Section::Registers:
-            parseRegLine(line, allowHiddenRegisters, registers, r.errors);
+            parseRegLine(line, allowHiddenRegisters && !card, registers, r.errors);
             break;
         case Section::Keystrokes:
             if (auto w = parseWaitInterval(line, upper, "WAIT:")) {
@@ -505,8 +487,8 @@ LoadStateResult parseStateFile(std::string_view text, int maxStepAddr, bool allo
                 parseCardDirective(line, 8, KeystrokeEvent::Kind::ArmCard, r);
             } else if (startsWith(upper, "INSERTCARD:")) {
                 parseCardDirective(line, 11, KeystrokeEvent::Kind::InsertCard, r);
-            } else if (auto control = parseControl(line, upper, r.errors)) {
-                if (control->kind != KeystrokeEvent::Kind::Key) r.keystrokes.push_back(*control);
+            } else if (parseControl(line, upper, r)) {
+                // appended, or its error recorded
             } else if (startsWith(upper, "WAITFULLSPEED:")) {
                 r.errors.push_back("WaitFullSpeed: no longer exists: put FullSpeed: before the key that starts the "
                                    "program; playback waits until it stops, and the script ends at regular speed.");
@@ -528,8 +510,8 @@ LoadStateResult parseStateFile(std::string_view text, int maxStepAddr, bool allo
     // CARD: blocks may stand anywhere: attach each to the directives naming it.
     for (auto& e : r.keystrokes) {
         if (!isMemoryCardName(e.cardName)) continue;
-        for (const auto& c : cards)
-            if (c && memoryCardKey(c->name) == memoryCardKey(e.cardName)) e.card = c;
+        auto it = cards.find(std::string(memoryCardKey(e.cardName)));
+        if (it != cards.end()) e.card = it->second;
     }
     return r;
 }

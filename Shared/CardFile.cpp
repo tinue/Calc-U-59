@@ -185,13 +185,11 @@ std::vector<uint8_t> buildCardBank(const CardDefinition& card, int programRegs) 
     d[2] = static_cast<uint8_t>(0x10 | (3 * (bank - 1)));
     d[3] = card.protect ? 0x10 : 0x00;
     unsigned sum = (d[0] & 0xF) + (d[1] & 0xF) + (d[2] & 0xF);
-    for (int r = 0; r < 30; ++r)
-        for (int k = 0; k < 8; ++k) {
-            // Most significant nibble pair first, high nibble first.
-            uint8_t hi = regs[r][14 - 2 * k], lo = regs[r][15 - 2 * k];
-            d[4 + 8 * r + k] = static_cast<uint8_t>(hi << 4 | lo);
-            sum += hi + lo;
-        }
+    for (int r = 0; r < 30; ++r) {
+        auto bytes = encodeRegisterLine(regs[r]);
+        std::copy(bytes.begin(), bytes.end(), d.begin() + 4 + 8 * r);
+        for (int nibble : regs[r]) sum += nibble;
+    }
     d[244] = d[245] = static_cast<uint8_t>(sum & 0xF);
     return d;
 }

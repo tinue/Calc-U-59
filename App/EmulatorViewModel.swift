@@ -464,12 +464,21 @@ final class PlatformForwarder: NSObject, TIPlatform {
         switch panel {
         case 1: vm.debugTab = .cpu
         case 2: vm.debugTab = .log
-        default: if !vm.asmOverlayActive { vm.debugTab = .live }  // the overlay keeps the CPU tab
+        default: vm.debugTab = .live
         }
     }
 
     func cardFilePath(_ fileName: String) -> String {
         CardStorage.directoryURL.appendingPathComponent(fileName).path
+    }
+
+    func readCardFile(_ path: String) -> Data? {
+        var data: Data?
+        var err: NSError?
+        NSFileCoordinator().coordinate(readingItemAt: URL(fileURLWithPath: path), options: [], error: &err) { src in
+            data = try? Data(contentsOf: src)
+        }
+        return data
     }
 
     func writeCard(_ text: String, toPath path: String) -> Bool {

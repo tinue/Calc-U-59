@@ -330,6 +330,12 @@ def pin_note(major, offered):
     return None
 
 
+def print_pin_note(major, offered):
+    note = pin_note(major, offered)
+    if note:
+        print(f"    {yellow(note)}")
+
+
 def runtime_state(major, runtimes, offered, index_ok):
     """(installed, newest_offered, verdict) for one configured iOS major."""
     installed = latest_runtime_for_major(major, runtimes)
@@ -660,9 +666,7 @@ def cmd_status(args):
                           f"{human_size(newest['size'])})")
             problems, stale_runtimes = problems + 1, True
         print(f"  iOS {major}: {have}  {tail}")
-        note_ = pin_note(major, offered)
-        if note_:
-            print(f"    {yellow(note_)}")
+        print_pin_note(major, offered)
 
     if args.include_prereleases and offered:
         pre = next((c for c in offered if c["prerelease"]), None)
@@ -722,9 +726,7 @@ def cmd_runtimes(args):
         state = green("installed") if verdict == "current" else yellow(verdict)
         print(f"  iOS {major}: {newest['version']} ({newest['build']}, "
               f"{human_size(newest['size'])})  {state}")
-        note_ = pin_note(major, offered)
-        if note_:
-            print(f"    {yellow(note_)}")
+        print_pin_note(major, offered)
     newest_overall = offered[0] if offered else None
     if newest_overall:
         print(dim(f"  newest offered overall: {newest_overall['name']} "
@@ -902,9 +904,7 @@ def cmd_update(args):
                       f"— re-run with --download to fetch it")
             else:
                 print(f"  iOS {major}: {verdict}")
-            note_ = pin_note(major, offered)
-            if note_:
-                print(f"    {yellow(note_)}")
+            print_pin_note(major, offered)
     print("")
     cmd_setup(args)
     print("")
