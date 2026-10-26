@@ -18,6 +18,11 @@ MobileLayout mobileLayout(double width, double height, bool horizontalFold) {
     return width >= 820 && height >= 560 ? MobileLayout::CalcPrinterDebugger : MobileLayout::CalcPrinter;
 }
 
+WidthRange mobilePrinterWidth(MobileLayout layout, double width) {
+    if (layout == MobileLayout::CalcPrinterDebugger && width < 1100) return {180, 220};
+    return {290, 360};
+}
+
 std::string partitionLine(int programRegCount, int dataRegCount) {
     int totalSteps = programRegCount * 8;
     int lastStep = totalSteps > 0 ? totalSteps - 1 : 0;

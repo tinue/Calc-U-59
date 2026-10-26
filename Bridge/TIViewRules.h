@@ -18,6 +18,11 @@ typedef NS_ENUM(NSInteger, TIMobileLayout) {
     TIMobileLayoutCalcPrinterDebugger,
 };
 
+/// cu59::WidthRange, points.
+typedef struct {
+    CGFloat min, max;
+} TIWidthRange;
+
 /// A cue-card label and the grid columns (0–4) it covers.
 @interface TILabelSpan : NSObject
 @property (nonatomic, readonly) NSInteger startCol;
@@ -106,6 +111,8 @@ typedef NS_ENUM(NSInteger, TIMobileLayout) {
 + (CGFloat)debugPanelFontSize:(CGFloat)width;
 /// cu59::mobileLayout — which panels an iOS window of this size shows.
 + (TIMobileLayout)mobileLayoutWidth:(CGFloat)width height:(CGFloat)height horizontalFold:(BOOL)fold;
+/// cu59::mobilePrinterWidth — the printer column's width range in a side-by-side layout.
++ (TIWidthRange)mobilePrinterWidth:(TIMobileLayout)layout width:(CGFloat)width;
 + (NSString *)partitionLineProgramRegs:(NSInteger)programRegs dataRegs:(NSInteger)dataRegs;
 /// mode: TILiveDebugSnapshot.angleMode (-1 = unknown).
 + (NSString *)angleModeLabel:(NSInteger)mode;

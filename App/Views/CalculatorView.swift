@@ -243,12 +243,13 @@ struct CalculatorView: View {
             let layout = TIViewRules.mobileLayoutWidth(geo.size.width, height: geo.size.height,
                                                        horizontalFold: Self.hasHorizontalFold(geo))
             if layout != .paged {
+                let printerWidth = TIViewRules.mobilePrinterWidth(layout, width: geo.size.width)
                 HStack(spacing: 0) {
                     calculatorBody(showLabels: showLabels)
                         .fixedSize(horizontal: true, vertical: false)
                     Divider()
                     PrinterView()
-                        .frame(minWidth: 290, maxWidth: 360)
+                        .frame(minWidth: printerWidth.min, maxWidth: printerWidth.max)
                     if layout == .calcPrinterDebugger {
                         Divider()
                         DebugView(activeFilePickerMode: filePickerModeBinding)

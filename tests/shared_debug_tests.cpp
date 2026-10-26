@@ -315,6 +315,9 @@ TEST(mobile_layout) {
     CHECK(mobileLayout(880, 645, true) == MobileLayout::Paged);                // Duo laptop pose
     CHECK(mobileLayout(669, 951, false) == MobileLayout::Paged);               // Duo open, tall
     CHECK(mobileLayout(1133, 744, false) == MobileLayout::CalcPrinterDebugger); // iPad mini landscape
+    CHECK_EQ(mobilePrinterWidth(MobileLayout::CalcPrinterDebugger, 880).max, 220.0); // Duo: narrow tape
+    CHECK_EQ(mobilePrinterWidth(MobileLayout::CalcPrinterDebugger, 1133).max, 360.0); // iPad
+    CHECK_EQ(mobilePrinterWidth(MobileLayout::CalcPrinter, 832).min, 290.0);
     CHECK_EQ(partitionLine(60, 60), std::string("Steps: 480, Registers: 60 (479.59)"));
     CHECK_EQ(partitionLine(120, 0), std::string("Steps: 960, Registers: 0 (959.)"));
     CHECK_EQ(angleModeLabel(std::nullopt), std::string("?"));

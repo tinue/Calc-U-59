@@ -29,6 +29,15 @@ enum class MobileLayout {
 /// iPhone in landscape about 830 × 420 pt.
 MobileLayout mobileLayout(double width, double height, bool horizontalFold);
 
+/// Width range (points) of the printer column in a side-by-side layout. Beside
+/// the debugger in a window under 1100 pt (iPhone Duo) the tape is narrow and
+/// its print scales down, so the debugger keeps room for its button rows;
+/// otherwise (iPad, iPhone landscape) 290–360 pt.
+struct WidthRange {
+    double min, max;
+};
+WidthRange mobilePrinterWidth(MobileLayout layout, double width);
+
 /// "Steps: 480, Registers: 60 (479.59)" — "(479.)" when no data registers.
 std::string partitionLine(int programRegCount, int dataRegCount);
 

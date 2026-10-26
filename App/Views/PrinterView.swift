@@ -142,10 +142,11 @@ struct PrinterView: View {
 
     private var buttonBar: some View {
         GeometryReader { geo in
-            let width = geo.size.width
-            let printLabel = width < 180 ? "PRN" : "PRINT"
-            HStack(spacing: 12) {
-                printerButton(printLabel) {
+            // Compact below 280 pt: the narrow tape beside the debugger (iPhone Duo).
+            let compact = geo.size.width < 280
+            let printLabel = compact ? "PRN" : "PRINT"
+            HStack(spacing: compact ? 6 : 12) {
+                printerButton(printLabel, compact: compact) {
                     viewModel.pressPrinterPrint(true)
                 } onRelease: {
                     viewModel.pressPrinterPrint(false)
@@ -162,15 +163,15 @@ struct PrinterView: View {
                     }
                     .font(.caption.bold())
                     .foregroundStyle(.white)
-                    .frame(minWidth: 36)
-                    .padding(.horizontal, 10)
+                    .frame(minWidth: compact ? 30 : 36)
+                    .padding(.horizontal, compact ? 6 : 10)
                     .padding(.vertical, 6)
                     .background(Color(white: 0.25))
                     .clipShape(RoundedRectangle(cornerRadius: 6))
                 }
                 .buttonStyle(.plain)
 
-                printerButton("ADV") {
+                printerButton("ADV", compact: compact) {
                     viewModel.pressPrinterAdv(true)
                 } onRelease: {
                     viewModel.pressPrinterAdv(false)
@@ -193,7 +194,7 @@ struct PrinterView: View {
                 .disabled(viewModel.printerLines.isEmpty)
             }
             .buttonStyle(ChromeButtonStyle())
-            .padding(.horizontal, 12)
+            .padding(.horizontal, compact ? 6 : 12)
             .frame(maxWidth: .infinity)
             .frame(height: 50)
             .background(Color(white: 0.15))
@@ -255,14 +256,15 @@ struct PrinterView: View {
     @ViewBuilder
     private func printerButton(
         _ label: String,
+        compact: Bool,
         onPress: @escaping () -> Void,
         onRelease: @escaping () -> Void
     ) -> some View {
         Text(label)
             .font(.caption.bold())
             .foregroundStyle(.white)
-            .frame(minWidth: 36)
-            .padding(.horizontal, 10)
+            .frame(minWidth: compact ? 30 : 36)
+            .padding(.horizontal, compact ? 6 : 10)
             .padding(.vertical, 6)
             .background(Color(white: 0.28))
             .clipShape(RoundedRectangle(cornerRadius: 6))
