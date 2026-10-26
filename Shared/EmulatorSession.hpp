@@ -9,6 +9,7 @@
 #include "StateFile.hpp"
 #include "TraceWriter.hpp"
 #include <atomic>
+#include <deque>
 #include <filesystem>
 #include <memory>
 #include <mutex>
@@ -62,6 +63,13 @@ enum class FrozenViewReason {
 /// TRACE_NONE fast path.
 uint32_t traceFlagsFor(const TraceConsumers& c);
 
+/// A card queued by KEYSTROKES ArmCard: / InsertCard:, waiting to be fed.
+struct QueuedCard {
+    std::string name;                                 ///< mem:… or a card file name
+    std::shared_ptr<const CardDefinition> definition; ///< the file's CARD: block, if any
+    bool insertNow = false;                           ///< InsertCard: fed at idle, playback waits for it
+};
+
 class EmulatorSession : private KeySequencer::Host {
 public:
     struct Listener {
@@ -79,6 +87,8 @@ public:
         virtual void logLine(const std::string&) {}
         /// A scripted "Trace:" file could not be created.
         virtual void scriptedTraceFailed(const std::string& /*fileName*/) {}
+        /// KEYSTROKES reached a reload; call hostDone() once it is applied.
+        virtual void reloadRequested(const std::shared_ptr<const ReloadStage>&) {}
     };
 
     /// Build the machine from ROM text files: the model's ROM and constants
@@ -147,6 +157,14 @@ public:
     void playKeystrokes(std::vector<KeystrokeEvent> events) { m_keys->play(std::move(events)); }
     void cancelKeystrokes() { m_keys->cancel(); }
     bool keystrokesPlaying() const { return m_keys->isPlaying(); }
+    /// The next queued card, if the machine stands where it takes it: an
+    /// InsertCard card in the idle scan loop, an ArmCard card in the card wait
+    /// of Write / INV Write (ModelInfo::cardWait). UI thread.
+    std::optional<QueuedCard> takeQueuedCard();
+    /// A reload has been applied, or an InsertCard card has passed (or failed).
+    void hostDone();
+    /// Drop the queued cards (a new preset, a reset); returns their names.
+    std::vector<std::string> clearQueuedCards();
 
     // ── Frames ───────────────────────────────────────────────────────────────
     FrameUpdate tick(int debugLevel, bool cardSwiping) {
@@ -187,6 +205,9 @@ private:
     void reportElapseTime() override { m_listener.logLine(elapsedReport()); }
     void playbackStarted() override { m_listener.playbackStarted(); }
     void playbackFinished() override;
+    void applyReload(const std::shared_ptr<const ReloadStage>& stage) override;
+    void queueCard(const KeystrokeEvent& event) override;
+    bool hostPending() override { return m_hostPending.load() > 0; }
 
     const Model m_model;
     Listener& m_listener;
@@ -206,6 +227,9 @@ private:
     std::atomic<bool> m_frozen{false};  ///< m_state.frozen, for the key sequencer
     std::atomic<bool> m_ramDirty{false};
     std::atomic<uint64_t> m_elapseBaseline{0};
+    std::mutex m_cardMutex;            ///< m_queuedCards
+    std::deque<QueuedCard> m_queuedCards;
+    std::atomic<int> m_hostPending{0}; ///< reloads and InsertCard cards not done yet
     std::unique_ptr<EmulationRunner> m_runner;
     std::unique_ptr<KeySequencer> m_keys;   ///< last: its threads stop first
 };

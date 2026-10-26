@@ -134,6 +134,7 @@ private:
     std::optional<std::string> readConstantMemory() override;
     void writeConstantMemory(const std::string& text) override;
     bool writeCard(const std::string& path, const std::string& text) override;
+    CardFileRef cardFile(const std::string& fileName) override;
     cu59::SessionController::TraceLocation traceLocation() override;
     void saveLastUsedModel(cu59::Model model) override;
     void saveModuleID(const std::string& moduleID) override;

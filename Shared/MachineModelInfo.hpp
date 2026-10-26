@@ -67,6 +67,12 @@ struct ModelInfo {
     /// must not outrun real scanning/debouncing time.
     PcRange idleAndKeyDetect;
 
+    /// The card-reader wait of Write / INV Write (0x16B2–0x16B7: R/S aborts,
+    /// else poll the card switch) — rom/TI59-commented.asm at 0x16B2. The idle
+    /// loop polls the card switch too, so isWaitingForCard() alone can't tell
+    /// a program waiting for a card from an idle calculator. Empty without a reader.
+    PcRange cardWait;
+
     const char* romFiles[3];    ///< Concatenated in order into the 6144-word image.
     const char* constFiles[2];  ///< CONST-K files, 32 rows each.
 
@@ -79,13 +85,13 @@ inline constexpr int kExtraRegisterBase = 60;
 inline const ModelInfo& info(Model m) {
     static const ModelInfo kTI59 {
         "TI-59", instructionHz(MachineVariant::TI59), 6144, false, true, true, 0,
-        {0x063C, 0x0660}, {0x0627, 0x0660},
+        {0x063C, 0x0660}, {0x0627, 0x0660}, {0x16B2, 0x16B7},
         {"TMC0582.txt", "TMC0583.txt", "TMC0571B.txt"},
         {"TMC0582-CONST-K.txt", "TMC0583-CONST-K.txt"},
     };
     static const ModelInfo kTI58 {
         "TI-58", instructionHz(MachineVariant::TI58), 6144, false, false, false, 0,
-        {0x063C, 0x0660, kCardVetoLo, kCardVetoHi}, {0x0627, 0x0660, kCardVetoLo, kCardVetoHi},
+        {0x063C, 0x0660, kCardVetoLo, kCardVetoHi}, {0x0627, 0x0660, kCardVetoLo, kCardVetoHi}, {1, 0},
         {"TMC0582.txt", "TMC0583.txt", "TMC0571B.txt"},
         {"TMC0582-CONST-K.txt", "TMC0583-CONST-K.txt"},
     };
@@ -93,6 +99,7 @@ inline const ModelInfo& info(Model m) {
         "TI-58C", instructionHz(MachineVariant::TI58C), 6144, true, false, false, 4,
         {0x063D, 0x0659, kPrinterRescanLo, kPrinterRescanHi},
         {0x0627, 0x0659, kPrinterRescanLo, kPrinterConfirmHi},
+        {1, 0},
         {"CD2400.txt", "CD2401.txt", "TMC0573.txt"},
         {"CD2400-CONST-K.txt", "CD2401-CONST-K.txt"},
     };

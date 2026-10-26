@@ -23,19 +23,6 @@ REGISTERS:
 H00 = 1
 99 = 1e-99
 08 = 2 = 3
-KEYSTROKES:
-Trace: my trace.bin
-21 84 65 83 95   # [2nd][pi] x 2 =
-Wait: 1.5s
-Wait: 250ms
-FullSpeed:
-RegularSpeed:
-ZeroElapseTime:
-ReportElapseTime:
-99 10 96 11
-Trace: Off
-Trace:
-Trace: a/b.bin
 CUECARD:
 Template: MagnetCard
 Title: \lambda^{2} \to \xbar
@@ -50,3 +37,16 @@ Row2R: r
 Row2RAlign: right
 Style: Button
 PencilColor: Pencil
+KEYSTROKES:
+Trace: my trace.bin
+21 84 65 83 95   # [2nd][pi] x 2 =
+Wait: 1.5s
+Wait: 250ms
+FullSpeed:
+RegularSpeed:
+ZeroElapseTime:
+ReportElapseTime:
+99 10 96 11
+Trace: Off
+Trace:
+Trace: a/b.bin

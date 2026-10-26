@@ -200,3 +200,23 @@ TEST(controller_asm_overlay) {
     CHECK(!c.asmActive() && !c.isFrozen() && c.session()->isRunning());
     CHECK_EQ(c.asmStatus(), std::string("ASM overlay cleared."));
 }
+
+TEST(controller_threaded_reload_and_memory_card) {
+    FakePlatform p;
+    SessionController c(p, testroms::reader(), catalog(), "ML");
+    CHECK(c.startMachine(Model::TI59));
+    // Part 1 writes R00 to a memory card; part 2, reloaded after it, reads it back.
+    c.loadStateFile(bytes("PROGRAM:\n76 11 04 96 91\nREGISTERS:\n00 = 42\n"  // Lbl A 4 Write R/S
+                          "KEYSTROKES:\nArmCard: mem:M\n11\n"
+                          "PROGRAM:\n76 11 47 04 22 96 43 00 91\n"           // Lbl A CMs 4 INV Write RCL 00 R/S
+                          "KEYSTROKES:\nArmCard: mem:M\n11\n"));
+    auto tickUntil = [&](auto cond) {
+        return pumpUntil(p, [&] { c.tick(std::chrono::steady_clock::now()); return cond(); }, 20000ms);
+    };
+    CHECK(tickUntil([&] { return c.keystrokesPlaying(); }));
+    CHECK(tickUntil([&] { return !c.keystrokesPlaying(); }));
+    CHECK(waitForScanLoop(c));
+    CHECK_EQ(c.session()->machine().readDataReg(0), 42.0);
+    CHECK_EQ(int(c.session()->machine().readProgramStep(2)), 47);  // part 2 is in
+    CHECK(p.errors.empty());
+}

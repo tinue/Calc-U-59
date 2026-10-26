@@ -66,6 +66,18 @@ std::string dumpState(const LoadStateResult& r) {
         case K::RegularSpeed: out += "regularSpeed\n"; break;
         case K::ZeroElapseTime: out += "zeroElapseTime\n"; break;
         case K::ReportElapseTime: out += "reportElapseTime\n"; break;
+        case K::Reload: {
+            const ReloadStage& st = *k.reload;
+            out += "reload partition " + (st.partitionMaxStep ? std::to_string(*st.partitionMaxStep) : "-") + "\n";
+            for (auto& s : st.programSteps)
+                out += "reload step " + std::to_string(s.stepAddr) + " " + std::to_string(s.keycode) + "\n";
+            for (auto& g : st.registers)
+                out += "reload reg " + std::to_string(g.regNum) + " " + hexNib(g.nibbles.data(), 16) + "\n";
+            if (st.cueCard) out += "reload cue " + st.cueCard->title + "\n";
+            break;
+        }
+        case K::ArmCard: out += "armCard " + k.cardName + (k.card ? " defined" : "") + "\n"; break;
+        case K::InsertCard: out += "insertCard " + k.cardName + (k.card ? " defined" : "") + "\n"; break;
         }
     }
     if (r.cueCard) dumpCue(*r.cueCard, out);

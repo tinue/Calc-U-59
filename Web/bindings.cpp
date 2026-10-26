@@ -311,6 +311,12 @@ private:
         m_cardsChanged = true;
         return true;
     }
+    CardFileRef cardFile(const std::string& fileName) override {
+        std::string path = kCardScheme + fileName;
+        auto it = m_cards.find(fileName);
+        if (it == m_cards.end()) return {std::nullopt, path};
+        return {std::vector<uint8_t>(it->second.begin(), it->second.end()), path};
+    }
     cu59::SessionController::TraceLocation traceLocation() override {
         return {kTraceDir, static_cast<uint64_t>(m_traceMaxMB) * 1'000'000};
     }

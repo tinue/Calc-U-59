@@ -166,6 +166,24 @@ std::optional<KeySequencer::Clock::time_point> KeySequencer::step(Lane& lane, Ta
             if (now < task.wake && !lane.cancelled(task.generation)) return task.wake;
             task.phase = P::Next;
             break;
+        case P::WaitingToApply: {
+            if (lane.cancelled(task.generation)) {
+                task.phase = P::Next;
+                break;
+            }
+            if (!m_host.isFrozen() && !m_scanLoop.contains(m_host.pc())) return poll();
+            const KeystrokeEvent& e = task.events[task.next - 1];
+            if (e.kind == K::Reload) m_host.applyReload(e.reload);
+            else m_host.queueCard(e);
+            task.phase = P::WaitingHost;
+            break;
+        }
+        case P::WaitingHost:
+            if (lane.cancelled(task.generation) || !m_host.hostPending()) {
+                task.phase = P::Next;
+                break;
+            }
+            return poll();
         case P::Next: {
             // A keyboard sequence that ran its last tap clears the highlight
             // even if cancelled during that tap; one cancelled earlier doesn't.
@@ -191,6 +209,12 @@ std::optional<KeySequencer::Clock::time_point> KeySequencer::step(Lane& lane, Ta
             case K::ZeroElapseTime: m_host.zeroElapseTime(); break;
             case K::ReportElapseTime: m_host.reportElapseTime(); break;
             case K::Trace: m_host.scriptedTrace(e.traceName); break;
+            case K::Reload:
+            case K::InsertCard:
+                task.wake = now;
+                task.phase = P::WaitingToApply;
+                break;
+            case K::ArmCard: m_host.queueCard(e); break;
             }
             break;
         }

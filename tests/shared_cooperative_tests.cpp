@@ -49,6 +49,13 @@ struct FakeHost : KeySequencer::Host {
     void reportElapseTime() override { note("report"); }
     void playbackStarted() override { note("started"); }
     void playbackFinished() override { note("finished"); }
+    std::atomic<int> pending{0};
+    void applyReload(const std::shared_ptr<const ReloadStage>&) override { ++pending; note("reload"); }
+    void queueCard(const KeystrokeEvent& e) override {
+        if (e.kind == KeystrokeEvent::Kind::InsertCard) ++pending;
+        note("card " + e.cardName);
+    }
+    bool hostPending() override { return pending > 0; }
 
     std::vector<std::string> names() {
         std::lock_guard<std::mutex> lock(mutex);
@@ -362,4 +369,121 @@ TEST(cooperative_controller_shows_the_library_program_card) {
     r.run(1s);
     CHECK(r.c.cueCard().has_value());
     if (r.c.cueCard()) CHECK_EQ(r.c.cueCard()->id, std::string("ML-01"));
+}
+
+// ── Multi-stage presets: reloads and preset cards ────────────────────────────
+
+TEST(cooperative_reload_waits_for_the_scan_loop_and_the_host) {
+    VirtualRig r;
+    auto events = keyEvents({25});
+    KeystrokeEvent reload = event(KeystrokeEvent::Kind::Reload);
+    reload.reload = std::make_shared<ReloadStage>();
+    events.push_back(reload);
+    events.push_back(keyEvents({83})[0]);
+    r.keys.play(events);
+    r.run(40ms);
+    CHECK(r.host.at("press 25") != Clock::time_point{});
+    r.host.idle = false;  // the key starts a run: the reload waits
+    r.run(300ms);
+    CHECK(r.host.at("reload") == Clock::time_point{});
+    r.host.idle = true;
+    r.run(40ms);
+    CHECK(r.host.at("reload") != Clock::time_point{});
+    r.run(300ms);  // the host hasn't applied it yet: the next key waits
+    CHECK(r.host.at("press 83") == Clock::time_point{});
+    r.host.pending = 0;
+    r.run(200ms);
+    CHECK(r.host.at("press 83") != Clock::time_point{});
+    CHECK(!r.keys.isPlaying());
+}
+
+TEST(cooperative_arm_card_does_not_wait_insert_card_does) {
+    VirtualRig r;
+    KeystrokeEvent arm = event(KeystrokeEvent::Kind::ArmCard);
+    arm.cardName = "mem:A";
+    KeystrokeEvent insert = event(KeystrokeEvent::Kind::InsertCard);
+    insert.cardName = "B";
+    std::vector<KeystrokeEvent> events{arm, insert};
+    events.push_back(keyEvents({83})[0]);
+    r.keys.play(events);
+    r.run(100ms);
+    CHECK(r.host.names() == (std::vector<std::string>{"started", "card mem:A", "card B"}));
+    r.host.pending = 0;  // the inserted card has passed
+    r.run(200ms);
+    CHECK(r.host.at("press 83") != Clock::time_point{});
+}
+
+TEST(cooperative_controller_reload_after_the_first_run) {
+    ControllerRig r;
+    r.load("PROGRAM:\n76 11 01 02 03 42 08 91\n"  // Lbl A 123 STO 08 R/S
+           "KEYSTROKES:\n11\n"
+           "PROGRAM:\n76 11 43 08 85 01 95 91\n"  // Lbl A RCL 08 + 1 = R/S
+           "REGISTERS:\n07 = 9\nCUECARD:\nTitle: Part 2\n"
+           "KEYSTROKES:\n11\n");
+    CHECK(r.runUntil([&] { return r.c.keystrokesPlaying(); }));
+    CHECK(r.runUntil([&] { return !r.c.keystrokesPlaying(); }));
+    r.run(300ms);
+    TI59Machine& m = r.c.session()->machine();
+    CHECK_EQ(testroms::displayText(m), std::string("124"));  // part 2 used part 1's R08
+    CHECK_EQ(m.readDataReg(7), 9.0);
+    CHECK(r.c.cueCard() && r.c.cueCard()->title == "Part 2");
+    CHECK(r.p.errors.empty());
+}
+
+TEST(cooperative_controller_program_writes_and_reads_a_memory_card) {
+    ControllerRig r;
+    r.load("PROGRAM:\n76 11 04 96 25 47 04 22 96 43 00 91\n"  // Lbl A 4 Write CLR CMs 4 INV Write RCL 00 R/S
+           "REGISTERS:\n00 = 42\n"
+           "KEYSTROKES:\nArmCard: mem:Scratch\nArmCard: mem:Scratch\n11\n");
+    CHECK(r.runUntil([&] { return r.c.keystrokesPlaying(); }));
+    CHECK(r.runUntil([&] { return !r.c.keystrokesPlaying(); }, 60s));
+    r.run(300ms);
+    CHECK_EQ(testroms::displayText(r.c.session()->machine()), std::string("42"));
+    CHECK(r.p.cards.empty());  // a memory card never reaches the card folder
+    CHECK(r.p.errors.empty());
+}
+
+TEST(cooperative_controller_program_reads_a_defined_card) {
+    ControllerRig r;
+    r.load("CARD: mem:Vars\nBank: 4\nREGISTERS:\n05 = 2.5\nCUECARD:\nTitle: Vars\nEND-CARD\n"
+           "PROGRAM:\n76 11 04 22 96 43 05 91\n"  // Lbl A 4 INV Write RCL 05 R/S
+           "KEYSTROKES:\nArmCard: mem:Vars\n11\n");
+    CHECK(r.runUntil([&] { return r.c.keystrokesPlaying(); }));
+    CHECK(r.runUntil([&] { return !r.c.keystrokesPlaying(); }, 60s));
+    r.run(300ms);
+    CHECK_EQ(r.c.session()->machine().readDataReg(5), 2.5);  // the full load cleared it; the card set it
+    CHECK(r.c.cueCard() && r.c.cueCard()->title == "Vars");
+    CHECK(r.p.errors.empty());
+}
+
+TEST(cooperative_controller_card_file_written_then_inserted) {
+    ControllerRig r;
+    r.load("PROGRAM:\n76 11 04 96 91\nREGISTERS:\n03 = 7\n"  // Lbl A 4 Write R/S
+           "KEYSTROKES:\nArmCard: Results\n11\n");
+    CHECK(r.runUntil([&] { return r.p.cards.count("cards/Results.U59") == 1; }, 60s));
+    CHECK(r.c.logText().find("no card file Results.U59") != std::string::npos);
+    r.load("REGISTERS:\n03 = 0\nKEYSTROKES:\nInsertCard: Results\n");
+    CHECK(r.runUntil([&] { return r.c.keystrokesPlaying(); }));
+    CHECK(r.runUntil([&] { return !r.c.keystrokesPlaying(); }, 60s));
+    CHECK(r.c.cardState() == SessionController::CardState::NoCard);  // playback waited for the card
+    CHECK_EQ(r.c.session()->machine().readDataReg(3), 7.0);
+    CHECK(r.p.errors.empty());
+}
+
+TEST(cooperative_controller_unused_card_is_logged_on_the_next_load) {
+    ControllerRig r;
+    r.load("KEYSTROKES:\nArmCard: mem:Never\n");
+    CHECK(r.runUntil([&] { return !r.c.keystrokesPlaying(); }));
+    r.run(100ms);
+    CHECK(r.c.logText().find("mem:Never") == std::string::npos);  // still armed after the script
+    r.load("REGISTERS:\n01 = 1\n");
+    r.run(1100ms);  // the LOG text refreshes at 1 Hz
+    CHECK(r.c.logText().find("card mem:Never was never read or written") != std::string::npos);
+}
+
+TEST(cooperative_controller_cards_need_a_card_reader) {
+    ControllerRig r;
+    CHECK(r.c.startMachine(Model::TI58));
+    r.load("KEYSTROKES:\nArmCard: Results\n");
+    CHECK(!r.p.errors.empty() && r.p.errors.back().find("need a card reader") != std::string::npos);
 }

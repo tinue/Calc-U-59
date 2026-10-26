@@ -301,6 +301,10 @@ class Machine:
     def card_present(self) -> bool:
         return bool(LIB.h_card_present(self.h))
 
+    def card_waiting(self) -> bool:
+        """The ROM is polling the card switch with no card in the reader."""
+        return bool(LIB.h_card_waiting(self.h))
+
     def printer_lines(self) -> list[str]:
         b = C.create_string_buffer(65536)
         n = LIB.h_printer_lines(self.h, b, 65536)

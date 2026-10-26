@@ -39,6 +39,8 @@ typedef NS_ENUM(NSInteger, TIFreezeOwner) {
 - (nullable NSString *)readConstantMemory;
 - (void)writeConstantMemory:(NSString *)text;
 - (BOOL)writeCard:(NSString *)text toPath:(NSString *)path;
+/// The path of card file `fileName` in the card folder (it may not exist).
+- (NSString *)cardFilePath:(NSString *)fileName;
 @property (nonatomic, readonly) NSString *traceDirectory;
 @property (nonatomic, readonly) uint64_t traceMaxBytes;
 @property (nonatomic, readonly) BOOL traceAvailable;

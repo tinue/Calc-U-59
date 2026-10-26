@@ -31,6 +31,13 @@ struct FakePlatform : cu59::SessionController::Platform {
     std::optional<std::string> readConstantMemory() override { return mem; }
     void writeConstantMemory(const std::string& text) override { mem = text; ++memWrites; }
     bool writeCard(const std::string& path, const std::string& text) override { cards[path] = text; return true; }
+    /// The card folder is `cards`, keyed by "cards/<file name>".
+    CardFileRef cardFile(const std::string& fileName) override {
+        std::string path = "cards/" + fileName;
+        auto it = cards.find(path);
+        if (it == cards.end()) return {std::nullopt, path};
+        return {std::vector<uint8_t>(it->second.begin(), it->second.end()), path};
+    }
     cu59::SessionController::TraceLocation traceLocation() override { return {std::filesystem::temp_directory_path(), 1'000'000}; }
     void saveLastUsedModel(cu59::Model) override {}
     void saveModuleID(const std::string&) override {}

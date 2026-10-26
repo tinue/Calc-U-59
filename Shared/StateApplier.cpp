@@ -16,12 +16,12 @@ constexpr uint32_t kStartupSteps = 300'000;
 /// boundary: some listings deliberately load registers as programs and
 /// programs as registers (examples/calendar-05-vanderburgh.ti59), so PROGRAM:
 /// and REGISTERS: are trusted as written.
-void writeProgram(TI59Machine& m, const LoadStateResult& r, Model model, int steps) {
+void writeProgram(TI59Machine& m, const std::vector<ProgramStep>& programSteps, Model model, int steps) {
     int physicalMaxStep = info(model).maxStep();
-    for (const auto& s : r.programSteps)
+    for (const auto& s : programSteps)
         if (s.stepAddr >= steps && s.stepAddr <= physicalMaxStep) steps = s.stepAddr + 1;
     std::vector<uint8_t> program(static_cast<size_t>(std::min(steps, physicalMaxStep + 1)), 0);
-    for (const auto& s : r.programSteps)
+    for (const auto& s : programSteps)
         if (s.stepAddr >= 0 && static_cast<size_t>(s.stepAddr) < program.size())
             program[static_cast<size_t>(s.stepAddr)] = s.keycode;
     m.writeProgram(program.data(), static_cast<int>(program.size()));
@@ -29,8 +29,8 @@ void writeProgram(TI59Machine& m, const LoadStateResult& r, Model model, int ste
 
 /// Extra (H) registers go straight to raw RAM 60–63; branch on isHidden, not
 /// the number's range — normal TI-59 registers go up to 99.
-void writeRegisters(TI59Machine& m, const LoadStateResult& r) {
-    for (const auto& g : r.registers) {
+void writeRegisters(TI59Machine& m, const std::vector<RegisterValue>& registers) {
+    for (const auto& g : registers) {
         if (g.isHidden) m.writeRAMReg(kExtraRegisterBase + g.regNum, g.nibbles.data());
         else m.writeDataRegister(g.regNum, g.nibbles.data());
     }
@@ -66,17 +66,25 @@ void applyState(TI59Machine& m, const LoadStateResult& r, Model model) {
     int clearUpTo = mi.hasConstantMemory ? kExtraRegisterBase : 120;
     for (int reg = 0; reg < clearUpTo; ++reg) m.writeRAMReg(reg, zero);
 
-    writeProgram(m, r, model, mi.maxStep() + 1);
-    writeRegisters(m, r);
+    writeProgram(m, r.programSteps, model, mi.maxStep() + 1);
+    writeRegisters(m, r.registers);
 }
 
 // The running machine's data registers are kept: the program is padded only
 // to the end of the program area, as a program read from cards or keyed in
-// would be (examples/fast-grafik-3d-plot-part2.ti59 needs part 1's registers).
+// would be (examples/fast-grafik-3d-plot.ti59: part 2 needs part 1's registers).
 void applySkipResetState(TI59Machine& m, const LoadStateResult& r, Model model) {
-    if (r.partitionWasExplicit) setPartition(m, r.partitionMaxStep);
-    if (!r.programSteps.empty()) writeProgram(m, r, model, m.partitionProgramRegs() * 8);
-    writeRegisters(m, r);
+    ReloadStage stage;
+    if (r.partitionWasExplicit) stage.partitionMaxStep = r.partitionMaxStep;
+    stage.programSteps = r.programSteps;
+    stage.registers = r.registers;
+    applyReload(m, stage, model);
+}
+
+void applyReload(TI59Machine& m, const ReloadStage& stage, Model model) {
+    if (stage.partitionMaxStep) setPartition(m, *stage.partitionMaxStep);
+    if (!stage.programSteps.empty()) writeProgram(m, stage.programSteps, model, m.partitionProgramRegs() * 8);
+    writeRegisters(m, stage.registers);
 }
 
 void powerOn(TI59Machine& m, Model model, const std::vector<uint8_t>* savedRam) {

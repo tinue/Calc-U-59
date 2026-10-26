@@ -1,5 +1,6 @@
 #pragma once
 #include "CueCard.hpp"
+#include "StateFile.hpp"
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -40,6 +41,11 @@ std::optional<CardFileResult> parseCardText(std::string_view text);
 
 /// Encode a 246-byte bank image (and optional cue card) as text.
 std::string encodeCardText(const std::vector<uint8_t>& bank246, const CueCardContent* cueCard);
+
+/// A preset's CARD: block as the 246-byte bank the ROM would write
+/// (rom/TI59-ROM-Guide.md § "Magnetic cards"). The header's partition is
+/// `programRegs` (program registers, a multiple of 10) unless the block sets one.
+std::vector<uint8_t> buildCardBank(const CardDefinition& card, int programRegs);
 
 /// Decode a card file's raw bytes in any supported layout:
 ///  - text ("Calc-U-59 Card " first line),

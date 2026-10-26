@@ -459,6 +459,10 @@ final class PlatformForwarder: NSObject, TIPlatform {
         }
     }
 
+    func cardFilePath(_ fileName: String) -> String {
+        CardStorage.directoryURL.appendingPathComponent(fileName).path
+    }
+
     func writeCard(_ text: String, toPath path: String) -> Bool {
         guard let fileData = text.data(using: .utf8) else { return false }
         let url = URL(fileURLWithPath: path)

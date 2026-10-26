@@ -83,6 +83,11 @@ void EmulatorController::writeConstantMemory(const std::string& text) { writeTex
 
 bool EmulatorController::writeCard(const std::string& path, const std::string& text) { return writeText(qs(path), text); }
 
+EmulatorController::CardFileRef EmulatorController::cardFile(const std::string& fileName) {
+    QString path = AppPaths::cardDir() + QLatin1Char('/') + qs(fileName);
+    return {QFileInfo::exists(path) ? readBytes(path) : std::nullopt, path.toStdString()};
+}
+
 cu59::SessionController::TraceLocation EmulatorController::traceLocation() {
     return {AppPaths::toFsPath(AppPaths::traceDir()), static_cast<uint64_t>(AppSettings::resolvedTraceMaxMB()) * 1'000'000};
 }

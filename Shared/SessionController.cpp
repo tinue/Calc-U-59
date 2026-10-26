@@ -5,6 +5,7 @@
 #include "PrinterFont.hpp"
 #include "StateApplier.hpp"
 #include "TextUtil.hpp"
+#include <algorithm>
 
 namespace cu59 {
 
@@ -43,6 +44,9 @@ struct SessionController::Events : EmulatorSession::Listener {
     }
     void playbackStarted() override { setPlaying(true); }
     void playbackFinished() override { setPlaying(false); }
+    void reloadRequested(const std::shared_ptr<const ReloadStage>& stage) override {
+        c.onUi(generation, [&c = c, stage] { c.applyReloadStage(*stage); });
+    }
     void togglePrinterTrace() override {
         c.onUi(generation, [&c = c] { c.togglePrinterTrace(); });
     }
@@ -115,6 +119,9 @@ bool SessionController::startMachine(Model model) {
     m_userCueCard.reset();
     m_activeProgram = 0;
     m_cardState = CardState::NoCard;
+    m_memoryCardInReader.reset();
+    m_queuedCardInReader = false;
+    m_memoryCards.clear();
     m_keystrokesPlaying = false;
     m_fullSpeed = false;
     m_heldKey = -1;
@@ -154,6 +161,9 @@ void SessionController::beginReset() {
     resume();
     m_asmActive = false;
     m_cardState = CardState::NoCard;
+    m_memoryCardInReader.reset();
+    m_queuedCardInReader = false;
+    dropPresetCards();
     m_userCueCard.reset();
     m_activeProgram = 0;
     refreshCueCard();
@@ -247,6 +257,7 @@ void SessionController::tick(Clock::time_point now) {
     uint32_t changes = 0;
     FrameUpdate f = m_session->tick(static_cast<int>(m_debugLevel), m_cardState == CardState::Swiping);
     if (f.cardAutoEjected) ejectCard();  // the core ejected at CRD_OFF: save written data
+    if (m_cardState == CardState::NoCard) feedQueuedCard();
     // Text and dot lines arrive independently: the core commits a line's text
     // at PRT_PRINT but its dot codes only when the print finishes, often a
     // frame later — so a frame can carry codes without text.
@@ -384,21 +395,21 @@ void SessionController::insertCard(const std::optional<std::vector<uint8_t>>& ra
         m_userCueCard = decoded.card->cueCard;
         refreshCueCard();
     }
-    m_cardFileName = fileName;
-    m_pendingSavePath = path;  // write back if the machine writes during this pass
-    m_cardState = CardState::Swiping;
-    m_session->manualTrace().writeCardInsert();
-    m_session->machine().insertCard(decoded.card->data.data(), decoded.card->data.size());
-    emitChanged(CardChanged);
+    startSwipe(decoded.card->data, path, fileName);  // write back to `path` if the machine writes during this pass
 }
 
 void SessionController::insertBlankCard(const std::string& savePath, const std::string& fileName) {
     if (!m_session || m_cardState != CardState::NoCard) return;
+    startSwipe({}, savePath, fileName);
+}
+
+void SessionController::startSwipe(const std::vector<uint8_t>& data, const std::string& savePath,
+                                   const std::string& fileName) {
     m_pendingSavePath = savePath;
     m_cardFileName = fileName;
     m_cardState = CardState::Swiping;
     m_session->manualTrace().writeCardInsert();
-    m_session->machine().insertCard(nullptr, 0);
+    m_session->machine().insertCard(data.empty() ? nullptr : data.data(), data.size());
     emitChanged(CardChanged);
 }
 
@@ -411,8 +422,64 @@ void SessionController::ejectCard() {
     m_session->manualTrace().writeCardEject();
     std::vector<uint8_t> written = m_session->machine().cardEject();
     m_cardState = CardState::NoCard;
-    if (!written.empty() && !m_pendingSavePath.empty()) saveCard(written, m_pendingSavePath);
+    if (!written.empty()) {
+        if (m_memoryCardInReader) m_memoryCards[*m_memoryCardInReader] = {written, m_cueCard};
+        else if (!m_pendingSavePath.empty()) saveCard(written, m_pendingSavePath);
+    }
+    m_memoryCardInReader.reset();
+    queuedCardDone();
     emitChanged(CardChanged);
+}
+
+void SessionController::feedQueuedCard() {
+    if (!m_session) return;
+    auto card = m_session->takeQueuedCard();
+    if (!card) return;
+    m_queuedCardInReader = card->insertNow;
+    if (isMemoryCardName(card->name)) {
+        // A bank written to it earlier in the preset, else its CARD: block, else blank.
+        std::string key = card->name.substr(4);
+        std::vector<uint8_t> bank;
+        std::optional<CueCardContent> cueCard;
+        if (auto it = m_memoryCards.find(key); it != m_memoryCards.end()) {
+            bank = it->second.bank;
+            cueCard = it->second.cueCard;
+        } else if (card->definition) {
+            bank = buildCardBank(*card->definition, m_session->machine().partitionProgramRegs());
+            cueCard = card->definition->cueCard;
+        }
+        if (cueCard) {
+            m_userCueCard = cueCard;
+            refreshCueCard();
+        }
+        startSwipe(bank, "", card->name);
+        m_memoryCardInReader = key;
+        return;
+    }
+    std::string fileName = withDefaultCardExtension(card->name);
+    Platform::CardFileRef file = m_platform.cardFile(fileName);
+    if (!file.raw) {
+        log({"KEYSTROKES: no card file " + fileName + " — a blank card goes in"});
+        insertBlankCard(file.path, fileName);
+    } else {
+        insertCard(file.raw, file.path, fileName);
+    }
+    if (m_cardState == CardState::NoCard) queuedCardDone();  // the file could not be read
+}
+
+void SessionController::dropPresetCards() {
+    if (!m_session) return;
+    std::vector<std::string> lines;
+    for (const auto& name : m_session->clearQueuedCards())
+        lines.push_back("KEYSTROKES: card " + name + " was never read or written");
+    if (!lines.empty()) log(lines);
+    m_memoryCards.clear();
+}
+
+void SessionController::queuedCardDone() {
+    if (!m_queuedCardInReader) return;
+    m_queuedCardInReader = false;
+    m_session->hostDone();
 }
 
 void SessionController::saveCard(const std::vector<uint8_t>& data, const std::string& path) {
@@ -442,6 +509,14 @@ void SessionController::loadStateFile(const std::optional<std::vector<uint8_t>>&
     StateFilePrescan pre = prescanStateFile(text, m_model);
     const ModelInfo& target = info(pre.targetModel);
     LoadStateResult parsed = parseStateFile(text, target.maxStep(), target.hasConstantMemory);
+    if (parsed.usesCardReader && !target.hasCardReader) {
+        parsed.errors.push_back(std::string("CARD:, ArmCard: and InsertCard: need a card reader; the ") +
+                                target.displayName + " has none.");
+        auto& k = parsed.keystrokes;
+        k.erase(std::remove_if(k.begin(), k.end(), [](const KeystrokeEvent& e) {
+                    return e.kind == KeystrokeEvent::Kind::ArmCard || e.kind == KeystrokeEvent::Kind::InsertCard;
+                }), k.end());
+    }
     if (!parsed.errors.empty()) {
         std::string joined;
         for (const auto& e : parsed.errors) joined += (joined.empty() ? "" : "\n") + e;
@@ -474,6 +549,7 @@ void SessionController::applyState(const LoadStateResult& parsed) {
             refreshCueCard();
         }
     } else {
+        dropPresetCards();
         m_session->stop();
         m_session->clearFreeze();
         m_activeProgram = 0;
@@ -493,6 +569,28 @@ void SessionController::applyState(const LoadStateResult& parsed) {
         configureTraceLocation();
         m_session->playKeystrokes(parsed.keystrokes);
     }
+}
+
+void SessionController::applyReloadStage(const ReloadStage& stage) {
+    if (!m_session) return;
+    const ModelInfo& mi = info(m_model);
+    if (stage.partitionMaxStep && *stage.partitionMaxStep > mi.maxStep()) {
+        log({"KEYSTROKES: reload skipped — its partition (" + std::to_string(*stage.partitionMaxStep) + ") exceeds the " +
+             mi.displayName + " maximum (" + std::to_string(mi.maxStep()) + ")"});
+    } else {
+        TI59Machine& m = m_session->machine();
+        bool frozen = m_session->frozen();
+        m_session->stop();
+        m_session->sync([&] { applyReload(m, stage, m_model); });
+        if (!frozen) m_session->start();
+        if (stage.cueCard) {
+            m_userCueCard = stage.cueCard;
+            refreshCueCard();
+        }
+        persistConstantMemory();
+        emitChanged(RunStateChanged);
+    }
+    m_session->hostDone();
 }
 
 // ── Debugger ─────────────────────────────────────────────────────────────────

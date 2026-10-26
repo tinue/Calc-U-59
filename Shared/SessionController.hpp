@@ -64,6 +64,11 @@ public:
         virtual void writeConstantMemory(const std::string& text) = 0;
         /// A card file the machine wrote (path as given to insertCard / insertBlankCard).
         virtual bool writeCard(const std::string& path, const std::string& text) = 0;
+        /// A card file a preset names (KEYSTROKES ArmCard: / InsertCard:): `fileName`
+        /// in the card folder. `raw` is nullopt if there is no such file; `path`
+        /// is where a card the machine writes goes (writeCard).
+        struct CardFileRef { std::optional<std::vector<uint8_t>> raw; std::string path; };
+        virtual CardFileRef cardFile(const std::string& fileName) = 0;
         virtual TraceLocation traceLocation() = 0;
         /// false: e.g. iCloud is not reachable (asked only when a manual trace opens).
         virtual bool traceAvailable() { return true; }
@@ -209,6 +214,15 @@ private:
     void onFrozenView(uint64_t freezeGeneration, FrozenViewReason reason);
     void pullDebugState();
     void saveCard(const std::vector<uint8_t>& data, const std::string& path);
+    /// Put a bank image (empty: a blank card) into the reader.
+    void startSwipe(const std::vector<uint8_t>& data, const std::string& savePath, const std::string& fileName);
+    /// KEYSTROKES ArmCard: / InsertCard: — feed the next queued card when the machine takes it.
+    void feedQueuedCard();
+    /// A preset's card has left the reader (or never got in): tell playback if it waits.
+    void queuedCardDone();
+    /// A new preset or a reset: the previous preset's queued and mem: cards go (logged if unused).
+    void dropPresetCards();
+    void applyReloadStage(const ReloadStage& stage);
     /// Run `f` on the UI thread unless the session that asked has been replaced
     /// (or this controller destroyed) by then.
     void onUi(uint64_t sessionGeneration, std::function<void()> f);
@@ -244,6 +258,12 @@ private:
     CardState m_cardState = CardState::NoCard;
     std::string m_cardFileName = "card.U59";
     std::string m_pendingSavePath;
+    /// mem: cards of the loaded preset, by the name after "mem:": the bank
+    /// last written to it, and the cue card shown then.
+    struct MemoryCard { std::vector<uint8_t> bank; std::optional<CueCardContent> cueCard; };
+    std::map<std::string, MemoryCard> m_memoryCards;
+    std::optional<std::string> m_memoryCardInReader;  ///< a written bank goes to m_memoryCards
+    bool m_queuedCardInReader = false;                ///< the card came from ArmCard: / InsertCard:
 
     bool m_liveDebugEnabled = false;
     bool m_cpuDebugEnabled = false;

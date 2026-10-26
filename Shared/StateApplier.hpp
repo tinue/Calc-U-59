@@ -26,6 +26,11 @@ void applyState(TI59Machine& m, const LoadStateResult& r, Model model);
 /// program only if it has one, and the registers — nothing else is touched.
 void applySkipResetState(TI59Machine& m, const LoadStateResult& r, Model model);
 
+/// A reload during KEYSTROKES playback: the same as a SKIP-RESET load — the
+/// partition if the stage sets one, the program zero-padded to the end of the
+/// program area if it has one, and the listed registers.
+void applyReload(TI59Machine& m, const ReloadStage& stage, Model model);
+
 /// A fresh machine's power-on. TI-58C: run the ROM's startup once, then
 /// restore its constant memory from `savedRam` (if given), so startup code
 /// can't overwrite the restored registers. Other models: nothing to do.

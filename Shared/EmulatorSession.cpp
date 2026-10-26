@@ -287,7 +287,50 @@ void EmulatorSession::scriptedTrace(const std::optional<std::string>& fileName) 
 
 // A script always ends at regular speed, and never leaves a scripted trace
 // running without its "Trace: Off".
+void EmulatorSession::applyReload(const std::shared_ptr<const ReloadStage>& stage) {
+    ++m_hostPending;
+    m_listener.reloadRequested(stage);
+}
+
+void EmulatorSession::queueCard(const KeystrokeEvent& event) {
+    QueuedCard card{event.cardName, event.card, event.kind == KeystrokeEvent::Kind::InsertCard};
+    if (card.insertNow) ++m_hostPending;
+    std::lock_guard<std::mutex> lock(m_cardMutex);
+    m_queuedCards.push_back(std::move(card));
+}
+
+void EmulatorSession::hostDone() {
+    int n = m_hostPending.load();
+    while (n > 0 && !m_hostPending.compare_exchange_weak(n, n - 1)) {}
+}
+
+std::optional<QueuedCard> EmulatorSession::takeQueuedCard() {
+    if (m_frozen.load()) return std::nullopt;
+    const uint16_t pc = m_machine->pc();
+    std::lock_guard<std::mutex> lock(m_cardMutex);
+    if (m_queuedCards.empty()) return std::nullopt;
+    const ModelInfo& mi = info(m_model);
+    const QueuedCard& next = m_queuedCards.front();
+    bool ready = next.insertNow ? mi.scanLoop.contains(pc) : mi.cardWait.contains(pc) && m_machine->isWaitingForCard();
+    if (!ready) return std::nullopt;
+    QueuedCard card = std::move(m_queuedCards.front());
+    m_queuedCards.pop_front();
+    return card;
+}
+
+std::vector<std::string> EmulatorSession::clearQueuedCards() {
+    std::lock_guard<std::mutex> lock(m_cardMutex);
+    std::vector<std::string> names;
+    for (const auto& c : m_queuedCards) names.push_back(c.name);
+    m_queuedCards.clear();
+    return names;
+}
+
 void EmulatorSession::playbackFinished() {
+    // Queued cards stay: a Write keyed in last, or a run the user starts
+    // later, still gets its card. An InsertCard nobody waits for any more is
+    // done.
+    m_hostPending = 0;
     setFullSpeed(false);
     if (m_scriptedTrace.isOpen()) {
         drainTrace();

@@ -101,6 +101,11 @@ TEST(apply_every_example_file) {
             applyState(*m, r, model);
         }
         bool ok = testroms::runToScanLoop(*m, model);
+        for (const auto& k : r.keystrokes) {  // reloads, without the keys between them
+            if (k.kind != KeystrokeEvent::Kind::Reload) continue;
+            applyReload(*m, *k.reload, model);
+            ok = ok && testroms::runToScanLoop(*m, model);
+        }
         if (!ok) std::fprintf(stderr, "  no scan loop after %s\n", e.path().string().c_str());
         CHECK(ok);
         ++applied;

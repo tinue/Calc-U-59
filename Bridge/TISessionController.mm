@@ -178,6 +178,13 @@ struct PlatformAdapter : cu59::SessionController::Platform {
     bool writeCard(const std::string& path, const std::string& text) override {
         return [platform writeCard:ns(text) toPath:ns(path)] == YES;
     }
+    CardFileRef cardFile(const std::string& fileName) override {
+        NSString* path = [platform cardFilePath:ns(fileName)];
+        NSData* data = [NSData dataWithContentsOfFile:path];
+        if (!data) return {std::nullopt, cpp(path)};
+        auto* bytes = static_cast<const uint8_t*>(data.bytes);
+        return {std::vector<uint8_t>(bytes, bytes + data.length), cpp(path)};
+    }
     cu59::SessionController::TraceLocation traceLocation() override {
         id<TIPlatform> p = platform;
         return {std::filesystem::path(p.traceDirectory.fileSystemRepresentation), p.traceMaxBytes};

@@ -156,6 +156,7 @@ int  h_card_eject(void* m, uint8_t* out, int cap) {
 }
 int  h_card_present(void* m) { return static_cast<TI59Machine*>(m)->isCardPresent() ? 1 : 0; }
 int  h_card_mode(void* m)    { return static_cast<TI59Machine*>(m)->cardMode(); }
+int  h_card_waiting(void* m) { return static_cast<TI59Machine*>(m)->isWaitingForCard() ? 1 : 0; }
 
 // Printer output lines, joined with '\n'. Returns bytes written (truncated to cap).
 int h_printer_lines(void* m, char* out, int cap) {
