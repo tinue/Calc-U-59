@@ -117,6 +117,7 @@ isn't duplicated in this repository.
 | [`PRIVACY.md`](PRIVACY.md) | App Store privacy policy — Calc-U-59 collects no data and makes no network connections. |
 | [`ideas/KeypressLatch.md`](ideas/KeypressLatch.md) | Unimplemented design proposal for latching keypresses while the debugger is frozen. |
 | [`ideas/Pico.md`](ideas/Pico.md) | Feasibility analysis for running the core on a Raspberry Pi Pico wired to a real TI-59's keyboard, display, and card reader. |
+| [`ideas/PresetConvergence.md`](ideas/PresetConvergence.md) | Comparison of Calc-U-59 and Calc-U-1600 presets: where the syntax could converge, and which features each could take from the other. |
 | [`ideas/CardRecovery.md`](ideas/CardRecovery.md) | Signal-chain analysis and breadboard circuit design for a standalone Pico-based magnetic-card reader, aimed at recovering cards a stock TI-59 fails to read. |
 | [`LICENSE`](LICENSE) | GNU General Public License, version 3 (GPLv3). |
 | [`NOTICE`](NOTICE) | Copyright notice for the GPLv3 license. |
