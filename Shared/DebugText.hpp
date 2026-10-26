@@ -12,6 +12,21 @@ namespace cu59 {
 /// Base font size of both panels by their width: compact / normal / large.
 int debugPanelFontSize(double width);
 
+/// iOS window layouts (the Swift app on iPhone and iPad).
+enum class MobileLayout {
+    Paged,               ///< one page at a time: calculator, printer, debugger (if enabled)
+    CalcPrinter,         ///< side by side, no room for the debugger (iPhone in landscape)
+    CalcPrinterDebugger, ///< all three side by side (iPad, open iPhone Duo)
+};
+
+/// The layout for a window of width × height points. Taller-than-wide windows
+/// page; so does a wide one split by a horizontal fold (iPhone Duo half open,
+/// "laptop" pose), as its upper half alone is too short. A wide window takes
+/// the debugger when it is tall enough for the calculator face to leave room
+/// for it: iPhone Duo open is 951 × 669 pt, the widest plain iPhone in
+/// landscape about 956 × 440 pt.
+MobileLayout mobileLayout(double width, double height, bool horizontalFold);
+
 /// "Steps: 480, Registers: 60 (479.59)" — "(479.)" when no data registers.
 std::string partitionLine(int programRegCount, int dataRegCount);
 

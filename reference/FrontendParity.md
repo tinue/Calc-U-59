@@ -79,7 +79,7 @@ the named one still to do (the Notes say why); `Swift only` / `Qt only` /
 | About (version, links) | `AppInfo` | `AboutDialog` | `Dialogs` (About) | — | All | |
 | Settings | `SettingsView` | `SettingsDialog` | `Dialogs` (Settings) | `SettingsKeys` | All | Qt: preset, card and trace folders instead of the trace location; Swift: Keyboard Feedback and Debug Page in Portrait on iOS only; web: no folders, no segment style, Keyboard Feedback in portrait only, Maximum Trace File Size in wide only |
 | Help (user guide link) | — | Help menu | `Dialogs` (Settings, About) | — | Pending (Swift) | opens `https://calc-u.org/59/`; the Swift app has no Help command yet |
-| iOS layouts (portrait pages, iPhone), haptics, click sound | `CalculatorView`, `KeyboardView` | — | `PlayCalculator` (portrait layout, keyboard feedback) | — | Swift only / Web only | Swift: iOS only; web: vibrate where the browser can (not iOS Safari), click via WebAudio |
+| iOS layouts (portrait pages, iPhone; side by side, iPad and iPhone Duo), haptics, click sound | `CalculatorView`, `KeyboardView` | — | `PlayCalculator` (portrait layout, keyboard feedback) | `DebugText` (`mobileLayout`) | Swift only / Web only | Swift: iOS only, the layout by window size and fold; web: vibrate where the browser can (not iOS Safari), click via WebAudio |
 | UI test automation hooks | `CalculatorView` | — | — | — | Swift only | |
 | `--grab <png>` offscreen screenshot | — | `main.cpp` | — | — | Qt only | developer check |
 | Installable PWA, offline | — | — | `app/` | — | Web only | portrait layout; all three models offline |

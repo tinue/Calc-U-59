@@ -117,7 +117,7 @@ Screenshot tests that load `.ti59` files require those files to be present on th
 
 On iPhone portrait the pages are calculator → printer → debug (`btn-page-right`), and `btn-page-left` on the calculator page goes straight to debug. The debug page (`DebugView`, holding `btn-tab-calculator`/`btn-tab-cpu`/`btn-tab-log`) exists only when Settings → "Debug Page in Portrait" is on (`SettingsKey.portraitDebugPage`, default `false`). A fresh iPhone simulator doesn't show it; turn the setting on through the Settings screen or by seeding `UserDefaults` before launch.
 
-The iPad layout shows the debug panel side-by-side with the calculator permanently — no paging, no setting to flip. When a test only needs to reach the debug tabs (e.g. checking the LOG tab's content after a KEYSTROKES script runs), prefer running it on an iPad simulator destination to skip this whole prerequisite.
+The iPad layout in landscape (and the iPhone Duo opened flat) shows the debug panel side-by-side with the calculator — no paging, no setting to flip. Which layout a window gets is Shared `mobileLayout` (by size, not idiom); `LayoutTests.testWideWindowShowsDebugger` checks it. When a test only needs to reach the debug tabs (e.g. checking the LOG tab's content after a KEYSTROKES script runs), prefer running it on an iPad simulator destination to skip this whole prerequisite.
 
 ---
 

@@ -11,6 +11,13 @@ NS_ASSUME_NONNULL_BEGIN
 // drawing stays in SwiftUI; these give it the same shapes and numbers as the
 // Qt6 app. Type translation only.
 
+/// cu59::MobileLayout, same order.
+typedef NS_ENUM(NSInteger, TIMobileLayout) {
+    TIMobileLayoutPaged,
+    TIMobileLayoutCalcPrinter,
+    TIMobileLayoutCalcPrinterDebugger,
+};
+
 /// A cue-card label and the grid columns (0–4) it covers.
 @interface TILabelSpan : NSObject
 @property (nonatomic, readonly) NSInteger startCol;
@@ -97,6 +104,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 // ── Debug-panel text and colours (Shared/DebugText.hpp); colours 0xRRGGBB ───
 + (CGFloat)debugPanelFontSize:(CGFloat)width;
+/// cu59::mobileLayout — which panels an iOS window of this size shows.
++ (TIMobileLayout)mobileLayoutWidth:(CGFloat)width height:(CGFloat)height horizontalFold:(BOOL)fold;
 + (NSString *)partitionLineProgramRegs:(NSInteger)programRegs dataRegs:(NSInteger)dataRegs;
 /// mode: TILiveDebugSnapshot.angleMode (-1 = unknown).
 + (NSString *)angleModeLabel:(NSInteger)mode;

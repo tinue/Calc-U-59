@@ -194,6 +194,9 @@ static std::vector<cu59::LabelSpan> spansFrom(NSArray<TILabelSpan*>* spans) {
 }
 
 + (CGFloat)debugPanelFontSize:(CGFloat)width { return cu59::debugPanelFontSize(width); }
++ (TIMobileLayout)mobileLayoutWidth:(CGFloat)width height:(CGFloat)height horizontalFold:(BOOL)fold {
+    return static_cast<TIMobileLayout>(cu59::mobileLayout(width, height, fold));
+}
 + (NSString *)partitionLineProgramRegs:(NSInteger)programRegs dataRegs:(NSInteger)dataRegs {
     return ns(cu59::partitionLine(static_cast<int>(programRegs), static_cast<int>(dataRegs)));
 }

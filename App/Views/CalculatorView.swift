@@ -235,18 +235,21 @@ struct CalculatorView: View {
                 .frame(minWidth: 220)
         }
         #else
-        // iOS/iPadOS: side-by-side when wide, button-navigated pages when portrait
+        // iOS/iPadOS: side-by-side when wide, button-navigated pages otherwise
+        // (Shared mobileLayout decides by the window's size and fold)
         GeometryReader { geo in
             // Hide button labels when the calculator is too narrow to fit them comfortably.
             let showLabels = geo.size.width >= 1300
-            if geo.size.width > geo.size.height {
+            let layout = TIViewRules.mobileLayoutWidth(geo.size.width, height: geo.size.height,
+                                                       horizontalFold: Self.hasHorizontalFold(geo))
+            if layout != .paged {
                 HStack(spacing: 0) {
                     calculatorBody(showLabels: showLabels)
                         .fixedSize(horizontal: true, vertical: false)
                     Divider()
                     PrinterView()
                         .frame(minWidth: 290, maxWidth: 360)
-                    if UIDevice.current.userInterfaceIdiom == .pad {
+                    if layout == .calcPrinterDebugger {
                         Divider()
                         DebugView(activeFilePickerMode: filePickerModeBinding)
                             .frame(minWidth: 220)
@@ -404,6 +407,13 @@ struct CalculatorView: View {
     }
 
     #if !os(macOS)
+    /// An active fold across the window (iPhone Duo half open, "laptop" pose).
+    /// https://developer.apple.com/documentation/technologyoverviews/preparing-your-app-for-iphone-duo
+    private static func hasHorizontalFold(_ geo: GeometryProxy) -> Bool {
+        guard #available(iOS 27.1, *) else { return false }
+        return geo.reservedRegions(kind: .division).contains { $0.frame.width > $0.frame.height }
+    }
+
     @ViewBuilder
     private func portraitPages(showLabels: Bool) -> some View {
         ZStack {

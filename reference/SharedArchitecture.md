@@ -47,7 +47,7 @@ wrappers in `Bridge/`, which only translate types (`AppArchitecture.md`
 | **Debugger** | |
 | `DebugModel` | The panels' data: CALCULATOR snapshot and listing, CPU history, ROM heatmap, LOG ring |
 | `DebugSnapshots` | Builds the CALCULATOR snapshot and listing and the CPU history entries |
-| `DebugText` | The panels' shared text and colours |
+| `DebugText` | The panels' shared text and colours; `mobileLayout`, which panels an iOS window shows |
 | `DebugLog` | LOG ring buffer and the Vars / SCOM / Prog / Memory dumps |
 | `RomHeatmap` | Execution counts per ROM address, heat steps and colours |
 | `ModuleImage` | PRG SOURCE decoding, the module's program table, source labels |
