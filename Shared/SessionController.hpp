@@ -69,6 +69,9 @@ public:
         /// is where a card the machine writes goes (writeCard).
         struct CardFileRef { std::optional<std::vector<uint8_t>> raw; std::string path; };
         virtual CardFileRef cardFile(const std::string& fileName) = 0;
+        /// KEYSTROKES DebugPanel:: select that tab of the debugger, as a click
+        /// would (the page stays where it is on paged layouts).
+        virtual void showDebugPanel(DebugPanel panel) = 0;
         virtual TraceLocation traceLocation() = 0;
         /// false: e.g. iCloud is not reachable (asked only when a manual trace opens).
         virtual bool traceAvailable() { return true; }
@@ -223,6 +226,8 @@ private:
     /// A new preset or a reset: the previous preset's queued and mem: cards go (logged if unused).
     void dropPresetCards();
     void applyReloadStage(const ReloadStage& stage);
+    /// A KEYSTROKES GUI control (PrinterTrace:, Freeze:, …), as its button does.
+    void applyControl(const KeystrokeEvent& event);
     /// Run `f` on the UI thread unless the session that asked has been replaced
     /// (or this controller destroyed) by then.
     void onUi(uint64_t sessionGeneration, std::function<void()> f);

@@ -245,8 +245,8 @@ test('a blank card is written, listed, and read back', async ({ page }) => {
   await uploadPreset(page, PROGRAM_123);
   const expected = await (async () => { await pressKey(page, 'A'); return settledLed(page); })();
 
-  await pressKey(page, 'CLR');  // the program stopped mid-entry: a digit would extend 123
-  await uploadPreset(page, 'SKIP-RESET: on\nKEYSTROKES:\n82 21 91\n');  // 1 2nd Write: waits for a card
+  // The same program again, then CLR 1 2nd Write: waits for a card.
+  await uploadPreset(page, PROGRAM_123 + 'KEYSTROKES:\n25 82 21 91\n');
   await page.waitForTimeout(1000);
   await page.getByRole('button', { name: 'Crd' }).nth(1).click();  // a blank card passes: written
   await page.getByLabel('Card name').fill('prog');

@@ -31,7 +31,10 @@
 //
 // A reload or an InsertCard waits for the scan loop like a key, hands the work
 // to the host and waits until the host has finished it; ArmCard only queues
-// its card.
+// its card. A GUI control (PrinterTrace:, Freeze:, …) goes to the host at once
+// and playback waits until it is done. While the debugger is frozen, keys,
+// reloads and inserted cards wait until it runs again (a key pressed into a
+// frozen machine would be lost); directives go on, so Step: and Resume: work.
 //
 // Playback and keyboard taps run on two independent lanes, as two separate
 // tasks would: a key press cancels earlier keyboard taps, never a running
@@ -56,7 +59,6 @@ public:
         virtual void heldKeyChanged(int highlightID) = 0;
         // KEYSTROKES playback
         virtual void setFullSpeed(bool on) = 0;
-        virtual void togglePrinterTrace() = 0;
         virtual void scriptedTrace(const std::optional<std::string>& fileName) = 0;  ///< nullopt = stop
         virtual void zeroElapseTime() = 0;
         virtual void reportElapseTime() = 0;
@@ -65,7 +67,9 @@ public:
         /// Queue the card of an ArmCard / InsertCard event; an InsertCard card
         /// keeps hostPending() true until it has passed through the reader.
         virtual void queueCard(const KeystrokeEvent& event) = 0;
-        /// A reload or an inserted card is not done yet.
+        /// A GUI control (KeystrokeEvent::isControl); hostPending() until done.
+        virtual void control(const KeystrokeEvent& event) = 0;
+        /// A reload, an inserted card or a control is not done yet.
         virtual bool hostPending() = 0;
         virtual void playbackStarted() = 0;
         /// Always called at the end of a script, even if cancelled: the host

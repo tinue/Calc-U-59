@@ -2,6 +2,7 @@
 
 ## [2.2.0] - work in progress
 - **State Files** One preset can now run a whole session. A `PROGRAM:` or `REGISTERS:` after `KEYSTROKES:` changes just the steps and registers it lists once the program has stopped, as if you had keyed the changes in, on any model. For larger changes, a preset feeds magnetic cards the way a TI-59 user fed a prepared stack: `InsertCard:` pushes a card into the stopped calculator, `ArmCard:` lays one ready for the program's own `Write` or `INV Write`, and a `CARD:` block defines a card's registers and steps in the preset itself, without a file. `fast-grafik-3d-plot.ti59` is now one file instead of two.
+- **State Files** A preset can now operate the controls around the calculator: `PrinterTrace: on`/`off` sets the printer's TRACE switch, `CutPaper:` cuts the paper, and `DebugPanel:`, `Freeze:`, `FreezeOnStart:`, `Step:` and `Resume:` do what the debugger's tabs and buttons do. While the debugger is frozen, a preset's keys now wait until it runs again instead of being lost. `SKIP-RESET:` and the virtual key `99` are gone: a reload in the same file and `PrinterTrace:` replace them, and both are now reported as errors.
 - **iPhone Duo** Opened flat, the calculator, the printer and the debugger sit side by side, as on the iPad, whatever "Debug Page in Portrait" is set to; the printer tape is narrower there, its print scaled down to fit. Half open like a laptop, closed, or held tall, it shows the pages as on the iPhone.
 
 ### Fixes

@@ -41,6 +41,8 @@ typedef NS_ENUM(NSInteger, TIFreezeOwner) {
 - (BOOL)writeCard:(NSString *)text toPath:(NSString *)path;
 /// The path of card file `fileName` in the card folder (it may not exist).
 - (NSString *)cardFilePath:(NSString *)fileName;
+/// KEYSTROKES DebugPanel:: 0 CALCULATOR, 1 CPU, 2 LOG.
+- (void)showDebugPanel:(NSInteger)panel;
 @property (nonatomic, readonly) NSString *traceDirectory;
 @property (nonatomic, readonly) uint64_t traceMaxBytes;
 @property (nonatomic, readonly) BOOL traceAvailable;

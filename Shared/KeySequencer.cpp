@@ -121,8 +121,9 @@ void KeySequencer::advance(Clock::time_point now) {
 // scan loop again. The narrow loop, not the wider key-detect range: that also
 // covers the release gate, where a new key is discarded, and the key just
 // pressed being decoded. (With a printer the narrow loop includes the confirm
-// scan: the printer line makes every pass take it.) A freeze stops the CPU outright, so
-// the waits end at once instead of forever.
+// scan: the printer line makes every pass take it.) A freeze stops the CPU
+// outright: a keyboard tap goes in at once, a script waits until it runs
+// again; the wait after a key ends at once instead of forever.
 std::optional<KeySequencer::Clock::time_point> KeySequencer::step(Lane& lane, Task& task, Clock::time_point now) {
     using K = KeystrokeEvent::Kind;
     using P = Task::Phase;
@@ -143,7 +144,9 @@ std::optional<KeySequencer::Clock::time_point> KeySequencer::step(Lane& lane, Ta
                 task.phase = P::Next;
                 break;
             }
-            if (m_host.isFrozen() || m_scanLoop.contains(m_host.pc())) {
+            // A script waits out a freeze; a keyboard tap goes in, as a finger would.
+            if (task.script ? !m_host.isFrozen() && m_scanLoop.contains(m_host.pc())
+                            : m_host.isFrozen() || m_scanLoop.contains(m_host.pc())) {
                 if (!task.script) m_host.heldKeyChanged(highlightID(task.code));
                 m_host.pressKey(task.code);
                 task.wake = now + kHold;
@@ -171,7 +174,7 @@ std::optional<KeySequencer::Clock::time_point> KeySequencer::step(Lane& lane, Ta
                 task.phase = P::Next;
                 break;
             }
-            if (!m_host.isFrozen() && !m_scanLoop.contains(m_host.pc())) return poll();
+            if (m_host.isFrozen() || !m_scanLoop.contains(m_host.pc())) return poll();
             const KeystrokeEvent& e = task.events[task.next - 1];
             if (e.kind == K::Reload) m_host.applyReload(e.reload);
             else m_host.queueCard(e);
@@ -199,7 +202,6 @@ std::optional<KeySequencer::Clock::time_point> KeySequencer::step(Lane& lane, Ta
                 task.wake = now;
                 task.phase = P::WaitingToPress;
                 break;
-            case K::ToggleTrace: m_host.togglePrinterTrace(); break;
             case K::Wait:
                 task.wake = now + seconds(e.seconds);
                 task.phase = P::Sleeping;
@@ -215,6 +217,17 @@ std::optional<KeySequencer::Clock::time_point> KeySequencer::step(Lane& lane, Ta
                 task.phase = P::WaitingToApply;
                 break;
             case K::ArmCard: m_host.queueCard(e); break;
+            case K::PrinterTrace:
+            case K::CutPaper:
+            case K::ShowPanel:
+            case K::Freeze:
+            case K::FreezeOnStart:
+            case K::Step:
+            case K::Resume:
+                m_host.control(e);
+                task.wake = now;
+                task.phase = P::WaitingHost;
+                break;
             }
             break;
         }

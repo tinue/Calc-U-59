@@ -46,7 +46,6 @@ step 42 91
 module ML
 printer -
 model -
-skipReset 0
 END
 STATE examples/FastMode_Zero4.ti59 959 0
 partition 479 0
@@ -96,7 +95,6 @@ step 42 91
 module ML
 printer -
 model -
-skipReset 0
 END
 STATE examples/FastMode_Zero4.ti59 479 1
 partition 479 0
@@ -146,7 +144,6 @@ step 42 91
 module ML
 printer -
 model -
-skipReset 0
 END
 STATE examples/Frequency-Transformation.ti59 479 0
 partition 559 1
@@ -680,7 +677,6 @@ enc0 C: fₛ
 module ML
 printer 1
 model -
-skipReset 0
 END
 STATE examples/Frequency-Transformation.ti59 959 0
 partition 559 1
@@ -1211,7 +1207,6 @@ enc0 C: fₛ
 module ML
 printer 1
 model -
-skipReset 0
 END
 STATE examples/Frequency-Transformation.ti59 479 1
 partition 559 1
@@ -1745,7 +1740,6 @@ enc0 C: fₛ
 module ML
 printer 1
 model -
-skipReset 0
 END
 STATE examples/Integer-Base-Conversion.ti59 479 0
 partition 479 0
@@ -1890,7 +1884,6 @@ enc0 C: To: Base
 module -
 printer -
 model -
-skipReset 0
 END
 STATE examples/Integer-Base-Conversion.ti59 959 0
 partition 479 0
@@ -2035,7 +2028,6 @@ enc0 C: To: Base
 module -
 printer -
 model -
-skipReset 0
 END
 STATE examples/Integer-Base-Conversion.ti59 479 1
 partition 479 0
@@ -2180,7 +2172,6 @@ enc0 C: To: Base
 module -
 printer -
 model -
-skipReset 0
 END
 STATE examples/calendar-01-Weinberger.ti59 479 0
 partition 479 0
@@ -2693,7 +2684,6 @@ enc0 Row1Align: left
 module ML
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/calendar-01-Weinberger.ti59 959 0
 partition 479 0
@@ -3206,7 +3196,6 @@ enc0 Row1Align: left
 module ML
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/calendar-01-Weinberger.ti59 479 1
 partition 479 0
@@ -3719,7 +3708,6 @@ enc0 Row1Align: left
 module ML
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/calendar-02-cargile.ti59 479 0
 partition 479 0
@@ -4170,7 +4158,6 @@ enc0 Row1Align: left
 module ML
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/calendar-02-cargile.ti59 959 0
 partition 479 0
@@ -4621,7 +4608,6 @@ enc0 Row1Align: left
 module ML
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/calendar-02-cargile.ti59 479 1
 partition 479 0
@@ -5072,7 +5058,6 @@ enc0 Row1Align: left
 module ML
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/calendar-03-vanderburgh.ti59 479 0
 partition 479 0
@@ -5598,7 +5583,6 @@ enc0 Row1Align: left
 module ML
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/calendar-03-vanderburgh.ti59 959 0
 partition 479 0
@@ -6124,7 +6108,6 @@ enc0 Row1Align: left
 module ML
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/calendar-03-vanderburgh.ti59 479 1
 partition 479 0
@@ -6650,7 +6633,6 @@ enc0 Row1Align: left
 module ML
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/calendar-04-skillman.ti59 479 0
 partition 479 0
@@ -7062,7 +7044,6 @@ enc0 Row1Align: left
 module ML
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/calendar-04-skillman.ti59 959 0
 partition 479 0
@@ -7474,7 +7455,6 @@ enc0 Row1Align: left
 module ML
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/calendar-04-skillman.ti59 479 1
 partition 479 0
@@ -7886,7 +7866,6 @@ enc0 Row1Align: left
 module ML
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/calendar-05-vanderburgh.ti59 479 0
 partition 319 1
@@ -8542,7 +8521,6 @@ enc0 Row1Align: left
 module ML
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/calendar-05-vanderburgh.ti59 959 0
 partition 319 1
@@ -9198,7 +9176,6 @@ enc0 Row1Align: left
 module ML
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/calendar-05-vanderburgh.ti59 479 1
 partition 319 1
@@ -9854,7 +9831,6 @@ enc0 Row1Align: left
 module ML
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/calendar-06-cargile.ti59 479 0
 partition 319 1
@@ -10309,7 +10285,6 @@ enc0 Row1Align: left
 module ML
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/calendar-06-cargile.ti59 959 0
 partition 319 1
@@ -10764,7 +10739,6 @@ enc0 Row1Align: left
 module ML
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/calendar-06-cargile.ti59 479 1
 partition 319 1
@@ -11219,7 +11193,6 @@ enc0 Row1Align: left
 module ML
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/calendar-07-calidas.ti59 479 0
 partition 479 0
@@ -11687,7 +11660,6 @@ enc0 Row1Align: left
 module ML
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/calendar-07-calidas.ti59 959 0
 partition 479 0
@@ -12155,7 +12127,6 @@ enc0 Row1Align: left
 module ML
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/calendar-07-calidas.ti59 479 1
 partition 479 0
@@ -12623,7 +12594,6 @@ enc0 Row1Align: left
 module ML
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/calendar-08-acosta.ti59 479 0
 partition 479 0
@@ -13172,7 +13142,6 @@ enc0 Row1Align: left
 module ML
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/calendar-08-acosta.ti59 959 0
 partition 479 0
@@ -13721,7 +13690,6 @@ enc0 Row1Align: left
 module ML
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/calendar-08-acosta.ti59 479 1
 partition 479 0
@@ -14270,7 +14238,6 @@ enc0 Row1Align: left
 module ML
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/calendar-09-dispatch.ti59 479 0
 partition 399 1
@@ -14795,7 +14762,6 @@ enc0 Row1Align: left
 module -
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/calendar-09-dispatch.ti59 959 0
 partition 399 1
@@ -15320,7 +15286,6 @@ enc0 Row1Align: left
 module -
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/calendar-09-dispatch.ti59 479 1
 partition 399 1
@@ -15845,7 +15810,6 @@ enc0 Row1Align: left
 module -
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/characters-fastmode.ti59 479 0
 partition 479 0
@@ -16027,7 +15991,6 @@ enc0 A: R/S after load, then reinsert card
 module ML
 printer 1
 model -
-skipReset 0
 END
 STATE examples/characters-fastmode.ti59 959 0
 partition 479 0
@@ -16209,7 +16172,6 @@ enc0 A: R/S after load, then reinsert card
 module ML
 printer 1
 model -
-skipReset 0
 END
 STATE examples/characters-fastmode.ti59 479 1
 partition 479 0
@@ -16391,7 +16353,6 @@ enc0 A: R/S after load, then reinsert card
 module ML
 printer 1
 model -
-skipReset 0
 END
 STATE examples/characters.ti59 479 0
 partition 479 0
@@ -16632,7 +16593,6 @@ enc0 A: PRINT
 module -
 printer 1
 model -
-skipReset 0
 END
 STATE examples/characters.ti59 959 0
 partition 479 0
@@ -16873,7 +16833,6 @@ enc0 A: PRINT
 module -
 printer 1
 model -
-skipReset 0
 END
 STATE examples/characters.ti59 479 1
 partition 479 0
@@ -17114,7 +17073,6 @@ enc0 A: PRINT
 module -
 printer 1
 model -
-skipReset 0
 END
 STATE examples/debug/example-brief.ti59 479 0
 partition 799 1
@@ -17160,7 +17118,6 @@ enc0 A: Start
 module ML
 printer 1
 model -
-skipReset 0
 END
 STATE examples/debug/example-brief.ti59 959 0
 partition 799 1
@@ -17206,7 +17163,6 @@ enc0 A: Start
 module ML
 printer 1
 model -
-skipReset 0
 END
 STATE examples/debug/example-brief.ti59 479 1
 partition 799 1
@@ -17252,7 +17208,6 @@ enc0 A: Start
 module ML
 printer 1
 model -
-skipReset 0
 END
 STATE examples/debug/example.ti59 479 0
 partition 799 1
@@ -17319,7 +17274,6 @@ enc0 A: Start
 module -
 printer -
 model -
-skipReset 0
 END
 STATE examples/debug/example.ti59 959 0
 partition 799 1
@@ -17386,7 +17340,6 @@ enc0 A: Start
 module -
 printer -
 model -
-skipReset 0
 END
 STATE examples/debug/example.ti59 479 1
 partition 799 1
@@ -17453,7 +17406,6 @@ enc0 A: Start
 module -
 printer -
 model -
-skipReset 0
 END
 STATE examples/debug/nibbleerror.ti58 479 0
 partition 239 1
@@ -17555,7 +17507,6 @@ enc0 Title: Reproduce lost nibble problem
 module ML
 printer -
 model -
-skipReset 0
 END
 STATE examples/debug/nibbleerror.ti58 959 0
 partition 239 1
@@ -17657,7 +17608,6 @@ enc0 Title: Reproduce lost nibble problem
 module ML
 printer -
 model -
-skipReset 0
 END
 STATE examples/debug/nibbleerror.ti58 479 1
 partition 239 1
@@ -17759,7 +17709,6 @@ enc0 Title: Reproduce lost nibble problem
 module ML
 printer -
 model -
-skipReset 0
 END
 STATE examples/debug/operror.ti59 479 0
 partition 479 0
@@ -17791,7 +17740,6 @@ trace -
 module -
 printer -
 model -
-skipReset 0
 END
 STATE examples/debug/operror.ti59 959 0
 partition 479 0
@@ -17823,7 +17771,6 @@ trace -
 module -
 printer -
 model -
-skipReset 0
 END
 STATE examples/debug/operror.ti59 479 1
 partition 479 0
@@ -17855,7 +17802,6 @@ trace -
 module -
 printer -
 model -
-skipReset 0
 END
 STATE examples/debug/printer-interrupt-bits.ti59 479 0
 partition 479 0
@@ -17950,7 +17896,6 @@ key 11
 module -
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/debug/printer-interrupt-bits.ti59 959 0
 partition 479 0
@@ -18045,7 +17990,6 @@ key 11
 module -
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/debug/printer-interrupt-bits.ti59 479 1
 partition 479 0
@@ -18140,7 +18084,6 @@ key 11
 module -
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/debug/printer-interrupt-sweep.ti58c 479 0
 partition 239 1
@@ -18227,7 +18170,6 @@ key 91
 module -
 printer 1
 model TI-58C
-skipReset 0
 END
 STATE examples/debug/printer-interrupt-sweep.ti58c 959 0
 partition 239 1
@@ -18314,7 +18256,6 @@ key 91
 module -
 printer 1
 model TI-58C
-skipReset 0
 END
 STATE examples/debug/printer-interrupt-sweep.ti58c 479 1
 partition 239 1
@@ -18401,7 +18342,6 @@ key 91
 module -
 printer 1
 model TI-58C
-skipReset 0
 END
 STATE examples/debug/printer-timing.ti59 479 0
 partition 479 0
@@ -18493,7 +18433,6 @@ reportElapseTime
 module -
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/debug/printer-timing.ti59 959 0
 partition 479 0
@@ -18585,7 +18524,6 @@ reportElapseTime
 module -
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/debug/printer-timing.ti59 479 1
 partition 479 0
@@ -18677,7 +18615,6 @@ reportElapseTime
 module -
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/debug/ret_bug_label.ti59 479 0
 partition 479 0
@@ -18721,7 +18658,6 @@ enc0 A: Start
 module -
 printer -
 model -
-skipReset 0
 END
 STATE examples/debug/ret_bug_label.ti59 959 0
 partition 479 0
@@ -18765,7 +18701,6 @@ enc0 A: Start
 module -
 printer -
 model -
-skipReset 0
 END
 STATE examples/debug/ret_bug_label.ti59 479 1
 partition 479 0
@@ -18809,7 +18744,6 @@ enc0 A: Start
 module -
 printer -
 model -
-skipReset 0
 END
 STATE examples/debug/ret_bug_repo_2levels.ti59 479 0
 partition 479 0
@@ -18878,7 +18812,6 @@ enc0 A: Press R/S
 module -
 printer 1
 model -
-skipReset 0
 END
 STATE examples/debug/ret_bug_repo_2levels.ti59 959 0
 partition 479 0
@@ -18947,7 +18880,6 @@ enc0 A: Press R/S
 module -
 printer 1
 model -
-skipReset 0
 END
 STATE examples/debug/ret_bug_repo_2levels.ti59 479 1
 partition 479 0
@@ -19016,7 +18948,6 @@ enc0 A: Press R/S
 module -
 printer 1
 model -
-skipReset 0
 END
 STATE examples/debug/selftest-speed-check.ti59 479 0
 partition 479 0
@@ -19036,7 +18967,6 @@ reportElapseTime
 module ML
 printer -
 model TI-59
-skipReset 0
 END
 STATE examples/debug/selftest-speed-check.ti59 959 0
 partition 479 0
@@ -19056,7 +18986,6 @@ reportElapseTime
 module ML
 printer -
 model TI-59
-skipReset 0
 END
 STATE examples/debug/selftest-speed-check.ti59 479 1
 partition 479 0
@@ -19076,7 +19005,6 @@ reportElapseTime
 module ML
 printer -
 model TI-59
-skipReset 0
 END
 STATE examples/debug/test-cuecard.ti59 479 0
 partition 479 0
@@ -19123,7 +19051,6 @@ enc0 C: discriminant
 module -
 printer -
 model -
-skipReset 0
 END
 STATE examples/debug/test-cuecard.ti59 959 0
 partition 479 0
@@ -19170,7 +19097,6 @@ enc0 C: discriminant
 module -
 printer -
 model -
-skipReset 0
 END
 STATE examples/debug/test-cuecard.ti59 479 1
 partition 479 0
@@ -19217,7 +19143,6 @@ enc0 C: discriminant
 module -
 printer -
 model -
-skipReset 0
 END
 STATE examples/debug/test-magnetcard.ti59 479 0
 partition 479 0
@@ -19272,7 +19197,6 @@ enc0 E: Interest
 module -
 printer -
 model -
-skipReset 0
 END
 STATE examples/debug/test-magnetcard.ti59 959 0
 partition 479 0
@@ -19327,7 +19251,6 @@ enc0 E: Interest
 module -
 printer -
 model -
-skipReset 0
 END
 STATE examples/debug/test-magnetcard.ti59 479 1
 partition 479 0
@@ -19382,7 +19305,6 @@ enc0 E: Interest
 module -
 printer -
 model -
-skipReset 0
 END
 STATE examples/debug/test-solidstate.ti59 479 0
 partition 479 0
@@ -19426,7 +19348,6 @@ enc0 Row2RAlign: right
 module -
 printer -
 model -
-skipReset 0
 END
 STATE examples/debug/test-solidstate.ti59 959 0
 partition 479 0
@@ -19470,7 +19391,6 @@ enc0 Row2RAlign: right
 module -
 printer -
 model -
-skipReset 0
 END
 STATE examples/debug/test-solidstate.ti59 479 1
 partition 479 0
@@ -19514,7 +19434,6 @@ enc0 Row2RAlign: right
 module -
 printer -
 model -
-skipReset 0
 END
 STATE examples/diag.ti58 479 0
 partition 239 1
@@ -19634,7 +19553,6 @@ enc0 E: EXECUTE
 module -
 printer 1
 model -
-skipReset 0
 END
 STATE examples/diag.ti58 959 0
 partition 239 1
@@ -19754,7 +19672,6 @@ enc0 E: EXECUTE
 module -
 printer 1
 model -
-skipReset 0
 END
 STATE examples/diag.ti58 479 1
 partition 239 1
@@ -19874,7 +19791,6 @@ enc0 E: EXECUTE
 module -
 printer 1
 model -
-skipReset 0
 END
 STATE examples/diag.ti59 479 0
 partition 479 1
@@ -20235,7 +20151,6 @@ enc0 E: EXECUTE
 module -
 printer 1
 model -
-skipReset 0
 END
 STATE examples/diag.ti59 959 0
 partition 479 1
@@ -20596,7 +20511,6 @@ enc0 E: EXECUTE
 module -
 printer 1
 model -
-skipReset 0
 END
 STATE examples/diag.ti59 479 1
 partition 479 1
@@ -20957,7 +20871,6 @@ enc0 E: EXECUTE
 module -
 printer 1
 model -
-skipReset 0
 END
 STATE examples/fastmode-sst.ti59 479 0
 partition 479 0
@@ -21007,7 +20920,6 @@ key 42
 module -
 printer -
 model TI-59
-skipReset 0
 END
 STATE examples/fastmode-sst.ti59 959 0
 partition 479 0
@@ -21057,7 +20969,6 @@ key 42
 module -
 printer -
 model TI-59
-skipReset 0
 END
 STATE examples/fastmode-sst.ti59 479 1
 partition 479 0
@@ -21107,7 +21018,6 @@ key 42
 module -
 printer -
 model TI-59
-skipReset 0
 END
 STATE examples/fastmode.ti58 479 0
 partition 319 1
@@ -21150,7 +21060,6 @@ step 319 86
 module -
 printer -
 model -
-skipReset 0
 END
 STATE examples/fastmode.ti58 959 0
 partition 319 1
@@ -21193,7 +21102,6 @@ step 319 86
 module -
 printer -
 model -
-skipReset 0
 END
 STATE examples/fastmode.ti58 479 1
 partition 319 1
@@ -21236,7 +21144,6 @@ step 319 86
 module -
 printer -
 model -
-skipReset 0
 END
 STATE examples/fastmode.ti59 479 0
 partition 319 1
@@ -21279,7 +21186,6 @@ step 319 86
 module -
 printer -
 model -
-skipReset 0
 END
 STATE examples/fastmode.ti59 959 0
 partition 319 1
@@ -21322,7 +21228,6 @@ step 319 86
 module -
 printer -
 model -
-skipReset 0
 END
 STATE examples/fastmode.ti59 479 1
 partition 319 1
@@ -21365,7 +21270,6 @@ step 319 86
 module -
 printer -
 model -
-skipReset 0
 END
 STATE examples/firmware.ti59 479 0
 partition 479 0
@@ -21398,7 +21302,6 @@ key 31
 module -
 printer -
 model -
-skipReset 0
 END
 STATE examples/firmware.ti59 959 0
 partition 479 0
@@ -21431,7 +21334,6 @@ key 31
 module -
 printer -
 model -
-skipReset 0
 END
 STATE examples/firmware.ti59 479 1
 partition 479 0
@@ -21464,7 +21366,6 @@ key 31
 module -
 printer -
 model -
-skipReset 0
 END
 STATE examples/keycodes.ti59 479 0
 partition 479 0
@@ -21543,7 +21444,6 @@ enc0 A: PRINT
 module -
 printer 1
 model -
-skipReset 0
 END
 STATE examples/keycodes.ti59 959 0
 partition 479 0
@@ -21622,7 +21522,6 @@ enc0 A: PRINT
 module -
 printer 1
 model -
-skipReset 0
 END
 STATE examples/keycodes.ti59 479 1
 partition 479 0
@@ -21701,7 +21600,6 @@ enc0 A: PRINT
 module -
 printer 1
 model -
-skipReset 0
 END
 STATE examples/printer-interrupt.ti59 479 0
 partition 479 0
@@ -21762,7 +21660,6 @@ key 91
 module -
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/printer-interrupt.ti59 959 0
 partition 479 0
@@ -21823,7 +21720,6 @@ key 91
 module -
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/printer-interrupt.ti59 479 1
 partition 479 0
@@ -21884,7 +21780,6 @@ key 91
 module -
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/printer-quirks.ti59 479 0
 partition 479 0
@@ -22082,7 +21977,6 @@ key 11
 module ML
 printer 1
 model -
-skipReset 0
 END
 STATE examples/printer-quirks.ti59 959 0
 partition 479 0
@@ -22280,7 +22174,6 @@ key 11
 module ML
 printer 1
 model -
-skipReset 0
 END
 STATE examples/printer-quirks.ti59 479 1
 partition 479 0
@@ -22478,7 +22371,6 @@ key 11
 module ML
 printer 1
 model -
-skipReset 0
 END
 STATE examples/ram_test.ti59 479 0
 partition 479 0
@@ -22637,7 +22529,6 @@ step 151 8
 module -
 printer 1
 model -
-skipReset 0
 END
 STATE examples/ram_test.ti59 959 0
 partition 479 0
@@ -22796,7 +22687,6 @@ step 151 8
 module -
 printer 1
 model -
-skipReset 0
 END
 STATE examples/ram_test.ti59 479 1
 partition 479 0
@@ -22955,7 +22845,6 @@ step 151 8
 module -
 printer 1
 model -
-skipReset 0
 END
 STATE examples/ram_test_full_fast.ti59 479 0
 partition 159 1
@@ -23122,7 +23011,6 @@ step 159 86
 module -
 printer 1
 model -
-skipReset 0
 END
 STATE examples/ram_test_full_fast.ti59 959 0
 partition 159 1
@@ -23289,7 +23177,6 @@ step 159 86
 module -
 printer 1
 model -
-skipReset 0
 END
 STATE examples/ram_test_full_fast.ti59 479 1
 partition 159 1
@@ -23456,7 +23343,6 @@ step 159 86
 module -
 printer 1
 model -
-skipReset 0
 END
 STATE examples/repartition.ti58c 479 0
 partition 239 1
@@ -23496,7 +23382,6 @@ key 31
 module -
 printer -
 model -
-skipReset 0
 END
 STATE examples/repartition.ti58c 959 0
 partition 239 1
@@ -23536,7 +23421,6 @@ key 31
 module -
 printer -
 model -
-skipReset 0
 END
 STATE examples/repartition.ti58c 479 1
 partition 239 1
@@ -23576,7 +23460,6 @@ key 31
 module -
 printer -
 model -
-skipReset 0
 END
 STATE examples/screentest/test_58c_display.ti58c 479 0
 partition 479 0
@@ -23636,7 +23519,6 @@ enc0 PencilColor: sharpie
 module -
 printer -
 model TI-58C
-skipReset 0
 END
 STATE examples/screentest/test_58c_display.ti58c 959 0
 partition 479 0
@@ -23696,7 +23578,6 @@ enc0 PencilColor: sharpie
 module -
 printer -
 model TI-58C
-skipReset 0
 END
 STATE examples/screentest/test_58c_display.ti58c 479 1
 partition 479 0
@@ -23756,103 +23637,6 @@ enc0 PencilColor: sharpie
 module -
 printer -
 model TI-58C
-skipReset 0
-END
-STATE examples/screentest/test_cdebug_1.ti59 479 0
-partition 479 0
-key 21
-key 31
-key 92
-key 82
-key 71
-fullSpeed
-key 95
-regularSpeed
-toggleTrace
-key 21
-key 84
-key 65
-key 72
-key 95
-toggleTrace
-module LE
-printer 1
-model TI-59
-skipReset 0
-END
-STATE examples/screentest/test_cdebug_1.ti59 959 0
-partition 479 0
-key 21
-key 31
-key 92
-key 82
-key 71
-fullSpeed
-key 95
-regularSpeed
-toggleTrace
-key 21
-key 84
-key 65
-key 72
-key 95
-toggleTrace
-module LE
-printer 1
-model TI-59
-skipReset 0
-END
-STATE examples/screentest/test_cdebug_1.ti59 479 1
-partition 479 0
-key 21
-key 31
-key 92
-key 82
-key 71
-fullSpeed
-key 95
-regularSpeed
-toggleTrace
-key 21
-key 84
-key 65
-key 72
-key 95
-toggleTrace
-module LE
-printer 1
-model TI-59
-skipReset 0
-END
-STATE examples/screentest/test_cdebug_2.ti59 479 0
-partition 479 0
-key 71
-key 95
-wait 1.5
-module -
-printer -
-model -
-skipReset 1
-END
-STATE examples/screentest/test_cdebug_2.ti59 959 0
-partition 479 0
-key 71
-key 95
-wait 1.5
-module -
-printer -
-model -
-skipReset 1
-END
-STATE examples/screentest/test_cdebug_2.ti59 479 1
-partition 479 0
-key 71
-key 95
-wait 1.5
-module -
-printer -
-model -
-skipReset 1
 END
 STATE examples/screentest/test_diag.ti59 479 0
 partition 479 1
@@ -24215,7 +23999,6 @@ enc0 E: EXECUTE
 module -
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/screentest/test_diag.ti59 959 0
 partition 479 1
@@ -24578,7 +24361,6 @@ enc0 E: EXECUTE
 module -
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/screentest/test_diag.ti59 479 1
 partition 479 1
@@ -24941,7 +24723,6 @@ enc0 E: EXECUTE
 module -
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/screentest/test_texas.ti59 479 0
 partition 959 1
@@ -25799,7 +25580,6 @@ enc0 Row2Align: center
 module ML
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/screentest/test_texas.ti59 959 0
 partition 959 1
@@ -26657,7 +26437,6 @@ enc0 Row2Align: center
 module ML
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/screentest/test_texas.ti59 479 1
 partition 959 1
@@ -27515,7 +27294,6 @@ enc0 Row2Align: center
 module ML
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/stars-and-stripes.ti59 479 0
 partition 479 0
@@ -27730,7 +27508,6 @@ enc0 E: Instructions
 module ML
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/stars-and-stripes.ti59 959 0
 partition 479 0
@@ -27945,7 +27722,6 @@ enc0 E: Instructions
 module ML
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/stars-and-stripes.ti59 479 1
 partition 479 0
@@ -28160,7 +27936,6 @@ enc0 E: Instructions
 module ML
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/sum.ti59 479 0
 partition 479 0
@@ -28216,7 +27991,6 @@ enc0 A: Sum
 module -
 printer -
 model -
-skipReset 0
 END
 STATE examples/sum.ti59 959 0
 partition 479 0
@@ -28272,7 +28046,6 @@ enc0 A: Sum
 module -
 printer -
 model -
-skipReset 0
 END
 STATE examples/sum.ti59 479 1
 partition 479 0
@@ -28328,7 +28101,6 @@ enc0 A: Sum
 module -
 printer -
 model -
-skipReset 0
 END
 STATE examples/switzerland.ti59 479 0
 partition 159 1
@@ -28523,7 +28295,6 @@ key 91
 module -
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/switzerland.ti59 959 0
 partition 159 1
@@ -28718,7 +28489,6 @@ key 91
 module -
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/switzerland.ti59 479 1
 partition 159 1
@@ -28913,7 +28683,6 @@ key 91
 module -
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/texas-print.ti59 479 0
 partition 959 1
@@ -29771,7 +29540,6 @@ enc0 Row2Align: center
 module ML
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/texas-print.ti59 959 0
 partition 959 1
@@ -30629,7 +30397,6 @@ enc0 Row2Align: center
 module ML
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/texas-print.ti59 479 1
 partition 959 1
@@ -31487,7 +31254,6 @@ enc0 Row2Align: center
 module ML
 printer 1
 model TI-59
-skipReset 0
 END
 STATE examples/trace-quirk.ti59 479 0
 partition 479 0
@@ -31549,7 +31315,6 @@ enc0 Row1: From Magatzine "TI PPC NOTES", V6N4-5P17, 1981
 module -
 printer 1
 model TI-58
-skipReset 0
 END
 STATE examples/trace-quirk.ti59 959 0
 partition 479 0
@@ -31611,7 +31376,6 @@ enc0 Row1: From Magatzine "TI PPC NOTES", V6N4-5P17, 1981
 module -
 printer 1
 model TI-58
-skipReset 0
 END
 STATE examples/trace-quirk.ti59 479 1
 partition 479 0
@@ -31673,7 +31437,6 @@ enc0 Row1: From Magatzine "TI PPC NOTES", V6N4-5P17, 1981
 module -
 printer 1
 model TI-58
-skipReset 0
 END
 CARD tests/fixtures/cards/bad-bank.u59
 nil
@@ -31750,7 +31513,6 @@ enc Banks: , 3
 module -
 printer -
 model -
-skipReset 0
 END
 STATE tests/fixtures/statefiles/bad-partition.ti58 959 0
 partition 479 1
@@ -31784,7 +31546,6 @@ enc Banks: , 3
 module -
 printer -
 model -
-skipReset 0
 END
 STATE tests/fixtures/statefiles/bad-partition.ti58 479 1
 partition 479 1
@@ -31818,7 +31579,6 @@ enc Banks: , 3
 module -
 printer -
 model -
-skipReset 0
 END
 STATE tests/fixtures/statefiles/edge-cases.ti59 479 0
 partition 239 1
@@ -31853,7 +31613,7 @@ fullSpeed
 regularSpeed
 zeroElapseTime
 reportElapseTime
-toggleTrace
+printerTrace on
 key 11
 trace -
 cue template MagnetCard
@@ -31905,7 +31665,6 @@ enc0 PencilColor: pencil
 module ST
 printer 1
 model TI-59
-skipReset 0
 error Cannot parse register 07 value: "nonsense"
 error Extra register H00 is only valid for TI-58C files.
 error Cannot parse register 08 value: "2 = 3"
@@ -31945,7 +31704,7 @@ fullSpeed
 regularSpeed
 zeroElapseTime
 reportElapseTime
-toggleTrace
+printerTrace on
 key 11
 trace -
 cue template MagnetCard
@@ -31997,7 +31756,6 @@ enc0 PencilColor: pencil
 module ST
 printer 1
 model TI-59
-skipReset 0
 error Cannot parse register 07 value: "nonsense"
 error Extra register H00 is only valid for TI-58C files.
 error Cannot parse register 08 value: "2 = 3"
@@ -32038,7 +31796,7 @@ fullSpeed
 regularSpeed
 zeroElapseTime
 reportElapseTime
-toggleTrace
+printerTrace on
 key 11
 trace -
 cue template MagnetCard
@@ -32090,7 +31848,6 @@ enc0 PencilColor: pencil
 module ST
 printer 1
 model TI-59
-skipReset 0
 error Cannot parse register 07 value: "nonsense"
 error Cannot parse register 08 value: "2 = 3"
 error Trace: requires a filename or "Off".
@@ -32102,7 +31859,6 @@ reg 59 0 0000000000000052
 module -
 printer -
 model TI-58C
-skipReset 1
 error Extra register H03 is only valid for TI-58C files.
 error Unknown MODEL: 'TI-57' — expected TI-59, TI-58, TI-58C
 END
@@ -32112,7 +31868,6 @@ reg 59 0 0000000000000052
 module -
 printer -
 model TI-58C
-skipReset 1
 error Extra register H03 is only valid for TI-58C files.
 error Unknown MODEL: 'TI-57' — expected TI-59, TI-58, TI-58C
 END
@@ -32123,7 +31878,6 @@ reg 59 0 0000000000000052
 module -
 printer -
 model TI-58C
-skipReset 1
 error Unknown MODEL: 'TI-57' — expected TI-59, TI-58, TI-58C
 END
 BCDT [0] 0000000000000000

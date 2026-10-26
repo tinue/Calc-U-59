@@ -22,10 +22,6 @@ std::optional<std::string> stateFilePartitionError(const LoadStateResult& r, Mod
 /// registers. Run on the emulation thread with the run loop stopped.
 void applyState(TI59Machine& m, const LoadStateResult& r, Model model);
 
-/// SKIP-RESET load: the partition only if the file sets it explicitly, the
-/// program only if it has one, and the registers — nothing else is touched.
-void applySkipResetState(TI59Machine& m, const LoadStateResult& r, Model model);
-
 /// A reload during KEYSTROKES playback, as if the user keyed the changes in:
 /// the partition if the stage sets one, then only the listed program steps
 /// and registers — everything else stays.

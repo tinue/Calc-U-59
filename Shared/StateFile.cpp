@@ -80,22 +80,22 @@ void parseRegLine(std::string_view line, bool allowHidden, std::vector<RegisterV
     out.push_back({regNum, encodeBcd(val), isHidden});
 }
 
-/// Matrix codes 11–95 → Key, 99 → ToggleTrace; everything else ignored.
-void parseKeystrokeLine(std::string_view line, std::vector<KeystrokeEvent>& out) {
+/// Matrix codes 11–95 → Key; everything else ignored. 99, once the virtual
+/// TRACE key, is an error.
+void parseKeystrokeLine(std::string_view line, LoadStateResult& r) {
     for (auto t : splitWhitespace(line)) {
         if (charCount(t) > 2) continue;
         auto n = parseDec(t);
         if (!n) continue;
-        KeystrokeEvent e;
         if (*n == 99) {
-            e.kind = KeystrokeEvent::Kind::ToggleTrace;
-        } else if (*n >= 11 && *n <= 95) {
-            e.kind = KeystrokeEvent::Kind::Key;
-            e.code = static_cast<uint8_t>(*n);
-        } else {
+            r.errors.push_back("Key 99 no longer toggles the printer's TRACE: use PrinterTrace: on / PrinterTrace: off.");
             continue;
         }
-        out.push_back(e);
+        if (*n < 11 || *n > 95) continue;
+        KeystrokeEvent e;
+        e.kind = KeystrokeEvent::Kind::Key;
+        e.code = static_cast<uint8_t>(*n);
+        r.keystrokes.push_back(e);
     }
 }
 
@@ -219,6 +219,86 @@ std::shared_ptr<CardDefinition> finishCard(std::shared_ptr<CardDefinition> card,
 /// The part of a memory card's name after "mem:".
 std::string_view memoryCardKey(std::string_view name) { return name.substr(4); }
 
+/// The GUI-control directives (PrinterTrace:, CutPaper:, DebugPanel:, Freeze:,
+/// FreezeOnStart:, Step:, Resume:). nullopt: not one of them; a Key event: one
+/// of them, but its value was wrong (the error is recorded).
+std::optional<KeystrokeEvent> parseControl(std::string_view line, std::string_view upper,
+                                           std::vector<std::string>& errors) {
+    using K = KeystrokeEvent::Kind;
+    static const std::pair<const char*, K> kWords[] = {
+        {"PRINTERTRACE:", K::PrinterTrace}, {"CUTPAPER:", K::CutPaper}, {"DEBUGPANEL:", K::ShowPanel},
+        {"FREEZEONSTART:", K::FreezeOnStart}, {"FREEZE:", K::Freeze}, {"STEP:", K::Step}, {"RESUME:", K::Resume},
+    };
+    const char* word = nullptr;
+    K kind = K::Key;
+    for (const auto& [w, k] : kWords)
+        if (startsWith(upper, w)) { word = w; kind = k; break; }
+    if (!word) return std::nullopt;
+    KeystrokeEvent e = simple(kind);
+    KeystrokeEvent bad;  // kind Key: dropped by the caller
+    const std::string name(line.substr(0, std::string_view(word).size()));
+    auto args = splitWhitespace(line.substr(std::string_view(word).size()));
+    auto fail = [&](const std::string& what) {
+        errors.push_back("\"" + std::string(line) + "\": " + name + " " + what);
+        return bad;
+    };
+    // A panel name: Calculator, CPU or (DebugPanel: only) Log.
+    auto panel = [&](std::string_view arg, bool allowLog) -> std::optional<DebugPanel> {
+        std::string v = toLower(arg);
+        if (v == "calculator") return DebugPanel::Calculator;
+        if (v == "cpu") return DebugPanel::Cpu;
+        if (allowLog && v == "log") return DebugPanel::Log;
+        return std::nullopt;
+    };
+    switch (kind) {
+    case K::PrinterTrace: {
+        std::string v = args.size() == 1 ? toLower(args[0]) : "";
+        if (v != "on" && v != "off") return fail("needs on or off.");
+        e.on = v == "on";
+        return e;
+    }
+    case K::CutPaper:
+    case K::Resume:
+        if (!args.empty()) return fail("takes no value.");
+        return e;
+    case K::ShowPanel: {
+        auto p = args.size() == 1 ? panel(args[0], true) : std::nullopt;
+        if (!p) return fail("needs Calculator, CPU or Log.");
+        e.panel = *p;
+        return e;
+    }
+    case K::Freeze: {
+        auto p = args.size() == 1 ? panel(args[0], false) : std::nullopt;
+        if (!p) return fail("needs Calculator or CPU.");
+        e.panel = *p;
+        return e;
+    }
+    case K::FreezeOnStart: {
+        if (args.size() == 1 && toLower(args[0]) == "off") {
+            e.on = false;
+            return e;
+        }
+        auto p = args.size() == 1 ? panel(args[0], false) : std::nullopt;
+        if (!p) return fail("needs Calculator, CPU or Off.");
+        e.panel = *p;
+        return e;
+    }
+    case K::Step: {
+        auto p = !args.empty() && args.size() <= 2 ? panel(args[0], false) : std::nullopt;
+        if (!p) return fail("needs Calculator or CPU, and optionally a count.");
+        e.panel = *p;
+        if (args.size() == 2) {
+            auto n = parseDec(args[1]);
+            if (!n || *n < 1 || *n > 100000) return fail("count must be 1–100000.");
+            e.count = static_cast<int>(*n);
+        }
+        return e;
+    }
+    default:
+        return std::nullopt;
+    }
+}
+
 } // namespace
 
 bool isMemoryCardName(std::string_view name) { return name.size() >= 4 && toLower(name.substr(0, 4)) == "mem:"; }
@@ -279,7 +359,11 @@ LoadStateResult parseStateFile(std::string_view text, int maxStepAddr, bool allo
             continue;
         }
         if (startsWith(upper, "PRINTER:")) { r.printerConnected = isOn(line.substr(8)); continue; }
-        if (startsWith(upper, "SKIP-RESET:")) { r.skipReset = isOn(line.substr(11)); continue; }
+        if (startsWith(upper, "SKIP-RESET:")) {
+            r.errors.push_back("SKIP-RESET: no longer exists: put the second file's sections after the first file's "
+                               "KEYSTROKES: (a reload), in one file. This file loads with a reset.");
+            continue;
+        }
         if (startsWith(upper, "MODEL:")) {
             std::string val = toUpper(trim(line.substr(6)));
             if (auto m = modelFromName(val)) {
@@ -421,13 +505,15 @@ LoadStateResult parseStateFile(std::string_view text, int maxStepAddr, bool allo
                 parseCardDirective(line, 8, KeystrokeEvent::Kind::ArmCard, r);
             } else if (startsWith(upper, "INSERTCARD:")) {
                 parseCardDirective(line, 11, KeystrokeEvent::Kind::InsertCard, r);
+            } else if (auto control = parseControl(line, upper, r.errors)) {
+                if (control->kind != KeystrokeEvent::Kind::Key) r.keystrokes.push_back(*control);
             } else if (startsWith(upper, "WAITFULLSPEED:")) {
                 r.errors.push_back("WaitFullSpeed: no longer exists: put FullSpeed: before the key that starts the "
                                    "program; playback waits until it stops, and the script ends at regular speed.");
             } else if (isDirectiveLine(line)) {
                 r.errors.push_back("Unknown KEYSTROKES directive: \"" + std::string(line) + "\"");
             } else {
-                parseKeystrokeLine(line, r.keystrokes);
+                parseKeystrokeLine(line, r);
             }
             break;
         case Section::CueCard:
@@ -448,18 +534,13 @@ LoadStateResult parseStateFile(std::string_view text, int maxStepAddr, bool allo
     return r;
 }
 
-StateFilePrescan prescanStateFile(std::string_view text, Model current) {
-    StateFilePrescan p{false, current};
+Model stateFileModel(std::string_view text, Model current) {
+    Model model = current;
     for (std::string_view raw : splitLines(text)) {
         std::string_view line = stripInlineComment(raw);
-        std::string upper = toUpper(line);
-        if (startsWith(upper, "SKIP-RESET:")) {
-            p.skipReset = isOn(line.substr(11));
-        } else if (!p.skipReset && startsWith(upper, "MODEL:")) {
-            p.targetModel = modelFromName(line.substr(6)).value_or(current);
-        }
+        if (startsWith(toUpper(line), "MODEL:")) model = modelFromName(line.substr(6)).value_or(current);
     }
-    return p;
+    return model;
 }
 
 } // namespace cu59

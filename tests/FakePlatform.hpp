@@ -31,6 +31,8 @@ struct FakePlatform : cu59::SessionController::Platform {
     std::optional<std::string> readConstantMemory() override { return mem; }
     void writeConstantMemory(const std::string& text) override { mem = text; ++memWrites; }
     bool writeCard(const std::string& path, const std::string& text) override { cards[path] = text; return true; }
+    std::vector<cu59::DebugPanel> panels;  ///< DebugPanel: requests
+    void showDebugPanel(cu59::DebugPanel panel) override { panels.push_back(panel); }
     /// The card folder is `cards`, keyed by "cards/<file name>".
     CardFileRef cardFile(const std::string& fileName) override {
         std::string path = "cards/" + fileName;

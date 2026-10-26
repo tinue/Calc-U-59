@@ -59,6 +59,9 @@ DebugPanel::DebugPanel(EmulatorController& controller, QWidget* parent) : QWidge
         m_tabs[0]->setEnabled(!active);
         if (active) select(1);
     });
+    connect(&m_controller, &EmulatorController::debugPanelRequested, this, [this](int tab) {
+        if (tab != 0 || !m_controller.asmOverlayActive()) select(tab);
+    });
     select(0);
 }
 

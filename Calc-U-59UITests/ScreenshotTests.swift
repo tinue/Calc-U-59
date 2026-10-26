@@ -272,19 +272,16 @@ final class ScreenshotTests: XCTestCase {
     /// calculator (iPad, iPhone Duo opened flat), else iPhone portrait.
     ///
     /// Side by side (landscape): debug panel is visible alongside the calculator; no panel navigation needed.
-    /// iPhone (portrait): navigate left to debug panel to arm freeze, then right back to calculator,
-    ///                    load the second file, then navigate left again for the screenshot.
+    /// iPhone (portrait): after the playback, navigate left to the debug panel for the screenshot.
     ///
     /// Sequence:
-    ///   1. Load test_cdebug_1.ti59 (sets up module, runs program, prints trace)
+    ///   1. Load test_cdebug.ti59: it sets up the module, runs the program, prints
+    ///      the trace, then arms FREEZE ON START itself (KEYSTROKES FreezeOnStart:)
+    ///      and re-enters the program with SBR =, so the calculator freezes
     ///   2. [iPhone] Navigate left to debug panel
-    ///   3. Arm FREEZE ON START (btn-freeze-on-start)
-    ///   4. [iPhone] Navigate right back to calculator
-    ///   5. Load test_cdebug_2.ti59 (SKIP-RESET; SBR= re-enters program; freeze fires)
-    ///   6. [iPhone] Navigate left to debug panel
-    ///   7. Capture screenshot
+    ///   3. Capture screenshot
     ///
-    /// Both files must be present on the device — run bin/setup-simulator-state-files first.
+    /// The file must be present on the device — run bin/setup-simulator-state-files first.
     func testScreenshotCalcDebugger() throws {
         // Try landscape; a plain iPhone stays in portrait (page arrows), so
         // relaunch it upright for the paged flow and an unrotated screenshot.
@@ -303,52 +300,20 @@ final class ScreenshotTests: XCTestCase {
         let playing = NSPredicate(format: "value == 'playing'")
         let idle    = NSPredicate(format: "value == 'idle'")
 
-        // Step 1: load test_cdebug_1.ti59
+        // Step 1: load test_cdebug.ti59
         presetButton.tap()
-        navigateToOnMyIPhone(app, targetFile: "test_cdebug_1.ti59")
-        let startCell = app.cells.containing(.staticText, identifier: "test_cdebug_1.ti59").firstMatch
-        XCTAssertTrue(startCell.waitForExistence(timeout: 5), "test_cdebug_1.ti59 not found")
-        let step1Playing = XCTNSPredicateExpectation(predicate: playing, object: statusEl)
-        startCell.tap()
-        XCTAssertEqual(XCTWaiter.wait(for: [step1Playing], timeout: 8), .completed,
-                       "test_cdebug_1.ti59 did not load")
-        let step1Idle = XCTNSPredicateExpectation(predicate: idle, object: statusEl)
-        XCTAssertEqual(XCTWaiter.wait(for: [step1Idle], timeout: 30), .completed,
-                       "test_cdebug_1.ti59 keystrokes did not complete")
+        navigateToOnMyIPhone(app, targetFile: "test_cdebug.ti59")
+        let cell = app.cells.containing(.staticText, identifier: "test_cdebug.ti59").firstMatch
+        XCTAssertTrue(cell.waitForExistence(timeout: 5), "test_cdebug.ti59 not found")
+        let started = XCTNSPredicateExpectation(predicate: playing, object: statusEl)
+        cell.tap()
+        XCTAssertEqual(XCTWaiter.wait(for: [started], timeout: 8), .completed,
+                       "test_cdebug.ti59 did not load")
+        let finished = XCTNSPredicateExpectation(predicate: idle, object: statusEl)
+        XCTAssertEqual(XCTWaiter.wait(for: [finished], timeout: 40), .completed,
+                       "test_cdebug.ti59 keystrokes did not complete")
 
-        // Step 2 (iPhone): navigate left to debug panel
-        if !isPad {
-            let left = app.buttons["btn-page-left"]
-            XCTAssertTrue(left.waitForExistence(timeout: 3), "btn-page-left not found")
-            left.tap()
-        }
-
-        // Step 3: arm FREEZE ON START
-        let freezeButton = app.buttons["btn-freeze-on-start"]
-        XCTAssertTrue(freezeButton.waitForExistence(timeout: 3), "FREEZE ON START button not found")
-        freezeButton.tap()
-
-        // Step 4 (iPhone): navigate right back to calculator
-        if !isPad {
-            let right = app.buttons["btn-page-right"]
-            XCTAssertTrue(right.waitForExistence(timeout: 3), "btn-page-right not found")
-            right.tap()
-        }
-
-        // Step 5: load test_cdebug_2.ti59 (SKIP-RESET; SBR= triggers freeze)
-        presetButton.tap()
-        navigateToOnMyIPhone(app, targetFile: "test_cdebug_2.ti59")
-        let runCell = app.cells.containing(.staticText, identifier: "test_cdebug_2.ti59").firstMatch
-        XCTAssertTrue(runCell.waitForExistence(timeout: 5), "test_cdebug_2.ti59 not found")
-        let step2Playing = XCTNSPredicateExpectation(predicate: playing, object: statusEl)
-        runCell.tap()
-        XCTAssertEqual(XCTWaiter.wait(for: [step2Playing], timeout: 8), .completed,
-                       "test_cdebug_2.ti59 did not load")
-        let step2Idle = XCTNSPredicateExpectation(predicate: idle, object: statusEl)
-        XCTAssertEqual(XCTWaiter.wait(for: [step2Idle], timeout: 10), .completed,
-                       "test_cdebug_2.ti59 keystrokes did not complete")
-
-        // Step 6 (iPhone): navigate left to debug panel for screenshot
+        // Step 2 (iPhone): navigate left to debug panel for screenshot
         if !isPad {
             let left = app.buttons["btn-page-left"]
             XCTAssertTrue(left.waitForExistence(timeout: 3), "btn-page-left not found")

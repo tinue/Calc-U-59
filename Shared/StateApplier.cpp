@@ -70,15 +70,6 @@ void applyState(TI59Machine& m, const LoadStateResult& r, Model model) {
     writeRegisters(m, r.registers);
 }
 
-// The running machine's data registers are kept: the program is padded only
-// to the end of the program area, as a program read from cards or keyed in
-// would be (examples/fast-grafik-3d-plot.ti59: part 2 needs part 1's registers).
-void applySkipResetState(TI59Machine& m, const LoadStateResult& r, Model model) {
-    if (r.partitionWasExplicit) setPartition(m, r.partitionMaxStep);
-    if (!r.programSteps.empty()) writeProgram(m, r.programSteps, model, m.partitionProgramRegs() * 8);
-    writeRegisters(m, r.registers);
-}
-
 // A reload is the user keying in changes: the listed steps and registers
 // change, nothing else (a card read, which replaces a whole bank, is CARD:).
 void applyReload(TI59Machine& m, const ReloadStage& stage, Model model) {

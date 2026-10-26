@@ -83,12 +83,13 @@ public:
         virtual void fullSpeedChanged(bool) {}
         virtual void playbackStarted() {}
         virtual void playbackFinished() {}
-        virtual void togglePrinterTrace() {}
         virtual void logLine(const std::string&) {}
         /// A scripted "Trace:" file could not be created.
         virtual void scriptedTraceFailed(const std::string& /*fileName*/) {}
         /// KEYSTROKES reached a reload; call hostDone() once it is applied.
         virtual void reloadRequested(const std::shared_ptr<const ReloadStage>&) {}
+        /// KEYSTROKES reached a GUI control; call hostDone() once it is done.
+        virtual void controlRequested(const KeystrokeEvent&) {}
     };
 
     /// Build the machine from ROM text files: the model's ROM and constants
@@ -195,7 +196,6 @@ private:
     uint16_t pc() override { return m_machine->pc(); }
     bool isFrozen() override { return m_frozen.load(); }
     void heldKeyChanged(int id) override { m_listener.heldKeyChanged(id); }
-    void togglePrinterTrace() override { m_listener.togglePrinterTrace(); }
     void scriptedTrace(const std::optional<std::string>& fileName) override;
     void zeroElapseTime() override { m_elapseBaseline = m_machine->elapsedTicks(); }
     void onFreezeFired(FreezeOwner owner);       // emulation thread
@@ -207,6 +207,10 @@ private:
     void playbackFinished() override;
     void applyReload(const std::shared_ptr<const ReloadStage>& stage) override;
     void queueCard(const KeystrokeEvent& event) override;
+    void control(const KeystrokeEvent& event) override {
+        ++m_hostPending;
+        m_listener.controlRequested(event);
+    }
     bool hostPending() override { return m_hostPending.load() > 0; }
 
     const Model m_model;

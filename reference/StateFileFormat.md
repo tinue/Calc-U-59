@@ -27,15 +27,17 @@ point readers at the user guide, https://calc-u.org/59/.
 | `CARD: mem:name` … `END-CARD` | An in-memory magnetic card, see "CARD" |
 | `SOLID-STATE-MODULE: ID` | Insert a module: `ML ST RE SY NG AV LE SA BD MU EE SE AG RP` (`roms/solid-state/cuecards.txt`). Without the line the current module stays |
 | `PRINTER: on` | Connect the printer: `on`, `true` or `1`; anything else disconnects it. Without the line the printer setting stays |
-| `SKIP-RESET: on` | Load without a reset (`on`, `true` or `1`), see "SKIP-RESET" |
 
 - Keywords are case-insensitive. `PROGRAM:`, `REGISTERS:`, `KEYSTROKES:`,
   `CUECARD:`, `PARTITION:` and `CARD:` end the current section; lines after
   `PARTITION:` are ignored until the next section keyword. `MODEL:`,
-  `SOLID-STATE-MODULE:`, `PRINTER:` and `SKIP-RESET:` may stand anywhere,
+  `SOLID-STATE-MODULE:` and `PRINTER:` may stand anywhere,
   even inside a section.
 - `PROGRAM:`, `REGISTERS:`, `CUECARD:` and `PARTITION:` after a
   `KEYSTROKES:` section are a reload, played in turn ("Reloads").
+- `SKIP-RESET:` (up to 2.1: load into the running machine) is an error: put
+  the second file's sections after the first file's `KEYSTROKES:`. The file
+  loads with a reset.
 - `#` starts a comment, anywhere on a line. A value therefore cannot
   contain `#`, not even a cue-card title or a trace file name.
 - Errors (unknown model, bad register value, bad `Trace:` line, unknown
@@ -54,7 +56,7 @@ point readers at the user guide, https://calc-u.org/59/.
 - **Default when omitted:** TI-59 479 (480 steps, 60 data registers);
   TI-58/58C 239.
 - A value above the model's last step (479 on the TI-58/58C) aborts the
-  load, with or without `SKIP-RESET`.
+  load.
 
 ---
 
@@ -78,9 +80,9 @@ PROGRAM:
   label, even a number (`473 00 0`).
 - **Gap marker:** a line that is exactly `...` is skipped; the steps it
   stands for stay 00 until the next step number.
-- Steps not listed are 00. On a full load the program is written
-  zero-padded to the model's physical capacity, not to the partition;
-  under `SKIP-RESET` only to the end of the program area ("SKIP-RESET").
+- Steps not listed are 00. The program is written zero-padded to the
+  model's physical capacity, not to the partition. A reload is different:
+  it writes only the steps it lists ("Reloads").
 
 ---
 
@@ -246,9 +248,10 @@ Operand rules: `stepsAfter()` and `argumentSteps()` in `Shared/KeyNames.cpp`.
 ## KEYSTROKES Syntax
 
 Every token of 1–2 digits is one press and release: 11–95 a key (a code
-with no key, such as 16, presses nothing but still takes a press's time),
-99 the virtual key below; other numbers and words are ignored, so a line can
-carry a comment-like mnemonic. `21 31` on one line is two presses. A line
+with no key, such as 16, presses nothing but still takes a press's time);
+other numbers and words are ignored, so a line can carry a comment-like
+mnemonic. 99, up to 2.1 a virtual key that toggled the printer's TRACE, is
+an error: use `PrinterTrace:`. `21 31` on one line is two presses. A line
 that starts with `Word:` is a directive (below), never keys; an unknown
 one is an error.
 
@@ -263,7 +266,9 @@ Wait: 2s
 
 **Timing.** Each key is held 100 ms, then playback waits until the CPU is
 back in the keyboard scan loop, so no key is lost to a busy calculator
-(`Shared/KeySequencer`). While the debugger is frozen it doesn't wait.
+(`Shared/KeySequencer`). While the debugger is frozen, keys, reloads and
+`InsertCard:` wait until it runs again (a key pressed into a frozen machine
+would be lost); directives go on, so `Step:` and `Resume:` work.
 
 **Directives** (one per line, case-insensitive):
 
@@ -277,6 +282,7 @@ back in the keyboard scan loop, so no key is lost to a busy calculator
 | `ReportElapseTime:` | Log `Elapsed: m:ss.mmm` since the baseline (or reset) to the LOG tab |
 | `ArmCard: <card>` | Queue a card for the next card wait of `Write` / `INV Write`, see "Cards in KEYSTROKES" |
 | `InsertCard: <card>` | Insert a card once the calculator is idle; playback waits until it has passed |
+| `PrinterTrace: on` / `off`, `CutPaper:`, `DebugPanel:`, `Freeze:`, `FreezeOnStart:`, `Step:`, `Resume:` | The GUI's controls, see "Controls" |
 
 - `Trace:` takes the rest of the line as the file name, spaces included;
   `/` and `\` are errors. An existing file is overwritten. A new `Trace:`
@@ -293,11 +299,8 @@ back in the keyboard scan loop, so no key is lost to a busy calculator
 - **Adv (`21 93`) needs `RegularSpeed:`.** Adv repeats while held, gated by
   a CPU-step countdown, not real time: at full speed one 100 ms press feeds
   many lines. `Prt` (`21 94`) is unaffected.
-- **Virtual key 99** toggles the printer's TRACE latch (paper trace), not a
-  CPU trace.
 - A new load's KEYSTROKES queue behind a script still playing. A model
   switch or Reset cancels playback.
-- KEYSTROKES cannot freeze the debugger; a UI test has to press FREEZE.
 
 ```
 ZeroElapseTime:
@@ -306,6 +309,45 @@ FullSpeed:
 RegularSpeed:
 ReportElapseTime:
 ```
+
+---
+
+## Controls
+
+A script can operate the controls around the calculator, at the point in
+the script where they stand: the printer's TRACE switch, the paper, and the
+debugger's buttons. Before 2.2, a screenshot sequence needed a UI test to
+press them between two files. Playback waits until each control has taken
+effect.
+
+| Directive | Same as |
+|---|---|
+| `PrinterTrace: on` / `off` | Setting the PC-100's TRACE switch (the paper trace, not a CPU trace) |
+| `CutPaper:` | Cutting the printer paper |
+| `DebugPanel: Calculator` / `CPU` / `Log` | Clicking that tab of the debugger. On a paged layout (iPhone portrait) the page stays where it is; the web client without a debugger remembers it |
+| `Freeze: Calculator` / `CPU` | That panel's FREEZE (ignored if frozen already) |
+| `FreezeOnStart: Calculator` / `CPU` | That panel's FREEZE ON START: CALCULATOR freezes before the next program step, CPU when the keyboard scan loop exits |
+| `FreezeOnStart: Off` | Disarm both |
+| `Step: Calculator` / `CPU` [n] | That panel's STEP, n times (default 1): a keycode or an instruction. Ignored, with a LOG line, unless frozen |
+| `Resume:` | RESUME |
+
+```
+KEYSTROKES:
+PrinterTrace: on
+21 84 65 72 95          # π × 4 = — traced on the paper
+PrinterTrace: off
+DebugPanel: Calculator
+FreezeOnStart: Calculator
+71 95                   # SBR =: the debugger freezes at the program's first step
+```
+
+- The freeze directives name their panel. They don't depend on the tab
+  shown, which is the GUI's (`Platform::showDebugPanel`).
+- After a freeze, keys wait until the machine runs again: a `Resume:`, or
+  the user's RESUME. `Step:` and `Resume:` work while frozen. A script
+  that ends frozen stays frozen.
+- Example: `examples/screentest/test_cdebug.ti59`, the debugger screenshot
+  of the UI tests.
 
 ---
 
@@ -343,12 +385,11 @@ KEYSTROKES:
 - A reload's `PROGRAM:` starts at step 000 again.
 - A reload's partition above the model's last step is skipped, with a line
   in the LOG tab.
-- `MODEL:`, `SOLID-STATE-MODULE:`, `PRINTER:` and `SKIP-RESET:` belong to
-  the whole file, wherever they stand.
-- `SKIP-RESET` differs: it is a separate file loaded on top, and it pads
-  the program to the end of the program area ("SKIP-RESET").
+- `MODEL:`, `SOLID-STATE-MODULE:` and `PRINTER:` belong to the whole file,
+  wherever they stand.
 - Example: `examples/fast-grafik-3d-plot.ti59`. Part 2 is a reload after
-  part 1 stops. Up to 2.2 it was two files, the second with `SKIP-RESET`.
+  part 1 stops. Up to 2.1 it was two files, the second loaded with
+  `SKIP-RESET`, which reloads replace.
 
 ---
 
@@ -492,30 +533,9 @@ and `^{…}` / `_{…}` super- and subscripts. The table is `kMathTokens` in
 
 ---
 
-## SKIP-RESET
-
-`SKIP-RESET: on` loads into the running machine without a reset, e.g. the
-second file of a multi-file screenshot sequence. To change a program
-between runs within one file, use a reload ("Reloads"). Unlike this load, a
-reload writes only the steps it lists.
-
-| Section | Under SKIP-RESET |
-|---|---|
-| `PARTITION:` | Set only if given |
-| `PROGRAM:` | Written only if it has steps, zero-padded to the end of the program area (the partition, or the last listed step if that is beyond it); the data registers are kept |
-| `REGISTERS:` | The listed registers are written |
-| `CUECARD:` | Replaces the card if present |
-| `KEYSTROKES:` | Played |
-| `MODEL:`, `SOLID-STATE-MODULE:`, `PRINTER:` | Ignored, with a line in the LOG tab |
-
-The printer paper is not cut (the strip continues), a debugger freeze is
-released, and the TI-58C saves its memory as after a full load.
-
----
-
 ## What a load does
 
-Without `SKIP-RESET`, in this order (code: `SessionController::loadStateFile`,
+In this order (code: `SessionController::loadStateFile`,
 `Shared/StateApplier.cpp`):
 
 1. `MODEL:` switches the machine if it names another model.

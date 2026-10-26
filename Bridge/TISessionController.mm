@@ -178,6 +178,7 @@ struct PlatformAdapter : cu59::SessionController::Platform {
     bool writeCard(const std::string& path, const std::string& text) override {
         return [platform writeCard:ns(text) toPath:ns(path)] == YES;
     }
+    void showDebugPanel(cu59::DebugPanel panel) override { [platform showDebugPanel:static_cast<NSInteger>(panel)]; }
     CardFileRef cardFile(const std::string& fileName) override {
         NSString* path = [platform cardFilePath:ns(fileName)];
         NSData* data = [NSData dataWithContentsOfFile:path];

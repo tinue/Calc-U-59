@@ -47,8 +47,8 @@ struct SessionController::Events : EmulatorSession::Listener {
     void reloadRequested(const std::shared_ptr<const ReloadStage>& stage) override {
         c.onUi(generation, [&c = c, stage] { c.applyReloadStage(*stage); });
     }
-    void togglePrinterTrace() override {
-        c.onUi(generation, [&c = c] { c.togglePrinterTrace(); });
+    void controlRequested(const KeystrokeEvent& event) override {
+        c.onUi(generation, [&c = c, event] { c.applyControl(event); });
     }
     void logLine(const std::string& line) override {
         c.onUi(generation, [&c = c, line] { c.log({line}); });
@@ -505,9 +505,8 @@ void SessionController::loadStateFile(const std::optional<std::vector<uint8_t>>&
                                 "e.g. a curly quote or em dash from a word processor, is the usual cause).");
         return;
     }
-    // SKIP-RESET suppresses the model switch, so MODEL: is ignored for parsing too.
-    StateFilePrescan pre = prescanStateFile(text, m_model);
-    const ModelInfo& target = info(pre.targetModel);
+    const Model targetModel = stateFileModel(text, m_model);
+    const ModelInfo& target = info(targetModel);
     LoadStateResult parsed = parseStateFile(text, target.maxStep(), target.hasConstantMemory);
     if (parsed.usesCardReader && !target.hasCardReader) {
         parsed.errors.push_back(std::string("CARD:, ArmCard: and InsertCard: need a card reader; the ") +
@@ -522,7 +521,7 @@ void SessionController::loadStateFile(const std::optional<std::vector<uint8_t>>&
         for (const auto& e : parsed.errors) joined += (joined.empty() ? "" : "\n") + e;
         m_platform.error(title, joined);
     }
-    if (pre.targetModel != m_model && !startMachine(pre.targetModel)) return;
+    if (targetModel != m_model && !startMachine(targetModel)) return;
     applyState(parsed);
 }
 
@@ -533,35 +532,18 @@ void SessionController::applyState(const LoadStateResult& parsed) {
         m_platform.error("State file load error", *e);
         return;
     }
-    if (parsed.skipReset) {
-        // Only partition (if explicit), program, registers, cue card, keystrokes.
-        std::vector<std::string> ignored;
-        if (parsed.model) ignored.push_back("SKIP-RESET: MODEL: ignored — a model switch requires a reset");
-        if (parsed.solidStateModuleID) ignored.push_back("SKIP-RESET: SOLID-STATE-MODULE: ignored — a module load requires a reset");
-        if (parsed.printerConnected) ignored.push_back("SKIP-RESET: PRINTER: ignored — a printer change requires a reset");
-        if (!ignored.empty()) log(ignored);
-        m_session->stop();
-        m_session->clearFreeze();
-        m_session->sync([&] { applySkipResetState(m, parsed, m_model); });
-        m_session->start();
-        if (parsed.cueCard) {
-            m_userCueCard = parsed.cueCard;
-            refreshCueCard();
-        }
-    } else {
-        dropPresetCards();
-        m_session->stop();
-        m_session->clearFreeze();
-        m_activeProgram = 0;
-        m_session->sync([&] { cu59::applyState(m, parsed, m_model); });
-        m_debug.resetHeatmapBaseline(m);  // fresh machine state: skip the power-on walk
-        m_session->start();
-        cutPaper();  // each loaded state starts with a blank strip
-        if (parsed.solidStateModuleID && *parsed.solidStateModuleID != m_moduleID) selectModule(*parsed.solidStateModuleID);
-        if (parsed.printerConnected) setPrinterConnected(*parsed.printerConnected);
-        m_userCueCard = parsed.cueCard;
-        refreshCueCard();
-    }
+    dropPresetCards();
+    m_session->stop();
+    m_session->clearFreeze();
+    m_activeProgram = 0;
+    m_session->sync([&] { cu59::applyState(m, parsed, m_model); });
+    m_debug.resetHeatmapBaseline(m);  // fresh machine state: skip the power-on walk
+    m_session->start();
+    cutPaper();  // each loaded state starts with a blank strip
+    if (parsed.solidStateModuleID && *parsed.solidStateModuleID != m_moduleID) selectModule(*parsed.solidStateModuleID);
+    if (parsed.printerConnected) setPrinterConnected(*parsed.printerConnected);
+    m_userCueCard = parsed.cueCard;
+    refreshCueCard();
     persistConstantMemory();  // after the cue card: ti58c.mem keeps the file's card
     pullDebugState();
     emitChanged(RunStateChanged | HeatmapChanged);
@@ -569,6 +551,43 @@ void SessionController::applyState(const LoadStateResult& parsed) {
         configureTraceLocation();
         m_session->playKeystrokes(parsed.keystrokes);
     }
+}
+
+void SessionController::applyControl(const KeystrokeEvent& e) {
+    if (!m_session) return;
+    using K = KeystrokeEvent::Kind;
+    const FreezeOwner owner = e.panel == DebugPanel::Cpu ? FreezeOwner::Cpu : FreezeOwner::Calculator;
+    switch (e.kind) {
+    case K::PrinterTrace:
+        m_session->machine().setPrinterTrace(e.on);
+        emitChanged(PrinterChanged);
+        break;
+    case K::CutPaper: cutPaper(); break;
+    case K::ShowPanel: m_platform.showDebugPanel(e.panel); break;
+    case K::Freeze:
+        if (!m_debugState.frozen) freeze(owner);
+        break;
+    case K::FreezeOnStart:
+        if (!e.on) {
+            disarmPcChange();
+            disarmScanLoopExit();
+        } else if (owner == FreezeOwner::Cpu) {
+            armScanLoopExit();
+        } else {
+            armPcChange();
+        }
+        break;
+    case K::Step:
+        if (!m_debugState.frozen) {
+            log({"KEYSTROKES: Step: ignored — the calculator is not frozen"});
+            break;
+        }
+        for (int i = 0; i < e.count; ++i) owner == FreezeOwner::Cpu ? stepInstruction() : stepKeycode();
+        break;
+    case K::Resume: resume(); break;
+    default: break;
+    }
+    m_session->hostDone();
 }
 
 void SessionController::applyReloadStage(const ReloadStage& stage) {

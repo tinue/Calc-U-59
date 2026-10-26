@@ -66,6 +66,7 @@ const INITIAL_STATE = {
   traces: [],
   settings: { startupModel: -1, traceMaxMB: 50, keyboardFeedback: 0 },
   debugFont: 11,
+  debugPanel: { panel: 0, n: 0 },  // KEYSTROKES DebugPanel: the tab asked for, and how often
   geometry: null,
 };
 
@@ -122,6 +123,7 @@ function createEngine({ model, module }) {
       case "settings": set({ settings: m.settings }); break;
       case "store": storageSet(m.key, m.value); break;
       case "debugFont": set({ debugFont: m.size }); break;
+      case "debugPanel": set({ debugPanel: { panel: m.panel, n: state.debugPanel.n + 1 } }); break;
       case "geometry": set({ geometry: m.geometry }); break;
       case "stateLoaded": {
         set({ status: m.errors && m.errors.length ? m.errors.join("\n") : "" });

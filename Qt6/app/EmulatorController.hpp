@@ -127,6 +127,7 @@ signals:
     void asmChanged();
     void traceChanged();
     void errorOccurred(const QString& title, const QString& message);
+    void debugPanelRequested(int tab);  ///< KEYSTROKES DebugPanel: (0 CALCULATOR, 1 CPU, 2 LOG)
 
 private:
     // SessionController::Platform
@@ -135,6 +136,7 @@ private:
     void writeConstantMemory(const std::string& text) override;
     bool writeCard(const std::string& path, const std::string& text) override;
     CardFileRef cardFile(const std::string& fileName) override;
+    void showDebugPanel(cu59::DebugPanel panel) override { emit debugPanelRequested(static_cast<int>(panel)); }
     cu59::SessionController::TraceLocation traceLocation() override;
     void saveLastUsedModel(cu59::Model model) override;
     void saveModuleID(const std::string& moduleID) override;

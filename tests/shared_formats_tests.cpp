@@ -59,7 +59,6 @@ std::string dumpState(const LoadStateResult& r) {
     for (auto& k : r.keystrokes) {
         switch (k.kind) {
         case K::Key: out += "key " + std::to_string(k.code) + "\n"; break;
-        case K::ToggleTrace: out += "toggleTrace\n"; break;
         case K::Wait: out += "wait " + num(k.seconds) + "\n"; break;
         case K::Trace: out += "trace " + k.traceName.value_or("-") + "\n"; break;
         case K::FullSpeed: out += "fullSpeed\n"; break;
@@ -78,13 +77,21 @@ std::string dumpState(const LoadStateResult& r) {
         }
         case K::ArmCard: out += "armCard " + k.cardName + (k.card ? " defined" : "") + "\n"; break;
         case K::InsertCard: out += "insertCard " + k.cardName + (k.card ? " defined" : "") + "\n"; break;
+        case K::PrinterTrace: out += std::string("printerTrace ") + (k.on ? "on" : "off") + "\n"; break;
+        case K::CutPaper: out += "cutPaper\n"; break;
+        case K::ShowPanel: out += "debugPanel " + std::to_string(int(k.panel)) + "\n"; break;
+        case K::Freeze: out += "freeze " + std::to_string(int(k.panel)) + "\n"; break;
+        case K::FreezeOnStart:
+            out += "freezeOnStart " + (k.on ? std::to_string(int(k.panel)) : std::string("off")) + "\n";
+            break;
+        case K::Step: out += "step " + std::to_string(int(k.panel)) + " " + std::to_string(k.count) + "\n"; break;
+        case K::Resume: out += "resume\n"; break;
         }
     }
     if (r.cueCard) dumpCue(*r.cueCard, out);
     out += "module " + r.solidStateModuleID.value_or("-") + "\n";
     out += std::string("printer ") + (r.printerConnected ? (*r.printerConnected ? "1" : "0") : "-") + "\n";
     out += std::string("model ") + (r.model ? info(*r.model).displayName : "-") + "\n";
-    out += std::string("skipReset ") + (r.skipReset ? "1" : "0") + "\n";
     for (auto& e : r.errors) out += "error " + e + "\n";
     return out;
 }
@@ -253,13 +260,44 @@ TEST(constant_memory_round_trip) {
     CHECK(!decodeConstantMemory("R001: 00 00").has_value());
 }
 
-TEST(state_prescan) {
-    auto p = prescanStateFile("MODEL: TI-58C\nPROGRAM:\n1 2\n", Model::TI59);
-    CHECK(!p.skipReset && p.targetModel == Model::TI58C);
-    auto q = prescanStateFile("SKIP-RESET: on\nMODEL: TI-58\n", Model::TI59);
-    CHECK(q.skipReset && q.targetModel == Model::TI59);
-    auto u = prescanStateFile("MODEL: TI-57\n", Model::TI58);
-    CHECK(u.targetModel == Model::TI58);
+TEST(state_file_model) {
+    CHECK(stateFileModel("MODEL: TI-58C\nPROGRAM:\n1 2\n", Model::TI59) == Model::TI58C);
+    CHECK(stateFileModel("PROGRAM:\n1 2\n", Model::TI58) == Model::TI58);
+    CHECK(stateFileModel("MODEL: TI-57\n", Model::TI58) == Model::TI58);
+}
+
+TEST(retired_skip_reset_and_key_99_are_errors) {
+    auto r = parseStateFile("SKIP-RESET: on\nREGISTERS:\n01 = 1\nKEYSTROKES:\n99 82\n");
+    CHECK_EQ(r.errors.size(), size_t{2});
+    CHECK(r.errors.size() == 2 && r.errors[0].find("reload") != std::string::npos);
+    CHECK(r.errors.size() == 2 && r.errors[1].find("PrinterTrace:") != std::string::npos);
+    CHECK_EQ(r.registers.size(), size_t{1});   // the rest still loads
+    CHECK_EQ(r.keystrokes.size(), size_t{1});  // key 82
+}
+
+TEST(control_directives) {
+    using K = KeystrokeEvent::Kind;
+    auto r = parseStateFile("KEYSTROKES:\nPrinterTrace: on\nPrinterTrace: OFF\nCutPaper:\nDebugPanel: log\n"
+                            "Freeze: CPU\nFreezeOnStart: Calculator\nFreezeOnStart: off\nStep: cpu 3\nStep: Calculator\n"
+                            "Resume:\n");
+    CHECK(r.errors.empty());
+    std::vector<K> kinds;
+    for (auto& e : r.keystrokes) kinds.push_back(e.kind);
+    CHECK(kinds == (std::vector<K>{K::PrinterTrace, K::PrinterTrace, K::CutPaper, K::ShowPanel, K::Freeze,
+                                   K::FreezeOnStart, K::FreezeOnStart, K::Step, K::Step, K::Resume}));
+    if (r.keystrokes.size() == 10) {
+        CHECK(r.keystrokes[0].on && !r.keystrokes[1].on);
+        CHECK(r.keystrokes[3].panel == DebugPanel::Log);
+        CHECK(r.keystrokes[4].panel == DebugPanel::Cpu);
+        CHECK(r.keystrokes[5].on && r.keystrokes[5].panel == DebugPanel::Calculator);
+        CHECK(!r.keystrokes[6].on);
+        CHECK(r.keystrokes[7].panel == DebugPanel::Cpu && r.keystrokes[7].count == 3);
+        CHECK(r.keystrokes[8].count == 1);
+        CHECK(r.keystrokes[0].isControl() && !KeystrokeEvent{}.isControl());
+    }
+    auto bad = parseStateFile("KEYSTROKES:\nPrinterTrace:\nDebugPanel: ASM\nFreeze: Log\nStep: CPU 0\nResume: now\n");
+    CHECK_EQ(bad.errors.size(), size_t{5});
+    CHECK(bad.keystrokes.empty());
 }
 
 TEST(module_catalog_from_cuecards_txt) {

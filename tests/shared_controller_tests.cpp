@@ -59,11 +59,6 @@ TEST(controller_reports_parse_errors_and_partition_errors) {
     CHECK(c.startMachine(Model::TI58));
     c.loadStateFile(bytes("PARTITION: 959\n"));  // beyond the TI-58's 479
     CHECK_EQ(p.errors.size(), size_t{1});
-    CHECK(waitForScanLoop(c));
-    int regs = c.session()->machine().partitionProgramRegs();
-    c.loadStateFile(bytes("SKIP-RESET: on\nPARTITION: 959\n"));  // checked without a reset too
-    CHECK_EQ(p.errors.size(), size_t{2});
-    CHECK_EQ(c.session()->machine().partitionProgramRegs(), regs);
     c.loadStateFile(std::nullopt);
     CHECK_EQ(p.errors.back(), std::string("State file load error: Cannot read file."));
     c.loadStateFile(bytes("\xff\xfe"));
@@ -84,16 +79,24 @@ TEST(controller_load_while_frozen_ends_running_without_tracing) {
     CHECK_EQ(c.session()->machine().traceFlags(), static_cast<uint32_t>(TRACE_NONE));
 }
 
-TEST(controller_skip_reset_logs_ignored_sections) {
+TEST(controller_keystroke_controls_drive_the_gui) {
     FakePlatform p;
     SessionController c(p, testroms::reader(), catalog(), "ML");
     CHECK(c.startMachine(Model::TI59));
-    c.loadStateFile(bytes("SKIP-RESET: on\nMODEL: TI-58\nPRINTER: off\nREGISTERS:\n02 = 6\n"));
-    CHECK(c.model() == Model::TI59);
-    CHECK(c.printerConnected());
-    CHECK(c.logText().find("SKIP-RESET: MODEL: ignored") != std::string::npos);
-    CHECK(c.logText().find("SKIP-RESET: PRINTER: ignored") != std::string::npos);
-    CHECK_EQ(c.session()->machine().readDataReg(2), 6.0);
+    // Lbl A 1 + 1 = R/S, armed FREEZE ON START: A freezes before the program's first step.
+    c.loadStateFile(bytes("PROGRAM:\n76 11 01 85 01 95 91\n"
+                          "KEYSTROKES:\nPrinterTrace: on\nCutPaper:\nDebugPanel: CPU\n"
+                          "FreezeOnStart: Calculator\n11\n"));
+    auto tick = [&](auto cond) {
+        return pumpUntil(p, [&] { c.tick(std::chrono::steady_clock::now()); return cond(); }, 10000ms);
+    };
+    CHECK(tick([&] { return c.isFrozen(); }));
+    CHECK(c.printerTrace());
+    CHECK(p.panels == (std::vector<DebugPanel>{DebugPanel::Cpu}));
+    CHECK(tick([&] { return !c.keystrokesPlaying(); }));
+    c.loadStateFile(bytes("SKIP-RESET: on\n"));  // retired: an error, then a normal load
+    CHECK(!p.errors.empty() && p.errors.back().find("SKIP-RESET: no longer exists") != std::string::npos);
+    CHECK(!c.isFrozen());
 }
 
 TEST(controller_constant_memory_keeps_the_loaded_card) {

@@ -311,6 +311,7 @@ private:
         m_cardsChanged = true;
         return true;
     }
+    void showDebugPanel(cu59::DebugPanel panel) override { post("debugPanel", "panel", val(static_cast<int>(panel))); }
     CardFileRef cardFile(const std::string& fileName) override {
         std::string path = kCardScheme + fileName;
         auto it = m_cards.find(fileName);

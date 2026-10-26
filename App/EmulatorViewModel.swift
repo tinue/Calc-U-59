@@ -459,6 +459,15 @@ final class PlatformForwarder: NSObject, TIPlatform {
         }
     }
 
+    func showDebugPanel(_ panel: Int) {
+        guard let vm = target else { return }
+        switch panel {
+        case 1: vm.debugTab = .cpu
+        case 2: vm.debugTab = .log
+        default: if !vm.asmOverlayActive { vm.debugTab = .live }  // the overlay keeps the CPU tab
+        }
+    }
+
     func cardFilePath(_ fileName: String) -> String {
         CardStorage.directoryURL.appendingPathComponent(fileName).path
     }

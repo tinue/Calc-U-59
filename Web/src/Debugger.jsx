@@ -282,7 +282,9 @@ function Debugger({ engine }) {
   const data = useEngine(engine, (s) => s.data);
   const asmActive = useEngine(engine, (s) => s.runState.asmActive);
   const font = useEngine(engine, (s) => s.debugFont);
-  const [tab, setTab] = React.useState(0);
+  const panelRequest = useEngine(engine, (s) => s.debugPanel);
+  const [tab, setTab] = React.useState(panelRequest.panel);
+  React.useEffect(() => { if (panelRequest.n) setTab(panelRequest.panel); }, [panelRequest]);
   const rootRef = React.useRef(null);
   const shown = asmActive && tab === 0 ? 1 : tab;  // the overlay runs on the CPU tab
 

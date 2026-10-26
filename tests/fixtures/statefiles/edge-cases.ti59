@@ -46,7 +46,8 @@ FullSpeed:
 RegularSpeed:
 ZeroElapseTime:
 ReportElapseTime:
-99 10 96 11
+PrinterTrace: on
+10 96 11
 Trace: Off
 Trace:
 Trace: a/b.bin

@@ -40,10 +40,10 @@ struct FakeHost : KeySequencer::Host {
     void pressKey(uint8_t c) override { note("press " + std::to_string(c)); }
     void releaseKey(uint8_t c) override { note("release " + std::to_string(c)); }
     uint16_t pc() override { return idle ? idlePC : 0; }
-    bool isFrozen() override { return false; }
+    std::atomic<bool> frozen{false};
+    bool isFrozen() override { return frozen; }
     void heldKeyChanged(int id) override { note("held " + std::to_string(id)); }
     void setFullSpeed(bool on) override { full = on; note(on ? "full" : "regular"); }
-    void togglePrinterTrace() override { note("trace"); }
     void scriptedTrace(const std::optional<std::string>&) override {}
     void zeroElapseTime() override { note("zero"); }
     void reportElapseTime() override { note("report"); }
@@ -55,6 +55,7 @@ struct FakeHost : KeySequencer::Host {
         if (e.kind == KeystrokeEvent::Kind::InsertCard) ++pending;
         note("card " + e.cardName);
     }
+    void control(const KeystrokeEvent&) override { ++pending; note("control"); }
     bool hostPending() override { return pending > 0; }
 
     std::vector<std::string> names() {
@@ -329,26 +330,24 @@ TEST(cooperative_controller_plays_a_preset) {
     CHECK(r.p.errors.empty());
 }
 
-TEST(cooperative_controller_skip_reset_keeps_the_program) {
+TEST(cooperative_controller_reload_keeps_the_program) {
     ControllerRig r;
-    r.load("PROGRAM:\n85 01\n");
-    r.run(1s);
-    CHECK_EQ(int(r.c.session()->machine().readProgramStep(1)), 1);
-    r.load("SKIP-RESET: on\nREGISTERS:\n05 = 3.25\n");
-    r.run(200ms);
+    r.load("PROGRAM:\n85 01\nKEYSTROKES:\n25\nREGISTERS:\n05 = 3.25\n");  // CLR, then a reload
+    CHECK(r.runUntil([&] { return r.c.keystrokesPlaying(); }));
+    CHECK(r.runUntil([&] { return !r.c.keystrokesPlaying(); }));
     CHECK_EQ(int(r.c.session()->machine().readProgramStep(1)), 1);
     CHECK_EQ(r.c.session()->machine().readDataReg(5), 3.25);
 }
 
 TEST(cooperative_controller_writes_and_reads_a_card) {
     ControllerRig r;
-    r.load("PROGRAM:\n76 11 01 02 03 91\n");  // Lbl A 1 2 3 R/S
-    r.run(1s);
-    r.load("SKIP-RESET: on\nKEYSTROKES:\n82 21 91\n");  // 1 2nd Write
-    CHECK(r.runUntil([&] { return !r.c.keystrokesPlaying(); }));
-    r.run(500ms);  // the ROM reaches its card wait after the playback ends
+    r.load("PROGRAM:\n76 11 01 02 03 91\nKEYSTROKES:\n82 21 91\n");  // Lbl A 1 2 3 R/S; 1 2nd Write
+    CHECK(r.runUntil([&] { return r.c.keystrokesPlaying(); }));
+    r.run(2s);  // the ROM waits for a card; playback waits with it
+    CHECK(r.c.keystrokesPlaying());
     r.c.insertBlankCard("web:card", "card.U59");
     CHECK(r.runUntil([&] { return r.c.cardState() == SessionController::CardState::NoCard; }));
+    CHECK(r.runUntil([&] { return !r.c.keystrokesPlaying(); }));
     CHECK_EQ(r.p.cards.count("web:card"), size_t{1});
     r.load("PARTITION: 479\n");  // a fresh machine: no program
     r.run(1s);
@@ -364,7 +363,7 @@ TEST(cooperative_controller_writes_and_reads_a_card) {
 TEST(cooperative_controller_shows_the_library_program_card) {
     ControllerRig r;
     r.run(50ms);
-    r.load("SKIP-RESET: on\nKEYSTROKES:\n21 31 92 82\n");  // 2nd Pgm 01
+    r.load("KEYSTROKES:\n21 31 92 82\n");  // 2nd Pgm 01
     CHECK(r.runUntil([&] { return !r.c.keystrokesPlaying(); }));
     r.run(1s);
     CHECK(r.c.cueCard().has_value());
@@ -495,4 +494,20 @@ TEST(cooperative_controller_insert_card_passes_an_unused_armed_card) {
     CHECK(r.runUntil([&] { return r.c.keystrokesPlaying(); }));
     CHECK(r.runUntil([&] { return !r.c.keystrokesPlaying(); }, 30s));
     CHECK_EQ(r.c.session()->machine().readDataReg(3), 7.0);  // read at idle, as pushed in by hand
+}
+
+TEST(cooperative_script_waits_out_a_freeze_but_runs_its_directives) {
+    VirtualRig r;
+    r.host.frozen = true;
+    std::vector<KeystrokeEvent> events{event(KeystrokeEvent::Kind::Resume)};
+    events.push_back(keyEvents({83})[0]);
+    r.keys.play(events);
+    r.run(100ms);
+    CHECK(r.host.at("control") != Clock::time_point{});  // Resume: runs while frozen
+    r.host.pending = 0;                                  // … and is done
+    r.run(300ms);
+    CHECK(r.host.at("press 83") == Clock::time_point{});  // the key waits for the machine
+    r.host.frozen = false;
+    r.run(200ms);
+    CHECK(r.host.at("press 83") != Clock::time_point{});
 }

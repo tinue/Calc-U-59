@@ -57,26 +57,35 @@ TEST(apply_state_ti58c_keeps_extra_registers) {
     CHECK_EQ(TI59Machine::decodeBCD(h2), 9.0);
 }
 
-TEST(apply_skip_reset_touches_only_given_sections) {
+/// A parsed file's sections as a reload stage.
+ReloadStage stageOf(const LoadStateResult& r) {
+    ReloadStage st;
+    if (r.partitionWasExplicit) st.partitionMaxStep = r.partitionMaxStep;
+    st.programSteps = r.programSteps;
+    st.registers = r.registers;
+    return st;
+}
+
+TEST(reload_touches_only_given_sections) {
     auto m = testroms::makeMachine(Model::TI59);
     testroms::runToScanLoop(*m, Model::TI59);
     applyState(*m, parseStateFile("PROGRAM:\n11 12 13\nREGISTERS:\n01 = 5\n", 959), Model::TI59);
     int partition = m->partitionProgramRegs();
-    applySkipResetState(*m, parseStateFile("SKIP-RESET: on\nREGISTERS:\n02 = 6\n", 959), Model::TI59);
+    applyReload(*m, stageOf(parseStateFile("REGISTERS:\n02 = 6\n", 959)), Model::TI59);
     CHECK_EQ(m->partitionProgramRegs(), partition);
     auto kept = programSteps(*m);
     CHECK_EQ(kept[1], 12);  // program untouched
     CHECK_EQ(reg(*m, 1), 5.0);
     CHECK_EQ(reg(*m, 2), 6.0);
-    applySkipResetState(*m, parseStateFile("PARTITION: 159\nPROGRAM:\n99\n", 959), Model::TI59);
+    applyReload(*m, stageOf(parseStateFile("PARTITION: 159\nPROGRAM:\n99\n", 959)), Model::TI59);
     CHECK_EQ(m->partitionProgramRegs(), 20);
     auto rewritten = programSteps(*m);
     CHECK_EQ(rewritten[0], 99);
-    CHECK_EQ(rewritten[1], 0);   // zero-padded rewrite
-    CHECK_EQ(reg(*m, 1), 5.0);   // ...up to the partition only: data registers kept
+    CHECK_EQ(rewritten[1], 12);  // only the listed step
+    CHECK_EQ(reg(*m, 1), 5.0);
     CHECK_EQ(reg(*m, 2), 6.0);
     // A listed step beyond the partition is still written (registers as program).
-    applySkipResetState(*m, parseStateFile("PROGRAM:\n940 77\n", 959), Model::TI59);
+    applyReload(*m, stageOf(parseStateFile("PROGRAM:\n940 77\n", 959)), Model::TI59);
     uint8_t r2[16];
     m->copyRAMReg(117, r2);      // steps 936-943 = R02 (RAM[119 - 2])
     CHECK_EQ(r2[(940 & 7) * 2] + 10 * r2[(940 & 7) * 2 + 1], 77);
@@ -89,17 +98,11 @@ TEST(apply_every_example_file) {
         auto ext = e.path().extension().string();
         if (ext != ".ti59" && ext != ".ti58" && ext != ".ti58c") continue;
         auto text = testroms::readFile(e.path().string());
-        auto pre = prescanStateFile(*text, ext == ".ti58" ? Model::TI58 : ext == ".ti58c" ? Model::TI58C : Model::TI59);
-        Model model = pre.targetModel;
+        Model model = stateFileModel(*text, ext == ".ti58" ? Model::TI58 : ext == ".ti58c" ? Model::TI58C : Model::TI59);
         auto r = parseStateFile(*text, info(model).maxStep(), info(model).hasConstantMemory);
         if (stateFilePartitionError(r, model)) continue;
         auto m = testroms::makeMachine(model);
-        if (r.skipReset) {
-            testroms::runToScanLoop(*m, model);
-            applySkipResetState(*m, r, model);
-        } else {
-            applyState(*m, r, model);
-        }
+        applyState(*m, r, model);
         bool ok = testroms::runToScanLoop(*m, model);
         for (const auto& k : r.keystrokes) {  // reloads, without the keys between them
             if (k.kind != KeystrokeEvent::Kind::Reload) continue;
@@ -125,7 +128,7 @@ TEST(data_registers_match_the_rom) {
         CHECK_EQ(reg(*m, 0), 7.0);
 
         auto r = parseStateFile("REGISTERS:\n00 = 5\n", 959, model == Model::TI58C);
-        applySkipResetState(*m, r, model);
+        applyReload(*m, stageOf(r), model);
         for (int k : {kRcl, kKey0, kKey0}) testroms::tap(*m, model, k);
         CHECK_EQ(testroms::displayText(*m), std::string("5"));
     }
@@ -147,7 +150,7 @@ TEST(data_registers_match_the_rom) {
     CHECK_EQ(TI59Machine::decodeBCD(r60), 7.0);
     CHECK_EQ(reg(*m, 59), 7.0);
     auto r = parseStateFile("REGISTERS:\n56 = 5\n", 479, true);
-    applySkipResetState(*m, r, Model::TI58C);
+    applyReload(*m, stageOf(r), Model::TI58C);
     uint8_t r63[16];
     m->copyRAMReg(63, r63);
     CHECK_EQ(TI59Machine::decodeBCD(r63), 5.0);
@@ -164,7 +167,7 @@ TEST(reload_changes_only_the_listed_steps_and_registers) {
     applyReload(*m, stage, Model::TI58);
     CHECK_EQ(int(m->readProgramStep(0)), 11);
     CHECK_EQ(int(m->readProgramStep(1)), 22);
-    CHECK_EQ(int(m->readProgramStep(3)), 14);  // a SKIP-RESET load would have padded this with 00
+    CHECK_EQ(int(m->readProgramStep(3)), 14);  // not listed: kept
     CHECK_EQ(m->readDataReg(1), 1.0);
     CHECK_EQ(m->readDataReg(2), 5.0);
 }

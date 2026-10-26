@@ -305,25 +305,20 @@ Still read: the 13-byte `Calc-U-59-CRD` header + 246 bytes, and headerless
 RAM; only `KEYSTROKES:` simulates key presses. Section semantics and the
 reference order: `StateFileFormat.md`.
 
-1. UTF-8 check; `prescanStateFile` (`MODEL:`, `SKIP-RESET:`); `parseStateFile`
-   with the target model's limits. Parse errors are reported and the load
-   continues.
+1. UTF-8 check; `stateFileModel` (`MODEL:`); `parseStateFile` with the
+   target model's limits. Parse errors are reported and the load continues.
 2. `MODEL:` names another model → `startMachine(target)` first. Then the
-   partition check (`stateFilePartitionError`) aborts either path below.
-3. With `SKIP-RESET:`: stop the loop, unfreeze, and on the emulation thread
-   write only the partition (if explicit), program and registers
-   (`applySkipResetState`). The ignored `MODEL:`, `SOLID-STATE-MODULE:` and
-   `PRINTER:` are logged to the LOG tab.
-4. Otherwise: stop the loop,
+   partition check (`stateFilePartitionError`) aborts the load.
+3. Stop the loop,
    unfreeze, and on the emulation thread `applyState` (`StateApplier`):
    reset, run the ROM's power-on routine (300,000 steps, a safe upper bound),
    set the partition, clear RAM (the TI-58C keeps registers 60–63), write the
    program zero-padded to the model's capacity, write the registers. Then
    reset the heatmap baseline, start the loop and cut the paper, and apply
    `SOLID-STATE-MODULE:`, `PRINTER:` and the cue card.
-   A full load first drops the previous preset's queued and memory cards
+   A load first drops the previous preset's queued and memory cards
    (`dropPresetCards`).
-5. Persist `ti58c.mem`, then play `KEYSTROKES:`.
+4. Persist `ti58c.mem`, then play `KEYSTROKES:`.
 
 **Reloads and preset cards during playback** (`StateFileFormat.md` §
 "Reloads", § "CARD"). The parser puts each reload stage and `CARD:` block
@@ -356,7 +351,16 @@ into the keystroke events (`shared_ptr`). This is the order of operations:
    goes to the memory card or to the file, and an `InsertCard` calls
    `hostDone()`.
 7. `playbackFinished` clears the pending count. Queued cards stay until the
-   next full load, reset or model switch.
+   next load, reset or model switch.
+
+**Controls** (`PrinterTrace:`, `CutPaper:`, `DebugPanel:`, `Freeze:`,
+`FreezeOnStart:`, `Step:`, `Resume:`; `KeystrokeEvent::isControl`) take the
+same host-pending path. `Host::control` hops to the UI thread
+(`Listener::controlRequested`), where `SessionController::applyControl` calls
+what the GUI's button calls (`freeze`, `armPcChange`, `stepKeycode`, …), or
+`Platform::showDebugPanel` for the tab, which is GUI state. While frozen, a
+script's keys, reloads and inserted cards wait (`WaitingToPress` /
+`WaitingToApply`); a keyboard tap still goes in at once.
 
 Skipping the power-on routine leaves stale SCOM flags that confuse the
 display and AOS.
