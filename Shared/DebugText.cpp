@@ -18,6 +18,8 @@ MobileLayout mobileLayout(double width, double height, bool horizontalFold) {
     return width >= 820 && height >= 560 ? MobileLayout::CalcPrinterDebugger : MobileLayout::CalcPrinter;
 }
 
+double mobileTopMargin(double topInset) { return topInset > 0 ? 0 : 32; }
+
 WidthRange mobilePrinterWidth(MobileLayout layout, double width) {
     if (layout == MobileLayout::CalcPrinterDebugger && width < 1100) return {180, 220};
     return {290, 360};

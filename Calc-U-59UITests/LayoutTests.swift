@@ -125,8 +125,16 @@ final class LayoutTests: XCTestCase {
         guard !app.buttons["btn-page-right"].exists else {
             throw XCTSkip("App stays in portrait on this device")
         }
-        XCTAssertEqual(app.buttons["btn-tab-calculator"].waitForExistence(timeout: 3), w >= 820 && h >= 560,
+        let wide = w >= 820 && h >= 560
+        XCTAssertEqual(app.buttons["btn-tab-calculator"].waitForExistence(timeout: 3), wide,
                        "Debugger visibility wrong for a \(w) × \(h) pt window")
+        guard wide else { return }
+        // The tabs must take taps: on the open iPhone Duo they once sat in the
+        // window's top band, which swallowed them (Shared mobileTopMargin).
+        app.buttons["btn-tab-cpu"].tap()
+        XCTAssertTrue(app.buttons["btn-cpu-step"].waitForExistence(timeout: 2), "CPU tab didn't open")
+        app.buttons["btn-tab-calculator"].tap()
+        XCTAssertTrue(app.buttons["btn-freeze"].waitForExistence(timeout: 2), "CALCULATOR tab didn't open")
     }
     #endif
 

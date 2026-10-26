@@ -259,6 +259,7 @@ struct CalculatorView: View {
                             .clipped()
                     }
                 }
+                .padding(.top, TIViewRules.mobileTopMargin(geo.safeAreaInsets.top))
             } else {
                 portraitPages(showLabels: showLabels)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)

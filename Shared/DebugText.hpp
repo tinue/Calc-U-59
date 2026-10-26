@@ -38,6 +38,12 @@ struct WidthRange {
 };
 WidthRange mobilePrinterWidth(MobileLayout layout, double width);
 
+/// Space (points) above a side-by-side layout. A window with no top inset
+/// (iPhone Duo open, iOS 27.1 simulator) doesn't deliver touches in its top
+/// ~30 pt — measured: controls centred at y ≤ 29 dead, ≥ 35 working — so the
+/// tabs and printer header keep clear of it.
+double mobileTopMargin(double topInset);
+
 /// "Steps: 480, Registers: 60 (479.59)" — "(479.)" when no data registers.
 std::string partitionLine(int programRegCount, int dataRegCount);
 
