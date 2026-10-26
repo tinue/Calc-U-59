@@ -335,13 +335,15 @@ into the keystroke events (`shared_ptr`). This is the order of operations:
 2. The sequencer waits until that count drops.
 3. A reload hops to the UI thread (`Listener::reloadRequested`). There
    `SessionController::applyReloadStage` stops the loop, runs `applyReload`
+   (only the listed steps and registers)
    on the emulation thread, restarts the loop (unless frozen), and updates
    the cue card. It then calls `hostDone()`. A posted job would not do: it
    runs only after the run loop exits.
 4. `ArmCard` and `InsertCard` queue their card in the session (`QueuedCard`,
    under a mutex).
 5. On each 60 Hz `tick()` with an empty reader, `takeQueuedCard()` hands out
-   the front card:
+   the first card of the matching kind (the two kinds don't block each
+   other):
    - an `InsertCard` card when the PC is in the scan loop;
    - an `ArmCard` card when the PC is in `ModelInfo::cardWait` and the core
      reports a card wait.

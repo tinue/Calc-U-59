@@ -74,16 +74,27 @@ void applyState(TI59Machine& m, const LoadStateResult& r, Model model) {
 // to the end of the program area, as a program read from cards or keyed in
 // would be (examples/fast-grafik-3d-plot.ti59: part 2 needs part 1's registers).
 void applySkipResetState(TI59Machine& m, const LoadStateResult& r, Model model) {
-    ReloadStage stage;
-    if (r.partitionWasExplicit) stage.partitionMaxStep = r.partitionMaxStep;
-    stage.programSteps = r.programSteps;
-    stage.registers = r.registers;
-    applyReload(m, stage, model);
+    if (r.partitionWasExplicit) setPartition(m, r.partitionMaxStep);
+    if (!r.programSteps.empty()) writeProgram(m, r.programSteps, model, m.partitionProgramRegs() * 8);
+    writeRegisters(m, r.registers);
 }
 
+// A reload is the user keying in changes: the listed steps and registers
+// change, nothing else (a card read, which replaces a whole bank, is CARD:).
 void applyReload(TI59Machine& m, const ReloadStage& stage, Model model) {
     if (stage.partitionMaxStep) setPartition(m, *stage.partitionMaxStep);
-    if (!stage.programSteps.empty()) writeProgram(m, stage.programSteps, model, m.partitionProgramRegs() * 8);
+    int physicalMaxStep = info(model).maxStep();
+    int last = -1;
+    for (const auto& s : stage.programSteps)
+        if (s.stepAddr <= physicalMaxStep) last = std::max(last, s.stepAddr);
+    if (last >= 0) {
+        // The core writes from step 000: keep what is there up to the last listed step.
+        std::vector<uint8_t> program(static_cast<size_t>(last + 1));
+        for (int i = 0; i <= last; ++i) program[static_cast<size_t>(i)] = m.readProgramStep(i);
+        for (const auto& s : stage.programSteps)
+            if (s.stepAddr >= 0 && s.stepAddr <= last) program[static_cast<size_t>(s.stepAddr)] = s.keycode;
+        m.writeProgram(program.data(), last + 1);
+    }
     writeRegisters(m, stage.registers);
 }
 

@@ -157,9 +157,9 @@ public:
     void playKeystrokes(std::vector<KeystrokeEvent> events) { m_keys->play(std::move(events)); }
     void cancelKeystrokes() { m_keys->cancel(); }
     bool keystrokesPlaying() const { return m_keys->isPlaying(); }
-    /// The next queued card, if the machine stands where it takes it: an
-    /// InsertCard card in the idle scan loop, an ArmCard card in the card wait
-    /// of Write / INV Write (ModelInfo::cardWait). UI thread.
+    /// The next queued card the machine takes where it stands: the first
+    /// InsertCard card in the idle scan loop, the first ArmCard card in the
+    /// card wait of Write / INV Write (ModelInfo::cardWait). UI thread.
     std::optional<QueuedCard> takeQueuedCard();
     /// A reload has been applied, or an InsertCard card has passed (or failed).
     void hostDone();

@@ -22,6 +22,10 @@ file. The parser, `Shared/StateFile.cpp`, wins if the two disagree.
 - **Order matters:** `PROGRAM:`/`REGISTERS:`/`CUECARD:`/`PARTITION:` after
   `KEYSTROKES:` are a reload played mid-script, not part of the load. Put
   them first unless that is what you mean.
+- **Reload or card?** A reload is keyed-in changes: only the listed steps
+  and registers change (a `...` gap stays as it was). A card replaces a
+  whole bank. Use `InsertCard:` when the program stops for a card, and
+  `ArmCard:` when it runs `Write` / `INV Write` itself.
 - **Adv (`21 93`) needs `RegularSpeed:`** or the paper runs away.
 - **Check a file by loading it:** `tools/agentic/` runs `.ti59` files
   headless (`tools/agentic/README.md`). It doesn't know reloads or preset

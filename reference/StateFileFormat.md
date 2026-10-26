@@ -311,57 +311,74 @@ ReportElapseTime:
 
 ## Reloads
 
-A preset can hold a program larger than one calculator load, the way the
-user would read the next set of cards when the first part stops.
+A reload is the user **keying in changes between runs**: they load a
+program and registers, run it, change a few steps and registers by hand,
+and run it again. `KEYSTROKES:` could do the same through LRN and STO, but
+`PROGRAM:` and `REGISTERS:` are easier to read. Reloads work on every model.
+
 `PROGRAM:`, `REGISTERS:`, `CUECARD:` and `PARTITION:` sections before the
 first `KEYSTROKES:` section are the load itself. After a `KEYSTROKES:`
-section they are a **reload**: consecutive ones form one, and a further
-`KEYSTROKES:` section continues the script after it.
+section they are a **reload**. Consecutive ones form one reload, and a
+further `KEYSTROKES:` section continues the script after it.
 
 ```
-PROGRAM:             # part 1, loaded as usual
+PROGRAM:             # the load, as usual
 …
 KEYSTROKES:
-11                   # A: part 1 runs and stops
-PARTITION: 639.39    # reload: applied when part 1 has stopped
-PROGRAM:
-…
-CUECARD:
-Title: Part 2
+11                   # A: the program runs and stops
+PROGRAM:             # reload: applied once it has stopped
+017 01               # step 017 becomes 1; every other step stays
+REGISTERS:
+05 = 2.5             # R05 changes; every other register stays
 KEYSTROKES:
-11                   # A: part 2 runs
+11                   # A: run again
 ```
 
-- Playback reaches the reload, waits for the scan loop as a key would, and
-  applies it as a SKIP-RESET load does: the partition if given, the
-  program zero-padded to the end of the program area, the listed
-  registers. Other registers keep part 1's values. A `CUECARD:` replaces
-  the card shown.
+- Playback reaches the reload and waits for the scan loop, as a key would.
+  It then writes the partition (if given) and **only the listed steps and
+  registers**. Everything else keeps its contents: steps not listed, a
+  `...` gap, the other registers. This is unlike a card, which replaces a
+  whole bank ("CARD").
+- A `CUECARD:` replaces the card shown.
 - A reload's `PROGRAM:` starts at step 000 again.
 - A reload's partition above the model's last step is skipped, with a line
   in the LOG tab.
 - `MODEL:`, `SOLID-STATE-MODULE:`, `PRINTER:` and `SKIP-RESET:` belong to
   the whole file, wherever they stand.
-- Example: `examples/fast-grafik-3d-plot.ti59` (two parts that were two
-  files with `SKIP-RESET` up to 2.2).
+- `SKIP-RESET` differs: it is a separate file loaded on top, and it pads
+  the program to the end of the program area ("SKIP-RESET").
+- Example: `examples/fast-grafik-3d-plot.ti59`. Part 2 is a reload after
+  part 1 stops. Up to 2.2 it was two files, the second with `SKIP-RESET`.
 
 ---
 
 ## CARD
 
-Some programs read or write cards themselves: `n Write` or `n INV Write`
-in a program waits for a card without stopping. The ROM loops at
-0x16B2–0x16B7 until the card switch opens or R/S is pressed
-(`ModelInfo::cardWait`). Such a program needs cards fed by the preset. A
-card is named in one of two ways:
+Cards are the workflow for **anything larger than a few keyed-in changes**.
+A TI-59 user prepared a stack of cards in advance, together with a written
+sequence. They read the first cards (say, four banks) and started the
+program. They then fed each further card when the calculator asked for it:
+
+- **The program stops** (R/S), perhaps with a hint in the display, and the
+  user pushes the next card in, then presses R/S or a label key. The preset
+  writes this as `InsertCard:` after the key that runs up to the stop.
+- **The program asks for a card without stopping:** `n Write` or
+  `n INV Write` in the program waits for a card. Users learnt to recognise
+  this from the display (the blink pattern). The preset writes this as an
+  `ArmCard:` before the run. The card goes in as soon as the program waits.
+
+Choosing the right card stays the preset's responsibility, as it was the
+user's. The calculator checks only what its ROM checks: the partition on an
+idle read, and the bank number on `n INV Write`. A card is named in one of
+two ways:
 
 | Name | Card |
 |---|---|
-| `mem:Scratch` (prefix in any case) | In-memory: built from a `CARD:` block, or blank. A bank written to it is kept and read back by the next use |
+| `mem:Scratch` (prefix in any case) | In-memory: built from a `CARD:` block, or blank. A bank written to it is kept and read back by the next use. It is never saved to a file |
 | `Results` / `Results.U59` | The card file in the card folder (Swift: iCloud or Documents; Qt: the card folder in Settings; web: the session's cards). `.U59` is added when there is no extension. A missing file goes in as a blank card, so a `Write` creates it |
 
-A `CARD:` block defines an in-memory card. It may stand anywhere in the
-file and ends at `END-CARD`:
+A `CARD:` block is one prepared card side, defined in the preset. It is an
+in-memory card, may stand anywhere in the file, and ends at `END-CARD`:
 
 ```
 CARD: mem:MyVars
@@ -379,11 +396,12 @@ Title: My Vars
 END-CARD
 ```
 
-- Bank n holds raw RAM registers 30·(n−1)…+29: program steps
-  240·(n−1)…+239, and data registers 120 − 30·n … 149 − 30·n (bank 4 =
-  R00–R29, bank 3 = R30–R59, bank 2 = R60–R89, bank 1 = R90–R99).
-  Contents outside the bank are an error and left out. The bank is built
-  as the ROM writes it, header and checksum included
+- **A card replaces its whole bank.** Steps and registers the block doesn't
+  list are read as 00. Bank n holds raw RAM registers 30·(n−1)…+29: program
+  steps 240·(n−1)…+239, and data registers 120 − 30·n … 149 − 30·n
+  (bank 4 = R00–R29, bank 3 = R30–R59, bank 2 = R60–R89, bank 1 =
+  R90–R99). Contents outside the bank are an error and left out.
+- The bank is built as the ROM writes it, header and checksum included
   (`buildCardBank`, `Shared/CardFile.hpp`; bank format:
   `rom/TI59-ROM-Guide.md` § "Magnetic cards").
 - The header's partition must equal the calculator's when the card is read
@@ -393,32 +411,41 @@ END-CARD
   never defined here), a missing or wrong `Bank:`, a missing `END-CARD`,
   the same name twice (the last counts).
 
-### Cards in KEYSTROKES
+### Feeding cards: ArmCard and InsertCard
 
 ```
 KEYSTROKES:
-ArmCard: mem:MyVars      # for the program's 3 INV Write
+InsertCard: mem:Bank1    # the prepared stack: read banks 1–4 at idle …
+InsertCard: mem:Bank2
+InsertCard: mem:Bank3
+InsertCard: mem:Bank4
+ArmCard: mem:MyVars      # … the program's 3 INV Write will ask for this one
 ArmCard: mem:Scratch     # blank: the program's 4 Write fills it …
 ArmCard: mem:Scratch     # … and 4 INV Write reads it back
-11                       # A
-InsertCard: Results      # once stopped: read Results.U59 as the user would
+11                       # A: run until the program stops
+InsertCard: Results      # it stopped for the next card: Results.U59
+91                       # R/S: go on
 ```
 
-- **`ArmCard:`** queues the card and goes on at once. Cards queue in order.
-  The controller feeds the next one when the CPU is in the card wait
-  (0x16B2–0x16B7) and the reader is empty. The idle loop polls the card
-  switch too, so the PC tells the two apart. A bank the machine writes
-  goes to the memory card or the card file.
-- **`InsertCard:`** waits for the scan loop and inserts the card (the ROM
-  reads it as if the user had pushed it in, partition check included).
-  Playback goes on only after the card has passed. It still queues behind
-  armed cards: give it after they are used.
+- **`InsertCard:`** is the user pushing a card into a stopped calculator.
+  It waits for the scan loop and inserts the card. The ROM reads it as a
+  manual insert, partition check included. Playback goes on only after the
+  card has passed.
+- **`ArmCard:`** is a card laid ready for the program's `Write` /
+  `INV Write`. It queues the card and playback goes on at once. When the
+  CPU is in the card wait (0x16B2–0x16B7) and the reader is empty, the
+  controller feeds the first armed card. The idle loop polls the card
+  switch too, so the PC tells the two apart. A bank the program writes goes
+  to the memory card or the card file.
+- Armed cards are used in order, and so are inserted cards. The two
+  queues don't hold each other up: an armed card nobody asks for doesn't
+  block an `InsertCard`.
 - Queued and memory cards last until the next full load, reset or model
-  switch, not just to the end of the script: a `Write` keyed in last, or a
+  switch, not just to the end of the script. A `Write` keyed in last, or a
   run the user starts later, still gets its card. A card never fed is
   logged then.
 - TI-59 only. On the TI-58/58C, `CARD:`, `ArmCard:` and `InsertCard:` are an
-  error and the directives are dropped.
+  error and the directives are dropped. Reloads work on all models.
 
 ---
 
@@ -468,8 +495,9 @@ and `^{…}` / `_{…}` super- and subscripts. The table is `kMathTokens` in
 ## SKIP-RESET
 
 `SKIP-RESET: on` loads into the running machine without a reset, e.g. the
-second file of a multi-file screenshot sequence. Within one file, a reload
-does the same ("Reloads").
+second file of a multi-file screenshot sequence. To change a program
+between runs within one file, use a reload ("Reloads"). Unlike this load, a
+reload writes only the steps it lists.
 
 | Section | Under SKIP-RESET |
 |---|---|

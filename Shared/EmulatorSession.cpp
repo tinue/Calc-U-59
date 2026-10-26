@@ -1,5 +1,6 @@
 #include "EmulatorSession.hpp"
 #include "KeyMatrix.hpp"
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 
@@ -308,13 +309,18 @@ std::optional<QueuedCard> EmulatorSession::takeQueuedCard() {
     if (m_frozen.load()) return std::nullopt;
     const uint16_t pc = m_machine->pc();
     std::lock_guard<std::mutex> lock(m_cardMutex);
-    if (m_queuedCards.empty()) return std::nullopt;
+    // Two queues in one: InsertCard cards for an idle calculator, ArmCard
+    // cards for the card wait, each in order; neither holds up the other.
     const ModelInfo& mi = info(m_model);
-    const QueuedCard& next = m_queuedCards.front();
-    bool ready = next.insertNow ? mi.scanLoop.contains(pc) : mi.cardWait.contains(pc) && m_machine->isWaitingForCard();
-    if (!ready) return std::nullopt;
-    QueuedCard card = std::move(m_queuedCards.front());
-    m_queuedCards.pop_front();
+    bool insertNow;
+    if (mi.scanLoop.contains(pc)) insertNow = true;
+    else if (mi.cardWait.contains(pc) && m_machine->isWaitingForCard()) insertNow = false;
+    else return std::nullopt;
+    auto it = std::find_if(m_queuedCards.begin(), m_queuedCards.end(),
+                           [&](const QueuedCard& c) { return c.insertNow == insertNow; });
+    if (it == m_queuedCards.end()) return std::nullopt;
+    QueuedCard card = std::move(*it);
+    m_queuedCards.erase(it);
     return card;
 }
 

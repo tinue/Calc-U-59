@@ -153,3 +153,18 @@ TEST(data_registers_match_the_rom) {
     CHECK_EQ(TI59Machine::decodeBCD(r63), 5.0);
     CHECK_EQ(reg(*m, 0), 0.0);  // R00 would be RAM 119: no hardware
 }
+
+// A reload is the user keying in changes: only the listed steps and registers.
+TEST(reload_changes_only_the_listed_steps_and_registers) {
+    auto m = testroms::makeMachine(Model::TI58);
+    applyState(*m, parseStateFile("PROGRAM:\n11 12 13 14\nREGISTERS:\n01 = 1\n02 = 2\n"), Model::TI58);
+    ReloadStage stage;
+    stage.programSteps = {{1, 22}};
+    stage.registers = {{2, encodeBcd("5"), false}};
+    applyReload(*m, stage, Model::TI58);
+    CHECK_EQ(int(m->readProgramStep(0)), 11);
+    CHECK_EQ(int(m->readProgramStep(1)), 22);
+    CHECK_EQ(int(m->readProgramStep(3)), 14);  // a SKIP-RESET load would have padded this with 00
+    CHECK_EQ(m->readDataReg(1), 1.0);
+    CHECK_EQ(m->readDataReg(2), 5.0);
+}

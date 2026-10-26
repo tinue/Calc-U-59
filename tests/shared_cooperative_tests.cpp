@@ -487,3 +487,12 @@ TEST(cooperative_controller_cards_need_a_card_reader) {
     r.load("KEYSTROKES:\nArmCard: Results\n");
     CHECK(!r.p.errors.empty() && r.p.errors.back().find("need a card reader") != std::string::npos);
 }
+
+TEST(cooperative_controller_insert_card_passes_an_unused_armed_card) {
+    ControllerRig r;
+    r.load("CARD: mem:Data\nBank: 4\nREGISTERS:\n03 = 7\nEND-CARD\n"
+           "KEYSTROKES:\nArmCard: mem:NeverAsked\nInsertCard: mem:Data\n");
+    CHECK(r.runUntil([&] { return r.c.keystrokesPlaying(); }));
+    CHECK(r.runUntil([&] { return !r.c.keystrokesPlaying(); }, 30s));
+    CHECK_EQ(r.c.session()->machine().readDataReg(3), 7.0);  // read at idle, as pushed in by hand
+}
