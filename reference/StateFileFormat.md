@@ -109,7 +109,7 @@ H01 = 7.77E22
 - Registers not listed are zero. `PROGRAM:` and `REGISTERS:` are written
   as given, registers after the program: some listings deliberately put
   registers in the program area or steps in the data area
-  (`examples/calendar-05-vanderburgh.ti59`).
+  (`examples/calendar/calendar-05-vanderburgh.ti59`).
 
 ### Print-code register values
 
@@ -387,7 +387,7 @@ KEYSTROKES:
   in the LOG tab.
 - `MODEL:`, `SOLID-STATE-MODULE:` and `PRINTER:` belong to the whole file,
   wherever they stand.
-- Example: `examples/fast-grafik-3d-plot.ti59`. Part 2 is a reload after
+- Example: `examples/historic/fast-grafik-3d-plot.ti59`. Part 2 is a reload after
   part 1 stops. Up to 2.1 it was two files, the second loaded with
   `SKIP-RESET`, which reloads replace.
 

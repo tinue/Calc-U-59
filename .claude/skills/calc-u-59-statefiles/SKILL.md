@@ -36,8 +36,8 @@ file. The parser, `Shared/StateFile.cpp`, wins if the two disagree.
 ## Transcribing magazine listings (52-Notes)
 
 Lessons from the 52-Notes calendar programs
-(`examples/calendar-01-Weinberger.ti59` and the rest of the series, see
-`examples/CALENDAR_PROGRAMS.md`). The listings use their own shorthand
+(`examples/calendar/calendar-01-Weinberger.ti59` and the rest of the series, see
+`examples/calendar/CALENDAR_PROGRAMS.md`). The listings use their own shorthand
 (`S29`/`R13` for STO/RCL, `rtn` for the merged RTN, `CP`, `x=t`, `xGEt`,
 `Op`, `Adv`, `Pgm` for 2nd functions); don't assume it carries over to
 other sources.

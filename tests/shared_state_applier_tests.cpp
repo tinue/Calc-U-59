@@ -133,7 +133,7 @@ TEST(data_registers_match_the_rom) {
         CHECK_EQ(testroms::displayText(*m), std::string("5"));
     }
 
-    // TI-58C partitioned like a TI-59 (examples/repartition.ti58c): code 60 41
+    // TI-58C partitioned like a TI-59 (examples/historic/repartition.ti58c): code 60 41
     // in steps 480–481 (RAM 60, kept by power-off) gives partition 0.19, and
     // the ROM then addresses Rnn as RAM[119 - nn]: R59 is RAM 60, R56 RAM 63.
     auto m = testroms::makeMachine(Model::TI58C);

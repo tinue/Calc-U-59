@@ -45,7 +45,7 @@ PRERELEASE_RE = re.compile(r"\b(beta|release candidate|seed|preview|rc)\b", re.I
 # these go to the storage root.
 REGULAR_PATTERNS = [
     "assembly/stopwatch.asm",
-    "characters-fastmode.ti59",
+    "historic/characters-fastmode.ti59",
     "characters.ti59",
     "diag.ti58",
     "diag.ti59",

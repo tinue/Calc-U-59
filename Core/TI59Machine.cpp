@@ -357,7 +357,7 @@ int TI59Machine::dataRegCount() const {
 int TI59Machine::dataRegCountLocked() const {
     // The ROM's highest register number, BCD in SCOM[13] nibbles 5–3: 119 on
     // the TI-59, 59 on the TI-58/58C. A TI-58C partitioned like a TI-59
-    // (examples/repartition.ti58c) has 119 too, and its R56–R59 are then the
+    // (examples/historic/repartition.ti58c) has 119 too, and its R56–R59 are then the
     // extra registers RAM 63–60. Zero before the ROM has booted.
     const int top = m_cpu.scomNibble(13, 5) * 100 + m_cpu.scomNibble(13, 4) * 10 + m_cpu.scomNibble(13, 3);
     if (top == 0) return hasConstantMemory(m_variant) ? 60 : m_ram.size();

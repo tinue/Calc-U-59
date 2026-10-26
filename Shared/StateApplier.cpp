@@ -14,7 +14,7 @@ constexpr uint32_t kStartupSteps = 300'000;
 /// Program steps zero-padded to `steps` (at least up to the last listed step).
 /// A full load pads to the model's physical capacity — not the PARTITION
 /// boundary: some listings deliberately load registers as programs and
-/// programs as registers (examples/calendar-05-vanderburgh.ti59), so PROGRAM:
+/// programs as registers (examples/calendar/calendar-05-vanderburgh.ti59), so PROGRAM:
 /// and REGISTERS: are trusted as written.
 void writeProgram(TI59Machine& m, const std::vector<ProgramStep>& programSteps, Model model, int steps) {
     int physicalMaxStep = info(model).maxStep();

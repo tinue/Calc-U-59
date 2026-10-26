@@ -1,4 +1,4 @@
-STATE examples/FastMode_Zero4.ti59 479 0
+STATE examples/historic/FastMode_Zero4.ti59 479 0
 partition 479 0
 step 0 0
 step 1 0
@@ -47,7 +47,7 @@ module ML
 printer -
 model -
 END
-STATE examples/FastMode_Zero4.ti59 959 0
+STATE examples/historic/FastMode_Zero4.ti59 959 0
 partition 479 0
 step 0 0
 step 1 0
@@ -96,7 +96,7 @@ module ML
 printer -
 model -
 END
-STATE examples/FastMode_Zero4.ti59 479 1
+STATE examples/historic/FastMode_Zero4.ti59 479 1
 partition 479 0
 step 0 0
 step 1 0
@@ -145,7 +145,7 @@ module ML
 printer -
 model -
 END
-STATE examples/Frequency-Transformation.ti59 479 0
+STATE examples/historic/Frequency-Transformation.ti59 479 0
 partition 559 1
 step 0 76
 step 1 11
@@ -678,7 +678,7 @@ module ML
 printer 1
 model -
 END
-STATE examples/Frequency-Transformation.ti59 959 0
+STATE examples/historic/Frequency-Transformation.ti59 959 0
 partition 559 1
 step 0 76
 step 1 11
@@ -1208,7 +1208,7 @@ module ML
 printer 1
 model -
 END
-STATE examples/Frequency-Transformation.ti59 479 1
+STATE examples/historic/Frequency-Transformation.ti59 479 1
 partition 559 1
 step 0 76
 step 1 11
@@ -1741,7 +1741,7 @@ module ML
 printer 1
 model -
 END
-STATE examples/Integer-Base-Conversion.ti59 479 0
+STATE examples/historic/Integer-Base-Conversion.ti59 479 0
 partition 479 0
 step 0 76
 step 1 11
@@ -1885,7 +1885,7 @@ module -
 printer -
 model -
 END
-STATE examples/Integer-Base-Conversion.ti59 959 0
+STATE examples/historic/Integer-Base-Conversion.ti59 959 0
 partition 479 0
 step 0 76
 step 1 11
@@ -2029,7 +2029,7 @@ module -
 printer -
 model -
 END
-STATE examples/Integer-Base-Conversion.ti59 479 1
+STATE examples/historic/Integer-Base-Conversion.ti59 479 1
 partition 479 0
 step 0 76
 step 1 11
@@ -2173,7 +2173,7 @@ module -
 printer -
 model -
 END
-STATE examples/calendar-01-Weinberger.ti59 479 0
+STATE examples/calendar/calendar-01-Weinberger.ti59 479 0
 partition 479 0
 step 0 76
 step 1 11
@@ -2685,7 +2685,7 @@ module ML
 printer 1
 model TI-59
 END
-STATE examples/calendar-01-Weinberger.ti59 959 0
+STATE examples/calendar/calendar-01-Weinberger.ti59 959 0
 partition 479 0
 step 0 76
 step 1 11
@@ -3197,7 +3197,7 @@ module ML
 printer 1
 model TI-59
 END
-STATE examples/calendar-01-Weinberger.ti59 479 1
+STATE examples/calendar/calendar-01-Weinberger.ti59 479 1
 partition 479 0
 step 0 76
 step 1 11
@@ -3709,7 +3709,7 @@ module ML
 printer 1
 model TI-59
 END
-STATE examples/calendar-02-cargile.ti59 479 0
+STATE examples/calendar/calendar-02-cargile.ti59 479 0
 partition 479 0
 step 0 1
 step 1 2
@@ -4159,7 +4159,7 @@ module ML
 printer 1
 model TI-59
 END
-STATE examples/calendar-02-cargile.ti59 959 0
+STATE examples/calendar/calendar-02-cargile.ti59 959 0
 partition 479 0
 step 0 1
 step 1 2
@@ -4609,7 +4609,7 @@ module ML
 printer 1
 model TI-59
 END
-STATE examples/calendar-02-cargile.ti59 479 1
+STATE examples/calendar/calendar-02-cargile.ti59 479 1
 partition 479 0
 step 0 1
 step 1 2
@@ -5059,7 +5059,7 @@ module ML
 printer 1
 model TI-59
 END
-STATE examples/calendar-03-vanderburgh.ti59 479 0
+STATE examples/calendar/calendar-03-vanderburgh.ti59 479 0
 partition 479 0
 step 0 76
 step 1 18
@@ -5584,7 +5584,7 @@ module ML
 printer 1
 model TI-59
 END
-STATE examples/calendar-03-vanderburgh.ti59 959 0
+STATE examples/calendar/calendar-03-vanderburgh.ti59 959 0
 partition 479 0
 step 0 76
 step 1 18
@@ -6109,7 +6109,7 @@ module ML
 printer 1
 model TI-59
 END
-STATE examples/calendar-03-vanderburgh.ti59 479 1
+STATE examples/calendar/calendar-03-vanderburgh.ti59 479 1
 partition 479 0
 step 0 76
 step 1 18
@@ -6634,7 +6634,7 @@ module ML
 printer 1
 model TI-59
 END
-STATE examples/calendar-04-skillman.ti59 479 0
+STATE examples/calendar/calendar-04-skillman.ti59 479 0
 partition 479 0
 step 0 61
 step 1 1
@@ -7045,7 +7045,7 @@ module ML
 printer 1
 model TI-59
 END
-STATE examples/calendar-04-skillman.ti59 959 0
+STATE examples/calendar/calendar-04-skillman.ti59 959 0
 partition 479 0
 step 0 61
 step 1 1
@@ -7456,7 +7456,7 @@ module ML
 printer 1
 model TI-59
 END
-STATE examples/calendar-04-skillman.ti59 479 1
+STATE examples/calendar/calendar-04-skillman.ti59 479 1
 partition 479 0
 step 0 61
 step 1 1
@@ -7867,7 +7867,7 @@ module ML
 printer 1
 model TI-59
 END
-STATE examples/calendar-05-vanderburgh.ti59 479 0
+STATE examples/calendar/calendar-05-vanderburgh.ti59 479 0
 partition 319 1
 step 0 3
 step 1 0
@@ -8522,7 +8522,7 @@ module ML
 printer 1
 model TI-59
 END
-STATE examples/calendar-05-vanderburgh.ti59 959 0
+STATE examples/calendar/calendar-05-vanderburgh.ti59 959 0
 partition 319 1
 step 0 3
 step 1 0
@@ -9177,7 +9177,7 @@ module ML
 printer 1
 model TI-59
 END
-STATE examples/calendar-05-vanderburgh.ti59 479 1
+STATE examples/calendar/calendar-05-vanderburgh.ti59 479 1
 partition 319 1
 step 0 3
 step 1 0
@@ -9832,7 +9832,7 @@ module ML
 printer 1
 model TI-59
 END
-STATE examples/calendar-06-cargile.ti59 479 0
+STATE examples/calendar/calendar-06-cargile.ti59 479 0
 partition 319 1
 step 0 76
 step 1 11
@@ -10286,7 +10286,7 @@ module ML
 printer 1
 model TI-59
 END
-STATE examples/calendar-06-cargile.ti59 959 0
+STATE examples/calendar/calendar-06-cargile.ti59 959 0
 partition 319 1
 step 0 76
 step 1 11
@@ -10740,7 +10740,7 @@ module ML
 printer 1
 model TI-59
 END
-STATE examples/calendar-06-cargile.ti59 479 1
+STATE examples/calendar/calendar-06-cargile.ti59 479 1
 partition 319 1
 step 0 76
 step 1 11
@@ -11194,7 +11194,7 @@ module ML
 printer 1
 model TI-59
 END
-STATE examples/calendar-07-calidas.ti59 479 0
+STATE examples/calendar/calendar-07-calidas.ti59 479 0
 partition 479 0
 step 0 44
 step 1 0
@@ -11661,7 +11661,7 @@ module ML
 printer 1
 model TI-59
 END
-STATE examples/calendar-07-calidas.ti59 959 0
+STATE examples/calendar/calendar-07-calidas.ti59 959 0
 partition 479 0
 step 0 44
 step 1 0
@@ -12128,7 +12128,7 @@ module ML
 printer 1
 model TI-59
 END
-STATE examples/calendar-07-calidas.ti59 479 1
+STATE examples/calendar/calendar-07-calidas.ti59 479 1
 partition 479 0
 step 0 44
 step 1 0
@@ -12595,7 +12595,7 @@ module ML
 printer 1
 model TI-59
 END
-STATE examples/calendar-08-acosta.ti59 479 0
+STATE examples/calendar/calendar-08-acosta.ti59 479 0
 partition 479 0
 step 0 61
 step 1 3
@@ -13143,7 +13143,7 @@ module ML
 printer 1
 model TI-59
 END
-STATE examples/calendar-08-acosta.ti59 959 0
+STATE examples/calendar/calendar-08-acosta.ti59 959 0
 partition 479 0
 step 0 61
 step 1 3
@@ -13691,7 +13691,7 @@ module ML
 printer 1
 model TI-59
 END
-STATE examples/calendar-08-acosta.ti59 479 1
+STATE examples/calendar/calendar-08-acosta.ti59 479 1
 partition 479 0
 step 0 61
 step 1 3
@@ -14239,7 +14239,7 @@ module ML
 printer 1
 model TI-59
 END
-STATE examples/calendar-09-dispatch.ti59 479 0
+STATE examples/calendar/calendar-09-dispatch.ti59 479 0
 partition 399 1
 step 0 91
 step 1 76
@@ -14763,7 +14763,7 @@ module -
 printer 1
 model TI-59
 END
-STATE examples/calendar-09-dispatch.ti59 959 0
+STATE examples/calendar/calendar-09-dispatch.ti59 959 0
 partition 399 1
 step 0 91
 step 1 76
@@ -15287,7 +15287,7 @@ module -
 printer 1
 model TI-59
 END
-STATE examples/calendar-09-dispatch.ti59 479 1
+STATE examples/calendar/calendar-09-dispatch.ti59 479 1
 partition 399 1
 step 0 91
 step 1 76
@@ -15811,7 +15811,7 @@ module -
 printer 1
 model TI-59
 END
-STATE examples/characters-fastmode.ti59 479 0
+STATE examples/historic/characters-fastmode.ti59 479 0
 partition 479 0
 step 0 0
 step 1 0
@@ -15992,7 +15992,7 @@ module ML
 printer 1
 model -
 END
-STATE examples/characters-fastmode.ti59 959 0
+STATE examples/historic/characters-fastmode.ti59 959 0
 partition 479 0
 step 0 0
 step 1 0
@@ -16173,7 +16173,7 @@ module ML
 printer 1
 model -
 END
-STATE examples/characters-fastmode.ti59 479 1
+STATE examples/historic/characters-fastmode.ti59 479 1
 partition 479 0
 step 0 0
 step 1 0
@@ -21019,7 +21019,7 @@ module -
 printer -
 model TI-59
 END
-STATE examples/fastmode.ti58 479 0
+STATE examples/historic/fastmode.ti58 479 0
 partition 319 1
 step 0 91
 step 1 25
@@ -21061,7 +21061,7 @@ module -
 printer -
 model -
 END
-STATE examples/fastmode.ti58 959 0
+STATE examples/historic/fastmode.ti58 959 0
 partition 319 1
 step 0 91
 step 1 25
@@ -21103,7 +21103,7 @@ module -
 printer -
 model -
 END
-STATE examples/fastmode.ti58 479 1
+STATE examples/historic/fastmode.ti58 479 1
 partition 319 1
 step 0 91
 step 1 25
@@ -21145,7 +21145,7 @@ module -
 printer -
 model -
 END
-STATE examples/fastmode.ti59 479 0
+STATE examples/historic/fastmode.ti59 479 0
 partition 319 1
 step 0 91
 step 1 25
@@ -21187,7 +21187,7 @@ module -
 printer -
 model -
 END
-STATE examples/fastmode.ti59 959 0
+STATE examples/historic/fastmode.ti59 959 0
 partition 319 1
 step 0 91
 step 1 25
@@ -21229,7 +21229,7 @@ module -
 printer -
 model -
 END
-STATE examples/fastmode.ti59 479 1
+STATE examples/historic/fastmode.ti59 479 1
 partition 319 1
 step 0 91
 step 1 25
@@ -21271,7 +21271,7 @@ module -
 printer -
 model -
 END
-STATE examples/firmware.ti59 479 0
+STATE examples/historic/firmware.ti59 479 0
 partition 479 0
 key 21
 key 64
@@ -21303,7 +21303,7 @@ module -
 printer -
 model -
 END
-STATE examples/firmware.ti59 959 0
+STATE examples/historic/firmware.ti59 959 0
 partition 479 0
 key 21
 key 64
@@ -21335,7 +21335,7 @@ module -
 printer -
 model -
 END
-STATE examples/firmware.ti59 479 1
+STATE examples/historic/firmware.ti59 479 1
 partition 479 0
 key 21
 key 64
@@ -21367,7 +21367,7 @@ module -
 printer -
 model -
 END
-STATE examples/keycodes.ti59 479 0
+STATE examples/historic/keycodes.ti59 479 0
 partition 479 0
 step 0 76
 step 1 11
@@ -21445,7 +21445,7 @@ module -
 printer 1
 model -
 END
-STATE examples/keycodes.ti59 959 0
+STATE examples/historic/keycodes.ti59 959 0
 partition 479 0
 step 0 76
 step 1 11
@@ -21523,7 +21523,7 @@ module -
 printer 1
 model -
 END
-STATE examples/keycodes.ti59 479 1
+STATE examples/historic/keycodes.ti59 479 1
 partition 479 0
 step 0 76
 step 1 11
@@ -21781,7 +21781,7 @@ module -
 printer 1
 model TI-59
 END
-STATE examples/printer-quirks.ti59 479 0
+STATE examples/historic/printer-quirks.ti59 479 0
 partition 479 0
 step 0 92
 step 1 76
@@ -21978,7 +21978,7 @@ module ML
 printer 1
 model -
 END
-STATE examples/printer-quirks.ti59 959 0
+STATE examples/historic/printer-quirks.ti59 959 0
 partition 479 0
 step 0 92
 step 1 76
@@ -22175,7 +22175,7 @@ module ML
 printer 1
 model -
 END
-STATE examples/printer-quirks.ti59 479 1
+STATE examples/historic/printer-quirks.ti59 479 1
 partition 479 0
 step 0 92
 step 1 76
@@ -22846,7 +22846,7 @@ module -
 printer 1
 model -
 END
-STATE examples/ram_test_full_fast.ti59 479 0
+STATE examples/historic/ram_test_full_fast.ti59 479 0
 partition 159 1
 step 0 91
 step 1 69
@@ -23012,7 +23012,7 @@ module -
 printer 1
 model -
 END
-STATE examples/ram_test_full_fast.ti59 959 0
+STATE examples/historic/ram_test_full_fast.ti59 959 0
 partition 159 1
 step 0 91
 step 1 69
@@ -23178,7 +23178,7 @@ module -
 printer 1
 model -
 END
-STATE examples/ram_test_full_fast.ti59 479 1
+STATE examples/historic/ram_test_full_fast.ti59 479 1
 partition 159 1
 step 0 91
 step 1 69
@@ -23344,7 +23344,7 @@ module -
 printer 1
 model -
 END
-STATE examples/repartition.ti58c 479 0
+STATE examples/historic/repartition.ti58c 479 0
 partition 239 1
 step 0 76
 step 1 11
@@ -23383,7 +23383,7 @@ module -
 printer -
 model -
 END
-STATE examples/repartition.ti58c 959 0
+STATE examples/historic/repartition.ti58c 959 0
 partition 239 1
 step 0 76
 step 1 11
@@ -23422,7 +23422,7 @@ module -
 printer -
 model -
 END
-STATE examples/repartition.ti58c 479 1
+STATE examples/historic/repartition.ti58c 479 1
 partition 239 1
 step 0 76
 step 1 11
@@ -27295,7 +27295,7 @@ module ML
 printer 1
 model TI-59
 END
-STATE examples/stars-and-stripes.ti59 479 0
+STATE examples/historic/stars-and-stripes.ti59 479 0
 partition 479 0
 step 0 92
 step 1 76
@@ -27509,7 +27509,7 @@ module ML
 printer 1
 model TI-59
 END
-STATE examples/stars-and-stripes.ti59 959 0
+STATE examples/historic/stars-and-stripes.ti59 959 0
 partition 479 0
 step 0 92
 step 1 76
@@ -27723,7 +27723,7 @@ module ML
 printer 1
 model TI-59
 END
-STATE examples/stars-and-stripes.ti59 479 1
+STATE examples/historic/stars-and-stripes.ti59 479 1
 partition 479 0
 step 0 92
 step 1 76
@@ -28684,7 +28684,7 @@ module -
 printer 1
 model TI-59
 END
-STATE examples/texas-print.ti59 479 0
+STATE examples/historic/texas-print.ti59 479 0
 partition 959 1
 step 0 92
 step 1 0
@@ -29541,7 +29541,7 @@ module ML
 printer 1
 model TI-59
 END
-STATE examples/texas-print.ti59 959 0
+STATE examples/historic/texas-print.ti59 959 0
 partition 959 1
 step 0 92
 step 1 0
@@ -30398,7 +30398,7 @@ module ML
 printer 1
 model TI-59
 END
-STATE examples/texas-print.ti59 479 1
+STATE examples/historic/texas-print.ti59 479 1
 partition 959 1
 step 0 92
 step 1 0
@@ -31255,7 +31255,7 @@ module ML
 printer 1
 model TI-59
 END
-STATE examples/trace-quirk.ti59 479 0
+STATE examples/historic/trace-quirk.ti59 479 0
 partition 479 0
 step 0 76
 step 1 11
@@ -31316,7 +31316,7 @@ module -
 printer 1
 model TI-58
 END
-STATE examples/trace-quirk.ti59 959 0
+STATE examples/historic/trace-quirk.ti59 959 0
 partition 479 0
 step 0 76
 step 1 11
@@ -31377,7 +31377,7 @@ module -
 printer 1
 model TI-58
 END
-STATE examples/trace-quirk.ti59 479 1
+STATE examples/historic/trace-quirk.ti59 479 1
 partition 479 0
 step 0 76
 step 1 11

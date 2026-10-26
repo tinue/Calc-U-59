@@ -427,15 +427,15 @@ column-2 keys work as the terminator (B, INV, x⇄t, STO, EE; every key
 tested), and any digit works as the first one. The 12th decimal digit of X
 becomes the source flag, nibbles 4–7 of its image the start step.
 
-- **St flg at the end of the partition** (`examples/fastmode.ti59`, TI PPC
+- **St flg at the end of the partition** (`examples/historic/fastmode.ti59`, TI PPC
   Notes V9N3P5). Fetching the operand fails, the program halts with the
   argument pending, and the user presses 7 EE.
-- **Acosta's "hi2"** (`examples/calendar-08-acosta.ti59`): RCL of the
+- **Acosta's "hi2"** (`examples/calendar/calendar-08-acosta.ti59`): RCL of the
   constant, St flg, then a pseudo-keycode `0C` as the operand, all inside the
   program. Its hex units digit feeds only the digit C and leaves the argument
   open, and the next step (68 Nop) ends it. The keyboard ritual (`Pgm 12 SBR
   999`, `R/S`, `D.MS`, `LRN Ins Ins`) only manufactures that `0C`, with the
-  stale-cache Ins quirk known from `examples/texas-print.ti59`.
+  stale-cache Ins quirk known from `examples/historic/texas-print.ti59`.
 - **SST** (`examples/fastmode-sst.ti59`). SST leaves the operand pending
   because a program operand is fed as two digits. No partition-end halt and
   no pseudo-keycode are needed.
@@ -444,7 +444,7 @@ becomes the source flag, nibbles 4–7 of its image the start step.
   because stored operands always arrive as two decimal digits.
 
 **Family 2: LRN inside a module program** (Arendt / Meusch, `00000 Pgm 02 SBR
-239 …`; `examples/FastMode_Zero4.ti59`, `examples/characters-fastmode.ti59`).
+239 …`; `examples/historic/FastMode_Zero4.ti59`, `examples/historic/characters-fastmode.ti59`).
 ML-02 step 239 is a byte 31, the LRN keycode. Executed there, it switches on
 LRN mode while the module keeps running, so the module records its own
 keycodes into RAM. One of them then dispatches into the cold-start clear loop
@@ -661,7 +661,7 @@ and does not name the model.
 | Acosta: h31 h41 h51 act as sin | 2B 3B 4B | `00B2–00B4`, the trig run after its INV test |
 | Acosta: h54 copies t into the display right after x⇄t, pending operations kept | 4E | `00E4`, Prd's store-back. At step 8k only; `2 + 7 x⇄t h54 =` gives 9 on the TI-58C, 2 on the TI-59 |
 | Acosta: h24 reads the next seven steps one digit out of step, so 8 steps hold 15 | 1E | TI-58C only: the scanner's `0EE1` leads into the step-buffer code there (TI-58C `0C0B`), and `1E 10 20 30 10 09 91` enters the digits 123. On the TI-59, `0EE1` runs other code. |
-| Acosta: codes ending in A do nothing new (`examples/repartition.ti58c`); Ristanovic: h00 acts as List | tA, 9A | tA runs as t0; 9A is List (90) |
+| Acosta: codes ending in A do nothing new (`examples/historic/repartition.ti58c`); Ristanovic: h00 acts as List | tA, 9A | tA runs as t0; 9A is List (90) |
 | Acosta: all hex codes except h10–h15 disable label search | | mostly; see "Label search" |
 | Acosta: h11 as the operand of RCL, Fix, St flg, GTO, SBR, Dsz or x=t also runs SBR A | 0B | not checked |
 | Ristanovic: h44 acts as ln(0) | 3E | `00E3`, Prd's × ÷ on leftover operands; overflows to −9.9999999 99 |

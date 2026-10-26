@@ -1,6 +1,6 @@
 # printer-interrupt-bits.ti59
 #
-# A short version of examples/printer-quirks.ti59 for checking the emulator's
+# A short version of examples/historic/printer-quirks.ti59 for checking the emulator's
 # printer interrupt against a real TI-59 + PC-100. It prints 10 lines,
 # each once in full and once cut short by the interrupt, like the
 # article's table, but the cut lines differ only in when they are cut.

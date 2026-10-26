@@ -72,11 +72,13 @@ console.log("compiled calc.js, app/app.js");
 
 // ---- 2. Presets ---------------------------------------------------------
 
-const presets = JSON.parse(read(path.join(WEB, "presets.json")));
+// presets.json names files under examples/; dist/presets/ is flat.
 fs.mkdirSync(path.join(DIST, "presets"), { recursive: true });
-for (const p of presets) {
-  fs.copyFileSync(path.join(REPO, "examples", p.file), path.join(DIST, "presets", p.file));
-}
+const presets = JSON.parse(read(path.join(WEB, "presets.json"))).map((p) => {
+  const file = path.basename(p.file);
+  fs.copyFileSync(path.join(REPO, "examples", p.file), path.join(DIST, "presets", file));
+  return { ...p, file };
+});
 fs.writeFileSync(path.join(DIST, "presets", "manifest.json"), JSON.stringify(presets, null, 2) + "\n");
 console.log(`presets: ${presets.map((p) => p.file).join(", ")}`);
 

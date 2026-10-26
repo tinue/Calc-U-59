@@ -2745,7 +2745,7 @@
 ; suspended sequence then resumes (07A9) and the pending key is executed via
 ; 0620 → 04F2 → STEP_DISPATCH. Missing safeguard: KEY_ENCODE's column bits stay
 ; in KR and can offset the resumed sequence's bank dispatch (St flg → 0B34) —
-; one link of the fast-mode chain, see examples/fastmode.ti59.
+; one link of the fast-mode chain, see examples/historic/fastmode.ti59.
 077F: 0A1F  RCLF              ; SCOM[0] …
 0780: 01D6  D=LOAD ALL
 0781: 017E  D=SRD ALL
@@ -3070,7 +3070,7 @@
 ; P/R pressed in the halt state left by the R/S-resumed SBR 444 run
 ; launches with SCOM[0] still saying source 1, so it reaches the 0872 test
 ; with fB[0] clear and the keycode sub-program target mis-routes into the
-; RAM range check — see examples/texas-print.ti59.
+; RAM range check — see examples/historic/texas-print.ti59.
 0863: 0A87  MOV R5,#8
 0864: 09F3  B=R5 MANT
 0865: 0988  A=A-B MANT
@@ -3718,7 +3718,7 @@
 ; source 1) and R5=8 (P→R keycode sub-program via KEY_PR, E "…284008" =
 ; entry step 284, source 8). Missing safeguard: the flag is written before
 ; the target-step range check at 0865–087C, so an abandoned launch leaves
-; the new source flag in place — see examples/texas-print.ti59.
+; the new source flag in place — see examples/historic/texas-print.ti59.
 ; The 0A4F–0A53 shuffle also stashes the CALLER's source (SCOM[0]'s old
 ; nibble 3) into nibble 1 of the rewritten SCOM[0]; 0A56–0A59 then dispatch
 ; on it (traces pr-after-halt1/2, memory/sbr444-quirk-analysis.md):
@@ -3957,7 +3957,7 @@
 ; stack). TI-59 trace pr-after-halt2: the abandoned P/R launch leaves SCOM[0]
 ; = "…108010" (leaked source 8, stashed caller source 1, step 008) and a
 ; dead stack level naming the leftover CROM position — the state quirk 3
-; of examples/texas-print.ti59 builds on.
+; of examples/historic/texas-print.ti59 builds on.
 0B0A: 0099  SET fB[9]
 0B0B: 000A  CLR fB[0]
 0B0C: 1CF9  JC 0890
@@ -4017,7 +4017,7 @@
 ; LN finish, continued. 0B34 is also where the St flg mis-dispatch of the
 ; fast-mode chain lands — unchanged on the TI-58C (traced: SST entry, then
 ; 0B34 … 08CE → 0CBD → 0E4A → HIR STO 11BC writes SCOM[0]).
-0B34: 0308  A=A-1 DPT1        ; (fast-mode chain entry, examples/fastmode.ti59 /
+0B34: 0308  A=A-1 DPT1        ; (fast-mode chain entry, examples/historic/fastmode.ti59 /
                               ;   fastmode-sst.ti59)
 0B35: 1811  JC 0B2D
 0B36: 0E09  IO=A-1 MMSD1
@@ -4795,7 +4795,7 @@
 ; the launch descriptor, then rejoin the common return-stack push at 0A6A.
 ; fB[0]/fB[13] are NOT set on this path, so at 0872 the transfer target
 ; gets the RAM-partition range check even when it is a keycode
-; sub-program — the quirk-2 flag leak of examples/texas-print.ti59
+; sub-program — the quirk-2 flag leak of examples/historic/texas-print.ti59
 ; (trace pr-after-halt2: P/R after the R/S-resumed garbage run lands here
 ; because SCOM[0] still says source 1; its entry step 284 then fails the
 ; check at 087C).
@@ -5294,7 +5294,7 @@
 ; whether a '0' is sent (0EF7), and PRT.GO prints the line ("0" observed).
 ; The TI-59's 0x0EF1 is its B=R5 DPT (≙ 0EF2): this code sits one word later
 ; here (0EE0–0EE1 are two words), so 1F skips the R5 := 10 there and goes
-; straight to PRT.GO — the printer-interrupt trick of examples/texas-print.ti59.
+; straight to PRT.GO — the printer-interrupt trick of examples/historic/texas-print.ti59.
 0EF1: 0AA7  MOV R5,#10        ; yes: '0' before the point when all digits are fraction
 0EF2: 02F3  B=R5 DPT
 0EF3: 0289  IO=A-B DPT
@@ -6157,7 +6157,7 @@
 ; HIR_STO: store X (C, flags from fB[1..4]) into hierarchy register SCOM[D[0]]
 ; (HIR 0m, and the store-back of HIR SUM/Prd). The fast-mode chain of the
 ; TI-59 reaches it with D[0] = 0, writing X's digit image into SCOM[0]
-; (examples/fastmode.ti59). Trace-confirmed (Σ+ / x̄ on the TI-58C).
+; (examples/historic/fastmode.ti59). Trace-confirmed (Σ+ / x̄ on the TI-58C).
 11BC: 0A16  MOV R5,fB[1..4]
 11BD: 02F4  C=R5 DPT
 11BE: 0131  IO=D ALL
@@ -6225,7 +6225,7 @@
 ; return the failed SBR had pushed at 1334), sets the error flag fB[9]
 ; (blinking display), clears fB[0] and idles (keyboard: 11F1). The cleanup
 ; is minimal: the CROM PC and the SCOM[9] descriptor keep what the rejected
-; launch left (the TI-59 "SBR 444" quirk, examples/texas-print.ti59).
+; launch left (the TI-59 "SBR 444" quirk, examples/historic/texas-print.ti59).
 11E2: 01D5  C<>D ALL
 11E3: 0A1F  RCLF
 11E4: 01D3  B=LOAD ALL
@@ -6440,7 +6440,7 @@
 ; and the CROM pointer left in the header; in range → 12B1-12B7 commit the
 ; target to the CROM PC via LIB.PC. Same code as the TI-59; ML Pgm 12 SBR 444
 ; (target 2609 + 444 = 3053 ≥ 2764) ends at 11E2 on the TI-58C too (traced) —
-; see examples/texas-print.ti59.
+; see examples/historic/texas-print.ti59.
 1287: 0A97  MOV R5,#9
 1288: 02F0  A=R5 DPT
 1289: 0D09  IO=A-1 MLSD1
@@ -7900,7 +7900,7 @@
 ; PGM_SELECT: Pgm nn. Save the CROM PC (LIB.PC.IN ×4 → B), point it at the
 ; module header (LIB.PC ×4 with 0000), read byte 0 = number of programs N,
 ; restore the CROM PC, and check nn against N: out of range → error (1413,
-; as the garbage run's "Pgm 51" in examples/texas-print.ti59). From the
+; as the garbage run's "Pgm 51" in examples/historic/texas-print.ti59). From the
 ; keyboard nn becomes the current library page in SCOM[9]; in a program it
 ; applies to the next SBR / label only (13C6). Entered from the Pgm sequence
 ; slot 105F via 1416 (two hops: out of branch range). Trace-confirmed

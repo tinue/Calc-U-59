@@ -1,4 +1,4 @@
-"""Generate examples/calendar-09-dispatch.ti59, the fast calendar printer.
+"""Generate examples/calendar/calendar-09-dispatch.ti59, the fast calendar printer.
 
 Same row engine as Galidas/Acosta, entered with the SST fast-mode method.
 Per month, the record's integer part is the address of a fix-up routine for
@@ -7,7 +7,7 @@ and jumps to its routine, which copies the right day pairs into P28..P31,
 sets t to the row-end threshold and falls into the header code. A 13th
 record holds the address of the end of the run, so there is no month
 counter. February enters the second row copy after its own copy of the
-header code. Usage: fastcal.py out.ti59   (e.g. examples/calendar-09-dispatch.ti59)"""
+header code. Usage: fastcal.py out.ti59   (e.g. examples/calendar/calendar-09-dispatch.ti59)"""
 import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

@@ -1,7 +1,7 @@
 # TI-59/PC-100A Program: Calendar Printer, fast mode with dispatched month fix-ups
 #
 # A new program in the line of the 1978-1981 calendar printing competition
-# (examples/CALENDAR_PROGRAMS.md, calendar-01 to calendar-08). Written in
+# (examples/calendar/CALENDAR_PROGRAMS.md, calendar-01 to calendar-08). Written in
 # 2026 with the Calc-U-59 headless harness. It prints a whole year, January
 # to December, in exactly the format of Patrick Acosta's program
 # (calendar-08-acosta.ti59), and is about 7% faster.

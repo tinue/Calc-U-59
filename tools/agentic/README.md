@@ -24,8 +24,8 @@ uv run python tools/agentic/<tool>.py <args>
 - The headless library builds itself on first import
   (`tools/headless/build.sh`). After changes to `Core/` or
   `tools/headless/capi.cpp`, rebuild it.
-- In zsh, `uv` may be aliased with `noglob`, so `examples/calendar-0*.ti59`
-  is passed on literally. Expand globs with `$(ls examples/calendar-0*.ti59)`.
+- In zsh, `uv` may be aliased with `noglob`, so `examples/calendar/calendar-0*.ti59`
+  is passed on literally. Expand globs with `$(ls examples/calendar/calendar-0*.ti59)`.
 - A full calendar year takes about 1–2 s of real time to emulate; the slow
   1978 programs take up to ~30 s.
 
@@ -60,8 +60,8 @@ within a few hundredths of a second.
 ### ti59file.py — load and run
 
 ```bash
-uv run python tools/agentic/ti59file.py examples/calendar-09-dispatch.ti59 [--lines]
-# examples/calendar-09-dispatch.ti59:    75.9 s  finished=True  lines=113 (non-blank 85)  printer floor  27.6 s
+uv run python tools/agentic/ti59file.py examples/calendar/calendar-09-dispatch.ti59 [--lines]
+# examples/calendar/calendar-09-dispatch.ti59:    75.9 s  finished=True  lines=113 (non-blank 85)  printer floor  27.6 s
 ```
 
 Loads the file (PARTITION via `n Op 17`, PROGRAM, REGISTERS), plays its
@@ -203,23 +203,23 @@ notes) for writing an annotated `PROGRAM:` section (see
 
 ## Calendar tools (`calendar/`)
 
-For the 1978–1981 calendar-printer programs (`examples/calendar-0*.ti59`,
-`examples/CALENDAR_PROGRAMS.md`).
+For the 1978–1981 calendar-printer programs (`examples/calendar/calendar-0*.ti59`,
+`examples/calendar/CALENDAR_PROGRAMS.md`).
 
 | Tool | Use |
 |---|---|
 | `check.py printout.txt year` | Day rows against Python's `calendar` (Sunday first). Library: `check(lines, year)`. |
 | `years.py file.ti59 year…` | Runs the file for each year (replaces the 4 digit keys before the first `A`), checks the dates, and compares line by line with Acosta's program for the same year. Library: `with_year(path, year)`, e.g. for `runtime.py`'s `key_runtimes`. |
 | `compare.py file.ti59…` | Steps, time of the last printed line, and date check for each program with its own KEYSTROKES. |
-| `fastcal.py out.ti59` | Generator of `examples/calendar-09-dispatch.ti59` (program, registers, annotated listing; header text from `calendar-09-header.txt`). Edit the generator, not the example. |
+| `fastcal.py out.ti59` | Generator of `examples/calendar/calendar-09-dispatch.ti59` (program, registers, annotated listing; header text from `calendar-09-header.txt`). Edit the generator, not the example. |
 | `swapcal.py out.ti59` | Generator of the earlier swap design (correct but 92.6 s), kept for reference. |
 
 Typical check after changing `fastcal.py`:
 
 ```bash
-uv run python tools/agentic/calendar/fastcal.py examples/calendar-09-dispatch.ti59
-uv run python tools/agentic/calendar/years.py examples/calendar-09-dispatch.ti59 1900 2000 2024 2026
-uv run python tools/agentic/runtime.py examples/calendar-09-dispatch.ti59
+uv run python tools/agentic/calendar/fastcal.py examples/calendar/calendar-09-dispatch.ti59
+uv run python tools/agentic/calendar/years.py examples/calendar/calendar-09-dispatch.ti59 1900 2000 2024 2026
+uv run python tools/agentic/runtime.py examples/calendar/calendar-09-dispatch.ti59
 ```
 
 ## Pitfalls

@@ -187,7 +187,7 @@ Checked-in analysis the project keeps for itself, distinct from any AI tool's pr
 
 | Document | Abstract |
 |---|---|
-| [`examples/CALENDAR_PROGRAMS.md`](examples/CALENDAR_PROGRAMS.md) | History of the 1978–1981 calendar-printer competition and a timing comparison of the `calendar-0*.ti59` programs. |
+| [`examples/calendar/CALENDAR_PROGRAMS.md`](examples/calendar/CALENDAR_PROGRAMS.md) | History of the 1978–1981 calendar-printer competition and a timing comparison of the `calendar-0*.ti59` programs. |
 | [`examples/assembly/README.md`](examples/assembly/README.md) | Format of the assembly examples derived from Hynek Sladký's HW programming guide. |
 | [`examples/debug/readme.md`](examples/debug/readme.md) | Notes that this subfolder holds debugging/regression state files, kept separate to keep the main examples folder clean. |
 

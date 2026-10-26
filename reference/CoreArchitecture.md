@@ -309,7 +309,7 @@ raw RAM cells `RAM[60]`–`RAM[63]` outside that space. Do not call them
 "registers 60–63". They:
 
 - are not reachable via `STO`/`RCL` in the TI-58C's own partitions (top =
-  59). A partition hacked like a TI-59's (`examples/repartition.ti58c`, TI
+  59). A partition hacked like a TI-59's (`examples/historic/repartition.ti58c`, TI
   PPC Notes V5N7) sets top = 119; the cells are then R59–R56 (RAM[119 − nn]),
   and the debugger shows them as such;
 - are read and written only by `MEMWR`/`MEMRD`, which address raw RAM;

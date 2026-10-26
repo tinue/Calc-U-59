@@ -3,7 +3,7 @@
 # The TI-59 "printer interrupt" in its smallest form. The program prints
 # "A0" (at the right end of the line) twice: once normally, and once cut off
 # after the first 2 of its 7 dot rows. rom/printerinterrupt.md explains the hack;
-# examples/texas-print.ti59 and examples/printer-quirks.ti59 are the 1982
+# examples/historic/texas-print.ti59 and examples/historic/printer-quirks.ti59 are the 1982
 # PPX Exchange programs that use it.
 #
 # Loading the file runs everything automatically (KEYSTROKES below). By hand:

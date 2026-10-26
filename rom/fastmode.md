@@ -87,13 +87,13 @@ All methods put X = 1.000000000002 (or …04, …06) on the display first;
   start the real program at step 008. Key
   `GTO 007 SST 0 STO`.
 - **St flg at the end of the partition** (TI PPC Notes V9N3P5;
-  `examples/fastmode.ti59`). The program ends with St flg on the last step and
+  `examples/historic/fastmode.ti59`). The program ends with St flg on the last step and
   halts with a flashing display. Key `7 EE`.
-- **Acosta's "hi2"** (`examples/calendar-08-acosta.ti59`). The trigger is
+- **Acosta's "hi2"** (`examples/calendar/calendar-08-acosta.ti59`). The trigger is
   built into the program with a manufactured pseudo-keycode, so a single key
   starts it.
 - **LRN inside a module program** (`Pgm 02 SBR 239`;
-  `examples/FastMode_Zero4.ti59`). This is an unrelated bug that reaches the
+  `examples/historic/FastMode_Zero4.ti59`). This is an unrelated bug that reaches the
   same state.
 
 ## Flags and Fix after entry

@@ -145,7 +145,7 @@ public:
     /// descending to meet the program at the partition. 120 on the TI-59, 60 on
     /// the TI-58/58C, where the TI-58C's 4 extra registers (H00–H03, RAM 60–63)
     /// sit above R00 — unless the TI-58C is partitioned like a TI-59
-    /// (examples/repartition.ti58c): then it is 120 and only R56–R59 exist, on
+    /// (examples/historic/repartition.ti58c): then it is 120 and only R56–R59 exist, on
     /// the extra registers. Registers without RAM read 0 and ignore writes.
     int dataRegCount() const;
 

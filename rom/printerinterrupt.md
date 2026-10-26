@@ -8,8 +8,8 @@ its own: the calculator sends the line and goes on with the program. TI-59
 users found a program step that stops the printer while it is still
 printing. The line then appears with only its first rows of dots. Programs
 use this for graphics with a finer vertical resolution than whole
-characters (`examples/texas-print.ti59`, the TI logo) or to show truncated
-characters (`examples/printer-quirks.ti59`).
+characters (`examples/historic/texas-print.ti59`, the TI logo) or to show truncated
+characters (`examples/historic/printer-quirks.ti59`).
 
 `examples/printer-interrupt.ti59` is the smallest example. It prints "A0"
 once in full and once cut off after 2 rows.
@@ -48,7 +48,7 @@ Both methods use LRN and Ins on a corrupted step buffer (see "How the code
 is made" below). They differ in how they corrupt it.
 
 - **The article's sequence** (PPX Exchange, March/April 1982;
-  `examples/texas-print.ti59` documents every step). Key `lnx (` at step
+  `examples/historic/texas-print.ti59` documents every step). Key `lnx (` at step
   008, then `GTO 008  9 Op 17  Pgm 12 SBR 444  R/S  P/R  LRN Ins LRN  CLR
   RST`. It needs the Master Library module and the partition 9 or 10 Op 17,
   and goes through four separate firmware bugs.
@@ -143,13 +143,13 @@ with the source still 8.
 - **ROM reading.** The dispatcher at `0F53` and the print routine around
   `0EF1`–`0EFC` are annotated in `rom/TI59-commented.asm`. The four bugs of
   the article's sequence are traced in the header of
-  `examples/texas-print.ti59`.
+  `examples/historic/texas-print.ti59`.
 - **Traces.** On the emulator, which runs the original ROM unmodified, the
   step fetches, the step buffer and the printer's busy signal were recorded
   around the 1F. They show the jump to `0EF1`, PRT.GO 1020 cycles into the
   print, and the steps 000, 009 and back to the caller.
 - **Side-by-side runs.** Both methods give the same 1F and RTN.
-  `examples/texas-print.ti59` made with the fast-mode hack prints the same
+  `examples/historic/texas-print.ti59` made with the fast-mode hack prints the same
   as with the article's sequence.
 - **Real hardware.** A TI-59 and a TI-58C, each on a PC-100A, print the
   2 rows of `printer-interrupt.ti59` and `printer-quirks.ti59`.

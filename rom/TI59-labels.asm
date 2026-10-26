@@ -10,7 +10,7 @@
 ;   [S] speculative
 ; Traces: KEYPRESS_59.txt (key "6", no printer), KEYPRESS_TRC_59.txt (keys
 ; "0" and "+", printer attached, TRACE switch latched), CALCU59_TRACE.ans
-; (examples/texas-print.ti59 single-step), CALCU59_TRACE.txt
+; (examples/historic/texas-print.ti59 single-step), CALCU59_TRACE.txt
 ; (texas-print.ti59 scripted pseudo-code insertion: SBR 444 … P/R, LRN, Ins),
 ; errorblink.txt (1/x on a zero display after reset → error blink → CLR,
 ; no printer).

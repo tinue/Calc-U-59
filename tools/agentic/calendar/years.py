@@ -4,7 +4,7 @@ CLI: years.py file.ti59 year...
   For each year: replaces the four digit keys before the first A (matrix
   code 11) in the file's KEYSTROKES, runs it, checks the day rows against
   Python's calendar module and compares the printout line for line with
-  Acosta's program (examples/calendar-08-acosta.ti59) run for the same year.
+  Acosta's program (examples/calendar/calendar-08-acosta.ti59) run for the same year.
   The printed time is from the last key until the display lights up
   again (ti59file.run).
 Library: with_year(path, year) -> keys for runtime.key_runtimes etc."""
@@ -15,7 +15,7 @@ sys.path.insert(0, os.path.dirname(HERE)); sys.path.insert(0, HERE)
 from ti59file import ROOT, DIGIT, parse, run  # noqa: E402
 from check import check  # noqa: E402
 
-ACOSTA = os.path.join(ROOT, 'examples', 'calendar-08-acosta.ti59')
+ACOSTA = os.path.join(ROOT, 'examples', 'calendar', 'calendar-08-acosta.ti59')
 
 
 def with_year(path, year):

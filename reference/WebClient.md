@@ -55,7 +55,7 @@ Web/calc-engine-worker.js ── wasm/ti59-core.{js,wasm} ◀── Web/bindings
 | `fonts/` | Archivo (WOFF2, SIL OFL 1.1), for the cue card |
 | `app/` | The installable PWA: `index.html`, `app.jsx`, `app.css`, `sw.js`, `manifest.json` |
 | `index.html` | Demo and test page, sized to the window: `?layout=wide|portrait`, also `width`, `height`, `model`, `module`, `preset` |
-| `presets.json` | The presets the preset picker offers (file in `examples/`, title) |
+| `presets.json` | The presets the preset picker offers (path under `examples/`, title); `dist/presets/` holds them flat, by file name |
 | `vendor/` | React 18 and ReactDOM (shipped), Babel (build only), ReactDOMServer (tests only) |
 | `build.sh`, `build.js` | The build (below) |
 | `tests/`, `run-tests.sh`, `playwright.config.js`, `package.json` | Playwright tests |
