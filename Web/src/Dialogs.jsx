@@ -166,9 +166,8 @@ function Settings({ engine, portrait, onClose, onAbout }) {
         </label>
         {portrait && (
           <label>Keyboard Feedback
-            <select value={settings.keyboardFeedback} onChange={(e) => engine.call("setKeyboardFeedback", Number(e.target.value))}>  {/* 0 off, 1 vibrate, 2 click */}
+            <select value={settings.keyboardFeedback === 2 ? 2 : 0} onChange={(e) => engine.call("setKeyboardFeedback", Number(e.target.value))}>  {/* 0 off, 2 click; no haptics in a browser */}
               <option value={0}>Off</option>
-              <option value={1}>Vibrate</option>
               <option value={2}>Click Sound</option>
             </select>
           </label>

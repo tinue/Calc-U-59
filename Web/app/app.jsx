@@ -4,33 +4,13 @@
 
 const { useState: useAppState, useEffect: useAppEffect, useRef: useAppRef } = React;
 
-// The page's height. Installed on iOS with the black-translucent status bar,
-// WebKit reports the viewport without the status bar (an iPhone 18 Pro Max:
-// 894 of 956 points) although the page fills the screen and the safe-area
-// insets cover the status bar too; full width in standalone means the whole
-// screen, so its height is the screen's. Only iOS: `navigator.standalone` is
-// Apple's, and elsewhere (Android) `screen` includes the system bars the page
-// doesn't cover, while the viewport is right.
-function pageHeight() {
-  const vv = window.visualViewport;
-  const h = vv ? vv.height : window.innerHeight;
-  if (window.navigator.standalone !== true) return h;
-  const portrait = window.innerWidth <= window.innerHeight;
-  const [short, long] = [Math.min(screen.width, screen.height), Math.max(screen.width, screen.height)];
-  const [sw, sh] = portrait ? [short, long] : [long, short];
-  return window.innerWidth === sw ? Math.max(h, sh) : h;
-}
-
-function viewportSize() {
-  const vv = window.visualViewport;
-  const root = document.getElementById("root");
+// The calculator's size: #root's content box, the viewport less the
+// safe-area padding (app.css).
+function rootSize(root) {
   const cs = getComputedStyle(root);
-  const padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
-  const padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
-  const page = pageHeight();
-  const w = (vv ? vv.width : window.innerWidth) - padX;
-  // The whole screen of the device it was installed on.
-  return { width: Math.floor(w), height: Math.floor(page - padY), page };
+  const w = root.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+  const h = root.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+  return { width: Math.floor(w), height: Math.floor(h) };
 }
 
 // Install affordance. Android/Chrome/Edge fire `beforeinstallprompt`, which
@@ -116,25 +96,26 @@ function InstallBanner({ mode, onInstall, onDismiss }) {
 }
 
 function StandaloneApp() {
-  const [size, setSize] = useAppState(viewportSize);
+  const [size, setSize] = useAppState(() => rootSize(document.getElementById("root")));
   const [installMode, install] = useInstallPrompt();
   const [dismissed, setDismissed] = useAppState(false);
 
+  // A ResizeObserver rather than resize events: it also sees the safe-area
+  // insets arrive or change after launch, which fire no resize.
   useAppEffect(() => {
-    function onResize() { setSize(viewportSize()); }
-    window.addEventListener("resize", onResize);
-    window.addEventListener("orientationchange", onResize);
+    const root = document.getElementById("root");
+    const update = () => setSize((old) => {
+      const s = rootSize(root);
+      return s.width === old.width && s.height === old.height ? old : s;
+    });
+    const observer = new ResizeObserver(update);
+    observer.observe(root);
+    window.addEventListener("pageshow", update);
     return () => {
-      window.removeEventListener("resize", onResize);
-      window.removeEventListener("orientationchange", onResize);
+      observer.disconnect();
+      window.removeEventListener("pageshow", update);
     };
   }, []);
-
-  // app.css sizes html, body and #root by this rather than by 100%/100dvh,
-  // which are the short viewport.
-  useAppEffect(() => {
-    document.documentElement.style.setProperty("--app-height", `${size.page}px`);
-  }, [size.page]);
 
   return (
     <>

@@ -40,8 +40,9 @@ function keyPressOf(e) {
   return { key, produced: cp(e.key), isLetter, shift: e.shiftKey, command: e.ctrlKey || e.metaKey || e.altKey };
 }
 
-// Keyboard feedback (Settings, portrait): a vibration where the browser has
-// one (not iOS Safari), or a short click synthesised with WebAudio.
+// Keyboard feedback (Settings, portrait): a short click synthesised with
+// WebAudio. No vibration: iOS Safari has no Vibration API, and Android's
+// did nothing on the phones tried.
 let clickAudio = null;
 function playClick(count) {
   try {
@@ -63,8 +64,7 @@ function makeFeedback(engine, enabled) {
     if (!enabled || !engine) return;
     const mode = engine.getState().settings.keyboardFeedback;
     const count = kind === "clean" ? 2 : 1;
-    if (mode === 1 && navigator.vibrate) navigator.vibrate(count === 2 ? [15, 100, 15] : 15);
-    else if (mode === 2) playClick(count);
+    if (mode === 2) playClick(count);
   };
 }
 

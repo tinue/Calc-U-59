@@ -3,7 +3,6 @@
 html, body {
   margin: 0;
   height: 100%;
-  height: var(--app-height, 100%); /* app.jsx: pageHeight() */
   overflow: hidden;
   background: #1d1d1c;
   overscroll-behavior: none; /* no rubber-band/pull-to-refresh once installed */
@@ -15,10 +14,13 @@ html, body {
   touch-action: manipulation; /* removes the ~300ms tap delay on mobile */
 }
 
+/* Fixed to the viewport, so its box is the page's whatever the document's
+   height; app.jsx sizes the calculator by this box. The status bar is
+   opaque (index.html): with black-translucent, WebKit's standalone viewport
+   left the status bar in or out from one launch to the next. */
 #root {
-  min-height: 100vh;
-  min-height: 100dvh;
-  min-height: var(--app-height, 100dvh);
+  position: fixed;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
