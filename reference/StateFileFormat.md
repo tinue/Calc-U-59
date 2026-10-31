@@ -441,7 +441,9 @@ END-CARD
   list are read as 00. Bank n holds raw RAM registers 30·(n−1)…+29: program
   steps 240·(n−1)…+239, and data registers 120 − 30·n … 149 − 30·n
   (bank 4 = R00–R29, bank 3 = R30–R59, bank 2 = R60–R89, bank 1 =
-  R90–R99). Contents outside the bank are an error and left out.
+  R90–R99). Contents outside the bank are an error and left out. What
+  each bank holds at every partition (0–10 Op 17) is tabled in the user
+  guide: https://calc-u.org/59/what-is-a-ti-59/#card-banks
 - The bank is built as the ROM writes it, header and checksum included
   (`buildCardBank`, `Shared/CardFile.hpp`; bank format:
   `rom/TI59-ROM-Guide.md` § "Magnetic cards").
