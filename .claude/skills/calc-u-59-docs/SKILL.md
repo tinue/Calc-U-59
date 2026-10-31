@@ -52,9 +52,6 @@ The playable calculator on the site (`/59/play/`, the installable app at
 `/59/calc/app/`) is this repository's web client, imported from a release's
 `Calc-U-59-web.zip` — calc-u-59-web skill and `reference/WebClient.md`.
 
-The `docs/` folder some clones still have (a worktree of the old `gh-pages`
-branch that served `www.calcu59.ch`) is retired: don't edit it.
-
 ---
 
 ## Reference Architecture Docs (`reference/`)

@@ -21,8 +21,7 @@ drawing: `reference/SharedArchitecture.md`. Feature placement:
 
 The website (https://calc-u.org/59/, repository `calc-u-site`) only
 *embeds* a built `dist/`, imported from a release's `Calc-U-59-web.zip`.
-Never edit the calculator there, nor in an old `docs/` worktree — those
-copies are generated or retired.
+Never edit the calculator there — that copy is generated.
 
 ## Rules
 
