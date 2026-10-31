@@ -15,6 +15,15 @@ Invoke the right skill before starting work in each area:
 | `calc-u-59-statefiles` | Writing `.ti59`/`.ti58`/`.ti58c` state files — format, matrix codes, KEYSTROKES sequences |
 | `calc-u-59-uitesting` | XCUITest UI tests (`Calc-U-59UITests/`) — file picker navigation, accessibility identifiers, orientation |
 
+## Branches
+
+All work goes on the current release branch, `dev-x.y.z` (e.g. `dev-2.2.0`),
+until that release is published. Never create a new branch on your own, not
+even for a larger feature: commit to the `dev-` branch you are on. A feature
+branch exists only when the user asks for one explicitly (to try something out
+apart from other work); it is merged back into the `dev-` branch and deleted
+when done.
+
 ## Architecture Reference
 
 Architecture facts (register model, SCOM layout, PC encoding, machine variants, trace API) live in:
