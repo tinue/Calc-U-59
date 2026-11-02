@@ -76,6 +76,7 @@ function createEngine({ model, module }) {
   const frames = { cells: null, onFrame: null };
   let framePending = false;
   const stateLoadedWaiters = [];
+  const freshCardNameWaiters = [];
 
   const set = (patch) => {
     state = { ...state, ...patch };
@@ -131,6 +132,11 @@ function createEngine({ model, module }) {
         if (resolve) resolve(m.errors || []);
         break;
       }
+      case "freshCardFileName": {
+        const resolve = freshCardNameWaiters.shift();
+        if (resolve) resolve(m.file);
+        break;
+      }
       case "dropRejected": set({ status: `${m.name}: not a .ti59, .ti58, .ti58c, .u59 or .bin file` }); break;
       case "error": set({ status: m.message }); break;
       default: break;
@@ -153,6 +159,11 @@ function createEngine({ model, module }) {
     loadState: (text) => new Promise((resolve) => {
       stateLoadedWaiters.push(resolve);
       post({ type: "loadState", text });
+    }),
+    /// The file a fresh card typed as `name` would be saved in.
+    freshCardFileName: (name) => new Promise((resolve) => {
+      freshCardNameWaiters.push(resolve);
+      post({ type: "freshCardFileName", name });
     }),
     /// A file dropped on the calculator; the worker decides what it does.
     dropFile: (file) => post({ type: "dropFile", file }),

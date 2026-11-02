@@ -244,6 +244,8 @@ public:
         m_c->fitBlankCard(kCardScheme + name, name);
         drain();
     }
+    /// The file a fresh card typed as `name` would be saved in.
+    std::string freshCardFileName(std::string name) const { return cu59::withDefaultCardExtension(std::move(name)); }
     /// A corner of the fitted card chosen from the keyboard (its accessible button).
     void feedSide(int side) { m_c->feedSide(side); drain(); }
     void ejectCard() { m_c->ejectCard(); drain(); }
@@ -993,6 +995,7 @@ EMSCRIPTEN_BINDINGS(ti59_web) {
         .function("fitCard", &WebController::fitCard)
         .function("fitBlankCard", &WebController::fitBlankCard)
         .function("feedSide", &WebController::feedSide)
+        .function("freshCardFileName", &WebController::freshCardFileName)
         .function("ejectCard", &WebController::ejectCard)
         .function("cardBytes", &WebController::cardBytes)
         .function("togglePrinterConnection", &WebController::togglePrinterConnection)

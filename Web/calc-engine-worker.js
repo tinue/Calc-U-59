@@ -13,6 +13,7 @@
 //   {type: "dropFile", file}           -- a dropped File, read only if its name is
 //        accepted -> stateLoaded, dropRejected (neither a preset nor a card), or
 //        nothing (a card, and this model has no reader)
+//   {type: "freshCardFileName", name}  -- -> {type: "freshCardFileName", file}
 //   {type: "cardBytes", name}          -- -> {type: "cardFile", name, bytes}
 //   {type: "traceBytes", name}         -- -> {type: "traceFile", name, bytes}
 //   {type: "geometry", w, h}           -- LED shapes for a w × h digit cell
@@ -23,6 +24,7 @@
 //                                         printer geometry and font, heatmap
 //   {type: "stateLoaded", errors}
 //   {type: "dropRejected", name}
+//   {type: "freshCardFileName", file}
 //   {type: "geometry", geometry}
 //   {type: "cardFile" | "traceFile", name, bytes}
 //   and what WebController posts on its own (bindings.cpp drain()):
@@ -97,6 +99,9 @@ function handle(msg) {
       }
       break;
     }
+    case "freshCardFileName":
+      postMessage({ type: "freshCardFileName", file: controller.freshCardFileName(msg.name) });
+      break;
     case "cardBytes":
       postMessage({ type: "cardFile", name: msg.name, bytes: controller.cardBytes(msg.name) });
       break;

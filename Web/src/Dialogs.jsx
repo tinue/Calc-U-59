@@ -49,12 +49,10 @@ function CardPicker({ engine, mode, onClose }) {
     onClose();
   });
   const fitBlank = () => { engine.call("fitBlankCard", name.trim()); onClose(); };
-  // withDefaultCardExtension: ".U59" when the name has no extension.
-  const write = () => {
-    const n = name.trim(), file = n.includes(".") ? n : n + ".U59";
+  const write = () => engine.freshCardFileName(name.trim()).then((file) => {
     if (card.cards.includes(file)) setReplacing(file);
     else fitBlank();
-  };
+  });
 
   return (
     <Dialog
