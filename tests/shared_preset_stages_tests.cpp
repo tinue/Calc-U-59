@@ -96,6 +96,9 @@ TEST(stages_card_block_stands_anywhere) {
     CHECK_EQ(program.programSteps[1].stepAddr, 1);  // and so do the bare keycodes
     auto before = parseStateFile(block + "PROGRAM:\n01\n");
     CHECK_EQ(before.programSteps[0].stepAddr, 0);
+    // A line in the block before its own section is an error, whatever surrounds the block.
+    for (const char* outer : {"PROGRAM:\n01\n", "CUECARD:\nTitle: T\n", "KEYSTROKES:\n91\n"})
+        CHECK(hasError(parseStateFile(std::string(outer) + "CARD: mem:x\nBank: 3\n05 06\nEND-CARD\n"), "unexpected line"));
 }
 
 TEST(stages_card_errors) {

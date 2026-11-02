@@ -48,10 +48,10 @@ function CardPicker({ engine, mode, onClose }) {
     engine.call("fitCard", f.name, f.content);
     onClose();
   });
-  const fitBlank = () => { engine.call("fitBlankCard", name.trim()); onClose(); };
-  const write = () => engine.freshCardFileName(name.trim()).then((file) => {
+  const fitBlank = (file) => { engine.call("fitBlankCard", file); onClose(); };
+  const write = () => engine.request("freshCardFileName", name.trim()).then((file) => {
     if (card.cards.includes(file)) setReplacing(file);
-    else fitBlank();
+    else fitBlank(file);
   });
 
   return (
@@ -62,7 +62,7 @@ function CardPicker({ engine, mode, onClose }) {
         <span className="calcu-dialog-note">Cards last for this page session — download one to keep it.</span>
         <button type="button" onClick={onClose}>Cancel</button>
         {replacing
-          ? <button type="button" className="calcu-primary" onClick={fitBlank}>Replace</button>
+          ? <button type="button" className="calcu-primary" onClick={() => fitBlank(replacing)}>Replace</button>
           : <button type="button" className="calcu-primary" disabled={save ? !name.trim() : !selected}
                     onClick={save ? write : () => read(selected)}>Fit</button>}
       </>}

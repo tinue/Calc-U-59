@@ -406,6 +406,7 @@ LoadStateResult parseStateFile(std::string_view text, int maxStepAddr, bool allo
             }
             sectionBeforeCard = section;
             stepBeforeCard = currentStep;
+            section = Section::None;  // the block opens its own sections
             card = std::make_shared<CardDefinition>();
             card->name = std::string(trim(line.substr(5)));
             r.usesCardReader = true;

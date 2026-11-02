@@ -239,8 +239,8 @@ public:
         }
         drain();
     }
+    /// `name`: from freshCardFileName.
     void fitBlankCard(std::string name) {
-        name = cu59::withDefaultCardExtension(name);
         m_c->fitBlankCard(kCardScheme + name, name);
         drain();
     }

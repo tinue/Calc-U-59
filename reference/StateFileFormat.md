@@ -29,10 +29,10 @@ point readers at the user guide, https://calc-u.org/59/.
 | `PRINTER: on` | Connect the printer: `on`, `true` or `1`; anything else disconnects it. Without the line the printer setting stays |
 
 - Keywords are case-insensitive. `PROGRAM:`, `REGISTERS:`, `KEYSTROKES:`,
-  `CUECARD:`, `PARTITION:` and `CARD:` end the current section; lines after
+  `CUECARD:` and `PARTITION:` end the current section; lines after
   `PARTITION:` are ignored until the next section keyword. `MODEL:`,
   `SOLID-STATE-MODULE:` and `PRINTER:` may stand anywhere,
-  even inside a section.
+  even inside a section, and so may a `CARD:` block.
 - `PROGRAM:`, `REGISTERS:`, `CUECARD:` and `PARTITION:` after a
   `KEYSTROKES:` section are a reload, played in turn ("Reloads").
 - `SKIP-RESET:` (up to 2.1: load into the running machine) is an error: put
