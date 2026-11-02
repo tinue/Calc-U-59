@@ -7,6 +7,7 @@
 - **iPhone Duo** Opened flat, the calculator, the printer and the debugger sit side by side, as on the iPad, whatever "Debug Page in Portrait" is set to; the printer tape is narrower there, its print scaled down to fit. Half open like a laptop, closed, or held tall, it shows the pages as on the iPhone.
 
 ### Fixes
+- **Magnetic Cards** A card file's cue card now shows the bank badges it was saved with. They used to be replaced by the number of the bank stored on that card side, so the two sides of a card looked different.
 - **iPad** The debugger's background no longer reaches into the status bar and below the bottom edge.
 - **Web calculator** The installed web app on the iPhone now fills the screen; it came out about 60 points short at the bottom. <!-- appstore: skip -->
 

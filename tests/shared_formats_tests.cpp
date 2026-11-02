@@ -210,6 +210,8 @@ TEST(card_text_round_trip) {
     CueCardContent cue;
     cue.title = "ROUND TRIP";
     cue.labels[5] = kCueCardInvisibleMarker;
+    cue.bankLeft = 1;
+    cue.bankRight = 2;
     std::string text = encodeCardText(bank, &cue);
     auto back = parseCardText(text);
     CHECK(back.has_value());
@@ -219,8 +221,22 @@ TEST(card_text_round_trip) {
     if (back->cueCard) {
         CHECK_EQ(back->cueCard->title, std::string("ROUND TRIP"));
         CHECK_EQ(back->cueCard->labels[5], std::string(kCueCardInvisibleMarker));
-        CHECK(back->cueCard->bankLeft == 3);
+        // The badges are the cue card's, whatever bank the header says (3 here).
+        CHECK(back->cueCard->bankLeft == 1);
+        CHECK(back->cueCard->bankRight == 2);
     }
+}
+
+TEST(card_without_banks_line_has_blank_badges) {
+    std::vector<uint8_t> bank(246);
+    bank[2] = 0x16;  // bank 3
+    CueCardContent cue;
+    cue.title = "NO BADGES";
+    auto back = parseCardText(encodeCardText(bank, &cue));
+    CHECK(back.has_value());
+    if (!back || !back->cueCard) return;
+    CHECK(!back->cueCard->bankLeft);
+    CHECK(!back->cueCard->bankRight);
 }
 
 TEST(card_decode_layouts) {

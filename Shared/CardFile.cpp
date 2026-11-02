@@ -105,8 +105,6 @@ std::optional<CardFileResult> parseCardText(std::string_view text) {
     r.data[245] = checksum;
     if (hasCue) {
         cue.template_ = CueCardTemplate::MagnetCard;
-        cue.bankLeft = (pageByte & 0x0F) / 3 + 1;
-        cue.bankRight.reset();
         r.cueCard = cue;
     }
     return r;

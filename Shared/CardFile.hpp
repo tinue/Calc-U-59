@@ -24,8 +24,9 @@
 //                                         relative to ti58c.mem
 //
 // Comments (# …) are stripped; section keywords and HEADER keys are
-// case-insensitive. A card's cue card is always a MagnetCard whose bank badge
-// comes from Bank:.
+// case-insensitive. A card's cue card is always a MagnetCard. Its badges come
+// from the cue card's Banks: line, never from the header's Bank:, so the sides
+// of a card that share a cue card look the same.
 
 namespace cu59 {
 
