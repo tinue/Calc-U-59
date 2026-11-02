@@ -129,7 +129,9 @@ fill, each at the cell's `LedFrame` brightness. Rules:
 
 **Cue card.** `CueCardView` places the artwork `Image(template)`, then text
 at the frames and font sizes `TIViewRules` returns, with `.lineLimit(1)`.
-Rules: `SharedArchitecture.md` § "Cue Card Rendering".
+Rules: `SharedArchitecture.md` § "Cue Card Rendering". A press on the card goes
+first to `tapCard` (`KeyboardView`), and `CueCardView` draws the side being read
+from `litCardCorner`: `SharedArchitecture.md` § "Card Reader Flow".
 
 **Printer.** Dot view (`PrinterDotLine`, PC-100C proportions from
 `TIViewRules`) or selectable text. Copy renders the strip with

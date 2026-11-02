@@ -43,10 +43,12 @@ example: `Qt6/app/EmulatorController` is the whole adapter, about 270 lines
    `KeyboardLayout`, convert with `matrixCode`; `PointerTracker` turns
    pointer moves into presses, releases and full speed), `keyboardDown`/`keyboardUp`
    with `KeyboardMap` codes, `keyboardRelease` on focus loss, `setFullSpeed`
-   while the display is held, and the file, printer and debugger actions.
+   while the display is held, `tapCard` on a press (not a drag) over a fitted
+   card, and the file, printer and debugger actions.
 5. **Draw** with the shared rules (`SharedArchitecture.md` § "Drawing
    Rules"): `SevenSegment` + `LedGeometry` for the LED — never a font, no
-   font reproduces the hardware's lit segments — `CueCard` for cue cards,
+   font reproduces the hardware's lit segments — `CueCard` for cue cards
+   (with `litCardCorner` and `cardCornerGeometry` for the side being read),
    `PrinterFont` for the strip, `DebugSnapshots`, `DebugText` and
    `RomHeatmap` for the debugger.
 

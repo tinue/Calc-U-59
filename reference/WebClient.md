@@ -18,7 +18,7 @@ apps' features (`FrontendParity.md`, the Web column) in two layouts:
   installable PWA (`app/`) uses it.
 
 Deliberately different from the apps: the LED is Classic only; magnetic
-cards live in an in-memory folder for the page session (upload one to read
+cards live in an in-memory folder for the page session (upload one to fit
 it, download one to keep it); settings and the TI-58C constant memory are
 kept in `localStorage` (keys prefixed `calcu59/`: settings named as in
 `Shared/SettingsKeys.hpp`, the TI-58C memory as `ti58c.mem`); traces are written to Emscripten's MEMFS
@@ -176,7 +176,8 @@ Requirements on the host:
 Stable hooks a host's tests may rely on: the root element's class
 `calcu-device` with `data-layout="wide|portrait"`, the artwork canvas
 `canvas.calcu-keyboard`, the LED `canvas.calcu-led`, the cue card
-`canvas.cuecard` (its `aria-label` holds the card's text), the key buttons
+`canvas.cuecard` (its `aria-label` holds the card's text), a fitted card's
+corners as the buttons `Feed card side 1` and `Feed card side 2`, the key buttons
 named by their face labels (`2nd`, `−`, `R/S`, …) with `aria-pressed`, the
 panels `[data-panel=printer]` and `[data-panel=debug]`, and the control
 bar's buttons by name (`Reset`, `Crd`, `Eject Card`, `Preset`, `Settings`)
