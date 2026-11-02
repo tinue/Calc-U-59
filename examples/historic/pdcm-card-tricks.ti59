@@ -1,0 +1,1042 @@
+# pdcm-card-tricks.ti59  PDCM, a card-swapping operating system for the TI-59.
+# Horst Umlauf, "Karten-Tricks", CHIP 8/1979 pp. 40-44 (listing: Bild 9);
+# the author's corrections, in reply to readers: CHIP 10/1979 p. 12.
+#
+# PDCM manages the magnetic cards for a program. The program asks for a data
+# register or a program strip by number; PDCM shows the card it needs in Eng
+# format, stops for R/S, checks the card by the number kept on it and reads it
+# again if it is the wrong one. With 29 registers per data card, the memory is
+# limited only by the stack of cards.
+#
+#   n SBR 480     CSTO  load the data card of C-memory n; R31 = its register
+#   x SBR 508     CCRD  load data card x; R00 holds the number of a data card
+#   s.nnn GTO 566 CGTO  go to step s of strip .nnn
+#   s.nnn SBR 567 CSBR  call step s of strip .nnn, come back to the caller's strip
+#   -.nnn SBR 610 CSUB  load the block 2 strip -.nnn
+#   .001 SBR 567        shut down: save the state to card -2
+#
+# A card's number reads in Eng as 12.-03 (= .012). The display is in Eng only
+# while PDCM waits for R/S. Flag 8 before CCRD: don't write the old data card
+# back. Flag 8 set by hand while PDCM shows the new card: don't read it, start
+# with an empty card. Registers 00 and 30-32 are PDCM's, and HIR 7/HIR 8 share the
+# printer's Op 03/Op 04 zones.
+#
+# Strips of the article (corrected by the author; the caption of Bild 9 is wrong):
+#   11.-03    listing a, steps 000-239, bank 1: start and generation
+#   -998.-03  listing a, steps 240-435, bank 2
+#   1.-03     listing b, bank 1: shutdown
+#   -999.-03  listing c, bank 3: the routines
+# Differences from the article: RST needs an R/S to start; the text prints as
+# "GOOD-BYE FROM PDCM" and "ST FLG 8"; "Stelle 247" in correction 7d is
+# probably step 427, where 19.011 would need two more steps than .011.
+#
+# The demo is not from the article; readers asked for one in CHIP 10/1979.
+# Strip 12.-03 (A) writes n squared to C-memories 20, 40 and 60, on data cards
+# 0, 1 and 2. It goes to strip 13.-03 (CGTO), which reads them back and prints
+# them, calls DONE on strip 12.-03 (CSBR) and shuts the system down.
+#
+# By hand on a TI-59:
+#   4 2nd Op 17  CLR         partition 639.39
+#   read 11.-03  RST  R/S    shows -999.-03
+#   2nd St flg 7             generation: first use of the system
+#   R/S, read -999.-03       shows -998.-03
+#   R/S, read -998.-03       shows -1. 00
+#   2nd St flg 8  R/S        new card -1; now every register and flag is asked
+#   R/S (13 times) until 7 HIR is printed
+#   .012 R/S                 HIR 7: the next strip
+#   R/S (8 times)            prints DATA AREA NOT EMPTY, shows 0.1
+#   R/S                      shows -1. 00: write it to a blank card
+#   R/S                      shows 0. 00: data card 0
+#   2nd St flg 8  R/S        prints O.K, shows 12.-03
+#   R/S, read 12.-03         A starts the demo; follow the cards in KEYSTROKES
+
+MODEL: TI-59
+PRINTER: on
+PARTITION: 639.39
+
+CUECARD:
+Template: MagnetCard
+Title: PDCM (CHIP 8/1979)
+
+CARD: mem:S11
+Bank: 1
+PROGRAM:
+000 93 .
+001 09 9
+002 09 9
+003 09 9
+004 94 +/-
+005 57 Eng
+006 91 R/S
+007 03 3
+008 22 INV
+009 96 Write
+010 93 .
+011 09 9
+012 09 9
+013 08 8
+014 94 +/-
+015 32 x<>t
+016 71 SBR 623
+017 06
+018 23
+019 02 2
+020 09 9
+021 42 STO 32
+022 32
+023 29 CP
+024 73 RC* 32
+025 32
+026 22 INV
+027 67 x=t 292
+028 02
+029 92
+030 97 Dsz 32 024
+031 32
+032 00
+033 24
+034 86 StFlg
+035 08 8
+036 22 INV
+037 87 IfFlg 07 144
+038 07
+039 01
+040 44
+041 53 (
+042 01 1
+043 94 +/-
+044 71 SBR 508
+045 05
+046 08
+047 03 3
+048 06 6
+049 03 3
+050 07 7
+051 03 3
+052 02 2
+053 69 Op 04
+054 04
+055 03 3
+056 00 0
+057 69 Op 06
+058 06
+059 43 RCL 02
+060 02
+061 91 R/S
+062 42 STO 02
+063 02
+064 03 3
+065 03 3
+066 42 STO 39
+067 39
+068 07 7
+069 42 STO 38
+070 38
+071 03 3
+072 42 STO 37
+073 37
+074 71 SBR 265
+075 02
+076 65
+077 02 2
+078 03 3
+079 02 2
+080 04 4
+081 03 3
+082 05 5
+083 69 Op 04
+084 04
+085 05 5
+086 42 STO 38
+087 38
+088 03 3
+089 42 STO 39
+090 39
+091 71 SBR 265
+092 02
+093 65
+094 02 2
+095 01 1
+096 02 2
+097 07 7
+098 01 1
+099 03 3
+100 02 2
+101 02 2
+102 69 Op 04
+103 04
+104 07 7
+105 42 STO 38
+106 38
+107 00 0
+108 42 STO 39
+109 39
+110 71 SBR 265
+111 02
+112 65
+113 01 1
+114 06 6
+115 01 1
+116 03 3
+117 03 3
+118 07 7
+119 01 1
+120 03 3
+121 69 Op 04
+122 04
+123 71 SBR 265
+124 02
+125 65
+126 61 GTO 019
+127 00
+128 19
+129 76 Lbl Lbl
+130 76
+131 93 .
+132 09 9
+133 09 9
+134 08 8
+135 94 +/-
+136 71 SBR 610
+137 06
+138 10
+139 93 .
+140 00 0
+141 01 1
+142 01 1
+143 92 RTN
+144 02 2
+145 94 +/-
+146 71 SBR 508
+147 05
+148 08
+149 03 3
+150 42 STO 30
+151 30
+152 07 7
+153 42 STO 31
+154 31
+155 03 3
+156 03 3
+157 42 STO 32
+158 32
+159 73 RC* 30
+160 30
+161 72 ST* 32
+162 32
+163 01 1
+164 44 SUM 30
+165 30
+166 44 SUM 32
+167 32
+168 97 Dsz 31 159
+169 31
+170 01
+171 59
+172 43 RCL 10
+173 10
+174 82 HIR 03
+175 03
+176 43 RCL 11
+177 11
+178 82 HIR 04
+179 04
+180 43 RCL 12
+181 12
+182 82 HIR 05
+183 05
+184 43 RCL 13
+185 13
+186 82 HIR 06
+187 06
+188 43 RCL 14
+189 14
+190 82 HIR 07
+191 07
+192 01 1
+193 05 5
+194 42 STO 30
+195 30
+196 07 7
+197 42 STO 31
+198 31
+199 00 0
+200 42 STO 32
+201 32
+202 29 CP
+203 73 RC* 30
+204 30
+205 67 x=t 211
+206 02
+207 11
+208 86 StFlg
+209 40 Ind 32
+210 32
+211 01 1
+212 44 SUM 30
+213 30
+214 44 SUM 32
+215 32
+216 97 Dsz 31 202
+217 31
+218 02
+219 02
+220 43 RCL 02
+221 02
+222 42 STO 30
+223 30
+224 43 RCL 22
+225 22
+226 71 SBR 508
+227 05
+228 08
+229 53 (
+230 82 HIR 17
+231 17
+232 59 Int
+233 29 CP
+234 22 INV
+235 67 x=t 242
+236 02
+237 42
+238 06 6
+239 03 3
+CUECARD:
+Template: MagnetCard
+Title: PDCM strip 11.-03
+END-CARD
+
+CARD: mem:S998
+Bank: 2
+PROGRAM:
+240 08 8
+241 85 +
+242 82 HIR 17
+243 17
+244 54 )
+245 32 x<>t
+246 03 3
+247 02 2
+248 04 4
+249 00 0
+250 02 2
+251 06 6
+252 86 StFlg
+253 08 8
+254 69 Op 04
+255 04
+256 93 .
+257 02 2
+258 69 Op 06
+259 06
+260 32 x<>t
+261 61 GTO 566
+262 05
+263 66
+264 92 RTN
+265 43 RCL 39
+266 39
+267 69 Op 06
+268 06
+269 73 RC* 37
+270 37
+271 91 R/S
+272 72 ST* 37
+273 37
+274 01 1
+275 44 SUM 37
+276 37
+277 44 SUM 39
+278 39
+279 97 Dsz 38 265
+280 38
+281 02
+282 65
+283 92 RTN
+284 76 Lbl HIR
+285 82
+286 93 .
+287 09 9
+288 09 9
+289 08 8
+290 94 +/-
+291 92 RTN
+292 01 1
+293 06 6
+294 01 1
+295 03 3
+296 03 3
+297 07 7
+298 01 1
+299 03 3
+300 00 0
+301 00 0
+302 69 Op 01
+303 01
+304 01 1
+305 03 3
+306 03 3
+307 05 5
+308 01 1
+309 07 7
+310 01 1
+311 03 3
+312 00 0
+313 00 0
+314 69 Op 02
+315 02
+316 03 3
+317 01 1
+318 03 3
+319 02 2
+320 03 3
+321 07 7
+322 00 0
+323 00 0
+324 00 0
+325 00 0
+326 69 Op 03
+327 03
+328 01 1
+329 07 7
+330 03 3
+331 00 0
+332 03 3
+333 03 3
+334 03 3
+335 07 7
+336 04 4
+337 05 5
+338 69 Op 04
+339 04
+340 69 Op 05
+341 05
+342 01 1
+343 06 6
+344 01 1
+345 07 7
+346 03 3
+347 06 6
+348 03 3
+349 07 7
+350 03 3
+351 05 5
+352 69 Op 01
+353 01
+354 04 4
+355 01 1
+356 01 1
+357 05 5
+358 03 3
+359 07 7
+360 00 0
+361 00 0
+362 06 6
+363 04 4
+364 69 Op 02
+365 02
+366 03 3
+367 06 6
+368 03 3
+369 07 7
+370 00 0
+371 00 0
+372 02 2
+373 01 1
+374 69 Op 03
+375 03
+376 02 2
+377 07 7
+378 02 2
+379 02 2
+380 00 0
+381 00 0
+382 01 1
+383 01 1
+384 00 0
+385 00 0
+386 69 Op 04
+387 04
+388 69 Op 05
+389 05
+390 98 Adv
+391 93 .
+392 01 1
+393 91 R/S
+394 22 INV
+395 87 IfFlg 07 144
+396 07
+397 01
+398 44
+399 01 1
+400 94 +/-
+401 61 GTO 146
+402 01
+403 46
+404 76 Lbl Pgm
+405 36
+406 61 GTO 566
+407 05
+408 66
+409 76 Lbl P>R
+410 37
+411 61 GTO 610
+412 06
+413 10
+414 25 CLR
+415 01 1
+416 94 +/-
+417 71 SBR 508
+418 05
+419 08
+420 71 SBR 536
+421 05
+422 36
+423 01 1
+424 94 +/-
+425 42 STO 22
+426 22
+427 93 .
+428 00 0
+429 01 1
+430 01 1
+431 42 STO 14
+432 14
+433 61 GTO 567
+434 05
+435 67
+CUECARD:
+Template: MagnetCard
+Title: PDCM strip -998.-03
+END-CARD
+
+CARD: mem:S1
+Bank: 1
+PROGRAM:
+000 02 2
+001 94 +/-
+002 68 Nop
+003 71 SBR 508
+004 05
+005 08
+006 43 RCL 30
+007 30
+008 42 STO 02
+009 02
+010 03 3
+011 42 STO 30
+012 30
+013 07 7
+014 42 STO 31
+015 31
+016 03 3
+017 03 3
+018 42 STO 32
+019 32
+020 73 RC* 32
+021 32
+022 72 ST* 30
+023 30
+024 01 1
+025 44 SUM 30
+026 30
+027 44 SUM 32
+028 32
+029 97 Dsz 31 020
+030 31
+031 00
+032 20
+033 82 HIR 13
+034 13
+035 42 STO 10
+036 10
+037 82 HIR 14
+038 14
+039 42 STO 11
+040 11
+041 82 HIR 15
+042 15
+043 42 STO 12
+044 12
+045 82 HIR 16
+046 16
+047 42 STO 13
+048 13
+049 82 HIR 17
+050 17
+051 42 STO 14
+052 14
+053 01 1
+054 05 5
+055 42 STO 30
+056 30
+057 07 7
+058 42 STO 31
+059 31
+060 00 0
+061 42 STO 32
+062 32
+063 22 INV
+064 87 IfFlg 40 x<>t
+065 40
+066 32
+067 00 0
+068 70 Rad
+069 01 1
+070 00 0
+071 72 ST* 30
+072 30
+073 01 1
+074 44 SUM 30
+075 30
+076 44 SUM 32
+077 32
+078 97 Dsz 31 063
+079 31
+080 00
+081 63
+082 43 RCL 00
+083 00
+084 42 STO 22
+085 22
+086 71 SBR 633
+087 06
+088 33
+089 04 4
+090 96 Write
+091 02 2
+092 02 2
+093 03 3
+094 02 2
+095 03 3
+096 02 2
+097 01 1
+098 06 6
+099 02 2
+100 00 0
+101 69 Op 01
+102 01
+103 01 1
+104 04 4
+105 04 4
+106 05 5
+107 01 1
+108 07 7
+109 00 0
+110 00 0
+111 02 2
+112 01 1
+113 69 Op 02
+114 02
+115 03 3
+116 05 5
+117 03 3
+118 02 2
+119 03 3
+120 00 0
+121 00 0
+122 00 0
+123 03 3
+124 03 3
+125 69 Op 03
+126 03
+127 01 1
+128 06 6
+129 01 1
+130 05 5
+131 03 3
+132 00 0
+133 00 0
+134 00 0
+135 00 0
+136 00 0
+137 69 Op 04
+138 04
+139 69 Op 05
+140 05
+141 43 RCL 14
+142 14
+143 82 HIR 07
+144 07
+145 47 CMs
+146 86 StFlg
+147 08 8
+148 01 1
+149 93 .
+150 01 1
+151 91 R/S
+152 92 RTN
+153 76 Lbl Lbl
+154 76
+155 93 .
+156 00 0
+157 00 0
+158 01 1
+159 92 RTN
+CUECARD:
+Template: MagnetCard
+Title: PDCM strip 1.-03 (shutdown)
+END-CARD
+
+CARD: mem:S999
+Bank: 3
+PROGRAM:
+480 53 (
+481 53 (
+482 53 (
+483 24 CE
+484 85 +
+485 43 RCL 30
+486 30
+487 75 -
+488 42 STO 31
+489 31
+490 01 1
+491 54 )
+492 55 /
+493 02 2
+494 09 9
+495 54 )
+496 59 Int
+497 71 SBR 508
+498 05
+499 08
+500 65 *
+501 02 2
+502 09 9
+503 54 )
+504 22 INV
+505 44 SUM 31
+506 31
+507 92 RTN
+508 32 x<>t
+509 43 RCL 00
+510 00
+511 67 x=t 562
+512 05
+513 62
+514 87 IfFlg 08 522
+515 08
+516 05
+517 22
+518 57 Eng
+519 91 R/S
+520 04 4
+521 96 Write
+522 22 INV
+523 86 StFlg
+524 08 8
+525 71 SBR 632
+526 06
+527 32
+528 22 INV
+529 87 IfFlg 08 553
+530 08
+531 05
+532 53
+533 22 INV
+534 86 StFlg
+535 08 8
+536 02 2
+537 09 9
+538 42 STO 00
+539 00
+540 00 0
+541 72 ST* 00
+542 00
+543 97 Dsz 00 540
+544 00
+545 05
+546 40
+547 32 x<>t
+548 42 STO 00
+549 00
+550 61 GTO 562
+551 05
+552 62
+553 04 4
+554 22 INV
+555 96 Write
+556 43 RCL 00
+557 00
+558 22 INV
+559 67 x=t 525
+560 05
+561 25
+562 92 RTN
+563 00 0
+564 00 0
+565 00 0
+566 22 INV
+567 86 StFlg
+568 07 7
+569 42 STO 32
+570 32
+571 22 INV
+572 59 Int
+573 32 x<>t
+574 71 SBR 589
+575 05
+576 89
+577 22 INV
+578 87 IfFlg 07 Ind
+579 07
+580 40
+581 32 x<>t
+582 71 SBR Ind 32
+583 40
+584 32
+585 82 HIR 17
+586 17
+587 32 x<>t
+588 68 Nop
+589 71 SBR Lbl
+590 76
+591 67 x=t 638
+592 06
+593 38
+594 22 INV
+595 87 IfFlg 07 601
+596 07
+597 06
+598 01
+599 82 HIR 07
+600 07
+601 71 SBR 632
+602 06
+603 32
+604 01 1
+605 22 INV
+606 96 Write
+607 61 GTO 589
+608 05
+609 89
+610 32 x<>t
+611 82 HIR 08
+612 08
+613 71 SBR HIR
+614 82
+615 22 INV
+616 67 x=t 623
+617 06
+618 23
+619 82 HIR 18
+620 18
+621 32 x<>t
+622 92 RTN
+623 71 SBR 632
+624 06
+625 32
+626 02 2
+627 22 INV
+628 96 Write
+629 61 GTO 613
+630 06
+631 13
+632 32 x<>t
+633 57 Eng
+634 91 R/S
+635 32 x<>t
+636 22 INV
+637 57 Eng
+638 92 RTN
+639 81 RST
+CUECARD:
+Template: MagnetCard
+Title: PDCM strip -999.-03
+END-CARD
+
+CARD: mem:S12
+Bank: 1
+PROGRAM:
+000 76 Lbl A
+001 11
+002 22 INV
+003 86 StFlg
+004 08 8
+005 03 3
+006 42 STO 34
+007 34
+008 02 2
+009 00 0
+010 42 STO 33
+011 33
+012 53 (
+013 43 RCL 33
+014 33
+015 33 x2
+016 85 +
+017 43 RCL 33
+018 33
+019 71 SBR 480
+020 04
+021 80
+022 00 0
+023 54 )
+024 72 ST* 31
+025 31
+026 02 2
+027 00 0
+028 44 SUM 33
+029 33
+030 97 Dsz 34 012
+031 34
+032 00
+033 12
+034 93 .
+035 00 0
+036 01 1
+037 03 3
+038 61 GTO 566
+039 05
+040 66
+041 00 0
+042 00 0
+043 00 0
+044 00 0
+045 00 0
+046 00 0
+047 00 0
+048 00 0
+049 00 0
+050 01 1
+051 06 6
+052 03 3
+053 02 2
+054 03 3
+055 01 1
+056 01 1
+057 07 7
+058 69 Op 04
+059 04
+060 03 3
+061 69 Op 06
+062 06
+063 92 RTN
+064 76 Lbl Lbl
+065 76
+066 93 .
+067 00 0
+068 01 1
+069 02 2
+070 92 RTN
+CUECARD:
+Template: MagnetCard
+Title: PDCM demo strip 12.-03
+A: demo
+END-CARD
+
+CARD: mem:S13
+Bank: 1
+PROGRAM:
+000 03 3
+001 42 STO 34
+002 34
+003 02 2
+004 00 0
+005 42 STO 33
+006 33
+007 43 RCL 33
+008 33
+009 99 Prt
+010 71 SBR 480
+011 04
+012 80
+013 73 RC* 31
+014 31
+015 99 Prt
+016 02 2
+017 00 0
+018 44 SUM 33
+019 33
+020 97 Dsz 34 007
+021 34
+022 00
+023 07
+024 05 5
+025 00 0
+026 93 .
+027 00 0
+028 01 1
+029 02 2
+030 71 SBR 567
+031 05
+032 67
+033 93 .
+034 00 0
+035 00 0
+036 01 1
+037 71 SBR 567
+038 05
+039 67
+040 76 Lbl Lbl
+041 76
+042 93 .
+043 00 0
+044 01 1
+045 03 3
+046 92 RTN
+CUECARD:
+Template: MagnetCard
+Title: PDCM demo strip 13.-03
+END-CARD
+
+KEYSTROKES:
+FullSpeed:
+InsertCard: mem:S11
+81                   # RST
+91                   # R/S: shows -999.-03
+21 81 62             # St flg 7: generation
+ArmCard: mem:S999
+91                   # 3 INV Write; shows -998.-03
+ArmCard: mem:S998
+91                   # 2 INV Write; shows -1. 00
+21 81 63             # St flg 8: new card -1
+91                   # prints 30 STO
+91 91 91 91 91 91 91 # 33-39 STO
+91 91 91 91 91       # 3-7 HIR
+93 92 82 83 91       # HIR 7 = .012; prints 0 FLAG
+91 91 91 91 91 91    # 1-6 FLAG
+91                   # 7 DATA
+91                   # DATA AREA NOT EMPTY, shows 0.1
+91                   # shows -1. 00
+ArmCard: mem:D-1
+91                   # 4 Write; shows 0. 00
+21 81 63             # St flg 8: new data card 0
+91                   # prints O.K, shows 12.-03
+ArmCard: mem:S12
+91                   # 1 INV Write: the demo strip is in
+RegularSpeed:
+
+11                   # A: C-memory 20 goes to card 0. Shows 0. 00 to write
+ArmCard: mem:D0
+91                   # shows 1. 00
+21 81 63 91          # new card 1; C-memory 40. Shows 1. 00 to write
+ArmCard: mem:D1
+91                   # shows 2. 00
+21 81 63 91          # new card 2; C-memory 60, CGTO: shows 13.-03
+ArmCard: mem:S13
+91                   # strip 13: prints 20. Shows 2. 00 to write
+ArmCard: mem:D2
+91                   # shows 0. 00
+ArmCard: mem:D0
+91                   # prints 400 and 40. Shows 0. 00 to write
+ArmCard: mem:D0
+91                   # shows 1. 00
+ArmCard: mem:D1
+91                   # prints 1600 and 60. Shows 1. 00 to write
+ArmCard: mem:D1
+91                   # shows 2. 00
+ArmCard: mem:D2
+91                   # prints 3600; CSBR: shows 12.-03
+ArmCard: mem:S12
+91                   # prints 3 DONE; back: shows 13.-03
+ArmCard: mem:S13
+91                   # shutdown: shows 1.-03
+ArmCard: mem:S1
+91                   # shows 2. 00 to write
+ArmCard: mem:D2
+91                   # shows -2. 00
+21 81 63 91          # new card -2; shows -2. 00 to write
+ArmCard: mem:D-2
+91                   # prints GOOD-BYE FROM PDCM, shows 1.1
