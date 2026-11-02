@@ -12,7 +12,7 @@
 
 CardPickerDialog::CardPickerDialog(Mode mode, const QString& directory, const QString& defaultFileName, QWidget* parent)
     : QDialog(parent), m_mode(mode), m_dir(directory) {
-    setWindowTitle(mode == Mode::Load ? QStringLiteral("Load Card") : QStringLiteral("Save Card"));
+    setWindowTitle(mode == Mode::Load ? QStringLiteral("Fit Card") : QStringLiteral("Fit Fresh Card"));
     setMinimumSize(320, 300);
     auto* col = new QVBoxLayout(this);
 
@@ -41,7 +41,7 @@ CardPickerDialog::CardPickerDialog(Mode mode, const QString& directory, const QS
     connect(cancel, &QPushButton::clicked, this, &QDialog::reject);
     footer->addWidget(cancel);
     if (mode == Mode::Save) {
-        m_save = new QPushButton(QStringLiteral("Save"), this);
+        m_save = new QPushButton(QStringLiteral("Fit"), this);
         m_save->setDefault(true);
         connect(m_save, &QPushButton::clicked, this, &CardPickerDialog::accept);
         connect(m_name, &QLineEdit::textChanged, this, [this](const QString& t) { m_save->setEnabled(!t.trimmed().isEmpty()); });

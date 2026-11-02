@@ -58,7 +58,7 @@ function CardPicker({ engine, mode, onClose }) {
 
   return (
     <Dialog
-      title={save ? "Write Blank Card" : "Read Card"}
+      title={save ? "Fit Fresh Card" : "Fit Card"}
       onClose={onClose}
       footer={<>
         <span className="calcu-dialog-note">Cards last for this page session — download one to keep it.</span>
@@ -66,8 +66,8 @@ function CardPicker({ engine, mode, onClose }) {
         {replacing
           ? <button type="button" className="calcu-primary" onClick={fitBlank}>Replace</button>
           : save
-          ? <button type="button" className="calcu-primary" disabled={!name.trim()} onClick={write}>Save</button>
-          : <button type="button" className="calcu-primary" disabled={!selected} onClick={() => read(selected)}>Read</button>}
+          ? <button type="button" className="calcu-primary" disabled={!name.trim()} onClick={write}>Fit</button>
+          : <button type="button" className="calcu-primary" disabled={!selected} onClick={() => read(selected)}>Fit</button>}
       </>}
     >
       {replacing && (

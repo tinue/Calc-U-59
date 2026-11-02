@@ -54,8 +54,8 @@ MainWindow::MainWindow(EmulatorController& controller, QWidget* parent) : QMainW
 void MainWindow::buildMenus() {
     QMenu* file = menuBar()->addMenu(QStringLiteral("&File"));
     file->addAction(QStringLiteral("Open Preset…"), QKeySequence::Open, this, &MainWindow::openPreset);
-    file->addAction(QStringLiteral("Read Card…"), this, &MainWindow::loadCard);
-    file->addAction(QStringLiteral("Write Blank Card…"), this, &MainWindow::newCard);
+    file->addAction(QStringLiteral("Fit Card…"), this, &MainWindow::loadCard);
+    file->addAction(QStringLiteral("Fit Fresh Card…"), this, &MainWindow::newCard);
     file->addSeparator();
     QAction* settings = file->addAction(QStringLiteral("Settings…"), QKeySequence::Preferences, this, [this] {
         SettingsDialog dialog(m_controller, this);

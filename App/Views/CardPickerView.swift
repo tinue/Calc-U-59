@@ -26,7 +26,7 @@ struct CardPickerView: View {
 
             // ── Header ────────────────────────────────────────────────────────
             HStack {
-                Text(mode == .load ? "Load Card" : "Save Card")
+                Text(mode == .load ? "Fit Card" : "Fit Fresh Card")
                     .font(.headline)
                 Spacer()
                 Button("Cancel") { dismiss() }
@@ -84,7 +84,7 @@ struct CardPickerView: View {
                     .truncationMode(.middle)
                 Spacer()
                 if mode == .save {
-                    Button("Save") {
+                    Button("Fit") {
                         let name = TIFileFormats.withDefaultCardExtension(
                             fileName.trimmingCharacters(in: .whitespacesAndNewlines))
                         let url = directory.appendingPathComponent(name)

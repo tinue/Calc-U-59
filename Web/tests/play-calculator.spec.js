@@ -256,7 +256,7 @@ async function writtenCardText(page) {
   await page.waitForTimeout(1000);
   await page.getByRole('button', { name: 'Crd' }).nth(1).click();
   await page.getByLabel('Card name').fill('prog');
-  await page.getByRole('button', { name: 'Save' }).click();
+  await page.getByRole('button', { name: 'Fit', exact: true }).click();
   await page.getByRole('button', { name: 'Feed card side 1' }).click();
   await expect(page.getByRole('button', { name: 'Eject Card' })).toHaveCount(0, { timeout: 15000 });
   await page.getByRole('button', { name: 'Crd' }).first().click();
@@ -311,7 +311,7 @@ test('a blank card is written, listed, and read back', async ({ page }) => {
   await page.waitForTimeout(1000);
   await page.getByRole('button', { name: 'Crd' }).nth(1).click();  // a blank card passes: written
   await page.getByLabel('Card name').fill('prog');
-  await page.getByRole('button', { name: 'Save' }).click();
+  await page.getByRole('button', { name: 'Fit', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Eject Card' })).toHaveCount(0);  // fitted, not fed
   await page.getByRole('button', { name: 'Feed card side 1' }).click();
   // In the reader until the write is done, then ejected (and saved).
@@ -321,7 +321,7 @@ test('a blank card is written, listed, and read back', async ({ page }) => {
   await uploadPreset(page, 'PARTITION: 479\n');  // a fresh machine: no program
   await page.getByRole('button', { name: 'Crd' }).first().click();  // read
   await page.getByRole('button', { name: 'prog.U59', exact: true }).click();
-  await page.getByRole('button', { name: 'Read', exact: true }).click();
+  await page.getByRole('button', { name: 'Fit', exact: true }).click();
   await page.getByRole('button', { name: 'Feed card side 1' }).click();
   await page.waitForTimeout(3000);
   await pressKey(page, 'CLR');
@@ -334,12 +334,12 @@ test('the fresh card has its file name as title, and an existing name asks first
   await writtenCardText(page);  // prog.U59 exists now
   await page.getByRole('button', { name: 'Crd' }).nth(1).click();
   await page.getByLabel('Card name').fill('prog');
-  await page.getByRole('button', { name: 'Save' }).click();
+  await page.getByRole('button', { name: 'Fit', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('Replace card prog.U59?');
   await page.getByRole('button', { name: 'Cancel' }).click();
   await page.getByRole('button', { name: 'Crd' }).nth(1).click();
   await page.getByLabel('Card name').fill('Other');
-  await page.getByRole('button', { name: 'Save' }).click();
+  await page.getByRole('button', { name: 'Fit', exact: true }).click();
   await expect(page.locator('.cuecard')).toHaveAttribute('aria-label', /^Other/);
 });
 
