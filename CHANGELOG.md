@@ -1,6 +1,6 @@
 # Changelog
 
-## [2.2.0] - work in progress
+## [2.2.0] - 2026-11-02
 - **State Files** One preset can now run a whole session. A `PROGRAM:` or `REGISTERS:` after `KEYSTROKES:` changes just the steps and registers it lists once the program has stopped, as if you had keyed the changes in, on any model. For larger changes, a preset feeds magnetic cards the way a TI-59 user fed a prepared stack: `InsertCard:` pushes a card into the stopped calculator, `ArmCard:` lays one ready for the program's own `Write` or `INV Write`, and a `CARD:` block defines a card's registers and steps in the preset itself, without a file. `fast-grafik-3d-plot.ti59` is now one file instead of two.
 - **State Files** A preset can now operate the controls around the calculator: `PrinterTrace: on`/`off` sets the printer's TRACE switch, `CutPaper:` cuts the paper, and `DebugPanel:`, `Freeze:`, `FreezeOnStart:`, `Step:` and `Resume:` do what the debugger's tabs and buttons do. While the debugger is frozen, a preset's keys now wait until it runs again instead of being lost. `SKIP-RESET:` and the virtual key `99` are gone: a reload in the same file and `PrinterTrace:` replace them, and both are now reported as errors.
 - **Drag and Drop** On the Mac, Windows, Linux and in the web calculator, a preset dropped on the window loads and runs, as from the Preset button (new on the Mac). A magnetic card dropped on a TI-59 is fitted into the calculator, like one from the Crd buttons. The TI-58 and TI-58C ignore dropped cards. <!-- appstore: skip -->
