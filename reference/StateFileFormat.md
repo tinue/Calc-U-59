@@ -416,7 +416,7 @@ two ways:
 | Name | Card |
 |---|---|
 | `mem:Scratch` (prefix in any case) | In-memory: built from a `CARD:` block, or blank. A bank written to it is kept and read back by the next use. It is never saved to a file |
-| `Results` / `Results.U59` | The card file in the card folder (Swift: iCloud or Documents; Qt: the card folder in Settings; web: the session's cards). `.U59` is added when there is no extension. A missing file goes in as a blank card, so a `Write` creates it |
+| `Results` / `Results.U59` | The card file in the card folder (Swift: iCloud or Documents; Qt: the card folder in Settings; web: the session's cards). `.U59` is added when there is no extension. A missing file goes in as a blank card, so a `Write` creates it. `Results:2` is its side 2; without a side it is side 1. Only trailing digits are a side, and only 1 or 2: `A:1.U59` is a name, `Results:3` an error. A side on a card file of version 1 logs a note and feeds its one side |
 
 A `CARD:` block is one prepared card side, defined in the preset. It is an
 in-memory card, may stand anywhere in the file, and ends at `END-CARD`:
@@ -454,6 +454,44 @@ END-CARD
   never defined here), a missing or wrong `Bank:`, a missing `END-CARD`,
   the same name twice (the last counts).
 
+### Card files
+
+New cards are written as version 2.0, one file for both sides of a card:
+
+```
+Calc-U-59 Card 2.0
+
+CUECARD:             # optional, always a MagnetCard, no Banks:
+Title: My Program
+A: run
+
+SIDE: 1              # 1 or 2; a side not written yet is left out
+HEADER:
+Partition: 1C        # hex byte
+DataType: program    # program / data
+Bank: 1              # 1–4, shown in that side's corner of the card
+Protection: no       # yes / no
+Checksum: 02         # hex byte
+DATA:
+R000: 00 29 43 59 40 58 21 67   # 30 rows of 8 hex bytes
+…
+
+SIDE: 2
+…
+
+END-CARD
+```
+
+- A side is not a bank: both sides can hold bank 1.
+- A damaged file is refused as a whole, never read with a side blanked: every
+  HEADER key and all 30 rows are required, and so is `END-CARD`. A version 1
+  reader fails on `END-CARD`, so an older app can't read a card and write it
+  back as version 1.
+- Version 1.0 has one side, no `SIDE:` and no `END-CARD`; the card's badges come
+  from `Banks:`, which is optional. These cards stay version 1 when written, as
+  do cards read from the binary layouts. A write reduces the oldest 984-byte
+  layout to one bank.
+
 ### Feeding cards: ArmCard and InsertCard
 
 ```
@@ -487,6 +525,13 @@ InsertCard: Results      # it stopped for the next card: Results.U59
   switch, not just to the end of the script. A `Write` keyed in last, or a
   run the user starts later, still gets its card. A card never fed is
   logged then.
+- A card file fed this way stays fitted in the calculator afterwards, as if
+  the user had chosen it. A `mem:` card is not fitted.
+- A preset's own cue card (top-level `CUECARD:` or in a reload) goes onto every
+  card file the preset writes, with its whole layout. So a preset can create a
+  full two-sided card: `ArmCard: Results:1`, `ArmCard: Results:2`, then a
+  program doing `1 Write` and `2 Write`. A new file without such a cue card
+  gets a Title with its file name. A `CARD:` block's cue card doesn't count.
 - TI-59 only. On the TI-58/58C, `CARD:`, `ArmCard:` and `InsertCard:` are an
   error and the directives are dropped. Reloads work on all models.
 
@@ -503,7 +548,7 @@ case-insensitive; unknown keys are ignored (`CueCardContent::parseLine`,
 |---|---|---|
 | `Template` | all | `CueCard` (default), `MagnetCard` or `SolidStateCard`, exact case |
 | `Title` | all | Headline |
-| `Banks` | MagnetCard | `left, right` page badges, e.g. `Banks: 1, 2`; either may be blank |
+| `Banks` | MagnetCard | `left, right` page badges, e.g. `Banks: 1, 2`; either may be blank. Not in a card file of version 2, whose corners show each side's `Bank:` |
 | `ID` | SolidStateCard | Module/program ID right of the title, e.g. `ML-01` |
 | `Row1` | all | Text in place of the A′–E′ label row |
 | `Row2`, `Row2R` | all | Text in place of the A–E label row; `Row2R` is right of `Row2` on the same line |

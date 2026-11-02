@@ -56,7 +56,7 @@ wrappers in `Bridge/`, which only translate types (`AppArchitecture.md`
 | **Files** | |
 | `StateFile` | `.ti59` parser and pre-scan (`StateFileFormat.md`) |
 | `StateApplier` | Writes a parsed file into the machine; power-on, soft and clean reset |
-| `CardFile` | Magnetic card files (text, headered and legacy binary); which names the pickers list |
+| `CardFile` | Magnetic card files (text 2.0 and 1.0, headered and legacy binary); which names the pickers list |
 | `ConstantMemory` | `ti58c.mem` |
 | `RomLoader` | ROM, constants and module text dumps |
 | `ModuleCatalog` | `roms/solid-state/cuecards.txt` |
@@ -283,31 +283,48 @@ The core side (TST BUSY wait, `CRD_READ`/`CRD_WRITE`, auto-eject at
 `CRD_OFF`) is in `CoreArchitecture.md` § "Magnetic Card Reader". The
 controller's side:
 
-1. `insertCard(bytes, path, name)` decodes the file (`CardFile`), takes its
-   cue card if it is a text card, and calls `machine.insertCard`.
-   `insertBlankCard(savePath, name)` inserts an empty card for writing.
-2. The card state is `Swiping` until the core auto-ejects.
-3. `tick()` sees the auto-eject and calls `ejectCard()`, which collects any
-   written bank and saves it, with the current cue card, through
-   `Platform::writeCard`.
+1. `fitCard(bytes, path, name)` decodes the file (`CardFile`, a `CardDocument`)
+   and fits it into the cue card cutout, replacing the card there.
+   `fitBlankCard(savePath, name)` fits a fresh version 2 card whose cue card is
+   a Title with the file name (`freshCardCue`). Neither touches the reader.
+2. `tapCard(nx, ny)` is a press on the canvas: `cardCornerAt` (`KeyboardLayout`)
+   gives the side, and `feedSide(side)` puts it into the reader. GUIs call it on
+   a press only, not on a drag. A press does nothing while a module's cue card
+   covers the fitted card (`m_activeProgram > 0`).
+3. The card state is `Swiping` until the core auto-ejects, and `litCardCorner()`
+   gives the corner to draw lit (`cardCornerGeometry`, above the wash).
+4. `tick()` sees the auto-eject and calls `ejectCard()`. A written bank goes to
+   `writeFittedSide`: unless the card is fresh, it reads the file again
+   (`Platform::readCard`), so a side changed elsewhere survives, merges the side
+   and saves through `Platform::writeCard`. A file it can't read or parse is
+   left alone and reported. A failed write leaves the fitted card as it was.
 
-Presets feed cards through the same insert path (`ArmCard:` / `InsertCard:`,
+`refreshCueCard` shows `fittedCueCard()` when a card is fitted: its cue card, or
+a Title for a card without one (never saved), with the corners' numbers from
+the sides' headers (version 2) or `Banks:` (version 1). `resolveCueCard` still
+lets a module's cue card cover it. A version 1 card has one side: either corner
+feeds it, and a write stays version 1.
+
+The fitted card goes with another fit, a reset, a model switch, a full preset
+load, or a reload stage with its own cue card. The printer toggle and a module
+change reset the machine, so they remove it too.
+
+Presets feed cards through the same path (`ArmCard:` / `InsertCard:`,
 § "State File Loading"); `Platform::cardFile(name)` resolves a card file name
-in the frontend's card folder.
+in the frontend's card folder. `unreadable` there means the file exists but
+can't be read now, so no blank card goes in to overwrite it.
 
 ### Dropped Files
 
 `dropAction(name)` says what a file dropped on the window does, by its name
 and the model: a preset (`isStateFileName`) loads as from the Preset button; a
-card (`isCardFileName`) goes straight into the reader on the TI-59 and is
-ignored on the TI-58/58C. `openDroppedFile(bytes, path, name)` does it. The
-drop is a card pushed in by hand: the switch opens whatever the calculator is
-doing, so at idle the ROM reads the card and after `2nd Write` overwrites the
-file at `path`. The reader takes one card: a drop while `Swiping` does nothing.
+card (`isCardFileName`) is fitted on the TI-59 and ignored on the TI-58/58C.
+`openDroppedFile(bytes, path, name)` does it. Nothing is fitted while a card is
+in the reader. On the Mac, the file's security scope stays open while it is
+fitted, because a write goes back to it.
 
-Card files are written as text ("Calc-U-59 Card 1.0", `Shared/CardFile.hpp`).
-Still read: the 13-byte `Calc-U-59-CRD` header + 246 bytes, and headerless
-246- or 984-byte files.
+Card file formats: `StateFileFormat.md` § "Card files". Still read: the 13-byte
+`Calc-U-59-CRD` header + 246 bytes, and headerless 246- or 984-byte files.
 
 ## State File Loading
 
@@ -355,7 +372,9 @@ into the keystroke events (`shared_ptr`). This is the order of operations:
 6. `feedQueuedCard` resolves the card:
    - a `mem:` card from its written bank, its `CARD:` block
      (`buildCardBank`, at the current partition), or blank;
-   - a file through `Platform::cardFile`.
+   - a file through `Platform::cardFile`, fitted and fed at the side the
+     directive names. A file card stays fitted afterwards; a `mem:` card takes
+     a fitted card out and is never fitted itself.
 
    It inserts the card as the card picker would. On eject, a written bank
    goes to the memory card or to the file, and an `InsertCard` calls
