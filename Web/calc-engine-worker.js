@@ -29,7 +29,7 @@
 //   {type: "cardFile" | "traceFile", name, bytes}
 //   and what WebController posts on its own (bindings.cpp drain()):
 //   model, display, cueCard, runState, printer, card, live, cpu, heatmap,
-//   log, asm, traces, traceReady, settings, store, debugFont, error.
+//   log, asm, traces, traceReady, settings, store, debugFont, debugPanel, error.
 
 importScripts("wasm/ti59-core.js");
 

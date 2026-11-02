@@ -111,9 +111,9 @@ isn't duplicated in this repository.
 | [`README.md`](README.md) | This file — project overview, features, limitations, and this index. |
 | [`CLAUDE.md`](CLAUDE.md) | Skill-routing table and pointers to the architecture reference docs, for AI coding agents working in this repo. |
 | [`CHANGELOG.md`](CHANGELOG.md) | Version history, one heading per release. |
-| [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) | Qt6 (LGPLv3) notice for the Windows/Linux app; status of the `roms/` ROM images. |
+| [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) | Qt6 (LGPLv3) notice for the Windows/Linux app; React and Archivo notices for the web client; status of the `roms/` ROM images. |
 | [`TODO.md`](TODO.md) | Unsorted backlog of ideas, bugs, and observations across the core, settings, and UI. |
-| [`release.yaml`](release.yaml) | Release configuration for ReleaseIt: the Mac DMG built locally, the Windows/Linux packages and the web client's zip from CI, the iOS App Store upload. |
+| [`release.yaml`](release.yaml) | Release configuration for ReleaseIt: the Mac DMG built locally, the Windows/Linux packages and the web client's zip from CI, the iOS App Store upload. After a release build, `bin/install-release.sh` puts the Mac app into /Applications. |
 | [`PRIVACY.md`](PRIVACY.md) | App Store privacy policy — Calc-U-59 collects no data and makes no network connections. |
 | [`ideas/KeypressLatch.md`](ideas/KeypressLatch.md) | Unimplemented design proposal for latching keypresses while the debugger is frozen. |
 | [`ideas/Pico.md`](ideas/Pico.md) | Feasibility analysis for running the core on a Raspberry Pi Pico wired to a real TI-59's keyboard, display, and card reader. |
@@ -147,6 +147,7 @@ Trigger conditions and workflows for Claude Code when working in specific areas 
 | [`calc-u-59-shared`](.claude/skills/calc-u-59-shared/SKILL.md) | Working on the shared C++ layer (`Shared/`, `tests/`, root CMake): rules, adding a module and its Bridge wrapper, golden-file ports. |
 | [`calc-u-59-qt`](.claude/skills/calc-u-59-qt/SKILL.md) | Working on the Qt6 app (`Qt6/`, CI workflow): ship scope (Windows/Linux), class map against the Swift views, threading, build and packaging. |
 | [`calc-u-59-web`](.claude/skills/calc-u-59-web/SKILL.md) | Working on the web client (`Web/`): rules (no logic, location independence, no side effects in render, own styling), build and tests; points to `reference/WebClient.md`. |
+| [`pre-release-cleanup`](.claude/skills/pre-release-cleanup/SKILL.md) | User-invoked release audit: parity, simplification, docs, changelog, screenshots, builds. |
 | [`calc-u-59-swift`](.claude/skills/calc-u-59-swift/SKILL.md) | Working on the Swift/SwiftUI app (`App/`, `Bridge/`): view model, bridge, display, keyboard, debug panels, printer, card reader, settings. |
 | [`calc-u-59-docs`](.claude/skills/calc-u-59-docs/SKILL.md) | Working on documentation (`reference/`, root markdown files); states the developer-vs-end-user documentation split, where the user guide lives, and the release documentation update workflow. |
 | [`calc-u-59-statefiles`](.claude/skills/calc-u-59-statefiles/SKILL.md) | Pointer to `reference/StateFileFormat.md` plus a couple of navigation aids for the two mistakes that come up most (matrix codes vs. keycodes, 2nd-function presses). |

@@ -35,8 +35,9 @@ example: `Qt6/app/EmulatorController` is the whole adapter, about 270 lines
    `roms/solid-state/cuecards.txt` and the saved module ID (plus
    `Threading::Cooperative` if your platform has no threads).
 2. **Implement `SessionController::Platform`**: queue jobs on your UI thread,
-   read and write `ti58c.mem` and card files, give the trace folder and size
-   limit, store the last model and module, show errors, and redraw on
+   read and write `ti58c.mem` and card files, name a card's file in your card
+   folder (`cardFilePath`), select a debugger tab (`showDebugPanel`), give the
+   trace folder and size limit, store the last model and module, show errors, and redraw on
    `changed(mask)`.
 3. **Call `tick(now)` at 60 Hz.** Redraw only what the `Change` bits name.
 4. **Forward input**: `pressKey`/`releaseKey` with matrix codes (hit test with

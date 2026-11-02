@@ -146,7 +146,7 @@ the file names under `wasm/`, `img/` and `presets/` may change with any build.
 |---|---|---|
 | `layout` | `"portrait"` | `"wide"` (calculator, printer, debugger side by side) or `"portrait"` (calculator and printer pages) |
 | `width` | the parent's width | CSS px the client may take. Wide: the calculator artwork takes 40 % (at most 420 px without `height`, never below 400 px), the printer 220–320 px, the debugger the rest (at least 220 px) |
-| `height` | from the width | CSS px. Without it the height follows the artwork's aspect plus the 50 px bar; with it the artwork fits inside (the PWA passes the viewport) |
+| `height` | from the width | CSS px. Without it the height follows the artwork's aspect plus the 50 px bar; with it the artwork fits inside (the PWA passes `#root`'s content box) |
 | `keyboard` | `false` | The calculator is focusable and takes the physical keyboard while focused (`SharedArchitecture.md` § "Physical Keyboard Mapping") |
 | `settings` | `true` | Show the Settings gear |
 | `model` | stored setting | Start with this model: `"TI-59"`, `"TI-58"` or `"TI-58C"` |
@@ -222,9 +222,12 @@ styles; the host styles only its own layout around the client.
 
 ### The PWA (`app/`)
 
-`app/index.html` mounts `PlayCalculator` in the portrait layout, sized to
-the viewport (inside the safe area), with the keyboard and an install
-banner. Its service worker's scope is `app/`. It precaches the shell,
+`app/index.html` mounts `PlayCalculator` in the portrait layout, with the
+keyboard and an install banner. `#root` is fixed to the viewport and a
+`ResizeObserver` sizes the calculator to its content box (inside the safe
+area), which also catches insets arriving late; the status bar is opaque,
+because with black-translucent WebKit's standalone viewport left it in or
+out from one launch to the next. Its service worker's scope is `app/`. It precaches the shell,
 `calc.js`, `calc.css`, the worker, the engine, the artwork, every model's
 ROM files and module 01 (Master Library), so the installed app runs all
 three models offline; another module needs the network once. A model

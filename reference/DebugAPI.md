@@ -30,6 +30,7 @@ with the run loop stopped (`EmulatorSession::sync`), as
 |---|---|
 | `copyRAMReg(reg, out16)` / `writeRAMReg(reg, n16)` | A raw 16-nibble RAM register by **physical** index (0 … `ramRegCount()` − 1) |
 | `readProgramStep(step)` / `writeProgram(keycodes, count)` | Program keycodes from step 0 |
+| `writeProgramStep(step, keycode)` | One program step; the others stay (a preset reload) |
 | `writeDataRegister(nn, n16)` | Data register Rnn (encode with `cu59::encodeBcd`, `Shared/Bcd.hpp`) |
 | `decodeBCD(n16)` | A register as `double` |
 | `partitionProgramRegs()` / `setPartitionProgramRegs(n)` | RAM registers given to the program, a multiple of 10 in [0, 120] |
@@ -149,8 +150,8 @@ and T are the state before that step. `currentStep` comes from:
   the last one, so the next is counter + 1 — except after RST or a jump,
   which leave the target there with fB[11] (reload) set (`08B9`).
 - **Solid State:** the library exec latch (`libExecPC`), the module byte
-  fetched for dispatch. See `CoreArchitecture.md` § "How the emulator knows
-  the current instruction".
+  fetched for dispatch. See `CoreArchitecture.md` § "The user-visible
+  module step (`libExecPC`)".
 
 The CPU tab is instruction-level and post-execution.
 

@@ -93,7 +93,7 @@ column would have started 14 cycles later. A later cut leaves the
 rightmost columns of the row in progress, and a column cut in the first
 few cycles of its heating leaves a faint dot. The timing was measured on
 a real TI-58C + PC-100A with `examples/debug/printer-interrupt-sweep.ti58c`
-(reference/CoreArchitecture.md § "Dot timing within a line").
+(reference/CoreArchitecture.md § "Printer (PC-100C)", "Dot timing within a line").
 
 **The way back.** After PRT.GO, execution continues at step 000, and the
 step after 1F is left as a return point, as after a subroutine call. The

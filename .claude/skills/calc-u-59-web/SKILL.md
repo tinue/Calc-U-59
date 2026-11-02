@@ -33,14 +33,9 @@ Never edit the calculator there — that copy is generated.
    feature the web has needs the matching change in the apps, or a
    `Pending` row in `FrontendParity.md` — and the reverse. Update the table
    either way.
-3. **Location-independent.** No root-relative URL anywhere: resolve against
-   `CALC_BASE` (`calc.js`'s own URL, `src/engine.js`), the worker's or the service worker's
-   location, or the page (`app/`). New files the PWA needs offline go into
+3. **Location-independent** (`WebClient.md` § "Location independence"). New files the PWA needs offline go into
    `app/sw.js`'s `CORE_ASSETS` (build.js fails on a missing one).
-4. **Render has no side effects.** `fetch`, `new Worker`, listeners and
-   timers start in effects only; module-level code reads nothing but
-   `document.currentScript`/`location`. The site prerenders with stubs that
-   throw.
+4. **Render has no side effects** (`WebClient.md` § "No side effects in render").
 5. **`calc.js` exposes `PlayCalculator` only.** The sources are concatenated
    into one closure; a new file goes into `SOURCES` in `build.js`, in load
    order. Its props (`WebClient.md` § "Mounting it") and the stable hooks

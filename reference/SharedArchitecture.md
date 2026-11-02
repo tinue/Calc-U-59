@@ -47,14 +47,14 @@ wrappers in `Bridge/`, which only translate types (`AppArchitecture.md`
 | **Debugger** | |
 | `DebugModel` | The panels' data: CALCULATOR snapshot and listing, CPU history, ROM heatmap, LOG ring |
 | `DebugSnapshots` | Builds the CALCULATOR snapshot and listing and the CPU history entries |
-| `DebugText` | The panels' shared text and colours; `mobileLayout`, which panels an iOS window shows, `mobilePrinterWidth` and `mobileTopMargin` |
+| `DebugText` | The panels' shared text and colours; `mobileLayout`, which panels an iOS window shows, `mobilePrinterWidth`, `compactPrinterBar` and `mobileTopMargin` |
 | `DebugLog` | LOG ring buffer and the Vars / SCOM / Prog / Memory dumps |
 | `RomHeatmap` | Execution counts per ROM address, heat steps and colours |
 | `ModuleImage` | PRG SOURCE decoding, the module's program table, source labels |
 | `AsmOverlay` | ASM overlay file parser and entry |
 | `TraceWriter` | Binary trace format v2 (`DebugAPI.md`) |
 | **Files** | |
-| `StateFile` | `.ti59` parser and pre-scan (`StateFileFormat.md`) |
+| `StateFile` | `.ti59` parser and `stateFileModel` (`StateFileFormat.md`) |
 | `StateApplier` | Writes a parsed file into the machine; power-on, soft and clean reset |
 | `CardFile` | Magnetic card files (text 2.0 and 1.0, headered and legacy binary); which names the pickers list |
 | `ConstantMemory` | `ti58c.mem` |
@@ -88,7 +88,8 @@ TI-58C memory file, the card reader, the printer strip, the cue card shown,
 freeze and step, traces, the ASM overlay and the LOG tab.
 
 The app implements `SessionController::Platform`: `runOnUiThread`, reading
-and writing `ti58c.mem` and card files, the trace location (and whether it
+and writing `ti58c.mem` and card files, `cardFilePath` (a preset card's file in
+the card folder), `showDebugPanel`, the trace location (and whether it
 is available, asked only when a manual trace opens), saving the last model
 and module, error alerts, diagnostics, and `changed(mask)` — the `Change`
 bits name what to redraw. The app calls `tick(now)` at 60 Hz, and
@@ -287,6 +288,8 @@ controller's side:
    and fits it into the cue card cutout, replacing the card there.
    `fitBlankCard(savePath, name)` fits a fresh version 2 card whose cue card is
    a Title with the file name (`freshCardCue`). Neither touches the reader.
+   Each GUI's picker asks before a fresh card takes the name of an existing
+   one: its first write replaces the file. Only the GUI knows its card folder.
 2. `tapCard(nx, ny)` is a press on the canvas: `cardCornerAt` (`KeyboardLayout`)
    gives the side, and `feedSide(side)` puts it into the reader. GUIs call it on
    a press only, not on a drag. A press does nothing while a module's cue card
@@ -336,15 +339,9 @@ reference order: `StateFileFormat.md`.
    target model's limits. Parse errors are reported and the load continues.
 2. `MODEL:` names another model → `startMachine(target)` first. Then the
    partition check (`stateFilePartitionError`) aborts the load.
-3. Stop the loop,
-   unfreeze, and on the emulation thread `applyState` (`StateApplier`):
-   reset, run the ROM's power-on routine (300,000 steps, a safe upper bound),
-   set the partition, clear RAM (the TI-58C keeps registers 60–63), write the
-   program zero-padded to the model's capacity, write the registers. Then
-   reset the heatmap baseline, start the loop and cut the paper, and apply
-   `SOLID-STATE-MODULE:`, `PRINTER:` and the cue card.
-   A load first drops the previous preset's queued and memory cards
-   (`dropPresetCards`).
+3. `dropPresetCards`, stop the loop, unfreeze, and on the emulation thread
+   `applyState` (`StateApplier`). Then reset the heatmap baseline, start the
+   loop, and apply the rest on the UI thread.
 4. Persist `ti58c.mem`, then play `KEYSTROKES:`.
 
 **Reloads and preset cards during playback** (`StateFileFormat.md` §

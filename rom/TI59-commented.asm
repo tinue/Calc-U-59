@@ -5038,9 +5038,9 @@
 0F38: 0A98  PRT.STEP          ; wait until the printer is idle …
 0F39: 0A0B  TST.BUSY
 0F3A: 1005  JNC 0F38
-0F3B: 0AB8  PRT.FEED          ; … one blank line
+0F3B: 0AB8  PRT.FEED          ; … half a line of paper
 0F3C: 0A04  INC KR
-0F3D: 0A55  TST KR[5]         ; two lines done?
+0F3D: 0A55  TST KR[5]         ; both feeds done?
 0F3E: 180D  JC 0F38
 0F3F: 0AD0  WAIT D13          ; printer ADV button still held …
 0F40: 08FE  KEY [N]

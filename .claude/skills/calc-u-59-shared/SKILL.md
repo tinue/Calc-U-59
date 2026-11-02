@@ -18,12 +18,7 @@ drawing rules: `reference/SharedArchitecture.md`. Don't restate them here.
    C++20 (the CMake build is C++17 — it is the gate).
 3. **No locations.** Take `std::filesystem::path` or a `ResourceReader`;
    never look up iCloud, Documents, bundles or qrc.
-4. **All builds before every commit:**
-   ```bash
-   cmake -S . -B build/cmake -G Ninja && cmake --build build/cmake && ctest --test-dir build/cmake --output-on-failure
-   xcodebuild -project Calc-U-59.xcodeproj -scheme Calc-U-59 -destination platform=macOS build
-   Web/build.sh && Web/run-tests.sh
-   ```
+4. **All builds before every commit** (commands: CLAUDE.md § "Frontend Parity").
    (The Qt app builds as part of the root CMake build when Qt is installed;
    the web build needs `emcc` — calc-u-59-web skill.)
 5. **No threads you can't pump.** The web build compiles `Shared/` without

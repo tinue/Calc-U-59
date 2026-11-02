@@ -535,7 +535,7 @@ KR[4..9], filled right to left), PRT.GO prints the line, TST.BUSY paces it.
 - **Printer interrupt**: a manufactured keycode 1F jumps into the print
   routine just before PRT.GO and cuts the line in progress short
   (`rom/printerinterrupt.md`).
-- **Adv** feeds two lines and keeps feeding while Adv or the printer's ADV
+- **Adv** issues two PRT.FEEDs, one line on paper, and keeps feeding while Adv or the printer's ADV
   button is held (`0F36`).
 
 ## Keycode sub-programs

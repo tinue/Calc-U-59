@@ -280,7 +280,7 @@ would be lost); directives go on, so `Step:` and `Resume:` work.
 | `Trace: Off` | Stop it |
 | `ZeroElapseTime:` | Take the core's elapsed-time counter (`elapsedTicks()`) as the baseline |
 | `ReportElapseTime:` | Log `Elapsed: m:ss.mmm` since the baseline (or reset) to the LOG tab |
-| `ArmCard: <card>` | Queue a card for the next card wait of `Write` / `INV Write`, see "Cards in KEYSTROKES" |
+| `ArmCard: <card>` | Queue a card for the next card wait of `Write` / `INV Write`, see "Feeding cards: ArmCard and InsertCard" |
 | `InsertCard: <card>` | Insert a card once the calculator is idle; playback waits until it has passed |
 | `PrinterTrace: on` / `off`, `CutPaper:`, `DebugPanel:`, `Freeze:`, `FreezeOnStart:`, `Step:`, `Resume:` | The GUI's controls, see "Controls" |
 
@@ -324,7 +324,7 @@ effect.
 |---|---|
 | `PrinterTrace: on` / `off` | Setting the PC-100's TRACE switch (the paper trace, not a CPU trace) |
 | `CutPaper:` | Cutting the printer paper |
-| `DebugPanel: Calculator` / `CPU` / `Log` | Clicking that tab of the debugger. On a paged layout (iPhone portrait) the page stays where it is; the web client without a debugger remembers it |
+| `DebugPanel: Calculator` / `CPU` / `Log` | Clicking that tab of the debugger. On a paged layout (iPhone portrait) the page stays where it is; the web client without a debugger remembers it. `Calculator` is ignored while an ASM overlay runs |
 | `Freeze: Calculator` / `CPU` | That panel's FREEZE (ignored if frozen already) |
 | `FreezeOnStart: Calculator` / `CPU` | That panel's FREEZE ON START: CALCULATOR freezes before the next program step, CPU when the keyboard scan loop exits |
 | `FreezeOnStart: Off` | Disarm both |
@@ -383,8 +383,8 @@ KEYSTROKES:
   whole bank ("CARD").
 - A `CUECARD:` replaces the card shown.
 - A reload's `PROGRAM:` starts at step 000 again.
-- A reload's partition above the model's last step is skipped, with a line
-  in the LOG tab.
+- A reload whose partition exceeds the model's last step is skipped whole,
+  with a line in the LOG tab.
 - `MODEL:`, `SOLID-STATE-MODULE:` and `PRINTER:` belong to the whole file,
   wherever they stand.
 - Example: `examples/historic/fast-grafik-3d-plot.ti59`. Part 2 is a reload after
@@ -416,10 +416,11 @@ two ways:
 | Name | Card |
 |---|---|
 | `mem:Scratch` (prefix in any case) | In-memory: built from a `CARD:` block, or blank. A bank written to it is kept and read back by the next use. It is never saved to a file |
-| `Results` / `Results.U59` | The card file in the card folder (Swift: iCloud or Documents; Qt: the card folder in Settings; web: the session's cards). `.U59` is added when there is no extension. A missing file goes in as a blank card, so a `Write` creates it. `Results:2` is its side 2; without a side it is side 1. Only trailing digits are a side, and only 1 or 2: `A:1.U59` is a name, `Results:3` an error. A side on a card file of version 1 logs a note and feeds its one side |
+| `Results` / `Results.U59` | The card file in the card folder (Swift: iCloud or Documents; Qt: the card folder in Settings; web: the session's cards). `.U59` is added when there is no extension. A missing file goes in as a blank card, so a `Write` creates it. `Results:2` is its side 2; without a side it is side 1. Only trailing digits are a side, and only 1 or 2: `A:1.U59` is a name, `Results:3` an error. `:2` on a card file of version 1 logs a note and feeds its one side |
 
 A `CARD:` block is one prepared card side, defined in the preset. It is an
-in-memory card, may stand anywhere in the file, and ends at `END-CARD`:
+in-memory card, may stand anywhere in the file, and ends at `END-CARD`. What
+it interrupted goes on after it, keys or a program's next step:
 
 ```
 CARD: mem:MyVars
@@ -524,7 +525,7 @@ InsertCard: Results      # it stopped for the next card: Results.U59
 - Queued and memory cards last until the next full load, reset or model
   switch, not just to the end of the script. A `Write` keyed in last, or a
   run the user starts later, still gets its card. A card never fed is
-  logged then.
+  logged then, except on a model switch.
 - A card file fed this way stays fitted in the calculator afterwards, as if
   the user had chosen it. A `mem:` card is not fitted.
 - A preset's own cue card (top-level `CUECARD:` or in a reload) goes onto every

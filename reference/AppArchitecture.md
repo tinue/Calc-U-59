@@ -100,7 +100,7 @@ imports the public ones.
 |---|---|
 | `TISessionController.{h,mm}` | `SessionController`; its `Platform` as the `TIPlatform` protocol (held weakly); `TIChange` = `Change` bits; value objects `TILiveDebugSnapshot`, `TIStepEntry`, `TIRegEntry`, `TIInspectorEntry`, `TIPrinterLine`, built when Swift reads them after a change |
 | `TISharedTables.{h,mm}` | `KeyboardMap`, `SevenSegment`, `PrinterFont` (font rows), `KeyboardLayout`, `KeyMatrix` |
-| `TIViewRules.{h,mm}` | `CueCard` (spans, geometry, inks), `LedGeometry`, `PrinterFont` (`PrinterGeometry`), `RomHeatmap`, `ModuleImage` (program source), `DebugText` (incl. the iOS `mobileLayout`, `mobilePrinterWidth`, `mobileTopMargin`) |
+| `TIViewRules.{h,mm}` | `CueCard` (spans, geometry, inks), `LedGeometry`, `PrinterFont` (`PrinterGeometry`), `RomHeatmap`, `ModuleImage` (program source), `DebugText` (incl. the iOS `mobileLayout`, `mobilePrinterWidth`, `compactPrinterBar`, `mobileTopMargin`) |
 | `TIFileFormats.{h,mm}` | `TICueCard`, card file names (`CardFile`), `cuecards.txt` module list (`ModuleCatalog`); `TIResourceReader` |
 | `TISettings.{h,mm}` | `SettingsKeys` |
 | `TITypes.h` | `TIDisplaySnapshot` (mirrors `LedFrame`: glyph, control nibble and brightness 0–255 per digit and decimal point) and `TICpuFrame` (mirrors `CpuFrame`) |
