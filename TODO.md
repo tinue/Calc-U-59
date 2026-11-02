@@ -27,6 +27,7 @@ Unsorted collection of ideas, bugs, observations etc.
 ## Various
 - **Event callbacks** — push notifications for display updates and register changes, replacing the current polling model.
 - **Card stacking in the GUI** — presets already queue cards (`ArmCard:`, `InsertCard:`; `reference/StateFileFormat.md`); what remains is letting a user queue a stack by hand.
+- **Card sound** — play a recorded card pass, with the emulator's pass timed to match; plan and measurements in `ideas/CardSound.md`.
 - **REST API** — scripted control of a running app. Headless runs (`tools/headless/`, `tools/agentic/`) and GUI decoupling (`Shared/`, `reference/NewGUIGuide.md`) are done.
 - **Frozen** - Visually indicate when the calculator is frozen in one of the debuggers (mostly useful on iPhone, where only one panel is visible at a time)
 
