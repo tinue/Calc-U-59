@@ -14,7 +14,9 @@ corrected version.
 
 If you only want to watch it work, load `pdcm-card-tricks.ti59` in Calc-U-59.
 The preset holds all the cards, starts the system and runs the demo by itself.
-The rest of this guide is for doing it by hand.
+To work the system yourself without keying anything in, follow
+[`PDCM-Emulator.md`](PDCM-Emulator.md). The rest of this guide is for doing it
+all by hand.
 
 ## 1. The problem PDCM solves
 

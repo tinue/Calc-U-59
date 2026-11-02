@@ -43,7 +43,7 @@
 #   R/S, read -999.-03       shows -998.-03
 #   R/S, read -998.-03       shows -1. 00
 #   2nd St flg 8  R/S        new card -1; now every register and flag is asked
-#   R/S (13 times) until 7 HIR is printed
+#   R/S (12 times) until 7 HIR is printed
 #   .012 R/S                 HIR 7: the next strip
 #   R/S (8 times)            prints DATA AREA NOT EMPTY, shows 0.1
 #   R/S                      shows -1. 00: write it to a blank card
