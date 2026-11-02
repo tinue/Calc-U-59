@@ -87,6 +87,17 @@ TEST(stages_card_block_and_directives) {
     CHECK(c.cueCard && c.cueCard->title == "Vars");
 }
 
+TEST(stages_card_block_stands_anywhere) {
+    const std::string block = "CARD: mem:x\nBank: 3\nPROGRAM:\n05 06\nEND-CARD\n";
+    auto keys = parseStateFile("KEYSTROKES:\n91\n" + block + "91\n");
+    CHECK(kinds(keys) == (std::vector<K>{K::Key, K::Key}));  // the keys go on after the block
+    auto program = parseStateFile("PROGRAM:\n01\n" + block + "02\n");
+    CHECK_EQ(program.programSteps.size(), size_t{2});
+    CHECK_EQ(program.programSteps[1].stepAddr, 1);  // and so do the bare keycodes
+    auto before = parseStateFile(block + "PROGRAM:\n01\n");
+    CHECK_EQ(before.programSteps[0].stepAddr, 0);
+}
+
 TEST(stages_card_errors) {
     CHECK(hasError(parseStateFile("CARD: Results\nBank: 1\nEND-CARD\n"), "only an in-memory card"));
     CHECK(hasError(parseStateFile("CARD: mem:x\nEND-CARD\n"), "needs Bank: 1–4"));

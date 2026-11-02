@@ -341,6 +341,8 @@ LoadStateResult parseStateFile(std::string_view text, int maxStepAddr, bool allo
     std::shared_ptr<ReloadStage> reload;
     std::shared_ptr<CardDefinition> card;
     std::map<std::string, std::shared_ptr<CardDefinition>> cards;  // by memoryCardKey
+    Section sectionBeforeCard = Section::None;
+    int stepBeforeCard = 0;
     auto closeCard = [&] {
         if (auto c = finishCard(std::move(card), r.errors)) {
             std::string key(memoryCardKey(c->name));
@@ -348,7 +350,9 @@ LoadStateResult parseStateFile(std::string_view text, int maxStepAddr, bool allo
             cards[key] = std::move(c);
         }
         card = nullptr;
-        section = Section::None;
+        // The block may stand anywhere: what it interrupted goes on.
+        section = sectionBeforeCard;
+        currentStep = stepBeforeCard;
     };
     // A reload section after KEYSTROKES: the first one opens the stage, played in turn.
     auto reloadStage = [&]() -> ReloadStage* {
@@ -400,6 +404,8 @@ LoadStateResult parseStateFile(std::string_view text, int maxStepAddr, bool allo
                 r.errors.push_back("CARD: " + card->name + " has no END-CARD.");
                 closeCard();
             }
+            sectionBeforeCard = section;
+            stepBeforeCard = currentStep;
             card = std::make_shared<CardDefinition>();
             card->name = std::string(trim(line.substr(5)));
             r.usesCardReader = true;
