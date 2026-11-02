@@ -351,11 +351,13 @@ struct CalculatorView: View {
                     }
                     .labelStyle(showLabel: showLabels)
                     .controlSize(.regular)
+                    .help("Fit a magnetic card into the calculator")
                     Button("Crd", systemImage: "plus.rectangle") {
                         viewModel.cardPickerMode = .save
                     }
                     .labelStyle(showLabel: showLabels)
                     .controlSize(.regular)
+                    .help("Fit a fresh magnetic card into the calculator")
                 } else {
                     Button("Eject Card", systemImage: "eject") {
                         viewModel.ejectIfSwiping()
