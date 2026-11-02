@@ -1,6 +1,7 @@
 #import "TIViewRules.h"
 #import "BridgeConvert.h"
 #import "TIFileFormats+Cpp.h"
+#include "../Shared/KeyboardLayout.hpp"
 #include "../Shared/DebugSnapshots.hpp"
 #include "../Shared/DebugText.hpp"
 #include "../Shared/LedGeometry.hpp"
@@ -14,6 +15,22 @@
 @property (nonatomic, readwrite) NSInteger endCol;
 @property (nonatomic, readwrite, copy) NSString *label;
 @end
+@interface TICardCorner () {
+@public
+    cu59::CardCornerGeometry _g;
+}
+@end
+
+@implementation TICardCorner
+- (CGRect)frame { return CGRectMake(_g.x, _g.y, _g.width, _g.height); }
+- (CGFloat)radius { return _g.radius; }
+- (NSInteger)arrowPointCount { return static_cast<NSInteger>(_g.arrow.size()); }
+- (CGPoint)arrowPoint:(NSInteger)index {
+    const auto& p = _g.arrow[static_cast<size_t>(index)];
+    return CGPointMake(p.x, p.y);
+}
+@end
+
 @implementation TILabelSpan
 @end
 
@@ -97,6 +114,14 @@ static std::vector<cu59::LabelSpan> spansFrom(NSArray<TILabelSpan*>* spans) {
     t.drawsDividers = l.drawsDividers; t.hasId = l.hasId;
     return t;
 }
+
++ (TICardCorner *)cardCorner:(NSInteger)side width:(CGFloat)width height:(CGFloat)height {
+    TICardCorner* t = [[TICardCorner alloc] init];
+    t->_g = cu59::cardCornerGeometry(static_cast<int>(side), width, height);
+    return t;
+}
+
++ (uint32_t)cardCornerLitColor { return cu59::kCardCornerLitRGB; }
 
 + (CGFloat)cueCardDividerX:(NSInteger)index templateKind:(NSInteger)templateKind width:(CGFloat)width {
     return cu59::cueCardDividerX(cu59::cueCardLayout(static_cast<cu59::CueCardTemplate>(templateKind)),

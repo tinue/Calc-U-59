@@ -3,6 +3,7 @@
 #include "CardFile.hpp"
 #include "ConstantMemory.hpp"
 #include "PrinterFont.hpp"
+#include "KeyboardLayout.hpp"
 #include "StateApplier.hpp"
 #include "TextUtil.hpp"
 #include <algorithm>
@@ -117,9 +118,11 @@ bool SessionController::startMachine(Model model) {
     // A new machine: running, nothing armed, TRACE latch released, no card.
     m_debugState = m_session->debugState();
     m_userCueCard.reset();
+    m_fitted.reset();
+    m_presetCue.reset();
     m_activeProgram = 0;
     m_cardState = CardState::NoCard;
-    m_memoryCardInReader.reset();
+    m_pass = {};
     m_queuedCardInReader = false;
     m_memoryCards.clear();
     m_keystrokesPlaying = false;
@@ -161,10 +164,12 @@ void SessionController::beginReset() {
     resume();
     m_asmActive = false;
     m_cardState = CardState::NoCard;
-    m_memoryCardInReader.reset();
+    m_pass = {};
     m_queuedCardInReader = false;
     dropPresetCards();
     m_userCueCard.reset();
+    m_fitted.reset();
+    m_presetCue.reset();
     m_activeProgram = 0;
     refreshCueCard();
 }
@@ -318,7 +323,8 @@ void SessionController::checkProgramNumber() {
 }
 
 void SessionController::refreshCueCard() {
-    auto card = resolveCueCard(m_activeProgram, m_moduleCards, m_moduleMetadata.title, m_moduleMetadata.id, m_userCueCard);
+    auto card = resolveCueCard(m_activeProgram, m_moduleCards, m_moduleMetadata.title, m_moduleMetadata.id,
+                               m_fitted ? std::optional<CueCardContent>(fittedCueCard()) : m_userCueCard);
     if (card != m_cueCard) {
         m_cueCard = card;
         emitChanged(CueCardChanged);
@@ -379,33 +385,72 @@ void SessionController::cutPaper() {
 
 // ── Card reader ──────────────────────────────────────────────────────────────
 
-void SessionController::insertCard(const std::optional<std::vector<uint8_t>>& raw, const std::string& path,
-                                   const std::string& fileName) {
-    if (!m_session || m_cardState != CardState::NoCard) return;
+bool SessionController::fitCard(const std::optional<std::vector<uint8_t>>& raw, const std::string& path,
+                                const std::string& fileName) {
+    if (!m_session || !info(m_model).hasCardReader || m_cardState != CardState::NoCard) return false;
     if (!raw) {
         m_platform.error("Card load error", "Could not read card file.");
-        return;
+        return false;
     }
     auto decoded = decodeCardFile(*raw, fileName);
     if (!decoded.card) {
         m_platform.error("Card load error", decoded.error);
-        return;
+        return false;
     }
-    if (decoded.isText) {
-        m_userCueCard = decoded.card->cueCard;
-        refreshCueCard();
-    }
-    startSwipe(decoded.card->data, path, fileName);  // write back to `path` if the machine writes during this pass
+    m_fitted = FittedCard{path, fileName, std::move(*decoded.card), false};
+    m_cardFileName = fileName;
+    refreshCueCard();
+    emitChanged(CardChanged);
+    return true;
 }
 
-void SessionController::insertBlankCard(const std::string& savePath, const std::string& fileName) {
-    if (!m_session || m_cardState != CardState::NoCard) return;
-    startSwipe({}, savePath, fileName);
+bool SessionController::fitBlankCard(const std::string& savePath, const std::string& fileName) {
+    if (!m_session || !info(m_model).hasCardReader || m_cardState != CardState::NoCard) return false;
+    CardDocument doc;
+    doc.cueCard = freshCardCue(fileName);
+    m_fitted = FittedCard{savePath, fileName, std::move(doc), true};
+    m_cardFileName = fileName;
+    refreshCueCard();
+    emitChanged(CardChanged);
+    return true;
 }
 
-void SessionController::startSwipe(const std::vector<uint8_t>& data, const std::string& savePath,
-                                   const std::string& fileName) {
-    m_pendingSavePath = savePath;
+bool SessionController::feedSide(int side) {
+    if (!m_session || !m_fitted || side < 0 || side > 1 || m_cardState != CardState::NoCard) return false;
+    const CardDocument& doc = m_fitted->doc;
+    std::vector<uint8_t> bank;
+    if (doc.version == 1) bank = doc.singleSide;
+    else if (doc.sides[static_cast<size_t>(side)]) bank = *doc.sides[static_cast<size_t>(side)];
+    startSwipe(bank, m_fitted->fileName, {true, side, m_feedingQueuedCard, std::nullopt});
+    return true;
+}
+
+bool SessionController::tapCard(double nx, double ny) {
+    if (!m_fitted || m_activeProgram > 0) return false;  // nothing there, or a module's cue card covers it
+    auto side = cardCornerAt(nx, ny);
+    if (!side) return false;
+    feedSide(*side);
+    return true;
+}
+
+std::optional<int> SessionController::litCardCorner() const {
+    if (!m_fitted || m_activeProgram > 0 || m_cardState != CardState::Swiping || !m_pass.fitted) return std::nullopt;
+    return m_pass.side;
+}
+
+CueCardContent SessionController::fittedCueCard() const {
+    // A card without a cue card still needs something to show; never saved.
+    CueCardContent cue = m_fitted->doc.cueCard ? *m_fitted->doc.cueCard : freshCardCue(m_fitted->fileName);
+    cue.template_ = CueCardTemplate::MagnetCard;
+    if (m_fitted->doc.version == 2) {
+        cue.bankLeft = m_fitted->doc.sideBank(0);
+        cue.bankRight = m_fitted->doc.sideBank(1);
+    }
+    return cue;
+}
+
+void SessionController::startSwipe(const std::vector<uint8_t>& data, const std::string& fileName, const CardPass& pass) {
+    m_pass = pass;
     m_cardFileName = fileName;
     m_cardState = CardState::Swiping;
     m_session->manualTrace().writeCardInsert();
@@ -422,11 +467,11 @@ void SessionController::ejectCard() {
     m_session->manualTrace().writeCardEject();
     std::vector<uint8_t> written = m_session->machine().cardEject();
     m_cardState = CardState::NoCard;
+    const CardPass pass = std::exchange(m_pass, CardPass{});
     if (!written.empty()) {
-        if (m_memoryCardInReader) m_memoryCards[*m_memoryCardInReader] = {written, m_cueCard};
-        else if (!m_pendingSavePath.empty()) saveCard(written, m_pendingSavePath);
+        if (pass.memoryKey) m_memoryCards[*pass.memoryKey] = {written, m_userCueCard};
+        else if (pass.fitted && m_fitted) writeFittedSide(pass.side, written, pass.queued);
     }
-    m_memoryCardInReader.reset();
     queuedCardDone();
     emitChanged(CardChanged);
 }
@@ -448,23 +493,37 @@ void SessionController::feedQueuedCard() {
             bank = buildCardBank(*card->definition, m_session->machine().partitionProgramRegs());
             cueCard = card->definition->cueCard;
         }
-        if (cueCard) {
-            m_userCueCard = cueCard;
-            refreshCueCard();
-        }
-        startSwipe(bank, "", card->name);
-        m_memoryCardInReader = key;
+        m_fitted.reset();  // a memory card has no file behind it: it is not fitted
+        if (cueCard) m_userCueCard = cueCard;
+        refreshCueCard();
+        startSwipe(bank, card->name, {false, 0, true, key});
         return;
     }
     std::string fileName = withDefaultCardExtension(card->name);
     Platform::CardFileRef file = m_platform.cardFile(fileName);
-    if (!file.raw) {
+    bool fitted;
+    if (file.unreadable) {
+        m_platform.error("Card load error", "Could not read card file " + fileName + ".");
+        fitted = false;
+    } else if (!file.raw) {
         log({"KEYSTROKES: no card file " + fileName + " — a blank card goes in"});
-        insertBlankCard(file.path, fileName);
+        fitted = fitBlankCard(file.path, fileName);
+        if (fitted && m_presetCue) {
+            m_fitted->doc.cueCard = m_presetCue;
+            refreshCueCard();
+        }
     } else {
-        insertCard(file.raw, file.path, fileName);
+        fitted = fitCard(file.raw, file.path, fileName);
     }
-    if (m_cardState == CardState::NoCard) queuedCardDone();  // the file could not be read
+    if (!fitted) {
+        queuedCardDone();
+        return;
+    }
+    if (card->side == 1 && m_fitted->doc.version == 1)
+        log({"KEYSTROKES: card file " + fileName + " has one side — that side goes in"});
+    m_feedingQueuedCard = true;
+    feedSide(card->side);
+    m_feedingQueuedCard = false;
 }
 
 void SessionController::dropPresetCards() {
@@ -482,13 +541,35 @@ void SessionController::queuedCardDone() {
     m_session->hostDone();
 }
 
-void SessionController::saveCard(const std::vector<uint8_t>& data, const std::string& path) {
-    std::string text = encodeCardText(data, m_cueCard ? &*m_cueCard : nullptr);
-    if (!m_platform.writeCard(path, text)) {
-        m_platform.error("Card save error", "Card save failed: " + path);
+void SessionController::writeFittedSide(int side, const std::vector<uint8_t>& written, bool queued) {
+    const std::string saveFailed = "Card save failed: " + m_fitted->path;
+    CardDocument doc = m_fitted->doc;
+    if (!m_fitted->fresh) {
+        // The file may have changed since it was fitted (iCloud, another app): keep its other side.
+        Platform::CardFileRef file = m_platform.readCard(m_fitted->path);
+        if (file.unreadable) {
+            m_platform.error("Card save error", saveFailed);
+            return;
+        }
+        if (file.raw) {
+            auto decoded = decodeCardFile(*file.raw, m_fitted->fileName);
+            if (!decoded.card) {
+                m_platform.error("Card save error", decoded.error);
+                return;
+            }
+            doc = std::move(*decoded.card);
+        }
+    }
+    if (doc.version == 1) doc.singleSide = written;
+    else doc.sides[static_cast<size_t>(side)] = written;
+    if (queued && m_presetCue) doc.cueCard = m_presetCue;
+    if (!m_platform.writeCard(m_fitted->path, encodeCardDocument(doc))) {
+        m_platform.error("Card save error", saveFailed);
         return;
     }
-    m_cardFileName = std::filesystem::path(path).filename().string();
+    m_fitted->doc = std::move(doc);
+    m_fitted->fresh = false;
+    refreshCueCard();  // the corner shows the bank just written
 }
 
 // ── State files (reference/SharedArchitecture.md § "State File Loading") ───────
@@ -530,7 +611,7 @@ void SessionController::loadStateFile(const std::optional<std::vector<uint8_t>>&
 SessionController::DropAction SessionController::dropAction(const std::string& fileName) const {
     if (isStateFileName(fileName)) return DropAction::LoadPreset;
     if (!isCardFileName(fileName)) return DropAction::NotAccepted;
-    return info(m_model).hasCardReader ? DropAction::InsertCard : DropAction::Ignore;
+    return info(m_model).hasCardReader ? DropAction::FitCard : DropAction::Ignore;
 }
 
 bool SessionController::openDroppedFile(const std::optional<std::vector<uint8_t>>& raw, const std::string& path,
@@ -539,10 +620,8 @@ bool SessionController::openDroppedFile(const std::optional<std::vector<uint8_t>
         case DropAction::LoadPreset:
             loadStateFile(raw);
             return raw.has_value();
-        case DropAction::InsertCard:
-            if (m_cardState != CardState::NoCard) return false;  // the reader takes one card
-            insertCard(raw, path, fileName);
-            return m_cardState == CardState::Swiping;
+        case DropAction::FitCard:
+            return fitCard(raw, path, fileName);
         case DropAction::Ignore:
         case DropAction::NotAccepted:
             return false;
@@ -568,7 +647,10 @@ void SessionController::applyState(const LoadStateResult& parsed) {
     if (parsed.solidStateModuleID && *parsed.solidStateModuleID != m_moduleID) selectModule(*parsed.solidStateModuleID);
     if (parsed.printerConnected) setPrinterConnected(*parsed.printerConnected);
     m_userCueCard = parsed.cueCard;
+    m_presetCue = parsed.cueCard;
+    m_fitted.reset();
     refreshCueCard();
+    emitChanged(CardChanged);
     persistConstantMemory();  // after the cue card: ti58c.mem keeps the file's card
     pullDebugState();
     emitChanged(RunStateChanged | HeatmapChanged);
@@ -631,7 +713,10 @@ void SessionController::applyReloadStage(const ReloadStage& stage) {
         if (!frozen) m_session->start();
         if (stage.cueCard) {
             m_userCueCard = stage.cueCard;
+            m_presetCue = stage.cueCard;
+            m_fitted.reset();
             refreshCueCard();
+            emitChanged(CardChanged);
         }
         persistConstantMemory();
         emitChanged(RunStateChanged);

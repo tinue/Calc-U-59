@@ -1,10 +1,12 @@
 #include "CardPickerDialog.hpp"
 #include "CardFile.hpp"
 #include <QDir>
+#include <QFileInfo>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QMessageBox>
 #include <QPushButton>
 #include <QVBoxLayout>
 
@@ -70,6 +72,14 @@ void CardPickerDialog::accept() {
         if (name.isEmpty()) return;
         name = QString::fromStdString(cu59::withDefaultCardExtension(name.toStdString()));
         m_selected = QDir(m_dir).filePath(name);
+        if (QFileInfo::exists(m_selected)) {
+            QMessageBox ask(QMessageBox::Question, QStringLiteral("Replace card"),
+                            QStringLiteral("Replace card %1?").arg(name), QMessageBox::Cancel, this);
+            ask.setInformativeText(QStringLiteral("Its first write replaces both sides and the cue card."));
+            QPushButton* replace = ask.addButton(QStringLiteral("Replace"), QMessageBox::DestructiveRole);
+            ask.exec();
+            if (ask.clickedButton() != replace) return;
+        }
     } else {
         QListWidgetItem* item = m_list->currentItem();
         if (!item || !(item->flags() & Qt::ItemIsEnabled)) return;

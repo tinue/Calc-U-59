@@ -156,8 +156,8 @@ struct CalculatorView: View {
                 defaultFileName: viewModel.cardFileName
             ) { url in
                 switch item.mode {
-                case .load: viewModel.insertCard(from: url)
-                case .save: viewModel.insertBlankCard(savingTo: url)
+                case .load: viewModel.fitCard(from: url)
+                case .save: viewModel.fitBlankCard(savingTo: url)
                 }
             }
         }

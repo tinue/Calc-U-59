@@ -1,4 +1,5 @@
 #include "CueCard.hpp"
+#include "KeyboardLayout.hpp"
 #include "TextUtil.hpp"
 #include <algorithm>
 #include <utility>
@@ -344,6 +345,25 @@ CueCardGeometry cueCardGeometry(const CueCardContent& card, double w, double h) 
     g.washHeight = h * 0.28;
     g.buttonPadX = 4;
     g.buttonPadY = 2;
+    return g;
+}
+
+CardCornerGeometry cardCornerGeometry(int side, double w, double h) {
+    CardCornerGeometry g{};
+    g.width = w * kCardCornerWidth;
+    g.height = h * kCardCornerHeight;
+    g.x = side == 0 ? 0 : w - g.width;
+    g.y = 0;
+    g.radius = w * 0.015;
+    // The arrows on the MagnetCard art, in fractions of the card.
+    static constexpr std::array<CardCornerPoint, 7> kLeft{{{0.1220, 0.1479}, {0.1410, 0.0728}, {0.1410, 0.1033},
+                                                           {0.1495, 0.1033}, {0.1495, 0.1948}, {0.1410, 0.1948},
+                                                           {0.1410, 0.2254}}};
+    static constexpr std::array<CardCornerPoint, 7> kRight{{{0.8900, 0.1362}, {0.8705, 0.0610}, {0.8705, 0.0915},
+                                                            {0.8625, 0.0915}, {0.8625, 0.1831}, {0.8705, 0.1831},
+                                                            {0.8705, 0.2136}}};
+    const auto& art = side == 0 ? kLeft : kRight;
+    for (size_t i = 0; i < art.size(); ++i) g.arrow[i] = {w * art[i].x, h * art[i].y};
     return g;
 }
 

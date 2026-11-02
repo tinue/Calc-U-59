@@ -32,6 +32,14 @@ typedef struct {
 
 /// Text placement on a w × h card (Shared/CueCard.hpp CueCardGeometry).
 /// Frames: CGRect around the text's centre; height 0 = one text line.
+/// A lit corner of a fitted card (Shared cardCornerGeometry).
+@interface TICardCorner : NSObject
+@property (nonatomic, readonly) CGRect frame;
+@property (nonatomic, readonly) CGFloat radius;
+@property (nonatomic, readonly) NSInteger arrowPointCount;
+- (CGPoint)arrowPoint:(NSInteger)index;
+@end
+
 @interface TICueCardGeometry : NSObject
 @property (nonatomic, readonly) CGFloat titleFontSize, gridFontSize, bankFontSize;
 @property (nonatomic, readonly) CGFloat titleY, gridY0, gridY1;
@@ -64,6 +72,9 @@ typedef struct {
 + (CGFloat)cellFittingFontSize:(NSArray<TILabelSpan *> *)spans templateKind:(NSInteger)templateKind
                      cardWidth:(CGFloat)cardWidth scaledGridFontSize:(CGFloat)scaled;
 + (TICueCardGeometry *)cueCardGeometry:(TICueCard *)card width:(CGFloat)width height:(CGFloat)height;
++ (TICardCorner *)cardCorner:(NSInteger)side width:(CGFloat)width height:(CGFloat)height;
+/// The lit corner's colour, 0xRRGGBB.
+@property (class, readonly) uint32_t cardCornerLitColor;
 + (CGFloat)cueCardDividerX:(NSInteger)index templateKind:(NSInteger)templateKind width:(CGFloat)width;
 + (CGRect)cueCardSpanFrame:(TILabelSpan *)span templateKind:(NSInteger)templateKind y:(CGFloat)y width:(CGFloat)width;
 /// 0xRRGGBB: the card's ink, the SolidState dividers, the top wash (at cueCardWashAlpha).

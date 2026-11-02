@@ -134,6 +134,19 @@ function paintCueCard(ctx, card, onImage) {
       ctx.fillStyle = it.color;
       ctx.fillRect(x, y, w, h);
       ctx.globalAlpha = 1;
+    } else if (it.kind === "corner") {
+      const [x, y, w, h] = it.rect;
+      const r = it.radius;
+      ctx.fillStyle = it.color;
+      ctx.beginPath();
+      ctx.roundRect(x, y, w, h, it.side === 0 ? [r, 0, 0, 0] : [0, r, 0, 0]);
+      ctx.fill();
+      ctx.fillStyle = "#000";
+      ctx.beginPath();
+      ctx.moveTo(it.arrow[0], it.arrow[1]);
+      for (let i = 2; i < it.arrow.length; i += 2) ctx.lineTo(it.arrow[i], it.arrow[i + 1]);
+      ctx.closePath();
+      ctx.fill();
     } else if (it.kind === "badge") {
       const [x, y, w, h] = it.frame;
       ctx.save();

@@ -17,13 +17,178 @@ std::string hex2(unsigned v) {
 }
 
 constexpr std::string_view kTextMagic = "Calc-U-59 Card ";
+constexpr std::string_view kTextMagicV1 = "Calc-U-59 Card 1";
+constexpr std::string_view kTextMagicV2 = "Calc-U-59 Card 2";
 constexpr std::string_view kBinaryHeader = "Calc-U-59-CRD";
+constexpr std::string_view kEndCard = "END-CARD";
+
+/// One side's HEADER and DATA as text lines (the same for v1 and v2).
+void appendSideLines(std::vector<std::string>& lines, const std::vector<uint8_t>& data) {
+    auto at = [&](size_t i, uint8_t dflt) { return i < data.size() ? data[i] : dflt; };
+    uint8_t partition = at(0, 0), dataType = at(1, 0x11), pageByte = at(2, 0x10);
+    uint8_t protection = at(3, 0), checksum = at(244, 0);
+    int bankNum = (pageByte & 0x0F) / 3 + 1;
+
+    lines.emplace_back("HEADER:");
+    lines.push_back("Partition: " + hex2(partition));
+    lines.push_back(std::string("DataType: ") + (dataType == 0x11 ? "program" : "data"));
+    lines.push_back("Bank: " + std::to_string(bankNum));
+    lines.push_back(std::string("Protection: ") + (protection == 0x10 ? "yes" : "no"));
+    lines.push_back("Checksum: " + hex2(checksum));
+
+    lines.emplace_back();
+    lines.emplace_back("DATA:");
+    // 30 registers per bank: bank 1 → R000–R029, bank 2 → R030–R059, …
+    int startReg = (bankNum - 1) * 30;
+    for (int row = 0; row < 30; ++row) {
+        Nibbles16 nib{};
+        for (size_t i = 0; i < 8; ++i) {
+            uint8_t b = at(4 + static_cast<size_t>(row) * 8 + i, 0);
+            nib[2 * i] = b >> 4;
+            nib[2 * i + 1] = b & 0x0F;
+        }
+        auto enc = encodeRegisterLine(nib);
+        char label[16];
+        std::snprintf(label, sizeof label, "R%03d:", startReg + row);
+        std::string line = label;
+        for (auto it = enc.rbegin(); it != enc.rend(); ++it) line += " " + hex2(*it);
+        lines.push_back(line);
+    }
+}
+
+std::string joinLines(const std::vector<std::string>& lines) {
+    std::string out;
+    for (size_t i = 0; i < lines.size(); ++i) {
+        if (i) out += '\n';
+        out += lines[i];
+    }
+    return out;
+}
+
+/// A side being read from a v2 file; every field is required.
+struct SideBuilder {
+    bool partition = false, dataType = false, bank = false, protection = false, checksum = false;
+    std::vector<uint8_t> data = std::vector<uint8_t>(kCardBankBytes, 0);
+    size_t rows = 0;
+
+    bool headerLine(std::string_view line) {
+        size_t colon = line.find(':');
+        if (colon == std::string_view::npos) return false;
+        std::string key = toLower(trim(line.substr(0, colon)));
+        std::string val = toLower(trim(line.substr(colon + 1)));
+        if (key == "partition") {
+            auto v = parseHex(val);
+            if (!v || *v > 0xFF) return false;
+            data[0] = static_cast<uint8_t>(*v);
+            partition = true;
+        } else if (key == "datatype") {
+            if (val != "program" && val != "data") return false;
+            data[1] = val == "program" ? 0x11 : 0x10;
+            dataType = true;
+        } else if (key == "bank") {
+            auto n = parseDec(val);
+            if (!n || *n < 1 || *n > 4) return false;
+            data[2] = static_cast<uint8_t>(0x10 | ((*n - 1) * 3));
+            bank = true;
+        } else if (key == "protection") {
+            if (val != "yes" && val != "no") return false;
+            data[3] = val == "yes" ? 0x10 : 0x00;
+            protection = true;
+        } else if (key == "checksum") {
+            auto v = parseHex(val);
+            if (!v || *v > 0xFF) return false;
+            data[244] = data[245] = static_cast<uint8_t>(*v);
+            checksum = true;
+        } else {
+            return false;
+        }
+        return true;
+    }
+
+    bool dataLine(std::string_view line) {
+        if (line[0] != 'R' || rows >= 30) return false;
+        size_t colon = line.find(':');
+        if (colon == std::string_view::npos) return false;
+        auto fileBytes = parseRegisterLineHex(trim(line.substr(colon + 1)));
+        if (!fileBytes) return false;
+        std::array<uint8_t, 8> reversed{};
+        std::reverse_copy(fileBytes->begin(), fileBytes->end(), reversed.begin());
+        Nibbles16 nib = decodeRegisterLine(reversed);
+        for (size_t i = 0; i < 8; ++i)
+            data[4 + rows * 8 + i] = static_cast<uint8_t>((nib[2 * i] << 4) | nib[2 * i + 1]);
+        ++rows;
+        return true;
+    }
+
+    bool complete() const { return partition && dataType && bank && protection && checksum && rows == 30; }
+};
+
+/// The text after "Calc-U-59 Card 2…": refuses anything incomplete rather than blanking a side.
+std::optional<CardDocument> parseCardTextV2(const std::vector<std::string_view>& lines) {
+    enum class V2 { None, CueCard, Side, Header, Data };
+    V2 section = V2::None;
+    CardDocument doc;
+    doc.version = 2;
+    CueCardContent cue;
+    bool hasCue = false, ended = false;
+    std::optional<SideBuilder> side;
+    int sideIndex = -1;
+    auto finishSide = [&] {
+        if (!side) return true;
+        if (!side->complete()) return false;
+        doc.sides[static_cast<size_t>(sideIndex)] = side->data;
+        side.reset();
+        return true;
+    };
+    for (size_t li = 1; li < lines.size() && !ended; ++li) {
+        std::string_view line = stripInlineComment(lines[li]);
+        if (line.empty()) continue;
+        std::string upper = toUpper(line);
+        if (upper == kEndCard) {
+            if (!finishSide()) return std::nullopt;
+            ended = true;
+        } else if (upper == "CUECARD:") {
+            if (side || hasCue) return std::nullopt;
+            section = V2::CueCard;
+            hasCue = true;
+        } else if (startsWith(upper, "SIDE:")) {
+            if (!finishSide()) return std::nullopt;
+            auto n = parseDec(trim(line.substr(5)));
+            if (!n || *n < 1 || *n > 2 || doc.sides[static_cast<size_t>(*n - 1)]) return std::nullopt;
+            sideIndex = static_cast<int>(*n - 1);
+            side.emplace();
+            section = V2::Side;
+        } else if (upper == "HEADER:") {
+            if (section != V2::Side) return std::nullopt;
+            section = V2::Header;
+        } else if (upper == "DATA:") {
+            if (section != V2::Header) return std::nullopt;
+            section = V2::Data;
+        } else {
+            switch (section) {
+            case V2::CueCard: cue.parseLine(line); break;
+            case V2::Header: if (!side->headerLine(line)) return std::nullopt; break;
+            case V2::Data: if (!side->dataLine(line)) return std::nullopt; break;
+            case V2::None:
+            case V2::Side: return std::nullopt;
+            }
+        }
+    }
+    if (!ended) return std::nullopt;
+    if (hasCue) {
+        cue.template_ = CueCardTemplate::MagnetCard;
+        cue.bankLeft.reset();   // v2 has no Banks: the corners come from the sides
+        cue.bankRight.reset();
+        doc.cueCard = cue;
+    }
+    return doc;
+}
 
 } // namespace
 
 std::optional<CardFileResult> parseCardText(std::string_view text) {
     auto lines = splitLines(text);
-    if (lines.empty() || !startsWith(lines[0], kTextMagic)) return std::nullopt;
+    if (lines.empty() || !startsWith(lines[0], kTextMagicV1)) return std::nullopt;
 
     Section section = Section::None;
     CueCardContent cue;
@@ -111,50 +276,53 @@ std::optional<CardFileResult> parseCardText(std::string_view text) {
 }
 
 std::string encodeCardText(const std::vector<uint8_t>& data, const CueCardContent* cueCard) {
-    auto at = [&](size_t i, uint8_t dflt) { return i < data.size() ? data[i] : dflt; };
     std::vector<std::string> lines{"Calc-U-59 Card 1.0"};
     if (cueCard) {
         lines.emplace_back();
         lines.emplace_back("CUECARD:");
         for (auto& l : cueCard->encodeToLines(CueCardTemplate::MagnetCard)) lines.push_back(l);
     }
-    uint8_t partition = at(0, 0), dataType = at(1, 0x11), pageByte = at(2, 0x10);
-    uint8_t protection = at(3, 0), checksum = at(244, 0);
-    int bankNum = (pageByte & 0x0F) / 3 + 1;
-
     lines.emplace_back();
-    lines.emplace_back("HEADER:");
-    lines.push_back("Partition: " + hex2(partition));
-    lines.push_back(std::string("DataType: ") + (dataType == 0x11 ? "program" : "data"));
-    lines.push_back("Bank: " + std::to_string(bankNum));
-    lines.push_back(std::string("Protection: ") + (protection == 0x10 ? "yes" : "no"));
-    lines.push_back("Checksum: " + hex2(checksum));
+    appendSideLines(lines, data);
+    return joinLines(lines);
+}
 
+std::string encodeCardDocument(const CardDocument& doc) {
+    if (doc.version == 1) return encodeCardText(doc.singleSide, doc.cueCard ? &*doc.cueCard : nullptr);
+    std::vector<std::string> lines{"Calc-U-59 Card 2.0"};
+    if (doc.cueCard) {
+        CueCardContent cue = *doc.cueCard;
+        cue.bankLeft.reset();
+        cue.bankRight.reset();
+        lines.emplace_back();
+        lines.emplace_back("CUECARD:");
+        for (auto& l : cue.encodeToLines(CueCardTemplate::MagnetCard)) lines.push_back(l);
+    }
+    for (size_t i = 0; i < doc.sides.size(); ++i) {
+        if (!doc.sides[i]) continue;
+        lines.emplace_back();
+        lines.push_back("SIDE: " + std::to_string(i + 1));
+        appendSideLines(lines, *doc.sides[i]);
+    }
     lines.emplace_back();
-    lines.emplace_back("DATA:");
-    // 30 registers per bank: bank 1 → R000–R029, bank 2 → R030–R059, …
-    int startReg = (bankNum - 1) * 30;
-    for (int row = 0; row < 30; ++row) {
-        Nibbles16 nib{};
-        for (size_t i = 0; i < 8; ++i) {
-            uint8_t b = at(4 + static_cast<size_t>(row) * 8 + i, 0);
-            nib[2 * i] = b >> 4;
-            nib[2 * i + 1] = b & 0x0F;
-        }
-        auto enc = encodeRegisterLine(nib);
-        char label[16];
-        std::snprintf(label, sizeof label, "R%03d:", startReg + row);
-        std::string line = label;
-        for (auto it = enc.rbegin(); it != enc.rend(); ++it) line += " " + hex2(*it);
-        lines.push_back(line);
-    }
+    lines.emplace_back(kEndCard);
+    return joinLines(lines);
+}
 
-    std::string out;
-    for (size_t i = 0; i < lines.size(); ++i) {
-        if (i) out += '\n';
-        out += lines[i];
-    }
-    return out;
+std::optional<int> CardDocument::sideBank(int side) const {
+    if (version != 2 || side < 0 || side > 1 || !sides[static_cast<size_t>(side)]) return std::nullopt;
+    const auto& d = *sides[static_cast<size_t>(side)];
+    if (d.size() < 3) return std::nullopt;
+    return (d[2] & 0x0F) / 3 + 1;
+}
+
+CueCardContent freshCardCue(const std::string& fileName) {
+    CueCardContent cue;
+    cue.template_ = CueCardTemplate::MagnetCard;
+    size_t dot = fileName.rfind('.');
+    cue.title = dot == std::string::npos || dot == 0 ? fileName : fileName.substr(0, dot);
+    std::replace(cue.title.begin(), cue.title.end(), '#', ' ');  // '#' would start a comment on reload
+    return cue;
 }
 
 std::vector<uint8_t> buildCardBank(const CardDefinition& card, int programRegs) {
@@ -194,10 +362,21 @@ std::vector<uint8_t> buildCardBank(const CardDefinition& card, int programRegs) 
 
 CardDecodeResult decodeCardFile(const std::vector<uint8_t>& raw, const std::string& fileName) {
     CardDecodeResult r;
+    auto singleSide = [](std::vector<uint8_t> data, std::optional<CueCardContent> cue) {
+        CardDocument doc;
+        doc.version = 1;
+        doc.singleSide = std::move(data);
+        doc.cueCard = std::move(cue);
+        return doc;
+    };
     std::string_view asText(reinterpret_cast<const char*>(raw.data()), raw.size());
     if (startsWith(asText, kTextMagic) && isValidUtf8(asText)) {
         r.isText = true;
-        r.card = parseCardText(asText);
+        if (startsWith(asText, kTextMagicV2)) {
+            r.card = parseCardTextV2(splitLines(asText));
+        } else if (auto v1 = parseCardText(asText)) {
+            r.card = singleSide(std::move(v1->data), std::move(v1->cueCard));
+        }
         if (!r.card) r.error = "Card file \"" + fileName + "\" could not be parsed.";
         return r;
     }
@@ -208,14 +387,14 @@ CardDecodeResult decodeCardFile(const std::vector<uint8_t>& raw, const std::stri
                       " bytes after header; expected 246).";
             return r;
         }
-        r.card = CardFileResult{std::vector<uint8_t>(raw.begin() + static_cast<long>(kBinaryHeader.size()), raw.end()), std::nullopt};
+        r.card = singleSide(std::vector<uint8_t>(raw.begin() + static_cast<long>(kBinaryHeader.size()), raw.end()), std::nullopt);
         return r;
     }
     if (raw.size() != 246 && raw.size() != 984) {
         r.error = "Card file \"" + fileName + "\" has unrecognised size (" + std::to_string(raw.size()) + " bytes).";
         return r;
     }
-    r.card = CardFileResult{raw, std::nullopt};
+    r.card = singleSide(raw, std::nullopt);
     return r;
 }
 

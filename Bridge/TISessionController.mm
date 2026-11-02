@@ -180,11 +180,13 @@ struct PlatformAdapter : cu59::SessionController::Platform {
     }
     void showDebugPanel(cu59::DebugPanel panel) override { [platform showDebugPanel:static_cast<NSInteger>(panel)]; }
     CardFileRef cardFile(const std::string& fileName) override {
-        NSString* path = [platform cardFilePath:ns(fileName)];
-        NSData* data = [platform readCardFile:path];
-        if (!data) return {std::nullopt, cpp(path)};
+        return readCard(cpp([platform cardFilePath:ns(fileName)]));
+    }
+    CardFileRef readCard(const std::string& path) override {
+        NSData* data = [platform readCardFile:ns(path)];
+        if (!data) return {std::nullopt, path, [platform cardFileExists:ns(path)] == YES};
         auto* bytes = static_cast<const uint8_t*>(data.bytes);
-        return {std::vector<uint8_t>(bytes, bytes + data.length), cpp(path)};
+        return {std::vector<uint8_t>(bytes, bytes + data.length), path};
     }
     cu59::SessionController::TraceLocation traceLocation() override {
         id<TIPlatform> p = platform;
@@ -293,12 +295,15 @@ struct PlatformAdapter : cu59::SessionController::Platform {
 
 - (BOOL)cardSwiping { return _c->cardState() == cu59::SessionController::CardState::Swiping; }
 - (NSString *)cardFileName { return ns(_c->cardFileName()); }
-- (void)insertCard:(NSData *)raw path:(NSString *)path fileName:(NSString *)fileName {
-    _c->insertCard(optionalBytes(raw), cpp(path), cpp(fileName));
+- (BOOL)fitCard:(NSData *)raw path:(NSString *)path fileName:(NSString *)fileName {
+    return _c->fitCard(optionalBytes(raw), cpp(path), cpp(fileName)) ? YES : NO;
 }
-- (void)insertBlankCard:(NSString *)savePath fileName:(NSString *)fileName {
-    _c->insertBlankCard(cpp(savePath), cpp(fileName));
+- (BOOL)fitBlankCard:(NSString *)savePath fileName:(NSString *)fileName {
+    return _c->fitBlankCard(cpp(savePath), cpp(fileName)) ? YES : NO;
 }
+- (BOOL)cardFitted { return _c->cardFitted() ? YES : NO; }
+- (NSInteger)litCardCorner { return _c->litCardCorner().value_or(-1); }
+- (BOOL)tapCardAtX:(double)x y:(double)y { return _c->tapCard(x, y) ? YES : NO; }
 - (void)ejectCard { _c->ejectCard(); }
 
 // ── State files ──────────────────────────────────────────────────────────────

@@ -119,6 +119,17 @@ struct CueCardGeometry {
 };
 CueCardGeometry cueCardGeometry(const CueCardContent& card, double width, double height);
 
+/// A lit corner of a fitted MagnetCard on a w × h card (side 0 top-left, 1
+/// top-right). Drawn above the wash: the corner filled with kCardCornerLitRGB
+/// (KeyboardLayout.hpp), its outer top corner rounded by `radius`; the art's
+/// arrow in black; then the bank badge again.
+struct CardCornerPoint { double x, y; };
+struct CardCornerGeometry {
+    double x, y, width, height, radius;
+    std::array<CardCornerPoint, 7> arrow;
+};
+CardCornerGeometry cardCornerGeometry(int side, double width, double height);
+
 /// x of the divider between grid columns i and i + 1.
 double cueCardDividerX(const CueCardLayout& layout, int i, double width);
 /// Frame of a label span centred on row y (height 0: one text line).

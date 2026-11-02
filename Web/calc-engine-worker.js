@@ -88,7 +88,7 @@ function handle(msg) {
     case "dropFile":
       switch (controller.dropAction(msg.name)) {
         case "preset": postMessage({ type: "stateLoaded", errors: controller.loadState(msg.bytes) }); break;
-        case "card": controller.insertCard(msg.name, msg.bytes); break;
+        case "card": controller.fitCard(msg.name, msg.bytes); break;
         case "notAccepted": postMessage({ type: "dropRejected", name: msg.name }); break;
         default: break;
       }

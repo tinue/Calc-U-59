@@ -172,6 +172,8 @@ class EmulatorViewModel {
 
     // ── Cue card and module ──────────────────────────────────────────────────
     var cueCardContent: CueCardContent? = nil
+    /// The fitted card's corner lit while that side is read: 0 left, 1 right.
+    var litCardCorner: Int? = nil
     var selectedModuleID: String = AppSettings.resolvedSolidStateModuleID()
 
     /// The key a physical-keyboard press is holding down (`row * 5 + col`), so
@@ -281,15 +283,27 @@ class EmulatorViewModel {
         if cardState == .swiping { ejectCard() }
     }
 
-    func insertBlankCard(savingTo url: URL) {
-        controller.insertBlankCard(url.path, fileName: url.lastPathComponent)
+    func fitBlankCard(savingTo url: URL) {
+        if controller.fitBlankCard(url.path, fileName: url.lastPathComponent) { releaseDroppedCardScope() }
     }
 
-    func insertCard(from url: URL) {
+    func fitCard(from url: URL) {
         // A courtesy for URLs that may be security-scoped (our own iCloud container's aren't).
         let scoped = url.startAccessingSecurityScopedResource()
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-        controller.insertCard(try? Data(contentsOf: url), path: url.path, fileName: url.lastPathComponent)
+        if controller.fitCard(try? Data(contentsOf: url), path: url.path, fileName: url.lastPathComponent) {
+            releaseDroppedCardScope()
+        }
+    }
+
+    /// A press at canvas position (x, y), each 0…1: true if it hit a corner of the fitted card.
+    func tapCard(x: Double, y: Double) -> Bool { controller.tapCardAt(x: x, y: y) }
+
+    private func releaseDroppedCardScope() {
+        #if os(macOS)
+        droppedCardScope?.stopAccessingSecurityScopedResource()
+        droppedCardScope = nil
+        #endif
     }
 
     func ejectCard() { controller.ejectCard() }
@@ -343,14 +357,16 @@ class EmulatorViewModel {
     #if os(macOS)
     /// A preset or card dropped on the window (reference/SharedArchitecture.md
     /// § "Dropped Files"). A card can be anywhere on disk and is written back
-    /// when it leaves the reader, so its security scope stays open until then.
+    /// while it is fitted, so its security scope stays open until it is replaced or gone.
     @discardableResult
     func openDroppedFile(_ url: URL) -> Bool {
         let scoped = url.startAccessingSecurityScopedResource()
-        let hadCard = controller.cardSwiping
         let opened = controller.openDroppedFile(try? Data(contentsOf: url), path: url.path, fileName: url.lastPathComponent)
-        if scoped {
-            if !hadCard && controller.cardSwiping { droppedCardScope = url } else { url.stopAccessingSecurityScopedResource() }
+        if opened && controller.cardFitted {
+            releaseDroppedCardScope()
+            if scoped { droppedCardScope = url }
+        } else if scoped {
+            url.stopAccessingSecurityScopedResource()
         }
         return opened
     }
@@ -378,6 +394,11 @@ class EmulatorViewModel {
             if calcIndicatorOpacity != controller.calcIndicatorOpacity { calcIndicatorOpacity = controller.calcIndicatorOpacity }
         }
         if c.contains(.cueCard) { cueCardContent = controller.cueCard.swiftValue }
+        if c.contains(.cueCard) || c.contains(.card) || c.contains(.model) {
+            let lit = controller.litCardCorner
+            let corner = lit >= 0 ? lit : nil
+            if litCardCorner != corner { litCardCorner = corner }
+        }
         if c.contains(.paperCut) {
             printerLines = []
             printerCodeLines = []
@@ -397,12 +418,7 @@ class EmulatorViewModel {
         if c.contains(.card) || c.contains(.model) {
             let state: CardState = controller.cardSwiping ? .swiping : .noCard
             if cardState != state { cardState = state }
-            #if os(macOS)
-            if state == .noCard, let url = droppedCardScope {
-                url.stopAccessingSecurityScopedResource()
-                droppedCardScope = nil
-            }
-            #endif
+            if !controller.cardFitted { releaseDroppedCardScope() }
             if cardFileName != controller.cardFileName { cardFileName = controller.cardFileName }
         }
         if c.contains(.runState) {
@@ -507,6 +523,13 @@ final class PlatformForwarder: NSObject, TIPlatform {
             data = try? Data(contentsOf: src)
         }
         return data
+    }
+
+    func cardFileExists(_ path: String) -> Bool {
+        let url = URL(fileURLWithPath: path)
+        // iOS keeps a file not yet downloaded from iCloud as a hidden ".name.icloud".
+        let placeholder = url.deletingLastPathComponent().appendingPathComponent(".\(url.lastPathComponent).icloud")
+        return FileManager.default.fileExists(atPath: path) || FileManager.default.fileExists(atPath: placeholder.path)
     }
 
     func writeCard(_ text: String, toPath path: String) -> Bool {

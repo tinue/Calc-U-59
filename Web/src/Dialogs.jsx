@@ -40,13 +40,21 @@ function CardPicker({ engine, mode, onClose }) {
   const [name, setName] = React.useState(card.fileName);
   const save = mode === "save";
 
-  const read = (n) => { engine.call("insertCard", n, null); onClose(); };
+  const [replacing, setReplacing] = React.useState(null);
+
+  const read = (n) => { engine.call("fitCard", n, null); onClose(); };
   const upload = (e) => readFileInput(e, "bytes").then((f) => {
     if (!f) return;
-    engine.call("insertCard", f.name, f.content);
+    engine.call("fitCard", f.name, f.content);
     onClose();
   });
-  const write = () => { engine.call("insertBlankCard", name.trim()); onClose(); };
+  const fitBlank = () => { engine.call("fitBlankCard", name.trim()); onClose(); };
+  // withDefaultCardExtension: ".U59" when the name has no extension.
+  const write = () => {
+    const n = name.trim(), file = n.includes(".") ? n : n + ".U59";
+    if (card.cards.includes(file)) setReplacing(file);
+    else fitBlank();
+  };
 
   return (
     <Dialog
@@ -55,18 +63,23 @@ function CardPicker({ engine, mode, onClose }) {
       footer={<>
         <span className="calcu-dialog-note">Cards last for this page session — download one to keep it.</span>
         <button type="button" onClick={onClose}>Cancel</button>
-        {save
+        {replacing
+          ? <button type="button" className="calcu-primary" onClick={fitBlank}>Replace</button>
+          : save
           ? <button type="button" className="calcu-primary" disabled={!name.trim()} onClick={write}>Save</button>
           : <button type="button" className="calcu-primary" disabled={!selected} onClick={() => read(selected)}>Read</button>}
       </>}
     >
+      {replacing && (
+        <p role="alert">Replace card {replacing}? Its first write replaces both sides and the cue card.</p>
+      )}
       {save && (
         <input
           className="calcu-textfield"
           aria-label="Card name"
           value={name}
           autoFocus
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e) => { setName(e.target.value); setReplacing(null); }}
           onKeyDown={(e) => { if (e.key === "Enter" && name.trim()) write(); }}
         />
       )}
@@ -77,7 +90,7 @@ function CardPicker({ engine, mode, onClose }) {
             <button
               type="button"
               className="calcu-listitem"
-              onClick={() => { setSelected(n); if (save) setName(n); }}
+              onClick={() => { setSelected(n); if (save) { setName(n); setReplacing(null); } }}
               onDoubleClick={() => (save ? setName(n) : read(n))}
             >{n}</button>
             <button type="button" className="calcu-iconbutton" title={`Download ${n}`} aria-label={`Download ${n}`}

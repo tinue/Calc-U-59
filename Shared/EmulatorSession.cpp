@@ -294,7 +294,7 @@ void EmulatorSession::applyReload(const std::shared_ptr<const ReloadStage>& stag
 }
 
 void EmulatorSession::queueCard(const KeystrokeEvent& event) {
-    QueuedCard card{event.cardName, event.card, event.kind == KeystrokeEvent::Kind::InsertCard};
+    QueuedCard card{event.cardName, event.card, event.kind == KeystrokeEvent::Kind::InsertCard, event.cardSide};
     if (card.insertNow) ++m_hostPending;
     std::lock_guard<std::mutex> lock(m_cardMutex);
     m_queuedCards.push_back(std::move(card));

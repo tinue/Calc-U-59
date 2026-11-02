@@ -242,11 +242,11 @@ TEST(card_without_banks_line_has_blank_badges) {
 TEST(card_decode_layouts) {
     auto bytes = [](const std::string& s) { return std::vector<uint8_t>(s.begin(), s.end()); };
     auto legacy = decodeCardFile(std::vector<uint8_t>(984, 7), "x.bin");
-    CHECK(legacy.card && legacy.card->data.size() == 984);
+    CHECK(legacy.card && legacy.card->version == 1 && legacy.card->singleSide.size() == 984);
     auto headered = bytes("Calc-U-59-CRD") ;
     headered.resize(13 + 246, 1);
     auto h = decodeCardFile(headered, "h.u59");
-    CHECK(h.card && h.card->data.size() == 246 && h.card->data[0] == 1);
+    CHECK(h.card && h.card->version == 1 && h.card->singleSide.size() == 246 && h.card->singleSide[0] == 1);
     headered.push_back(0);
     CHECK_EQ(decodeCardFile(headered, "h.u59").error,
              std::string("Card file \"h.u59\" has wrong size (247 bytes after header; expected 246)."));
@@ -255,6 +255,122 @@ TEST(card_decode_layouts) {
     auto badText = decodeCardFile(bytes("Calc-U-59 Card 1.0\nHEADER:\n"), "t.u59");
     CHECK(badText.isText && !badText.card);
     CHECK_EQ(badText.error, std::string("Card file \"t.u59\" could not be parsed."));
+}
+
+namespace {
+std::vector<uint8_t> testBank(int bank) {
+    std::vector<uint8_t> b(kCardBankBytes);
+    for (size_t i = 0; i < b.size(); ++i) b[i] = static_cast<uint8_t>((i * 37 + 11) & 0xFF);
+    b[0] = 0x1C; b[1] = 0x11; b[2] = static_cast<uint8_t>(0x10 | ((bank - 1) * 3)); b[3] = 0x00; b[245] = b[244];
+    return b;
+}
+std::vector<uint8_t> asBytes(const std::string& s) { return {s.begin(), s.end()}; }
+}  // namespace
+
+TEST(card_v2_round_trip) {
+    CardDocument doc;
+    CueCardContent cue;
+    cue.title = "TWO SIDES";
+    cue.labels[5] = "run";
+    cue.bankLeft = 3;  // not part of v2
+    doc.cueCard = cue;
+    doc.sides[0] = testBank(1);
+    doc.sides[1] = testBank(4);
+    std::string text = encodeCardDocument(doc);
+    CHECK(startsWith(text, "Calc-U-59 Card 2.0\n"));
+    CHECK(text.find("Banks") == std::string::npos);
+    CHECK(text.find("END-CARD") != std::string::npos);
+    auto back = decodeCardFile(asBytes(text), "t.U59");
+    CHECK(back.isText && back.card.has_value());
+    if (!back.card) return;
+    CHECK_EQ(back.card->version, 2);
+    CHECK(back.card->sides[0] == doc.sides[0]);
+    CHECK(back.card->sides[1] == doc.sides[1]);
+    CHECK(back.card->sideBank(0) == 1);
+    CHECK(back.card->sideBank(1) == 4);
+    CHECK_EQ(back.card->cueCard->title, std::string("TWO SIDES"));
+    CHECK(!back.card->cueCard->bankLeft);
+    CHECK_EQ(encodeCardDocument(*back.card), text);
+}
+
+TEST(card_v2_one_side_only) {
+    CardDocument doc;
+    doc.sides[1] = testBank(2);
+    auto back = decodeCardFile(asBytes(encodeCardDocument(doc)), "t.U59");
+    CHECK(back.card && !back.card->sides[0] && back.card->sides[1] == doc.sides[1]);
+    CHECK(back.card && !back.card->sideBank(0) && !back.card->cueCard);
+}
+
+TEST(card_v2_refuses_a_damaged_file) {
+    CardDocument doc;
+    doc.sides[0] = testBank(1);
+    doc.sides[1] = testBank(2);
+    const std::string good = encodeCardDocument(doc);
+    CHECK(decodeCardFile(asBytes(good), "t").card.has_value());
+    auto broken = [&](const std::string& from, const std::string& to) {
+        std::string t = good;
+        size_t at = t.find(from);
+        CHECK(at != std::string::npos);
+        t.replace(at, from.size(), to);
+        return !decodeCardFile(asBytes(t), "t").card;
+    };
+    CHECK(broken("END-CARD", ""));                 // cut off
+    CHECK(broken("Bank: 1\n", ""));                // a header without its bank
+    CHECK(broken("Bank: 1", "Bank: 5"));
+    CHECK(broken("SIDE: 2", "SIDE: 3"));
+    CHECK(broken("SIDE: 2", "SIDE: 1"));           // the same side twice
+    CHECK(broken("R000: ", "X000: "));
+    CHECK(broken("Checksum: ", "Nonsense: "));
+    size_t lastRow = good.rfind("\nR059:");
+    CHECK(lastRow != std::string::npos);
+    std::string shortSide = good;
+    shortSide.erase(lastRow, good.find('\n', lastRow + 1) - lastRow);
+    CHECK(!decodeCardFile(asBytes(shortSide), "t").card);       // 29 rows
+}
+
+TEST(card_v1_reader_rejects_v2) {
+    // What an older app sees: its parser must not read a v2 card.
+    CardDocument doc;
+    doc.sides[0] = testBank(1);
+    std::string asV1 = encodeCardDocument(doc);
+    asV1.replace(asV1.find("Card 2.0"), 8, "Card 1.0");
+    auto noSideLine = asV1;
+    noSideLine.erase(noSideLine.find("SIDE: 1\n"), 8);
+    CHECK(!parseCardText(noSideLine));   // END-CARD stops it even if SIDE: is skipped as unknown
+    CHECK(!parseCardText(encodeCardDocument(doc)));  // this version's v1 parser refuses 2.0 outright
+}
+
+TEST(fresh_card_cue_is_the_file_name) {
+    CHECK_EQ(freshCardCue("Diagnose.U59").title, std::string("Diagnose"));
+    CHECK_EQ(freshCardCue("no-extension").title, std::string("no-extension"));
+    CHECK_EQ(freshCardCue("a.b.u59").title, std::string("a.b"));
+    CHECK_EQ(freshCardCue("Prog #1.U59").title, std::string("Prog  1"));
+    CHECK(freshCardCue("x.U59").template_ == CueCardTemplate::MagnetCard);
+}
+
+TEST(card_directive_reads_a_side) {
+    auto first = [](const std::string& line) {
+        auto r = parseStateFile("KEYSTROKES:\n" + line + "\n");
+        return r;
+    };
+    auto r = first("InsertCard: Diagnose:2");
+    CHECK(r.errors.empty());
+    CHECK_EQ(r.keystrokes[0].cardName, std::string("Diagnose"));
+    CHECK_EQ(r.keystrokes[0].cardSide, 1);
+    r = first("ArmCard: Diagnose:1");
+    CHECK_EQ(r.keystrokes[0].cardName, std::string("Diagnose"));
+    CHECK_EQ(r.keystrokes[0].cardSide, 0);
+    r = first("ArmCard: Diagnose");
+    CHECK_EQ(r.keystrokes[0].cardSide, 0);
+    r = first("ArmCard: A:1.U59");                    // not a side: part of the name
+    CHECK_EQ(r.keystrokes[0].cardName, std::string("A:1.U59"));
+    r = first("InsertCard: A.U59:2");
+    CHECK_EQ(r.keystrokes[0].cardName, std::string("A.U59"));
+    CHECK_EQ(r.keystrokes[0].cardSide, 1);
+    r = first("ArmCard: mem:A:2");                    // memory cards have no side
+    CHECK_EQ(r.keystrokes[0].cardName, std::string("mem:A:2"));
+    CHECK(!first("ArmCard: Diagnose:3").errors.empty());
+    CHECK(!first("ArmCard: :2").errors.empty());
 }
 
 TEST(constant_memory_round_trip) {

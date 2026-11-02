@@ -31,7 +31,7 @@ KeyboardWidget::KeyboardWidget(EmulatorController& controller, QWidget* parent)
     // The display changes up to 60 times a second: repaint just the display.
     connect(&m_controller, &EmulatorController::displayChanged, this,
             [this] { update(norm(canvasRect(), cu59::kDisplayRect).toAlignedRect()); });
-    for (auto sig : {&EmulatorController::cueCardChanged, &EmulatorController::runStateChanged})
+    for (auto sig : {&EmulatorController::cueCardChanged, &EmulatorController::runStateChanged, &EmulatorController::cardStateChanged})
         connect(&m_controller, sig, this, qOverload<>(&QWidget::update));
 }
 
@@ -70,7 +70,7 @@ void KeyboardWidget::paintEvent(QPaintEvent* e) {
         LedRenderer::paint(p, display, m_controller.display(), m_controller.calcIndicatorOpacity(), m_ledStyle);
     QRectF cardRect = norm(c, cu59::kCardRect);
     if (const auto& card = m_controller.cueCard(); card && e->rect().intersects(cardRect.toAlignedRect()))
-        CueCardRenderer::paint(p, cardRect, *card);
+        CueCardRenderer::paint(p, cardRect, *card, m_controller.litCardCorner());
 
     // Pressed key (pointer or physical keyboard): black out the key and draw
     // its artwork shifted 3 px down-right.
@@ -89,6 +89,9 @@ void KeyboardWidget::paintEvent(QPaintEvent* e) {
 void KeyboardWidget::mousePressEvent(QMouseEvent* e) {
     if (e->button() != Qt::LeftButton) return;
     setFocus();  // a click on the calculator claims the physical keyboard
+    // A press, not a drag across the card, feeds a side of the fitted card.
+    QRectF c = canvasRect();
+    if (m_controller.tapCard((e->position().x() - c.left()) / c.width(), (e->position().y() - c.top()) / c.height())) return;
     pointer(e->position());
 }
 

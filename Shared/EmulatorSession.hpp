@@ -68,6 +68,7 @@ struct QueuedCard {
     std::string name;                                 ///< mem:… or a card file name
     std::shared_ptr<const CardDefinition> definition; ///< the file's CARD: block, if any
     bool insertNow = false;                           ///< InsertCard: fed at idle, playback waits for it
+    int side = 0;                                     ///< side of a card file (0 or 1)
 };
 
 class EmulatorSession : private KeySequencer::Host {

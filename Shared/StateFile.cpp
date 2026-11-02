@@ -163,7 +163,8 @@ std::optional<int> parsePartition(std::string_view rest) {
     return static_cast<int>(rounded - 1);
 }
 
-/// "ArmCard: <name>" / "InsertCard: <name>": a memory card or a card file name.
+/// "ArmCard: <name>[:<side>]" / "InsertCard: …": a memory card, or a card file
+/// name and its side. Only trailing digits are a side, so "A:1.U59" is a name.
 void parseCardDirective(std::string_view line, size_t prefixLength, KeystrokeEvent::Kind kind, LoadStateResult& r) {
     std::string_view name = trim(line.substr(prefixLength));
     std::string_view word = line.substr(0, prefixLength);
@@ -176,6 +177,20 @@ void parseCardDirective(std::string_view line, size_t prefixLength, KeystrokeEve
         return;
     }
     KeystrokeEvent e = simple(kind);
+    if (!isMemoryCardName(name)) {
+        size_t colon = name.rfind(':');
+        if (colon != std::string_view::npos) {
+            std::string_view digits = name.substr(colon + 1);
+            if (!digits.empty() && std::all_of(digits.begin(), digits.end(), [](unsigned char c) { return std::isdigit(c); })) {
+                if (colon == 0 || (digits != "1" && digits != "2")) {
+                    r.errors.push_back(std::string(word) + " card \"" + std::string(name) + "\": the side must be 1 or 2, after the name.");
+                    return;
+                }
+                e.cardSide = digits == "2" ? 1 : 0;
+                name = name.substr(0, colon);
+            }
+        }
+    }
     e.cardName = std::string(name);
     r.keystrokes.push_back(e);
     r.usesCardReader = true;

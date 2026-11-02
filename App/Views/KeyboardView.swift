@@ -27,6 +27,7 @@ struct KeyboardView: View {
     }
 
     @State private var pressedKey: Int? = nil   // physRow * 5 + physCol
+    @State private var pointerIsDown = false
 
     /// Whether physical keypresses go to the calculator. Only consumed on macOS,
     /// where the calculator shares the window with the printer and debug panels —
@@ -91,7 +92,7 @@ struct KeyboardView: View {
                 let cardH = h * Self.cardRect.height
                 let cardY = h * Self.cardRect.minY
 
-                CueCardView(content: viewModel.cueCardContent)
+                CueCardView(content: viewModel.cueCardContent, litCorner: viewModel.litCardCorner)
                     .frame(width: cardW, height: cardH)
                     .position(x: cardW / 2, y: cardY + cardH / 2)
 
@@ -125,6 +126,12 @@ struct KeyboardView: View {
 
                     let nx = location.x / w
                     let ny = location.y / h
+
+                    // A press, not a drag across the card, feeds a side.
+                    if !pointerIsDown {
+                        pointerIsDown = true
+                        if viewModel.tapCard(x: nx, y: ny) { return }
+                    }
 
                     // Check if press is on display area
                     let isOnDisplay = nx >= Self.displayRect.minX && nx <= Self.displayRect.maxX &&
@@ -162,6 +169,7 @@ struct KeyboardView: View {
                     triggerFeedback()
                 }
                 let handleEnded: () -> Void = {
+                    pointerIsDown = false
                     viewModel.isDisplayPressed = false
                     viewModel.isFullSpeedMode = false
                     releaseHeldKey()

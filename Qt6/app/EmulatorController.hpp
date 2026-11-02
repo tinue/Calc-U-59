@@ -61,8 +61,10 @@ public:
     // ── Card reader ──────────────────────────────────────────────────────────
     CardState cardState() const { return m_c->cardState(); }
     QString cardFileName() const { return QString::fromStdString(m_c->cardFileName()); }
-    void insertCard(const QString& path);
-    void insertBlankCard(const QString& savePath);
+    void fitCard(const QString& path);
+    void fitBlankCard(const QString& savePath);
+    bool tapCard(double nx, double ny) { return m_c->tapCard(nx, ny); }
+    std::optional<int> litCardCorner() const { return m_c->litCardCorner(); }
     void ejectCard() { m_c->ejectCard(); }
 
     // ── State files ──────────────────────────────────────────────────────────
@@ -140,6 +142,7 @@ private:
     void writeConstantMemory(const std::string& text) override;
     bool writeCard(const std::string& path, const std::string& text) override;
     CardFileRef cardFile(const std::string& fileName) override;
+    CardFileRef readCard(const std::string& path) override;
     void showDebugPanel(cu59::DebugPanel panel) override { emit debugPanelRequested(static_cast<int>(panel)); }
     cu59::SessionController::TraceLocation traceLocation() override;
     void saveLastUsedModel(cu59::Model model) override;

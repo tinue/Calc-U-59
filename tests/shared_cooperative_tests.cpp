@@ -7,6 +7,8 @@
 #include "TestRoms.hpp"
 #include "../Shared/EmulationRunner.hpp"
 #include "../Shared/KeyMatrix.hpp"
+#include "../Shared/KeyboardLayout.hpp"
+#include "../Shared/TextUtil.hpp"
 #include "../Shared/KeySequencer.hpp"
 #include "../Shared/SessionController.hpp"
 #include "../Shared/StateFile.hpp"
@@ -345,7 +347,8 @@ TEST(cooperative_controller_writes_and_reads_a_card) {
     CHECK(r.runUntil([&] { return r.c.keystrokesPlaying(); }));
     r.run(2s);  // the ROM waits for a card; playback waits with it
     CHECK(r.c.keystrokesPlaying());
-    r.c.insertBlankCard("web:card", "card.U59");
+    CHECK(r.c.fitBlankCard("web:card", "card.U59"));
+    CHECK(r.c.feedSide(0));
     CHECK(r.runUntil([&] { return r.c.cardState() == SessionController::CardState::NoCard; }));
     CHECK(r.runUntil([&] { return !r.c.keystrokesPlaying(); }));
     CHECK_EQ(r.p.cards.count("web:card"), size_t{1});
@@ -353,7 +356,8 @@ TEST(cooperative_controller_writes_and_reads_a_card) {
     r.run(1s);
     CHECK_EQ(int(r.c.session()->machine().readProgramStep(1)), 0);
     const std::string& card = r.p.cards["web:card"];
-    r.c.insertCard(std::vector<uint8_t>(card.begin(), card.end()), "web:card", "card.U59");
+    CHECK(r.c.fitCard(std::vector<uint8_t>(card.begin(), card.end()), "web:card", "card.U59"));
+    CHECK(r.c.feedSide(0));
     CHECK(r.runUntil([&] { return r.c.cardState() == SessionController::CardState::NoCard; }));
     r.run(1s);
     CHECK_EQ(int(r.c.session()->machine().readProgramStep(1)), 11);
@@ -503,7 +507,8 @@ std::string writtenCard(ControllerRig& r) {
     r.load("PROGRAM:\n76 11 01 02 03 91\nKEYSTROKES:\n82 21 91\n");  // 1 2nd Write
     CHECK(r.runUntil([&] { return r.c.keystrokesPlaying(); }));
     r.run(2s);
-    r.c.insertBlankCard("first", "first.U59");
+    CHECK(r.c.fitBlankCard("first", "first.U59"));
+    CHECK(r.c.feedSide(0));
     CHECK(r.runUntil([&] { return r.c.cardState() == SessionController::CardState::NoCard; }));
     CHECK(r.runUntil([&] { return !r.c.keystrokesPlaying(); }));
     return r.p.cards["first"];
@@ -516,8 +521,8 @@ TEST(drop_action_goes_by_name_and_model) {
     CHECK(r.c.dropAction("a.ti59") == A::LoadPreset);
     CHECK(r.c.dropAction("a.TI58") == A::LoadPreset);
     CHECK(r.c.dropAction("a.Ti58C") == A::LoadPreset);
-    CHECK(r.c.dropAction("a.U59") == A::InsertCard);
-    CHECK(r.c.dropAction("a.bin") == A::InsertCard);
+    CHECK(r.c.dropAction("a.U59") == A::FitCard);
+    CHECK(r.c.dropAction("a.bin") == A::FitCard);
     CHECK(r.c.dropAction(".a.u59") == A::NotAccepted);
     CHECK(r.c.dropAction(".a.ti59") == A::NotAccepted);
     CHECK(r.c.dropAction("a.txt") == A::NotAccepted);
@@ -529,14 +534,20 @@ TEST(drop_action_goes_by_name_and_model) {
     }
 }
 
-TEST(dropped_card_is_read_at_idle) {
+TEST(dropped_card_is_fitted_and_read_at_idle) {
     ControllerRig r;
     const std::string card = writtenCard(r);
     r.load("PARTITION: 479\n");  // a fresh machine: no program
     r.run(1s);
     CHECK_EQ(int(r.c.session()->machine().readProgramStep(1)), 0);
     CHECK(r.c.openDroppedFile(bytes(card), "dropped", "dropped.U59"));
+    CHECK(r.c.cardFitted());
+    CHECK(r.c.cardState() == SessionController::CardState::NoCard);  // not fed until a corner is tapped
+    r.run(500ms);
+    CHECK_EQ(int(r.c.session()->machine().readProgramStep(1)), 0);
+    CHECK(r.c.feedSide(0));
     CHECK(r.c.cardState() == SessionController::CardState::Swiping);
+    CHECK(r.c.litCardCorner() == 0);
     CHECK(r.runUntil([&] { return r.c.cardState() == SessionController::CardState::NoCard; }));
     r.run(1s);
     CHECK_EQ(int(r.c.session()->machine().readProgramStep(1)), 11);
@@ -550,7 +561,9 @@ TEST(dropped_card_is_overwritten_after_write) {
     r.load("PROGRAM:\n76 12 04 05 06 91\nKEYSTROKES:\n82 21 91\n");  // Lbl B …; 1 2nd Write
     CHECK(r.runUntil([&] { return r.c.keystrokesPlaying(); }));
     r.run(2s);
+    r.p.cards["dropped"] = card;
     CHECK(r.c.openDroppedFile(bytes(card), "dropped", "dropped.U59"));
+    CHECK(r.c.feedSide(0));
     CHECK(r.runUntil([&] { return r.c.cardState() == SessionController::CardState::NoCard; }));
     CHECK(r.runUntil([&] { return !r.c.keystrokesPlaying(); }));
     CHECK_EQ(r.p.cards.count("dropped"), size_t{1});
@@ -560,6 +573,7 @@ TEST(dropped_card_is_overwritten_after_write) {
     r.run(1s);
     const std::string overwritten = r.p.cards["dropped"];
     CHECK(r.c.openDroppedFile(bytes(overwritten), "dropped", "dropped.U59"));
+    CHECK(r.c.feedSide(0));
     CHECK(r.runUntil([&] { return r.c.cardState() == SessionController::CardState::NoCard; }));
     r.run(1s);
     CHECK_EQ(int(r.c.session()->machine().readProgramStep(1)), 12);
@@ -577,12 +591,238 @@ TEST(dropped_card_is_ignored_without_a_reader) {
     CHECK(r.p.errors.empty());
 }
 
-TEST(dropped_card_waits_for_an_empty_reader) {
+TEST(dropped_card_replaces_the_fitted_one_but_not_during_a_pass) {
     ControllerRig r;
     const std::string card = writtenCard(r);
     CHECK(r.c.openDroppedFile(bytes(card), "one", "one.U59"));
-    CHECK(!r.c.openDroppedFile(bytes(card), "two", "two.U59"));
-    CHECK_EQ(r.c.cardFileName(), std::string("one.U59"));
+    CHECK(r.c.openDroppedFile(bytes(card), "two", "two.U59"));
+    CHECK_EQ(r.c.cardFileName(), std::string("two.U59"));
+    CHECK(r.c.feedSide(0));
+    CHECK(!r.c.openDroppedFile(bytes(card), "three", "three.U59"));
+    CHECK_EQ(r.c.cardFileName(), std::string("two.U59"));
+}
+
+namespace {
+bool cardIdle(ControllerRig& r) { return r.c.cardState() == SessionController::CardState::NoCard; }
+const char* const kTwoWrites = "PROGRAM:\n76 11 01 02 03 91\nKEYSTROKES:\n82 21 91\n83 21 91\n";  // 1 2nd Write; 2 2nd Write
+/// Run a preset's two key-driven writes, feeding `first` then `second` as the ROM waits.
+void feedTwoWrites(ControllerRig& r, int first, int second) {
+    CHECK(r.runUntil([&] { return r.c.keystrokesPlaying(); }));
+    r.run(2s);
+    CHECK(r.c.feedSide(first));
+    CHECK(r.runUntil([&] { return cardIdle(r); }));
+    r.run(2s);
+    CHECK(r.c.feedSide(second));
+    CHECK(r.runUntil([&] { return cardIdle(r); }));
+    CHECK(r.runUntil([&] { return !r.c.keystrokesPlaying(); }));
+}
+}  // namespace
+
+TEST(fresh_card_writes_both_sides_into_one_file) {
+    ControllerRig r;
+    // Loading a preset removes a fitted card, so fit it once the preset runs.
+    r.load(kTwoWrites);
+    CHECK(r.c.fitBlankCard("cards/Fresh.U59", "Fresh.U59"));
+    CHECK(r.c.cueCard() && r.c.cueCard()->title == "Fresh");
+    CHECK(r.c.cueCard() && !r.c.cueCard()->bankLeft && !r.c.cueCard()->bankRight);
+    feedTwoWrites(r, 0, 1);
+    const std::string& text = r.p.cards["cards/Fresh.U59"];
+    CHECK(startsWith(text, "Calc-U-59 Card 2.0\n"));
+    CHECK(text.find("Banks:") == std::string::npos);
+    // The corners show what was written.
+    CHECK(r.c.cueCard() && r.c.cueCard()->bankLeft == 1 && r.c.cueCard()->bankRight == 2);
+    auto doc = decodeCardFile(bytes(text), "Fresh.U59");
+    CHECK(doc.card && doc.card->sides[0] && doc.card->sides[1]);
+
+    // Side 2 reads bank 2; the card stays fitted after the pass.
+    const std::string saved = text;
+    r.load("PARTITION: 479\n");
+    r.run(1s);
+    CHECK(!r.c.cardFitted());
+    CHECK(r.c.fitCard(bytes(saved), "cards/Fresh.U59", "Fresh.U59"));
+    CHECK(r.c.tapCard(0.9, kCardRect.y + 0.1 * kCardRect.h));
+    CHECK(r.c.litCardCorner() == 1);
+    CHECK(r.runUntil([&] { return cardIdle(r); }));
+    CHECK(!r.c.litCardCorner());
+    CHECK(r.c.cardFitted());
+    CHECK(r.p.errors.empty());
+}
+
+TEST(a_side_can_hold_any_bank_and_the_corner_follows) {
+    ControllerRig r;
+    r.load("PROGRAM:\n76 11 01 02 03 91\nKEYSTROKES:\n82 21 91\n82 21 91\n");  // bank 1 twice
+    CHECK(r.c.fitBlankCard("c", "c.U59"));
+    feedTwoWrites(r, 1, 0);
+    CHECK(r.c.cueCard() && r.c.cueCard()->bankLeft == 1 && r.c.cueCard()->bankRight == 1);
+    CHECK(r.p.errors.empty());
+}
+
+TEST(version_1_card_stays_version_1_on_a_write) {
+    ControllerRig r;
+    const std::string card = writtenCard(r);
+    auto oldDoc = decodeCardFile(bytes(card), "x");
+    CHECK(oldDoc.card && oldDoc.card->sides[0]);
+    CueCardContent cue;
+    cue.title = "OLD CARD";
+    cue.bankLeft = 1;
+    cue.bankRight = 2;
+    const std::string v1 = encodeCardText(*oldDoc.card->sides[0], &cue);
+    r.p.cards["v1"] = v1;
+    r.load("PROGRAM:\n76 12 04 05 06 91\nKEYSTROKES:\n82 21 91\n");
+    CHECK(r.c.fitCard(bytes(v1), "v1", "v1.U59"));
+    CHECK(r.c.cueCard() && r.c.cueCard()->bankLeft == 1 && r.c.cueCard()->bankRight == 2);
+    CHECK(r.runUntil([&] { return r.c.keystrokesPlaying(); }));
+    r.run(2s);
+    CHECK(r.c.feedSide(1));  // either corner: the one side
+    CHECK(r.runUntil([&] { return cardIdle(r); }));
+    CHECK(r.runUntil([&] { return !r.c.keystrokesPlaying(); }));
+    const std::string& text = r.p.cards["v1"];
+    CHECK(text != v1);
+    CHECK(startsWith(text, "Calc-U-59 Card 1.0\n"));
+    CHECK(text.find("Banks: 1, 2") != std::string::npos);
+    CHECK(r.c.cueCard() && r.c.cueCard()->bankRight == 2);
+    CHECK(r.p.errors.empty());
+}
+
+TEST(write_keeps_the_side_changed_elsewhere_and_refuses_a_broken_file) {
+    ControllerRig r;
+    const std::string card = writtenCard(r);
+    CardDocument other;
+    other.cueCard = freshCardCue("Shared.U59");
+    other.sides[1] = decodeCardFile(bytes(card), "x").card->sides[0];
+    r.p.cards["s"] = encodeCardDocument(other);
+
+    CardDocument mine;
+    mine.cueCard = freshCardCue("Shared.U59");
+    r.load("PROGRAM:\n76 12 04 05 06 91\nKEYSTROKES:\n82 21 91\n");
+    CHECK(r.c.fitCard(bytes(encodeCardDocument(mine)), "s", "Shared.U59"));  // fitted before side 2 appeared
+    CHECK(r.runUntil([&] { return r.c.keystrokesPlaying(); }));
+    r.run(2s);
+    CHECK(r.c.feedSide(0));
+    CHECK(r.runUntil([&] { return cardIdle(r); }));
+    auto merged = decodeCardFile(bytes(r.p.cards["s"]), "Shared.U59");
+    CHECK(merged.card && merged.card->sides[0] && merged.card->sides[1]);
+
+    r.load("PROGRAM:\n76 12 04 05 06 91\nKEYSTROKES:\n82 21 91\n");
+    CHECK(r.c.fitCard(bytes(r.p.cards["s"]), "s", "Shared.U59"));
+    r.p.cards["s"] = "Calc-U-59 Card 2.0\nbroken";
+    CHECK(r.runUntil([&] { return r.c.keystrokesPlaying(); }));
+    r.run(2s);
+    CHECK(r.c.feedSide(0));
+    CHECK(r.runUntil([&] { return cardIdle(r); }));
+    CHECK_EQ(r.p.cards["s"], std::string("Calc-U-59 Card 2.0\nbroken"));  // left alone, reported
+    CHECK(!r.p.errors.empty());
+}
+
+TEST(fresh_card_replaces_the_file_of_that_name_at_its_first_write_only) {
+    ControllerRig r;
+    r.p.cards["same"] = "Calc-U-59 Card 2.0\nwhatever was here";
+    r.load(kTwoWrites);
+    CHECK(r.c.fitBlankCard("same", "same.U59"));
+    CHECK_EQ(r.p.cards["same"], std::string("Calc-U-59 Card 2.0\nwhatever was here"));  // still there
+    feedTwoWrites(r, 0, 1);
+    CHECK(decodeCardFile(bytes(r.p.cards["same"]), "same.U59").card.has_value());
+    CHECK(r.p.errors.empty());
+}
+
+TEST(blank_side_fed_at_idle_writes_nothing) {
+    ControllerRig r;
+    r.load("PARTITION: 479\n");
+    r.run(1s);
+    CHECK(r.c.fitBlankCard("blank", "blank.U59"));
+    CHECK(r.c.feedSide(0));
+    r.run(5s);
+    r.c.ejectCard();
+    r.run(500ms);
+    CHECK_EQ(r.p.cards.count("blank"), size_t{0});
+    CHECK(r.c.cardFitted());
+    CHECK(r.p.errors.empty());
+}
+
+TEST(blank_side_fed_at_partition_0_writes_nothing) {
+    ControllerRig r;
+    r.load("KEYSTROKES:\n92 21 64 82 62\n");  // 0 2nd Op 17
+    CHECK(r.runUntil([&] { return r.c.keystrokesPlaying(); }));
+    CHECK(r.runUntil([&] { return !r.c.keystrokesPlaying(); }));
+    r.run(1s);
+    CHECK(r.c.fitBlankCard("blank", "blank.U59"));
+    CHECK(r.c.feedSide(0));
+    r.run(5s);
+    r.c.ejectCard();
+    r.run(500ms);
+    CHECK_EQ(r.p.cards.count("blank"), size_t{0});
+    CHECK(r.c.cardFitted());
+}
+
+TEST(module_cue_card_covers_the_fitted_card_and_it_comes_back) {
+    ControllerRig r;
+    r.load("KEYSTROKES:\nWait: 1s\n21 31 92 82\nWait: 3s\n21 31 92 92\n");  // Pgm 01, later Pgm 00
+    CHECK(r.c.fitBlankCard("c", "Mine.U59"));
+    auto mine = [&] { return r.c.cueCard() && r.c.cueCard()->title == "Mine"; };
+    CHECK(mine());
+    CHECK(r.runUntil([&] { return !mine(); }));
+    CHECK(!r.c.tapCard(0.1, kCardRect.y + 0.1 * kCardRect.h));  // not on show
+    CHECK(cardIdle(r));
+    CHECK(r.c.cardFitted());
+    CHECK(r.runUntil(mine));
+    CHECK(r.p.errors.empty());
+}
+
+TEST(card_corners_hit_only_the_top_corners) {
+    const double top = kCardRect.y + 0.1 * kCardRect.h;
+    CHECK(cardCornerAt(0.01, top) == 0);
+    CHECK(cardCornerAt(0.99, top) == 1);
+    CHECK(!cardCornerAt(0.5, top));
+    CHECK(!cardCornerAt(0.1, kCardRect.y + 0.3 * kCardRect.h));  // the title row
+    CHECK(!cardCornerAt(0.1, kCardRect.y - 0.001));
+    CHECK(!cardCornerAt(0.21, top));
+}
+
+TEST(preset_creates_a_full_two_sided_card) {
+    for (const std::string arms : {std::string("ArmCard: Results:1\nArmCard: Results:2\n"),
+                                   std::string("ArmCard: Results:2\nArmCard: Results:1\n")}) {
+        ControllerRig r;
+        r.load("PROGRAM:\n76 11 01 96 02 96 91\n"  // Lbl A 1 Write 2 Write R/S
+               "CUECARD:\nTitle: My Program\nA: run\nBanks: 3, 4\n"
+               "KEYSTROKES:\n" + arms + "11\n");
+        CHECK(r.runUntil([&] { return r.c.keystrokesPlaying(); }));
+        CHECK(r.runUntil([&] { return !r.c.keystrokesPlaying() && r.p.cards.count("cards/Results.U59"); }, 60s));
+        r.run(1s);
+        const std::string& text = r.p.cards["cards/Results.U59"];
+        CHECK(startsWith(text, "Calc-U-59 Card 2.0\n"));
+        CHECK(text.find("Banks:") == std::string::npos);
+        auto doc = decodeCardFile(bytes(text), "Results.U59");
+        CHECK(doc.card && doc.card->sides[0] && doc.card->sides[1]);
+        if (doc.card && doc.card->cueCard) {
+            CHECK_EQ(doc.card->cueCard->title, std::string("My Program"));
+            CHECK_EQ(doc.card->cueCard->labels[5], std::string("run"));
+        }
+        CHECK(r.c.cardFitted());
+        CHECK(r.p.errors.empty());
+    }
+}
+
+TEST(preset_cannot_feed_an_unreadable_file) {
+    ControllerRig r;
+    r.p.unreadableCards.insert("cards/Gone.U59");
+    r.load("KEYSTROKES:\nInsertCard: Gone\n25\n");
+    CHECK(r.runUntil([&] { return r.c.keystrokesPlaying(); }));
+    CHECK(r.runUntil([&] { return !r.c.keystrokesPlaying(); }));
+    CHECK(!r.p.errors.empty());
+    CHECK(!r.c.cardFitted());
+    CHECK_EQ(r.p.cards.count("cards/Gone.U59"), size_t{0});
+}
+
+TEST(preset_side_on_a_version_1_file_feeds_its_one_side) {
+    ControllerRig r;
+    const std::string card = writtenCard(r);
+    r.p.cards["cards/Old.U59"] = encodeCardText(*decodeCardFile(bytes(card), "x").card->sides[0], nullptr);
+    r.load("KEYSTROKES:\nInsertCard: Old:2\n");
+    CHECK(r.runUntil([&] { return r.c.keystrokesPlaying(); }));
+    CHECK(r.runUntil([&] { return !r.c.keystrokesPlaying(); }));
+    r.run(1s);
+    CHECK_EQ(int(r.c.session()->machine().readProgramStep(1)), 11);
+    CHECK(r.p.errors.empty());
 }
 
 TEST(dropped_preset_loads_as_the_button_does) {

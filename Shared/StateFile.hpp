@@ -85,6 +85,7 @@ struct KeystrokeEvent {
     std::optional<std::string> traceName;
     std::shared_ptr<const ReloadStage> reload;
     std::string cardName;
+    int cardSide = 0;                            ///< side of a card file: 0 or 1 ("Name:1", "Name:2")
     std::shared_ptr<const CardDefinition> card;  ///< its CARD: block, if the file has one
     bool on = true;
     DebugPanel panel = DebugPanel::Calculator;

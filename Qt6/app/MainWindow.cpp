@@ -90,13 +90,13 @@ void MainWindow::openStateFile(const QString& path) { m_controller.loadStateFile
 void MainWindow::loadCard() {
     if (!cu59::info(m_controller.model()).hasCardReader) return;
     CardPickerDialog dialog(CardPickerDialog::Mode::Load, AppPaths::cardDir(), m_controller.cardFileName(), this);
-    if (dialog.exec() == QDialog::Accepted) m_controller.insertCard(dialog.selectedPath());
+    if (dialog.exec() == QDialog::Accepted) m_controller.fitCard(dialog.selectedPath());
 }
 
 void MainWindow::newCard() {
     if (!cu59::info(m_controller.model()).hasCardReader) return;
     CardPickerDialog dialog(CardPickerDialog::Mode::Save, AppPaths::cardDir(), m_controller.cardFileName(), this);
-    if (dialog.exec() == QDialog::Accepted) m_controller.insertBlankCard(dialog.selectedPath());
+    if (dialog.exec() == QDialog::Accepted) m_controller.fitBlankCard(dialog.selectedPath());
 }
 
 void MainWindow::selectAsmFile() {
@@ -120,7 +120,7 @@ void MainWindow::dragEnterEvent(QDragEnterEvent* e) {
     const auto urls = e->mimeData()->urls();
     if (urls.size() != 1) return;
     const Drop action = m_controller.dropAction(urls.first().toLocalFile());
-    if (action == Drop::LoadPreset || action == Drop::InsertCard) e->acceptProposedAction();
+    if (action == Drop::LoadPreset || action == Drop::FitCard) e->acceptProposedAction();
 }
 
 void MainWindow::dropEvent(QDropEvent* e) {

@@ -1,6 +1,7 @@
 #pragma once
 #include "CueCard.hpp"
 #include <QRectF>
+#include <optional>
 
 class QPainter;
 
@@ -10,6 +11,7 @@ class QPainter;
 // counterpart of App/Views/CueCardView.swift.
 namespace CueCardRenderer {
 
-void paint(QPainter& p, const QRectF& rect, const cu59::CueCardContent& card);
+/// `litCorner`: the side of a fitted card being read; its corner is lit.
+void paint(QPainter& p, const QRectF& rect, const cu59::CueCardContent& card, std::optional<int> litCorner = std::nullopt);
 
 } // namespace CueCardRenderer

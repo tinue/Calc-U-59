@@ -83,6 +83,7 @@ function CalculatorFace({ engine, width }) {
   const data = useEngine(engine, (s) => s.data);
   const model = useEngine(engine, (s) => (s.model ? s.model.model : 0));
   const heldKey = useEngine(engine, (s) => s.runState.heldKey);
+  const cardFitted = useEngine(engine, (s) => s.card.fitted);
   const fullSpeed = useEngine(engine, (s) => s.runState.fullSpeed);
   const height = width / CANVAS_ASPECT;
   const baseRef = React.useRef(null);
@@ -173,6 +174,22 @@ function CalculatorFace({ engine, width }) {
             aria-pressed={heldKey === i}
             onClick={onKeyClick(i)}
             style={{ left: x * width, top: y * height, width: w * width, height: h * height }}
+          />
+        );
+      })}
+      {data && cardFitted && [0, 1].map((side) => {
+        const [, , cw, ch] = data.layout.cardCorner;
+        return (
+          <button
+            key={`side${side}`}
+            type="button"
+            tabIndex={-1}
+            className="calcu-key"
+            aria-label={`Feed card side ${side + 1}`}
+            // A pointer press reaches the face's hit test; this is for assistive technology.
+            onClick={(e) => { if (e.detail === 0 && engine) engine.call("feedSide", side); }}
+            style={{ left: (side === 0 ? c[0] : c[0] + c[2] * (1 - cw)) * width, top: c[1] * height,
+                     width: c[2] * cw * width, height: c[3] * ch * height }}
           />
         );
       })}

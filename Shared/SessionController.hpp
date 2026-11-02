@@ -1,4 +1,5 @@
 #pragma once
+#include "CardFile.hpp"
 #include "CueCard.hpp"
 #include "DebugModel.hpp"
 #include "EmulatorSession.hpp"
@@ -62,13 +63,17 @@ public:
         /// ti58c.mem: nullopt when absent or unreadable.
         virtual std::optional<std::string> readConstantMemory() = 0;
         virtual void writeConstantMemory(const std::string& text) = 0;
-        /// A card file the machine wrote (path as given to insertCard / insertBlankCard).
+        /// A card file the machine wrote (path as given to fitCard / fitBlankCard).
         virtual bool writeCard(const std::string& path, const std::string& text) = 0;
         /// A card file a preset names (KEYSTROKES ArmCard: / InsertCard:): `fileName`
         /// in the card folder. `raw` is nullopt if there is no such file; `path`
         /// is where a card the machine writes goes (writeCard).
-        struct CardFileRef { std::optional<std::vector<uint8_t>> raw; std::string path; };
+        /// `unreadable`: the file is there but can't be read now (not "missing":
+        /// a blank card must not go in, or a write would replace the file).
+        struct CardFileRef { std::optional<std::vector<uint8_t>> raw; std::string path; bool unreadable = false; };
         virtual CardFileRef cardFile(const std::string& fileName) = 0;
+        /// The card file at `path` as it is now, read again before a write merges a side into it.
+        virtual CardFileRef readCard(const std::string& path) = 0;
         /// KEYSTROKES DebugPanel:: select that tab of the debugger, as a click
         /// would (the page stays where it is on paged layouts).
         virtual void showDebugPanel(DebugPanel panel) = 0;
@@ -88,7 +93,7 @@ public:
     /// What a file dropped on the calculator does (§ "Dropped Files").
     enum class DropAction {
         LoadPreset,   ///< as the Preset button
-        InsertCard,   ///< pushed into the reader
+        FitCard,      ///< fitted into the calculator's card cutout
         Ignore,       ///< a card, and this model has no reader
         NotAccepted,  ///< not a preset or a card
     };
@@ -160,9 +165,20 @@ public:
     // ── Card reader (reference/SharedArchitecture.md § "Card Reader Flow") ──────
     CardState cardState() const { return m_cardState; }
     const std::string& cardFileName() const { return m_cardFileName; }
-    /// A card file's bytes (nullopt: it could not be read); written data goes back to `path`.
-    void insertCard(const std::optional<std::vector<uint8_t>>& raw, const std::string& path, const std::string& fileName);
-    void insertBlankCard(const std::string& savePath, const std::string& fileName);
+    /// Fit a card file into the cutout, replacing the card there (nullopt bytes:
+    /// it could not be read). Nothing goes into the reader yet. Written data goes
+    /// back to `path`. False if it could not be fitted, or a card is in the reader.
+    bool fitCard(const std::optional<std::vector<uint8_t>>& raw, const std::string& path, const std::string& fileName);
+    /// Fit a fresh card; `savePath` is created or replaced by its first write.
+    bool fitBlankCard(const std::string& savePath, const std::string& fileName);
+    /// Feed a side (0 = top-left corner, 1 = top-right) of the fitted card into the reader.
+    bool feedSide(int side);
+    /// A press at canvas position (nx, ny): feeds a side if it hits a corner of
+    /// the fitted card on show. True if the press hit such a corner.
+    bool tapCard(double nx, double ny);
+    bool cardFitted() const { return m_fitted.has_value(); }
+    /// The corner to draw lit: the side of the fitted card in the reader, if that card is on show.
+    std::optional<int> litCardCorner() const;
     void ejectCard();
 
     // ── State files ──────────────────────────────────────────────────────────
@@ -232,9 +248,19 @@ private:
     void configureTraceLocation();
     void onFrozenView(uint64_t freezeGeneration, FrozenViewReason reason);
     void pullDebugState();
-    void saveCard(const std::vector<uint8_t>& data, const std::string& path);
+    /// The card in the reader now.
+    struct CardPass {
+        bool fitted = false;   ///< a side of m_fitted
+        int side = 0;
+        bool queued = false;   ///< fed by ArmCard: / InsertCard:
+        std::optional<std::string> memoryKey;  ///< a mem: card: a written bank goes to m_memoryCards
+    };
+    /// The machine wrote `written` to a side of the fitted card: merge and save it.
+    void writeFittedSide(int side, const std::vector<uint8_t>& written, bool queued);
+    /// What the cutout shows for the fitted card: its cue card with the corners' numbers.
+    CueCardContent fittedCueCard() const;
     /// Put a bank image (empty: a blank card) into the reader.
-    void startSwipe(const std::vector<uint8_t>& data, const std::string& savePath, const std::string& fileName);
+    void startSwipe(const std::vector<uint8_t>& data, const std::string& fileName, const CardPass& pass);
     /// KEYSTROKES ArmCard: / InsertCard: — feed the next queued card when the machine takes it.
     void feedQueuedCard();
     /// A preset's card has left the reader (or never got in): tell playback if it waits.
@@ -278,13 +304,21 @@ private:
 
     CardState m_cardState = CardState::NoCard;
     std::string m_cardFileName = "card.U59";
-    std::string m_pendingSavePath;
+    /// The card in the cutout, while it is out of its sleeve.
+    struct FittedCard {
+        std::string path, fileName;
+        CardDocument doc;
+        bool fresh = false;  ///< no write yet: the first one replaces whatever is at `path`
+    };
+    std::optional<FittedCard> m_fitted;
+    std::optional<CueCardContent> m_presetCue;  ///< the preset's own cue card: goes onto cards it writes
+    CardPass m_pass;
+    bool m_feedingQueuedCard = false;  ///< feedSide is feeding an ArmCard: / InsertCard: card
     /// mem: cards of the loaded preset, by the name after "mem:": the bank
     /// last written to it, and the cue card shown then.
     struct MemoryCard { std::vector<uint8_t> bank; std::optional<CueCardContent> cueCard; };
     std::map<std::string, MemoryCard> m_memoryCards;
-    std::optional<std::string> m_memoryCardInReader;  ///< a written bank goes to m_memoryCards
-    bool m_queuedCardInReader = false;                ///< the card came from ArmCard: / InsertCard:
+    bool m_queuedCardInReader = false;                ///< an InsertCard: card: playback waits for it
 
     bool m_liveDebugEnabled = false;
     bool m_cpuDebugEnabled = false;
