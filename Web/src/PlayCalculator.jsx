@@ -228,14 +228,13 @@ function PlayCalculator({
     if (keyboard && e.target.closest && e.target.closest(".calcu-face")) rootRef.current.focus({ preventScroll: true });
   };
 
-  // ── Drag and drop a preset ───────────────────────────────────────────
+  // ── Drag and drop a preset or a card ─────────────────────────────────
   const onDragOver = (e) => { if (e.dataTransfer.types.includes("Files")) e.preventDefault(); };
   const onDrop = (e) => {
     const file = e.dataTransfer.files && e.dataTransfer.files[0];
     if (!file || !engine) return;
     e.preventDefault();
-    if (/\.(ti59|ti58|ti58c)$/i.test(file.name)) file.text().then((t) => engine.loadState(t));
-    else engine.setStatus(`${file.name}: not a .ti59, .ti58 or .ti58c file`);
+    engine.dropFile(file);
   };
 
   const Layout = portrait ? PortraitLayout : WideLayout;

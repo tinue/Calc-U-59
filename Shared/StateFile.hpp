@@ -113,6 +113,10 @@ LoadStateResult parseStateFile(std::string_view text, int maxStepAddr = 479, boo
 /// or `current` if absent or unknown.
 Model stateFileModel(std::string_view text, Model current);
 
+/// A state file's name: extension .ti59, .ti58 or .ti58c in any case; not a
+/// hidden file.
+bool isStateFileName(std::string_view name);
+
 /// Parse a "MODEL:" value ("TI-59", "TI-58", "TI-58C", any case).
 std::optional<Model> modelFromName(std::string_view name);
 

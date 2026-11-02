@@ -131,6 +131,7 @@ function createEngine({ model, module }) {
         if (resolve) resolve(m.errors || []);
         break;
       }
+      case "dropRejected": set({ status: `${m.name}: not a .ti59, .ti58, .ti58c, .u59 or .bin file` }); break;
       case "error": set({ status: m.message }); break;
       default: break;
     }
@@ -153,6 +154,9 @@ function createEngine({ model, module }) {
       stateLoadedWaiters.push(resolve);
       post({ type: "loadState", text });
     }),
+    /// A file dropped on the calculator; the worker decides what it does.
+    dropFile: (file) => file.arrayBuffer()
+      .then((b) => post({ type: "dropFile", name: file.name, bytes: new Uint8Array(b) })),
     setStatus: (status) => set({ status }),
     destroy: () => {
       document.removeEventListener("visibilitychange", onVisibility);

@@ -207,6 +207,10 @@ struct CalculatorView: View {
             }
         }
         #if os(macOS)
+        .dropDestination(for: URL.self) { urls, _ in
+            guard urls.count == 1, let url = urls.first, url.isFileURL else { return false }
+            return viewModel.openDroppedFile(url)
+        }
         .task {
             while true {
                 // Exit on cancellation: `try?` would swallow CancellationError and

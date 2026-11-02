@@ -305,6 +305,12 @@ struct PlatformAdapter : cu59::SessionController::Platform {
 
 - (void)loadStateFile:(NSData *)raw { _c->loadStateFile(optionalBytes(raw)); }
 
+// ── Dropped files ────────────────────────────────────────────────────────────
+
+- (BOOL)openDroppedFile:(NSData *)raw path:(NSString *)path fileName:(NSString *)fileName {
+    return _c->openDroppedFile(optionalBytes(raw), cpp(path), cpp(fileName)) ? YES : NO;
+}
+
 // ── Debugger ─────────────────────────────────────────────────────────────────
 
 - (void)setLiveDebugEnabled:(BOOL)on { _c->setLiveDebugEnabled(on == YES); }

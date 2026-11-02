@@ -68,6 +68,10 @@ public:
     // ── State files ──────────────────────────────────────────────────────────
     void loadStateFile(const QString& path);
 
+    // ── Dropped files ────────────────────────────────────────────────────────
+    cu59::SessionController::DropAction dropAction(const QString& path) const;
+    void openDroppedFile(const QString& path);
+
     // ── Debugger ─────────────────────────────────────────────────────────────
     void setLiveDebugEnabled(bool on) { m_c->setLiveDebugEnabled(on); }
     void setCpuDebugEnabled(bool on) { m_c->setCpuDebugEnabled(on); }

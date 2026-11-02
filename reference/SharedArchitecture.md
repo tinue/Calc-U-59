@@ -295,6 +295,16 @@ Presets feed cards through the same insert path (`ArmCard:` / `InsertCard:`,
 § "State File Loading"); `Platform::cardFile(name)` resolves a card file name
 in the frontend's card folder.
 
+### Dropped Files
+
+`dropAction(name)` says what a file dropped on the window does, by its name
+and the model: a preset (`isStateFileName`) loads as from the Preset button; a
+card (`isCardFileName`) goes straight into the reader on the TI-59 and is
+ignored on the TI-58/58C. `openDroppedFile(bytes, path, name)` does it. The
+drop is a card pushed in by hand: the switch opens whatever the calculator is
+doing, so at idle the ROM reads the card and after `2nd Write` overwrites the
+file at `path`. The reader takes one card: a drop while `Swiping` does nothing.
+
 Card files are written as text ("Calc-U-59 Card 1.0", `Shared/CardFile.hpp`).
 Still read: the 13-byte `Calc-U-59-CRD` header + 246 bytes, and headerless
 246- or 984-byte files.

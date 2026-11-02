@@ -198,6 +198,18 @@ public:
         return errors;
     }
 
+    /// What a dropped file does (SessionController::DropAction).
+    std::string dropAction(std::string name) const {
+        using Drop = cu59::SessionController::DropAction;
+        switch (m_c->dropAction(name)) {
+            case Drop::LoadPreset: return "preset";
+            case Drop::InsertCard: return "card";
+            case Drop::Ignore: return "ignore";
+            case Drop::NotAccepted: break;
+        }
+        return "notAccepted";
+    }
+
     // ── Card reader: an in-memory card folder for the page session ───────────
     /// A session card by name, or an uploaded one (bytes given: kept in the folder).
     void insertCard(std::string name, val bytes) {
@@ -918,6 +930,7 @@ EMSCRIPTEN_BINDINGS(ti59_web) {
         .function("keyUp", &WebController::keyUp)
         .function("blur", &WebController::blur)
         .function("loadState", &WebController::loadState)
+        .function("dropAction", &WebController::dropAction)
         .function("insertCard", &WebController::insertCard)
         .function("insertBlankCard", &WebController::insertBlankCard)
         .function("ejectCard", &WebController::ejectCard)

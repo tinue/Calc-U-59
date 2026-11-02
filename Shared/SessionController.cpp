@@ -525,6 +525,31 @@ void SessionController::loadStateFile(const std::optional<std::vector<uint8_t>>&
     applyState(parsed);
 }
 
+// ── Dropped files (reference/SharedArchitecture.md § "Dropped Files") ──────────
+
+SessionController::DropAction SessionController::dropAction(const std::string& fileName) const {
+    if (isStateFileName(fileName)) return DropAction::LoadPreset;
+    if (!isCardFileName(fileName)) return DropAction::NotAccepted;
+    return info(m_model).hasCardReader ? DropAction::InsertCard : DropAction::Ignore;
+}
+
+bool SessionController::openDroppedFile(const std::optional<std::vector<uint8_t>>& raw, const std::string& path,
+                                        const std::string& fileName) {
+    switch (dropAction(fileName)) {
+        case DropAction::LoadPreset:
+            loadStateFile(raw);
+            return raw.has_value();
+        case DropAction::InsertCard:
+            if (m_cardState != CardState::NoCard) return false;  // the reader takes one card
+            insertCard(raw, path, fileName);
+            return m_cardState == CardState::Swiping;
+        case DropAction::Ignore:
+        case DropAction::NotAccepted:
+            return false;
+    }
+    return false;
+}
+
 void SessionController::applyState(const LoadStateResult& parsed) {
     if (!m_session) return;
     TI59Machine& m = m_session->machine();

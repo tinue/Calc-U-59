@@ -180,6 +180,10 @@ typedef NS_ENUM(NSInteger, TIFreezeOwner) {
 // ── State files ──────────────────────────────────────────────────────────────
 - (void)loadStateFile:(nullable NSData *)raw;
 
+// ── Dropped files ────────────────────────────────────────────────────────────
+/// raw nil: the file could not be read. NO: nothing was done.
+- (BOOL)openDroppedFile:(nullable NSData *)raw path:(NSString *)path fileName:(NSString *)fileName;
+
 // ── Debugger ─────────────────────────────────────────────────────────────────
 - (void)setLiveDebugEnabled:(BOOL)on;
 - (void)setCpuDebugEnabled:(BOOL)on;

@@ -165,6 +165,10 @@ class EmulatorViewModel {
     var hasCardFile: Bool = false
     /// Display name of the last card file loaded.
     var cardFileName: String = "card.U59"
+    #if os(macOS)
+    /// The dropped card in the reader, whose security scope is still open.
+    @ObservationIgnored private var droppedCardScope: URL?
+    #endif
 
     // ── Cue card and module ──────────────────────────────────────────────────
     var cueCardContent: CueCardContent? = nil
@@ -334,6 +338,24 @@ class EmulatorViewModel {
         controller.loadStateFile(try? Data(contentsOf: url))
     }
 
+    // MARK: - Dropped files
+
+    #if os(macOS)
+    /// A preset or card dropped on the window (reference/SharedArchitecture.md
+    /// § "Dropped Files"). A card can be anywhere on disk and is written back
+    /// when it leaves the reader, so its security scope stays open until then.
+    @discardableResult
+    func openDroppedFile(_ url: URL) -> Bool {
+        let scoped = url.startAccessingSecurityScopedResource()
+        let hadCard = controller.cardSwiping
+        let opened = controller.openDroppedFile(try? Data(contentsOf: url), path: url.path, fileName: url.lastPathComponent)
+        if scoped {
+            if !hadCard && controller.cardSwiping { droppedCardScope = url } else { url.stopAccessingSecurityScopedResource() }
+        }
+        return opened
+    }
+    #endif
+
     // MARK: - Changes from the controller
 
     /// Copy what changed into the observable properties. Each assignment is
@@ -375,6 +397,12 @@ class EmulatorViewModel {
         if c.contains(.card) || c.contains(.model) {
             let state: CardState = controller.cardSwiping ? .swiping : .noCard
             if cardState != state { cardState = state }
+            #if os(macOS)
+            if state == .noCard, let url = droppedCardScope {
+                url.stopAccessingSecurityScopedResource()
+                droppedCardScope = nil
+            }
+            #endif
             if cardFileName != controller.cardFileName { cardFileName = controller.cardFileName }
         }
         if c.contains(.runState) {
@@ -487,7 +515,13 @@ final class PlatformForwarder: NSObject, TIPlatform {
         var coordinatorError: NSError?
         var writeError: Error?
         NSFileCoordinator().coordinate(writingItemAt: url, options: .forReplacing, error: &coordinatorError) { writingURL in
-            do { try fileData.write(to: writingURL, options: .atomic) } catch { writeError = error }
+            do {
+                try fileData.write(to: writingURL, options: .atomic)
+            } catch {
+                // A dropped card outside our folders: the sandbox may grant the
+                // file but not its folder, where an atomic write puts its temp file.
+                do { try fileData.write(to: writingURL) } catch { writeError = error }
+            }
         }
         guard coordinatorError == nil, writeError == nil else { return false }
         target?.cardWritten()

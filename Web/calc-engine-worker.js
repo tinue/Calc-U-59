@@ -10,6 +10,8 @@
 //        by key (strings), the host's model/module overrides ("" for none)
 //   {type: "call", method, args}       -- a WebController method (bindings.cpp)
 //   {type: "loadState", text}          -- a preset's contents -> stateLoaded
+//   {type: "dropFile", name, bytes}    -- a dropped file -> stateLoaded (a preset),
+//        dropRejected (neither a preset nor a card), else nothing
 //   {type: "cardBytes", name}          -- -> {type: "cardFile", name, bytes}
 //   {type: "traceBytes", name}         -- -> {type: "traceFile", name, bytes}
 //   {type: "geometry", w, h}           -- LED shapes for a w × h digit cell
@@ -19,6 +21,7 @@
 //   {type: "ready", data}              -- staticData(): models, modules, layout,
 //                                         printer geometry and font, heatmap
 //   {type: "stateLoaded", errors}
+//   {type: "dropRejected", name}
 //   {type: "geometry", geometry}
 //   {type: "cardFile" | "traceFile", name, bytes}
 //   and what WebController posts on its own (bindings.cpp drain()):
@@ -82,6 +85,14 @@ function handle(msg) {
       postMessage({ type: "stateLoaded", errors });
       break;
     }
+    case "dropFile":
+      switch (controller.dropAction(msg.name)) {
+        case "preset": postMessage({ type: "stateLoaded", errors: controller.loadState(msg.bytes) }); break;
+        case "card": controller.insertCard(msg.name, msg.bytes); break;
+        case "notAccepted": postMessage({ type: "dropRejected", name: msg.name }); break;
+        default: break;
+      }
+      break;
     case "cardBytes":
       postMessage({ type: "cardFile", name: msg.name, bytes: controller.cardBytes(msg.name) });
       break;

@@ -20,13 +20,6 @@
 #include <QSplitter>
 #include <QUrl>
 
-namespace {
-bool isStateFile(const QString& path) {
-    QString ext = QFileInfo(path).suffix().toLower();
-    return ext == QLatin1String("ti59") || ext == QLatin1String("ti58") || ext == QLatin1String("ti58c");
-}
-} // namespace
-
 MainWindow::MainWindow(EmulatorController& controller, QWidget* parent) : QMainWindow(parent), m_controller(controller) {
     setWindowTitle(QStringLiteral("Calc-U-59"));
     setAcceptDrops(true);
@@ -123,11 +116,14 @@ void MainWindow::closeEvent(QCloseEvent* e) {
 }
 
 void MainWindow::dragEnterEvent(QDragEnterEvent* e) {
+    using Drop = cu59::SessionController::DropAction;
     const auto urls = e->mimeData()->urls();
-    if (urls.size() == 1 && isStateFile(urls.first().toLocalFile())) e->acceptProposedAction();
+    if (urls.size() != 1) return;
+    const Drop action = m_controller.dropAction(urls.first().toLocalFile());
+    if (action == Drop::LoadPreset || action == Drop::InsertCard) e->acceptProposedAction();
 }
 
 void MainWindow::dropEvent(QDropEvent* e) {
     const auto urls = e->mimeData()->urls();
-    if (urls.size() == 1 && isStateFile(urls.first().toLocalFile())) openStateFile(urls.first().toLocalFile());
+    if (urls.size() == 1) m_controller.openDroppedFile(urls.first().toLocalFile());
 }

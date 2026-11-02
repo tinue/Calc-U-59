@@ -496,6 +496,106 @@ TEST(cooperative_controller_insert_card_passes_an_unused_armed_card) {
     CHECK_EQ(r.c.session()->machine().readDataReg(3), 7.0);  // read at idle, as pushed in by hand
 }
 
+namespace {
+std::vector<uint8_t> bytes(const std::string& s) { return {s.begin(), s.end()}; }
+/// A card holding the program Lbl A 1 2 3 R/S, as a blank card written by the machine.
+std::string writtenCard(ControllerRig& r) {
+    r.load("PROGRAM:\n76 11 01 02 03 91\nKEYSTROKES:\n82 21 91\n");  // 1 2nd Write
+    CHECK(r.runUntil([&] { return r.c.keystrokesPlaying(); }));
+    r.run(2s);
+    r.c.insertBlankCard("first", "first.U59");
+    CHECK(r.runUntil([&] { return r.c.cardState() == SessionController::CardState::NoCard; }));
+    CHECK(r.runUntil([&] { return !r.c.keystrokesPlaying(); }));
+    return r.p.cards["first"];
+}
+}  // namespace
+
+TEST(drop_action_goes_by_name_and_model) {
+    using A = SessionController::DropAction;
+    ControllerRig r;
+    CHECK(r.c.dropAction("a.ti59") == A::LoadPreset);
+    CHECK(r.c.dropAction("a.TI58") == A::LoadPreset);
+    CHECK(r.c.dropAction("a.Ti58C") == A::LoadPreset);
+    CHECK(r.c.dropAction("a.U59") == A::InsertCard);
+    CHECK(r.c.dropAction("a.bin") == A::InsertCard);
+    CHECK(r.c.dropAction(".a.u59") == A::NotAccepted);
+    CHECK(r.c.dropAction(".a.ti59") == A::NotAccepted);
+    CHECK(r.c.dropAction("a.txt") == A::NotAccepted);
+    CHECK(r.c.dropAction("ti59") == A::NotAccepted);
+    for (Model m : {Model::TI58, Model::TI58C}) {
+        CHECK(r.c.startMachine(m));
+        CHECK(r.c.dropAction("a.U59") == A::Ignore);
+        CHECK(r.c.dropAction("a.ti59") == A::LoadPreset);
+    }
+}
+
+TEST(dropped_card_is_read_at_idle) {
+    ControllerRig r;
+    const std::string card = writtenCard(r);
+    r.load("PARTITION: 479\n");  // a fresh machine: no program
+    r.run(1s);
+    CHECK_EQ(int(r.c.session()->machine().readProgramStep(1)), 0);
+    CHECK(r.c.openDroppedFile(bytes(card), "dropped", "dropped.U59"));
+    CHECK(r.c.cardState() == SessionController::CardState::Swiping);
+    CHECK(r.runUntil([&] { return r.c.cardState() == SessionController::CardState::NoCard; }));
+    r.run(1s);
+    CHECK_EQ(int(r.c.session()->machine().readProgramStep(1)), 11);
+    CHECK_EQ(r.p.cards.count("dropped"), size_t{0});  // read, not written
+    CHECK(r.p.errors.empty());
+}
+
+TEST(dropped_card_is_overwritten_after_write) {
+    ControllerRig r;
+    const std::string card = writtenCard(r);
+    r.load("PROGRAM:\n76 12 04 05 06 91\nKEYSTROKES:\n82 21 91\n");  // Lbl B …; 1 2nd Write
+    CHECK(r.runUntil([&] { return r.c.keystrokesPlaying(); }));
+    r.run(2s);
+    CHECK(r.c.openDroppedFile(bytes(card), "dropped", "dropped.U59"));
+    CHECK(r.runUntil([&] { return r.c.cardState() == SessionController::CardState::NoCard; }));
+    CHECK(r.runUntil([&] { return !r.c.keystrokesPlaying(); }));
+    CHECK_EQ(r.p.cards.count("dropped"), size_t{1});
+    CHECK(r.p.cards["dropped"] != card);
+
+    r.load("PARTITION: 479\n");
+    r.run(1s);
+    const std::string overwritten = r.p.cards["dropped"];
+    CHECK(r.c.openDroppedFile(bytes(overwritten), "dropped", "dropped.U59"));
+    CHECK(r.runUntil([&] { return r.c.cardState() == SessionController::CardState::NoCard; }));
+    r.run(1s);
+    CHECK_EQ(int(r.c.session()->machine().readProgramStep(1)), 12);
+}
+
+TEST(dropped_card_is_ignored_without_a_reader) {
+    ControllerRig r;
+    const std::string card = writtenCard(r);
+    for (Model m : {Model::TI58, Model::TI58C}) {
+        CHECK(r.c.startMachine(m));
+        CHECK(!r.c.openDroppedFile(bytes(card), "dropped", "dropped.U59"));
+        r.run(500ms);
+        CHECK(r.c.cardState() == SessionController::CardState::NoCard);
+    }
+    CHECK(r.p.errors.empty());
+}
+
+TEST(dropped_card_waits_for_an_empty_reader) {
+    ControllerRig r;
+    const std::string card = writtenCard(r);
+    CHECK(r.c.openDroppedFile(bytes(card), "one", "one.U59"));
+    CHECK(!r.c.openDroppedFile(bytes(card), "two", "two.U59"));
+    CHECK_EQ(r.c.cardFileName(), std::string("one.U59"));
+}
+
+TEST(dropped_preset_loads_as_the_button_does) {
+    ControllerRig r;
+    CHECK(r.c.openDroppedFile(bytes("MODEL: TI-58\nPROGRAM:\n76 11\nKEYSTROKES:\n25\n"), "p", "p.ti58"));
+    CHECK(r.c.model() == Model::TI58);
+    CHECK_EQ(int(r.c.session()->machine().readProgramStep(1)), 11);
+    CHECK(r.runUntil([&] { return r.c.keystrokesPlaying(); }));
+    CHECK(r.p.errors.empty());
+    CHECK(!r.c.openDroppedFile(std::nullopt, "p", "p.ti58"));
+    CHECK(!r.p.errors.empty());  // reported, as a failed Open is
+}
+
 TEST(cooperative_script_waits_out_a_freeze_but_runs_its_directives) {
     VirtualRig r;
     r.host.frozen = true;

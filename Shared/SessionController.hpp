@@ -85,6 +85,13 @@ public:
 
     enum class CardState { NoCard, Swiping };
     enum class DebugLevel { Off = 0, Info = 1, Debug = 2 };
+    /// What a file dropped on the calculator does (§ "Dropped Files").
+    enum class DropAction {
+        LoadPreset,   ///< as the Preset button
+        InsertCard,   ///< pushed into the reader
+        Ignore,       ///< a card, and this model has no reader
+        NotAccepted,  ///< not a preset or a card
+    };
 
     /// `cuecards` is roms/solid-state/cuecards.txt; `moduleID` the saved module.
     SessionController(Platform& platform, ResourceReader roms, std::string cuecards, std::string moduleID,
@@ -161,6 +168,15 @@ public:
     // ── State files ──────────────────────────────────────────────────────────
     /// A preset's bytes (nullopt: it could not be read).
     void loadStateFile(const std::optional<std::vector<uint8_t>>& raw);
+
+    // ── Dropped files (reference/SharedArchitecture.md § "Dropped Files") ───────
+    /// By the file's name and the current model.
+    DropAction dropAction(const std::string& fileName) const;
+    /// Load the preset or insert the card; false when nothing was done (a card
+    /// is already in the reader, the file could not be read, or dropAction
+    /// says no). A write to the card goes back to `path`.
+    bool openDroppedFile(const std::optional<std::vector<uint8_t>>& raw, const std::string& path,
+                         const std::string& fileName);
 
     // ── Debugger ─────────────────────────────────────────────────────────────
     void setLiveDebugEnabled(bool on);

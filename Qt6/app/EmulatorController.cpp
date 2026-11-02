@@ -67,6 +67,14 @@ void EmulatorController::insertBlankCard(const QString& savePath) {
 
 void EmulatorController::loadStateFile(const QString& path) { m_c->loadStateFile(readBytes(path)); }
 
+cu59::SessionController::DropAction EmulatorController::dropAction(const QString& path) const {
+    return m_c->dropAction(QFileInfo(path).fileName().toStdString());
+}
+
+void EmulatorController::openDroppedFile(const QString& path) {
+    m_c->openDroppedFile(readBytes(path), path.toStdString(), QFileInfo(path).fileName().toStdString());
+}
+
 void EmulatorController::loadAsmFile(const QString& path) {
     m_c->loadAsm(readResource(path), QFileInfo(path).fileName().toStdString());
 }

@@ -240,6 +240,65 @@ test('a preset dropped on the calculator loads', async ({ page }) => {
 
 // ── Magnetic cards (session folder) ──────────────────────────────────────
 
+async function dropFile(page, name, text) {
+  const dt = await page.evaluateHandle(([n, t]) => {
+    const d = new DataTransfer();
+    d.items.add(new File([t], n));
+    return d;
+  }, [name, text]);
+  await page.locator('.calcu-face').dispatchEvent('dragover', { dataTransfer: dt });
+  await page.locator('.calcu-face').dispatchEvent('drop', { dataTransfer: dt });
+}
+
+/// Writes PROGRAM_123 to a blank session card and returns the card's text.
+async function writtenCardText(page) {
+  await uploadPreset(page, PROGRAM_123 + 'KEYSTROKES:\n25 82 21 91\n');
+  await page.waitForTimeout(1000);
+  await page.getByRole('button', { name: 'Crd' }).nth(1).click();
+  await page.getByLabel('Card name').fill('prog');
+  await page.getByRole('button', { name: 'Save' }).click();
+  await expect(page.getByRole('button', { name: 'Eject Card' })).toHaveCount(0, { timeout: 15000 });
+  await page.getByRole('button', { name: 'Crd' }).first().click();
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download prog.U59' }).click();
+  const stream = await (await download).createReadStream();
+  const chunks = [];
+  for await (const c of stream) chunks.push(c);
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  return Buffer.concat(chunks).toString();
+}
+
+test('a card dropped on the TI-59 is read at once', async ({ page }) => {
+  await gotoReady(page);
+  const expected = await showing(page, ['1', '2', '3']);
+  await pressKey(page, 'CLR');
+  const card = await writtenCardText(page);
+  await uploadPreset(page, 'PARTITION: 479\n');  // a fresh machine: no program
+  await dropFile(page, 'dropped.U59', card);
+  await expect(page.getByRole('button', { name: 'Eject Card' })).toHaveCount(0, { timeout: 15000 });
+  await page.waitForTimeout(3000);
+  await pressKey(page, 'CLR');
+  await pressKey(page, 'A');
+  expect(await settledLed(page)).toBe(expected);
+});
+
+test('a card dropped on the TI-58 is ignored', async ({ page }) => {
+  await gotoReady(page);
+  const card = await writtenCardText(page);
+  await page.getByLabel('Calculator model').selectOption({ label: 'TI-58' });
+  await page.waitForTimeout(600);
+  await dropFile(page, 'dropped.U59', card);
+  await page.waitForTimeout(600);
+  await expect(page.locator('.calcu-status')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Eject Card' })).toHaveCount(0);
+});
+
+test('a dropped file that is neither preset nor card is refused', async ({ page }) => {
+  await gotoReady(page);
+  await dropFile(page, 'notes.txt', 'hello');
+  await expect(page.locator('.calcu-status')).toContainText('notes.txt: not a');
+});
+
 test('a blank card is written, listed, and read back', async ({ page }) => {
   await gotoReady(page);
   await uploadPreset(page, PROGRAM_123);

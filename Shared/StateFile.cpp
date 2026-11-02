@@ -525,4 +525,12 @@ Model stateFileModel(std::string_view text, Model current) {
     return model;
 }
 
+bool isStateFileName(std::string_view name) {
+    if (name.empty() || name.front() == '.') return false;
+    size_t dot = name.rfind('.');
+    if (dot == std::string_view::npos) return false;
+    std::string ext = toLower(name.substr(dot + 1));
+    return ext == "ti59" || ext == "ti58" || ext == "ti58c";
+}
+
 } // namespace cu59
