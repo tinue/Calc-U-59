@@ -1,6 +1,7 @@
 # pdcm-card-tricks.ti59  PDCM, a card-swapping operating system for the TI-59.
 # Horst Umlauf, "Karten-Tricks", CHIP 8/1979 pp. 40-44 (listing: Bild 9);
 # the author's corrections, in reply to readers: CHIP 10/1979 p. 12.
+# A step-by-step guide for TI-59 users: PDCM.md, next to this file.
 #
 # PDCM manages the magnetic cards for a program. The program asks for a data
 # register or a program strip by number; PDCM shows the card it needs in Eng
