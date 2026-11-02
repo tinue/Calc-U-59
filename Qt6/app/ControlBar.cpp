@@ -54,11 +54,11 @@ ControlBar::ControlBar(EmulatorController& controller, QWidget* parent) : QWidge
 
     m_loadCard = new QToolButton(this);
     m_loadCard->setText(QStringLiteral("⤓ Crd"));
-    m_loadCard->setToolTip(QStringLiteral("Read a magnetic card"));
+    m_loadCard->setToolTip(QStringLiteral("Fit a magnetic card into the calculator"));
     connect(m_loadCard, &QToolButton::clicked, this, &ControlBar::loadCardRequested);
     m_newCard = new QToolButton(this);
     m_newCard->setText(QStringLiteral("＋ Crd"));
-    m_newCard->setToolTip(QStringLiteral("Insert a blank card to write"));
+    m_newCard->setToolTip(QStringLiteral("Fit a fresh magnetic card into the calculator"));
     connect(m_newCard, &QToolButton::clicked, this, &ControlBar::newCardRequested);
     m_eject = new QToolButton(this);
     m_eject->setText(QStringLiteral("⏏ Eject Card"));
