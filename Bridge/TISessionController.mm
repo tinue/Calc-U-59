@@ -179,14 +179,12 @@ struct PlatformAdapter : cu59::SessionController::Platform {
         return [platform writeCard:ns(text) toPath:ns(path)] == YES;
     }
     void showDebugPanel(cu59::DebugPanel panel) override { [platform showDebugPanel:static_cast<NSInteger>(panel)]; }
-    CardFileRef cardFile(const std::string& fileName) override {
-        return readCard(cpp([platform cardFilePath:ns(fileName)]));
-    }
-    CardFileRef readCard(const std::string& path) override {
+    std::string cardFilePath(const std::string& fileName) override { return cpp([platform cardFilePath:ns(fileName)]); }
+    CardRead readCard(const std::string& path) override {
         NSData* data = [platform readCardFile:ns(path)];
-        if (!data) return {std::nullopt, path, [platform cardFileExists:ns(path)] == YES};
+        if (!data) return {std::nullopt, [platform cardFileExists:ns(path)] == YES};
         auto* bytes = static_cast<const uint8_t*>(data.bytes);
-        return {std::vector<uint8_t>(bytes, bytes + data.length), path};
+        return {std::vector<uint8_t>(bytes, bytes + data.length)};
     }
     cu59::SessionController::TraceLocation traceLocation() override {
         id<TIPlatform> p = platform;
@@ -312,6 +310,11 @@ struct PlatformAdapter : cu59::SessionController::Platform {
 
 // ── Dropped files ────────────────────────────────────────────────────────────
 
+- (BOOL)acceptsDroppedFile:(NSString *)fileName {
+    using Drop = cu59::SessionController::DropAction;
+    const Drop action = _c->dropAction(cpp(fileName));
+    return action == Drop::LoadPreset || action == Drop::FitCard ? YES : NO;
+}
 - (BOOL)openDroppedFile:(NSData *)raw path:(NSString *)path fileName:(NSString *)fileName {
     return _c->openDroppedFile(optionalBytes(raw), cpp(path), cpp(fileName)) ? YES : NO;
 }

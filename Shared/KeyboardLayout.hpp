@@ -34,13 +34,17 @@ inline constexpr double kCardCornerWidth = 0.20;
 inline constexpr double kCardCornerHeight = 0.277;
 inline constexpr unsigned kCardCornerLitRGB = 0xFFF2B8;
 
-/// The side whose corner holds canvas position (nx, ny): 0 top-left, 1 top-right.
+/// A side's corner (fractions of the card): 0 top-left, 1 top-right.
+inline constexpr NRect cardCornerRect(int side) {
+    return {side == 0 ? 0.0 : 1 - kCardCornerWidth, 0.0, kCardCornerWidth, kCardCornerHeight};
+}
+
+/// The side whose corner holds canvas position (nx, ny).
 inline std::optional<int> cardCornerAt(double nx, double ny) {
     if (!kCardRect.contains(nx, ny)) return std::nullopt;
     const double x = (nx - kCardRect.x) / kCardRect.w, y = (ny - kCardRect.y) / kCardRect.h;
-    if (y >= kCardCornerHeight) return std::nullopt;
-    if (x < kCardCornerWidth) return 0;
-    if (x > 1 - kCardCornerWidth) return 1;
+    for (int side : {0, 1})
+        if (cardCornerRect(side).contains(x, y)) return side;
     return std::nullopt;
 }
 

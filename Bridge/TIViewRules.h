@@ -30,8 +30,6 @@ typedef struct {
 @property (nonatomic, readonly, copy) NSString *label;
 @end
 
-/// Text placement on a w × h card (Shared/CueCard.hpp CueCardGeometry).
-/// Frames: CGRect around the text's centre; height 0 = one text line.
 /// A lit corner of a fitted card (Shared cardCornerGeometry).
 @interface TICardCorner : NSObject
 @property (nonatomic, readonly) CGRect frame;
@@ -40,6 +38,8 @@ typedef struct {
 - (CGPoint)arrowPoint:(NSInteger)index;
 @end
 
+/// Text placement on a w × h card (Shared/CueCard.hpp CueCardGeometry).
+/// Frames: CGRect around the text's centre; height 0 = one text line.
 @interface TICueCardGeometry : NSObject
 @property (nonatomic, readonly) CGFloat titleFontSize, gridFontSize, bankFontSize;
 @property (nonatomic, readonly) CGFloat titleY, gridY0, gridY1;

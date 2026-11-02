@@ -226,13 +226,7 @@ test('a preset dropped on the calculator loads', async ({ page }) => {
   await gotoReady(page);
   const expected = await showing(page, ['1', '2', '3']);
   await pressKey(page, 'CLR');
-  const dt = await page.evaluateHandle((text) => {
-    const d = new DataTransfer();
-    d.items.add(new File([text], 'drop.ti59'));
-    return d;
-  }, PROGRAM_123);
-  await page.locator('.calcu-face').dispatchEvent('dragover', { dataTransfer: dt });
-  await page.locator('.calcu-face').dispatchEvent('drop', { dataTransfer: dt });
+  await dropFile(page, 'drop.ti59', PROGRAM_123);
   await page.waitForTimeout(800);
   await pressKey(page, 'A');
   expect(await settledLed(page)).toBe(expected);

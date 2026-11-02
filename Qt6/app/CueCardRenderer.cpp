@@ -127,7 +127,7 @@ void paint(QPainter& p, const QRectF& rect, const cu59::CueCardContent& card, st
 
     p.fillRect(QRectF(0, 0, w, g.washHeight), ChromeStyle::fromRgb(cu59::kCueCardWashColor, cu59::kCueCardWashAlpha));
 
-    if (litCorner && card.template_ == cu59::CueCardTemplate::MagnetCard) {
+    if (litCorner) {
         const cu59::CardCornerGeometry c = cu59::cardCornerGeometry(*litCorner, w, h);
         // One rounded outer corner: a rounded rectangle, the other three squared off by the extra size.
         const double r = c.radius;

@@ -310,9 +310,9 @@ load, or a reload stage with its own cue card. The printer toggle and a module
 change reset the machine, so they remove it too.
 
 Presets feed cards through the same path (`ArmCard:` / `InsertCard:`,
-§ "State File Loading"); `Platform::cardFile(name)` resolves a card file name
-in the frontend's card folder. `unreadable` there means the file exists but
-can't be read now, so no blank card goes in to overwrite it.
+§ "State File Loading"); `Platform::cardFilePath(name)` resolves a card file
+name in the frontend's card folder. `unreadable` from `Platform::readCard` means
+the file exists but can't be read now, so no blank card goes in to overwrite it.
 
 ### Dropped Files
 
@@ -372,7 +372,7 @@ into the keystroke events (`shared_ptr`). This is the order of operations:
 6. `feedQueuedCard` resolves the card:
    - a `mem:` card from its written bank, its `CARD:` block
      (`buildCardBank`, at the current partition), or blank;
-   - a file through `Platform::cardFile`, fitted and fed at the side the
+   - a file through `Platform::cardFilePath` and `readCard`, fitted and fed at the side the
      directive names. A file card stays fitted afterwards; a `mem:` card takes
      a fitted card out and is never fitted itself.
 

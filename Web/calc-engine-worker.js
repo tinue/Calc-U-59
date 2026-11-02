@@ -10,8 +10,9 @@
 //        by key (strings), the host's model/module overrides ("" for none)
 //   {type: "call", method, args}       -- a WebController method (bindings.cpp)
 //   {type: "loadState", text}          -- a preset's contents -> stateLoaded
-//   {type: "dropFile", name, bytes}    -- a dropped file -> stateLoaded (a preset),
-//        dropRejected (neither a preset nor a card), else nothing
+//   {type: "dropFile", file}           -- a dropped File, read only if its name is
+//        accepted -> stateLoaded, dropRejected (neither a preset nor a card), or
+//        nothing (a card, and this model has no reader)
 //   {type: "cardBytes", name}          -- -> {type: "cardFile", name, bytes}
 //   {type: "traceBytes", name}         -- -> {type: "traceFile", name, bytes}
 //   {type: "geometry", w, h}           -- LED shapes for a w × h digit cell
@@ -85,14 +86,17 @@ function handle(msg) {
       postMessage({ type: "stateLoaded", errors });
       break;
     }
-    case "dropFile":
-      switch (controller.dropAction(msg.name)) {
-        case "preset": postMessage({ type: "stateLoaded", errors: controller.loadState(msg.bytes) }); break;
-        case "card": controller.fitCard(msg.name, msg.bytes); break;
-        case "notAccepted": postMessage({ type: "dropRejected", name: msg.name }); break;
-        default: break;
+    case "dropFile": {
+      const { name } = msg.file, action = controller.dropAction(name);
+      if (action === "notAccepted") {
+        postMessage({ type: "dropRejected", name });
+      } else if (action !== "ignore") {
+        msg.file.arrayBuffer().then((b) => {
+          postMessage({ type: "stateLoaded", errors: controller.openDroppedFile(name, new Uint8Array(b)) });
+        });
       }
       break;
+    }
     case "cardBytes":
       postMessage({ type: "cardFile", name: msg.name, bytes: controller.cardBytes(msg.name) });
       break;

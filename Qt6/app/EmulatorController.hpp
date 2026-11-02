@@ -141,8 +141,8 @@ private:
     std::optional<std::string> readConstantMemory() override;
     void writeConstantMemory(const std::string& text) override;
     bool writeCard(const std::string& path, const std::string& text) override;
-    CardFileRef cardFile(const std::string& fileName) override;
-    CardFileRef readCard(const std::string& path) override;
+    std::string cardFilePath(const std::string& fileName) override;
+    CardRead readCard(const std::string& path) override;
     void showDebugPanel(cu59::DebugPanel panel) override { emit debugPanelRequested(static_cast<int>(panel)); }
     cu59::SessionController::TraceLocation traceLocation() override;
     void saveLastUsedModel(cu59::Model model) override;

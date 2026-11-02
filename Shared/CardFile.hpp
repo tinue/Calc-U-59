@@ -56,8 +56,12 @@ struct CardDocument {
     std::array<std::optional<std::vector<uint8_t>>, 2> sides;  ///< version 2: nullopt = not written yet
     std::vector<uint8_t> singleSide;      ///< version 1: the bytes as read (246, or 984 for the oldest layout)
 
-    /// The bank number in a version 2 side's header; nullopt for a blank side or version 1.
+    /// The bank number in a side's header (`side` 0 or 1); nullopt for a blank side or version 1.
     std::optional<int> sideBank(int side) const;
+    /// The bytes a side (0 or 1) feeds into the reader, empty if blank. Version 1 has
+    /// one side, used for either corner.
+    std::vector<uint8_t> bank(int side) const;
+    void setBank(int side, std::vector<uint8_t> bytes);
 };
 
 /// Parse the version 1.0 text format; nullopt if it is malformed or another version.
@@ -84,7 +88,6 @@ std::vector<uint8_t> buildCardBank(const CardDefinition& card, int programRegs);
 /// On failure `error` holds a user-facing message naming `fileName`.
 struct CardDecodeResult {
     std::optional<CardDocument> card;
-    bool isText = false;
     std::string error;
 };
 CardDecodeResult decodeCardFile(const std::vector<uint8_t>& raw, const std::string& fileName);

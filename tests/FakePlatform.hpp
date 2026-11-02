@@ -35,18 +35,12 @@ struct FakePlatform : cu59::SessionController::Platform {
     std::vector<cu59::DebugPanel> panels;  ///< DebugPanel: requests
     void showDebugPanel(cu59::DebugPanel panel) override { panels.push_back(panel); }
     /// The card folder is `cards`, keyed by "cards/<file name>".
-    CardFileRef cardFile(const std::string& fileName) override {
-        std::string path = "cards/" + fileName;
-        if (unreadableCards.count(path)) return {std::nullopt, path, true};
+    std::string cardFilePath(const std::string& fileName) override { return "cards/" + fileName; }
+    CardRead readCard(const std::string& path) override {
+        if (unreadableCards.count(path)) return {std::nullopt, true};
         auto it = cards.find(path);
-        if (it == cards.end()) return {std::nullopt, path};
-        return {std::vector<uint8_t>(it->second.begin(), it->second.end()), path};
-    }
-    CardFileRef readCard(const std::string& path) override {
-        if (unreadableCards.count(path)) return {std::nullopt, path, true};
-        auto it = cards.find(path);
-        if (it == cards.end()) return {std::nullopt, path};
-        return {std::vector<uint8_t>(it->second.begin(), it->second.end()), path};
+        if (it == cards.end()) return {};
+        return {std::vector<uint8_t>(it->second.begin(), it->second.end())};
     }
     std::set<std::string> unreadableCards;  ///< paths that are there but can't be read
     cu59::SessionController::TraceLocation traceLocation() override { return {std::filesystem::temp_directory_path(), 1'000'000}; }

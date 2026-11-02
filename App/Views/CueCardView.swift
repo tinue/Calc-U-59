@@ -43,7 +43,7 @@ struct CueCardView: View, Equatable {
                         .frame(height: g.washHeight)
                         .position(x: w / 2, y: g.washHeight / 2)
 
-                    if let side = litCorner, card.template == .magnetCard {
+                    if let side = litCorner {
                         litCardCorner(side, w: w, h: h, g: g)
                     }
                 }

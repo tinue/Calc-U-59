@@ -178,7 +178,7 @@ function CalculatorFace({ engine, width }) {
         );
       })}
       {data && cardFitted && [0, 1].map((side) => {
-        const [, , cw, ch] = data.layout.cardCorner;
+        const [cx, cy, cw, ch] = data.layout.cardCorners[side];
         return (
           <button
             key={`side${side}`}
@@ -188,7 +188,7 @@ function CalculatorFace({ engine, width }) {
             aria-label={`Feed card side ${side + 1}`}
             // A pointer press reaches the face's hit test; this is for assistive technology.
             onClick={(e) => { if (e.detail === 0 && engine) engine.call("feedSide", side); }}
-            style={{ left: (side === 0 ? c[0] : c[0] + c[2] * (1 - cw)) * width, top: c[1] * height,
+            style={{ left: (c[0] + c[2] * cx) * width, top: (c[1] + c[3] * cy) * height,
                      width: c[2] * cw * width, height: c[3] * ch * height }}
           />
         );

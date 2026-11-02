@@ -90,8 +90,8 @@ void KeyboardWidget::mousePressEvent(QMouseEvent* e) {
     if (e->button() != Qt::LeftButton) return;
     setFocus();  // a click on the calculator claims the physical keyboard
     // A press, not a drag across the card, feeds a side of the fitted card.
-    QRectF c = canvasRect();
-    if (m_controller.tapCard((e->position().x() - c.left()) / c.width(), (e->position().y() - c.top()) / c.height())) return;
+    const QPointF n = normalized(e->position());
+    if (m_controller.tapCard(n.x(), n.y())) return;
     pointer(e->position());
 }
 
@@ -103,9 +103,14 @@ void KeyboardWidget::mouseReleaseEvent(QMouseEvent* e) {
     if (e->button() == Qt::LeftButton) apply(m_pointer.up());
 }
 
+QPointF KeyboardWidget::normalized(const QPointF& pos) const {
+    const QRectF c = canvasRect();
+    return {(pos.x() - c.left()) / c.width(), (pos.y() - c.top()) / c.height()};
+}
+
 void KeyboardWidget::pointer(const QPointF& pos) {
-    QRectF c = canvasRect();
-    apply(m_pointer.move((pos.x() - c.left()) / c.width(), (pos.y() - c.top()) / c.height()));
+    const QPointF n = normalized(pos);
+    apply(m_pointer.move(n.x(), n.y()));
 }
 
 void KeyboardWidget::apply(const cu59::PointerTracker::Change& c) {

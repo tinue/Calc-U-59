@@ -22,12 +22,38 @@ constexpr std::string_view kTextMagicV2 = "Calc-U-59 Card 2";
 constexpr std::string_view kBinaryHeader = "Calc-U-59-CRD";
 constexpr std::string_view kEndCard = "END-CARD";
 
+/// Bank 1–4 and the header's page byte (0x10, 0x13, 0x16, 0x19).
+uint8_t pageByteOfBank(int bank) { return static_cast<uint8_t>(0x10 | ((bank - 1) * 3)); }
+int bankOfPageByte(uint8_t pageByte) { return (pageByte & 0x0F) / 3 + 1; }
+
+void appendCueLines(std::vector<std::string>& lines, const CueCardContent& cue) {
+    lines.emplace_back();
+    lines.emplace_back("CUECARD:");
+    for (auto& l : cue.encodeToLines(CueCardTemplate::MagnetCard)) lines.push_back(l);
+}
+
+/// An "R###: …" row's 8 bank bytes; the label is informational only.
+std::optional<std::array<uint8_t, 8>> decodeCardRow(std::string_view line) {
+    if (line[0] != 'R') return std::nullopt;
+    size_t colon = line.find(':');
+    if (colon == std::string_view::npos) return std::nullopt;
+    auto fileBytes = parseRegisterLineHex(trim(line.substr(colon + 1)));
+    if (!fileBytes) return std::nullopt;
+    // Card files reverse the bytes relative to ti58c.mem.
+    std::array<uint8_t, 8> reversed{};
+    std::reverse_copy(fileBytes->begin(), fileBytes->end(), reversed.begin());
+    Nibbles16 nib = decodeRegisterLine(reversed);
+    std::array<uint8_t, 8> bytes{};
+    for (size_t i = 0; i < 8; ++i) bytes[i] = static_cast<uint8_t>((nib[2 * i] << 4) | nib[2 * i + 1]);
+    return bytes;
+}
+
 /// One side's HEADER and DATA as text lines (the same for v1 and v2).
 void appendSideLines(std::vector<std::string>& lines, const std::vector<uint8_t>& data) {
     auto at = [&](size_t i, uint8_t dflt) { return i < data.size() ? data[i] : dflt; };
     uint8_t partition = at(0, 0), dataType = at(1, 0x11), pageByte = at(2, 0x10);
     uint8_t protection = at(3, 0), checksum = at(244, 0);
-    int bankNum = (pageByte & 0x0F) / 3 + 1;
+    int bankNum = bankOfPageByte(pageByte);
 
     lines.emplace_back("HEADER:");
     lines.push_back("Partition: " + hex2(partition));
@@ -88,7 +114,7 @@ struct SideBuilder {
         } else if (key == "bank") {
             auto n = parseDec(val);
             if (!n || *n < 1 || *n > 4) return false;
-            data[2] = static_cast<uint8_t>(0x10 | ((*n - 1) * 3));
+            data[2] = pageByteOfBank(static_cast<int>(*n));
             bank = true;
         } else if (key == "protection") {
             if (val != "yes" && val != "no") return false;
@@ -106,16 +132,10 @@ struct SideBuilder {
     }
 
     bool dataLine(std::string_view line) {
-        if (line[0] != 'R' || rows >= 30) return false;
-        size_t colon = line.find(':');
-        if (colon == std::string_view::npos) return false;
-        auto fileBytes = parseRegisterLineHex(trim(line.substr(colon + 1)));
-        if (!fileBytes) return false;
-        std::array<uint8_t, 8> reversed{};
-        std::reverse_copy(fileBytes->begin(), fileBytes->end(), reversed.begin());
-        Nibbles16 nib = decodeRegisterLine(reversed);
-        for (size_t i = 0; i < 8; ++i)
-            data[4 + rows * 8 + i] = static_cast<uint8_t>((nib[2 * i] << 4) | nib[2 * i + 1]);
+        if (rows >= 30) return false;
+        auto bytes = decodeCardRow(line);
+        if (!bytes) return false;
+        std::copy(bytes->begin(), bytes->end(), data.begin() + static_cast<long>(4 + rows * 8));
         ++rows;
         return true;
     }
@@ -177,8 +197,6 @@ std::optional<CardDocument> parseCardTextV2(const std::vector<std::string_view>&
     if (!ended) return std::nullopt;
     if (hasCue) {
         cue.template_ = CueCardTemplate::MagnetCard;
-        cue.bankLeft.reset();   // v2 has no Banks: the corners come from the sides
-        cue.bankRight.reset();
         doc.cueCard = cue;
     }
     return doc;
@@ -226,7 +244,7 @@ std::optional<CardFileResult> parseCardText(std::string_view text) {
             } else if (key == "bank") {
                 auto n = parseDec(val);
                 if (!n || *n < 1 || *n > 4) return std::nullopt;
-                pageByte = static_cast<uint8_t>(0x10 | ((*n - 1) * 3));
+                pageByte = pageByteOfBank(static_cast<int>(*n));
             } else if (key == "protection") {
                 protection = val == "yes" ? 0x10 : 0x00;
             } else if (key == "checksum") {
@@ -237,21 +255,10 @@ std::optional<CardFileResult> parseCardText(std::string_view text) {
             break;
         }
         case Section::Data: {
-            // R### rows, 30 per bank; the labels are informational only.
-            if (line[0] != 'R') return std::nullopt;
-            size_t colon = line.find(':');
-            if (colon == std::string_view::npos) return std::nullopt;
-            auto fileBytes = parseRegisterLineHex(trim(line.substr(colon + 1)));
-            if (!fileBytes) return std::nullopt;
-            // Card files reverse the bytes relative to ti58c.mem.
-            std::array<uint8_t, 8> reversed{};
-            std::reverse_copy(fileBytes->begin(), fileBytes->end(), reversed.begin());
-            Nibbles16 nib = decodeRegisterLine(reversed);
-            for (size_t i = 0; i < 8; ++i) {
-                size_t idx = row * 8 + i;
-                if (idx >= dataBytes.size()) break;
-                dataBytes[idx] = static_cast<uint8_t>((nib[2 * i] << 4) | nib[2 * i + 1]);
-            }
+            // R### rows, 30 per bank; rows past those are ignored here.
+            auto bytes = decodeCardRow(line);
+            if (!bytes) return std::nullopt;
+            if (row < 30) std::copy(bytes->begin(), bytes->end(), dataBytes.begin() + static_cast<long>(row * 8));
             ++row;
             break;
         }
@@ -277,11 +284,7 @@ std::optional<CardFileResult> parseCardText(std::string_view text) {
 
 std::string encodeCardText(const std::vector<uint8_t>& data, const CueCardContent* cueCard) {
     std::vector<std::string> lines{"Calc-U-59 Card 1.0"};
-    if (cueCard) {
-        lines.emplace_back();
-        lines.emplace_back("CUECARD:");
-        for (auto& l : cueCard->encodeToLines(CueCardTemplate::MagnetCard)) lines.push_back(l);
-    }
+    if (cueCard) appendCueLines(lines, *cueCard);
     lines.emplace_back();
     appendSideLines(lines, data);
     return joinLines(lines);
@@ -294,9 +297,7 @@ std::string encodeCardDocument(const CardDocument& doc) {
         CueCardContent cue = *doc.cueCard;
         cue.bankLeft.reset();
         cue.bankRight.reset();
-        lines.emplace_back();
-        lines.emplace_back("CUECARD:");
-        for (auto& l : cue.encodeToLines(CueCardTemplate::MagnetCard)) lines.push_back(l);
+        appendCueLines(lines, cue);
     }
     for (size_t i = 0; i < doc.sides.size(); ++i) {
         if (!doc.sides[i]) continue;
@@ -310,10 +311,20 @@ std::string encodeCardDocument(const CardDocument& doc) {
 }
 
 std::optional<int> CardDocument::sideBank(int side) const {
-    if (version != 2 || side < 0 || side > 1 || !sides[static_cast<size_t>(side)]) return std::nullopt;
-    const auto& d = *sides[static_cast<size_t>(side)];
-    if (d.size() < 3) return std::nullopt;
-    return (d[2] & 0x0F) / 3 + 1;
+    const auto& d = sides[static_cast<size_t>(side)];
+    if (!d || d->size() < 3) return std::nullopt;
+    return bankOfPageByte((*d)[2]);
+}
+
+std::vector<uint8_t> CardDocument::bank(int side) const {
+    if (version == 1) return singleSide;
+    const auto& d = sides[static_cast<size_t>(side)];
+    return d ? *d : std::vector<uint8_t>{};
+}
+
+void CardDocument::setBank(int side, std::vector<uint8_t> bytes) {
+    if (version == 1) singleSide = std::move(bytes);
+    else sides[static_cast<size_t>(side)] = std::move(bytes);
 }
 
 CueCardContent freshCardCue(const std::string& fileName) {
@@ -348,7 +359,7 @@ std::vector<uint8_t> buildCardBank(const CardDefinition& card, int programRegs) 
     std::vector<uint8_t> d(kCardBankBytes, 0);
     d[0] = static_cast<uint8_t>(0x10 | partition);
     d[1] = static_cast<uint8_t>(0x10 | (partition >= 3 * bank ? 1 : 0));  // bank entirely in program memory
-    d[2] = static_cast<uint8_t>(0x10 | (3 * (bank - 1)));
+    d[2] = pageByteOfBank(bank);
     d[3] = card.protect ? 0x10 : 0x00;
     unsigned sum = (d[0] & 0xF) + (d[1] & 0xF) + (d[2] & 0xF);
     for (int r = 0; r < 30; ++r) {
@@ -371,7 +382,6 @@ CardDecodeResult decodeCardFile(const std::vector<uint8_t>& raw, const std::stri
     };
     std::string_view asText(reinterpret_cast<const char*>(raw.data()), raw.size());
     if (startsWith(asText, kTextMagic) && isValidUtf8(asText)) {
-        r.isText = true;
         if (startsWith(asText, kTextMagicV2)) {
             r.card = parseCardTextV2(splitLines(asText));
         } else if (auto v1 = parseCardText(asText)) {
@@ -399,10 +409,7 @@ CardDecodeResult decodeCardFile(const std::vector<uint8_t>& raw, const std::stri
 }
 
 bool isCardFileName(std::string_view name) {
-    if (name.empty() || name.front() == '.') return false;
-    size_t dot = name.rfind('.');
-    if (dot == std::string_view::npos) return false;
-    std::string ext = toLower(name.substr(dot + 1));
+    const std::string ext = lowerExtension(name);
     return ext == "u59" || ext == "bin";
 }
 

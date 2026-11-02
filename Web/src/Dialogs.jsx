@@ -65,9 +65,8 @@ function CardPicker({ engine, mode, onClose }) {
         <button type="button" onClick={onClose}>Cancel</button>
         {replacing
           ? <button type="button" className="calcu-primary" onClick={fitBlank}>Replace</button>
-          : save
-          ? <button type="button" className="calcu-primary" disabled={!name.trim()} onClick={write}>Fit</button>
-          : <button type="button" className="calcu-primary" disabled={!selected} onClick={() => read(selected)}>Fit</button>}
+          : <button type="button" className="calcu-primary" disabled={save ? !name.trim() : !selected}
+                    onClick={save ? write : () => read(selected)}>Fit</button>}
       </>}
     >
       {replacing && (

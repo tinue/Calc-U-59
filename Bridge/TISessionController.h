@@ -188,6 +188,8 @@ typedef NS_ENUM(NSInteger, TIFreezeOwner) {
 - (void)loadStateFile:(nullable NSData *)raw;
 
 // ── Dropped files ────────────────────────────────────────────────────────────
+/// dropAction: the file's name makes it a preset, or a card this model can fit.
+- (BOOL)acceptsDroppedFile:(NSString *)fileName;
 /// raw nil: the file could not be read. NO: nothing was done.
 - (BOOL)openDroppedFile:(nullable NSData *)raw path:(NSString *)path fileName:(NSString *)fileName;
 

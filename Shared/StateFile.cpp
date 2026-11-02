@@ -163,8 +163,22 @@ std::optional<int> parsePartition(std::string_view rest) {
     return static_cast<int>(rounded - 1);
 }
 
+/// Take a trailing ":1" or ":2" off a card file name. Only trailing digits are a
+/// side, so "A:1.U59" is a name. False if they are not a side, or nothing precedes them.
+bool splitCardSide(std::string_view& name, int& side) {
+    size_t colon = name.rfind(':');
+    if (colon == std::string_view::npos) return true;
+    std::string_view digits = name.substr(colon + 1);
+    if (digits.empty() || !std::all_of(digits.begin(), digits.end(), [](unsigned char c) { return std::isdigit(c); }))
+        return true;
+    if (colon == 0 || (digits != "1" && digits != "2")) return false;
+    side = digits == "2" ? 1 : 0;
+    name = name.substr(0, colon);
+    return true;
+}
+
 /// "ArmCard: <name>[:<side>]" / "InsertCard: …": a memory card, or a card file
-/// name and its side. Only trailing digits are a side, so "A:1.U59" is a name.
+/// name and its side.
 void parseCardDirective(std::string_view line, size_t prefixLength, KeystrokeEvent::Kind kind, LoadStateResult& r) {
     std::string_view name = trim(line.substr(prefixLength));
     std::string_view word = line.substr(0, prefixLength);
@@ -177,19 +191,9 @@ void parseCardDirective(std::string_view line, size_t prefixLength, KeystrokeEve
         return;
     }
     KeystrokeEvent e = simple(kind);
-    if (!isMemoryCardName(name)) {
-        size_t colon = name.rfind(':');
-        if (colon != std::string_view::npos) {
-            std::string_view digits = name.substr(colon + 1);
-            if (!digits.empty() && std::all_of(digits.begin(), digits.end(), [](unsigned char c) { return std::isdigit(c); })) {
-                if (colon == 0 || (digits != "1" && digits != "2")) {
-                    r.errors.push_back(std::string(word) + " card \"" + std::string(name) + "\": the side must be 1 or 2, after the name.");
-                    return;
-                }
-                e.cardSide = digits == "2" ? 1 : 0;
-                name = name.substr(0, colon);
-            }
-        }
+    if (!isMemoryCardName(name) && !splitCardSide(name, e.cardSide)) {
+        r.errors.push_back(std::string(word) + " card \"" + std::string(name) + "\": the side must be 1 or 2, after the name.");
+        return;
     }
     e.cardName = std::string(name);
     r.keystrokes.push_back(e);
@@ -541,10 +545,7 @@ Model stateFileModel(std::string_view text, Model current) {
 }
 
 bool isStateFileName(std::string_view name) {
-    if (name.empty() || name.front() == '.') return false;
-    size_t dot = name.rfind('.');
-    if (dot == std::string_view::npos) return false;
-    std::string ext = toLower(name.substr(dot + 1));
+    const std::string ext = lowerExtension(name);
     return ext == "ti59" || ext == "ti58" || ext == "ti58c";
 }
 

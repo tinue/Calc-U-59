@@ -91,15 +91,15 @@ void EmulatorController::writeConstantMemory(const std::string& text) { writeTex
 
 bool EmulatorController::writeCard(const std::string& path, const std::string& text) { return writeText(qs(path), text); }
 
-EmulatorController::CardFileRef EmulatorController::cardFile(const std::string& fileName) {
-    return readCard((AppPaths::cardDir() + QLatin1Char('/') + qs(fileName)).toStdString());
+std::string EmulatorController::cardFilePath(const std::string& fileName) {
+    return (AppPaths::cardDir() + QLatin1Char('/') + qs(fileName)).toStdString();
 }
 
-EmulatorController::CardFileRef EmulatorController::readCard(const std::string& path) {
-    if (!QFileInfo::exists(qs(path))) return {std::nullopt, path};
+EmulatorController::CardRead EmulatorController::readCard(const std::string& path) {
+    if (!QFileInfo::exists(qs(path))) return {};
     auto raw = readBytes(qs(path));
     const bool unreadable = !raw.has_value();
-    return {std::move(raw), path, unreadable};
+    return {std::move(raw), unreadable};
 }
 
 cu59::SessionController::TraceLocation EmulatorController::traceLocation() {

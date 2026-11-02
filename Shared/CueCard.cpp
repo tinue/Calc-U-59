@@ -349,11 +349,12 @@ CueCardGeometry cueCardGeometry(const CueCardContent& card, double w, double h) 
 }
 
 CardCornerGeometry cardCornerGeometry(int side, double w, double h) {
+    const NRect corner = cardCornerRect(side);
     CardCornerGeometry g{};
-    g.width = w * kCardCornerWidth;
-    g.height = h * kCardCornerHeight;
-    g.x = side == 0 ? 0 : w - g.width;
-    g.y = 0;
+    g.width = w * corner.w;
+    g.height = h * corner.h;
+    g.x = w * corner.x;
+    g.y = h * corner.y;
     g.radius = w * 0.015;
     // The arrows on the MagnetCard art, in fractions of the card.
     static constexpr std::array<CardCornerPoint, 7> kLeft{{{0.1220, 0.1479}, {0.1410, 0.0728}, {0.1410, 0.1033},

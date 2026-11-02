@@ -88,7 +88,7 @@ struct CardPickerView: View {
                         let name = TIFileFormats.withDefaultCardExtension(
                             fileName.trimmingCharacters(in: .whitespacesAndNewlines))
                         let url = directory.appendingPathComponent(name)
-                        if FileManager.default.fileExists(atPath: url.path) {
+                        if CardStorage.cardExists(url) {
                             replacing = url
                         } else {
                             onPick(url)

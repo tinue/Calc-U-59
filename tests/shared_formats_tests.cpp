@@ -239,11 +239,14 @@ TEST(card_without_banks_line_has_blank_badges) {
     CHECK(!back->cueCard->bankRight);
 }
 
+namespace {
+std::vector<uint8_t> asBytes(const std::string& s) { return {s.begin(), s.end()}; }
+}  // namespace
+
 TEST(card_decode_layouts) {
-    auto bytes = [](const std::string& s) { return std::vector<uint8_t>(s.begin(), s.end()); };
     auto legacy = decodeCardFile(std::vector<uint8_t>(984, 7), "x.bin");
     CHECK(legacy.card && legacy.card->version == 1 && legacy.card->singleSide.size() == 984);
-    auto headered = bytes("Calc-U-59-CRD") ;
+    auto headered = asBytes("Calc-U-59-CRD");
     headered.resize(13 + 246, 1);
     auto h = decodeCardFile(headered, "h.u59");
     CHECK(h.card && h.card->version == 1 && h.card->singleSide.size() == 246 && h.card->singleSide[0] == 1);
@@ -252,8 +255,8 @@ TEST(card_decode_layouts) {
              std::string("Card file \"h.u59\" has wrong size (247 bytes after header; expected 246)."));
     CHECK_EQ(decodeCardFile(std::vector<uint8_t>(10), "s.u59").error,
              std::string("Card file \"s.u59\" has unrecognised size (10 bytes)."));
-    auto badText = decodeCardFile(bytes("Calc-U-59 Card 1.0\nHEADER:\n"), "t.u59");
-    CHECK(badText.isText && !badText.card);
+    auto badText = decodeCardFile(asBytes("Calc-U-59 Card 1.0\nHEADER:\n"), "t.u59");
+    CHECK(!badText.card);
     CHECK_EQ(badText.error, std::string("Card file \"t.u59\" could not be parsed."));
 }
 
@@ -264,7 +267,6 @@ std::vector<uint8_t> testBank(int bank) {
     b[0] = 0x1C; b[1] = 0x11; b[2] = static_cast<uint8_t>(0x10 | ((bank - 1) * 3)); b[3] = 0x00; b[245] = b[244];
     return b;
 }
-std::vector<uint8_t> asBytes(const std::string& s) { return {s.begin(), s.end()}; }
 }  // namespace
 
 TEST(card_v2_round_trip) {
@@ -281,7 +283,7 @@ TEST(card_v2_round_trip) {
     CHECK(text.find("Banks") == std::string::npos);
     CHECK(text.find("END-CARD") != std::string::npos);
     auto back = decodeCardFile(asBytes(text), "t.U59");
-    CHECK(back.isText && back.card.has_value());
+    CHECK(back.card.has_value());
     if (!back.card) return;
     CHECK_EQ(back.card->version, 2);
     CHECK(back.card->sides[0] == doc.sides[0]);
@@ -349,10 +351,7 @@ TEST(fresh_card_cue_is_the_file_name) {
 }
 
 TEST(card_directive_reads_a_side) {
-    auto first = [](const std::string& line) {
-        auto r = parseStateFile("KEYSTROKES:\n" + line + "\n");
-        return r;
-    };
+    auto first = [](const std::string& line) { return parseStateFile("KEYSTROKES:\n" + line + "\n"); };
     auto r = first("InsertCard: Diagnose:2");
     CHECK(r.errors.empty());
     CHECK_EQ(r.keystrokes[0].cardName, std::string("Diagnose"));

@@ -99,6 +99,13 @@ inline std::string toLower(std::string_view s) {
     return out;
 }
 
+/// A file name's extension in lower case; empty when it has none or is a hidden file.
+inline std::string lowerExtension(std::string_view name) {
+    size_t dot = name.rfind('.');
+    if (name.empty() || name.front() == '.' || dot == std::string_view::npos) return {};
+    return toLower(name.substr(dot + 1));
+}
+
 /// Swift's Double(String): the whole string must be a strtod-style literal —
 /// decimal with optional exponent, inf/infinity/nan (any case, optional sign)
 /// or a hex float — with no surrounding whitespace. Parsed independently of

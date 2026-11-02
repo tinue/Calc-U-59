@@ -65,15 +65,16 @@ public:
         virtual void writeConstantMemory(const std::string& text) = 0;
         /// A card file the machine wrote (path as given to fitCard / fitBlankCard).
         virtual bool writeCard(const std::string& path, const std::string& text) = 0;
-        /// A card file a preset names (KEYSTROKES ArmCard: / InsertCard:): `fileName`
-        /// in the card folder. `raw` is nullopt if there is no such file; `path`
-        /// is where a card the machine writes goes (writeCard).
-        /// `unreadable`: the file is there but can't be read now (not "missing":
-        /// a blank card must not go in, or a write would replace the file).
-        struct CardFileRef { std::optional<std::vector<uint8_t>> raw; std::string path; bool unreadable = false; };
-        virtual CardFileRef cardFile(const std::string& fileName) = 0;
-        /// The card file at `path` as it is now, read again before a write merges a side into it.
-        virtual CardFileRef readCard(const std::string& path) = 0;
+        /// A card file a preset names (KEYSTROKES ArmCard: / InsertCard:): the
+        /// path of `fileName` in the card folder.
+        virtual std::string cardFilePath(const std::string& fileName) = 0;
+        /// `raw` is nullopt if there is no such file. `unreadable`: the file is
+        /// there but can't be read now (not "missing": a blank card must not go
+        /// in, or a write would replace the file).
+        struct CardRead { std::optional<std::vector<uint8_t>> raw; bool unreadable = false; };
+        /// The card file at `path` as it is now: when a preset names it, and
+        /// again before a write merges a side into it.
+        virtual CardRead readCard(const std::string& path) = 0;
         /// KEYSTROKES DebugPanel:: select that tab of the debugger, as a click
         /// would (the page stays where it is on paged layouts).
         virtual void showDebugPanel(DebugPanel panel) = 0;
@@ -163,7 +164,7 @@ public:
     void cutPaper();
 
     // ── Card reader (reference/SharedArchitecture.md § "Card Reader Flow") ──────
-    CardState cardState() const { return m_cardState; }
+    CardState cardState() const { return m_pass ? CardState::Swiping : CardState::NoCard; }
     const std::string& cardFileName() const { return m_cardFileName; }
     /// Fit a card file into the cutout, replacing the card there (nullopt bytes:
     /// it could not be read). Nothing goes into the reader yet. Written data goes
@@ -250,17 +251,25 @@ private:
     void pullDebugState();
     /// The card in the reader now.
     struct CardPass {
-        bool fitted = false;   ///< a side of m_fitted
-        int side = 0;
-        bool queued = false;   ///< fed by ArmCard: / InsertCard:
+        int side = 0;          ///< of the fitted card
+        bool queued = false;   ///< a fitted card fed by ArmCard: / InsertCard:
         std::optional<std::string> memoryKey;  ///< a mem: card: a written bank goes to m_memoryCards
     };
+    /// No card fitted or in the reader, no cue card, no program shown.
+    void clearCardAndCue();
+    /// A preset's cue card takes over the cutout, from any fitted card.
+    void adoptPresetCue(const std::optional<CueCardContent>& cue);
+    bool canFit() const;
+    void fit(const std::string& path, const std::string& fileName, CardDocument doc, bool fresh);
+    bool feed(int side, bool queued);
+    /// A fitted card, not covered by a module's cue card.
+    bool cardOnShow() const { return m_fitted && m_activeProgram <= 0; }
     /// The machine wrote `written` to a side of the fitted card: merge and save it.
     void writeFittedSide(int side, const std::vector<uint8_t>& written, bool queued);
     /// What the cutout shows for the fitted card: its cue card with the corners' numbers.
     CueCardContent fittedCueCard() const;
     /// Put a bank image (empty: a blank card) into the reader.
-    void startSwipe(const std::vector<uint8_t>& data, const std::string& fileName, const CardPass& pass);
+    void startSwipe(const std::vector<uint8_t>& data, const CardPass& pass);
     /// KEYSTROKES ArmCard: / InsertCard: — feed the next queued card when the machine takes it.
     void feedQueuedCard();
     /// A preset's card has left the reader (or never got in): tell playback if it waits.
@@ -302,18 +311,16 @@ private:
     std::vector<PrinterCodeLine> m_printerCodeLines;
     bool m_printerConnected = true;
 
-    CardState m_cardState = CardState::NoCard;
-    std::string m_cardFileName = "card.U59";
+    std::string m_cardFileName = "card.U59";  ///< the fitted card's, or the last one's in the reader
     /// The card in the cutout, while it is out of its sleeve.
     struct FittedCard {
-        std::string path, fileName;
+        std::string path;
         CardDocument doc;
         bool fresh = false;  ///< no write yet: the first one replaces whatever is at `path`
     };
     std::optional<FittedCard> m_fitted;
     std::optional<CueCardContent> m_presetCue;  ///< the preset's own cue card: goes onto cards it writes
-    CardPass m_pass;
-    bool m_feedingQueuedCard = false;  ///< feedSide is feeding an ArmCard: / InsertCard: card
+    std::optional<CardPass> m_pass;
     /// mem: cards of the loaded preset, by the name after "mem:": the bank
     /// last written to it, and the cue card shown then.
     struct MemoryCard { std::vector<uint8_t> bank; std::optional<CueCardContent> cueCard; };

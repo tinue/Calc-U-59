@@ -155,8 +155,7 @@ function createEngine({ model, module }) {
       post({ type: "loadState", text });
     }),
     /// A file dropped on the calculator; the worker decides what it does.
-    dropFile: (file) => file.arrayBuffer()
-      .then((b) => post({ type: "dropFile", name: file.name, bytes: new Uint8Array(b) })),
+    dropFile: (file) => post({ type: "dropFile", file }),
     setStatus: (status) => set({ status }),
     destroy: () => {
       document.removeEventListener("visibilitychange", onVisibility);

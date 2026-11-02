@@ -360,6 +360,7 @@ class EmulatorViewModel {
     /// while it is fitted, so its security scope stays open until it is replaced or gone.
     @discardableResult
     func openDroppedFile(_ url: URL) -> Bool {
+        guard controller.acceptsDroppedFile(url.lastPathComponent) else { return false }  // don't read it first
         let scoped = url.startAccessingSecurityScopedResource()
         let opened = controller.openDroppedFile(try? Data(contentsOf: url), path: url.path, fileName: url.lastPathComponent)
         if opened && controller.cardFitted {
@@ -526,10 +527,7 @@ final class PlatformForwarder: NSObject, TIPlatform {
     }
 
     func cardFileExists(_ path: String) -> Bool {
-        let url = URL(fileURLWithPath: path)
-        // iOS keeps a file not yet downloaded from iCloud as a hidden ".name.icloud".
-        let placeholder = url.deletingLastPathComponent().appendingPathComponent(".\(url.lastPathComponent).icloud")
-        return FileManager.default.fileExists(atPath: path) || FileManager.default.fileExists(atPath: placeholder.path)
+        CardStorage.cardExists(URL(fileURLWithPath: path))
     }
 
     func writeCard(_ text: String, toPath path: String) -> Bool {

@@ -316,6 +316,7 @@ struct ControllerRig {
     }
     void load(const std::string& text) { c.loadStateFile(std::vector<uint8_t>(text.begin(), text.end())); }
 };
+bool cardIdle(ControllerRig& r) { return r.c.cardState() == SessionController::CardState::NoCard; }
 
 } // namespace
 
@@ -349,7 +350,7 @@ TEST(cooperative_controller_writes_and_reads_a_card) {
     CHECK(r.c.keystrokesPlaying());
     CHECK(r.c.fitBlankCard("web:card", "card.U59"));
     CHECK(r.c.feedSide(0));
-    CHECK(r.runUntil([&] { return r.c.cardState() == SessionController::CardState::NoCard; }));
+    CHECK(r.runUntil([&] { return cardIdle(r); }));
     CHECK(r.runUntil([&] { return !r.c.keystrokesPlaying(); }));
     CHECK_EQ(r.p.cards.count("web:card"), size_t{1});
     r.load("PARTITION: 479\n");  // a fresh machine: no program
@@ -358,7 +359,7 @@ TEST(cooperative_controller_writes_and_reads_a_card) {
     const std::string& card = r.p.cards["web:card"];
     CHECK(r.c.fitCard(std::vector<uint8_t>(card.begin(), card.end()), "web:card", "card.U59"));
     CHECK(r.c.feedSide(0));
-    CHECK(r.runUntil([&] { return r.c.cardState() == SessionController::CardState::NoCard; }));
+    CHECK(r.runUntil([&] { return cardIdle(r); }));
     r.run(1s);
     CHECK_EQ(int(r.c.session()->machine().readProgramStep(1)), 11);
     CHECK(r.p.errors.empty());
@@ -468,7 +469,7 @@ TEST(cooperative_controller_card_file_written_then_inserted) {
     r.load("REGISTERS:\n03 = 0\nKEYSTROKES:\nInsertCard: Results\n");
     CHECK(r.runUntil([&] { return r.c.keystrokesPlaying(); }));
     CHECK(r.runUntil([&] { return !r.c.keystrokesPlaying(); }, 60s));
-    CHECK(r.c.cardState() == SessionController::CardState::NoCard);  // playback waited for the card
+    CHECK(cardIdle(r));  // playback waited for the card
     CHECK_EQ(r.c.session()->machine().readDataReg(3), 7.0);
     CHECK(r.p.errors.empty());
 }
@@ -509,7 +510,7 @@ std::string writtenCard(ControllerRig& r) {
     r.run(2s);
     CHECK(r.c.fitBlankCard("first", "first.U59"));
     CHECK(r.c.feedSide(0));
-    CHECK(r.runUntil([&] { return r.c.cardState() == SessionController::CardState::NoCard; }));
+    CHECK(r.runUntil([&] { return cardIdle(r); }));
     CHECK(r.runUntil([&] { return !r.c.keystrokesPlaying(); }));
     return r.p.cards["first"];
 }
@@ -542,13 +543,13 @@ TEST(dropped_card_is_fitted_and_read_at_idle) {
     CHECK_EQ(int(r.c.session()->machine().readProgramStep(1)), 0);
     CHECK(r.c.openDroppedFile(bytes(card), "dropped", "dropped.U59"));
     CHECK(r.c.cardFitted());
-    CHECK(r.c.cardState() == SessionController::CardState::NoCard);  // not fed until a corner is tapped
+    CHECK(cardIdle(r));  // not fed until a corner is tapped
     r.run(500ms);
     CHECK_EQ(int(r.c.session()->machine().readProgramStep(1)), 0);
     CHECK(r.c.feedSide(0));
     CHECK(r.c.cardState() == SessionController::CardState::Swiping);
     CHECK(r.c.litCardCorner() == 0);
-    CHECK(r.runUntil([&] { return r.c.cardState() == SessionController::CardState::NoCard; }));
+    CHECK(r.runUntil([&] { return cardIdle(r); }));
     r.run(1s);
     CHECK_EQ(int(r.c.session()->machine().readProgramStep(1)), 11);
     CHECK_EQ(r.p.cards.count("dropped"), size_t{0});  // read, not written
@@ -564,7 +565,7 @@ TEST(dropped_card_is_overwritten_after_write) {
     r.p.cards["dropped"] = card;
     CHECK(r.c.openDroppedFile(bytes(card), "dropped", "dropped.U59"));
     CHECK(r.c.feedSide(0));
-    CHECK(r.runUntil([&] { return r.c.cardState() == SessionController::CardState::NoCard; }));
+    CHECK(r.runUntil([&] { return cardIdle(r); }));
     CHECK(r.runUntil([&] { return !r.c.keystrokesPlaying(); }));
     CHECK_EQ(r.p.cards.count("dropped"), size_t{1});
     CHECK(r.p.cards["dropped"] != card);
@@ -574,7 +575,7 @@ TEST(dropped_card_is_overwritten_after_write) {
     const std::string overwritten = r.p.cards["dropped"];
     CHECK(r.c.openDroppedFile(bytes(overwritten), "dropped", "dropped.U59"));
     CHECK(r.c.feedSide(0));
-    CHECK(r.runUntil([&] { return r.c.cardState() == SessionController::CardState::NoCard; }));
+    CHECK(r.runUntil([&] { return cardIdle(r); }));
     r.run(1s);
     CHECK_EQ(int(r.c.session()->machine().readProgramStep(1)), 12);
 }
@@ -586,7 +587,7 @@ TEST(dropped_card_is_ignored_without_a_reader) {
         CHECK(r.c.startMachine(m));
         CHECK(!r.c.openDroppedFile(bytes(card), "dropped", "dropped.U59"));
         r.run(500ms);
-        CHECK(r.c.cardState() == SessionController::CardState::NoCard);
+        CHECK(cardIdle(r));
     }
     CHECK(r.p.errors.empty());
 }
@@ -603,7 +604,6 @@ TEST(dropped_card_replaces_the_fitted_one_but_not_during_a_pass) {
 }
 
 namespace {
-bool cardIdle(ControllerRig& r) { return r.c.cardState() == SessionController::CardState::NoCard; }
 const char* const kTwoWrites = "PROGRAM:\n76 11 01 02 03 91\nKEYSTROKES:\n82 21 91\n83 21 91\n";  // 1 2nd Write; 2 2nd Write
 /// Run a preset's two key-driven writes, feeding `first` then `second` as the ROM waits.
 void feedTwoWrites(ControllerRig& r, int first, int second) {
