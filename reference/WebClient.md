@@ -230,8 +230,8 @@ because with black-translucent WebKit's standalone viewport left it in or
 out from one launch to the next. Its service worker's scope is `app/`. It precaches the shell,
 `calc.js`, `calc.css`, the worker, the engine, the artwork, every model's
 ROM files, every Solid State module and every preset, so the installed app
-does all of it offline after the first launch. `build.js` adds the modules
-(from `roms/solid-state/`) and the presets (from `presets.json`) to the list. A
+does all of it offline after the first launch. `build.js` adds everything in
+`wasm/roms/` and the presets (from `presets.json`) to the list. A
 model switch reads its ROM with a synchronous request from the worker, which the
 service worker answers from the cache. The cache is named
 `calcu59-app <scope> <hash>`: a new build is a new cache, and the old one of

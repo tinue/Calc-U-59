@@ -72,13 +72,9 @@ console.log("compiled calc.js, app/app.js");
 
 // ---- 2. Presets ---------------------------------------------------------
 
-// presets.json names files under examples/; dist/presets/ is flat.
 fs.mkdirSync(path.join(DIST, "presets"), { recursive: true });
-const presets = JSON.parse(read(path.join(WEB, "presets.json"))).map((p) => {
-  const file = path.basename(p.file);
-  fs.copyFileSync(path.join(REPO, "examples", p.file), path.join(DIST, "presets", file));
-  return { ...p, file };
-});
+const presets = JSON.parse(read(path.join(WEB, "presets.json")));
+for (const p of presets) fs.copyFileSync(path.join(REPO, "examples", p.file), path.join(DIST, "presets", p.file));
 fs.writeFileSync(path.join(DIST, "presets", "manifest.json"), JSON.stringify(presets, null, 2) + "\n");
 console.log(`presets: ${presets.map((p) => p.file).join(", ")}`);
 
@@ -87,8 +83,8 @@ console.log(`presets: ${presets.map((p) => p.file).join(", ")}`);
 // Every precached path must exist, or the worker's install fails in the
 // browser — caught here instead. The hash makes a new build a new cache.
 const swFile = path.join(DIST, "app", "sw.js");
-const modules = fs.readdirSync(path.join(REPO, "roms", "solid-state")).filter((f) => /^TMC.*\.txt$/.test(f));
-const generated = [...modules.map((f) => `../wasm/roms/${f}`), ...presets.map((p) => `../presets/${p.file}`)];
+const roms = fs.readdirSync(path.join(DIST, "wasm", "roms"));
+const generated = [...roms.map((f) => `../wasm/roms/${f}`), ...presets.map((p) => `../presets/${p.file}`)];
 const sw = read(swFile).replace("/*__GENERATED_ASSETS__*/", generated.map((a) => JSON.stringify(a)).join(",\n  "));
 const assets = sw.match(/const CORE_ASSETS = \[([\s\S]*?)\];/)[1].match(/"[^"]*"/g).map((s) => JSON.parse(s));
 const swHash = crypto.createHash("sha256");

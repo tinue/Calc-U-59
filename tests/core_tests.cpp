@@ -197,7 +197,7 @@ TEST(reset_routine_reached_by_a_program_clears_the_ram_and_keeps_t) {
         const uint8_t entry[] = {2, 4, 0, 42, 0, 36, 2, 71, 40, 0, 97, 99, 99, 0, 0, 0, 1, 2, 3};
         m->writeProgram(entry, static_cast<int>(sizeof(entry)));
         auto eleven = cu59::encodeBcd("11");
-        m->writeRAMReg(m->ramRegCount() - 1 - 1, eleven.data());  // R01
+        m->writeDataRegister(1, eleven.data());
         for (int key : {62, 32, 25, 81, 91}) testroms::tap(*m, model, key);  // 7 x<>t CLR RST R/S
         m->stepN(100000, false);
         std::vector<uint8_t> ram(1920), zero(1920, 0);

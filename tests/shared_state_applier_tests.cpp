@@ -164,7 +164,7 @@ TEST(soft_reset_keeps_the_ram_and_clean_reset_clears_it) {
         auto m = testroms::makeMachine(model);
         CHECK(testroms::runToScanLoop(*m, model));
         auto eleven = encodeBcd("11");
-        const int regs = model == Model::TI59 ? 120 : 60;
+        const int regs = info(model).hasConstantMemory ? kExtraRegisterBase : m->ramRegCount();
         for (int r = 0; r < regs; ++r) m->writeRAMReg(r, eleven.data());
         std::vector<uint8_t> before(1920), after(1920), zero(1920, 0);
         m->serialiseRAM(before.data());
@@ -178,7 +178,7 @@ TEST(soft_reset_keeps_the_ram_and_clean_reset_clears_it) {
         cleanReset(*m, model);
         CHECK(testroms::runToScanLoop(*m, model));
         m->serialiseRAM(after.data());
-        CHECK(std::equal(after.begin(), after.begin() + 60 * 16, zero.begin()));
+        CHECK(std::equal(after.begin(), after.begin() + regs * 16, zero.begin()));
     }
 }
 

@@ -40,19 +40,7 @@ const CORE_ASSETS = [
 
   "../wasm/ti59-core.js",
   "../wasm/ti59-core.wasm",
-  // startupPlan() in Web/bindings.cpp: each model's ROM and constants
-  "../wasm/roms/TMC0582.txt",
-  "../wasm/roms/TMC0583.txt",
-  "../wasm/roms/TMC0571B.txt",
-  "../wasm/roms/TMC0582-CONST-K.txt",
-  "../wasm/roms/TMC0583-CONST-K.txt",
-  "../wasm/roms/CD2400.txt",
-  "../wasm/roms/CD2401.txt",
-  "../wasm/roms/TMC0573.txt",
-  "../wasm/roms/CD2400-CONST-K.txt",
-  "../wasm/roms/CD2401-CONST-K.txt",
-  "../wasm/roms/cuecards.txt",
-  // Every module image and every preset; Web/build.js fills them in.
+  // Every file in wasm/roms/ and every preset; Web/build.js fills them in.
   /*__GENERATED_ASSETS__*/
 ];
 
@@ -77,21 +65,9 @@ self.addEventListener("activate", (event) => {
 
 // Cache-first: the calculator's own files are versioned by CACHE_NAME
 // above, not by URL, so serving stale-then-network-updating isn't worth the
-// complexity here. Falls back to network for anything not precached, and
-// quietly caches same-origin GETs it fetches along the way.
+// complexity here. Falls back to network for anything not precached.
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
 
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) return cached;
-      return fetch(event.request).then((response) => {
-        if (response.ok && new URL(event.request.url).origin === self.location.origin) {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
-        }
-        return response;
-      });
-    })
-  );
+  event.respondWith(caches.match(event.request).then((cached) => cached || fetch(event.request)));
 });

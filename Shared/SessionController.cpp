@@ -184,12 +184,16 @@ void SessionController::resetMachine() {
     beginReset();
     // The printer's TRACE latch survives a reset, as on the hardware (the core keeps it).
     auto saved = info(m_model).hasConstantMemory ? loadConstantMemory() : std::nullopt;
-    m_session->stop();
-    m_session->sync([&] { softReset(m_session->machine(), m_model, saved ? &*saved : nullptr); });
-    m_session->start();
+    softResetStopped(saved ? &*saved : nullptr);
     m_debug.resetHeatmapBaseline(m_session->machine());
     log({"Calculator Reset"});
     emitChanged(ModelChanged | CardChanged | AsmChanged | HeatmapChanged);
+}
+
+void SessionController::softResetStopped(const std::vector<uint8_t>* savedRam) {
+    m_session->stop();
+    m_session->sync([&] { softReset(m_session->machine(), m_model, savedRam); });
+    m_session->start();
 }
 
 void SessionController::cleanResetMachine() {
@@ -923,9 +927,7 @@ void SessionController::clearAsm() {
     // A running overlay would now execute the empty range: reset the machine.
     if (wasActive && m_session) {
         resume();
-        m_session->stop();
-        m_session->sync([&] { softReset(m_session->machine(), m_model, nullptr); });
-        m_session->start();
+        softResetStopped(nullptr);
     }
     emitChanged(AsmChanged);
 }

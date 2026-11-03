@@ -240,6 +240,7 @@ private:
     void emitChanged(uint32_t c) { if (c) m_platform.changed(c); }
     /// Shared start of both resets: stop playback, unfreeze, drop the overlay, card and cue card.
     void beginReset();
+    void softResetStopped(const std::vector<uint8_t>* savedRam);
     void refreshCueCard();
     void checkProgramNumber();
     void refreshLog();

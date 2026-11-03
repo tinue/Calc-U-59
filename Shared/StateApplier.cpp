@@ -11,6 +11,12 @@ namespace {
 /// stack and display driver once program/data are written.
 constexpr uint32_t kStartupSteps = 300'000;
 
+/// A breakpoint must not cut this short: the routine's RAM clear on the TI-59/58
+/// would then still be ahead, and take what is written into the RAM next.
+void runStartup(TI59Machine& m) {
+    for (uint32_t done = 0; done < kStartupSteps;) done += m.stepN(kStartupSteps - done);
+}
+
 /// Program steps zero-padded to `steps` (at least up to the last listed step).
 /// A full load pads to the model's physical capacity — not the PARTITION
 /// boundary: some listings deliberately load registers as programs and
@@ -55,7 +61,7 @@ void applyState(TI59Machine& m, const LoadStateResult& r, Model model) {
     int partitionMaxStep = (!mi.hasLargeMemory && !r.partitionWasExplicit) ? 239 : r.partitionMaxStep;
 
     m.reset();
-    m.stepN(kStartupSteps);
+    runStartup(m);
     setPartition(m, partitionMaxStep);
 
     // Clear RAM, but keep the TI-58C's extra registers (raw RAM 60–63,
@@ -82,7 +88,7 @@ void applyReload(TI59Machine& m, const ReloadStage& stage, Model model) {
 
 void powerOn(TI59Machine& m, Model model, const std::vector<uint8_t>* savedRam) {
     if (!info(model).hasConstantMemory) return;
-    m.stepN(kStartupSteps);
+    runStartup(m);
     if (savedRam && savedRam->size() >= 120 * 16) m.deserialiseRAM(savedRam->data());
 }
 
@@ -96,7 +102,7 @@ void softReset(TI59Machine& m, Model model, const std::vector<uint8_t>* savedRam
     std::vector<uint8_t> ram(120 * 16);
     m.serialiseRAM(ram.data());
     m.reset();
-    for (uint32_t done = 0; done < kStartupSteps;) done += m.stepN(kStartupSteps - done);
+    runStartup(m);
     m.deserialiseRAM(ram.data());
 }
 
