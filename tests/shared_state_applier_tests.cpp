@@ -2,8 +2,10 @@
 
 #include "TestHarness.hpp"
 #include "TestRoms.hpp"
+#include "../Shared/Bcd.hpp"
 #include "../Shared/DebugSnapshots.hpp"
 #include "../Shared/StateApplier.hpp"
+#include <algorithm>
 #include <filesystem>
 
 using namespace cu59;
@@ -155,6 +157,29 @@ TEST(data_registers_match_the_rom) {
     m->copyRAMReg(63, r63);
     CHECK_EQ(TI59Machine::decodeBCD(r63), 5.0);
     CHECK_EQ(reg(*m, 0), 0.0);  // R00 would be RAM 119: no hardware
+}
+
+TEST(soft_reset_keeps_the_ram_and_clean_reset_clears_it) {
+    for (Model model : {Model::TI59, Model::TI58, Model::TI58C}) {
+        auto m = testroms::makeMachine(model);
+        CHECK(testroms::runToScanLoop(*m, model));
+        auto eleven = encodeBcd("11");
+        const int regs = model == Model::TI59 ? 120 : 60;
+        for (int r = 0; r < regs; ++r) m->writeRAMReg(r, eleven.data());
+        std::vector<uint8_t> before(1920), after(1920), zero(1920, 0);
+        m->serialiseRAM(before.data());
+
+        softReset(*m, model, nullptr);
+        CHECK(testroms::runToScanLoop(*m, model));
+        CHECK_EQ(testroms::displayText(*m), std::string("0"));
+        m->serialiseRAM(after.data());
+        CHECK(after == before);  // register 90, the ROM's size probe, too
+
+        cleanReset(*m, model);
+        CHECK(testroms::runToScanLoop(*m, model));
+        m->serialiseRAM(after.data());
+        CHECK(std::equal(after.begin(), after.begin() + 60 * 16, zero.begin()));
+    }
 }
 
 // A reload is the user keying in changes: only the listed steps and registers.

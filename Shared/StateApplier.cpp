@@ -87,21 +87,24 @@ void powerOn(TI59Machine& m, Model model, const std::vector<uint8_t>* savedRam) 
 }
 
 void softReset(TI59Machine& m, Model model, const std::vector<uint8_t>* savedRam) {
-    m.reset();
     if (info(model).hasConstantMemory) {
+        m.reset();
         if (savedRam && savedRam->size() >= 120 * 16) m.deserialiseRAM(savedRam->data());
         return;
     }
-    // Clear out-of-range registers for the current model.
-    const uint8_t zero[16] = {};
-    int totalRegs = m.ramRegCount();
-    int dataRegCount = std::max(0, totalRegs - m.partitionProgramRegs());
-    for (int reg = dataRegCount; reg < totalRegs; ++reg) m.writeRAMReg(reg, zero);
+    // The ROM's reset routine clears the RAM, so it has to be past that first.
+    std::vector<uint8_t> ram(120 * 16);
+    m.serialiseRAM(ram.data());
+    m.reset();
+    for (uint32_t done = 0; done < kStartupSteps;) done += m.stepN(kStartupSteps - done);
+    m.deserialiseRAM(ram.data());
 }
 
-void cleanReset(TI59Machine& m) {
-    std::vector<uint8_t> zero(120 * 16, 0);
-    m.deserialiseRAM(zero.data());
+void cleanReset(TI59Machine& m, Model model) {
+    if (info(model).hasConstantMemory) {  // its ROM never clears the RAM
+        std::vector<uint8_t> zero(120 * 16, 0);
+        m.deserialiseRAM(zero.data());
+    }
     m.reset();
 }
 

@@ -33,11 +33,13 @@ void applyReload(TI59Machine& m, const ReloadStage& stage, Model model);
 void powerOn(TI59Machine& m, Model model, const std::vector<uint8_t>* savedRam);
 
 /// The Reset button: reset the CPU (the printer's TRACE latch survives, as on
-/// the hardware). TI-58C: restore its constant memory if `savedRam` is given;
-/// other models: clear the registers beyond the current data partition.
+/// the hardware). TI-58C: restore its constant memory if `savedRam` is given.
+/// TI-59/58: save the RAM, run the ROM's reset routine, which clears it, and
+/// restore it. Run on the emulation thread with the run loop stopped.
 void softReset(TI59Machine& m, Model model, const std::vector<uint8_t>* savedRam);
 
-/// Clean reset (all models): zero all RAM, then reset.
-void cleanReset(TI59Machine& m);
+/// Clean reset. TI-59/58: an ordinary reset; the ROM's reset routine clears the
+/// RAM once the machine runs. TI-58C: zero all RAM, then reset.
+void cleanReset(TI59Machine& m, Model model);
 
 } // namespace cu59

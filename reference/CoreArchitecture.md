@@ -296,11 +296,12 @@ defaults are 479.59 (TI-59) and 239.29 (TI-58/58C).
   opposite ends; moving the boundary only changes how a cell is read, and
   moving it back restores the old contents.
 - **Memory-size autodetection.** The hardware has no model identifier. The
-  reset routine (`rom/TI59-commented.asm` `0377`) writes register 90, reads
-  it back and clears it. On the 60-register TI-58 the write is out of range
+  reset routine (`rom/TI59-commented.asm` `0377`) writes register 90 and reads
+  it back. On the 60-register TI-58 the write is out of range
   (`RAM_ADDR < ram.size()` fails) and reads back 0, so the compare at `0390`
   and the branch at `0393` select the 60-register layout. The TI-58 and TI-59
-  reset traces differ only there.
+  reset traces differ only there. It then issues `RAM.OP` op 2, which clears
+  the RAM (§ "Two-Cycle Memory Operations").
 
 ### TI-58C Extra (Constant Memory) Registers
 
@@ -401,10 +402,26 @@ does not drive IO, the bus reads 0 and 0 is written.
 
 ```
 1. RAM.OP → FLG_RAM_OP
-2. ALU    → op := Sout[0] (0 read, 1 write, 2 clear 1, 4 clear 10),
+2. ALU    → op := Sout[0] (0 read, 1 write, 2 clear all, 4 clear 10),
             RAM_ADDR := Sout[3]·10 + Sout[2] (Sout[3] may be hex: registers 100–119)
 3. ALU    → read: RAM[RAM_ADDR] is the operand; write: Sout → RAM[RAM_ADDR]
 ```
+
+**Op 2 clears the whole RAM, whatever the address.** The ROM issues it only in
+the reset routine (`0385`, address 90). A real TI-59 lost all program steps and
+registers and kept t when a program reached that code (fast-mode entry,
+`rom/fastmode.md` § "The LRN entry"). This is an inference from that test, the
+ROM having no other clear at power-on. `TI_58_59-HW-manual.pdf` calls op 2 "clear
+1 RAM register", but that table is itself reverse-engineered, and the ROM never
+shows the difference elsewhere. The TI-58 has the same CPU and RAM chips and is
+assumed to behave the same; there the address is even out of range.
+
+So `reset()` followed by the ROM's boot clears the RAM on the TI-59 and TI-58, as
+switching on does; a clean reset is nothing more. The apps' Reset button, which
+the real calculator doesn't have, keeps the memory from outside the core:
+`softReset` in `Shared/StateApplier.cpp` saves the RAM, runs the boot and
+restores it. The TI-58C's ROM has no `RAM.OP`: its constant memory stays through
+a reset, and its clean reset zeroes the RAM.
 
 ### RAM (TI-58C: `MEMWR` 0x0A76, `MEMRD` 0x0A86)
 

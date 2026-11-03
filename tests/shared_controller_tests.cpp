@@ -2,6 +2,7 @@
 // switches, presets, the TI-58C memory file, freezes, the ASM overlay and
 // the fixes that came with moving them out of the frontends.
 
+#include <algorithm>
 #include "TestHarness.hpp"
 #include "FakePlatform.hpp"
 #include "TestRoms.hpp"
@@ -128,6 +129,26 @@ TEST(controller_model_switch_keeps_printer_and_log_resets_freeze) {
     CHECK(!c.debugState().pcChangeArmed && !c.isFrozen());
     CHECK(c.logText().find("──") != std::string::npos);  // the dump survived the switch
     CHECK(c.cardState() == SessionController::CardState::NoCard);
+}
+
+TEST(controller_reset_keeps_the_memory_and_clean_reset_clears_it) {
+    FakePlatform p;
+    SessionController c(p, testroms::reader(), catalog(), "ML");
+    CHECK(c.startMachine(Model::TI59));
+    CHECK(waitForScanLoop(c));
+    TI59Machine& m = c.session()->machine();
+    const uint8_t marked[16] = {1, 2, 3};
+    uint8_t reg[16];
+    m.writeRAMReg(90, marked);
+    c.resetMachine();
+    CHECK(waitForScanLoop(c));
+    m.copyRAMReg(90, reg);
+    CHECK(std::equal(std::begin(marked), std::end(marked), reg));
+    c.cleanResetMachine();
+    CHECK(pumpUntil(p, [&] {
+        m.copyRAMReg(90, reg);
+        return reg[0] == 0;
+    }));
 }
 
 TEST(controller_rom_failure_keeps_the_running_machine) {

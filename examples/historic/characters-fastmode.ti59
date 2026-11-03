@@ -9,12 +9,16 @@
 # The same table is printed, but ever so siowly. Note also that this program prints the extended print code table.
 # The author of this jewel is K-J Meusch, Koenigsdorf, West Germany.
 
+# The entry clears the whole memory, so the program has to come from a card, as Meusch says. This preset plays
+# the three steps: card, RST R/S, card. Printing starts as the card goes in the second time.
+# A real TI-59 clears the RAM there too (checked by hand; rom/fastmode.md).
+
 # Prepare the magnet card inlay
 CUECARD:
 Template: MagnetCard
 Title: Print Characters
 Banks: 1
-A: R/S after load, then reinsert card
+A: print the table
 
 # This method of fastmode activation requires the master library module to be present
 SOLID-STATE-MODULE: ML
@@ -22,6 +26,8 @@ SOLID-STATE-MODULE: ML
 # Print output requires the printer to be active
 PRINTER: on
 
+CARD: mem:Characters
+Bank: 1
 PROGRAM:
       000  00  0
       001  00  0
@@ -170,3 +176,9 @@ PROGRAM:
       144  61 GTO
       145  00  00
       146  25  25
+END-CARD
+
+KEYSTROKES:
+InsertCard: mem:Characters
+81 91         # RST R/S: fast mode, memory cleared
+InsertCard: mem:Characters

@@ -361,7 +361,7 @@ a call through `m_cpu`. `fmtNibs(d, buf, reverse)` in `TMC0501.cpp` formats
 |---|---|
 | `STO SCOM[NN] = …` | SCOM write (STO / STOF / STOG), nibble 15 first |
 | `MEMWR RAM[NNN] = …` | RAM write (MEMWR or RAM_OP), nibble 0 first |
-| `RAM_OP CLR1 RAM[NNN]` | RAM_OP clear-1 (op 2) |
+| `RAM_OP CLR ALL` | RAM_OP clear all (op 2) |
 | `RAM_OP CLR10 RAM[NNN]` | RAM_OP clear-10 (op 4) |
 
 ---

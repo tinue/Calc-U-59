@@ -15813,153 +15813,10 @@ model TI-59
 END
 STATE examples/historic/characters-fastmode.ti59 479 0
 partition 479 0
-step 0 0
-step 1 0
-step 2 0
-step 3 0
-step 4 0
-step 5 36
-step 6 2
-step 7 71
-step 8 2
-step 9 39
-step 10 9
-step 11 0
-step 12 76
-step 13 11
-step 14 69
-step 15 0
-step 16 22
-step 17 52
-step 18 22
-step 19 57
-step 20 22
-step 21 58
-step 22 1
-step 23 99
-step 24 25
-step 25 98
-step 26 69
-step 27 0
-step 28 93
-step 29 1
-step 30 0
-step 31 1
-step 32 0
-step 33 1
-step 34 0
-step 35 1
-step 36 0
-step 37 1
-step 38 42
-step 39 0
-step 40 6
-step 41 0
-step 42 7
-step 43 0
-step 44 8
-step 45 0
-step 46 9
-step 47 1
-step 48 2
-step 49 69
-step 50 3
-step 51 1
-step 52 0
-step 53 2
-step 54 0
-step 55 3
-step 56 0
-step 57 4
-step 58 0
-step 59 5
-step 60 69
-step 61 2
-step 62 69
-step 63 5
-step 64 65
-step 65 93
-step 66 0
-step 67 1
-step 68 49
-step 69 0
-step 70 95
-step 71 69
-step 72 2
-step 73 69
-step 74 20
-step 75 5
-step 76 0
-step 77 6
-step 78 0
-step 79 7
-step 80 0
-step 81 8
-step 82 0
-step 83 9
-step 84 98
-step 85 69
-step 86 3
-step 87 9
-step 88 42
-step 89 1
-step 90 1
-step 91 0
-step 92 75
-step 93 43
-step 94 1
-step 95 95
-step 96 32
-step 97 1
-step 98 0
-step 99 6
-step 100 42
-step 101 4
-step 102 32
-step 103 61
-step 104 1
-step 105 17
-step 106 97
-step 107 1
-step 108 0
-step 109 90
-step 110 1
-step 111 3
-step 112 5
-step 113 42
-step 114 4
-step 115 1
-step 116 2
-step 117 65
-step 118 4
-step 119 22
-step 120 28
-step 121 95
-step 122 69
-step 123 1
-step 124 69
-step 125 5
-step 126 43
-step 127 0
-step 128 82
-step 129 36
-step 130 82
-step 131 37
-step 132 0
-step 133 83
-step 134 4
-step 135 52
-step 136 22
-step 137 52
-step 138 91
-step 139 0
-step 140 42
-step 141 4
-step 142 69
-step 143 0
-step 144 61
-step 145 0
-step 146 25
+insertCard mem:Characters defined
+key 81
+key 91
+insertCard mem:Characters defined
 cue template MagnetCard
 cue title Print Characters
 cue banks 1 -
@@ -15969,7 +15826,7 @@ cue label1
 cue label2 
 cue label3 
 cue label4 
-cue label5 R/S after load, then reinsert card
+cue label5 print the table
 cue label6 
 cue label7 
 cue label8 
@@ -15985,162 +15842,19 @@ cue color black
 enc Template: MagnetCard
 enc Title: Print Characters
 enc Banks: 1, 
-enc A: R/S after load, then reinsert card
+enc A: print the table
 enc0 Title: Print Characters
-enc0 A: R/S after load, then reinsert card
+enc0 A: print the table
 module ML
 printer 1
 model -
 END
 STATE examples/historic/characters-fastmode.ti59 959 0
 partition 479 0
-step 0 0
-step 1 0
-step 2 0
-step 3 0
-step 4 0
-step 5 36
-step 6 2
-step 7 71
-step 8 2
-step 9 39
-step 10 9
-step 11 0
-step 12 76
-step 13 11
-step 14 69
-step 15 0
-step 16 22
-step 17 52
-step 18 22
-step 19 57
-step 20 22
-step 21 58
-step 22 1
-step 23 99
-step 24 25
-step 25 98
-step 26 69
-step 27 0
-step 28 93
-step 29 1
-step 30 0
-step 31 1
-step 32 0
-step 33 1
-step 34 0
-step 35 1
-step 36 0
-step 37 1
-step 38 42
-step 39 0
-step 40 6
-step 41 0
-step 42 7
-step 43 0
-step 44 8
-step 45 0
-step 46 9
-step 47 1
-step 48 2
-step 49 69
-step 50 3
-step 51 1
-step 52 0
-step 53 2
-step 54 0
-step 55 3
-step 56 0
-step 57 4
-step 58 0
-step 59 5
-step 60 69
-step 61 2
-step 62 69
-step 63 5
-step 64 65
-step 65 93
-step 66 0
-step 67 1
-step 68 49
-step 69 0
-step 70 95
-step 71 69
-step 72 2
-step 73 69
-step 74 20
-step 75 5
-step 76 0
-step 77 6
-step 78 0
-step 79 7
-step 80 0
-step 81 8
-step 82 0
-step 83 9
-step 84 98
-step 85 69
-step 86 3
-step 87 9
-step 88 42
-step 89 1
-step 90 1
-step 91 0
-step 92 75
-step 93 43
-step 94 1
-step 95 95
-step 96 32
-step 97 1
-step 98 0
-step 99 6
-step 100 42
-step 101 4
-step 102 32
-step 103 61
-step 104 1
-step 105 17
-step 106 97
-step 107 1
-step 108 0
-step 109 90
-step 110 1
-step 111 3
-step 112 5
-step 113 42
-step 114 4
-step 115 1
-step 116 2
-step 117 65
-step 118 4
-step 119 22
-step 120 28
-step 121 95
-step 122 69
-step 123 1
-step 124 69
-step 125 5
-step 126 43
-step 127 0
-step 128 82
-step 129 36
-step 130 82
-step 131 37
-step 132 0
-step 133 83
-step 134 4
-step 135 52
-step 136 22
-step 137 52
-step 138 91
-step 139 0
-step 140 42
-step 141 4
-step 142 69
-step 143 0
-step 144 61
-step 145 0
-step 146 25
+insertCard mem:Characters defined
+key 81
+key 91
+insertCard mem:Characters defined
 cue template MagnetCard
 cue title Print Characters
 cue banks 1 -
@@ -16150,7 +15864,7 @@ cue label1
 cue label2 
 cue label3 
 cue label4 
-cue label5 R/S after load, then reinsert card
+cue label5 print the table
 cue label6 
 cue label7 
 cue label8 
@@ -16166,162 +15880,19 @@ cue color black
 enc Template: MagnetCard
 enc Title: Print Characters
 enc Banks: 1, 
-enc A: R/S after load, then reinsert card
+enc A: print the table
 enc0 Title: Print Characters
-enc0 A: R/S after load, then reinsert card
+enc0 A: print the table
 module ML
 printer 1
 model -
 END
 STATE examples/historic/characters-fastmode.ti59 479 1
 partition 479 0
-step 0 0
-step 1 0
-step 2 0
-step 3 0
-step 4 0
-step 5 36
-step 6 2
-step 7 71
-step 8 2
-step 9 39
-step 10 9
-step 11 0
-step 12 76
-step 13 11
-step 14 69
-step 15 0
-step 16 22
-step 17 52
-step 18 22
-step 19 57
-step 20 22
-step 21 58
-step 22 1
-step 23 99
-step 24 25
-step 25 98
-step 26 69
-step 27 0
-step 28 93
-step 29 1
-step 30 0
-step 31 1
-step 32 0
-step 33 1
-step 34 0
-step 35 1
-step 36 0
-step 37 1
-step 38 42
-step 39 0
-step 40 6
-step 41 0
-step 42 7
-step 43 0
-step 44 8
-step 45 0
-step 46 9
-step 47 1
-step 48 2
-step 49 69
-step 50 3
-step 51 1
-step 52 0
-step 53 2
-step 54 0
-step 55 3
-step 56 0
-step 57 4
-step 58 0
-step 59 5
-step 60 69
-step 61 2
-step 62 69
-step 63 5
-step 64 65
-step 65 93
-step 66 0
-step 67 1
-step 68 49
-step 69 0
-step 70 95
-step 71 69
-step 72 2
-step 73 69
-step 74 20
-step 75 5
-step 76 0
-step 77 6
-step 78 0
-step 79 7
-step 80 0
-step 81 8
-step 82 0
-step 83 9
-step 84 98
-step 85 69
-step 86 3
-step 87 9
-step 88 42
-step 89 1
-step 90 1
-step 91 0
-step 92 75
-step 93 43
-step 94 1
-step 95 95
-step 96 32
-step 97 1
-step 98 0
-step 99 6
-step 100 42
-step 101 4
-step 102 32
-step 103 61
-step 104 1
-step 105 17
-step 106 97
-step 107 1
-step 108 0
-step 109 90
-step 110 1
-step 111 3
-step 112 5
-step 113 42
-step 114 4
-step 115 1
-step 116 2
-step 117 65
-step 118 4
-step 119 22
-step 120 28
-step 121 95
-step 122 69
-step 123 1
-step 124 69
-step 125 5
-step 126 43
-step 127 0
-step 128 82
-step 129 36
-step 130 82
-step 131 37
-step 132 0
-step 133 83
-step 134 4
-step 135 52
-step 136 22
-step 137 52
-step 138 91
-step 139 0
-step 140 42
-step 141 4
-step 142 69
-step 143 0
-step 144 61
-step 145 0
-step 146 25
+insertCard mem:Characters defined
+key 81
+key 91
+insertCard mem:Characters defined
 cue template MagnetCard
 cue title Print Characters
 cue banks 1 -
@@ -16331,7 +15902,7 @@ cue label1
 cue label2 
 cue label3 
 cue label4 
-cue label5 R/S after load, then reinsert card
+cue label5 print the table
 cue label6 
 cue label7 
 cue label8 
@@ -16347,9 +15918,9 @@ cue color black
 enc Template: MagnetCard
 enc Title: Print Characters
 enc Banks: 1, 
-enc A: R/S after load, then reinsert card
+enc A: print the table
 enc0 Title: Print Characters
-enc0 A: R/S after load, then reinsert card
+enc0 A: print the table
 module ML
 printer 1
 model -

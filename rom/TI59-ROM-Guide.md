@@ -448,7 +448,13 @@ becomes the source flag, nibbles 4–7 of its image the start step.
 ML-02 step 239 is a byte 31, the LRN keycode. Executed there, it switches on
 LRN mode while the module keeps running, so the module records its own
 keycodes into RAM. One of them then dispatches into the cold-start clear loop
-at `0005`, which writes register A into SCOM[0]: source 4.
+at `0005`. C has low digit 0 here, so the loop runs once and writes register A,
+which holds the program register with steps 008–015, into SCOM[0]: step 009's
+recorded 42 gives source 4. It goes on into the reset routine (`0375`), whose
+`RAM.OP` op 2 at `0385` clears the whole RAM (`reference/CoreArchitecture.md`
+§ "RAM"); checked on a real TI-59. SCOM stays, so t and the HIR registers survive.
+Details and the shifted keycodes from SCOM[0] nibble 9: `rom/fastmode.md` § "The
+LRN entry".
 
 **Dead ends checked:** `HIR 00` would be the direct route, but HIR accepts only
 registers 1–8 (range check at `11C1`). `St flg Ind` with flag numbers above 9
@@ -624,7 +630,9 @@ continuation, and with KR = 0 that is address `0001`: the run falls into
 the cold-start clear (`0001–000E`), which zeroes every SCOM row, and then
 into `POWERON_SETUP`. These are the nine codes marked ✱. They clear the
 display, t, EE and Eng, the AOS levels and HIR registers, the user flags and
-the return stack, then stop at step 000. Program memory stays. On the TI-59
+the return stack, then stop at step 000. The reset routine's `RAM.OP` op 2
+clears program memory and data registers too (seen on a real TI-59 for the
+fast-mode entry, which runs the same code, not for these codes). On the TI-59
 the partition goes back to 479.59 because it lives in SCOM (719.29 before
 in the sweep); the TI-58C keeps its partition. A fragment that returns
 through SR ends as a key would, in `KEY_OP_ENTRY` (`0141`) with whatever op

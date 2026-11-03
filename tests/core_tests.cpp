@@ -6,6 +6,7 @@
 #include "TestRoms.hpp"
 #include "../Shared/Bcd.hpp"
 
+#include <algorithm>
 #include <vector>
 
 using cu59::Model;
@@ -184,6 +185,41 @@ TEST(ti58c_ram_round_trip) {
     std::vector<uint8_t> c(1920);
     m->serialiseRAM(c.data());
     CHECK(a == c);
+}
+
+// The fast-mode entry of CHIP 10/1980 (Neef): LRN in the module falls into the
+// reset routine, whose RAM.OP op 2 clears the whole RAM. Checked on a real TI-59:
+// program and registers gone, t still there.
+TEST(reset_routine_reached_by_a_program_clears_the_ram_and_keeps_t) {
+    for (Model model : {Model::TI59, Model::TI58}) {
+        auto m = testroms::makeMachine(model);
+        testroms::runToScanLoop(*m, model);
+        const uint8_t entry[] = {2, 4, 0, 42, 0, 36, 2, 71, 40, 0, 97, 99, 99, 0, 0, 0, 1, 2, 3};
+        m->writeProgram(entry, static_cast<int>(sizeof(entry)));
+        auto eleven = cu59::encodeBcd("11");
+        m->writeRAMReg(m->ramRegCount() - 1 - 1, eleven.data());  // R01
+        for (int key : {62, 32, 25, 81, 91}) testroms::tap(*m, model, key);  // 7 x<>t CLR RST R/S
+        m->stepN(100000, false);
+        std::vector<uint8_t> ram(1920), zero(1920, 0);
+        m->serialiseRAM(ram.data());
+        CHECK(ram == zero);
+        for (int key : {81, 32}) testroms::tap(*m, model, key);  // RST x<>t
+        CHECK_EQ(testroms::displayText(*m), std::string("7"));
+    }
+}
+
+TEST(reset_routine_clears_the_ram_except_on_the_ti58c) {
+    for (Model model : {Model::TI59, Model::TI58, Model::TI58C}) {
+        auto m = testroms::makeMachine(model);
+        testroms::runToScanLoop(*m, model);
+        auto eleven = cu59::encodeBcd("11");
+        m->writeRAMReg(5, eleven.data());
+        m->reset();
+        testroms::runToScanLoop(*m, model);
+        uint8_t reg[16];
+        m->copyRAMReg(5, reg);
+        CHECK_EQ(std::equal(eleven.begin(), eleven.end(), reg), model == Model::TI58C);
+    }
 }
 
 TEST(card_insert_and_eject) {

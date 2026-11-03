@@ -1203,7 +1203,10 @@
 0383: 02F0  A=R5 DPT           ; A = 9002 → reg 90, op 2 (clear)
 0384: 0CF6  D=R5 MAEX
 0385: 0AF8  RAM.OP
-0386: 0101  IO=A ALL           ; clear register 90 again now the probe is done
+0386: 0101  IO=A ALL           ; op 2: clears the WHOLE RAM, whatever the address. This is the
+                               ;   only op 2 in the ROM, and why memory is empty after power-on.
+                               ;   Seen on a real TI-59 when a program reaches this code (fast-mode
+                               ;   entry Pgm 02 SBR 239): RAM gone, SCOM kept. See CoreArchitecture.md.
 ; Build the memory descriptors for the small (TI-58) configuration, then
 ; double them if the probe found RAM at register 90 (trace-confirmed, TI-59
 ; and TI-58 headless runs):
@@ -5175,7 +5178,9 @@
 0F91: 06F6  D=R5 EXP
 0F92: 0133  B=D ALL           ; B := new keycode
 0F93: 0A1F  RCLF              ; SCOM[0] (bus zero → row 0) …
-0F94: 09D0  A=LOAD MANT       ; … step counter: register number nibbles 5–7, byte nibble 4
+0F94: 09D0  A=LOAD MANT       ; … step counter: register number nibbles 5–7, byte nibble 4. A takes
+                              ;   the higher nibbles too: a non-zero nibble 9 ends up in the keycode's
+                              ;   tens digit at 0B1D (fast-mode entry with Dsz 99 Prt, rom/fastmode.md)
 0F95: 0948  A=SRA MANT
 0F96: 0948  A=SRA MANT
 0F97: 0A18  MOV KR[4..7],R5   ; KR[4..7] := byte position 0–7
@@ -5229,7 +5234,7 @@
 ; Fix), the module security nibble in SCOM[9], and all PROGRAM registers;
 ; inside a running program only t. (In LRN mode CP is recorded as step 29.)
 ; The clearing uses the RAM chips' own block operation: RAM.OP op 4 clears
-; ten registers at once, op 2 one register (0FED–0FF3, 1355–1363).
+; ten registers at once (0FED–0FF3, 1355–1363).
 ; ═══════════════════════════════════════════════════════════════════════════
 0FC0: 01D7  A<>E ALL
 0FC1: 0080  TST fA[8]         ; CP?
@@ -5279,7 +5284,7 @@
 0FEA: 0C8C  C=A-B MAEX
 0FEB: 0CD8  A=0 MAEX
 0FEC: 1EB7  JC 0C91
-0FED: 0C64  C=SLC MAEX        ; clear loop: RAM.OP with op 4 (10 registers) / op 2 (1) …
+0FED: 0C64  C=SLC MAEX        ; clear loop: RAM.OP with op 4 (10 registers) …
 0FEE: 0AF8  RAM.OP
 0FEF: 01A1  IO=C+D ALL
 0FF0: 0308  A=A-1 DPT1

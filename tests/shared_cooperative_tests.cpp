@@ -474,6 +474,16 @@ TEST(cooperative_controller_card_file_written_then_inserted) {
     CHECK(r.p.errors.empty());
 }
 
+// Meusch's recipe (TI PPC Notes V5N9-10): card, RST R/S, card. The entry clears the
+// RAM, so the table can only print if the second reading brought the program back.
+TEST(cooperative_controller_fast_mode_entry_then_card_prints_the_table) {
+    ControllerRig r;
+    r.load(testroms::readFile("examples/historic/characters-fastmode.ti59").value());
+    CHECK(r.runUntil([&] { return r.c.printerLines().size() >= 8; }, 120s));
+    CHECK(r.p.errors.empty());
+    CHECK(r.c.session()->machine().readProgramStep(5) == 36);  // from the card, not the load
+}
+
 TEST(cooperative_controller_unused_card_is_logged_on_the_next_load) {
     ControllerRig r;
     r.load("KEYSTROKES:\nArmCard: mem:Never\n");
