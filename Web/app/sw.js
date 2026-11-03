@@ -1,9 +1,8 @@
 // Service worker for the standalone Calc-U 59 app (scope: this directory).
 // Precaches the app shell plus everything the calculator needs to run all
 // three models offline — the WASM engine, every model's ROM and constants,
-// the artwork, module 01 (Master Library, the default module), the fonts and
-// scripts — so the installed app opens and runs fully offline after the
-// first launch. Another module needs the network once (it is then cached).
+// the artwork, every Solid State module, the presets, the fonts and scripts —
+// so the installed app opens and runs fully offline after the first launch.
 //
 // Every path is relative to this script, so the app works wherever the
 // client is hosted. Web/build.js checks that each one exists in dist/ and
@@ -53,7 +52,8 @@ const CORE_ASSETS = [
   "../wasm/roms/CD2400-CONST-K.txt",
   "../wasm/roms/CD2401-CONST-K.txt",
   "../wasm/roms/cuecards.txt",
-  "../wasm/roms/TMC0541.txt",
+  // Every module image and every preset; Web/build.js fills them in.
+  /*__GENERATED_ASSETS__*/
 ];
 
 self.addEventListener("install", (event) => {

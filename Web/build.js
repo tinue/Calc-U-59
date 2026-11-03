@@ -87,7 +87,9 @@ console.log(`presets: ${presets.map((p) => p.file).join(", ")}`);
 // Every precached path must exist, or the worker's install fails in the
 // browser — caught here instead. The hash makes a new build a new cache.
 const swFile = path.join(DIST, "app", "sw.js");
-const sw = read(swFile);
+const modules = fs.readdirSync(path.join(REPO, "roms", "solid-state")).filter((f) => /^TMC.*\.txt$/.test(f));
+const generated = [...modules.map((f) => `../wasm/roms/${f}`), ...presets.map((p) => `../presets/${p.file}`)];
+const sw = read(swFile).replace("/*__GENERATED_ASSETS__*/", generated.map((a) => JSON.stringify(a)).join(",\n  "));
 const assets = sw.match(/const CORE_ASSETS = \[([\s\S]*?)\];/)[1].match(/"[^"]*"/g).map((s) => JSON.parse(s));
 const swHash = crypto.createHash("sha256");
 for (const a of assets) {

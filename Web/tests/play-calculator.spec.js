@@ -407,3 +407,25 @@ test('the standalone app is portrait and precaches all three models', async ({ p
     expect(cached).toContain(new URL(f, page.url()).href);
   }
 });
+
+test('the installed app loads any module and any preset offline', async ({ page, context }) => {
+  await page.goto('app/');
+  await expect(page.locator('.calcu-key')).toHaveCount(45, { timeout: 15000 });
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  await page.reload();  // now under the service worker
+  await expect(page.locator('.calcu-key')).toHaveCount(45, { timeout: 15000 });
+  await context.setOffline(true);
+
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await page.getByLabel('Solid State Module').selectOption({ label: 'Applied Statistics' });
+  await page.getByRole('button', { name: 'Done' }).click();
+  await page.waitForTimeout(1000);
+  // A module whose image can't be read is not selected: the dialog would still show ML.
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await expect(page.getByLabel('Solid State Module')).toHaveValue('ST');
+  await page.getByRole('button', { name: 'Done' }).click();
+
+  await page.getByRole('button', { name: 'Preset' }).click();
+  await page.getByRole('button', { name: /Sum of N numbers/ }).click();
+  await expect(page.locator('.cuecard')).toHaveAttribute('aria-label', /Sum 1\.\.N/, { timeout: 5000 });
+});
