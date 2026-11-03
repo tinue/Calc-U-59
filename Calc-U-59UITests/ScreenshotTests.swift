@@ -221,7 +221,7 @@ final class ScreenshotTests: XCTestCase {
     ///   2. Switch to CPU tab
     ///   3. Arm FREEZE ON START (CPU pane)
     ///   4. Navigate right to calculator
-    ///   5. Tap Reset — freeze fires on first PC change
+    ///   5. Long-press Reset (clean reset) — freeze fires on first PC change
     ///   6. Navigate left to debugger
     ///   7. Single-step 5 times
     ///   8. Capture screenshot
@@ -249,10 +249,11 @@ final class ScreenshotTests: XCTestCase {
         XCTAssertTrue(right.waitForExistence(timeout: 3), "btn-page-right not found")
         right.tap()
 
-        // Step 5: tap Reset — FREEZE ON START fires on first PC change
+        // Step 5: clean reset (long press). FREEZE ON START fires on its first PC
+        // change; a plain Reset runs the routine out of sight, to keep the memory.
         let resetButton = app.buttons["btn-reset"]
         XCTAssertTrue(resetButton.waitForExistence(timeout: 3), "btn-reset not found")
-        resetButton.tap()
+        resetButton.press(forDuration: 1.5)
 
         // Step 6: navigate back to debugger
         XCTAssertTrue(left.waitForExistence(timeout: 3), "btn-page-left not found")
