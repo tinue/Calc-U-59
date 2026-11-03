@@ -63,9 +63,10 @@ and published such bugs.
 
 - The display is frozen, and R/S cannot stop the program.
 - Errors never stop the program, and nothing is traced.
-- INV SBR with nothing to return to does not stop the program, and fast mode
-  stays on. Neef (CHIP 10/1980) says RTN ends fast mode; that is not yet
-  checked on a real calculator.
+- RTN in a program started with a keyboard SBR does not stop the program, and
+  fast mode stays on. Neef (CHIP 10/1980) says RTN ends fast mode, but a real
+  TI-59 behaves as the emulator does here (`SBR 042` over `5 RTN 6 R/S` shows 6,
+  and `=` then runs on). Other ways of starting the program were not tried.
 
 **Ending the program.** This is where most fast-mode programs go wrong. The
 program must end with RST or R/S, and at that moment X must be 0, a number
@@ -109,10 +110,11 @@ Neef's list, checked on the emulator):
   shifted ("Why keycodes can come out shifted").
 
 **Cards.** `n Write` and `n INV Write` in a fast-mode program work and stay in
-fast mode. A card read at a stop makes the program go on at the current step, as
-Neef says, but the rest of the current 8-step block runs from the old buffer
-("Why the program starts at step 008"). Read this as an inference from our runs:
-the display shows the program's result instead of the bank number.
+fast mode. A card read at a stop makes the program go on, as Neef says: on a real
+TI-59 and on the emulator, a card with `CLR R/S` at step 040 leaves 0 on the
+display instead of the bank number. In our emulator runs, the rest of the current
+8-step block ran from the old buffer ("Why the program starts at step 008"); that
+part is an inference.
 
 ## Ways in
 
@@ -295,5 +297,7 @@ module program:
   K-J Meusch in TI PPC Notes V5N9-10.
 - **Limits.** Unless a paragraph says otherwise, everything was observed on the
   emulator, not on a real TI-59. The real calculator was checked for the memory
-  clear and the keycode shift of the LRN entry. Op 09 was not tested, and no
+  clear and the keycode shift of the LRN entry, for RTN after a keyboard SBR,
+  for the program going on after a card read, and for `=` resuming a stopped
+  program. Op 09 was not tested, and no
   TI-58 was available: the LRN entry on it is assumed to behave the same.
