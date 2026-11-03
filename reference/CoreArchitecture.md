@@ -420,8 +420,11 @@ So `reset()` followed by the ROM's boot clears the RAM on the TI-59 and TI-58, a
 switching on does; a clean reset is nothing more. The apps' Reset button, which
 the real calculator doesn't have, keeps the memory from outside the core:
 `softReset` in `Shared/StateApplier.cpp` saves the RAM, runs the boot and
-restores it. The TI-58C's ROM has no `RAM.OP`: its constant memory stays through
-a reset, and its clean reset zeroes the RAM.
+restores it. That boot runs with the run loop stopped, so on these two models CPU
+FREEZE ON START and a trace see the reset routine only on a clean reset (freeze
+checked in the app and by `tests/shared_controller_tests.cpp`). The TI-58C's ROM
+has no `RAM.OP`: its constant memory stays through a reset, and its clean reset
+zeroes the RAM.
 
 ### RAM (TI-58C: `MEMWR` 0x0A76, `MEMRD` 0x0A86)
 
