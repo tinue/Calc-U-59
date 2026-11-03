@@ -59,6 +59,8 @@ let dest = URL(fileURLWithPath: "/Users/me/Desktop/my-screenshot.png")
 try png.write(to: dest)
 ```
 
+**Exception:** since Xcode 27 `XCUIScreen` hands back landscape shots as portrait pixels with a rotation tag, a pixel short on the open iPhone Duo. `ScreenshotTests` therefore asks `bin/run-screenshots` to take landscape shots with `simctl io … screenshot` (request file `/tmp/calc-u-59-screenshot-request`).
+
 **Note:** Device bezels only appear in screenshots taken via the simulator's camera button. `XCUIScreen.main.screenshot()` captures app pixels only — bezels are never included.
 
 ### Writing screenshots to the Mac filesystem

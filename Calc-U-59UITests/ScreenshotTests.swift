@@ -8,8 +8,8 @@ import XCTest
 ///     -testPlan Screenshots \
 ///     -destination "platform=iOS Simulator,name=iPad Pro 13-inch (M5)"
 ///
-/// For iPad screenshots rotate the simulator to landscape before running.
-/// saveScreenshot(fallbackName:) writes the PNG in the device orientation.
+/// Landscape shots run through bin/run-screenshots are taken by that script;
+/// see saveScreenshot(fallbackName:).
 #if !os(macOS)
 final class ScreenshotTests: XCTestCase {
 
@@ -63,8 +63,10 @@ final class ScreenshotTests: XCTestCase {
     ///
     /// Since Xcode 27 (Device Hub), XCUIScreen hands back landscape shots in
     /// portrait pixel order, tagged with the orientation that turns them
-    /// upright (.left on the iPad, .right on the open iPhone Duo). Drawing the
-    /// image applies that tag; an untagged shot is written as is.
+    /// upright (.left on the iPad, .right on the open iPhone Duo), and the open
+    /// Duo's come out a pixel short of the size App Store Connect wants. So
+    /// bin/run-screenshots takes those shots with simctl; run straight from
+    /// Xcode, the tagged shot is written as is.
     private func saveScreenshot(fallbackName: String) throws {
         let dest = URL(fileURLWithPath: "\(screenshotDir)/\(screenshotName ?? "\(fallbackName)-\(UIDevice.current.name)").png")
         // The largest screen: XCUIScreen.main is the iPhone Duo's outer
@@ -72,18 +74,25 @@ final class ScreenshotTests: XCTestCase {
         let shot = XCUIScreen.screens.map { $0.screenshot() }.max {
             $0.image.size.width * $0.image.size.height < $1.image.size.width * $1.image.size.height
         } ?? XCUIScreen.main.screenshot()
-        let image = shot.image
-        guard image.imageOrientation != .up else {
+        if shot.image.imageOrientation != .up, screenshotName != nil {
+            waitForScriptCapture()
+        } else {
             try shot.pngRepresentation.write(to: dest)
-            return
         }
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = 1
-        let size = CGSize(width: image.size.width * image.scale, height: image.size.height * image.scale)
-        let png = UIGraphicsImageRenderer(size: size, format: format).pngData { _ in
-            image.draw(in: CGRect(origin: .zero, size: size))
+    }
+
+    /// Ask bin/run-screenshots to take the shot, holding the screen as it is
+    /// until the script has removed the request file.
+    private func waitForScriptCapture() {
+        let request = "/tmp/calc-u-59-screenshot-request"
+        XCTAssertTrue(FileManager.default.createFile(atPath: request, contents: nil),
+                      "could not create \(request)")
+        let deadline = Date().addingTimeInterval(60)
+        while FileManager.default.fileExists(atPath: request), Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.25)
         }
-        try png.write(to: dest)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: request),
+                       "bin/run-screenshots did not take the screenshot")
     }
 
     // MARK: - Screenshots
