@@ -12,6 +12,41 @@ namespace cu59 {
 /// Base font size of both panels by their width: compact / normal / large.
 int debugPanelFontSize(double width);
 
+/// iOS window layouts (the Swift app on iPhone and iPad).
+enum class MobileLayout {
+    Paged,               ///< one page at a time: calculator, printer, debugger (if enabled)
+    CalcPrinter,         ///< side by side, no room for the debugger (iPhone in landscape)
+    CalcPrinterDebugger, ///< all three side by side (iPad, open iPhone Duo)
+};
+
+/// The layout for a window of width × height points. Taller-than-wide windows
+/// page; so does a wide one split by a horizontal fold (iPhone Duo half open,
+/// "laptop" pose), as its upper half alone is too short. A wide window takes
+/// the debugger when it is tall enough to set the three panels side by side
+/// (calculator face about 340 pt wide at the Duo's height, printer at least
+/// 290, debugger 220). The size is the safe area: iPhone Duo open is 951 ×
+/// 669 pt less its status-bar column and home indicator, the widest plain
+/// iPhone in landscape about 830 × 420 pt.
+MobileLayout mobileLayout(double width, double height, bool horizontalFold);
+
+/// Width range (points) of the printer column in a side-by-side layout. Beside
+/// the debugger in a window under 1100 pt (iPhone Duo) the tape is narrow and
+/// its print scales down, so the debugger keeps room for its button rows;
+/// otherwise (iPad, iPhone landscape) 290–360 pt.
+struct WidthRange {
+    double min, max;
+};
+WidthRange mobilePrinterWidth(MobileLayout layout, double width);
+/// The printer's button bar goes compact (short labels, tighter buttons) on a
+/// tape narrower than the wide range above: the one beside the debugger.
+bool compactPrinterBar(double printerWidth);
+
+/// Space (points) above a side-by-side layout. A window with no top inset
+/// (iPhone Duo open, iOS 27.1 simulator) doesn't deliver touches in its top
+/// ~30 pt — measured: controls centred at y ≤ 29 dead, ≥ 35 working — so the
+/// tabs and printer header keep clear of it.
+double mobileTopMargin(double topInset);
+
 /// "Steps: 480, Registers: 60 (479.59)" — "(479.)" when no data registers.
 std::string partitionLine(int programRegCount, int dataRegCount);
 

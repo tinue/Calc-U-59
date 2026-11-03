@@ -210,8 +210,8 @@ test('Settings: startup model and module are kept', async ({ page }) => {
 test('a bundled preset shows its own cue card', async ({ page }) => {
   await gotoReady(page);
   await page.getByRole('button', { name: 'Preset' }).click();
-  await page.getByRole('button', { name: /Base conversion/ }).click();
-  await expect(page.locator('.cuecard')).toHaveAttribute('aria-label', /Base Conversion/, { timeout: 5000 });
+  await page.getByRole('button', { name: /Sum of N numbers/ }).click();
+  await expect(page.locator('.cuecard')).toHaveAttribute('aria-label', /Sum 1\.\.N/, { timeout: 5000 });
 });
 
 test('an uploaded preset loads its program', async ({ page }) => {
@@ -226,13 +226,7 @@ test('a preset dropped on the calculator loads', async ({ page }) => {
   await gotoReady(page);
   const expected = await showing(page, ['1', '2', '3']);
   await pressKey(page, 'CLR');
-  const dt = await page.evaluateHandle((text) => {
-    const d = new DataTransfer();
-    d.items.add(new File([text], 'drop.ti59'));
-    return d;
-  }, PROGRAM_123);
-  await page.locator('.calcu-face').dispatchEvent('dragover', { dataTransfer: dt });
-  await page.locator('.calcu-face').dispatchEvent('drop', { dataTransfer: dt });
+  await dropFile(page, 'drop.ti59', PROGRAM_123);
   await page.waitForTimeout(800);
   await pressKey(page, 'A');
   expect(await settledLed(page)).toBe(expected);
@@ -240,17 +234,80 @@ test('a preset dropped on the calculator loads', async ({ page }) => {
 
 // ── Magnetic cards (session folder) ──────────────────────────────────────
 
+async function dropFile(page, name, text) {
+  const dt = await page.evaluateHandle(([n, t]) => {
+    const d = new DataTransfer();
+    d.items.add(new File([t], n));
+    return d;
+  }, [name, text]);
+  await page.locator('.calcu-face').dispatchEvent('dragover', { dataTransfer: dt });
+  await page.locator('.calcu-face').dispatchEvent('drop', { dataTransfer: dt });
+}
+
+/// Writes PROGRAM_123 to a blank session card and returns the card's text.
+async function writtenCardText(page) {
+  await uploadPreset(page, PROGRAM_123 + 'KEYSTROKES:\n25 82 21 91\n');
+  await page.waitForTimeout(1000);
+  await page.getByRole('button', { name: 'Crd' }).nth(1).click();
+  await page.getByLabel('Card name').fill('prog');
+  await page.getByRole('button', { name: 'Fit', exact: true }).click();
+  await page.getByRole('button', { name: 'Feed card side 1' }).click();
+  await expect(page.getByRole('button', { name: 'Eject Card' })).toHaveCount(0, { timeout: 15000 });
+  await page.getByRole('button', { name: 'Crd' }).first().click();
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download prog.U59' }).click();
+  const stream = await (await download).createReadStream();
+  const chunks = [];
+  for await (const c of stream) chunks.push(c);
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  return Buffer.concat(chunks).toString();
+}
+
+test('a card dropped on the TI-59 is fitted, and read when a corner is pressed', async ({ page }) => {
+  await gotoReady(page);
+  const expected = await showing(page, ['1', '2', '3']);
+  await pressKey(page, 'CLR');
+  const card = await writtenCardText(page);
+  await uploadPreset(page, 'PARTITION: 479\n');  // a fresh machine: no program
+  await dropFile(page, 'dropped.U59', card);
+  await page.getByRole('button', { name: 'Feed card side 1' }).click();
+  await expect(page.getByRole('button', { name: 'Eject Card' })).toHaveCount(0, { timeout: 15000 });
+  await page.waitForTimeout(3000);
+  await pressKey(page, 'CLR');
+  await pressKey(page, 'A');
+  expect(await settledLed(page)).toBe(expected);
+});
+
+test('a card dropped on the TI-58 is ignored', async ({ page }) => {
+  await gotoReady(page);
+  const card = await writtenCardText(page);
+  await page.getByLabel('Calculator model').selectOption({ label: 'TI-58' });
+  await page.waitForTimeout(600);
+  await dropFile(page, 'dropped.U59', card);
+  await page.waitForTimeout(600);
+  await expect(page.locator('.calcu-status')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Eject Card' })).toHaveCount(0);
+});
+
+test('a dropped file that is neither preset nor card is refused', async ({ page }) => {
+  await gotoReady(page);
+  await dropFile(page, 'notes.txt', 'hello');
+  await expect(page.locator('.calcu-status')).toContainText('notes.txt: not a');
+});
+
 test('a blank card is written, listed, and read back', async ({ page }) => {
   await gotoReady(page);
   await uploadPreset(page, PROGRAM_123);
   const expected = await (async () => { await pressKey(page, 'A'); return settledLed(page); })();
 
-  await pressKey(page, 'CLR');  // the program stopped mid-entry: a digit would extend 123
-  await uploadPreset(page, 'SKIP-RESET: on\nKEYSTROKES:\n82 21 91\n');  // 1 2nd Write: waits for a card
+  // The same program again, then CLR 1 2nd Write: waits for a card.
+  await uploadPreset(page, PROGRAM_123 + 'KEYSTROKES:\n25 82 21 91\n');
   await page.waitForTimeout(1000);
   await page.getByRole('button', { name: 'Crd' }).nth(1).click();  // a blank card passes: written
   await page.getByLabel('Card name').fill('prog');
-  await page.getByRole('button', { name: 'Save' }).click();
+  await page.getByRole('button', { name: 'Fit', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Eject Card' })).toHaveCount(0);  // fitted, not fed
+  await page.getByRole('button', { name: 'Feed card side 1' }).click();
   // In the reader until the write is done, then ejected (and saved).
   await expect(page.getByRole('button', { name: 'Eject Card' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Eject Card' })).toHaveCount(0, { timeout: 15000 });
@@ -258,11 +315,26 @@ test('a blank card is written, listed, and read back', async ({ page }) => {
   await uploadPreset(page, 'PARTITION: 479\n');  // a fresh machine: no program
   await page.getByRole('button', { name: 'Crd' }).first().click();  // read
   await page.getByRole('button', { name: 'prog.U59', exact: true }).click();
-  await page.getByRole('button', { name: 'Read', exact: true }).click();
+  await page.getByRole('button', { name: 'Fit', exact: true }).click();
+  await page.getByRole('button', { name: 'Feed card side 1' }).click();
   await page.waitForTimeout(3000);
   await pressKey(page, 'CLR');
   await pressKey(page, 'A');
   expect(await settledLed(page)).toBe(expected);
+});
+
+test('the fresh card has its file name as title, and an existing name asks first', async ({ page }) => {
+  await gotoReady(page);
+  await writtenCardText(page);  // prog.U59 exists now
+  await page.getByRole('button', { name: 'Crd' }).nth(1).click();
+  await page.getByLabel('Card name').fill('prog');
+  await page.getByRole('button', { name: 'Fit', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('Replace card prog.U59?');
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  await page.getByRole('button', { name: 'Crd' }).nth(1).click();
+  await page.getByLabel('Card name').fill('Other');
+  await page.getByRole('button', { name: 'Fit', exact: true }).click();
+  await expect(page.locator('.cuecard')).toHaveAttribute('aria-label', /^Other/);
 });
 
 // ── Printer ──────────────────────────────────────────────────────────────
@@ -334,4 +406,26 @@ test('the standalone app is portrait and precaches all three models', async ({ p
   for (const f of ['../calc.js', '../wasm/ti59-core.wasm', '../img/ti58_base.png', '../wasm/roms/CD2400.txt']) {
     expect(cached).toContain(new URL(f, page.url()).href);
   }
+});
+
+test('the installed app loads any module and any preset offline', async ({ page, context }) => {
+  await page.goto('app/');
+  await expect(page.locator('.calcu-key')).toHaveCount(45, { timeout: 15000 });
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  await page.reload();  // now under the service worker
+  await expect(page.locator('.calcu-key')).toHaveCount(45, { timeout: 15000 });
+  await context.setOffline(true);
+
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await page.getByLabel('Solid State Module').selectOption({ label: 'Applied Statistics' });
+  await page.getByRole('button', { name: 'Done' }).click();
+  await page.waitForTimeout(1000);
+  // A module whose image can't be read is not selected: the dialog would still show ML.
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await expect(page.getByLabel('Solid State Module')).toHaveValue('ST');
+  await page.getByRole('button', { name: 'Done' }).click();
+
+  await page.getByRole('button', { name: 'Preset' }).click();
+  await page.getByRole('button', { name: /Sum of N numbers/ }).click();
+  await expect(page.locator('.cuecard')).toHaveAttribute('aria-label', /Sum 1\.\.N/, { timeout: 5000 });
 });

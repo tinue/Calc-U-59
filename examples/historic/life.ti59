@@ -1,0 +1,611 @@
+# Dr. Joachim Dörges, "Life auf dem TI-59", CHIP 9/1980, Programmservice, pp. 37-39.
+# For TI-59 with PC-100 printer.
+#
+# Conway's Game of Life on a 10 x 10 field; the cells outside the field stay
+# empty. Every generation is printed inside a frame, a live cell as 0.
+# Optional mutations throw a random extra element into the field after each
+# printout. It takes part in the next generation but is never printed itself,
+# so a lone element dies unseen and only one that lands near a pattern shows.
+#
+# Keys:
+#   E               prepare: clear the field, print the headline
+#   row A           choose a row (1-10)
+#   column B        set an element in that row (1-10); repeat for further columns
+#   C               run without mutation
+#   seed D          run with mutation; the seed is a number between 0 and 1
+#
+# The program never stops by itself: R/S ends a run. E starts over.
+# The article notes that a mutation can hit an occupied cell, which then prints
+# as 1 or higher instead of 0.
+#
+# The article gives no start pattern. This preset enters a glider and presses C.
+#
+# The article: a full field takes 5 min 57 s to compute and 2 min 20 s to print;
+# an empty field 27 s and 8 s.
+#
+# Registers (the article's table; those it only calls occupied read from the program):
+#   R00-R06  indexes, counters, scratch    R10-R17  frame print codes
+#   R18      row pointer                   R19-R28  rows 1 to 10
+#   R30-R32  rows being summed             R33      sum L
+#   R34-R36  columns being summed          R37      sum M
+#   R38      L, for working out M          R39      current row
+#   R40      column index                  R41      deaths N and births P
+#   R42      previous row's N and P        R45      random number
+#   R46      constant 1117
+# A row is stored as 0.0000100000: one decimal digit per column.
+# Flag 1 is the mutation switch.
+#
+# The article loads the program from two cards (card 2 only for mutations) and
+# keys in 5 Op 17. The preset's partition does the same.
+
+MODEL: TI-59
+PRINTER: on
+PARTITION: 559.49
+
+CUECARD:
+Template: MagnetCard
+Title: LIFE (CHIP 9/1980)
+A: row
+B: column
+C: run
+D: seed, run
+E: clear
+
+PROGRAM:
+# A: row number 1-10 into the row pointer R18
+000 76 Lbl
+001 11
+002 85 +
+003 32 x<>t
+004 01 1
+005 08 8
+006 95 =
+007 42 STO
+008 18
+009 32 x<>t
+010 29 CP
+011 91 R/S
+# B: set the element in column j; shows the row register + row number
+012 76 Lbl
+013 12
+014 94 +/-
+015 22 INV
+016 28 log
+017 52 EE
+018 74 SM*
+019 18
+020 25 CLR
+021 73 RC*
+022 18
+023 85 +
+024 43 RCL
+025 18
+026 75 -
+027 01 1
+028 08 8
+029 95 =
+030 91 R/S
+# E: clear memory, build the frame print codes R10-R17, print the headline
+031 76 Lbl
+032 15
+033 47 CMs
+034 02 2
+035 04 4
+036 06 6
+037 05 5
+038 42 STO
+039 10
+040 06 6
+041 05 5
+042 06 6
+043 05 5
+044 06 6
+045 05 5
+046 06 6
+047 05 5
+048 06 6
+049 05 5
+050 42 STO
+051 11
+052 06 6
+053 05 5
+054 02 2
+055 04 4
+056 52 EE
+057 06 6
+058 42 STO
+059 12
+060 02 2
+061 04 4
+062 00 0
+063 00 0
+064 42 STO
+065 13
+066 02 2
+067 04 4
+068 52 EE
+069 06 6
+070 42 STO
+071 14
+072 02 2
+073 04 4
+074 04 4
+075 00 0
+076 42 STO
+077 15
+078 04 4
+079 00 0
+080 02 2
+081 04 4
+082 52 EE
+083 06 6
+084 42 STO
+085 16
+086 25 CLR
+087 04 4
+088 00 0
+089 04 4
+090 00 0
+091 04 4
+092 00 0
+093 04 4
+094 00 0
+095 04 4
+096 00 0
+097 42 STO
+098 17
+099 06 6
+100 05 5
+101 02 2
+102 07 7
+103 02 2
+104 04 4
+105 02 2
+106 01 1
+107 69 Op
+108 01
+109 01 1
+110 07 7
+111 06 6
+112 05 5
+113 00 0
+114 00 0
+115 01 1
+116 03 3
+117 04 4
+118 01 1
+119 69 Op
+120 02
+121 02 2
+122 01 1
+123 00 0
+124 00 0
+125 03 3
+126 07 7
+127 02 2
+128 04 4
+129 00 0
+130 00 0
+131 69 Op
+132 03
+133 00 0
+134 06 6
+135 01 1
+136 02 2
+137 04 4
+138 00 0
+139 00 0
+140 00 0
+141 00 0
+142 00 0
+143 69 Op
+144 04
+145 69 Op
+146 05
+147 98 Adv
+148 25 CLR
+149 22 INV
+150 86 St flg
+151 01
+152 91 R/S
+# C: print the field (also the entry point after each generation)
+153 76 Lbl
+154 13
+155 43 RCL
+156 10
+157 69 Op
+158 01
+159 43 RCL
+160 11
+161 69 Op
+162 02
+163 69 Op
+164 03
+165 43 RCL
+166 12
+167 69 Op
+168 04
+169 69 Op
+170 05
+171 01 1
+172 00 0
+173 42 STO
+174 04
+175 01 1
+176 09 9
+177 42 STO
+178 01
+# Print one row (an empty row skips to 236)
+179 02 2
+180 42 STO
+181 02
+182 42 STO
+183 03
+184 69 Op
+185 00
+186 43 RCL
+187 13
+188 69 Op
+189 01
+190 29 CP
+191 73 RC*
+192 01
+193 67 x=t
+194 02
+195 36
+196 42 STO
+197 00
+198 00 0
+199 42 STO
+200 06
+201 05 5
+202 42 STO
+203 05
+204 01 1
+205 00 0
+206 49 Prd
+207 00
+208 43 RCL
+209 06
+210 65 x
+211 01 1
+212 00 0
+213 00 0
+214 85 +
+215 43 RCL
+216 00
+217 59 Int
+218 22 INV
+219 44 SUM
+220 00
+221 95 =
+222 42 STO
+223 06
+224 97 Dsz
+225 05
+226 02
+227 04
+228 84 OP*
+229 02
+230 69 Op
+231 22
+232 97 Dsz
+233 03
+234 01
+235 98
+236 43 RCL
+237 14
+238 69 Op
+239 04
+240 69 Op
+241 05
+242 69 Op
+243 21
+244 97 Dsz
+245 04
+246 01
+247 79
+# Bottom frame; flag 1 (mutation) branches to 495
+248 43 RCL
+249 15
+250 69 Op
+251 01
+252 43 RCL
+253 17
+254 69 Op
+255 02
+256 69 Op
+257 03
+258 43 RCL
+259 16
+260 69 Op
+261 04
+262 69 Op
+263 05
+264 98 Adv
+265 87 If flg
+266 01
+267 04
+268 95
+# Next generation. Rows: L = sum of three rows, R30-R32 hold them
+269 25 CLR
+270 42 STO
+271 18
+272 42 STO
+273 29
+274 42 STO
+275 30
+276 42 STO
+277 31
+278 43 RCL
+279 19
+280 42 STO
+281 32
+282 42 STO
+283 33
+284 01 1
+285 09 9
+286 42 STO
+287 00
+288 01 1
+289 00 0
+290 42 STO
+291 02
+# Row loop: column sums M from L, R34-R36 hold three columns
+292 43 RCL
+293 02
+294 55 /
+295 03 3
+296 95 =
+297 22 INV
+298 59 Int
+299 65 x
+300 03 3
+301 85 +
+302 03 3
+303 00 0
+304 95 =
+305 52 EE
+306 42 STO
+307 01
+308 25 CLR
+309 42 STO
+310 41
+311 69 Op
+312 20
+313 73 RC*
+314 00
+315 44 SUM
+316 33
+317 63 EX*
+318 01
+319 22 INV
+320 44 SUM
+321 33
+322 43 RCL
+323 00
+324 42 STO
+325 03
+326 69 Op
+327 33
+328 43 RCL
+329 33
+330 29 CP
+331 67 x=t
+332 04
+333 53
+334 42 STO
+335 38
+336 00 0
+337 42 STO
+338 34
+339 42 STO
+340 35
+341 01 1
+342 42 STO
+343 40
+344 73 RC*
+345 03
+346 42 STO
+347 39
+348 01 1
+349 00 0
+350 42 STO
+351 04
+352 49 Prd
+353 38
+354 43 RCL
+355 38
+356 59 Int
+357 22 INV
+358 44 SUM
+359 38
+360 42 STO
+361 37
+362 42 STO
+363 36
+# Column loop
+364 43 RCL
+365 04
+366 55 /
+367 03 3
+368 95 =
+369 22 INV
+370 59 Int
+371 65 x
+372 03 3
+373 85 +
+374 03 3
+375 04 4
+376 95 =
+377 52 EE
+378 42 STO
+379 05
+380 25 CLR
+381 01 1
+382 00 0
+383 49 Prd
+384 38
+385 49 Prd
+386 39
+387 22 INV
+388 49 Prd
+389 40
+390 43 RCL
+391 38
+392 59 Int
+393 22 INV
+394 44 SUM
+395 38
+396 44 SUM
+397 37
+398 63 EX*
+399 05
+400 22 INV
+401 44 SUM
+402 37
+403 43 RCL
+404 37
+405 29 CP
+406 67 x=t
+407 04
+408 49
+409 43 RCL
+410 39
+411 59 Int
+412 22 INV
+413 44 SUM
+414 39
+415 67 x=t
+416 04
+417 37
+418 43 RCL
+419 37
+420 32 x<>t
+421 03 3
+422 67 x=t
+423 04
+424 49
+425 04 4
+426 67 x=t
+427 04
+428 49
+429 43 RCL
+430 40
+431 22 INV
+432 44 SUM
+433 41
+434 61 GTO
+435 04
+436 49
+437 43 RCL
+438 37
+439 32 x<>t
+440 03 3
+441 22 INV
+442 67 x=t
+443 04
+444 49
+445 43 RCL
+446 40
+447 44 SUM
+448 41
+449 97 Dsz
+450 04
+451 03
+452 64
+# Apply the row's deaths and births
+453 69 Op
+454 33
+455 43 RCL
+456 42
+457 74 SM*
+458 03
+459 43 RCL
+460 41
+461 42 STO
+462 42
+463 97 Dsz
+464 02
+465 02
+466 92
+467 43 RCL
+468 42
+469 44 SUM
+470 28
+471 61 GTO
+472 01
+473 55
+474 00 0
+# D: seed R45, multiplier 1117 in R46, flag 1 on, then print
+480 76 Lbl
+481 14
+482 42 STO
+483 45
+484 01 1
+485 01 1
+486 01 1
+487 07 7
+488 42 STO
+489 46
+490 86 St flg
+491 01
+492 61 GTO
+493 01
+494 55
+# Mutation: a random element at a random row and column
+495 71 SBR
+496 05
+497 18
+498 85 +
+499 01 1
+500 08 8
+501 95 =
+502 42 STO
+503 18
+504 71 SBR
+505 05
+506 18
+507 94 +/-
+508 22 INV
+509 28 log
+510 52 EE
+511 22 INV
+512 52 EE
+513 74 SM*
+514 18
+515 61 GTO
+516 02
+517 69
+# Random number 1-10
+518 43 RCL
+519 45
+520 34 sqrt
+521 65 x
+522 43 RCL
+523 46
+524 95 =
+525 22 INV
+526 59 Int
+527 42 STO
+528 45
+529 65 x
+530 01 1
+531 00 0
+532 85 +
+533 01 1
+534 95 =
+535 59 Int
+536 92 RTN
+
+KEYSTROKES:
+15            # E: clear, print the headline
+82 11         # row 1
+83 12         #   column 2
+83 11         # row 2
+84 12         #   column 3
+84 11         # row 3
+82 12         #   column 1
+83 12         #   column 2
+84 12         #   column 3
+13            # C: run

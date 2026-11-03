@@ -39,6 +39,14 @@ typedef NS_ENUM(NSInteger, TIFreezeOwner) {
 - (nullable NSString *)readConstantMemory;
 - (void)writeConstantMemory:(NSString *)text;
 - (BOOL)writeCard:(NSString *)text toPath:(NSString *)path;
+/// The path of card file `fileName` in the card folder (it may not exist).
+- (NSString *)cardFilePath:(NSString *)fileName;
+/// The card file at `path` (coordinated read); nil if it is missing or can't be read.
+- (nullable NSData *)readCardFile:(NSString *)path;
+/// Whether there is a card file at `path`, downloaded or not.
+- (BOOL)cardFileExists:(NSString *)path;
+/// KEYSTROKES DebugPanel:: 0 CALCULATOR, 1 CPU, 2 LOG.
+- (void)showDebugPanel:(NSInteger)panel;
 @property (nonatomic, readonly) NSString *traceDirectory;
 @property (nonatomic, readonly) uint64_t traceMaxBytes;
 @property (nonatomic, readonly) BOOL traceAvailable;
@@ -167,12 +175,23 @@ typedef NS_ENUM(NSInteger, TIFreezeOwner) {
 @property (nonatomic, readonly) BOOL cardSwiping;
 @property (nonatomic, readonly) NSString *cardFileName;
 /// raw nil: the file could not be read.
-- (void)insertCard:(nullable NSData *)raw path:(NSString *)path fileName:(NSString *)fileName;
-- (void)insertBlankCard:(NSString *)savePath fileName:(NSString *)fileName;
+- (BOOL)fitCard:(nullable NSData *)raw path:(NSString *)path fileName:(NSString *)fileName;
+- (BOOL)fitBlankCard:(NSString *)savePath fileName:(NSString *)fileName;
+@property (nonatomic, readonly) BOOL cardFitted;
+/// The side whose corner is lit (0 left, 1 right), -1 if none.
+@property (nonatomic, readonly) NSInteger litCardCorner;
+/// A press at canvas position (x, y), each 0…1: YES if it hit a corner of the fitted card.
+- (BOOL)tapCardAtX:(double)x y:(double)y;
 - (void)ejectCard;
 
 // ── State files ──────────────────────────────────────────────────────────────
 - (void)loadStateFile:(nullable NSData *)raw;
+
+// ── Dropped files ────────────────────────────────────────────────────────────
+/// dropAction: the file's name makes it a preset, or a card this model can fit.
+- (BOOL)acceptsDroppedFile:(NSString *)fileName;
+/// raw nil: the file could not be read. NO: nothing was done.
+- (BOOL)openDroppedFile:(nullable NSData *)raw path:(NSString *)path fileName:(NSString *)fileName;
 
 // ── Debugger ─────────────────────────────────────────────────────────────────
 - (void)setLiveDebugEnabled:(BOOL)on;

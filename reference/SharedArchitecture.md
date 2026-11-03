@@ -47,16 +47,16 @@ wrappers in `Bridge/`, which only translate types (`AppArchitecture.md`
 | **Debugger** | |
 | `DebugModel` | The panels' data: CALCULATOR snapshot and listing, CPU history, ROM heatmap, LOG ring |
 | `DebugSnapshots` | Builds the CALCULATOR snapshot and listing and the CPU history entries |
-| `DebugText` | The panels' shared text and colours |
+| `DebugText` | The panels' shared text and colours; `mobileLayout`, which panels an iOS window shows, `mobilePrinterWidth`, `compactPrinterBar` and `mobileTopMargin` |
 | `DebugLog` | LOG ring buffer and the Vars / SCOM / Prog / Memory dumps |
 | `RomHeatmap` | Execution counts per ROM address, heat steps and colours |
 | `ModuleImage` | PRG SOURCE decoding, the module's program table, source labels |
 | `AsmOverlay` | ASM overlay file parser and entry |
 | `TraceWriter` | Binary trace format v2 (`DebugAPI.md`) |
 | **Files** | |
-| `StateFile` | `.ti59` parser and pre-scan (`StateFileFormat.md`) |
+| `StateFile` | `.ti59` parser and `stateFileModel` (`StateFileFormat.md`) |
 | `StateApplier` | Writes a parsed file into the machine; power-on, soft and clean reset |
-| `CardFile` | Magnetic card files (text, headered and legacy binary); which names the pickers list |
+| `CardFile` | Magnetic card files (text 2.0 and 1.0, headered and legacy binary); which names the pickers list |
 | `ConstantMemory` | `ti58c.mem` |
 | `RomLoader` | ROM, constants and module text dumps |
 | `ModuleCatalog` | `roms/solid-state/cuecards.txt` |
@@ -79,16 +79,17 @@ rules are documented.
 
 ## `SessionController`
 
-Each app owns one `SessionController` on its UI thread and is otherwise a
+Each GUI owns one `SessionController` on its UI thread and is otherwise a
 renderer: the Qt app through `EmulatorController`, the Swift app through
 `EmulatorViewModel` and `Bridge/TISessionController`. The controller owns the
 `EmulatorSession` (rebuilt on a model switch) and the `DebugModel`, and runs
-the flows both apps share: starting and switching machines, presets, the
+the flows all GUIs share: starting and switching machines, presets, the
 TI-58C memory file, the card reader, the printer strip, the cue card shown,
 freeze and step, traces, the ASM overlay and the LOG tab.
 
 The app implements `SessionController::Platform`: `runOnUiThread`, reading
-and writing `ti58c.mem` and card files, the trace location (and whether it
+and writing `ti58c.mem` and card files, `cardFilePath` (a preset card's file in
+the card folder), `showDebugPanel`, the trace location (and whether it
 is available, asked only when a manual trace opens), saving the last model
 and module, error alerts, diagnostics, and `changed(mask)` — the `Change`
 bits name what to redraw. The app calls `tick(now)` at 60 Hz, and
@@ -160,8 +161,8 @@ Core locking: `CoreArchitecture.md` § "Threading Model".
 `EmulationRunner` runs `Pacing::runBatch` in a loop:
 
 1. Call `step()` and add up the returned cycle weights until they reach the
-   batch target: the model's instruction rate × 20 ms (14,218.75 Hz → 284 on
-   the TI-59; 12,000 Hz → 240 on the TI-58; 12,312.5 Hz → 246 on the TI-58C).
+   batch target: the model's instruction rate (`CoreArchitecture.md`) × 20 ms:
+   284 on the TI-59, 240 on the TI-58, 246 on the TI-58C.
    The overshoot carries into
    the next batch, so the long-term rate stays exact. Each batch ends at a
    random offset of 0 to half a batch past its grid point (`BatchJitter`:
@@ -202,8 +203,8 @@ bit 4 is the card-detect line. Scanning: `CoreArchitecture.md`
 ## Physical Keyboard Mapping
 
 Computer keyboards drive the calculator in the macOS Swift app, the Qt6 app
-and the web client (`Web/`, with its `keyboard` prop). iOS/iPadOS and the
-web client's standalone app (`Web/app/`) have no keyboard input. The debugger and printer panels take no calculator
+and the web client (`Web/`, with its `keyboard` prop). iOS/iPadOS have no
+keyboard input. The debugger and printer panels take no calculator
 keys: Space (R/S vs. STEP) and Cmd/Ctrl+C (printer tape vs. selected text)
 would have no single owner.
 
@@ -283,17 +284,49 @@ The core side (TST BUSY wait, `CRD_READ`/`CRD_WRITE`, auto-eject at
 `CRD_OFF`) is in `CoreArchitecture.md` § "Magnetic Card Reader". The
 controller's side:
 
-1. `insertCard(bytes, path, name)` decodes the file (`CardFile`), takes its
-   cue card if it is a text card, and calls `machine.insertCard`.
-   `insertBlankCard(savePath, name)` inserts an empty card for writing.
-2. The card state is `Swiping` until the core auto-ejects.
-3. `tick()` sees the auto-eject and calls `ejectCard()`, which collects any
-   written bank and saves it, with the current cue card, through
-   `Platform::writeCard`.
+1. `fitCard(bytes, path, name)` decodes the file (`CardFile`, a `CardDocument`)
+   and fits it into the cue card cutout, replacing the card there.
+   `fitBlankCard(savePath, name)` fits a fresh version 2 card whose cue card is
+   a Title with the file name (`freshCardCue`). Neither touches the reader.
+   Each GUI's picker asks before a fresh card takes the name of an existing
+   one: its first write replaces the file. Only the GUI knows its card folder.
+2. `tapCard(nx, ny)` is a press on the canvas: `cardCornerAt` (`KeyboardLayout`)
+   gives the side, and `feedSide(side)` puts it into the reader. GUIs call it on
+   a press only, not on a drag. A press does nothing while a module's cue card
+   covers the fitted card (`m_activeProgram > 0`).
+3. The card state is `Swiping` until the core auto-ejects, and `litCardCorner()`
+   gives the corner to draw lit (`cardCornerGeometry`, above the wash).
+4. `tick()` sees the auto-eject and calls `ejectCard()`. A written bank goes to
+   `writeFittedSide`: unless the card is fresh, it reads the file again
+   (`Platform::readCard`), so a side changed elsewhere survives, merges the side
+   and saves through `Platform::writeCard`. A file it can't read or parse is
+   left alone and reported. A failed write leaves the fitted card as it was.
 
-Card files are written as text ("Calc-U-59 Card 1.0", `Shared/CardFile.hpp`).
-Still read: the 13-byte `Calc-U-59-CRD` header + 246 bytes, and headerless
-246- or 984-byte files.
+`refreshCueCard` shows `fittedCueCard()` when a card is fitted: its cue card, or
+a Title for a card without one (never saved), with the corners' numbers from
+the sides' headers (version 2) or `Banks:` (version 1). `resolveCueCard` still
+lets a module's cue card cover it. A version 1 card has one side: either corner
+feeds it, and a write stays version 1.
+
+The fitted card goes with another fit, a reset, a model switch, a full preset
+load, or a reload stage with its own cue card. The printer toggle and a module
+change reset the machine, so they remove it too.
+
+Presets feed cards through the same path (`ArmCard:` / `InsertCard:`,
+§ "State File Loading"); `Platform::cardFilePath(name)` resolves a card file
+name in the frontend's card folder. `unreadable` from `Platform::readCard` means
+the file exists but can't be read now, so no blank card goes in to overwrite it.
+
+### Dropped Files
+
+`dropAction(name)` says what a file dropped on the window does, by its name
+and the model: a preset (`isStateFileName`) loads as from the Preset button; a
+card (`isCardFileName`) is fitted on the TI-59 and ignored on the TI-58/58C.
+`openDroppedFile(bytes, path, name)` does it. Nothing is fitted while a card is
+in the reader. On the Mac, the file's security scope stays open while it is
+fitted, because a write goes back to it.
+
+Card file formats: `StateFileFormat.md` § "Card files".
 
 ## State File Loading
 
@@ -301,23 +334,58 @@ Still read: the 13-byte `Calc-U-59-CRD` header + 246 bytes, and headerless
 RAM; only `KEYSTROKES:` simulates key presses. Section semantics and the
 reference order: `StateFileFormat.md`.
 
-1. UTF-8 check; `prescanStateFile` (`MODEL:`, `SKIP-RESET:`); `parseStateFile`
-   with the target model's limits. Parse errors are reported and the load
-   continues.
+1. UTF-8 check; `stateFileModel` (`MODEL:`); `parseStateFile` with the
+   target model's limits. Parse errors are reported and the load continues.
 2. `MODEL:` names another model → `startMachine(target)` first. Then the
-   partition check (`stateFilePartitionError`) aborts either path below.
-3. With `SKIP-RESET:`: stop the loop, unfreeze, and on the emulation thread
-   write only the partition (if explicit), program and registers
-   (`applySkipResetState`). The ignored `MODEL:`, `SOLID-STATE-MODULE:` and
-   `PRINTER:` are logged to the LOG tab.
-4. Otherwise: stop the loop,
-   unfreeze, and on the emulation thread `applyState` (`StateApplier`):
-   reset, run the ROM's power-on routine (300,000 steps, a safe upper bound),
-   set the partition, clear RAM (the TI-58C keeps registers 60–63), write the
-   program zero-padded to the model's capacity, write the registers. Then
-   reset the heatmap baseline, start the loop and cut the paper, and apply
-   `SOLID-STATE-MODULE:`, `PRINTER:` and the cue card.
-5. Persist `ti58c.mem`, then play `KEYSTROKES:`.
+   partition check (`stateFilePartitionError`) aborts the load.
+3. `dropPresetCards`, stop the loop, unfreeze, and on the emulation thread
+   `applyState` (`StateApplier`). Then reset the heatmap baseline, start the
+   loop, and apply the rest on the UI thread.
+4. Persist `ti58c.mem`, then play `KEYSTROKES:`.
+
+**Reloads and preset cards during playback** (`StateFileFormat.md` §
+"Reloads", § "CARD"). The parser puts each reload stage and `CARD:` block
+into the keystroke events (`shared_ptr`). This is the order of operations:
+
+1. A `Reload` or `InsertCard` event waits for the scan loop like a key. It
+   then calls a `KeySequencer::Host` hook (`EmulatorSession`), which raises
+   the session's host-pending count.
+2. The sequencer waits until that count drops.
+3. A reload hops to the UI thread (`Listener::reloadRequested`). There
+   `SessionController::applyReloadStage` stops the loop, runs `applyReload`
+   (only the listed steps and registers)
+   on the emulation thread, restarts the loop (unless frozen), and updates
+   the cue card. It then calls `hostDone()`. A posted job would not do: it
+   runs only after the run loop exits.
+4. `ArmCard` and `InsertCard` queue their card in the session (`QueuedCard`,
+   under a mutex).
+5. On each 60 Hz `tick()` with an empty reader, `takeQueuedCard()` hands out
+   the first card of the matching kind (the two kinds don't block each
+   other):
+   - an `InsertCard` card when the PC is in the scan loop;
+   - an `ArmCard` card when the PC is in `ModelInfo::cardWait` and the core
+     reports a card wait.
+6. `feedQueuedCard` resolves the card:
+   - a `mem:` card from its written bank, its `CARD:` block
+     (`buildCardBank`, at the current partition), or blank;
+   - a file through `Platform::cardFilePath` and `readCard`, fitted and fed at the side the
+     directive names. A file card stays fitted afterwards; a `mem:` card takes
+     a fitted card out and is never fitted itself.
+
+   It inserts the card as a press on the card's corner would. On eject, a written bank
+   goes to the memory card or to the file, and an `InsertCard` calls
+   `hostDone()`.
+7. `playbackFinished` clears the pending count. Queued cards stay until the
+   next load, reset or model switch.
+
+**Controls** (`PrinterTrace:`, `CutPaper:`, `DebugPanel:`, `Freeze:`,
+`FreezeOnStart:`, `Step:`, `Resume:`) take the
+same host-pending path. `Host::control` hops to the UI thread
+(`Listener::controlRequested`), where `SessionController::applyControl` calls
+what the GUI's button calls (`freeze`, `armPcChange`, `stepKeycode`, …), or
+`Platform::showDebugPanel` for the tab, which is GUI state. While frozen, a
+script's keys, reloads and inserted cards wait (`WaitingToPress` /
+`WaitingToApply`); a keyboard tap still goes in at once.
 
 Skipping the power-on routine leaves stale SCOM flags that confuse the
 display and AOS.
@@ -355,7 +423,7 @@ The TI-59 image is checked against two sentinels: word 0 = `0x0A01`
 
 ## Drawing Rules
 
-Both apps draw with the same shapes and numbers; only the painting calls
+All three GUIs draw with the same shapes and numbers; only the painting calls
 differ.
 
 ### LED Display Rendering

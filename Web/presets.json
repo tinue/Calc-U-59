@@ -1,12 +1,12 @@
 [
-  { "file": "diag.ti59", "title": "Calculator diagnostic" },
-  { "file": "Integer-Base-Conversion.ti59", "title": "Base conversion" },
-  { "file": "sum.ti59", "title": "Sum of 1…n" },
-  { "file": "Frequency-Transformation.ti59", "title": "Frequency transformation" },
-  { "file": "characters.ti59", "title": "Printer character table" },
-  { "file": "stars-and-stripes.ti59", "title": "Stars and stripes (printer)" },
-  { "file": "texas-print.ti59", "title": "Texas (printer graphics)" },
-  { "file": "calendar-09-dispatch.ti59", "title": "Calendar printer" },
-  { "file": "diag.ti58", "title": "Calculator diagnostic (TI-58)" },
-  { "file": "repartition.ti58c", "title": "Repartitioning (TI-58C)" }
+  { "file": "diag.ti59", "title": "TI-59 calculator diagnostic" },
+  { "file": "diag.ti58", "title": "TI-58 calculator diagnostic" },
+  { "file": "ram_test.ti59", "title": "RAM test" },
+  { "file": "sum.ti59", "title": "Sum of N numbers" },
+  { "file": "characters.ti59", "title": "Print character table" },
+  { "file": "printer-interrupt.ti59", "title": "The printer interrupt, smallest form" },
+  { "file": "picard.ti59", "title": "Picard (printer-interrupt picture)" },
+  { "file": "globe-print.ti59", "title": "Globe (printer-interrupt picture)" },
+  { "file": "switzerland.ti59", "title": "Switzerland (printer-interrupt outline map)" },
+  { "file": "fastmode-sst.ti59", "title": "The shortest way into Fast Mode" }
 ]

@@ -108,6 +108,34 @@ final class LayoutTests: XCTestCase {
             "Preset button is \(height) pt tall in landscape — label may be wrapping"
         )
     }
+
+    /// Landscape: a wide window shows the debugger beside the calculator
+    /// whatever "Debug Page in Portrait" says — iPad, and iPhone Duo opened
+    /// flat (Shared mobileLayout: at least 820 × 560 pt of safe area). Plain iPhones stay
+    /// in portrait, so the test skips there.
+    @MainActor
+    func testWideWindowShowsDebugger() throws {
+        let app = launchApp(orientation: .landscapeLeft)
+        XCTAssertTrue(app.buttons["btn-preset"].waitForExistence(timeout: 5))
+        // The window frame includes the safe-area insets the app's layout excludes;
+        // close enough on the devices this runs on (iPad, iPhone Duo).
+        let frame = app.windows.firstMatch.frame
+        let (w, h) = (max(frame.width, frame.height), min(frame.width, frame.height))
+        // Page arrows mean the paged (portrait) layout: the device didn't rotate.
+        guard !app.buttons["btn-page-right"].exists else {
+            throw XCTSkip("App stays in portrait on this device")
+        }
+        let wide = w >= 820 && h >= 560
+        XCTAssertEqual(app.buttons["btn-tab-calculator"].waitForExistence(timeout: 3), wide,
+                       "Debugger visibility wrong for a \(w) × \(h) pt window")
+        guard wide else { return }
+        // The tabs must take taps: on the open iPhone Duo they once sat in the
+        // window's top band, which swallowed them (Shared mobileTopMargin).
+        app.buttons["btn-tab-cpu"].tap()
+        XCTAssertTrue(app.buttons["btn-cpu-step"].waitForExistence(timeout: 2), "CPU tab didn't open")
+        app.buttons["btn-tab-calculator"].tap()
+        XCTAssertTrue(app.buttons["btn-freeze"].waitForExistence(timeout: 2), "CALCULATOR tab didn't open")
+    }
     #endif
 
     // MARK: - Screenshots

@@ -20,13 +20,6 @@
 #include <QSplitter>
 #include <QUrl>
 
-namespace {
-bool isStateFile(const QString& path) {
-    QString ext = QFileInfo(path).suffix().toLower();
-    return ext == QLatin1String("ti59") || ext == QLatin1String("ti58") || ext == QLatin1String("ti58c");
-}
-} // namespace
-
 MainWindow::MainWindow(EmulatorController& controller, QWidget* parent) : QMainWindow(parent), m_controller(controller) {
     setWindowTitle(QStringLiteral("Calc-U-59"));
     setAcceptDrops(true);
@@ -61,8 +54,8 @@ MainWindow::MainWindow(EmulatorController& controller, QWidget* parent) : QMainW
 void MainWindow::buildMenus() {
     QMenu* file = menuBar()->addMenu(QStringLiteral("&File"));
     file->addAction(QStringLiteral("Open Preset…"), QKeySequence::Open, this, &MainWindow::openPreset);
-    file->addAction(QStringLiteral("Read Card…"), this, &MainWindow::loadCard);
-    file->addAction(QStringLiteral("Write Blank Card…"), this, &MainWindow::newCard);
+    file->addAction(QStringLiteral("Fit Card…"), this, &MainWindow::loadCard);
+    file->addAction(QStringLiteral("Fit Fresh Card…"), this, &MainWindow::newCard);
     file->addSeparator();
     QAction* settings = file->addAction(QStringLiteral("Settings…"), QKeySequence::Preferences, this, [this] {
         SettingsDialog dialog(m_controller, this);
@@ -97,13 +90,13 @@ void MainWindow::openStateFile(const QString& path) { m_controller.loadStateFile
 void MainWindow::loadCard() {
     if (!cu59::info(m_controller.model()).hasCardReader) return;
     CardPickerDialog dialog(CardPickerDialog::Mode::Load, AppPaths::cardDir(), m_controller.cardFileName(), this);
-    if (dialog.exec() == QDialog::Accepted) m_controller.insertCard(dialog.selectedPath());
+    if (dialog.exec() == QDialog::Accepted) m_controller.fitCard(dialog.selectedPath());
 }
 
 void MainWindow::newCard() {
     if (!cu59::info(m_controller.model()).hasCardReader) return;
     CardPickerDialog dialog(CardPickerDialog::Mode::Save, AppPaths::cardDir(), m_controller.cardFileName(), this);
-    if (dialog.exec() == QDialog::Accepted) m_controller.insertBlankCard(dialog.selectedPath());
+    if (dialog.exec() == QDialog::Accepted) m_controller.fitBlankCard(dialog.selectedPath());
 }
 
 void MainWindow::selectAsmFile() {
@@ -123,11 +116,14 @@ void MainWindow::closeEvent(QCloseEvent* e) {
 }
 
 void MainWindow::dragEnterEvent(QDragEnterEvent* e) {
+    using Drop = cu59::SessionController::DropAction;
     const auto urls = e->mimeData()->urls();
-    if (urls.size() == 1 && isStateFile(urls.first().toLocalFile())) e->acceptProposedAction();
+    if (urls.size() != 1) return;
+    const Drop action = m_controller.dropAction(urls.first().toLocalFile());
+    if (action == Drop::LoadPreset || action == Drop::FitCard) e->acceptProposedAction();
 }
 
 void MainWindow::dropEvent(QDropEvent* e) {
     const auto urls = e->mimeData()->urls();
-    if (urls.size() == 1 && isStateFile(urls.first().toLocalFile())) openStateFile(urls.first().toLocalFile());
+    if (urls.size() == 1) m_controller.openDroppedFile(urls.first().toLocalFile());
 }

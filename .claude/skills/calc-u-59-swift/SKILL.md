@@ -28,8 +28,7 @@ This skill covers all work inside `App/`, `App/Views/`, and `Bridge/`.
 3. **Bridge wrappers translate types only.** Per-frame work that walks
    registers or program memory runs in C++ and crosses the bridge once as a
    finished result — never 100 bridge calls per 60 Hz frame.
-4. **Guard `@Observable` writes.** `apply(_:)` assigns a property only when
-   the value differs; `@Observable` notifies on equal writes too.
+4. **Guard `@Observable` writes** (`reference/AppArchitecture.md` § "60 Hz refresh").
 5. **Keep the Dynamic Type cap.** `CalculatorView.body` limits Dynamic Type
    to `.small ... .large`. Wider sizes break the layout (the TI-59 card bar
    first).

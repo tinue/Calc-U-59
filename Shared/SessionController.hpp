@@ -1,4 +1,5 @@
 #pragma once
+#include "CardFile.hpp"
 #include "CueCard.hpp"
 #include "DebugModel.hpp"
 #include "EmulatorSession.hpp"
@@ -62,8 +63,21 @@ public:
         /// ti58c.mem: nullopt when absent or unreadable.
         virtual std::optional<std::string> readConstantMemory() = 0;
         virtual void writeConstantMemory(const std::string& text) = 0;
-        /// A card file the machine wrote (path as given to insertCard / insertBlankCard).
+        /// A card file the machine wrote (path as given to fitCard / fitBlankCard).
         virtual bool writeCard(const std::string& path, const std::string& text) = 0;
+        /// A card file a preset names (KEYSTROKES ArmCard: / InsertCard:): the
+        /// path of `fileName` in the card folder.
+        virtual std::string cardFilePath(const std::string& fileName) = 0;
+        /// `raw` is nullopt if there is no such file. `unreadable`: the file is
+        /// there but can't be read now (not "missing": a blank card must not go
+        /// in, or a write would replace the file).
+        struct CardRead { std::optional<std::vector<uint8_t>> raw; bool unreadable = false; };
+        /// The card file at `path` as it is now: when a preset names it, and
+        /// again before a write merges a side into it.
+        virtual CardRead readCard(const std::string& path) = 0;
+        /// KEYSTROKES DebugPanel:: select that tab of the debugger, as a click
+        /// would (the page stays where it is on paged layouts).
+        virtual void showDebugPanel(DebugPanel panel) = 0;
         virtual TraceLocation traceLocation() = 0;
         /// false: e.g. iCloud is not reachable (asked only when a manual trace opens).
         virtual bool traceAvailable() { return true; }
@@ -77,6 +91,13 @@ public:
 
     enum class CardState { NoCard, Swiping };
     enum class DebugLevel { Off = 0, Info = 1, Debug = 2 };
+    /// What a file dropped on the calculator does (§ "Dropped Files").
+    enum class DropAction {
+        LoadPreset,   ///< as the Preset button
+        FitCard,      ///< fitted into the calculator's card cutout
+        Ignore,       ///< a card, and this model has no reader
+        NotAccepted,  ///< not a preset or a card
+    };
 
     /// `cuecards` is roms/solid-state/cuecards.txt; `moduleID` the saved module.
     SessionController(Platform& platform, ResourceReader roms, std::string cuecards, std::string moduleID,
@@ -143,16 +164,36 @@ public:
     void cutPaper();
 
     // ── Card reader (reference/SharedArchitecture.md § "Card Reader Flow") ──────
-    CardState cardState() const { return m_cardState; }
+    CardState cardState() const { return m_pass ? CardState::Swiping : CardState::NoCard; }
     const std::string& cardFileName() const { return m_cardFileName; }
-    /// A card file's bytes (nullopt: it could not be read); written data goes back to `path`.
-    void insertCard(const std::optional<std::vector<uint8_t>>& raw, const std::string& path, const std::string& fileName);
-    void insertBlankCard(const std::string& savePath, const std::string& fileName);
+    /// Fit a card file into the cutout, replacing the card there (nullopt bytes:
+    /// it could not be read). Nothing goes into the reader yet. Written data goes
+    /// back to `path`. False if it could not be fitted, or a card is in the reader.
+    bool fitCard(const std::optional<std::vector<uint8_t>>& raw, const std::string& path, const std::string& fileName);
+    /// Fit a fresh card; `savePath` is created or replaced by its first write.
+    bool fitBlankCard(const std::string& savePath, const std::string& fileName);
+    /// Feed a side (0 = top-left corner, 1 = top-right) of the fitted card into the reader.
+    bool feedSide(int side);
+    /// A press at canvas position (nx, ny): feeds a side if it hits a corner of
+    /// the fitted card on show. True if the press hit such a corner.
+    bool tapCard(double nx, double ny);
+    bool cardFitted() const { return m_fitted.has_value(); }
+    /// The corner to draw lit: the side of the fitted card in the reader, if that card is on show.
+    std::optional<int> litCardCorner() const;
     void ejectCard();
 
     // ── State files ──────────────────────────────────────────────────────────
     /// A preset's bytes (nullopt: it could not be read).
     void loadStateFile(const std::optional<std::vector<uint8_t>>& raw);
+
+    // ── Dropped files (reference/SharedArchitecture.md § "Dropped Files") ───────
+    /// By the file's name and the current model.
+    DropAction dropAction(const std::string& fileName) const;
+    /// Load the preset or insert the card; false when nothing was done (a card
+    /// is already in the reader, the file could not be read, or dropAction
+    /// says no). A write to the card goes back to `path`.
+    bool openDroppedFile(const std::optional<std::vector<uint8_t>>& raw, const std::string& path,
+                         const std::string& fileName);
 
     // ── Debugger ─────────────────────────────────────────────────────────────
     void setLiveDebugEnabled(bool on);
@@ -199,6 +240,7 @@ private:
     void emitChanged(uint32_t c) { if (c) m_platform.changed(c); }
     /// Shared start of both resets: stop playback, unfreeze, drop the overlay, card and cue card.
     void beginReset();
+    void softResetStopped(const std::vector<uint8_t>* savedRam);
     void refreshCueCard();
     void checkProgramNumber();
     void refreshLog();
@@ -208,7 +250,36 @@ private:
     void configureTraceLocation();
     void onFrozenView(uint64_t freezeGeneration, FrozenViewReason reason);
     void pullDebugState();
-    void saveCard(const std::vector<uint8_t>& data, const std::string& path);
+    /// The card in the reader now.
+    struct CardPass {
+        int side = 0;          ///< of the fitted card
+        bool queued = false;   ///< a fitted card fed by ArmCard: / InsertCard:
+        std::optional<std::string> memoryKey;  ///< a mem: card: a written bank goes to m_memoryCards
+    };
+    /// No card fitted or in the reader, no cue card, no program shown.
+    void clearCardAndCue();
+    /// A preset's cue card takes over the cutout, from any fitted card.
+    void adoptPresetCue(const std::optional<CueCardContent>& cue);
+    bool canFit() const;
+    void fit(const std::string& path, const std::string& fileName, CardDocument doc, bool fresh);
+    bool feed(int side, bool queued);
+    /// A fitted card, not covered by a module's cue card.
+    bool cardOnShow() const { return m_fitted && m_activeProgram <= 0; }
+    /// The machine wrote `written` to a side of the fitted card: merge and save it.
+    void writeFittedSide(int side, const std::vector<uint8_t>& written, bool queued);
+    /// What the cutout shows for the fitted card: its cue card with the corners' numbers.
+    CueCardContent fittedCueCard() const;
+    /// Put a bank image (empty: a blank card) into the reader.
+    void startSwipe(const std::vector<uint8_t>& data, const CardPass& pass);
+    /// KEYSTROKES ArmCard: / InsertCard: — feed the next queued card when the machine takes it.
+    void feedQueuedCard();
+    /// A preset's card has left the reader (or never got in): tell playback if it waits.
+    void queuedCardDone();
+    /// A new preset or a reset: the previous preset's queued and mem: cards go (logged if unused).
+    void dropPresetCards();
+    void applyReloadStage(const ReloadStage& stage);
+    /// A KEYSTROKES GUI control (PrinterTrace:, Freeze:, …), as its button does.
+    void applyControl(const KeystrokeEvent& event);
     /// Run `f` on the UI thread unless the session that asked has been replaced
     /// (or this controller destroyed) by then.
     void onUi(uint64_t sessionGeneration, std::function<void()> f);
@@ -241,9 +312,21 @@ private:
     std::vector<PrinterCodeLine> m_printerCodeLines;
     bool m_printerConnected = true;
 
-    CardState m_cardState = CardState::NoCard;
-    std::string m_cardFileName = "card.U59";
-    std::string m_pendingSavePath;
+    std::string m_cardFileName = "card.U59";  ///< the fitted card's, or the last one's in the reader
+    /// The card in the cutout, while it is out of its sleeve.
+    struct FittedCard {
+        std::string path;
+        CardDocument doc;
+        bool fresh = false;  ///< no write yet: the first one replaces whatever is at `path`
+    };
+    std::optional<FittedCard> m_fitted;
+    std::optional<CueCardContent> m_presetCue;  ///< the preset's own cue card: goes onto cards it writes
+    std::optional<CardPass> m_pass;
+    /// mem: cards of the loaded preset, by the name after "mem:": the bank
+    /// last written to it, and the cue card shown then.
+    struct MemoryCard { std::vector<uint8_t> bank; std::optional<CueCardContent> cueCard; };
+    std::map<std::string, MemoryCard> m_memoryCards;
+    bool m_queuedCardInReader = false;                ///< an InsertCard: card: playback waits for it
 
     bool m_liveDebugEnabled = false;
     bool m_cpuDebugEnabled = false;

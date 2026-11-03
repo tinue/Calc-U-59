@@ -20,21 +20,28 @@ struct DebugView: View {
             .padding(.top, portraitTopInset)
             .background(Color(white: 0.07))
 
-            // Tab content
-            switch vm.debugTab {
-            case .live: LiveDebugView()
-            case .cpu:
-                VStack(spacing: 0) {
-                    CPUInspectorView()
-                        .frame(maxHeight: .infinity)
+            // Tab content. Held to the space below the tab bar: content taller
+            // than the panel (CPU tab in a short window) would otherwise push
+            // the VStack past its frame and lay itself over the tabs.
+            Group {
+                switch vm.debugTab {
+                case .live: LiveDebugView()
+                case .cpu:
+                    VStack(spacing: 0) {
+                        CPUInspectorView()
+                            .frame(maxHeight: .infinity)
 
-                    Divider().background(Color(white: 0.25))
+                        Divider().background(Color(white: 0.25))
 
-                    ASMDebugContent(activeFilePickerMode: $activeFilePickerMode)
+                        ASMDebugContent(activeFilePickerMode: $activeFilePickerMode)
+                    }
+                case .log:
+                    StaticDebugContent()
                 }
-            case .log:
-                StaticDebugContent()
             }
+            .frame(maxHeight: .infinity, alignment: .top)
+            .clipped()
+            .contentShape(Rectangle())
         }
         .background(Color(white: 0.10))
         .onChange(of: vm.asmOverlayActive) { _, active in

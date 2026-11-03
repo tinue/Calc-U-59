@@ -1,7 +1,7 @@
 // The bar under the calculator (Qt6/app/ControlBar, CalculatorView's bar in
 // the Swift app): Reset — Ctrl/⌘ held shows a red "Clean", a 1 s press on a
 // touch screen does the same —, the model picker, the card reader buttons
-// (TI-59: read / write a blank card, or Eject while one is in), Preset and
+// (TI-59: fit a card / a fresh card, or Eject while a side passes), Preset and
 // the Settings gear. `compact` (portrait) shows icons only, as on iOS.
 
 const CLEAN_RESET_HOLD_MS = 1000;
@@ -102,8 +102,8 @@ function ControlBar({ engine, compact, showSettings, onDialog, feedback }) {
       <span className="calcu-spacer" />
       {hasReader && !swiping && (
         <>
-          <BarButton icon="⤓" label="Crd" title="Read a card" compact={compact} onClick={() => onDialog("readCard")} />
-          <BarButton icon="＋" label="Crd" title="Write a blank card" compact={compact} onClick={() => onDialog("writeCard")} />
+          <BarButton icon="⤓" label="Crd" title="Fit a magnetic card into the calculator" compact={compact} onClick={() => onDialog("readCard")} />
+          <BarButton icon="＋" label="Crd" title="Fit a fresh magnetic card into the calculator" compact={compact} onClick={() => onDialog("writeCard")} />
         </>
       )}
       {hasReader && swiping && (

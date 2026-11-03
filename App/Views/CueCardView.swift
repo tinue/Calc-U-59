@@ -2,9 +2,11 @@ import SwiftUI
 
 struct CueCardView: View, Equatable {
     let content: CueCardContent?
+    /// The side of a fitted card being read: its corner is lit (0 left, 1 right).
+    var litCorner: Int? = nil
 
     static func == (lhs: CueCardView, rhs: CueCardView) -> Bool {
-        lhs.content == rhs.content
+        lhs.content == rhs.content && lhs.litCorner == rhs.litCorner
     }
 
     private var card: CueCardContent {
@@ -40,6 +42,10 @@ struct CueCardView: View, Equatable {
                         .fill(Color(rgb: TIViewRules.cueCardWashColor).opacity(TIViewRules.cueCardWashAlpha))
                         .frame(height: g.washHeight)
                         .position(x: w / 2, y: g.washHeight / 2)
+
+                    if let side = litCorner {
+                        litCardCorner(side, w: w, h: h, g: g)
+                    }
                 }
             }
             .clipped()
@@ -150,6 +156,26 @@ struct CueCardView: View, Equatable {
             }
         } else {
             gridRow(1, of: bridged, y: g.gridY1, g: g, w: w, color: inkColor)
+        }
+    }
+
+    /// The corner of the side being read, above the wash (Shared cardCornerGeometry).
+    @ViewBuilder
+    private func litCardCorner(_ side: Int, w: CGFloat, h: CGFloat, g: TICueCardGeometry) -> some View {
+        let corner = TIViewRules.cardCorner(side, width: w, height: h)
+        let frame = corner.frame
+        UnevenRoundedRectangle(topLeadingRadius: side == 0 ? corner.radius : 0,
+                               topTrailingRadius: side == 1 ? corner.radius : 0)
+            .fill(Color(rgb: TIViewRules.cardCornerLitColor))
+            .frame(width: frame.width, height: frame.height)
+            .position(x: frame.midX, y: frame.midY)
+        Path { path in
+            path.addLines((0..<corner.arrowPointCount).map { corner.arrowPoint($0) })
+            path.closeSubpath()
+        }
+        .fill(.black)
+        if let bank = side == 0 ? card.banks.0 : card.banks.1 {
+            bankBadge(bank, frame: side == 0 ? g.bankLeft : g.bankRight, fontSize: g.bankFontSize)
         }
     }
 

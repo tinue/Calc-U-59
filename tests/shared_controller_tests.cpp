@@ -2,6 +2,7 @@
 // switches, presets, the TI-58C memory file, freezes, the ASM overlay and
 // the fixes that came with moving them out of the frontends.
 
+#include <algorithm>
 #include "TestHarness.hpp"
 #include "FakePlatform.hpp"
 #include "TestRoms.hpp"
@@ -59,11 +60,6 @@ TEST(controller_reports_parse_errors_and_partition_errors) {
     CHECK(c.startMachine(Model::TI58));
     c.loadStateFile(bytes("PARTITION: 959\n"));  // beyond the TI-58's 479
     CHECK_EQ(p.errors.size(), size_t{1});
-    CHECK(waitForScanLoop(c));
-    int regs = c.session()->machine().partitionProgramRegs();
-    c.loadStateFile(bytes("SKIP-RESET: on\nPARTITION: 959\n"));  // checked without a reset too
-    CHECK_EQ(p.errors.size(), size_t{2});
-    CHECK_EQ(c.session()->machine().partitionProgramRegs(), regs);
     c.loadStateFile(std::nullopt);
     CHECK_EQ(p.errors.back(), std::string("State file load error: Cannot read file."));
     c.loadStateFile(bytes("\xff\xfe"));
@@ -84,16 +80,24 @@ TEST(controller_load_while_frozen_ends_running_without_tracing) {
     CHECK_EQ(c.session()->machine().traceFlags(), static_cast<uint32_t>(TRACE_NONE));
 }
 
-TEST(controller_skip_reset_logs_ignored_sections) {
+TEST(controller_keystroke_controls_drive_the_gui) {
     FakePlatform p;
     SessionController c(p, testroms::reader(), catalog(), "ML");
     CHECK(c.startMachine(Model::TI59));
-    c.loadStateFile(bytes("SKIP-RESET: on\nMODEL: TI-58\nPRINTER: off\nREGISTERS:\n02 = 6\n"));
-    CHECK(c.model() == Model::TI59);
-    CHECK(c.printerConnected());
-    CHECK(c.logText().find("SKIP-RESET: MODEL: ignored") != std::string::npos);
-    CHECK(c.logText().find("SKIP-RESET: PRINTER: ignored") != std::string::npos);
-    CHECK_EQ(c.session()->machine().readDataReg(2), 6.0);
+    // Lbl A 1 + 1 = R/S, armed FREEZE ON START: A freezes before the program's first step.
+    c.loadStateFile(bytes("PROGRAM:\n76 11 01 85 01 95 91\n"
+                          "KEYSTROKES:\nPrinterTrace: on\nCutPaper:\nDebugPanel: CPU\n"
+                          "FreezeOnStart: Calculator\n11\n"));
+    auto tick = [&](auto cond) {
+        return pumpUntil(p, [&] { c.tick(std::chrono::steady_clock::now()); return cond(); }, 10000ms);
+    };
+    CHECK(tick([&] { return c.isFrozen(); }));
+    CHECK(c.printerTrace());
+    CHECK(p.panels == (std::vector<DebugPanel>{DebugPanel::Cpu}));
+    CHECK(tick([&] { return !c.keystrokesPlaying(); }));
+    c.loadStateFile(bytes("SKIP-RESET: on\n"));  // retired: an error, then a normal load
+    CHECK(!p.errors.empty() && p.errors.back().find("SKIP-RESET: no longer exists") != std::string::npos);
+    CHECK(!c.isFrozen());
 }
 
 TEST(controller_constant_memory_keeps_the_loaded_card) {
@@ -125,6 +129,43 @@ TEST(controller_model_switch_keeps_printer_and_log_resets_freeze) {
     CHECK(!c.debugState().pcChangeArmed && !c.isFrozen());
     CHECK(c.logText().find("──") != std::string::npos);  // the dump survived the switch
     CHECK(c.cardState() == SessionController::CardState::NoCard);
+}
+
+TEST(controller_reset_keeps_the_memory_and_clean_reset_clears_it) {
+    FakePlatform p;
+    SessionController c(p, testroms::reader(), catalog(), "ML");
+    CHECK(c.startMachine(Model::TI59));
+    CHECK(waitForScanLoop(c));
+    TI59Machine& m = c.session()->machine();
+    const uint8_t marked[16] = {1, 2, 3};
+    uint8_t reg[16];
+    m.writeRAMReg(90, marked);
+    c.resetMachine();
+    CHECK(waitForScanLoop(c));
+    m.copyRAMReg(90, reg);
+    CHECK(std::equal(std::begin(marked), std::end(marked), reg));
+    c.cleanResetMachine();
+    CHECK(pumpUntil(p, [&] {
+        m.copyRAMReg(90, reg);
+        return reg[0] == 0;
+    }));
+}
+
+// A plain Reset on the TI-59/58 runs the reset routine with the run loop stopped,
+// to keep the memory, so only a clean reset can be frozen at its first instruction.
+TEST(controller_cpu_freeze_on_start_sees_a_clean_reset_only) {
+    FakePlatform p;
+    SessionController c(p, testroms::reader(), catalog(), "ML");
+    CHECK(c.startMachine(Model::TI59));
+    CHECK(waitForScanLoop(c));
+    c.armScanLoopExit();
+    std::this_thread::sleep_for(50ms);  // the armed freeze sees the scan loop
+    c.resetMachine();
+    CHECK(!pumpUntil(p, [&] { return c.isFrozen(); }, 500ms));
+    CHECK(waitForScanLoop(c));
+    c.cleanResetMachine();
+    CHECK(pumpUntil(p, [&] { return c.isFrozen(); }));
+    CHECK(c.debugState().owner == FreezeOwner::Cpu);
 }
 
 TEST(controller_rom_failure_keeps_the_running_machine) {
@@ -199,4 +240,24 @@ TEST(controller_asm_overlay) {
     c.clearAsm();
     CHECK(!c.asmActive() && !c.isFrozen() && c.session()->isRunning());
     CHECK_EQ(c.asmStatus(), std::string("ASM overlay cleared."));
+}
+
+TEST(controller_threaded_reload_and_memory_card) {
+    FakePlatform p;
+    SessionController c(p, testroms::reader(), catalog(), "ML");
+    CHECK(c.startMachine(Model::TI59));
+    // Part 1 writes R00 to a memory card; part 2, reloaded after it, reads it back.
+    c.loadStateFile(bytes("PROGRAM:\n76 11 04 96 91\nREGISTERS:\n00 = 42\n"  // Lbl A 4 Write R/S
+                          "KEYSTROKES:\nArmCard: mem:M\n11\n"
+                          "PROGRAM:\n76 11 47 04 22 96 43 00 91\n"           // Lbl A CMs 4 INV Write RCL 00 R/S
+                          "KEYSTROKES:\nArmCard: mem:M\n11\n"));
+    auto tickUntil = [&](auto cond) {
+        return pumpUntil(p, [&] { c.tick(std::chrono::steady_clock::now()); return cond(); }, 20000ms);
+    };
+    CHECK(tickUntil([&] { return c.keystrokesPlaying(); }));
+    CHECK(tickUntil([&] { return !c.keystrokesPlaying(); }));
+    CHECK(waitForScanLoop(c));
+    CHECK_EQ(c.session()->machine().readDataReg(0), 42.0);
+    CHECK_EQ(int(c.session()->machine().readProgramStep(2)), 47);  // part 2 is in
+    CHECK(p.errors.empty());
 }

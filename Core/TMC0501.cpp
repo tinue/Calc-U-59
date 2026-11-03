@@ -1147,9 +1147,14 @@ void TMC0501::execALU(uint16_t opcode) {
         }
         RAM_OP = op_nibble;
         RAM_ADDR = static_cast<uint8_t>((addr_tens * 10u) + addr_units);
-        if (RAM_ADDR < ram.size()) {
-            if      (RAM_OP == 2) { ram.clearReg(RAM_ADDR, 1);  emitDebug(2, "RAM_OP CLR1 RAM[%03d]",  RAM_ADDR); }
-            else if (RAM_OP == 4) { ram.clearReg(RAM_ADDR, 10); emitDebug(2, "RAM_OP CLR10 RAM[%03d]", RAM_ADDR); }
+        if (RAM_OP == 2) {
+            // Op 2 clears the whole RAM, whatever the address: a real TI-59 loses
+            // everything when a program reaches the reset routine (0385), and t
+            // and the rest of SCOM stay (reference/CoreArchitecture.md § "RAM").
+            ram.clear();
+            emitDebug(2, "RAM_OP CLR ALL");
+        } else if (RAM_ADDR < ram.size()) {
+            if      (RAM_OP == 4) { ram.clearReg(RAM_ADDR, 10); emitDebug(2, "RAM_OP CLR10 RAM[%03d]", RAM_ADDR); }
             else if (RAM_OP == 1) flags |= FLG_RAM_WRITE;
             else if (RAM_OP == 0) flags |= FLG_RAM_READ;
         }

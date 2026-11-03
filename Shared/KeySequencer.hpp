@@ -29,6 +29,13 @@
 // (2nd + key, e.g. Shift+A for A′) is played as two taps instead, since the ROM
 // must see 2nd released and rescanned before the second key.
 //
+// A reload or an InsertCard waits for the scan loop like a key, hands the work
+// to the host and waits until the host has finished it; ArmCard only queues
+// its card. A GUI control (PrinterTrace:, Freeze:, …) goes to the host at once
+// and playback waits until it is done. While the debugger is frozen, keys,
+// reloads and inserted cards wait until it runs again (a key pressed into a
+// frozen machine would be lost); directives go on, so Step: and Resume: work.
+//
 // Playback and keyboard taps run on two independent lanes, as two separate
 // tasks would: a key press cancels earlier keyboard taps, never a running
 // script. Each script or tap is a resumable task — a small state machine that
@@ -52,10 +59,18 @@ public:
         virtual void heldKeyChanged(int highlightID) = 0;
         // KEYSTROKES playback
         virtual void setFullSpeed(bool on) = 0;
-        virtual void togglePrinterTrace() = 0;
         virtual void scriptedTrace(const std::optional<std::string>& fileName) = 0;  ///< nullopt = stop
         virtual void zeroElapseTime() = 0;
         virtual void reportElapseTime() = 0;
+        /// Apply a reload stage (the calculator is idle); hostPending() until done.
+        virtual void applyReload(const std::shared_ptr<const ReloadStage>& stage) = 0;
+        /// Queue the card of an ArmCard / InsertCard event; an InsertCard card
+        /// keeps hostPending() true until it has passed through the reader.
+        virtual void queueCard(const KeystrokeEvent& event) = 0;
+        /// A GUI control (PrinterTrace … Resume); hostPending() until done.
+        virtual void control(const KeystrokeEvent& event) = 0;
+        /// A reload, an inserted card or a control is not done yet.
+        virtual bool hostPending() = 0;
         virtual void playbackStarted() = 0;
         /// Always called at the end of a script, even if cancelled: the host
         /// drops full speed and closes a scripted trace left open.
@@ -102,6 +117,8 @@ private:
             Holding,         ///< key down until `wake` (a cancel does not cut it short)
             WaitingIdle,     ///< key up; poll every kScanPoll until the CPU is in the scan loop
             Sleeping,        ///< Wait until `wake` (a cancel ends it)
+            WaitingToApply,  ///< poll until the CPU is in the scan loop, then run the reload / InsertCard
+            WaitingHost,     ///< poll until the host has finished it (a cancel ends it)
         };
         std::vector<KeystrokeEvent> events;  ///< a keyboard tap sequence holds Key events only
         bool script = false;

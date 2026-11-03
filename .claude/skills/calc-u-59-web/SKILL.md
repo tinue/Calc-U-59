@@ -21,8 +21,7 @@ drawing: `reference/SharedArchitecture.md`. Feature placement:
 
 The website (https://calc-u.org/59/, repository `calc-u-site`) only
 *embeds* a built `dist/`, imported from a release's `Calc-U-59-web.zip`.
-Never edit the calculator there, nor in an old `docs/` worktree — those
-copies are generated or retired.
+Never edit the calculator there — that copy is generated.
 
 ## Rules
 
@@ -34,20 +33,14 @@ copies are generated or retired.
    feature the web has needs the matching change in the apps, or a
    `Pending` row in `FrontendParity.md` — and the reverse. Update the table
    either way.
-3. **Location-independent.** No root-relative URL anywhere: resolve against
-   `CALC_BASE` (`calc.js`'s own URL, `src/engine.js`), the worker's or the service worker's
-   location, or the page (`app/`). New files the PWA needs offline go into
+3. **Location-independent** (`WebClient.md` § "Location independence"). New files the PWA needs offline go into
    `app/sw.js`'s `CORE_ASSETS` (build.js fails on a missing one).
-4. **Render has no side effects.** `fetch`, `new Worker`, listeners and
-   timers start in effects only; module-level code reads nothing but
-   `document.currentScript`/`location`. The site prerenders with stubs that
-   throw.
+4. **Render has no side effects** (`WebClient.md` § "No side effects in render").
 5. **`calc.js` exposes `PlayCalculator` only.** The sources are concatenated
    into one closure; a new file goes into `SOURCES` in `build.js`, in load
    order. Its props (`WebClient.md` § "Mounting it") and the stable hooks
    are the contract — changing them is a change for the website too.
-6. **The client brings its own styling.** Tokens live in `calc.css` on
-   `.calcu-client`, never `:root`; don't depend on the host's CSS. Fonts and
+6. **The client brings its own styling** (`reference/WebClient.md`). Fonts and
    React are self-hosted in `Web/` (no CDN).
 7. **Assets have one source:** ROMs from `roms/`, artwork from
    `App/Assets.xcassets`, presets from `examples/` (listed in
@@ -76,5 +69,4 @@ on the real calculator — press CLR first. `tests/prerender.spec.js` renders `c
 in Node. Ports 8059 and 8060 (`CALCU_WEB_PORT` moves both).
 
 CI: job `web` in `.github/workflows/build.yml` (emsdk pinned to the local
-`emcc --version`; bump both together) builds, tests and uploads
-`Calc-U-59-web-<version>.zip`; `release` attaches it as `Calc-U-59-web.zip`.
+`emcc --version`; bump both together). Artifacts: `reference/WebClient.md`.

@@ -11,11 +11,31 @@ NS_ASSUME_NONNULL_BEGIN
 // drawing stays in SwiftUI; these give it the same shapes and numbers as the
 // Qt6 app. Type translation only.
 
+/// cu59::MobileLayout, same order.
+typedef NS_ENUM(NSInteger, TIMobileLayout) {
+    TIMobileLayoutPaged,
+    TIMobileLayoutCalcPrinter,
+    TIMobileLayoutCalcPrinterDebugger,
+};
+
+/// cu59::WidthRange, points.
+typedef struct {
+    CGFloat min, max;
+} TIWidthRange;
+
 /// A cue-card label and the grid columns (0–4) it covers.
 @interface TILabelSpan : NSObject
 @property (nonatomic, readonly) NSInteger startCol;
 @property (nonatomic, readonly) NSInteger endCol;
 @property (nonatomic, readonly, copy) NSString *label;
+@end
+
+/// A lit corner of a fitted card (Shared cardCornerGeometry).
+@interface TICardCorner : NSObject
+@property (nonatomic, readonly) CGRect frame;
+@property (nonatomic, readonly) CGFloat radius;
+@property (nonatomic, readonly) NSInteger arrowPointCount;
+- (CGPoint)arrowPoint:(NSInteger)index;
 @end
 
 /// Text placement on a w × h card (Shared/CueCard.hpp CueCardGeometry).
@@ -52,6 +72,9 @@ NS_ASSUME_NONNULL_BEGIN
 + (CGFloat)cellFittingFontSize:(NSArray<TILabelSpan *> *)spans templateKind:(NSInteger)templateKind
                      cardWidth:(CGFloat)cardWidth scaledGridFontSize:(CGFloat)scaled;
 + (TICueCardGeometry *)cueCardGeometry:(TICueCard *)card width:(CGFloat)width height:(CGFloat)height;
++ (TICardCorner *)cardCorner:(NSInteger)side width:(CGFloat)width height:(CGFloat)height;
+/// The lit corner's colour, 0xRRGGBB.
+@property (class, readonly) uint32_t cardCornerLitColor;
 + (CGFloat)cueCardDividerX:(NSInteger)index templateKind:(NSInteger)templateKind width:(CGFloat)width;
 + (CGRect)cueCardSpanFrame:(TILabelSpan *)span templateKind:(NSInteger)templateKind y:(CGFloat)y width:(CGFloat)width;
 /// 0xRRGGBB: the card's ink, the SolidState dividers, the top wash (at cueCardWashAlpha).
@@ -97,6 +120,14 @@ NS_ASSUME_NONNULL_BEGIN
 
 // ── Debug-panel text and colours (Shared/DebugText.hpp); colours 0xRRGGBB ───
 + (CGFloat)debugPanelFontSize:(CGFloat)width;
+/// cu59::mobileLayout — which panels an iOS window of this size shows.
++ (TIMobileLayout)mobileLayoutWidth:(CGFloat)width height:(CGFloat)height horizontalFold:(BOOL)fold;
+/// cu59::mobilePrinterWidth — the printer column's width range in a side-by-side layout.
++ (TIWidthRange)mobilePrinterWidth:(TIMobileLayout)layout width:(CGFloat)width;
+/// cu59::compactPrinterBar — short printer button labels for this tape width.
++ (BOOL)compactPrinterBar:(CGFloat)printerWidth;
+/// cu59::mobileTopMargin — space above a side-by-side layout for a window's top inset.
++ (CGFloat)mobileTopMargin:(CGFloat)topInset;
 + (NSString *)partitionLineProgramRegs:(NSInteger)programRegs dataRegs:(NSInteger)dataRegs;
 /// mode: TILiveDebugSnapshot.angleMode (-1 = unknown).
 + (NSString *)angleModeLabel:(NSInteger)mode;

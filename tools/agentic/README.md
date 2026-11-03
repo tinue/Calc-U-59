@@ -24,8 +24,8 @@ uv run python tools/agentic/<tool>.py <args>
 - The headless library builds itself on first import
   (`tools/headless/build.sh`). After changes to `Core/` or
   `tools/headless/capi.cpp`, rebuild it.
-- In zsh, `uv` may be aliased with `noglob`, so `examples/calendar-0*.ti59`
-  is passed on literally. Expand globs with `$(ls examples/calendar-0*.ti59)`.
+- In zsh, `uv` may be aliased with `noglob`, so `examples/calendar/calendar-0*.ti59`
+  is passed on literally. Expand globs with `$(ls examples/calendar/calendar-0*.ti59)`.
 - A full calendar year takes about 1–2 s of real time to emulate; the slow
   1978 programs take up to ~30 s.
 
@@ -35,6 +35,13 @@ All times are **emulated seconds**: weighted CPU instructions (an idle-loop
 instruction counts 4) divided by `INSTR_PER_SEC` = 455 kHz / 32 = 14219
 (`tools/headless/ti59.py`, `Machine.elapsed()`). They match the published
 real-hardware times of the calendar programs within a few seconds.
+
+A run time is what a stopwatch on a filmed calculator shows: from the key
+press until the display lights up again (`dark_time` in `ti59file.py`, which
+reads the display duty the GUI draws). A Pause flash doesn't end it, and the
+blinking of an error display after the stop doesn't move it. The GUI's
+`ZeroElapseTime:`/`ReportElapseTime:` figure measures the same interval,
+within a few hundredths of a second.
 
 ## The tools
 
@@ -53,16 +60,13 @@ real-hardware times of the calendar programs within a few seconds.
 ### ti59file.py — load and run
 
 ```bash
-uv run python tools/agentic/ti59file.py examples/calendar-09-dispatch.ti59 [--lines]
-# examples/calendar-09-dispatch.ti59:    89.0 s  finished=True  lines=113 (non-blank 85)  printer floor  27.6 s
+uv run python tools/agentic/ti59file.py examples/calendar/calendar-09-dispatch.ti59 [--lines]
+# examples/calendar/calendar-09-dispatch.ti59:    75.9 s  finished=True  lines=113 (non-blank 85)  printer floor  27.6 s
 ```
 
 Loads the file (PARTITION via `n Op 17`, PROGRAM, REGISTERS), plays its
-KEYSTROKES, each key to idle, and times the **last** key until the program
-has stopped, the printer is idle and the CPU sits in the keyboard idle
-loop. That end condition includes a few seconds of trailing idle checks, so
-the figure is a little higher than the time of the last printed line (use
-`linetimes.py` for that). `printer floor` = the printer's own minimum: 4165
+KEYSTROKES, each key to idle, and times the **last** key until the display
+lights up again. `printer floor` = the printer's own minimum: 4165
 instruction cycles per printed line, 1370 per blank (PRT.FEED) line. `--lines` appends the printout.
 
 Library use (`sys.path.insert(0, 'tools/agentic')`):
@@ -70,7 +74,9 @@ Library use (`sys.path.insert(0, 'tools/agentic')`):
 - `parse(path)` → `(keycodes, {reg: value}, steps, keys)`
 - `load(path, extra_regs=None)` → `(Machine, keys)`
 - `run(path, keys=None)` → `(seconds, lines, finished, Machine)`
-- `press`, `settle`, `idle`, `play_until_last`, `real_keys`, `regbytes`,
+- `dark_time(m, code)` → `(seconds, finished, ran)`: press one key, time it
+  until the display lights up again; `ran` = it ran a program
+- `press`, `settle`, `idle`, `lit`, `play_until_last`, `real_keys`, `regbytes`,
   `DIGIT` (digit → KEYSTROKES matrix code)
 
 The machine always gets the printer and the ML module, whatever the file
@@ -91,17 +97,18 @@ Seconds from the last key to each printed line. The summary groups the gaps
 by line kind (`week` = a 20-character line of digits and spaces). `--lines`
 lists `time gap |line|` for every line, which shows at once which lines carry
 extra work (e.g. the first row of each month). `total` is the time of the
-last printed line: the figure used for the calendar comparisons.
+last printed line, a little before the display lights up again.
 
 ### runtime.py — program run time per key
 
 ```bash
 uv run python tools/agentic/runtime.py file.ti59 [--keys "83 92 83 74 11 ..."]
-# 11:0.15 42:75.06  total 75.2 s
+# 11:0.16 42:75.93  total 76.1 s
 ```
 
-Counts only the time a program is running (`fB[0]` set) for every key, so a
-label key that does preparation work before the start key is counted too.
+Times every key that runs a program (`fB[0]` set) until the display lights
+up again, so a label key that does preparation work before the start key is
+counted too.
 **Use this when comparing two programs that split their work differently.**
 Timing only from the start key can hide seconds of preparation: a version of
 the calendar-09 program whose `A` key called ML-20 looked 4 s faster than
@@ -196,23 +203,23 @@ notes) for writing an annotated `PROGRAM:` section (see
 
 ## Calendar tools (`calendar/`)
 
-For the 1978–1981 calendar-printer programs (`examples/calendar-0*.ti59`,
-`examples/CALENDAR_PROGRAMS.md`).
+For the 1978–1981 calendar-printer programs (`examples/calendar/calendar-0*.ti59`,
+`examples/calendar/CALENDAR_PROGRAMS.md`).
 
 | Tool | Use |
 |---|---|
 | `check.py printout.txt year` | Day rows against Python's `calendar` (Sunday first). Library: `check(lines, year)`. |
 | `years.py file.ti59 year…` | Runs the file for each year (replaces the 4 digit keys before the first `A`), checks the dates, and compares line by line with Acosta's program for the same year. Library: `with_year(path, year)`, e.g. for `runtime.py`'s `key_runtimes`. |
 | `compare.py file.ti59…` | Steps, time of the last printed line, and date check for each program with its own KEYSTROKES. |
-| `fastcal.py out.ti59` | Generator of `examples/calendar-09-dispatch.ti59` (program, registers, annotated listing; header text from `calendar-09-header.txt`). Edit the generator, not the example. |
+| `fastcal.py out.ti59` | Generator of `examples/calendar/calendar-09-dispatch.ti59` (program, registers, annotated listing; header text from `calendar-09-header.txt`). Edit the generator, not the example. |
 | `swapcal.py out.ti59` | Generator of the earlier swap design (correct but 92.6 s), kept for reference. |
 
 Typical check after changing `fastcal.py`:
 
 ```bash
-uv run python tools/agentic/calendar/fastcal.py examples/calendar-09-dispatch.ti59
-uv run python tools/agentic/calendar/years.py examples/calendar-09-dispatch.ti59 1900 2000 2024 2026
-uv run python tools/agentic/runtime.py examples/calendar-09-dispatch.ti59
+uv run python tools/agentic/calendar/fastcal.py examples/calendar/calendar-09-dispatch.ti59
+uv run python tools/agentic/calendar/years.py examples/calendar/calendar-09-dispatch.ti59 1900 2000 2024 2026
+uv run python tools/agentic/runtime.py examples/calendar/calendar-09-dispatch.ti59
 ```
 
 ## Pitfalls
@@ -240,3 +247,9 @@ uv run python tools/agentic/runtime.py examples/calendar-09-dispatch.ti59
 - **Harness requirements.** The tools need `h_elapsed` in
   `tools/headless/capi.cpp` and `Machine.elapsed()` / `INSTR_PER_SEC` in
   `tools/headless/ti59.py`.
+- **No reloads or preset cards.** `ti59file.py` has its own parser, which
+  merges all sections of one kind into one load and plays all keys after it.
+  A preset with reloads (sections after `KEYSTROKES:`), `CARD:` blocks or
+  `ArmCard:`/`InsertCard:` (`reference/StateFileFormat.md` § "Reloads",
+  § "CARD") does not run correctly here. (Follow-up: teach it reloads and
+  cards; the harness has `card_insert`, `card_eject` and `card_waiting`.)

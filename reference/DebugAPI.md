@@ -30,6 +30,7 @@ with the run loop stopped (`EmulatorSession::sync`), as
 |---|---|
 | `copyRAMReg(reg, out16)` / `writeRAMReg(reg, n16)` | A raw 16-nibble RAM register by **physical** index (0 … `ramRegCount()` − 1) |
 | `readProgramStep(step)` / `writeProgram(keycodes, count)` | Program keycodes from step 0 |
+| `writeProgramStep(step, keycode)` | One program step; the others stay (a preset reload) |
 | `writeDataRegister(nn, n16)` | Data register Rnn (encode with `cu59::encodeBcd`, `Shared/Bcd.hpp`) |
 | `decodeBCD(n16)` | A register as `double` |
 | `partitionProgramRegs()` / `setPartitionProgramRegs(n)` | RAM registers given to the program, a multiple of 10 in [0, 120] |
@@ -80,7 +81,7 @@ it calls `resumeFrozen` (its `resume` ends a page suspend).
 | `frozen` | Emulation is halted |
 | `owner` | `FreezeOwner::Cpu` or `::Calculator`: the panel whose RESUME and STEP apply; empty while running |
 | `pcChangeArmed` | CALCULATOR FREEZE ON START: freeze at the next step boundary |
-| `scanLoopExitArmed` | CPU FREEZE ON START: freeze when the CPU leaves the keyboard scan loop (key press or reset) |
+| `scanLoopExitArmed` | CPU FREEZE ON START: freeze when the CPU leaves the keyboard scan loop (key press, clean reset, on the TI-58C any reset; a plain Reset on the TI-59/58 runs the routine with the run loop stopped) |
 | `generation` | Changes on every freeze, resume and clear |
 
 Arming one freeze disarms the other; freezing disarms both. The controller
@@ -149,8 +150,8 @@ and T are the state before that step. `currentStep` comes from:
   the last one, so the next is counter + 1 — except after RST or a jump,
   which leave the target there with fB[11] (reload) set (`08B9`).
 - **Solid State:** the library exec latch (`libExecPC`), the module byte
-  fetched for dispatch. See `CoreArchitecture.md` § "How the emulator knows
-  the current instruction".
+  fetched for dispatch. See `CoreArchitecture.md` § "The user-visible
+  module step (`libExecPC`)".
 
 The CPU tab is instruction-level and post-execution.
 
@@ -309,7 +310,7 @@ path.
 
 Core breakpoints (`TI59Machine::addBreakpoint`, `TRACE_BREAKPOINTS`,
 `kBreakpointHit`) are used only by the headless tools (`tools/headless/`).
-Neither app sets them.
+No GUI sets them.
 
 ### Disassembler
 
@@ -360,7 +361,7 @@ a call through `m_cpu`. `fmtNibs(d, buf, reverse)` in `TMC0501.cpp` formats
 |---|---|
 | `STO SCOM[NN] = …` | SCOM write (STO / STOF / STOG), nibble 15 first |
 | `MEMWR RAM[NNN] = …` | RAM write (MEMWR or RAM_OP), nibble 0 first |
-| `RAM_OP CLR1 RAM[NNN]` | RAM_OP clear-1 (op 2) |
+| `RAM_OP CLR ALL` | RAM_OP clear all (op 2) |
 | `RAM_OP CLR10 RAM[NNN]` | RAM_OP clear-10 (op 4) |
 
 ---

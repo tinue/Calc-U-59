@@ -1,16 +1,18 @@
 #include "CardPickerDialog.hpp"
 #include "CardFile.hpp"
 #include <QDir>
+#include <QFileInfo>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QMessageBox>
 #include <QPushButton>
 #include <QVBoxLayout>
 
 CardPickerDialog::CardPickerDialog(Mode mode, const QString& directory, const QString& defaultFileName, QWidget* parent)
     : QDialog(parent), m_mode(mode), m_dir(directory) {
-    setWindowTitle(mode == Mode::Load ? QStringLiteral("Load Card") : QStringLiteral("Save Card"));
+    setWindowTitle(mode == Mode::Load ? QStringLiteral("Fit Card") : QStringLiteral("Fit Fresh Card"));
     setMinimumSize(320, 300);
     auto* col = new QVBoxLayout(this);
 
@@ -39,7 +41,7 @@ CardPickerDialog::CardPickerDialog(Mode mode, const QString& directory, const QS
     connect(cancel, &QPushButton::clicked, this, &QDialog::reject);
     footer->addWidget(cancel);
     if (mode == Mode::Save) {
-        m_save = new QPushButton(QStringLiteral("Save"), this);
+        m_save = new QPushButton(QStringLiteral("Fit"), this);
         m_save->setDefault(true);
         connect(m_save, &QPushButton::clicked, this, &CardPickerDialog::accept);
         connect(m_name, &QLineEdit::textChanged, this, [this](const QString& t) { m_save->setEnabled(!t.trimmed().isEmpty()); });
@@ -70,6 +72,14 @@ void CardPickerDialog::accept() {
         if (name.isEmpty()) return;
         name = QString::fromStdString(cu59::withDefaultCardExtension(name.toStdString()));
         m_selected = QDir(m_dir).filePath(name);
+        if (QFileInfo::exists(m_selected)) {
+            QMessageBox ask(QMessageBox::Question, QStringLiteral("Replace card"),
+                            QStringLiteral("Replace card %1?").arg(name), QMessageBox::Cancel, this);
+            ask.setInformativeText(QStringLiteral("Its first write replaces both sides and the cue card."));
+            QPushButton* replace = ask.addButton(QStringLiteral("Replace"), QMessageBox::DestructiveRole);
+            ask.exec();
+            if (ask.clickedButton() != replace) return;
+        }
     } else {
         QListWidgetItem* item = m_list->currentItem();
         if (!item || !(item->flags() & Qt::ItemIsEnabled)) return;

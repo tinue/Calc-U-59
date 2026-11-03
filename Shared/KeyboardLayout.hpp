@@ -27,6 +27,27 @@ inline constexpr NRect kDisplayRect{0.0, 0.052, 1.0, 0.05};
 /// Cue-card slot (canvas-space). The card images are 440 px tall: 440 / 4075 ≈ 0.108.
 inline constexpr NRect kCardRect{0.0, 0.11, 1.0, 0.1080};
 
+/// The fitted card's two corners (fractions of the card): the top corners of the
+/// artwork's black band, where a press feeds that side and which light up while
+/// it is read. The art's arrow (cueCardGeometry) stays black on the lit colour.
+inline constexpr double kCardCornerWidth = 0.20;
+inline constexpr double kCardCornerHeight = 0.277;
+inline constexpr unsigned kCardCornerLitRGB = 0xFFF2B8;
+
+/// A side's corner (fractions of the card): 0 top-left, 1 top-right.
+inline constexpr NRect cardCornerRect(int side) {
+    return {side == 0 ? 0.0 : 1 - kCardCornerWidth, 0.0, kCardCornerWidth, kCardCornerHeight};
+}
+
+/// The side whose corner holds canvas position (nx, ny).
+inline std::optional<int> cardCornerAt(double nx, double ny) {
+    if (!kCardRect.contains(nx, ny)) return std::nullopt;
+    const double x = (nx - kCardRect.x) / kCardRect.w, y = (ny - kCardRect.y) / kCardRect.h;
+    for (int side : {0, 1})
+        if (cardCornerRect(side).contains(x, y)) return side;
+    return std::nullopt;
+}
+
 /// Keyboard section within the canvas.
 inline constexpr double kKeyboardYStart = 0.2324;
 inline constexpr double kKeyboardYScale = 0.7676;

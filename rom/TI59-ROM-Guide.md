@@ -427,15 +427,15 @@ column-2 keys work as the terminator (B, INV, x⇄t, STO, EE; every key
 tested), and any digit works as the first one. The 12th decimal digit of X
 becomes the source flag, nibbles 4–7 of its image the start step.
 
-- **St flg at the end of the partition** (`examples/fastmode.ti59`, TI PPC
+- **St flg at the end of the partition** (`examples/historic/fastmode.ti59`, TI PPC
   Notes V9N3P5). Fetching the operand fails, the program halts with the
   argument pending, and the user presses 7 EE.
-- **Acosta's "hi2"** (`examples/calendar-08-acosta.ti59`): RCL of the
+- **Acosta's "hi2"** (`examples/calendar/calendar-08-acosta.ti59`): RCL of the
   constant, St flg, then a pseudo-keycode `0C` as the operand, all inside the
   program. Its hex units digit feeds only the digit C and leaves the argument
   open, and the next step (68 Nop) ends it. The keyboard ritual (`Pgm 12 SBR
   999`, `R/S`, `D.MS`, `LRN Ins Ins`) only manufactures that `0C`, with the
-  stale-cache Ins quirk known from `examples/texas-print.ti59`.
+  stale-cache Ins quirk known from `examples/historic/texas-print.ti59`.
 - **SST** (`examples/fastmode-sst.ti59`). SST leaves the operand pending
   because a program operand is fed as two digits. No partition-end halt and
   no pseudo-keycode are needed.
@@ -444,11 +444,17 @@ becomes the source flag, nibbles 4–7 of its image the start step.
   because stored operands always arrive as two decimal digits.
 
 **Family 2: LRN inside a module program** (Arendt / Meusch, `00000 Pgm 02 SBR
-239 …`; `examples/FastMode_Zero4.ti59`, `examples/characters-fastmode.ti59`).
+239 …`; `examples/historic/FastMode_Zero4.ti59`, `examples/historic/characters-fastmode.ti59`).
 ML-02 step 239 is a byte 31, the LRN keycode. Executed there, it switches on
 LRN mode while the module keeps running, so the module records its own
 keycodes into RAM. One of them then dispatches into the cold-start clear loop
-at `0005`, which writes register A into SCOM[0]: source 4.
+at `0005`. C has low digit 0 here, so the loop runs once and writes register A,
+which holds the program register with steps 008–015, into SCOM[0]: step 009's
+recorded 42 gives source 4. It goes on into the reset routine (`0375`), whose
+`RAM.OP` op 2 at `0385` clears the whole RAM (`reference/CoreArchitecture.md`
+§ "RAM"); checked on a real TI-59. SCOM stays, so t and the HIR registers survive.
+Details and the shifted keycodes from SCOM[0] nibble 9: `rom/fastmode.md` § "The
+LRN entry".
 
 **Dead ends checked:** `HIR 00` would be the direct route, but HIR accepts only
 registers 1–8 (range check at `11C1`). `St flg Ind` with flag numbers above 9
@@ -535,7 +541,7 @@ KR[4..9], filled right to left), PRT.GO prints the line, TST.BUSY paces it.
 - **Printer interrupt**: a manufactured keycode 1F jumps into the print
   routine just before PRT.GO and cuts the line in progress short
   (`rom/printerinterrupt.md`).
-- **Adv** feeds two lines and keeps feeding while Adv or the printer's ADV
+- **Adv** issues two PRT.FEEDs, one line on paper, and keeps feeding while Adv or the printer's ADV
   button is held (`0F36`).
 
 ## Keycode sub-programs
@@ -624,7 +630,9 @@ continuation, and with KR = 0 that is address `0001`: the run falls into
 the cold-start clear (`0001–000E`), which zeroes every SCOM row, and then
 into `POWERON_SETUP`. These are the nine codes marked ✱. They clear the
 display, t, EE and Eng, the AOS levels and HIR registers, the user flags and
-the return stack, then stop at step 000. Program memory stays. On the TI-59
+the return stack, then stop at step 000. The reset routine's `RAM.OP` op 2
+clears program memory and data registers too (seen on a real TI-59 for the
+fast-mode entry, which runs the same code, not for these codes). On the TI-59
 the partition goes back to 479.59 because it lives in SCOM (719.29 before
 in the sweep); the TI-58C keeps its partition. A fragment that returns
 through SR ends as a key would, in `KEY_OP_ENTRY` (`0141`) with whatever op
@@ -657,11 +665,11 @@ and does not name the model.
 
 | Claim | Code | Where it lands, and the result |
 |---|---|---|
-| Acosta: h04 h32 h33 h45 h53 h64 h71 h72 h83 clear everything, go to step 000 and stop; Ristanovic: h53, h64 all clear | the ✱ codes | cold start, as above. The scan prints h45 as "nes". Acosta expected h04 might clear the program on a TI-58/59; on the TI-59 it keeps the program and resets the partition. |
+| Acosta: h04 h32 h33 h45 h53 h64 h71 h72 h83 clear everything, go to step 000 and stop; Ristanovic: h53, h64 all clear | the ✱ codes | cold start, as above. The scan prints h45 as "nes". Acosta expected h04 might clear the program on a TI-58/59; on the TI-59 it clears the program as well and resets the partition. |
 | Acosta: h31 h41 h51 act as sin | 2B 3B 4B | `00B2–00B4`, the trig run after its INV test |
 | Acosta: h54 copies t into the display right after x⇄t, pending operations kept | 4E | `00E4`, Prd's store-back. At step 8k only; `2 + 7 x⇄t h54 =` gives 9 on the TI-58C, 2 on the TI-59 |
 | Acosta: h24 reads the next seven steps one digit out of step, so 8 steps hold 15 | 1E | TI-58C only: the scanner's `0EE1` leads into the step-buffer code there (TI-58C `0C0B`), and `1E 10 20 30 10 09 91` enters the digits 123. On the TI-59, `0EE1` runs other code. |
-| Acosta: codes ending in A do nothing new (`examples/repartition.ti58c`); Ristanovic: h00 acts as List | tA, 9A | tA runs as t0; 9A is List (90) |
+| Acosta: codes ending in A do nothing new (`examples/historic/repartition.ti58c`); Ristanovic: h00 acts as List | tA, 9A | tA runs as t0; 9A is List (90) |
 | Acosta: all hex codes except h10–h15 disable label search | | mostly; see "Label search" |
 | Acosta: h11 as the operand of RCL, Fix, St flg, GTO, SBR, Dsz or x=t also runs SBR A | 0B | not checked |
 | Ristanovic: h44 acts as ln(0) | 3E | `00E3`, Prd's × ÷ on leftover operands; overflows to −9.9999999 99 |

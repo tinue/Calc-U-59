@@ -8,7 +8,8 @@ user-invocable: true
 
 The format — sections, PARTITION, PROGRAM and REGISTERS notation, print-code
 register values, matrix codes vs. keycodes, the 2nd-function table,
-KEYSTROKES directives, SKIP-RESET, the CUECARD grammar — is in
+KEYSTROKES directives, the GUI controls (`PrinterTrace:`, `Freeze:`, …),
+reloads, `CARD:` blocks and `ArmCard:`/`InsertCard:`, the CUECARD grammar — is in
 **`reference/StateFileFormat.md`**. Read it before writing or editing a
 file. The parser, `Shared/StateFile.cpp`, wins if the two disagree.
 
@@ -18,15 +19,25 @@ file. The parser, `Shared/StateFile.cpp`, wins if the two disagree.
   Digit 1 is `82` in KEYSTROKES and `01` in PROGRAM.
 - **A 2nd function in KEYSTROKES is two presses:** `21`, then the key.
 - **`#` starts a comment anywhere**, also inside a cue-card value.
+- **Order matters:** `PROGRAM:`/`REGISTERS:`/`CUECARD:`/`PARTITION:` after
+  `KEYSTROKES:` are a reload played mid-script, not part of the load. Put
+  them first unless that is what you mean.
+- **Reload or card?** A reload is keyed-in changes: only the listed steps
+  and registers change (a `...` gap stays as it was). A card replaces a
+  whole bank. Use `InsertCard:` when the program stops for a card, and
+  `ArmCard:` when it runs `Write` / `INV Write` itself.
 - **Adv (`21 93`) needs `RegularSpeed:`** or the paper runs away.
+- **Retired:** `SKIP-RESET:` (use a reload in one file) and key `99` (use
+  `PrinterTrace: on`/`off`). Both are errors now.
 - **Check a file by loading it:** `tools/agentic/` runs `.ti59` files
-  headless (`tools/agentic/README.md`).
+  headless (`tools/agentic/README.md`). It doesn't know reloads or preset
+  cards; check those in an app or with a controller test.
 
 ## Transcribing magazine listings (52-Notes)
 
 Lessons from the 52-Notes calendar programs
-(`examples/calendar-01-Weinberger.ti59` and the rest of the series, see
-`examples/CALENDAR_PROGRAMS.md`). The listings use their own shorthand
+(`examples/calendar/calendar-01-Weinberger.ti59` and the rest of the series, see
+`examples/calendar/CALENDAR_PROGRAMS.md`). The listings use their own shorthand
 (`S29`/`R13` for STO/RCL, `rtn` for the merged RTN, `CP`, `x=t`, `xGEt`,
 `Op`, `Adv`, `Pgm` for 2nd functions); don't assume it carries over to
 other sources.

@@ -57,15 +57,23 @@ QVector<cu59::ModuleMetadata> EmulatorController::allModules() const {
 void EmulatorController::pressKey(int row, int col) { m_c->pressKey(cu59::matrixCode(row, col)); }
 void EmulatorController::releaseKey(int row, int col) { m_c->releaseKey(cu59::matrixCode(row, col)); }
 
-void EmulatorController::insertCard(const QString& path) {
-    m_c->insertCard(readBytes(path), path.toStdString(), QFileInfo(path).fileName().toStdString());
+void EmulatorController::fitCard(const QString& path) {
+    m_c->fitCard(readBytes(path), path.toStdString(), QFileInfo(path).fileName().toStdString());
 }
 
-void EmulatorController::insertBlankCard(const QString& savePath) {
-    m_c->insertBlankCard(savePath.toStdString(), QFileInfo(savePath).fileName().toStdString());
+void EmulatorController::fitBlankCard(const QString& savePath) {
+    m_c->fitBlankCard(savePath.toStdString(), QFileInfo(savePath).fileName().toStdString());
 }
 
 void EmulatorController::loadStateFile(const QString& path) { m_c->loadStateFile(readBytes(path)); }
+
+cu59::SessionController::DropAction EmulatorController::dropAction(const QString& path) const {
+    return m_c->dropAction(QFileInfo(path).fileName().toStdString());
+}
+
+void EmulatorController::openDroppedFile(const QString& path) {
+    m_c->openDroppedFile(readBytes(path), path.toStdString(), QFileInfo(path).fileName().toStdString());
+}
 
 void EmulatorController::loadAsmFile(const QString& path) {
     m_c->loadAsm(readResource(path), QFileInfo(path).fileName().toStdString());
@@ -82,6 +90,17 @@ std::optional<std::string> EmulatorController::readConstantMemory() { return rea
 void EmulatorController::writeConstantMemory(const std::string& text) { writeText(AppPaths::constantMemoryFile(), text); }
 
 bool EmulatorController::writeCard(const std::string& path, const std::string& text) { return writeText(qs(path), text); }
+
+std::string EmulatorController::cardFilePath(const std::string& fileName) {
+    return (AppPaths::cardDir() + QLatin1Char('/') + qs(fileName)).toStdString();
+}
+
+EmulatorController::CardRead EmulatorController::readCard(const std::string& path) {
+    if (!QFileInfo::exists(qs(path))) return {};
+    auto raw = readBytes(qs(path));
+    const bool unreadable = !raw.has_value();
+    return {std::move(raw), unreadable};
+}
 
 cu59::SessionController::TraceLocation EmulatorController::traceLocation() {
     return {AppPaths::toFsPath(AppPaths::traceDir()), static_cast<uint64_t>(AppSettings::resolvedTraceMaxMB()) * 1'000'000};

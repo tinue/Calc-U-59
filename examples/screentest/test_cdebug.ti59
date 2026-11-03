@@ -1,0 +1,42 @@
+# test_cdebug.ti59
+#
+# App Store screenshot automation: the debugger frozen on a running program
+# (Calc-U-59UITests/ScreenshotTests.swift, testScreenshotCalcDebugger).
+#
+# 1. Select Leisure Library program 01 and run its diagnostic (SBR =).
+# 2. π × 4 = with the printer's TRACE on, so the tape shows the trace.
+# 3. Arm FREEZE ON START in the CALCULATOR panel and run the program again:
+#    the calculator freezes before the program's first step.
+#
+# The UI test loads this file, waits for the playback to end, brings the
+# debugger page into view on an iPhone and takes the screenshot.
+
+MODEL: TI-59
+SOLID-STATE-MODULE: LE
+PRINTER: on
+
+KEYSTROKES:
+21      # 2nd
+31      # Pgm  (LRN key — selects program page)
+92      # 0
+82      # 1    → Pgm 01 selected
+71      # SBR
+FullSpeed:  # = below runs the diagnostic, which takes a while — race through it
+95      # =    → run Leisure Library diagnostic program
+RegularSpeed:
+
+PrinterTrace: on
+21      # 2nd
+84      # π
+65      # ×
+72      # 4
+95      # =    → π × 4 = 12.566... (printed to tape while TRACE is on)
+PrinterTrace: off
+
+DebugPanel: Calculator
+FreezeOnStart: Calculator
+71      # SBR
+95      # =    → re-enter program; FREEZE ON START fires at its first step
+Wait: 1.5s      # not for the calculator — the freeze is instant — but XCUITest polls
+                # keystroke-playback-status roughly once per second, so give it a
+                # window to observe "playing" before this flips back to "idle"

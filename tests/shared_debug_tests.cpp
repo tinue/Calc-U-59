@@ -306,6 +306,20 @@ TEST(debug_panel_text) {
     CHECK_EQ(debugPanelFontSize(300), 9);
     CHECK_EQ(debugPanelFontSize(400), 11);
     CHECK_EQ(debugPanelFontSize(800), 13);
+}
+
+TEST(mobile_layout) {
+    CHECK(mobileLayout(440, 956, false) == MobileLayout::Paged);               // iPhone portrait
+    CHECK(mobileLayout(832, 419, false) == MobileLayout::CalcPrinter);         // iPhone landscape (safe area)
+    CHECK(mobileLayout(880, 645, false) == MobileLayout::CalcPrinterDebugger); // iPhone Duo open (safe area)
+    CHECK(mobileLayout(880, 645, true) == MobileLayout::Paged);                // Duo laptop pose
+    CHECK(mobileLayout(669, 951, false) == MobileLayout::Paged);               // Duo open, tall
+    CHECK(mobileLayout(1133, 744, false) == MobileLayout::CalcPrinterDebugger); // iPad mini landscape
+    CHECK_EQ(mobilePrinterWidth(MobileLayout::CalcPrinterDebugger, 880).max, 220.0); // Duo: narrow tape
+    CHECK_EQ(mobilePrinterWidth(MobileLayout::CalcPrinterDebugger, 1133).max, 360.0); // iPad
+    CHECK_EQ(mobilePrinterWidth(MobileLayout::CalcPrinter, 832).min, 290.0);
+    CHECK_EQ(mobileTopMargin(0), 32.0);  // iPhone Duo open
+    CHECK_EQ(mobileTopMargin(24), 0.0);  // iPad: status bar inset
     CHECK_EQ(partitionLine(60, 60), std::string("Steps: 480, Registers: 60 (479.59)"));
     CHECK_EQ(partitionLine(120, 0), std::string("Steps: 960, Registers: 0 (959.)"));
     CHECK_EQ(angleModeLabel(std::nullopt), std::string("?"));

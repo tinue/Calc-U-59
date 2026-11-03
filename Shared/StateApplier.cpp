@@ -11,17 +11,23 @@ namespace {
 /// stack and display driver once program/data are written.
 constexpr uint32_t kStartupSteps = 300'000;
 
+/// A breakpoint must not cut this short: the routine's RAM clear on the TI-59/58
+/// would then still be ahead, and take what is written into the RAM next.
+void runStartup(TI59Machine& m) {
+    for (uint32_t done = 0; done < kStartupSteps;) done += m.stepN(kStartupSteps - done);
+}
+
 /// Program steps zero-padded to `steps` (at least up to the last listed step).
 /// A full load pads to the model's physical capacity — not the PARTITION
 /// boundary: some listings deliberately load registers as programs and
-/// programs as registers (examples/calendar-05-vanderburgh.ti59), so PROGRAM:
+/// programs as registers (examples/calendar/calendar-05-vanderburgh.ti59), so PROGRAM:
 /// and REGISTERS: are trusted as written.
-void writeProgram(TI59Machine& m, const LoadStateResult& r, Model model, int steps) {
+void writeProgram(TI59Machine& m, const std::vector<ProgramStep>& programSteps, Model model, int steps) {
     int physicalMaxStep = info(model).maxStep();
-    for (const auto& s : r.programSteps)
+    for (const auto& s : programSteps)
         if (s.stepAddr >= steps && s.stepAddr <= physicalMaxStep) steps = s.stepAddr + 1;
     std::vector<uint8_t> program(static_cast<size_t>(std::min(steps, physicalMaxStep + 1)), 0);
-    for (const auto& s : r.programSteps)
+    for (const auto& s : programSteps)
         if (s.stepAddr >= 0 && static_cast<size_t>(s.stepAddr) < program.size())
             program[static_cast<size_t>(s.stepAddr)] = s.keycode;
     m.writeProgram(program.data(), static_cast<int>(program.size()));
@@ -29,8 +35,8 @@ void writeProgram(TI59Machine& m, const LoadStateResult& r, Model model, int ste
 
 /// Extra (H) registers go straight to raw RAM 60–63; branch on isHidden, not
 /// the number's range — normal TI-59 registers go up to 99.
-void writeRegisters(TI59Machine& m, const LoadStateResult& r) {
-    for (const auto& g : r.registers) {
+void writeRegisters(TI59Machine& m, const std::vector<RegisterValue>& registers) {
+    for (const auto& g : registers) {
         if (g.isHidden) m.writeRAMReg(kExtraRegisterBase + g.regNum, g.nibbles.data());
         else m.writeDataRegister(g.regNum, g.nibbles.data());
     }
@@ -55,7 +61,7 @@ void applyState(TI59Machine& m, const LoadStateResult& r, Model model) {
     int partitionMaxStep = (!mi.hasLargeMemory && !r.partitionWasExplicit) ? 239 : r.partitionMaxStep;
 
     m.reset();
-    m.stepN(kStartupSteps);
+    runStartup(m);
     setPartition(m, partitionMaxStep);
 
     // Clear RAM, but keep the TI-58C's extra registers (raw RAM 60–63,
@@ -66,41 +72,45 @@ void applyState(TI59Machine& m, const LoadStateResult& r, Model model) {
     int clearUpTo = mi.hasConstantMemory ? kExtraRegisterBase : 120;
     for (int reg = 0; reg < clearUpTo; ++reg) m.writeRAMReg(reg, zero);
 
-    writeProgram(m, r, model, mi.maxStep() + 1);
-    writeRegisters(m, r);
+    writeProgram(m, r.programSteps, model, mi.maxStep() + 1);
+    writeRegisters(m, r.registers);
 }
 
-// The running machine's data registers are kept: the program is padded only
-// to the end of the program area, as a program read from cards or keyed in
-// would be (examples/fast-grafik-3d-plot-part2.ti59 needs part 1's registers).
-void applySkipResetState(TI59Machine& m, const LoadStateResult& r, Model model) {
-    if (r.partitionWasExplicit) setPartition(m, r.partitionMaxStep);
-    if (!r.programSteps.empty()) writeProgram(m, r, model, m.partitionProgramRegs() * 8);
-    writeRegisters(m, r);
+// A reload is the user keying in changes: the listed steps and registers
+// change, nothing else (a card read, which replaces a whole bank, is CARD:).
+void applyReload(TI59Machine& m, const ReloadStage& stage, Model model) {
+    if (stage.partitionMaxStep) setPartition(m, *stage.partitionMaxStep);
+    int physicalMaxStep = info(model).maxStep();
+    for (const auto& s : stage.programSteps)
+        if (s.stepAddr <= physicalMaxStep) m.writeProgramStep(s.stepAddr, s.keycode);
+    writeRegisters(m, stage.registers);
 }
 
 void powerOn(TI59Machine& m, Model model, const std::vector<uint8_t>* savedRam) {
     if (!info(model).hasConstantMemory) return;
-    m.stepN(kStartupSteps);
+    runStartup(m);
     if (savedRam && savedRam->size() >= 120 * 16) m.deserialiseRAM(savedRam->data());
 }
 
 void softReset(TI59Machine& m, Model model, const std::vector<uint8_t>* savedRam) {
-    m.reset();
     if (info(model).hasConstantMemory) {
+        m.reset();
         if (savedRam && savedRam->size() >= 120 * 16) m.deserialiseRAM(savedRam->data());
         return;
     }
-    // Clear out-of-range registers for the current model.
-    const uint8_t zero[16] = {};
-    int totalRegs = m.ramRegCount();
-    int dataRegCount = std::max(0, totalRegs - m.partitionProgramRegs());
-    for (int reg = dataRegCount; reg < totalRegs; ++reg) m.writeRAMReg(reg, zero);
+    // The ROM's reset routine clears the RAM, so it has to be past that first.
+    std::vector<uint8_t> ram(120 * 16);
+    m.serialiseRAM(ram.data());
+    m.reset();
+    runStartup(m);
+    m.deserialiseRAM(ram.data());
 }
 
-void cleanReset(TI59Machine& m) {
-    std::vector<uint8_t> zero(120 * 16, 0);
-    m.deserialiseRAM(zero.data());
+void cleanReset(TI59Machine& m, Model model) {
+    if (info(model).hasConstantMemory) {  // its ROM never clears the RAM
+        std::vector<uint8_t> zero(120 * 16, 0);
+        m.deserialiseRAM(zero.data());
+    }
     m.reset();
 }
 

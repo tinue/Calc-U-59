@@ -37,7 +37,7 @@ Pre-built macOS DMGs, Windows installers (x64, ARM64) and Linux AppImages (x86_6
 
 **Printer:** The PC-100C thermal printer is simulated functionally: the emulator intercepts the ROM's print commands, keeps the printer busy for a line's print time (enough for the [printer interrupt](rom/printerinterrupt.md)), and renders characters with a dot-matrix font calibrated against physical hardware. For a line cut short, the head's column-by-column firing and each dot's heating time are modeled, measured on a real PC-100A; the paper mechanics are not.
 
-**Debugger:** Live view and inspection, and stepping both calculator-level and CPU-level instructions work. The core has a breakpoint API used by the headless tools (`reference/DebugAPI.md` § "Breakpoints"), but neither app has a UI to set one. Also missing: keypress latch while single-stepping (`ideas/KeypressLatch.md`) and conditional freezes (e.g. on a register change). The API surface will change as it matures.
+**Debugger:** Live view and inspection, and stepping both calculator-level and CPU-level instructions work. The core has a breakpoint API used by the headless tools (`reference/DebugAPI.md` § "Breakpoints"), but no GUI has a UI to set one. Also missing: keypress latch while single-stepping (`ideas/KeypressLatch.md`) and conditional freezes (e.g. on a register change). The API surface will change as it matures.
 
 ## Building
 
@@ -111,12 +111,14 @@ isn't duplicated in this repository.
 | [`README.md`](README.md) | This file — project overview, features, limitations, and this index. |
 | [`CLAUDE.md`](CLAUDE.md) | Skill-routing table and pointers to the architecture reference docs, for AI coding agents working in this repo. |
 | [`CHANGELOG.md`](CHANGELOG.md) | Version history, one heading per release. |
-| [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) | Qt6 (LGPLv3) notice for the Windows/Linux app; status of the `roms/` ROM images. |
+| [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) | Qt6 (LGPLv3) notice for the Windows/Linux app; React and Archivo notices for the web client; status of the `roms/` ROM images. |
 | [`TODO.md`](TODO.md) | Unsorted backlog of ideas, bugs, and observations across the core, settings, and UI. |
-| [`release.yaml`](release.yaml) | Release configuration for ReleaseIt: the Mac DMG built locally, the Windows/Linux packages and the web client's zip from CI, the iOS App Store upload. |
+| [`release.yaml`](release.yaml) | Release configuration for ReleaseIt: the Mac DMG built locally, the Windows/Linux packages and the web client's zip from CI, the iOS App Store upload. After a release build, `bin/install-release.sh` puts the Mac app into /Applications. |
 | [`PRIVACY.md`](PRIVACY.md) | App Store privacy policy — Calc-U-59 collects no data and makes no network connections. |
 | [`ideas/KeypressLatch.md`](ideas/KeypressLatch.md) | Unimplemented design proposal for latching keypresses while the debugger is frozen. |
 | [`ideas/Pico.md`](ideas/Pico.md) | Feasibility analysis for running the core on a Raspberry Pi Pico wired to a real TI-59's keyboard, display, and card reader. |
+| [`ideas/PresetConvergence.md`](ideas/PresetConvergence.md) | Comparison of Calc-U-59 and Calc-U-1600 presets: where the syntax could converge, and which features each could take from the other. |
+| [`ideas/CardSound.md`](ideas/CardSound.md) | Plan and measurements for playing a real card pass's sound, with the emulator's pass timed to match |
 | [`ideas/CardRecovery.md`](ideas/CardRecovery.md) | Signal-chain analysis and breadboard circuit design for a standalone Pico-based magnetic-card reader, aimed at recovering cards a stock TI-59 fails to read. |
 | [`LICENSE`](LICENSE) | GNU General Public License, version 3 (GPLv3). |
 | [`NOTICE`](NOTICE) | Copyright notice for the GPLv3 license. |
@@ -146,6 +148,7 @@ Trigger conditions and workflows for Claude Code when working in specific areas 
 | [`calc-u-59-shared`](.claude/skills/calc-u-59-shared/SKILL.md) | Working on the shared C++ layer (`Shared/`, `tests/`, root CMake): rules, adding a module and its Bridge wrapper, golden-file ports. |
 | [`calc-u-59-qt`](.claude/skills/calc-u-59-qt/SKILL.md) | Working on the Qt6 app (`Qt6/`, CI workflow): ship scope (Windows/Linux), class map against the Swift views, threading, build and packaging. |
 | [`calc-u-59-web`](.claude/skills/calc-u-59-web/SKILL.md) | Working on the web client (`Web/`): rules (no logic, location independence, no side effects in render, own styling), build and tests; points to `reference/WebClient.md`. |
+| [`pre-release-cleanup`](.claude/skills/pre-release-cleanup/SKILL.md) | User-invoked release audit: parity, simplification, docs, changelog, screenshots, builds. |
 | [`calc-u-59-swift`](.claude/skills/calc-u-59-swift/SKILL.md) | Working on the Swift/SwiftUI app (`App/`, `Bridge/`): view model, bridge, display, keyboard, debug panels, printer, card reader, settings. |
 | [`calc-u-59-docs`](.claude/skills/calc-u-59-docs/SKILL.md) | Working on documentation (`reference/`, root markdown files); states the developer-vs-end-user documentation split, where the user guide lives, and the release documentation update workflow. |
 | [`calc-u-59-statefiles`](.claude/skills/calc-u-59-statefiles/SKILL.md) | Pointer to `reference/StateFileFormat.md` plus a couple of navigation aids for the two mistakes that come up most (matrix codes vs. keycodes, 2nd-function presses). |
@@ -186,7 +189,7 @@ Checked-in analysis the project keeps for itself, distinct from any AI tool's pr
 
 | Document | Abstract |
 |---|---|
-| [`examples/CALENDAR_PROGRAMS.md`](examples/CALENDAR_PROGRAMS.md) | History of the 1978–1981 calendar-printer competition and a timing comparison of the `calendar-0*.ti59` programs. |
+| [`examples/calendar/CALENDAR_PROGRAMS.md`](examples/calendar/CALENDAR_PROGRAMS.md) | History of the 1978–1981 calendar-printer competition and a timing comparison of the `calendar-0*.ti59` programs. |
 | [`examples/assembly/README.md`](examples/assembly/README.md) | Format of the assembly examples derived from Hynek Sladký's HW programming guide. |
 | [`examples/debug/readme.md`](examples/debug/readme.md) | Notes that this subfolder holds debugging/regression state files, kept separate to keep the main examples folder clean. |
 

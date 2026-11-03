@@ -1,0 +1,207 @@
+# picard.ti59
+#
+# Written by ti59-printer-art. A picture printed with the printer
+# interrupt, 2 dot rows per line (Calc-U-59 rom/printerinterrupt.md).
+# printer-art: orientation ccw
+# 23 lines, 68 chunks.
+# Part 1: 68 chunks in R03-R70, end address in R71 (the load).
+#
+# On a real TI-59, before the hack below:
+#
+#   - 10 2nd Op 17                   partition 159.99, before keying in
+#   - key in the program and the registers (part 1)
+#   - save it to cards: 1, 2, 3, 4 2nd Write
+#                                    two cards, both sides each: banks 1-4
+#
+# In the preset, everything runs automatically. By hand you need to:
+#
+#   RCL 00  GTO 012  SST  0  STO     fast-mode hack: Prg Src := 8
+#   LRN  2nd Ins  LRN                step 008 becomes 1F, 009 RTN
+#   CLR  RST
+#   GTO 017  R/S                      print the picture
+
+MODEL: TI-59
+PRINTER: on
+PARTITION: 159.99
+
+PROGRAM:
+000  92  INV SBR   # the interrupt continues here: return to 009
+001  00  0
+002  00  0
+003  76  Lbl
+004  11  A         # A: print the line, interrupted
+005  00  0         # display must be 0
+006  69  Op
+007  05  05        # start printing the line …
+008  23  lnx       # … becomes 1F: the interrupt
+009  53  (         # becomes 92 RTN
+010  00  0
+011  00  0
+012  86  St flg    # hack trigger (overwritten by the Ins)
+013  00  0         # swallowed by the hack
+014  00  0         # makes X displayable before the R/S
+015  91  R/S       # stops the hack's run (moves to 016)
+# From here on, each step moves up one during the Ins: 016 runs as 017.
+016  69  Op
+017  00  00        # clear the print buffer
+018  02  2
+019  42  STO
+020  01  01        # pointer before the first chunk
+021  69  Op
+022  21  21        # next chunk
+023  73  RC*
+024  01  01
+025  42  STO
+026  02  02
+027  83  GO*
+028  02  02        # to its routine
+029  71  SBR
+030  11  A         # print the line
+031  69  Op
+032  00  00        # clear the print buffer
+033  61  GTO
+034  00  00  # → loop (022)
+035  22  22
+099  82  HIR
+100  05  05        # into chunk 1
+101  61  GTO
+102  00  00  # → loop (022)
+103  22  22
+104  82  HIR
+105  06  06        # into chunk 2
+106  61  GTO
+107  00  00  # → loop (022)
+108  22  22
+109  82  HIR
+110  07  07        # into chunk 3
+111  61  GTO
+112  00  00  # → loop (022)
+113  22  22
+114  82  HIR
+115  08  08        # into chunk 4
+116  61  GTO
+117  00  00  # → loop (022)
+118  22  22
+119  82  HIR
+120  05  05        # into chunk 1, last of the line
+121  61  GTO
+122  00  00  # → line (030)
+123  30  30
+124  82  HIR
+125  06  06        # into chunk 2, last of the line
+126  61  GTO
+127  00  00  # → line (030)
+128  30  30
+129  82  HIR
+130  07  07        # into chunk 3, last of the line
+131  61  GTO
+132  00  00  # → line (030)
+133  30  30
+134  82  HIR
+135  08  08        # into chunk 4, last of the line
+136  61  GTO
+137  00  00  # → line (030)
+138  30  30
+139  91  R/S       # end of the picture
+140  03  3         # end of a part: read banks 3 and 4 of the next card
+141  91  R/S
+142  61  GTO
+143  00  00  # → start (017)
+144  17  17
+
+REGISTERS:
+00 = 1.000000000048   # RCL 00 before the hack
+03 = 130.5330061630   # line 1
+04 = 105.0000005352   # line 2
+05 = 110.6700000000
+06 = 135.3200000000
+07 = 105.0000005270   # line 3
+08 = 135.6100000000
+09 = 105.0000002765   # line 4
+10 = 110.5130500053
+11 = 135.0227000000
+12 = 100.2700000000   # line 5
+13 = 105.5106673030
+14 = 110.1030066706
+15 = 135.6227000000
+16 = 100.2700005006   # line 6
+17 = 105.6700000000
+18 = 110.2502530600
+19 = 135.6227000000
+20 = 100.0130676700   # line 7
+21 = 110.2502060000
+22 = 135.6527530000
+23 = 100.2300000000   # line 8
+24 = 110.2502270000
+25 = 135.0560321400
+26 = 100.2727000000   # line 9
+27 = 110.2502020000
+28 = 135.0574001000
+29 = 100.6127513030   # line 10
+30 = 105.5000000000
+31 = 110.2502620000
+32 = 135.0570002500
+33 = 100.3206670000   # line 11
+34 = 105.6710300000
+35 = 110.2502650000
+36 = 135.5570002500
+37 = 100.2700000000   # line 12
+38 = 105.0053062700
+39 = 110.2502050000
+40 = 135.6216002500
+41 = 100.2700000000   # line 13
+42 = 105.3067000000
+43 = 110.2502550051
+44 = 135.6206300600
+45 = 100.2700003006   # line 14
+46 = 110.2502020052
+47 = 135.6227670000
+48 = 100.7467670000   # line 15
+49 = 110.2502270052
+50 = 135.0227000000
+51 = 100.2600000000   # line 16
+52 = 110.3060371651
+53 = 135.5200000000
+54 = 100.1400000000   # line 17
+55 = 105.0000005332
+56 = 110.0667676767
+57 = 135.5200000000
+58 = 100.0627000030   # line 18
+59 = 105.7410740665
+60 = 135.3000000000
+61 = 100.6130676767   # line 19
+62 = 105.0000002702
+63 = 110.0000005130
+64 = 135.6700000000
+65 = 100.3000000000   # line 20
+66 = 105.0000006767
+67 = 130.6767676700
+68 = 120.2600000000   # line 21
+69 = 120.0600000000   # line 22
+70 = 120.2700000000   # line 23
+71 = 140   # end
+
+KEYSTROKES:
+43          # RCL
+92          # 0
+92          # 0      X = 1.000000000048
+61          # GTO
+92          # 0
+82          # 1
+83          # 2      → step 012
+41          # SST    St flg executes, operand pending
+92          # 0      first operand digit
+42          # STO    ends it: Prg Src 8, run stops at 007
+31          # LRN    008, buffer loaded from ROM row 17
+21 41       # Ins    008 := 1F, 009 := RTN
+31          # LRN
+25          # CLR
+81          # RST    Prg Src 0
+61          # GTO
+92          # 0
+82          # 1
+62          # 7      → step 017
+ZeroElapseTime:
+FullSpeed:
+91          # R/S    print the picture
+ReportElapseTime:   # the print, card reads included

@@ -178,6 +178,14 @@ struct PlatformAdapter : cu59::SessionController::Platform {
     bool writeCard(const std::string& path, const std::string& text) override {
         return [platform writeCard:ns(text) toPath:ns(path)] == YES;
     }
+    void showDebugPanel(cu59::DebugPanel panel) override { [platform showDebugPanel:static_cast<NSInteger>(panel)]; }
+    std::string cardFilePath(const std::string& fileName) override { return cpp([platform cardFilePath:ns(fileName)]); }
+    CardRead readCard(const std::string& path) override {
+        NSData* data = [platform readCardFile:ns(path)];
+        if (!data) return {std::nullopt, [platform cardFileExists:ns(path)] == YES};
+        auto* bytes = static_cast<const uint8_t*>(data.bytes);
+        return {std::vector<uint8_t>(bytes, bytes + data.length)};
+    }
     cu59::SessionController::TraceLocation traceLocation() override {
         id<TIPlatform> p = platform;
         return {std::filesystem::path(p.traceDirectory.fileSystemRepresentation), p.traceMaxBytes};
@@ -285,17 +293,31 @@ struct PlatformAdapter : cu59::SessionController::Platform {
 
 - (BOOL)cardSwiping { return _c->cardState() == cu59::SessionController::CardState::Swiping; }
 - (NSString *)cardFileName { return ns(_c->cardFileName()); }
-- (void)insertCard:(NSData *)raw path:(NSString *)path fileName:(NSString *)fileName {
-    _c->insertCard(optionalBytes(raw), cpp(path), cpp(fileName));
+- (BOOL)fitCard:(NSData *)raw path:(NSString *)path fileName:(NSString *)fileName {
+    return _c->fitCard(optionalBytes(raw), cpp(path), cpp(fileName)) ? YES : NO;
 }
-- (void)insertBlankCard:(NSString *)savePath fileName:(NSString *)fileName {
-    _c->insertBlankCard(cpp(savePath), cpp(fileName));
+- (BOOL)fitBlankCard:(NSString *)savePath fileName:(NSString *)fileName {
+    return _c->fitBlankCard(cpp(savePath), cpp(fileName)) ? YES : NO;
 }
+- (BOOL)cardFitted { return _c->cardFitted() ? YES : NO; }
+- (NSInteger)litCardCorner { return _c->litCardCorner().value_or(-1); }
+- (BOOL)tapCardAtX:(double)x y:(double)y { return _c->tapCard(x, y) ? YES : NO; }
 - (void)ejectCard { _c->ejectCard(); }
 
 // ── State files ──────────────────────────────────────────────────────────────
 
 - (void)loadStateFile:(NSData *)raw { _c->loadStateFile(optionalBytes(raw)); }
+
+// ── Dropped files ────────────────────────────────────────────────────────────
+
+- (BOOL)acceptsDroppedFile:(NSString *)fileName {
+    using Drop = cu59::SessionController::DropAction;
+    const Drop action = _c->dropAction(cpp(fileName));
+    return action == Drop::LoadPreset || action == Drop::FitCard ? YES : NO;
+}
+- (BOOL)openDroppedFile:(NSData *)raw path:(NSString *)path fileName:(NSString *)fileName {
+    return _c->openDroppedFile(optionalBytes(raw), cpp(path), cpp(fileName)) ? YES : NO;
+}
 
 // ── Debugger ─────────────────────────────────────────────────────────────────
 

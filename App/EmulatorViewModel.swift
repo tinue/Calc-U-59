@@ -165,9 +165,15 @@ class EmulatorViewModel {
     var hasCardFile: Bool = false
     /// Display name of the last card file loaded.
     var cardFileName: String = "card.U59"
+    #if os(macOS)
+    /// The dropped card in the reader, whose security scope is still open.
+    @ObservationIgnored private var droppedCardScope: URL?
+    #endif
 
     // ── Cue card and module ──────────────────────────────────────────────────
     var cueCardContent: CueCardContent? = nil
+    /// The fitted card's corner lit while that side is read: 0 left, 1 right.
+    var litCardCorner: Int? = nil
     var selectedModuleID: String = AppSettings.resolvedSolidStateModuleID()
 
     /// The key a physical-keyboard press is holding down (`row * 5 + col`), so
@@ -277,15 +283,27 @@ class EmulatorViewModel {
         if cardState == .swiping { ejectCard() }
     }
 
-    func insertBlankCard(savingTo url: URL) {
-        controller.insertBlankCard(url.path, fileName: url.lastPathComponent)
+    func fitBlankCard(savingTo url: URL) {
+        if controller.fitBlankCard(url.path, fileName: url.lastPathComponent) { releaseDroppedCardScope() }
     }
 
-    func insertCard(from url: URL) {
+    func fitCard(from url: URL) {
         // A courtesy for URLs that may be security-scoped (our own iCloud container's aren't).
         let scoped = url.startAccessingSecurityScopedResource()
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-        controller.insertCard(try? Data(contentsOf: url), path: url.path, fileName: url.lastPathComponent)
+        if controller.fitCard(try? Data(contentsOf: url), path: url.path, fileName: url.lastPathComponent) {
+            releaseDroppedCardScope()
+        }
+    }
+
+    /// A press at canvas position (x, y), each 0…1: true if it hit a corner of the fitted card.
+    func tapCard(x: Double, y: Double) -> Bool { controller.tapCardAt(x: x, y: y) }
+
+    private func releaseDroppedCardScope() {
+        #if os(macOS)
+        droppedCardScope?.stopAccessingSecurityScopedResource()
+        droppedCardScope = nil
+        #endif
     }
 
     func ejectCard() { controller.ejectCard() }
@@ -334,6 +352,27 @@ class EmulatorViewModel {
         controller.loadStateFile(try? Data(contentsOf: url))
     }
 
+    // MARK: - Dropped files
+
+    #if os(macOS)
+    /// A preset or card dropped on the window (reference/SharedArchitecture.md
+    /// § "Dropped Files"). A card can be anywhere on disk and is written back
+    /// while it is fitted, so its security scope stays open until it is replaced or gone.
+    @discardableResult
+    func openDroppedFile(_ url: URL) -> Bool {
+        guard controller.acceptsDroppedFile(url.lastPathComponent) else { return false }  // don't read it first
+        let scoped = url.startAccessingSecurityScopedResource()
+        let opened = controller.openDroppedFile(try? Data(contentsOf: url), path: url.path, fileName: url.lastPathComponent)
+        if opened && controller.cardFitted {
+            releaseDroppedCardScope()
+            if scoped { droppedCardScope = url }
+        } else if scoped {
+            url.stopAccessingSecurityScopedResource()
+        }
+        return opened
+    }
+    #endif
+
     // MARK: - Changes from the controller
 
     /// Copy what changed into the observable properties. Each assignment is
@@ -356,6 +395,11 @@ class EmulatorViewModel {
             if calcIndicatorOpacity != controller.calcIndicatorOpacity { calcIndicatorOpacity = controller.calcIndicatorOpacity }
         }
         if c.contains(.cueCard) { cueCardContent = controller.cueCard.swiftValue }
+        if c.contains(.cueCard) || c.contains(.card) || c.contains(.model) {
+            let lit = controller.litCardCorner
+            let corner = lit >= 0 ? lit : nil
+            if litCardCorner != corner { litCardCorner = corner }
+        }
         if c.contains(.paperCut) {
             printerLines = []
             printerCodeLines = []
@@ -375,6 +419,7 @@ class EmulatorViewModel {
         if c.contains(.card) || c.contains(.model) {
             let state: CardState = controller.cardSwiping ? .swiping : .noCard
             if cardState != state { cardState = state }
+            if !controller.cardFitted { releaseDroppedCardScope() }
             if cardFileName != controller.cardFileName { cardFileName = controller.cardFileName }
         }
         if c.contains(.runState) {
@@ -459,13 +504,45 @@ final class PlatformForwarder: NSObject, TIPlatform {
         }
     }
 
+    func showDebugPanel(_ panel: Int) {
+        guard let vm = target else { return }
+        switch panel {
+        case 1: vm.debugTab = .cpu
+        case 2: vm.debugTab = .log
+        default: vm.debugTab = .live
+        }
+    }
+
+    func cardFilePath(_ fileName: String) -> String {
+        CardStorage.directoryURL.appendingPathComponent(fileName).path
+    }
+
+    func readCardFile(_ path: String) -> Data? {
+        var data: Data?
+        var err: NSError?
+        NSFileCoordinator().coordinate(readingItemAt: URL(fileURLWithPath: path), options: [], error: &err) { src in
+            data = try? Data(contentsOf: src)
+        }
+        return data
+    }
+
+    func cardFileExists(_ path: String) -> Bool {
+        CardStorage.cardExists(URL(fileURLWithPath: path))
+    }
+
     func writeCard(_ text: String, toPath path: String) -> Bool {
         guard let fileData = text.data(using: .utf8) else { return false }
         let url = URL(fileURLWithPath: path)
         var coordinatorError: NSError?
         var writeError: Error?
         NSFileCoordinator().coordinate(writingItemAt: url, options: .forReplacing, error: &coordinatorError) { writingURL in
-            do { try fileData.write(to: writingURL, options: .atomic) } catch { writeError = error }
+            do {
+                try fileData.write(to: writingURL, options: .atomic)
+            } catch {
+                // A dropped card outside our folders: the sandbox may grant the
+                // file but not its folder, where an atomic write puts its temp file.
+                do { try fileData.write(to: writingURL) } catch { writeError = error }
+            }
         }
         guard coordinatorError == nil, writeError == nil else { return false }
         target?.cardWritten()

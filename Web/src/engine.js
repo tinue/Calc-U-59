@@ -66,6 +66,7 @@ const INITIAL_STATE = {
   traces: [],
   settings: { startupModel: -1, traceMaxMB: 50, keyboardFeedback: 0 },
   debugFont: 11,
+  debugPanel: { panel: 0, n: 0 },  // KEYSTROKES DebugPanel: the tab asked for, and how often
   geometry: null,
 };
 
@@ -75,6 +76,8 @@ function createEngine({ model, module }) {
   const frames = { cells: null, onFrame: null };
   let framePending = false;
   const stateLoadedWaiters = [];
+  const replyWaiters = new Map();  // by request id
+  let lastRequest = 0;
 
   const set = (patch) => {
     state = { ...state, ...patch };
@@ -122,6 +125,7 @@ function createEngine({ model, module }) {
       case "settings": set({ settings: m.settings }); break;
       case "store": storageSet(m.key, m.value); break;
       case "debugFont": set({ debugFont: m.size }); break;
+      case "debugPanel": set({ debugPanel: { panel: m.panel, n: state.debugPanel.n + 1 } }); break;
       case "geometry": set({ geometry: m.geometry }); break;
       case "stateLoaded": {
         set({ status: m.errors && m.errors.length ? m.errors.join("\n") : "" });
@@ -129,6 +133,11 @@ function createEngine({ model, module }) {
         if (resolve) resolve(m.errors || []);
         break;
       }
+      case "reply":
+        replyWaiters.get(m.id)(m.value);
+        replyWaiters.delete(m.id);
+        break;
+      case "dropRejected": set({ status: `${m.name}: not a .ti59, .ti58, .ti58c, .u59 or .bin file` }); break;
       case "error": set({ status: m.message }); break;
       default: break;
     }
@@ -151,6 +160,14 @@ function createEngine({ model, module }) {
       stateLoadedWaiters.push(resolve);
       post({ type: "loadState", text });
     }),
+    /// A WebController method whose result is wanted; resolves with it.
+    request: (method, ...args) => new Promise((resolve) => {
+      const id = ++lastRequest;
+      replyWaiters.set(id, resolve);
+      post({ type: "call", method, args, id });
+    }),
+    /// A file dropped on the calculator; the worker decides what it does.
+    dropFile: (file) => post({ type: "dropFile", file }),
     setStatus: (status) => set({ status }),
     destroy: () => {
       document.removeEventListener("visibilitychange", onVisibility);

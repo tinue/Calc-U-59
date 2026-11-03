@@ -8,8 +8,12 @@
 // Protocol (postMessage), main thread -> worker:
 //   {type: "init", settings, model, module}   -- first message: stored settings
 //        by key (strings), the host's model/module overrides ("" for none)
-//   {type: "call", method, args}       -- a WebController method (bindings.cpp)
+//   {type: "call", method, args, id}   -- a WebController method (bindings.cpp);
+//        with an id, its result comes back as reply
 //   {type: "loadState", text}          -- a preset's contents -> stateLoaded
+//   {type: "dropFile", file}           -- a dropped File, read only if its name is
+//        accepted -> stateLoaded, dropRejected (neither a preset nor a card), or
+//        nothing (a card, and this model has no reader)
 //   {type: "cardBytes", name}          -- -> {type: "cardFile", name, bytes}
 //   {type: "traceBytes", name}         -- -> {type: "traceFile", name, bytes}
 //   {type: "geometry", w, h}           -- LED shapes for a w × h digit cell
@@ -19,11 +23,13 @@
 //   {type: "ready", data}              -- staticData(): models, modules, layout,
 //                                         printer geometry and font, heatmap
 //   {type: "stateLoaded", errors}
+//   {type: "dropRejected", name}
+//   {type: "reply", id, value}
 //   {type: "geometry", geometry}
 //   {type: "cardFile" | "traceFile", name, bytes}
 //   and what WebController posts on its own (bindings.cpp drain()):
 //   model, display, cueCard, runState, printer, card, live, cpu, heatmap,
-//   log, asm, traces, traceReady, settings, store, debugFont, error.
+//   log, asm, traces, traceReady, settings, store, debugFont, debugPanel, error.
 
 importScripts("wasm/ti59-core.js");
 
@@ -76,10 +82,25 @@ function stopLoop() {
 
 function handle(msg) {
   switch (msg.type) {
-    case "call": controller[msg.method](...(msg.args || [])); break;
+    case "call": {
+      const value = controller[msg.method](...(msg.args || []));
+      if (msg.id) postMessage({ type: "reply", id: msg.id, value });
+      break;
+    }
     case "loadState": {
       const errors = controller.loadState(new TextEncoder().encode(msg.text));
       postMessage({ type: "stateLoaded", errors });
+      break;
+    }
+    case "dropFile": {
+      const { name } = msg.file, action = controller.dropAction(name);
+      if (action === "notAccepted") {
+        postMessage({ type: "dropRejected", name });
+      } else if (action !== "ignore") {
+        msg.file.arrayBuffer().then((b) => {
+          postMessage({ type: "stateLoaded", errors: controller.openDroppedFile(name, new Uint8Array(b)) });
+        });
+      }
       break;
     }
     case "cardBytes":

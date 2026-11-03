@@ -7,10 +7,32 @@
 # 1  7 8 9 A B C D E
 # ...
 #
-# Press "A" to print.  Uses R00–R04, R10–R17.
+# Press "A" to print (about 16 s). Uses R00–R05.
 #
-# Layout per data row (positions 0–17):
-#   R sp sp c0 sp | c1 sp c2 sp c3 | sp c4 sp c5 sp | c6 sp c7 sp sp
+# Layout per data row R (positions 0–19), character codes cN = 10·R + N:
+#   label sp sp c0 sp | c1 sp c2 sp c3 | sp c4 sp c5 sp | c6 sp c7 sp sp
+#
+# How it works
+#
+# The print buffer that Op 01–04 fill is hierarchy registers H5–H8, and a
+# program reaches them directly with HIR (keycode 82): HIR 0n is STO Hn,
+# HIR 3n is SUM Hn (rom/TI59-ROM-Guide.md § "HIR and compact keycodes").
+# The buffer stays filled after Op 05, so each row is the previous one plus
+# a fixed increment per register: one RCL and one HIR SUM per register,
+# instead of building every row anew.
+#
+# Op 05 prints mantissa digits 4–13 of each register and ignores the first
+# three digits and the exponent. Op 01–04 store their 10 digits there with
+# leading zeros, but a HIR STO or SUM result is normalized, which would shift
+# the digits. So rows 0–6 keep 10^12 in front: 10^12 + P has the mantissa
+# 1 0 0 P, with the 10 print digits P exactly where Op 05 reads them, and
+# whole-number sums keep them there. The header, and row 7's first five
+# columns (its label "7" is code 10, not 08), are set with Op 01–04 as usual.
+#
+# Keying it in on a real TI-59: no key enters HIR. In LRN mode, key
+# STO 8 2, BST, BST, 2nd Del, SST: this deletes the STO and leaves its
+# operand 82 as the HIR step. Then key the operand step: 5 to 8 for
+# 05 to 08, 1/x for 35, Pgm for 36, P→R for 37, sin for 38.
 
 # Prepare the magnet card inlay
 CUECARD:
@@ -26,256 +48,191 @@ PROGRAM:
   000  76  LBL
   001  11  A              # press [A] to run
 
-  # ── Print header line "   0 1 2 3 4 5 6 7" ───────────────────────────────
-  002  69  Op
-  003  00   0             # clear print register
-
-  # positions 0–4: sp sp sp '0' sp  (codes 00,00,00,01,00 → 100)
-  004  01   1
-  005  00   0
-  006  00   0
-  007  69  Op
-  008  01   1
-
-  # positions 5–9: '1' sp '2' sp '3'  (codes 02,00,03,00,04 → 200030004)
-  009  02   2
-  010  00   0
-  011  00   0
-  012  00   0
-  013  03   3
-  014  00   0
-  015  00   0
-  016  00   0
-  017  04   4
-  018  69  Op
-  019  02   2
-
-  # positions 10–14: sp '4' sp '5' sp  (codes 00,05,00,06,00 → 5000600)
-  020  05   5
-  021  00   0
-  022  00   0
-  023  00   0
-  024  06   6
-  025  00   0
-  026  00   0
-  027  69  Op
-  028  03   3
-
-  # positions 15–19: '6' sp '7' sp sp  (codes 07,00,10,00,00 → 700100000)
-  # '7' = char code 10, giving the "10" pair at positions 16–17
-  029  07   7
-  030  00   0
-  031  00   0
-  032  01   1
-  033  00   0
-  034  00   0
-  035  00   0
-  036  00   0
-  037  00   0
+  # ── Header line "   0 1 2 3 4 5 6 7  " with Op 01–04 ────────────────────────
+  002  01  1
+  003  00  0
+  004  00  0
+  005  69  Op
+  006  01   01            # sp sp sp 0 sp
+  007  02  2
+  008  00  0
+  009  00  0
+  010  00  0
+  011  03  3
+  012  00  0
+  013  00  0
+  014  00  0
+  015  04  4
+  016  69  Op
+  017  02   02            # 1 sp 2 sp 3
+  018  05  5
+  019  00  0
+  020  00  0
+  021  00  0
+  022  06  6
+  023  00  0
+  024  00  0
+  025  69  Op
+  026  03   03            # sp 4 sp 5 sp
+  027  07  7
+  028  00  0
+  029  00  0
+  030  01  1
+  031  00  0
+  032  00  0
+  033  00  0
+  034  00  0
+  035  00  0
+  036  69  Op
+  037  04   04            # 6 sp 7 sp sp
   038  69  Op
-  039  04   4
+  039  05   05            # print the header
 
-  040  69  Op
-  041  05   5             # print header line
-
-  # ── Initialise ─────────────────────────────────────────────────────────────
-  042  00   0
-  043  42  STO
-  044  00   0             # R00 = 0  (current row)
-
-  045  08   8
+  # ── Row 0 into H5–H8, each as 10^12 + print code (see above) ────────────────
+  040  01  1
+  041  00  0
+  042  00  0
+  043  00  0
+  044  33  X²
+  045  33  X²
   046  42  STO
-  047  01   1             # R01 = 8  (DSZ counter)
-
-  # ── Load R_char lookup table in R10–R17 ────────────────────────────────────
-  # Digits 0–6 → char codes 01–07;  digit '7' → char code 10.
-  048  01   1
-  049  42  STO
-  050  10  10             # R10 = 01  ('0')
-
-  051  02   2
-  052  42  STO
-  053  11  11             # R11 = 02  ('1')
-
-  054  03   3
-  055  42  STO
-  056  12  12             # R12 = 03  ('2')
-
-  057  04   4
-  058  42  STO
-  059  13  13             # R13 = 04  ('3')
-
-  060  05   5
-  061  42  STO
-  062  14  14             # R14 = 05  ('4')
-
-  063  06   6
-  064  42  STO
-  065  15  15             # R15 = 06  ('5')
-
-  066  07   7
-  067  42  STO
-  068  16  16             # R16 = 07  ('6')
-
-  069  01   1
-  070  00   0
-  071  42  STO
-  072  17  17             # R17 = 10  ('7')
-
-  # ── Loop: print one row per iteration ──────────────────────────────────────
-  073  76  LBL
-  074  12  B              # ── loop top ──────────────────────────────────────
-
-  # R02 = R + 10  (indirect address into lookup table)
+  047  05   05            # R05 = 10^12
+  048  43  RCL
+  049  05   05
+  050  85  +
+  051  01  1
+  052  00  0
+  053  00  0
+  054  00  0
+  055  00  0
+  056  33  X²
+  057  95  =
+  058  82  HIR
+  059  05   05            # STO H5: 0 sp sp sp sp
+  060  43  RCL
+  061  05   05
+  062  85  +
+  063  01  1
+  064  00  0
+  065  00  0
+  066  00  0
+  067  02  2
+  068  00  0
+  069  00  0
+  070  00  0
+  071  03  3
+  072  95  =
+  073  82  HIR
+  074  06   06            # STO H6: 0 sp 1 sp 2
   075  43  RCL
-  076  00   0             # R
-  077  85   +
-  078  01   1
-  079  00   0
-  080  95   =
-  081  42  STO
-  082  02   2             # R02 = R + 10
+  076  05   05
+  077  85  +
+  078  04  4
+  079  00  0
+  080  00  0
+  081  00  0
+  082  05  5
+  083  00  0
+  084  00  0
+  085  95  =
+  086  82  HIR
+  087  07   07            # STO H7: sp 3 sp 4 sp
+  088  43  RCL
+  089  05   05
+  090  85  +
+  091  06  6
+  092  00  0
+  093  00  0
+  094  00  0
+  095  07  7
+  096  00  0
+  097  00  0
+  098  00  0
+  099  00  0
+  100  95  =
+  101  82  HIR
+  102  08   08            # STO H8: 5 sp 6 sp sp
 
-  # R03 = char code for row-label digit R  (via indirect recall)
-  083  73  RC*            # RCL [Ind]
-  084  02   2
-  085  42  STO
-  086  03   3             # R03 = R_char
+  # ── Row-to-row increments: every code goes up by 10 ─────────────────────────
+  103  01  1
+  104  00  0
+  105  00  0
+  106  00  0
+  107  01  1
+  108  00  0
+  109  00  0
+  110  00  0
+  111  00  0
+  112  00  0
+  113  42  STO
+  114  04   04            # R04 = 1000100000  (c6, c7)
+  115  55  ÷
+  116  01  1
+  117  00  0
+  118  00  0
+  119  95  =
+  120  42  STO
+  121  03   03            # R03 = 10001000    (c4, c5)
+  122  01  1
+  123  00  0
+  124  00  0
+  125  00  0
+  126  00  0
+  127  01  1
+  128  00  0
+  129  00  0
+  130  00  0
+  131  42  STO
+  132  01   01            # R01 = 100001000   (label, c0)
+  133  43  RCL
+  134  04   04
+  135  85  +
+  136  01  1
+  137  00  0
+  138  95  =
+  139  42  STO
+  140  02   02            # R02 = 1000100010  (c1, c2, c3)
+  141  07  7
+  142  42  STO
+  143  00   00            # R00 = 7 rows in the loop
 
-  # ── Op 01: positions 0–4  →  R_label sp sp c0 sp ─────────────────────────
-  # Value = R_char × 10^8  +  R × 1000
-  # (two separator spaces push table one column right of the row label)
-  087  43  RCL
-  088  03   3             # R_char
-  089  65   ×
-  090  01   1
-  091  00   0
-  092  00   0
-  093  00   0
-  094  00   0
-  095  00   0
-  096  00   0
-  097  00   0
-  098  00   0
-  099  95   =             # R_char × 100000000
-  100  42  STO
-  101  04   4             # save in R04
+  # ── Loop: print rows 0–6, adding the increments after each ──────────────────
+  144  69  Op
+  145  05   05            # print the row
+  146  43  RCL
+  147  01   01
+  148  82  HIR
+  149  35   35            # SUM H5
+  150  43  RCL
+  151  02   02
+  152  82  HIR
+  153  36   36            # SUM H6
+  154  43  RCL
+  155  03   03
+  156  82  HIR
+  157  37   37            # SUM H7
+  158  43  RCL
+  159  04   04
+  160  82  HIR
+  161  38   38            # SUM H8
+  162  97  DSZ
+  163  00   00
+  164  01   01
+  165  44   44            # to step 144, no label search
 
-  102  43  RCL
-  103  00   0             # R
-  104  65   ×
-  105  01   1
-  106  00   0
-  107  00   0
-  108  00   0
-  109  95   =             # R × 1000
-  110  44  SUM
-  111  04   4             # R04 += R × 1000
-  112  43  RCL
-  113  04   4
-  114  69  Op
-  115  01   1             # [2nd][Op] 01 → positions 0–4
-
-  # ── Op 02: positions 5–9  →  c1 sp c2 sp c3 ─────────────────────────────
-  # Value = R × 1000100010  +  100020003
-  116  43  RCL
-  117  00   0             # R
-  118  65   ×
-  119  01   1
-  120  00   0
-  121  00   0
-  122  00   0
-  123  01   1
-  124  00   0
-  125  00   0
-  126  00   0
-  127  01   1
-  128  00   0
-  129  95   =             # R × 1000100010
-  130  85   +
-  131  01   1
-  132  00   0
-  133  00   0
-  134  00   0
-  135  02   2
-  136  00   0
-  137  00   0
-  138  00   0
-  139  03   3
-  140  95   =             # + 100020003
-  141  69  Op
-  142  02   2             # [2nd][Op] 02 → positions 5–9
-
-  # ── Op 03: positions 10–14  →  sp c4 sp c5 sp ────────────────────────────
-  # Value = R × 10001000  +  4000500
-  143  43  RCL
-  144  00   0             # R
-  145  65   ×
-  146  01   1
-  147  00   0
-  148  00   0
-  149  00   0
-  150  01   1
-  151  00   0
-  152  00   0
-  153  00   0
-  154  95   =             # R × 10001000
-  155  85   +
-  156  04   4
-  157  00   0
-  158  00   0
-  159  00   0
-  160  05   5
-  161  00   0
-  162  00   0
-  163  95   =             # + 4000500
-  164  69  Op
-  165  03   3             # [2nd][Op] 03 → positions 10–14
-
-  # ── Op 04: positions 15–19  →  c6 sp c7 sp sp ────────────────────────────
-  # Value = R × 1000100000  +  600070000
-  166  43  RCL
-  167  00   0             # R
-  168  65   ×
-  169  01   1
-  170  00   0
-  171  00   0
-  172  00   0
-  173  01   1
-  174  00   0
-  175  00   0
-  176  00   0
-  177  00   0
-  178  00   0
-  179  95   =             # R × 1000100000
-  180  85   +
-  181  06   6
-  182  00   0
-  183  00   0
-  184  00   0
-  185  07   7
-  186  00   0
-  187  00   0
-  188  00   0
-  189  00   0
-  190  95   =             # + 600070000
-  191  69  Op
-  192  04   4             # [2nd][Op] 04 → positions 15–19
-
-  193  69  Op
-  194  05   5             # [2nd][Op] 05 — PRINT buffered line
-
-  # ── Increment row counter ──────────────────────────────────────────────────
-  195  43  RCL
-  196  00   0
-  197  85   +
-  198  01   1
-  199  95   =
-  200  42  STO
-  201  00   0             # R00 = R + 1
-
-  202  97  DSZ
-  203  01   1             # register 01
-  204  12  B              # if R01 ≠ 0, goto B
-
-  205  91  R/S
+  # ── Row 7: its label "7" is code 10, not 08, so Op 01 replaces H5 ───────────
+  166  01  1
+  167  00  0
+  168  00  0
+  169  00  0
+  170  00  0
+  171  00  0
+  172  07  7
+  173  00  0
+  174  00  0
+  175  00  0
+  176  69  Op
+  177  01   01            # 7 sp sp ² sp
+  178  69  Op
+  179  05   05            # print row 7
+  180  91  R/S

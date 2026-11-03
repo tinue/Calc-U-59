@@ -61,12 +61,18 @@ public:
     // ── Card reader ──────────────────────────────────────────────────────────
     CardState cardState() const { return m_c->cardState(); }
     QString cardFileName() const { return QString::fromStdString(m_c->cardFileName()); }
-    void insertCard(const QString& path);
-    void insertBlankCard(const QString& savePath);
+    void fitCard(const QString& path);
+    void fitBlankCard(const QString& savePath);
+    bool tapCard(double nx, double ny) { return m_c->tapCard(nx, ny); }
+    std::optional<int> litCardCorner() const { return m_c->litCardCorner(); }
     void ejectCard() { m_c->ejectCard(); }
 
     // ── State files ──────────────────────────────────────────────────────────
     void loadStateFile(const QString& path);
+
+    // ── Dropped files ────────────────────────────────────────────────────────
+    cu59::SessionController::DropAction dropAction(const QString& path) const;
+    void openDroppedFile(const QString& path);
 
     // ── Debugger ─────────────────────────────────────────────────────────────
     void setLiveDebugEnabled(bool on) { m_c->setLiveDebugEnabled(on); }
@@ -127,6 +133,7 @@ signals:
     void asmChanged();
     void traceChanged();
     void errorOccurred(const QString& title, const QString& message);
+    void debugPanelRequested(int tab);  ///< KEYSTROKES DebugPanel: (0 CALCULATOR, 1 CPU, 2 LOG)
 
 private:
     // SessionController::Platform
@@ -134,6 +141,9 @@ private:
     std::optional<std::string> readConstantMemory() override;
     void writeConstantMemory(const std::string& text) override;
     bool writeCard(const std::string& path, const std::string& text) override;
+    std::string cardFilePath(const std::string& fileName) override;
+    CardRead readCard(const std::string& path) override;
+    void showDebugPanel(cu59::DebugPanel panel) override { emit debugPanelRequested(static_cast<int>(panel)); }
     cu59::SessionController::TraceLocation traceLocation() override;
     void saveLastUsedModel(cu59::Model model) override;
     void saveModuleID(const std::string& moduleID) override;

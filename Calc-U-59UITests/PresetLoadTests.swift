@@ -62,6 +62,9 @@ final class PresetLoadTests: XCTestCase {
     // MARK: - Helpers
 
     private func navigateToOnMyIPhone(_ app: XCUIApplication, targetFile: String) {
+        // The picker's first opening on a fresh simulator takes many seconds.
+        _ = app.searchFields.firstMatch.waitForExistence(timeout: 30)
+
         if app.cells.containing(.staticText, identifier: targetFile).firstMatch.waitForExistence(timeout: 2) { return }
 
         for label in ["Durchsuchen", "Browse"] {

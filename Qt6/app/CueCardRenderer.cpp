@@ -1,9 +1,12 @@
 #include "CueCardRenderer.hpp"
 #include "ChromeStyle.hpp"
+#include "KeyboardLayout.hpp"
 #include <QFont>
 #include <QFontMetricsF>
 #include <QHash>
 #include <QPainter>
+#include <QPainterPath>
+#include <QPolygonF>
 #include <QPixmap>
 #include <algorithm>
 
@@ -59,7 +62,7 @@ Qt::Alignment qtAlign(cu59::TextAlign a) {
 
 } // namespace
 
-void paint(QPainter& p, const QRectF& rect, const cu59::CueCardContent& card) {
+void paint(QPainter& p, const QRectF& rect, const cu59::CueCardContent& card, std::optional<int> litCorner) {
     p.save();
     p.setClipRect(rect);
     p.setRenderHint(QPainter::Antialiasing);
@@ -123,6 +126,24 @@ void paint(QPainter& p, const QRectF& rect, const cu59::CueCardContent& card) {
     }
 
     p.fillRect(QRectF(0, 0, w, g.washHeight), ChromeStyle::fromRgb(cu59::kCueCardWashColor, cu59::kCueCardWashAlpha));
+
+    if (litCorner) {
+        const cu59::CardCornerGeometry c = cu59::cardCornerGeometry(*litCorner, w, h);
+        // One rounded outer corner: a rounded rectangle, the other three squared off by the extra size.
+        const double r = c.radius;
+        QPainterPath corner;
+        corner.addRoundedRect(QRectF(*litCorner == 0 ? c.x : c.x - 2 * r, c.y, c.width + 2 * r, c.height + 2 * r), r, r);
+        QPainterPath area;
+        area.addRect(QRectF(c.x, c.y, c.width, c.height));
+        p.fillPath(corner.intersected(area), ChromeStyle::fromRgb(cu59::kCardCornerLitRGB));
+        QPolygonF arrow;
+        for (const auto& pt : c.arrow) arrow << QPointF(pt.x, pt.y);
+        p.setBrush(Qt::black);
+        p.setPen(Qt::NoPen);
+        p.drawPolygon(arrow);
+        const auto& bank = *litCorner == 0 ? card.bankLeft : card.bankRight;
+        if (bank) badge(p, *bank, *litCorner == 0 ? g.bankLeft : g.bankRight, g.bankFontSize);
+    }
     p.restore();
 }
 

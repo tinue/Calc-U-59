@@ -42,8 +42,10 @@ struct SettingsView: View {
             settingsForm
                 .navigationTitle("Settings")
                 .toolbar {
+                    // Icon too: bars on the iPhone Duo's outer display are vertical
+                    // and show only items that have one.
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("Done") { dismiss() }
+                        Button("Done", systemImage: "checkmark") { dismiss() }
                     }
                 }
         }

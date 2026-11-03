@@ -6,6 +6,7 @@
 #include <map>
 #include <mutex>
 #include <optional>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -31,6 +32,17 @@ struct FakePlatform : cu59::SessionController::Platform {
     std::optional<std::string> readConstantMemory() override { return mem; }
     void writeConstantMemory(const std::string& text) override { mem = text; ++memWrites; }
     bool writeCard(const std::string& path, const std::string& text) override { cards[path] = text; return true; }
+    std::vector<cu59::DebugPanel> panels;  ///< DebugPanel: requests
+    void showDebugPanel(cu59::DebugPanel panel) override { panels.push_back(panel); }
+    /// The card folder is `cards`, keyed by "cards/<file name>".
+    std::string cardFilePath(const std::string& fileName) override { return "cards/" + fileName; }
+    CardRead readCard(const std::string& path) override {
+        if (unreadableCards.count(path)) return {std::nullopt, true};
+        auto it = cards.find(path);
+        if (it == cards.end()) return {};
+        return {std::vector<uint8_t>(it->second.begin(), it->second.end())};
+    }
+    std::set<std::string> unreadableCards;  ///< paths that are there but can't be read
     cu59::SessionController::TraceLocation traceLocation() override { return {std::filesystem::temp_directory_path(), 1'000'000}; }
     void saveLastUsedModel(cu59::Model) override {}
     void saveModuleID(const std::string&) override {}

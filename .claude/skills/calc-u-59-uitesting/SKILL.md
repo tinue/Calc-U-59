@@ -59,6 +59,8 @@ let dest = URL(fileURLWithPath: "/Users/me/Desktop/my-screenshot.png")
 try png.write(to: dest)
 ```
 
+**Exception:** since Xcode 27 `XCUIScreen` hands back landscape shots as portrait pixels with a rotation tag, a pixel short on the open iPhone Duo. `ScreenshotTests` therefore asks `bin/run-screenshots` to take landscape shots with `simctl io … screenshot` (request file `/tmp/calc-u-59-screenshot-request`).
+
 **Note:** Device bezels only appear in screenshots taken via the simulator's camera button. `XCUIScreen.main.screenshot()` captures app pixels only — bezels are never included.
 
 ### Writing screenshots to the Mac filesystem
@@ -115,9 +117,9 @@ Screenshot tests that load `.ti59` files require those files to be present on th
 
 ## Testing the debug panel (CALCULATOR/CPU/LOG tabs) — prefer iPad
 
-On iPhone portrait the pages are calculator → printer → debug (`btn-page-right`), and `btn-page-left` on the calculator page goes straight to debug. The debug page (`DebugView`, holding `btn-tab-calculator`/`btn-tab-cpu`/`btn-tab-log`) exists only when Settings → "Debug Page in Portrait" is on (`SettingsKey.portraitDebugPage`, default `false`). A fresh iPhone simulator doesn't show it; turn the setting on through the Settings screen or by seeding `UserDefaults` before launch.
+On iPhone portrait the pages are calculator → printer → debug (`btn-page-right`), and `btn-page-left` on the calculator page goes straight to debug. The debug page (`DebugView`, holding `btn-tab-calculator`/`btn-tab-cpu`/`btn-tab-log`) exists only when Settings → "Debug Page in Portrait" is on (`SettingsKey.portraitDebugPage`, default `false`). A fresh iPhone simulator doesn't show it; turn the setting on through the Settings screen or by seeding `UserDefaults` before launch. `ScreenshotTests` passes it, and the other settings its shots show, as launch arguments (`settingsArguments`), so they need no setup on a new simulator.
 
-The iPad layout shows the debug panel side-by-side with the calculator permanently — no paging, no setting to flip. When a test only needs to reach the debug tabs (e.g. checking the LOG tab's content after a KEYSTROKES script runs), prefer running it on an iPad simulator destination to skip this whole prerequisite.
+The iPad layout in landscape (and the iPhone Duo opened flat) shows the debug panel side-by-side with the calculator — no paging, no setting to flip. Which layout a window gets is Shared `mobileLayout` (by size, not idiom); `LayoutTests.testWideWindowShowsDebugger` checks it. When a test only needs to reach the debug tabs (e.g. checking the LOG tab's content after a KEYSTROKES script runs), prefer running it on an iPad simulator destination to skip this whole prerequisite.
 
 ---
 

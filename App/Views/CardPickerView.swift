@@ -10,6 +10,7 @@ struct CardPickerView: View {
 
     @State private var fileName: String
     @State private var files: [String] = []
+    @State private var replacing: URL?
     @Environment(\.dismiss) private var dismiss
 
     init(mode: Mode, directory: URL, defaultFileName: String, onPick: @escaping (URL) -> Void) {
@@ -25,7 +26,7 @@ struct CardPickerView: View {
 
             // ── Header ────────────────────────────────────────────────────────
             HStack {
-                Text(mode == .load ? "Load Card" : "Save Card")
+                Text(mode == .load ? "Fit Card" : "Fit Fresh Card")
                     .font(.headline)
                 Spacer()
                 Button("Cancel") { dismiss() }
@@ -83,11 +84,16 @@ struct CardPickerView: View {
                     .truncationMode(.middle)
                 Spacer()
                 if mode == .save {
-                    Button("Save") {
+                    Button("Fit") {
                         let name = TIFileFormats.withDefaultCardExtension(
                             fileName.trimmingCharacters(in: .whitespacesAndNewlines))
-                        onPick(directory.appendingPathComponent(name))
-                        dismiss()
+                        let url = directory.appendingPathComponent(name)
+                        if CardStorage.cardExists(url) {
+                            replacing = url
+                        } else {
+                            onPick(url)
+                            dismiss()
+                        }
                     }
                     .keyboardShortcut(.return, modifiers: [])
                     .disabled(fileName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -98,6 +104,16 @@ struct CardPickerView: View {
         }
         .frame(minWidth: 320, minHeight: 300)
         .onAppear { reload() }
+        .alert("Replace card \(replacing?.lastPathComponent ?? "")?",
+               isPresented: Binding(get: { replacing != nil }, set: { if !$0 { replacing = nil } })) {
+            Button("Replace", role: .destructive) {
+                if let url = replacing { onPick(url) }
+                dismiss()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Its first write replaces both sides and the cue card.")
+        }
     }
 
     private func reload() {

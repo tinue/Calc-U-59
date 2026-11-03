@@ -3,8 +3,10 @@
 #include "CardFile.hpp"
 #include "ConstantMemory.hpp"
 #include "PrinterFont.hpp"
+#include "KeyboardLayout.hpp"
 #include "StateApplier.hpp"
 #include "TextUtil.hpp"
+#include <algorithm>
 
 namespace cu59 {
 
@@ -43,8 +45,11 @@ struct SessionController::Events : EmulatorSession::Listener {
     }
     void playbackStarted() override { setPlaying(true); }
     void playbackFinished() override { setPlaying(false); }
-    void togglePrinterTrace() override {
-        c.onUi(generation, [&c = c] { c.togglePrinterTrace(); });
+    void reloadRequested(const std::shared_ptr<const ReloadStage>& stage) override {
+        c.onUi(generation, [&c = c, stage] { c.applyReloadStage(*stage); });
+    }
+    void controlRequested(const KeystrokeEvent& event) override {
+        c.onUi(generation, [&c = c, event] { c.applyControl(event); });
     }
     void logLine(const std::string& line) override {
         c.onUi(generation, [&c = c, line] { c.log({line}); });
@@ -112,9 +117,8 @@ bool SessionController::startMachine(Model model) {
 
     // A new machine: running, nothing armed, TRACE latch released, no card.
     m_debugState = m_session->debugState();
-    m_userCueCard.reset();
-    m_activeProgram = 0;
-    m_cardState = CardState::NoCard;
+    clearCardAndCue();
+    m_memoryCards.clear();
     m_keystrokesPlaying = false;
     m_fullSpeed = false;
     m_heldKey = -1;
@@ -153,10 +157,26 @@ void SessionController::beginReset() {
     m_session->cancelKeystrokes();
     resume();
     m_asmActive = false;
-    m_cardState = CardState::NoCard;
-    m_userCueCard.reset();
-    m_activeProgram = 0;
+    clearCardAndCue();
+    dropPresetCards();
     refreshCueCard();
+}
+
+void SessionController::clearCardAndCue() {
+    m_pass.reset();
+    m_queuedCardInReader = false;
+    m_userCueCard.reset();
+    m_fitted.reset();
+    m_presetCue.reset();
+    m_activeProgram = 0;
+}
+
+void SessionController::adoptPresetCue(const std::optional<CueCardContent>& cue) {
+    m_userCueCard = cue;
+    m_presetCue = cue;
+    m_fitted.reset();
+    refreshCueCard();
+    emitChanged(CardChanged);
 }
 
 void SessionController::resetMachine() {
@@ -164,16 +184,22 @@ void SessionController::resetMachine() {
     beginReset();
     // The printer's TRACE latch survives a reset, as on the hardware (the core keeps it).
     auto saved = info(m_model).hasConstantMemory ? loadConstantMemory() : std::nullopt;
-    softReset(m_session->machine(), m_model, saved ? &*saved : nullptr);
+    softResetStopped(saved ? &*saved : nullptr);
     m_debug.resetHeatmapBaseline(m_session->machine());
     log({"Calculator Reset"});
     emitChanged(ModelChanged | CardChanged | AsmChanged | HeatmapChanged);
 }
 
+void SessionController::softResetStopped(const std::vector<uint8_t>* savedRam) {
+    m_session->stop();
+    m_session->sync([&] { softReset(m_session->machine(), m_model, savedRam); });
+    m_session->start();
+}
+
 void SessionController::cleanResetMachine() {
     if (!m_session) return;
     beginReset();
-    cleanReset(m_session->machine());
+    cleanReset(m_session->machine(), m_model);
     m_debug.resetHeatmapBaseline(m_session->machine());
     persistConstantMemory();  // the zeroed state, at once
     log({"Clean Reset — all registers cleared"});
@@ -245,8 +271,9 @@ void SessionController::tick(Clock::time_point now) {
     if (!m_session) return;
     m_session->pump(now);
     uint32_t changes = 0;
-    FrameUpdate f = m_session->tick(static_cast<int>(m_debugLevel), m_cardState == CardState::Swiping);
+    FrameUpdate f = m_session->tick(static_cast<int>(m_debugLevel), m_pass.has_value());
     if (f.cardAutoEjected) ejectCard();  // the core ejected at CRD_OFF: save written data
+    if (!m_pass) feedQueuedCard();
     // Text and dot lines arrive independently: the core commits a line's text
     // at PRT_PRINT but its dot codes only when the print finishes, often a
     // frame later — so a frame can carry codes without text.
@@ -307,7 +334,8 @@ void SessionController::checkProgramNumber() {
 }
 
 void SessionController::refreshCueCard() {
-    auto card = resolveCueCard(m_activeProgram, m_moduleCards, m_moduleMetadata.title, m_moduleMetadata.id, m_userCueCard);
+    auto card = resolveCueCard(m_activeProgram, m_moduleCards, m_moduleMetadata.title, m_moduleMetadata.id,
+                               m_fitted ? std::optional<CueCardContent>(fittedCueCard()) : m_userCueCard);
     if (card != m_cueCard) {
         m_cueCard = card;
         emitChanged(CueCardChanged);
@@ -368,60 +396,189 @@ void SessionController::cutPaper() {
 
 // ── Card reader ──────────────────────────────────────────────────────────────
 
-void SessionController::insertCard(const std::optional<std::vector<uint8_t>>& raw, const std::string& path,
-                                   const std::string& fileName) {
-    if (!m_session || m_cardState != CardState::NoCard) return;
+bool SessionController::canFit() const { return m_session && info(m_model).hasCardReader && !m_pass; }
+
+void SessionController::fit(const std::string& path, const std::string& fileName, CardDocument doc, bool fresh) {
+    m_fitted = FittedCard{path, std::move(doc), fresh};
+    m_cardFileName = fileName;
+    refreshCueCard();
+    emitChanged(CardChanged);
+}
+
+bool SessionController::fitCard(const std::optional<std::vector<uint8_t>>& raw, const std::string& path,
+                                const std::string& fileName) {
+    if (!canFit()) return false;
     if (!raw) {
         m_platform.error("Card load error", "Could not read card file.");
-        return;
+        return false;
     }
     auto decoded = decodeCardFile(*raw, fileName);
     if (!decoded.card) {
         m_platform.error("Card load error", decoded.error);
-        return;
+        return false;
     }
-    if (decoded.isText) {
-        m_userCueCard = decoded.card->cueCard;
-        refreshCueCard();
-    }
-    m_cardFileName = fileName;
-    m_pendingSavePath = path;  // write back if the machine writes during this pass
-    m_cardState = CardState::Swiping;
-    m_session->manualTrace().writeCardInsert();
-    m_session->machine().insertCard(decoded.card->data.data(), decoded.card->data.size());
-    emitChanged(CardChanged);
+    fit(path, fileName, std::move(*decoded.card), false);
+    return true;
 }
 
-void SessionController::insertBlankCard(const std::string& savePath, const std::string& fileName) {
-    if (!m_session || m_cardState != CardState::NoCard) return;
-    m_pendingSavePath = savePath;
-    m_cardFileName = fileName;
-    m_cardState = CardState::Swiping;
+bool SessionController::fitBlankCard(const std::string& savePath, const std::string& fileName) {
+    if (!canFit()) return false;
+    CardDocument doc;
+    doc.cueCard = freshCardCue(fileName);
+    fit(savePath, fileName, std::move(doc), true);
+    return true;
+}
+
+bool SessionController::feedSide(int side) { return feed(side, false); }
+
+bool SessionController::feed(int side, bool queued) {
+    if (!m_session || !m_fitted || side < 0 || side > 1 || m_pass) return false;
+    startSwipe(m_fitted->doc.bank(side), {side, queued, std::nullopt});
+    return true;
+}
+
+bool SessionController::tapCard(double nx, double ny) {
+    if (!cardOnShow()) return false;
+    auto side = cardCornerAt(nx, ny);
+    if (!side) return false;
+    feedSide(*side);
+    return true;
+}
+
+std::optional<int> SessionController::litCardCorner() const {
+    // A mem: card takes the fitted card out, so with one fitted the pass is its side.
+    if (!cardOnShow() || !m_pass) return std::nullopt;
+    return m_pass->side;
+}
+
+CueCardContent SessionController::fittedCueCard() const {
+    // A card without a cue card still needs something to show; never saved.
+    CueCardContent cue = m_fitted->doc.cueCard ? *m_fitted->doc.cueCard : freshCardCue(m_cardFileName);
+    cue.template_ = CueCardTemplate::MagnetCard;
+    if (m_fitted->doc.version == 2) {
+        cue.bankLeft = m_fitted->doc.sideBank(0);
+        cue.bankRight = m_fitted->doc.sideBank(1);
+    }
+    return cue;
+}
+
+void SessionController::startSwipe(const std::vector<uint8_t>& data, const CardPass& pass) {
+    m_pass = pass;
     m_session->manualTrace().writeCardInsert();
-    m_session->machine().insertCard(nullptr, 0);
+    m_session->machine().insertCard(data.empty() ? nullptr : data.data(), data.size());
     emitChanged(CardChanged);
 }
 
 void SessionController::ejectCard() {
-    if (!m_session || m_cardState != CardState::Swiping) {
-        m_cardState = CardState::NoCard;
+    if (!m_session || !m_pass) {
+        m_pass.reset();
         emitChanged(CardChanged);
         return;
     }
     m_session->manualTrace().writeCardEject();
     std::vector<uint8_t> written = m_session->machine().cardEject();
-    m_cardState = CardState::NoCard;
-    if (!written.empty() && !m_pendingSavePath.empty()) saveCard(written, m_pendingSavePath);
+    const CardPass pass = *std::exchange(m_pass, std::nullopt);
+    if (!written.empty()) {
+        if (pass.memoryKey) m_memoryCards[*pass.memoryKey] = {written, m_userCueCard};
+        else if (m_fitted) writeFittedSide(pass.side, written, pass.queued);
+    }
+    queuedCardDone();
     emitChanged(CardChanged);
 }
 
-void SessionController::saveCard(const std::vector<uint8_t>& data, const std::string& path) {
-    std::string text = encodeCardText(data, m_cueCard ? &*m_cueCard : nullptr);
-    if (!m_platform.writeCard(path, text)) {
-        m_platform.error("Card save error", "Card save failed: " + path);
+void SessionController::feedQueuedCard() {
+    if (!m_session) return;
+    auto card = m_session->takeQueuedCard();
+    if (!card) return;
+    m_queuedCardInReader = card->insertNow;
+    if (isMemoryCardName(card->name)) {
+        // A bank written to it earlier in the preset, else its CARD: block, else blank.
+        std::string key(memoryCardKey(card->name));
+        std::vector<uint8_t> bank;
+        std::optional<CueCardContent> cueCard;
+        if (auto it = m_memoryCards.find(key); it != m_memoryCards.end()) {
+            bank = it->second.bank;
+            cueCard = it->second.cueCard;
+        } else if (card->definition) {
+            bank = buildCardBank(*card->definition, m_session->machine().partitionProgramRegs());
+            cueCard = card->definition->cueCard;
+        }
+        m_fitted.reset();  // a memory card has no file behind it: it is not fitted
+        if (cueCard) m_userCueCard = cueCard;
+        refreshCueCard();
+        m_cardFileName = card->name;
+        startSwipe(bank, {0, false, key});
         return;
     }
-    m_cardFileName = std::filesystem::path(path).filename().string();
+    std::string fileName = withDefaultCardExtension(card->name);
+    const std::string path = m_platform.cardFilePath(fileName);
+    Platform::CardRead file = m_platform.readCard(path);
+    bool fitted;
+    if (file.unreadable) {
+        m_platform.error("Card load error", "Could not read card file " + fileName + ".");
+        fitted = false;
+    } else if (!file.raw) {
+        log({"KEYSTROKES: no card file " + fileName + " — a blank card goes in"});
+        fitted = fitBlankCard(path, fileName);
+        if (fitted && m_presetCue) {
+            m_fitted->doc.cueCard = m_presetCue;
+            refreshCueCard();
+        }
+    } else {
+        fitted = fitCard(file.raw, path, fileName);
+    }
+    if (!fitted) {
+        queuedCardDone();
+        return;
+    }
+    if (card->side == 1 && m_fitted->doc.version == 1)
+        log({"KEYSTROKES: card file " + fileName + " has one side — that side goes in"});
+    feed(card->side, true);
+}
+
+void SessionController::dropPresetCards() {
+    if (!m_session) return;
+    std::vector<std::string> lines;
+    for (const auto& name : m_session->clearQueuedCards())
+        lines.push_back("KEYSTROKES: card " + name + " was never read or written");
+    if (!lines.empty()) log(lines);
+    m_memoryCards.clear();
+}
+
+void SessionController::queuedCardDone() {
+    if (!m_queuedCardInReader) return;
+    m_queuedCardInReader = false;
+    m_session->hostDone();
+}
+
+void SessionController::writeFittedSide(int side, const std::vector<uint8_t>& written, bool queued) {
+    const std::string saveFailed = "Card save failed: " + m_fitted->path;
+    CardDocument doc = m_fitted->doc;
+    if (!m_fitted->fresh) {
+        // The file may have changed since it was fitted (iCloud, another app): keep its other side.
+        Platform::CardRead file = m_platform.readCard(m_fitted->path);
+        if (file.unreadable) {
+            m_platform.error("Card save error", saveFailed);
+            return;
+        }
+        if (file.raw) {
+            auto decoded = decodeCardFile(*file.raw, m_cardFileName);
+            if (!decoded.card) {
+                m_platform.error("Card save error", decoded.error);
+                return;
+            }
+            doc = std::move(*decoded.card);
+        }
+    }
+    doc.setBank(side, written);
+    if (queued && m_presetCue) doc.cueCard = m_presetCue;
+    if (!m_platform.writeCard(m_fitted->path, encodeCardDocument(doc))) {
+        m_platform.error("Card save error", saveFailed);
+        return;
+    }
+    m_fitted->doc = std::move(doc);
+    m_fitted->fresh = false;
+    refreshCueCard();  // the corner shows the bank just written
 }
 
 // ── State files (reference/SharedArchitecture.md § "State File Loading") ───────
@@ -438,17 +595,47 @@ void SessionController::loadStateFile(const std::optional<std::vector<uint8_t>>&
                                 "e.g. a curly quote or em dash from a word processor, is the usual cause).");
         return;
     }
-    // SKIP-RESET suppresses the model switch, so MODEL: is ignored for parsing too.
-    StateFilePrescan pre = prescanStateFile(text, m_model);
-    const ModelInfo& target = info(pre.targetModel);
+    const Model targetModel = stateFileModel(text, m_model);
+    const ModelInfo& target = info(targetModel);
     LoadStateResult parsed = parseStateFile(text, target.maxStep(), target.hasConstantMemory);
+    if (parsed.usesCardReader && !target.hasCardReader) {
+        parsed.errors.push_back(std::string("CARD:, ArmCard: and InsertCard: need a card reader; the ") +
+                                target.displayName + " has none.");
+        auto& k = parsed.keystrokes;
+        k.erase(std::remove_if(k.begin(), k.end(), [](const KeystrokeEvent& e) {
+                    return e.kind == KeystrokeEvent::Kind::ArmCard || e.kind == KeystrokeEvent::Kind::InsertCard;
+                }), k.end());
+    }
     if (!parsed.errors.empty()) {
         std::string joined;
         for (const auto& e : parsed.errors) joined += (joined.empty() ? "" : "\n") + e;
         m_platform.error(title, joined);
     }
-    if (pre.targetModel != m_model && !startMachine(pre.targetModel)) return;
+    if (targetModel != m_model && !startMachine(targetModel)) return;
     applyState(parsed);
+}
+
+// ── Dropped files (reference/SharedArchitecture.md § "Dropped Files") ──────────
+
+SessionController::DropAction SessionController::dropAction(const std::string& fileName) const {
+    if (isStateFileName(fileName)) return DropAction::LoadPreset;
+    if (!isCardFileName(fileName)) return DropAction::NotAccepted;
+    return info(m_model).hasCardReader ? DropAction::FitCard : DropAction::Ignore;
+}
+
+bool SessionController::openDroppedFile(const std::optional<std::vector<uint8_t>>& raw, const std::string& path,
+                                        const std::string& fileName) {
+    switch (dropAction(fileName)) {
+        case DropAction::LoadPreset:
+            loadStateFile(raw);
+            return raw.has_value();
+        case DropAction::FitCard:
+            return fitCard(raw, path, fileName);
+        case DropAction::Ignore:
+        case DropAction::NotAccepted:
+            return false;
+    }
+    return false;
 }
 
 void SessionController::applyState(const LoadStateResult& parsed) {
@@ -458,34 +645,17 @@ void SessionController::applyState(const LoadStateResult& parsed) {
         m_platform.error("State file load error", *e);
         return;
     }
-    if (parsed.skipReset) {
-        // Only partition (if explicit), program, registers, cue card, keystrokes.
-        std::vector<std::string> ignored;
-        if (parsed.model) ignored.push_back("SKIP-RESET: MODEL: ignored — a model switch requires a reset");
-        if (parsed.solidStateModuleID) ignored.push_back("SKIP-RESET: SOLID-STATE-MODULE: ignored — a module load requires a reset");
-        if (parsed.printerConnected) ignored.push_back("SKIP-RESET: PRINTER: ignored — a printer change requires a reset");
-        if (!ignored.empty()) log(ignored);
-        m_session->stop();
-        m_session->clearFreeze();
-        m_session->sync([&] { applySkipResetState(m, parsed, m_model); });
-        m_session->start();
-        if (parsed.cueCard) {
-            m_userCueCard = parsed.cueCard;
-            refreshCueCard();
-        }
-    } else {
-        m_session->stop();
-        m_session->clearFreeze();
-        m_activeProgram = 0;
-        m_session->sync([&] { cu59::applyState(m, parsed, m_model); });
-        m_debug.resetHeatmapBaseline(m);  // fresh machine state: skip the power-on walk
-        m_session->start();
-        cutPaper();  // each loaded state starts with a blank strip
-        if (parsed.solidStateModuleID && *parsed.solidStateModuleID != m_moduleID) selectModule(*parsed.solidStateModuleID);
-        if (parsed.printerConnected) setPrinterConnected(*parsed.printerConnected);
-        m_userCueCard = parsed.cueCard;
-        refreshCueCard();
-    }
+    dropPresetCards();
+    m_session->stop();
+    m_session->clearFreeze();
+    m_activeProgram = 0;
+    m_session->sync([&] { cu59::applyState(m, parsed, m_model); });
+    m_debug.resetHeatmapBaseline(m);  // fresh machine state: skip the power-on walk
+    m_session->start();
+    cutPaper();  // each loaded state starts with a blank strip
+    if (parsed.solidStateModuleID && *parsed.solidStateModuleID != m_moduleID) selectModule(*parsed.solidStateModuleID);
+    if (parsed.printerConnected) setPrinterConnected(*parsed.printerConnected);
+    adoptPresetCue(parsed.cueCard);
     persistConstantMemory();  // after the cue card: ti58c.mem keeps the file's card
     pullDebugState();
     emitChanged(RunStateChanged | HeatmapChanged);
@@ -493,6 +663,64 @@ void SessionController::applyState(const LoadStateResult& parsed) {
         configureTraceLocation();
         m_session->playKeystrokes(parsed.keystrokes);
     }
+}
+
+void SessionController::applyControl(const KeystrokeEvent& e) {
+    if (!m_session) return;
+    using K = KeystrokeEvent::Kind;
+    const FreezeOwner owner = e.panel == DebugPanel::Cpu ? FreezeOwner::Cpu : FreezeOwner::Calculator;
+    switch (e.kind) {
+    case K::PrinterTrace:
+        m_session->machine().setPrinterTrace(e.on);
+        emitChanged(PrinterChanged);
+        break;
+    case K::CutPaper: cutPaper(); break;
+    case K::ShowPanel:
+        if (!(m_asmActive && e.panel == DebugPanel::Calculator)) m_platform.showDebugPanel(e.panel);  // the overlay keeps the CPU tab
+        break;
+    case K::Freeze:
+        if (!m_debugState.frozen) freeze(owner);
+        break;
+    case K::FreezeOnStart:
+        if (!e.on) {
+            disarmPcChange();
+            disarmScanLoopExit();
+        } else if (owner == FreezeOwner::Cpu) {
+            armScanLoopExit();
+        } else {
+            armPcChange();
+        }
+        break;
+    case K::Step:
+        if (!m_debugState.frozen) {
+            log({"KEYSTROKES: Step: ignored — the calculator is not frozen"});
+            break;
+        }
+        for (int i = 0; i < e.count; ++i) owner == FreezeOwner::Cpu ? stepInstruction() : stepKeycode();
+        break;
+    case K::Resume: resume(); break;
+    default: break;
+    }
+    m_session->hostDone();
+}
+
+void SessionController::applyReloadStage(const ReloadStage& stage) {
+    if (!m_session) return;
+    const ModelInfo& mi = info(m_model);
+    if (stage.partitionMaxStep && *stage.partitionMaxStep > mi.maxStep()) {
+        log({"KEYSTROKES: reload skipped — its partition (" + std::to_string(*stage.partitionMaxStep) + ") exceeds the " +
+             mi.displayName + " maximum (" + std::to_string(mi.maxStep()) + ")"});
+    } else {
+        TI59Machine& m = m_session->machine();
+        bool frozen = m_session->frozen();
+        m_session->stop();
+        m_session->sync([&] { applyReload(m, stage, m_model); });
+        if (!frozen) m_session->start();
+        if (stage.cueCard) adoptPresetCue(stage.cueCard);
+        persistConstantMemory();
+        emitChanged(RunStateChanged);
+    }
+    m_session->hostDone();
 }
 
 // ── Debugger ─────────────────────────────────────────────────────────────────
@@ -699,7 +927,7 @@ void SessionController::clearAsm() {
     // A running overlay would now execute the empty range: reset the machine.
     if (wasActive && m_session) {
         resume();
-        m_session->machine().reset();
+        softResetStopped(nullptr);
     }
     emitChanged(AsmChanged);
 }

@@ -34,6 +34,7 @@ protected:
 
 private:
     QRectF canvasRect() const;
+    QPointF normalized(const QPointF& pos) const;  ///< widget position → canvas fractions
     void pointer(const QPointF& pos);
     void apply(const cu59::PointerTracker::Change& c);
     std::vector<uint8_t> matrixCodes(const QKeyEvent* e) const;

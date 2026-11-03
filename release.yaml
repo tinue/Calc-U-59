@@ -10,7 +10,7 @@
 #   release ios --release   App Store Connect: metadata, screenshots, build
 #
 # The Swift macOS app is built, Developer-ID-signed, notarized and stapled
-# locally. The Qt6 Windows and Linux builds and the web client come from
+# locally, and each macOS release also installs it into /Applications. The Qt6 Windows and Linux builds and the web client come from
 # .github/workflows/build.yml (dispatched, no publish job of its own); their
 # artifacts go into the same pre-release as the DMG. There is no Mac Qt build.
 # The web client's zip (Web/dist/, reference/WebClient.md) has a fixed asset
@@ -25,6 +25,8 @@ version:
   file: Calc-U-59.xcodeproj/project.pbxproj
 
 release:
+  post_release:
+    - bin/install-release.sh
   # GitHub Releases doesn't keep Unix file permissions on uploaded assets.
   notes_suffix: >-
     **Linux**: the downloaded .AppImage needs its executable bit set before it

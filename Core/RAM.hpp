@@ -17,7 +17,7 @@ public:
     /// Read/write/clear an entire 16-nibble register.
     const uint8_t* readReg(int reg) const;
     void           writeReg(int reg, const uint8_t* src);
-    void           clearReg(int reg, int count = 1);  // clear `count` consecutive regs
+    void           clearReg(int reg, int count);  // clear `count` consecutive regs
 
     /// Limit accessible registers (60 for TI-58, 64 for TI-58C, 120 for TI-59).
     void setLimit(int n) { m_maxRegs = (n > 0 && n <= TOTAL_REGS) ? n : TOTAL_REGS; }

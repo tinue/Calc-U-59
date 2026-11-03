@@ -296,11 +296,12 @@ defaults are 479.59 (TI-59) and 239.29 (TI-58/58C).
   opposite ends; moving the boundary only changes how a cell is read, and
   moving it back restores the old contents.
 - **Memory-size autodetection.** The hardware has no model identifier. The
-  reset routine (`rom/TI59-commented.asm` `0377`) writes register 90, reads
-  it back and clears it. On the 60-register TI-58 the write is out of range
-  (`RAM_ADDR < ram.size()` fails) and reads back 0, so the compare at `0390`
-  and the branch at `0393` select the 60-register layout. The TI-58 and TI-59
-  reset traces differ only there.
+  reset routine (`rom/TI59-commented.asm` `0377`) writes register 90 and reads
+  it back. On the 60-register TI-58 the write is out of range
+  (`RAM_ADDR < ram.size()` fails) and reads back 0. With the read-back in B it
+  issues `RAM.OP` op 2 at `0385`, which clears the RAM (§ "Two-Cycle Memory
+  Operations"). The compare at `0390` and the branch at `0393` then select the
+  60-register layout. The TI-58 and TI-59 reset traces differ only there.
 
 ### TI-58C Extra (Constant Memory) Registers
 
@@ -309,7 +310,7 @@ raw RAM cells `RAM[60]`–`RAM[63]` outside that space. Do not call them
 "registers 60–63". They:
 
 - are not reachable via `STO`/`RCL` in the TI-58C's own partitions (top =
-  59). A partition hacked like a TI-59's (`examples/repartition.ti58c`, TI
+  59). A partition hacked like a TI-59's (`examples/historic/repartition.ti58c`, TI
   PPC Notes V5N7) sets top = 119; the cells are then R59–R56 (RAM[119 − nn]),
   and the debugger shows them as such;
 - are read and written only by `MEMWR`/`MEMRD`, which address raw RAM;
@@ -401,10 +402,29 @@ does not drive IO, the bus reads 0 and 0 is written.
 
 ```
 1. RAM.OP → FLG_RAM_OP
-2. ALU    → op := Sout[0] (0 read, 1 write, 2 clear 1, 4 clear 10),
+2. ALU    → op := Sout[0] (0 read, 1 write, 2 clear all, 4 clear 10),
             RAM_ADDR := Sout[3]·10 + Sout[2] (Sout[3] may be hex: registers 100–119)
 3. ALU    → read: RAM[RAM_ADDR] is the operand; write: Sout → RAM[RAM_ADDR]
 ```
+
+**Op 2 clears the whole RAM, whatever the address.** The ROM issues it only in
+the reset routine (`0385`, address 90). A real TI-59 lost all program steps and
+registers and kept t when a program reached that code (fast-mode entry,
+`rom/fastmode.md` § "The LRN entry"). This is an inference from that test, the
+ROM having no other clear at power-on. `TI_58_59-HW-manual.pdf` calls op 2 "clear
+1 RAM register", but that table is itself reverse-engineered, and the ROM never
+shows the difference elsewhere. The TI-58 has the same CPU and RAM chips and is
+assumed to behave the same; there the address is even out of range.
+
+So `reset()` followed by the ROM's boot clears the RAM on the TI-59 and TI-58, as
+switching on does; a clean reset is nothing more. The apps' Reset button, which
+the real calculator doesn't have, keeps the memory from outside the core:
+`softReset` in `Shared/StateApplier.cpp` saves the RAM, runs the boot and
+restores it. That boot runs with the run loop stopped, so on these two models CPU
+FREEZE ON START and a trace see the reset routine only on a clean reset (freeze
+checked in the app and by `tests/shared_controller_tests.cpp`). The TI-58C's ROM
+has no `RAM.OP`: its constant memory stays through a reset, and its clean reset
+zeroes the RAM.
 
 ### RAM (TI-58C: `MEMWR` 0x0A76, `MEMRD` 0x0A86)
 
@@ -580,7 +600,9 @@ The TRACE latch survives `reset()` (`TI59Machine` re-applies it).
 
 ## Magnetic Card Reader (TI-59)
 
-A card holds **4 banks of 246 bytes**, one bank per pass.
+A pass reads or writes one bank of **246 bytes**. A card has two sides, one
+bank each (`Shared/CardFile`); the core's card image can also hold all four
+banks, for the oldest 984-byte files.
 
 1. `2nd Read`/`Write` makes the ROM poll the card switch with `TST.BUSY`.
    The switch is held active (no card); when `TST.BUSY` samples it at its
@@ -781,7 +803,7 @@ in two runs line 4 was the darkest, lines 5–8 next, the rest faintest, in
 the order of the cut times. No other line busy time from 4160 to 4191 gives
 that order, and 4168 makes lines 2, 3, 9 and 10 (cut 1047–1049) the latest,
 though they are among the faintest. All lines marking means column 5 starts
-by 1034: an offset of 18 or less. `printer-quirks.ti59` agrees: cut at 1036
+by 1034: an offset of 18 or less. `examples/historic/printer-quirks.ti59` agrees: cut at 1036
 and 1038, it shows barely visible specks on most rows with a candidate dot.
 
 18 fits both calculators if a dot heated for only 0–4 cycles may or may not

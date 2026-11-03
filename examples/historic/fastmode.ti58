@@ -2,9 +2,8 @@
 #
 # This program illustrates the TI-58, TI-58C and TI-59 Fast Mode as discovered
 # and documented over the years in the TI PPC club.
-# Timing is about 4.6 seconds for 10! and 31 seconds for 69! in fast mode.
-# Normal mode program execution of this code takes 70% longer than fast mode.
-# In normal mode, 69! takes about 52 seconds.
+# Timing on the emulator: about 29 seconds for 69! in fast mode, about 53 seconds
+# in normal mode, 85% longer.
 
 #
 # Start the program with "A". A blinking "1" appears. Then press 7 and EE -> Calculation starts

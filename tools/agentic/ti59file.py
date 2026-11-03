@@ -7,7 +7,7 @@ in emulated seconds.
 
 CLI: ti59file.py file.ti59 [--lines]
   Runs the file's KEYSTROKES and prints the time from the last key until the
-  program has stopped and the printer is idle; --lines adds the printout."""
+  display lights up again; --lines adds the printout."""
 import os
 import re
 import sys
@@ -75,26 +75,27 @@ def parse(path):
         part = int(sections['PARTITION'][0].split('.')[0]) + 1
     keys = []
     for l in sections.get('KEYSTROKES', []):
-        if re.match(r'^[A-Za-z]+:', l):
+        if re.match(r'^PrinterTrace:', l, re.I):
+            keys.append('PrinterTrace:' + l.split(':', 1)[1].strip().lower())
+        elif re.match(r'^[A-Za-z]+:', l):
             keys.append(l.split(':')[0] + ':')
         else:
             # as parseKeystrokeLine (Shared/StateFile.cpp): every 1-2 digit
-            # token, 11-95 a key, 99 the paper-trace toggle, others ignored
-            keys += [t for t in l.split() if len(t) <= 2 and t.isdigit() and (11 <= int(t) <= 95 or t == '99')]
+            # token, 11-95 a key, others ignored
+            keys += [t for t in l.split() if len(t) <= 2 and t.isdigit() and 11 <= int(t) <= 95]
     return [prog.get(i, 0) for i in range(max(prog) + 1 if prog else 0)], regs, part, keys
 
 
 def real_keys(keys):
-    """keys without the directive entries"""
+    """keys without the directive entries (PrinterTrace: stays, press() sets it)"""
     return [k for k in keys if not k.endswith(':')]
 
 
 def press(m, code, hold=6000):
     """press and release a key (matrix code), holding it for `hold` instructions;
-    99 toggles the printer's paper-trace switch"""
-    if code == '99':
-        m.paper_trace = not getattr(m, 'paper_trace', False)
-        LIB.h_trace_sw(m.h, int(m.paper_trace))
+    a 'PrinterTrace:on' / 'PrinterTrace:off' entry sets the printer's paper-trace switch"""
+    if code.startswith('PrinterTrace:'):
+        LIB.h_trace_sw(m.h, int(code.endswith(':on')))
         return
     m.press(code); LIB.h_stepn(m.h, hold); m.release(code)
 
@@ -103,6 +104,45 @@ def idle(m):
     """program stopped, printer idle, CPU in the keyboard idle loop"""
     s = m.snapshot()
     return (not s.fB & 1) and not (s.flags & FLG_BUSY) and IDLE_LO <= s.pc <= IDLE_HI and s.flags & FLG_IDLE
+
+
+def lit(m):
+    """any display digit lit since the last look (the core's display duty)"""
+    d = (C.c_uint8 * 12)(); c = (C.c_uint8 * 12)(); mk = (C.c_uint16 * 2)()
+    LIB.h_display(m.h, d, c, mk)
+    return any(x != 7 for x in c)     # h_display sets ctrl 7 for a dark digit
+
+
+def dark_time(m, code, limit_s=4000, hold=6000, chunk=100):
+    """Press a key and run to idle, timed like a stopwatch on a filmed
+    calculator: seconds from the key press until the display lights up and
+    the calculator has stopped (a Pause flash doesn't end it; the blinking
+    of an error display after the stop doesn't move it), 0 if it never went
+    dark. Returns (seconds, finished, ran): ran = the key ran a program (fB[0])."""
+    if code.startswith('PrinterTrace:'):  # the paper-trace switch, not a key
+        press(m, code)
+        return 0.0, True, False
+    t0 = m.elapsed(); lit(m)
+    m.press(code)
+    steps = 0; on_at = t0; went_dark = ran = stopped = False; quiet = 0
+    while (m.elapsed() - t0) / INSTR_PER_SEC < limit_s:
+        before = m.elapsed()
+        LIB.h_stepn(m.h, chunk); steps += chunk
+        if steps == hold:
+            m.release(code)
+        running = bool(m.snapshot().fB & 1)
+        ran = ran or running
+        stopped = stopped and not running
+        if not lit(m) and not stopped:
+            went_dark = True; on_at = None; quiet = 0
+            continue
+        if on_at is None:
+            on_at = before
+        stopped = stopped or ((went_dark or steps > hold) and not running)
+        quiet = quiet + 1 if steps > hold and stopped else 0
+        if quiet >= 40:                   # stopped for good, not a short gap
+            return ((on_at - t0) / INSTR_PER_SEC if went_dark else 0.0), True, ran
+    return (m.elapsed() - t0) / INSTR_PER_SEC, False, ran
 
 
 def settle(m, limit_s=4000, chunk=20000):
@@ -142,13 +182,11 @@ def play_until_last(path, keys=None):
 
 
 def run(path, keys=None):
-    """Play the keys; time from the last key until idle.
+    """Play the keys; time the last one by the display (dark_time).
     Returns (seconds, printed lines, finished, machine)."""
     m, last = play_until_last(path, keys)
-    t0 = m.elapsed()
-    press(m, last)
-    ok = settle(m)
-    return (m.elapsed() - t0) / INSTR_PER_SEC, m.printer_lines(), ok, m
+    t, ok, _ = dark_time(m, last)
+    return t, m.printer_lines(), ok, m
 
 
 def printer_floor(lines):

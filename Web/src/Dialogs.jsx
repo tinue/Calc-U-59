@@ -40,33 +40,43 @@ function CardPicker({ engine, mode, onClose }) {
   const [name, setName] = React.useState(card.fileName);
   const save = mode === "save";
 
-  const read = (n) => { engine.call("insertCard", n, null); onClose(); };
+  const [replacing, setReplacing] = React.useState(null);
+
+  const read = (n) => { engine.call("fitCard", n, null); onClose(); };
   const upload = (e) => readFileInput(e, "bytes").then((f) => {
     if (!f) return;
-    engine.call("insertCard", f.name, f.content);
+    engine.call("fitCard", f.name, f.content);
     onClose();
   });
-  const write = () => { engine.call("insertBlankCard", name.trim()); onClose(); };
+  const fitBlank = (file) => { engine.call("fitBlankCard", file); onClose(); };
+  const write = () => engine.request("freshCardFileName", name.trim()).then((file) => {
+    if (card.cards.includes(file)) setReplacing(file);
+    else fitBlank(file);
+  });
 
   return (
     <Dialog
-      title={save ? "Write Blank Card" : "Read Card"}
+      title={save ? "Fit Fresh Card" : "Fit Card"}
       onClose={onClose}
       footer={<>
         <span className="calcu-dialog-note">Cards last for this page session — download one to keep it.</span>
         <button type="button" onClick={onClose}>Cancel</button>
-        {save
-          ? <button type="button" className="calcu-primary" disabled={!name.trim()} onClick={write}>Save</button>
-          : <button type="button" className="calcu-primary" disabled={!selected} onClick={() => read(selected)}>Read</button>}
+        {replacing
+          ? <button type="button" className="calcu-primary" onClick={() => fitBlank(replacing)}>Replace</button>
+          : <button type="button" className="calcu-primary" disabled={save ? !name.trim() : !selected}
+                    onClick={save ? write : () => read(selected)}>Fit</button>}
       </>}
     >
+      {replacing && (
+        <p role="alert">Replace card {replacing}? Its first write replaces both sides and the cue card.</p>
+      )}
       {save && (
         <input
           className="calcu-textfield"
           aria-label="Card name"
           value={name}
           autoFocus
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e) => { setName(e.target.value); setReplacing(null); }}
           onKeyDown={(e) => { if (e.key === "Enter" && name.trim()) write(); }}
         />
       )}
@@ -77,7 +87,7 @@ function CardPicker({ engine, mode, onClose }) {
             <button
               type="button"
               className="calcu-listitem"
-              onClick={() => { setSelected(n); if (save) setName(n); }}
+              onClick={() => { setSelected(n); if (save) { setName(n); setReplacing(null); } }}
               onDoubleClick={() => (save ? setName(n) : read(n))}
             >{n}</button>
             <button type="button" className="calcu-iconbutton" title={`Download ${n}`} aria-label={`Download ${n}`}
@@ -140,7 +150,6 @@ function Settings({ engine, portrait, onClose, onAbout }) {
   const model = useEngine(engine, (s) => s.model);
   const settings = useEngine(engine, (s) => s.settings);
   const [moduleID, setModuleID] = React.useState(model ? model.moduleID : "ML");
-  const [feedback, setFeedback] = React.useState(settings.keyboardFeedback);  // 0 off, 1 vibrate, 2 click
   const [traceMB, setTraceMB] = React.useState(settings.traceMaxMB);
 
   // The module applies when the dialog closes, as in both apps.
@@ -167,9 +176,8 @@ function Settings({ engine, portrait, onClose, onAbout }) {
         </label>
         {portrait && (
           <label>Keyboard Feedback
-            <select value={feedback} onChange={(e) => { setFeedback(Number(e.target.value)); engine.call("setKeyboardFeedback", Number(e.target.value)); }}>
+            <select value={settings.keyboardFeedback === 2 ? 2 : 0} onChange={(e) => engine.call("setKeyboardFeedback", Number(e.target.value))}>  {/* 0 off, 2 click; no haptics in a browser */}
               <option value={0}>Off</option>
-              <option value={1}>Vibrate</option>
               <option value={2}>Click Sound</option>
             </select>
           </label>

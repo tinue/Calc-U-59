@@ -1,7 +1,7 @@
 # SBR 444 / R/S Quirk Analysis (texas-print printer-interrupt chain)
 
 **Maintenance rule: any further analysis of this quirk chain must update all three
-files together — `rom/TI59-commented.asm` (ROM annotations), `examples/texas-print.ti59`
+files together — `rom/TI59-commented.asm` (ROM annotations), `examples/historic/texas-print.ti59`
 (quirk walkthrough in the file header), and this document.** Much of the information
 below is deliberately redundant with those two files; this document adds the trace
 archive, the analysis provenance, and the open questions.
@@ -26,10 +26,10 @@ open question 1, resolving it.
 | `rom/TI59-commented.asm` | Commented TI-59 ROM disassembly. Relevant annotations: 0x086F (transfer target validate/commit), 0x08B2 (PRGREG_FETCH source dispatch), 0x0A4B (launch prologue / Prg Src Flag write), 0x0D50 (return-stack push), 0x1286 (library transfer resolver — added this session), 0x11E1 (transfer-error halt — added this session). |
 | `reference/CoreArchitecture.md` | Architecture reference; § SCOM registers now documents the SCOM[14]/[15] return stack. |
 | `TI_58_59-HW-manual.pdf` | "Calculators TI-58/59 HW programming guide" by Hynek Sladký (external document, not in the repository). Source of the SCOM[9] layout and the return-stack level layout. |
-| `examples/texas-print.ti59` | State file automating the article's key sequence; its header holds the authoritative quirk walkthrough (quirks 1–4). |
+| `examples/historic/texas-print.ti59` | State file automating the article's key sequence; its header holds the authoritative quirk walkthrough (quirks 1–4). |
 | `.claude/skills/calc-u-59-core` | Skill covering the emulation core, trace infrastructure, and ROM analysis workflow. |
 | `tools/read_trace.py` | Rendered the binary traces to text (including the deferred-field validity windows for RAMOP/RAMREG/SREG added just before this analysis — commit `fa6799e`). |
-| `memory/sbr444.txt` | CPU trace: from just before the third `4` of `SBR 444` through the first halt (blinking 239.89). Captured with a scripted `Trace:` directive in the keystroke script (temporary edit of `examples/printer-quirks.ti59`, which replays the same sequence). |
+| `memory/sbr444.txt` | CPU trace: from just before the third `4` of `SBR 444` through the first halt (blinking 239.89). Captured with a scripted `Trace:` directive in the keystroke script (temporary edit of `examples/historic/printer-quirks.ti59`, which replays the same sequence). |
 | `memory/rs.txt` | CPU trace: the `R/S` keypress through the second halt (EE-mode "0. 00"). Same capture method. |
 | `memory/pr-after-halt1.txt` | CPU trace: `2nd P/R` pressed after halt 1 only (scenario run *without* the `R/S`). Captured 2026-07-05, same method. |
 | `memory/pr-after-halt2.txt` | CPU trace: `2nd P/R` pressed after halt 2 (full quirk-1 sequence first). Captured 2026-07-05, same method. |
@@ -80,7 +80,7 @@ directly off the module header in the traces).
    any kind runs**.
 2. PRGREG_FETCH (08B2) dispatches flag = 1 → CROM interpreter fetch at 082B/082F…
    from chip PC 0028 = **the header**. *Corrected 2026-10-17 (headless harness,
-   tools/headless/, exact replay of examples/printer-quirks.ti59):* the run fetches
+   tools/headless/, exact replay of examples/historic/printer-quirks.ti59):* the run fetches
    **12** keycodes, module[28..39] — the BCD start addresses of Pgm 14–19 —
    executed as **29 CP, 52 EE, 30 tan, 95 =, 32 x⇄t, 31 LRN, 33 x², 63 Exc Ind,
    34 √x, 80 Grad, 36 Pgm**, and `Pgm` consumes byte 39 = **51** as its program
@@ -250,7 +250,7 @@ an error from a 0 ÷ 0 inside that garbage (`03D4`).
 New traces are easiest with the headless harness (`tools/headless/`), which
 replays a key sequence and prints the ROM trace directly. In the GUI, insert
 `Trace: <name>.bin` / `Trace: Off` around the key of interest in a scenario's
-`KEYSTROKES` (e.g. `examples/printer-quirks.ti59`, whose `Trace:` line is
+`KEYSTROKES` (e.g. `examples/historic/printer-quirks.ti59`, whose `Trace:` line is
 commented out) and render with `tools/read_trace.py`.
 
 Headless replay (2026-10-17) also re-verified the rest of the chain: after P/R,
@@ -258,4 +258,4 @@ SCOM[15] = `0000000100004012`, SCOM[0] = `…108010`; after LRN Ins LRN, program
 register 1 reads `1F 92 21 42 46 11 40 49` — the invalid keycode 1F at step 008.
 
 **Reminder:** whatever any of these resolves, update `rom/TI59-commented.asm`,
-`examples/texas-print.ti59`, *and* this document.
+`examples/historic/texas-print.ti59`, *and* this document.

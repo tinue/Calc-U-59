@@ -2,7 +2,7 @@
 """Manage the iOS simulators this project tests and takes screenshots on.
 
 bin/simulators.yaml is the single source of truth for which devices exist and
-which iOS major version each one runs. This script realises that file: it
+which iOS version each one runs. This script realises that file: it
 creates the devices, provisions them with example state files, reports drift,
 and cleans up everything that is not in the config.
 
@@ -45,7 +45,7 @@ PRERELEASE_RE = re.compile(r"\b(beta|release candidate|seed|preview|rc)\b", re.I
 # these go to the storage root.
 REGULAR_PATTERNS = [
     "assembly/stopwatch.asm",
-    "characters-fastmode.ti59",
+    "historic/characters-fastmode.ti59",
     "characters.ti59",
     "diag.ti58",
     "diag.ti59",
@@ -92,7 +92,8 @@ def human_size(n):
 def load_config(path):
     """Parse the small subset of YAML used by simulators.yaml.
 
-    Recognised keys per entry: name (str), ios (int major), screenshots (str).
+    Recognised keys per entry: name (str), ios (str: major "27" or pinned
+    major.minor "27.0"), screenshots (str).
     """
     if not path.exists():
         die(f"config not found: {path}")
@@ -111,6 +112,7 @@ def load_config(path):
     for d in devs:
         if "name" not in d or "ios" not in d:
             die(f"config entry missing name or ios: {d}")
+        d["ios"] = str(d["ios"])
     if not devs:
         die(f"no devices configured in {path}")
     return devs
@@ -175,22 +177,44 @@ def build_key(b):
     return tuple(int(p) if p.isdigit() else p for p in re.findall(r"\d+|[A-Za-z]+", b))
 
 
+def version_matches(version, want):
+    """True if version falls under the configured ios value: "27" matches any
+    27.x, "27.0" matches 27.0 and its patches (27.0.1) but not 27.1."""
+    w = version_key(want)
+    return version_key(version)[:len(w)] == w
+
+
+def ios_versions(config):
+    """Distinct configured ios values, oldest first."""
+    return sorted({d["ios"] for d in config}, key=version_key)
+
+
 def latest_runtime_for_major(major, runtimes):
-    """Newest installed runtime for an iOS major version, or None."""
+    """Newest installed runtime matching a configured ios value, or None."""
     for r in runtimes:
-        if version_key(r["version"])[0] == int(major):
+        if version_matches(r["version"], major):
             return r
     return None
 
 
+def runtime_for(entry, runtimes):
+    """Runtime a configured device goes on: the newest matching its ios value
+    that supports it. One iOS version can come as several runtimes, e.g. 27.2
+    as a general one and iOS-27-2-iPhone19-4 for the iPhone Duo alone. If none
+    supports the device, the newest match, so device_type_for() can say why."""
+    matching = [r for r in runtimes if version_matches(r["version"], entry["ios"])]
+    for r in matching:
+        if any(dt["name"] == entry["name"] for dt in r.get("supportedDeviceTypes", [])):
+            return r
+    return matching[0] if matching else None
+
+
 def runtime_display(runtime_id):
-    """com.apple.CoreSimulator.SimRuntime.iOS-18-6 → iOS 18.6"""
+    """com.apple.CoreSimulator.SimRuntime.iOS-18-6 → iOS 18.6
+    (a device-specific iOS-27-2-iPhone19-4 → iOS 27.2)"""
     name = runtime_id.replace("com.apple.CoreSimulator.SimRuntime.", "")
-    parts = name.split("-")
-    for i, part in enumerate(parts):
-        if part.isdigit():
-            return f"{'-'.join(parts[:i])} {'.'.join(parts[i:])}"
-    return name
+    m = re.match(r"(.+?)-(\d+(?:-\d+)*)", name)
+    return f"{m[1]} {m[2].replace('-', '.')}" if m else name
 
 
 def find_device(name, runtime_id, devices_by_runtime):
@@ -296,9 +320,30 @@ def downloadable_runtimes(index, include_prereleases=False):
 
 def newest_offered(major, offered):
     for c in offered:
-        if version_key(c["version"])[0] == int(major):
+        if version_matches(c["version"], major):
             return c
     return None
+
+
+def pin_note(major, offered):
+    """Remark for a major.minor pin when Apple offers a newer release of the
+    same major (27.0 pinned, 27.2 offered), or None. A pin is kept on purpose,
+    so this is a hint to reconsider it, not something that needs fixing."""
+    want = version_key(major)
+    if len(want) < 2:
+        return None
+    for c in offered:
+        v = version_key(c["version"])
+        if v[0] == want[0] and v[:len(want)] > want:
+            return (f"pinned — iOS {c['version']} ({c['build']}) is offered; "
+                    f"raise the pin in bin/simulators.yaml if it should move")
+    return None
+
+
+def print_pin_note(major, offered):
+    note = pin_note(major, offered)
+    if note:
+        print(f"    {yellow(note)}")
 
 
 def runtime_state(major, runtimes, offered, index_ok):
@@ -313,7 +358,8 @@ def runtime_state(major, runtimes, offered, index_ok):
         verdict = "missing"
     elif version_key(newest["version"]) > version_key(installed["version"]):
         verdict = "outdated"
-    elif newest["build"] != installed["buildversion"] and not newest["prerelease"]:
+    elif not newest["prerelease"] and newest["build"] not in {
+            r["buildversion"] for r in runtimes if r["version"] == installed["version"]}:
         # Same version, different build — Apple reissued it.
         verdict = "rebuilt"
     else:
@@ -360,7 +406,7 @@ def sync_runtimes(config, args):
     offered = downloadable_runtimes(index, args.include_prereleases)
     runtimes = installed_runtimes()
     changed = False
-    for major in sorted({d["ios"] for d in config}):
+    for major in ios_versions(config):
         installed, newest, verdict = runtime_state(major, runtimes, offered, True)
         if verdict in ("outdated", "missing", "rebuilt") and newest:
             have = f"{installed['version']} ({installed['buildversion']})" if installed else "none"
@@ -500,7 +546,7 @@ def plan_cleanup(config, runtimes):
     """(devices_to_delete, unneeded_runtimes, orphan_dirs, keep_udids)"""
     keep_pairs, needed = set(), set()
     for d in config:
-        rt = latest_runtime_for_major(d["ios"], runtimes)
+        rt = runtime_for(d, runtimes)
         if rt:
             keep_pairs.add((rt["identifier"], d["name"]))
             needed.add(rt["identifier"])
@@ -574,7 +620,7 @@ def resolve_all(config):
     devices_by_runtime = simctl_json("list", "devices")["devices"]
     out = []
     for d in config:
-        rt = latest_runtime_for_major(d["ios"], runtimes)
+        rt = runtime_for(d, runtimes)
         dev = find_device(d["name"], rt["identifier"], devices_by_runtime) if rt else None
         out.append((d, rt, dev))
     return out
@@ -613,7 +659,7 @@ def cmd_status(args):
     print("\nRuntimes")
     sizes = runtime_sizes()
     stale_runtimes = False
-    for major in sorted({d["ios"] for d in config}, reverse=True):
+    for major in reversed(ios_versions(config)):
         installed, newest, verdict = runtime_state(major, runtimes, offered, index is not None)
         have = (f"{installed['version']} ({installed['buildversion']})"
                 f"  {dim(human_size(sizes.get(installed['identifier'], 0)))}"
@@ -631,6 +677,7 @@ def cmd_status(args):
                           f"{human_size(newest['size'])})")
             problems, stale_runtimes = problems + 1, True
         print(f"  iOS {major}: {have}  {tail}")
+        print_pin_note(major, offered)
 
     if args.include_prereleases and offered:
         pre = next((c for c in offered if c["prerelease"]), None)
@@ -682,7 +729,7 @@ def cmd_runtimes(args):
     offered = downloadable_runtimes(index, args.include_prereleases)
 
     print("\nOffered by Apple, for the configured iOS majors")
-    for major in sorted({d["ios"] for d in config}, reverse=True):
+    for major in reversed(ios_versions(config)):
         installed, newest, verdict = runtime_state(major, runtimes, offered, True)
         if not newest:
             print(f"  iOS {major}: nothing offered")
@@ -690,6 +737,7 @@ def cmd_runtimes(args):
         state = green("installed") if verdict == "current" else yellow(verdict)
         print(f"  iOS {major}: {newest['version']} ({newest['build']}, "
               f"{human_size(newest['size'])})  {state}")
+        print_pin_note(major, offered)
     newest_overall = offered[0] if offered else None
     if newest_overall:
         print(dim(f"  newest offered overall: {newest_overall['name']} "
@@ -713,10 +761,9 @@ def cmd_setup(args):
 
     print("Devices")
     resolved = []
-    newly_created = []
     for entry in config:
         name, major = entry["name"], entry["ios"]
-        rt = latest_runtime_for_major(major, runtimes)
+        rt = runtime_for(entry, runtimes)
         if not rt:
             die(f"no iOS {major}.x runtime installed — try bin/simulators setup --download")
         dev = find_device(name, rt["identifier"], devices_by_runtime)
@@ -731,7 +778,6 @@ def cmd_setup(args):
             udid = run(["xcrun", "simctl", "create", name, device_type,
                         rt["identifier"]]).stdout.strip()
             print(f"  created  {name:<24} {rt['name']:<9} {dim(udid)}")
-            newly_created.append(name)
         resolved.append((name, udid))
 
     print("\nFiles")
@@ -750,13 +796,6 @@ def cmd_setup(args):
             dest.mkdir(parents=True, exist_ok=True)
         n = install_files(dest, args.dry_run)
         print(f"  {green('✓')} {name}: {n} file(s) installed")
-
-    if newly_created:
-        print(f"\n{yellow('Note:')} {', '.join(newly_created)} {'is' if len(newly_created) == 1 else 'are'} "
-              "brand new — installing the app there resets its Settings.")
-        print(dim("  The iphone-02-cpu-inspector and iphone-03-calc-debugger screenshot tests need "
-                  "\"Debug Page in Portrait\" (Settings) turned on to find btn-page-left."))
-        print(dim("  Launch the app once and enable it by hand before running bin/run-screenshots."))
 
     print(f"\n{green('Done.')} bin/simulators status to verify.")
     return 0
@@ -782,7 +821,8 @@ def cmd_cleanup(args):
     config = load_config(args.config)
     runtimes = installed_runtimes()
     to_delete, unneeded, orphans, keep_udids = plan_cleanup(config, runtimes)
-    label = "" if args.delete else "DRY RUN — "
+    delete = args.delete and not args.dry_run
+    label = "" if delete else "DRY RUN — "
 
     stray = {udid: extra_files(storage_dir(udid)) for udid in keep_udids}
     stray = {udid: fs for udid, fs in stray.items() if fs}
@@ -825,7 +865,7 @@ def cmd_cleanup(args):
         for p in sorted(orphans):
             print(f"  {p.name}")
 
-    if not args.delete:
+    if not delete:
         total = (len(to_delete) + len(orphans) + len(stray)
                  + (len(unneeded) if args.runtimes else 0))
         print(f"\nRun with --delete to remove {total} item(s), plus stale device records.")
@@ -860,13 +900,14 @@ def cmd_update(args):
         index = fetch_index(offline=args.offline, refresh=args.refresh)
         offered = downloadable_runtimes(index, args.include_prereleases)
         runtimes = installed_runtimes()
-        for major in sorted({d["ios"] for d in config}):
+        for major in ios_versions(config):
             _, newest, verdict = runtime_state(major, runtimes, offered, index is not None)
             if verdict in ("outdated", "missing", "rebuilt"):
                 print(f"  iOS {major}: newer offered ({newest['version']}) "
                       f"— re-run with --download to fetch it")
             else:
                 print(f"  iOS {major}: {verdict}")
+            print_pin_note(major, offered)
     print("")
     cmd_setup(args)
     print("")
@@ -888,7 +929,7 @@ def cmd_resolve(args):
         entry = matches[0]
 
     runtimes = installed_runtimes()
-    rt = latest_runtime_for_major(entry["ios"], runtimes)
+    rt = runtime_for(entry, runtimes)
     if not rt:
         die(f"no iOS {entry['ios']}.x runtime installed for {entry['name']}")
     dev = find_device(entry["name"], rt["identifier"], simctl_json("list", "devices")["devices"])
@@ -931,8 +972,10 @@ typical workflows
 
 configuration — bin/simulators.yaml is the single source of truth
   - name: iPhone 17 Pro Max     exact simulator name (xcrun simctl list devicetypes)
-    ios: 26                     iOS major; the newest installed patch is used
-    screenshots: iphone         iphone | ipad — role for bin/run-screenshots; omit to skip
+    ios: 26                     iOS major (newest installed 26.x that supports
+                                the device is used), or major.minor such as
+                                26.0 to pin that release
+    screenshots: iphone         iphone | ipad | duo — role for bin/run-screenshots; omit to skip
 
   Devices are only ever kept on the newest installed patch of their major, so a
   new iOS patch means: download it, recreate the devices, delete the old ones.
@@ -1008,7 +1051,7 @@ def build_parser():
 
     sp = add("resolve", cmd_resolve, "Print the UDID of a configured simulator.")
     g = sp.add_mutually_exclusive_group(required=True)
-    g.add_argument("--role", choices=["iphone", "ipad"], help="screenshots role from the config")
+    g.add_argument("--role", choices=["iphone", "ipad", "duo"], help="screenshots role from the config")
     g.add_argument("--name", help="exact device name from the config")
 
     add("boot", cmd_boot, "Boot the configured simulators.", only=True)

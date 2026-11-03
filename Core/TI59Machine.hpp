@@ -43,6 +43,8 @@ public:
     // ── State file load helpers ───────────────────────────────────────────────
     /// Write keycodes[0..count-1] to program RAM starting at step 0.
     void writeProgram(const uint8_t* keycodes, int count);
+    /// Write one program step; the others stay as they are.
+    void writeProgramStep(int stepAddr, uint8_t keycode);
 
     /// Write 16 nibbles to data register regNum (see dataRegCount()).
     void writeDataRegister(int regNum, const uint8_t* nibbles16);
@@ -143,7 +145,7 @@ public:
     /// descending to meet the program at the partition. 120 on the TI-59, 60 on
     /// the TI-58/58C, where the TI-58C's 4 extra registers (H00–H03, RAM 60–63)
     /// sit above R00 — unless the TI-58C is partitioned like a TI-59
-    /// (examples/repartition.ti58c): then it is 120 and only R56–R59 exist, on
+    /// (examples/historic/repartition.ti58c): then it is 120 and only R56–R59 exist, on
     /// the extra registers. Registers without RAM read 0 and ignore writes.
     int dataRegCount() const;
 
@@ -175,6 +177,7 @@ public:
 private:
     int dataRegCountLocked() const;
     int dataRegRAMIndexLocked(int regNum) const;  // -1: no RAM behind it
+    void storeProgramStep(int stepAddr, uint8_t keycode);  // caller holds m_keyMutex
     MachineVariant m_variant;
     ROM            m_rom;
     RAM            m_ram;

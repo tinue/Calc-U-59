@@ -186,7 +186,7 @@
 0EA4  COMPACT_IND        [T] compact Ind keycode (ST*, RC*, GO* …): park Ind as pending key, dispatch the base op
 0F06  PRGREG_ADDR_PREP   [T] LRN store: step counter → BCD register number in A[5..3] for the binary count loop 0D96
 0F2E  ARC_ACCUM          [T] arc-function CORDIC angle accumulation (moved from TI-59 0C97; entry 0F49)
-0F4E  PAPER_ADVANCE      [T] Adv: feed two lines, keep feeding while ADV / "." held
+0F4E  PAPER_ADVANCE      [T] Adv: two half-line feeds, keep feeding while ADV / "." held
 0F5D  IND_POINTER        [T] Ind: pointer register (read at 0D9E) → integer operand; negative or < 1 → 0
 0FA9  INV_LIST_LOOP      [T] INV List per-register loop (start 12FE via 103F, end 1142)
 0FF4  SELFTEST_RELAYS    [T] self-test table targets 0FF4–0FFD (tests 4, 5, 6, 8, 9, 10 → 1360–138F)

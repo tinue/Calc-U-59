@@ -59,7 +59,6 @@ for path in CommandLine.arguments.dropFirst() {
         out += "module \(r.solidStateModuleID ?? "-")\n"
         out += "printer \(r.printerConnected.map { $0 ? "1" : "0" } ?? "-")\n"
         out += "model \(r.model?.displayName ?? "-")\n"
-        out += "skipReset \(r.skipReset ? 1 : 0)\n"
         for e in r.errors { out += "error \(e)\n" }
         out += "END\n"
     }

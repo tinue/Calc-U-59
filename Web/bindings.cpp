@@ -162,7 +162,11 @@ public:
     // ── Pointer (canvas-normalized, Shared/KeyboardLayout PointerTracker) ────
     // Keys go through the keyboard path, so a click shorter than the ROM's
     // debounce still holds the key the minimum time.
-    void pointerDown(double nx, double ny) { pointerMove(nx, ny); }
+    void pointerDown(double nx, double ny) {
+        // A press, not a drag across the card, feeds a side of the fitted card.
+        if (m_c->tapCard(nx, ny)) { drain(); return; }
+        pointerMove(nx, ny);
+    }
     void pointerMove(double nx, double ny) { apply(m_pointer.move(nx, ny)); drain(); }
     void pointerUp() { apply(m_pointer.up()); drain(); }
     /// A key by grid position (the page's accessible key buttons).
@@ -190,32 +194,60 @@ public:
     // ── Files ────────────────────────────────────────────────────────────────
     /// A preset's bytes; returns the errors it reported.
     val loadState(val bytes) {
-        m_errors = val::array();
-        m_c->loadStateFile(vecFromJSArray<uint8_t>(bytes));
-        drain();
-        val errors = m_errors;
-        m_errors = val::undefined();
-        return errors;
+        return collectingErrors([&] { m_c->loadStateFile(vecFromJSArray<uint8_t>(bytes)); });
+    }
+
+    /// A dropped file; returns the errors it reported. An uploaded card joins
+    /// the folder once it is fitted, as in fitCard.
+    val openDroppedFile(std::string name, val bytes) {
+        return collectingErrors([&] {
+            const auto raw = vecFromJSArray<uint8_t>(bytes);
+            const bool card = m_c->dropAction(name) == cu59::SessionController::DropAction::FitCard;
+            if (m_c->openDroppedFile(raw, kCardScheme + name, name) && card) {
+                m_cards[name] = std::string(raw.begin(), raw.end());
+                m_cardsChanged = true;
+            }
+        });
+    }
+
+    /// What a dropped file does (SessionController::DropAction).
+    std::string dropAction(std::string name) const {
+        using Drop = cu59::SessionController::DropAction;
+        switch (m_c->dropAction(name)) {
+            case Drop::LoadPreset: return "preset";
+            case Drop::FitCard: return "card";
+            case Drop::Ignore: return "ignore";
+            case Drop::NotAccepted: break;
+        }
+        return "notAccepted";
     }
 
     // ── Card reader: an in-memory card folder for the page session ───────────
-    /// A session card by name, or an uploaded one (bytes given: kept in the folder).
-    void insertCard(std::string name, val bytes) {
-        if (!bytes.isUndefined() && !bytes.isNull()) {
-            auto raw = vecFromJSArray<uint8_t>(bytes);
-            m_cards[name] = std::string(raw.begin(), raw.end());
-        }
-        auto it = m_cards.find(name);
+    /// Fit a session card by name, or an uploaded one (bytes given: kept in the
+    /// folder once it is fitted, so a bad file doesn't replace a session card).
+    void fitCard(std::string name, val bytes) {
         std::optional<std::vector<uint8_t>> raw;
-        if (it != m_cards.end()) raw = std::vector<uint8_t>(it->second.begin(), it->second.end());
-        m_c->insertCard(raw, kCardScheme + name, name);
+        const bool uploaded = !bytes.isUndefined() && !bytes.isNull();
+        if (uploaded) {
+            raw = vecFromJSArray<uint8_t>(bytes);
+        } else {
+            raw = readCard(kCardScheme + name).raw;
+        }
+        if (m_c->fitCard(raw, kCardScheme + name, name) && uploaded) {
+            m_cards[name] = std::string(raw->begin(), raw->end());
+            m_cardsChanged = true;
+        }
         drain();
     }
-    void insertBlankCard(std::string name) {
-        name = cu59::withDefaultCardExtension(name);
-        m_c->insertBlankCard(kCardScheme + name, name);
+    /// `name`: from freshCardFileName.
+    void fitBlankCard(std::string name) {
+        m_c->fitBlankCard(kCardScheme + name, name);
         drain();
     }
+    /// The file a fresh card typed as `name` would be saved in.
+    std::string freshCardFileName(std::string name) const { return cu59::withDefaultCardExtension(std::move(name)); }
+    /// A corner of the fitted card chosen from the keyboard (its accessible button).
+    void feedSide(int side) { m_c->feedSide(side); drain(); }
     void ejectCard() { m_c->ejectCard(); drain(); }
     /// A session card's bytes, for download (null when absent).
     val cardBytes(std::string name) const {
@@ -274,6 +306,21 @@ public:
     }
 
 private:
+    /// Run `f`, returning the errors it reports instead of posting them.
+    template <typename F>
+    val collectingErrors(F f) {
+        m_errors = val::array();
+        f();
+        drain();
+        val errors = m_errors;
+        m_errors = val::undefined();
+        return errors;
+    }
+
+    static std::string cardName(const std::string& path) {
+        return path.rfind(kCardScheme, 0) == 0 ? path.substr(std::strlen(kCardScheme)) : path;
+    }
+
     std::optional<std::string> readFile(const std::string& name) {
         auto it = m_files.find(name);
         if (it != m_files.end()) return it->second;
@@ -306,11 +353,17 @@ private:
         store(kConstantMemoryKey, text);
     }
     bool writeCard(const std::string& path, const std::string& text) override {
-        std::string name = path.rfind(kCardScheme, 0) == 0 ? path.substr(std::strlen(kCardScheme)) : path;
-        m_cards[name] = text;
+        m_cards[cardName(path)] = text;
         m_cardsChanged = true;
         return true;
     }
+    std::string cardFilePath(const std::string& fileName) override { return kCardScheme + fileName; }
+    CardRead readCard(const std::string& path) override {
+        auto it = m_cards.find(cardName(path));
+        if (it == m_cards.end()) return {};
+        return {std::vector<uint8_t>(it->second.begin(), it->second.end())};
+    }
+    void showDebugPanel(cu59::DebugPanel panel) override { post("debugPanel", "panel", val(static_cast<int>(panel))); }
     cu59::SessionController::TraceLocation traceLocation() override {
         return {kTraceDir, static_cast<uint64_t>(m_traceMaxMB) * 1'000'000};
     }
@@ -343,7 +396,7 @@ private:
         using S = cu59::SessionController;
         if (c & S::ModelChanged) post("model", "model", model());
         if (c & (S::DisplayChanged | S::ModelChanged)) post("display", "cells", display());
-        if (c & (S::CueCardChanged | S::ModelChanged)) post("cueCard", "card", cueCard());
+        if (c & (S::CueCardChanged | S::CardChanged | S::ModelChanged)) post("cueCard", "card", cueCard());  // the lit corner too
         if (c & (S::RunStateChanged | S::ModelChanged | S::AsmChanged)) post("runState", "state", runState());
         if (c & (S::PrinterChanged | S::PaperCut | S::ModelChanged)) postPrinter((c & S::PaperCut) != 0);
         if ((c & (S::CardChanged | S::ModelChanged)) || m_cardsChanged) {
@@ -441,6 +494,7 @@ private:
         val o = val::object();
         o.set("swiping", m_c->cardState() == cu59::SessionController::CardState::Swiping);
         o.set("fileName", m_c->cardFileName());
+        o.set("fitted", m_c->cardFitted());
         val cards = val::array();
         int n = 0;
         for (const auto& [name, text] : m_cards)
@@ -543,6 +597,25 @@ private:
             gridRow(1, g.gridY1);
         }
         rect(0, 0, w, g.washHeight, hexColor(cu59::kCueCardWashColor), cu59::kCueCardWashAlpha);
+        if (auto lit = m_c->litCardCorner()) {
+            const cu59::CardCornerGeometry c = cu59::cardCornerGeometry(*lit, w, h);
+            val corner = val::object();
+            corner.set("kind", val("corner"));
+            corner.set("rect", rectJS(c.x, c.y, c.width, c.height));
+            corner.set("radius", c.radius);
+            corner.set("side", *lit);
+            corner.set("color", hexColor(cu59::kCardCornerLitRGB));
+            val arrow = val::array();
+            int a = 0;
+            for (const auto& pt : c.arrow) {
+                arrow.set(a++, pt.x);
+                arrow.set(a++, pt.y);
+            }
+            corner.set("arrow", arrow);
+            items.set(n++, corner);
+            const auto& bank = *lit == 0 ? card->bankLeft : card->bankRight;
+            if (bank) badge(*bank, *lit == 0 ? g.bankLeft : g.bankRight);
+        }
 
         val o = val::object();
         o.set("template", std::string(cu59::toString(card->template_)));
@@ -800,6 +873,12 @@ val staticData(std::string cuecards) {
     const auto& c = cu59::kCardRect;
     layout.set("display", rectJS(d.x, d.y, d.w, d.h));
     layout.set("card", rectJS(c.x, c.y, c.w, c.h));
+    val cardCorners = val::array();
+    for (int side : {0, 1}) {
+        const cu59::NRect r = cu59::cardCornerRect(side);
+        cardCorners.set(side, rectJS(r.x, r.y, r.w, r.h));
+    }
+    layout.set("cardCorners", cardCorners);
     val keyRects = val::array();
     for (int row = 0; row < 9; ++row)
         for (int col = 0; col < 5; ++col) {
@@ -911,8 +990,12 @@ EMSCRIPTEN_BINDINGS(ti59_web) {
         .function("keyUp", &WebController::keyUp)
         .function("blur", &WebController::blur)
         .function("loadState", &WebController::loadState)
-        .function("insertCard", &WebController::insertCard)
-        .function("insertBlankCard", &WebController::insertBlankCard)
+        .function("dropAction", &WebController::dropAction)
+        .function("openDroppedFile", &WebController::openDroppedFile)
+        .function("fitCard", &WebController::fitCard)
+        .function("fitBlankCard", &WebController::fitBlankCard)
+        .function("feedSide", &WebController::feedSide)
+        .function("freshCardFileName", &WebController::freshCardFileName)
         .function("ejectCard", &WebController::ejectCard)
         .function("cardBytes", &WebController::cardBytes)
         .function("togglePrinterConnection", &WebController::togglePrinterConnection)

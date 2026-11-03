@@ -52,4 +52,11 @@ struct CardStorage {
     static var hasCard: Bool {
         FileManager.default.fileExists(atPath: fileURL.path)
     }
+
+    /// `true` when a card file is there, downloaded or not: iOS keeps a file not
+    /// yet downloaded from iCloud as a hidden ".name.icloud".
+    static func cardExists(_ url: URL) -> Bool {
+        let placeholder = url.deletingLastPathComponent().appendingPathComponent(".\(url.lastPathComponent).icloud")
+        return FileManager.default.fileExists(atPath: url.path) || FileManager.default.fileExists(atPath: placeholder.path)
+    }
 }

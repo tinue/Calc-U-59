@@ -18,7 +18,7 @@ apps' features (`FrontendParity.md`, the Web column) in two layouts:
   installable PWA (`app/`) uses it.
 
 Deliberately different from the apps: the LED is Classic only; magnetic
-cards live in an in-memory folder for the page session (upload one to read
+cards live in an in-memory folder for the page session (upload one to fit
 it, download one to keep it); settings and the TI-58C constant memory are
 kept in `localStorage` (keys prefixed `calcu59/`: settings named as in
 `Shared/SettingsKeys.hpp`, the TI-58C memory as `ti58c.mem`); traces are written to Emscripten's MEMFS
@@ -55,7 +55,7 @@ Web/calc-engine-worker.js ── wasm/ti59-core.{js,wasm} ◀── Web/bindings
 | `fonts/` | Archivo (WOFF2, SIL OFL 1.1), for the cue card |
 | `app/` | The installable PWA: `index.html`, `app.jsx`, `app.css`, `sw.js`, `manifest.json` |
 | `index.html` | Demo and test page, sized to the window: `?layout=wide|portrait`, also `width`, `height`, `model`, `module`, `preset` |
-| `presets.json` | The presets the preset picker offers (file in `examples/`, title) |
+| `presets.json` | The presets the preset picker offers (file name, title): every file directly in `examples/`, none from its subdirectories. A new example there needs a line here. `build.js` copies them at build time to `dist/presets/` |
 | `vendor/` | React 18 and ReactDOM (shipped), Babel (build only), ReactDOMServer (tests only) |
 | `build.sh`, `build.js` | The build (below) |
 | `tests/`, `run-tests.sh`, `playwright.config.js`, `package.json` | Playwright tests |
@@ -146,7 +146,7 @@ the file names under `wasm/`, `img/` and `presets/` may change with any build.
 |---|---|---|
 | `layout` | `"portrait"` | `"wide"` (calculator, printer, debugger side by side) or `"portrait"` (calculator and printer pages) |
 | `width` | the parent's width | CSS px the client may take. Wide: the calculator artwork takes 40 % (at most 420 px without `height`, never below 400 px), the printer 220–320 px, the debugger the rest (at least 220 px) |
-| `height` | from the width | CSS px. Without it the height follows the artwork's aspect plus the 50 px bar; with it the artwork fits inside (the PWA passes the viewport) |
+| `height` | from the width | CSS px. Without it the height follows the artwork's aspect plus the 50 px bar; with it the artwork fits inside (the PWA passes `#root`'s content box) |
 | `keyboard` | `false` | The calculator is focusable and takes the physical keyboard while focused (`SharedArchitecture.md` § "Physical Keyboard Mapping") |
 | `settings` | `true` | Show the Settings gear |
 | `model` | stored setting | Start with this model: `"TI-59"`, `"TI-58"` or `"TI-58C"` |
@@ -176,7 +176,8 @@ Requirements on the host:
 Stable hooks a host's tests may rely on: the root element's class
 `calcu-device` with `data-layout="wide|portrait"`, the artwork canvas
 `canvas.calcu-keyboard`, the LED `canvas.calcu-led`, the cue card
-`canvas.cuecard` (its `aria-label` holds the card's text), the key buttons
+`canvas.cuecard` (its `aria-label` holds the card's text), a fitted card's
+corners as the buttons `Feed card side 1` and `Feed card side 2`, the key buttons
 named by their face labels (`2nd`, `−`, `R/S`, …) with `aria-pressed`, the
 panels `[data-panel=printer]` and `[data-panel=debug]`, and the control
 bar's buttons by name (`Reset`, `Crd`, `Eject Card`, `Preset`, `Settings`)
@@ -221,13 +222,17 @@ styles; the host styles only its own layout around the client.
 
 ### The PWA (`app/`)
 
-`app/index.html` mounts `PlayCalculator` in the portrait layout, sized to
-the viewport (inside the safe area), with the keyboard and an install
-banner. Its service worker's scope is `app/`. It precaches the shell,
+`app/index.html` mounts `PlayCalculator` in the portrait layout, with the
+keyboard and an install banner. `#root` is fixed to the viewport and a
+`ResizeObserver` sizes the calculator to its content box (inside the safe
+area), which also catches insets arriving late; the status bar is opaque,
+because with black-translucent WebKit's standalone viewport left it in or
+out from one launch to the next. Its service worker's scope is `app/`. It precaches the shell,
 `calc.js`, `calc.css`, the worker, the engine, the artwork, every model's
-ROM files and module 01 (Master Library), so the installed app runs all
-three models offline; another module needs the network once. A model
-switch reads its ROM with a synchronous request from the worker, which the
+ROM files, every Solid State module and every preset, so the installed app
+does all of it offline after the first launch. `build.js` adds everything in
+`wasm/roms/` and the presets (from `presets.json`) to the list. A
+model switch reads its ROM with a synchronous request from the worker, which the
 service worker answers from the cache. The cache is named
 `calcu59-app <scope> <hash>`: a new build is a new cache, and the old one of
 the same scope is deleted on activation — other caches on the origin (the
