@@ -8,11 +8,12 @@
 - **iPhone Duo** Opened flat, the calculator, the printer and the debugger sit side by side, as on the iPad, whatever "Debug Page in Portrait" is set to; the printer tape is narrower there, its print scaled down to fit. Half open like a laptop, closed, or held tall, it shows the pages as on the iPhone.
 - **Web calculator** Keyboard Feedback now offers Off and Click Sound. Vibrate is gone: iOS Safari has no vibration, and it did nothing on the Android phones tried. The installed web app now has every Solid State module and every preset on board, so all of them work offline. Its preset list now holds the main examples; the historic and calendar programs can still be loaded as files. <!-- appstore: skip -->
 - **Fast Mode** A program that reaches the calculator's reset routine now clears the whole memory on the TI-59 and TI-58, and t stays, as measured on a real TI-59. The fast-mode entry `Pgm 02 SBR 239` does this, which is why the old recipes read the card again afterwards. `characters-fastmode.ti59` now plays them that way: card, RST R/S, card.
+- **Debugger** To watch the reset routine on the TI-59 and TI-58, with FREEZE ON START or a trace, use a clean reset. A plain Reset now runs the routine out of sight, which is how it keeps the memory.
 
 ### Fixes
 - **Reset** No longer loses R29 on the TI-59. On the TI-58 and TI-59, a clean reset is now an ordinary reset: the calculator clears its memory itself.
 - **Debugger** In a short window, the CPU tab no longer spreads over the debugger's tabs and blocks them.
-- **Magnetic Cards** A card file's cue card now shows the bank badges it was saved with. They used to be replaced by the number of the bank stored on that card side, so the two sides of a card looked different.
+- **Magnetic Cards** A card file from an earlier version now shows the bank badges it was saved with. They used to be replaced by the number of the bank stored in that file, so the two files of a two-bank card looked different.
 - **iPad** The debugger's background no longer reaches into the status bar and below the bottom edge.
 - **Web calculator** The installed web app on the iPhone now fills the screen; it came out about 60 points short at the bottom. <!-- appstore: skip -->
 

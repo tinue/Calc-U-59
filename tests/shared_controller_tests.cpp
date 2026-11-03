@@ -151,6 +151,23 @@ TEST(controller_reset_keeps_the_memory_and_clean_reset_clears_it) {
     }));
 }
 
+// A plain Reset on the TI-59/58 runs the reset routine with the run loop stopped,
+// to keep the memory, so only a clean reset can be frozen at its first instruction.
+TEST(controller_cpu_freeze_on_start_sees_a_clean_reset_only) {
+    FakePlatform p;
+    SessionController c(p, testroms::reader(), catalog(), "ML");
+    CHECK(c.startMachine(Model::TI59));
+    CHECK(waitForScanLoop(c));
+    c.armScanLoopExit();
+    std::this_thread::sleep_for(50ms);  // the armed freeze sees the scan loop
+    c.resetMachine();
+    CHECK(!pumpUntil(p, [&] { return c.isFrozen(); }, 500ms));
+    CHECK(waitForScanLoop(c));
+    c.cleanResetMachine();
+    CHECK(pumpUntil(p, [&] { return c.isFrozen(); }));
+    CHECK(c.debugState().owner == FreezeOwner::Cpu);
+}
+
 TEST(controller_rom_failure_keeps_the_running_machine) {
     FakePlatform p;
     // Only the TI-58C chips are missing.

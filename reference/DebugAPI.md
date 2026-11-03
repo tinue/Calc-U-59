@@ -81,7 +81,7 @@ it calls `resumeFrozen` (its `resume` ends a page suspend).
 | `frozen` | Emulation is halted |
 | `owner` | `FreezeOwner::Cpu` or `::Calculator`: the panel whose RESUME and STEP apply; empty while running |
 | `pcChangeArmed` | CALCULATOR FREEZE ON START: freeze at the next step boundary |
-| `scanLoopExitArmed` | CPU FREEZE ON START: freeze when the CPU leaves the keyboard scan loop (key press or reset) |
+| `scanLoopExitArmed` | CPU FREEZE ON START: freeze when the CPU leaves the keyboard scan loop (key press, clean reset, on the TI-58C any reset; a plain Reset on the TI-59/58 runs the routine with the run loop stopped) |
 | `generation` | Changes on every freeze, resume and clear |
 
 Arming one freeze disarms the other; freezing disarms both. The controller
@@ -310,7 +310,7 @@ path.
 
 Core breakpoints (`TI59Machine::addBreakpoint`, `TRACE_BREAKPOINTS`,
 `kBreakpointHit`) are used only by the headless tools (`tools/headless/`).
-Neither app sets them.
+No GUI sets them.
 
 ### Disassembler
 
