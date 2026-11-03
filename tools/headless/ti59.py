@@ -275,8 +275,12 @@ class Machine:
             ctl, dig = c[i], d[i]
             if ctl in (0, 1, 8, 9):
                 ch = " " if (mk[1] >> i) & 1 else f"{dig:X}"
+            elif ctl == 2:
+                ch = '"'
+            elif ctl == 4:
+                ch = "'"
             elif ctl == 5:
-                ch = "-" if dig == 0 else "°"
+                ch = "°"
             elif ctl == 6:
                 ch = "-"
             else:

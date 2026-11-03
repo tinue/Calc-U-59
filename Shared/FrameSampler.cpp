@@ -41,30 +41,29 @@ void FrameSampler::reset() {
     m_pov = {};
 }
 
-// The C indicator follows the core's integrated duty cycle. Hardware (Sladký
-// 2014 HW guide): in IDLE, C is driven by fA[14] only; in RUN, by any fA bit.
+// The C indicator follows the core's mean drive (DisplaySnapshot::calcIndicator):
+// its brightness changes at once, as on a real TI-59, whose C visibly jumps
+// while a program runs and between the phases of a blink. The one exception is
 // 60 Hz aliasing: the ROM's IDLE display scan lasts ~4.5 ms (16 IDLE steps ×
-// 281 µs), so one 16.7 ms poll can see a single zero-duty frame although the
+// 281 µs), so one 16.7 ms poll can see a single zero-drive frame although the
 // real dark gap is imperceptible. Hence:
-//   target > current        → rise instantly
 //   target 0, first frame   → hold (aliasing artefact)
 //   target 0, frame 2+      → decay fast (a real dark phase: error blink, …)
-//   0 < target < current    → proportional fall
-double FrameSampler::updateCalcIndicator(float duty) {
-    double target = static_cast<double>(duty) * 0.65;
+//   otherwise               → the target
+// An opacity is not linear in light, hence the display gamma: drive 1 (one bit,
+// the dark phase of a blink) gives 0.65, drive 0.09 (its lit phase) a very weak
+// but visible C, and several bits at once reach full brightness.
+double FrameSampler::updateCalcIndicator(float drive) {
+    const double target = std::min(1.0, std::pow(static_cast<double>(drive), 1.0 / 2.2) * 0.65);
     if (target < 0.001) {
         ++m_zeroFrames;
         if (m_zeroFrames >= 2) {
             double decay = std::min(0.65, 0.35 * (m_zeroFrames - 1));
             m_calcOpacity = std::max(0.0, m_calcOpacity - decay);
         }
-    } else if (target >= m_calcOpacity) {
-        m_zeroFrames = 0;
-        m_calcOpacity = target;
     } else {
         m_zeroFrames = 0;
-        double alpha = std::min(0.5, target / std::max(0.001, m_calcOpacity));
-        m_calcOpacity += alpha * (target - m_calcOpacity);
+        m_calcOpacity = target;
     }
     return m_calcOpacity;
 }

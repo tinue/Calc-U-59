@@ -24,7 +24,7 @@ struct LedFrame {
 struct FrameUpdate {
     DisplaySnapshot display;  ///< the core's raw snapshot (duties, latched glyphs)
     LedFrame led;
-    double calcIndicatorOpacity = 0;      ///< 0–0.65, see FrameSampler
+    double calcIndicatorOpacity = 0;      ///< 0–1, see FrameSampler
     std::vector<std::string> printerLines;
     std::vector<PrinterCodeLine> printerCodeLines;
     std::vector<std::string> logLines;    ///< core debug messages at or below debugLevel
@@ -42,9 +42,9 @@ public:
     /// Forget the indicator history (new machine).
     void reset();
 
-    /// Advance the C-indicator smoothing by one frame with the core's duty
-    /// cycle (DisplaySnapshot::calcIndicator); returns the new opacity.
-    double updateCalcIndicator(float duty);
+    /// Advance the C indicator by one frame with the core's mean drive
+    /// (DisplaySnapshot::calcIndicator); returns the new opacity.
+    double updateCalcIndicator(float drive);
 
 private:
     double m_calcOpacity = 0;

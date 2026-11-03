@@ -291,6 +291,15 @@ int TMC0501::getStepWeight() const {
 // A position that was not driven reads as dark; persistence of vision is the
 // frontend's job (Shared/DisplayPov).
 
+// How much this step drives the C indicator. In RUN, one unit per set fA bit:
+// a film of a real TI-59 running Pgm 01 SBR = follows the number of set bits
+// (correlation 0.80), much less whether any is set (0.46), which fits the flags
+// being shifted out one bit at a time. In IDLE, fA bit 14 only.
+static uint32_t calcIndicatorDrive(uint32_t flags, uint16_t fA) {
+    if (flags & FLG_IDLE) return (fA & 0x4000u) ? 1u : 0u;
+    return static_cast<uint32_t>(std::bitset<16>(fA).count());
+}
+
 DisplaySnapshot TMC0501::takeDisplay() {
     std::lock_guard<std::mutex> lock(m_displayMutex);
     // Integrate the SH-pin (C indicator) signal over the polling interval rather
@@ -300,16 +309,16 @@ DisplaySnapshot TMC0501::takeDisplay() {
     //   • IDLE mode  — driven by fA bit 14 (0x4000) only.  The other fA bits
     //     are used for display state (e.g. bits 1–4 hold the decimal-point
     //     position loaded by MOV fA[1..4],R5) and must NOT light the C LED.
-    //   • RUN mode   — driven by all fA bits (any fA ≠ 0 lights C).
+    //   • RUN mode   — driven by all fA bits (calcIndicatorDrive).
     //
-    // m_cSteps counts every step() call where that condition holds.
+    // m_cSteps sums that drive over the step() calls.
     // m_pollSteps counts all steps weighted by cycle cost (non-IDLE=1, IDLE=4).
-    // The ratio is the fraction of real time the C LED was driven — matching
-    // the hardware's kHz-rate duty cycle averaged down to the 60 Hz UI poll.
+    // The ratio is the mean drive over real time, averaged down to the 60 Hz UI
+    // poll: 1 with one bit set throughout, above 1 with more.
     // This naturally handles:
-    //   • brief sub-frame computations      → small but non-zero duty cycle
-    //   • long computations (e.g. 1/x)     → duty cycle near 1.0
-    //   • IDLE with only decimal-point bits → duty cycle = 0.0 (no false C)
+    //   • brief sub-frame computations      → small but non-zero drive
+    //   • long computations (e.g. 1/x)     → drive near or above 1
+    //   • IDLE with only decimal-point bits → drive = 0.0 (no false C)
     //   • label-not-found blink (e.g. A on a reset calculator): IDLE with
     //     fA[14] set during the dark phase → C alternates with "0" → duty ≈ 0.25
     const uint32_t cSteps    = m_cSteps.exchange(0, std::memory_order_relaxed);
@@ -526,7 +535,7 @@ int TMC0501::step() {
         // TI-58C runs at constant speed; TI-59/58 slow to 1/4 speed during IDLE
         int w = getStepWeight();
         if (tf != TRACE_NONE) tracePostStep(w);
-        if ((flags & FLG_IDLE) ? (fA & 0x4000u) : fA) m_cSteps.fetch_add(1, std::memory_order_relaxed);
+        m_cSteps.fetch_add(calcIndicatorDrive(flags, fA), std::memory_order_relaxed);
         m_pollSteps.fetch_add(static_cast<uint32_t>(w), std::memory_order_relaxed);
         m_elapsedTicksLocal += static_cast<uint64_t>(w);
         m_elapsedTicks.store(m_elapsedTicksLocal, std::memory_order_relaxed);
@@ -968,7 +977,7 @@ int TMC0501::step() {
     // TI-58C runs at constant speed; TI-59/58 slow to 1/4 speed during IDLE
     int w = getStepWeight();
     if (tf != TRACE_NONE) tracePostStep(w);
-    if ((flags & FLG_IDLE) ? (fA & 0x4000u) : fA) m_cSteps.fetch_add(1, std::memory_order_relaxed);
+    m_cSteps.fetch_add(calcIndicatorDrive(flags, fA), std::memory_order_relaxed);
     m_pollSteps.fetch_add(static_cast<uint32_t>(w), std::memory_order_relaxed);
     m_elapsedTicksLocal += static_cast<uint64_t>(w);
     m_elapsedTicks.store(m_elapsedTicksLocal, std::memory_order_relaxed);
@@ -1432,7 +1441,11 @@ void TMC0501::postOperation() {
             zero = true;
         }
 
-        const bool suppressed = (b == 7 || b == 3 || (b <= 4 && zero && a == 0));
+        // Checked on a real TI-59 (LRN SST Del… in source 8, the only known way
+        // to reach these): a zero in the leftmost position stays dark even with
+        // a nibble 8 or 9, which shows it everywhere else.
+        const bool suppressed = (b == 7 || b == 3 || (b <= 4 && zero && a == 0) ||
+                                 (idx == 11 && b >= 8 && a == 0));
         if (suppressed) {
             m_digitSuppressedMask |= static_cast<uint16_t>(1u << idx);
         } else {
@@ -1448,10 +1461,12 @@ void TMC0501::postOperation() {
         // position's driven time (takeDisplay turns it into a duty cycle). A
         // suppressed or blank strobe drives nothing; the glyph stays latched.
         const uint32_t w = static_cast<uint32_t>(getStepWeight());
-        const bool emitsGlyph = (b == 0 || b == 1 || b == 5 || b == 6 || b == 8 || b == 9);
+        const bool emitsGlyph = (b <= 2 || b == 4 || b == 5 || b == 6 || b == 8 || b == 9);
         if (!suppressed && emitsGlyph) {
             m_digitSegmentsA[idx] = a;
-            m_digitSegmentsB[idx] = b;
+            // Nibble 5 under suppression loses the degree sign's upper segments:
+            // only the middle one stays, the glyph of nibble 6.
+            m_digitSegmentsB[idx] = (b == 5 && zero && a == 0) ? 6 : b;
             m_digitLitTicks[idx] += w;
             m_drivenThisRev |= static_cast<uint16_t>(1u << idx);
         }

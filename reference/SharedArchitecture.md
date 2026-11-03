@@ -429,7 +429,8 @@ differ.
 ### LED Display Rendering
 
 - Glyphs: `SevenSegment` (`ledCell(i, digit, ctrl, level, calcOpacity)`:
-  segments and opacity per cell, the "C" annunciator in cell 11), never a
+  segments and opacity per cell, in cell 11 the "C" annunciator when it is
+  brighter than the glyph there), never a
   font. Zero suppression happens in the core (`TMC0501`), which reports
   suppressed positions as not driven; `ledCell` blanks a position at
   level 0. All three renderers call it.

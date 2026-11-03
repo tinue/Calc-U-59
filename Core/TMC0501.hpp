@@ -44,8 +44,8 @@ struct DisplaySnapshot {
     float    digitDuty[12]{};
     float    dpDuty[12]{};        ///< Same for the decimal point of each position.
     uint32_t pollTicks{0};        ///< Weighted cycles the interval covered (time = pollTicks / instruction rate).
-    float    calcIndicator{0.0f}; ///< fraction of the last poll interval where C LED was driven:
-                                  ///<   RUN mode: any fA≠0; IDLE mode: fA bit 14 (SH pin, per HW guide). (0.0–1.0)
+    float    calcIndicator{0.0f}; ///< mean drive of the C LED (SH pin) over the last poll interval:
+                                  ///<   RUN mode: the number of set fA bits; IDLE mode: fA bit 14. (0.0–16.0)
 };
 
 // ── Internal CPU flags ────────────────────────────────────────────────────────

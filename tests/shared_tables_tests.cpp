@@ -65,14 +65,19 @@ TEST(seven_segment_decode) {
     CHECK_EQ(segmentsFor(8, 0, false), 0x7F);
     CHECK_EQ(segmentsFor(7, 9, false), 0b0000111);  // 7 lights A B C only
     CHECK_EQ(segmentsFor(3, 0, true), 0);           // zero-suppressed
-    CHECK_EQ(segmentsFor(0, 5, false), kSegmentsMinus);
+    CHECK_EQ(segmentsFor(0, 2, false), kSegmentsQuote);
+    CHECK_EQ(segmentsFor(0, 4, false), kSegmentsApostrophe);
+    CHECK_EQ(segmentsFor(0, 5, false), kSegmentsDegree);          // whatever the digit
     CHECK_EQ(segmentsFor(1, 5, false), kSegmentsDegree);
     CHECK_EQ(segmentsFor(4, 6, false), kSegmentsMinus);
     CHECK_EQ(segmentsFor(4, 7, false), 0);
     CHECK_EQ(segmentsFor(4, 3, false), 0);
     CHECK_EQ(segmentsFor(0xA, 0, false), kDigitSegments[0]);  // A–F digits wrap mod 10
-    CHECK_EQ(ledCell(11, 8, 0, 255, 0.5).segments, kSegmentsC);  // the lit "C" covers cell 11
-    CHECK_EQ(ledCell(11, 8, 0, 255, 0.5).opacity, 0.5);
+    CHECK_EQ(ledCell(11, 8, 0, 51, 0.5).segments, kSegmentsC);    // the brighter "C" covers cell 11
+    CHECK_EQ(ledCell(11, 8, 0, 51, 0.5).opacity, 0.5);
+    CHECK_EQ(ledCell(11, 8, 0, 0, 0.5).segments, kSegmentsC);     // dark: the C alone
+    CHECK_EQ(ledCell(11, 0, 6, 255, 0.06).segments, kSegmentsMinus);  // a faint C leaves a lit glyph
+    CHECK_EQ(ledCell(11, 0, 6, 255, 0.06).opacity, 1.0);
     CHECK_EQ(ledCell(10, 8, 0, 51, 0.5).segments, 0x7F);         // other cells keep their glyph
     CHECK_EQ(ledCell(10, 8, 0, 51, 0.5).opacity, 0.2);
     CHECK_EQ(ledCell(11, 8, 0, 0, 0).segments, 0);                // dark: zero-suppressed
