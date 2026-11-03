@@ -34,12 +34,11 @@ final class FilePickerTests: XCTestCase {
         presetButton.tap()
 
         // The system document picker presents a Cancel button on both iPhone and iPad.
-        let cancelButton = app.buttons["Cancel"]
-        XCTAssertTrue(cancelButton.waitForExistence(timeout: 5), "File picker did not appear")
+        XCTAssertTrue(pickerCancelButton(app).waitForExistence(timeout: 5), "File picker did not appear")
 
         attachScreenshot(app, name: "File picker open")
 
-        cancelButton.tap()
+        cancelPicker(app)
     }
 
     /// Tapping Preset a second time after a Cancel must reopen the picker.
@@ -55,21 +54,49 @@ final class FilePickerTests: XCTestCase {
 
         // First open → cancel
         presetButton.tap()
-        let cancelButton = app.buttons["Cancel"]
-        XCTAssertTrue(cancelButton.waitForExistence(timeout: 5), "File picker did not appear on first tap")
-        cancelButton.tap()
-        XCTAssertFalse(cancelButton.waitForExistence(timeout: 2), "Picker did not dismiss")
+        XCTAssertTrue(pickerCancelButton(app).waitForExistence(timeout: 5), "File picker did not appear on first tap")
+        cancelPicker(app)
 
         // Second open — this was the failure case
         presetButton.tap()
         XCTAssertTrue(
-            app.buttons["Cancel"].waitForExistence(timeout: 5),
+            pickerCancelButton(app).waitForExistence(timeout: 5),
             "File picker did not reopen after cancel — regression in filePickerPresented state"
         )
 
         attachScreenshot(app, name: "File picker reopened after cancel")
 
-        app.buttons["Cancel"].tap()
+        cancelPicker(app)
+    }
+
+    // MARK: - Helpers
+
+    /// The picker's Cancel button. Only the one in the navigation bar: while the
+    /// picker settles on the iPhone Duo, a toolbar holds a second one.
+    private func pickerCancelButton(_ app: XCUIApplication) -> XCUIElement {
+        app.navigationBars.buttons["Cancel"]
+    }
+
+    /// Tap Cancel and check that the picker closes and stays closed.
+    ///
+    /// On the iPhone Duo the picker slides and resizes for over a second after
+    /// opening, and a tap at a position read during that lands beside the button.
+    private func cancelPicker(_ app: XCUIApplication) {
+        let cancelButton = pickerCancelButton(app)
+        var settledFrame = cancelButton.frame
+        var settledSince = Date()
+        let deadline = Date().addingTimeInterval(10)
+        while Date().timeIntervalSince(settledSince) < 1, Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.1)
+            if cancelButton.frame != settledFrame {
+                settledFrame = cancelButton.frame
+                settledSince = Date()
+            }
+        }
+        cancelButton.tap()
+
+        XCTAssertTrue(cancelButton.waitForNonExistence(timeout: 5), "Picker did not dismiss")
+        XCTAssertFalse(cancelButton.waitForExistence(timeout: 1), "Picker came back after dismissing")
     }
     #endif
 }
