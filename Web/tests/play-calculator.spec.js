@@ -210,8 +210,8 @@ test('Settings: startup model and module are kept', async ({ page }) => {
 test('a bundled preset shows its own cue card', async ({ page }) => {
   await gotoReady(page);
   await page.getByRole('button', { name: 'Preset' }).click();
-  await page.getByRole('button', { name: /Base conversion/ }).click();
-  await expect(page.locator('.cuecard')).toHaveAttribute('aria-label', /Base Conversion/, { timeout: 5000 });
+  await page.getByRole('button', { name: /Sum of N numbers/ }).click();
+  await expect(page.locator('.cuecard')).toHaveAttribute('aria-label', /Sum 1\.\.N/, { timeout: 5000 });
 });
 
 test('an uploaded preset loads its program', async ({ page }) => {
