@@ -1,8 +1,8 @@
 # The set of simulators this project tests and takes screenshots on.
 # This file is the single source of truth; bin/simulators realises it.
 #
-# ios: iOS major (e.g. 27 — the newest installed 27.x is used) or a pinned
-#      major.minor (e.g. 27.0 — that release, never 27.1).
+# ios: iOS major (e.g. 27 — the newest installed 27.x that supports the device
+#      is used) or a pinned major.minor (e.g. 27.0 — that release, never 27.1).
 # screenshots: iphone | ipad | duo  — role in bin/run-screenshots; omit to skip screenshots.
 #
 # To add a device: append an entry, then run  bin/simulators setup.
@@ -15,19 +15,19 @@
 # (e.g. iPhone 17e does not exist on iOS 18.x).
 
 - name: iPhone 18 Pro Max
-  ios: 27.0
+  ios: 27
   screenshots: iphone
 
 - name: iPhone 16e
   ios: 18
 
 - name: iPad Pro 13-inch (M5)
-  ios: 27.0
+  ios: 27
   screenshots: ipad
 
 - name: iPad mini (A17 Pro)
-  ios: 27.0
+  ios: 27
 
 - name: iPhone Duo
-  ios: 27.1
+  ios: 27
   screenshots: duo
