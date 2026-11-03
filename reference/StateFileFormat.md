@@ -490,8 +490,9 @@ END-CARD
   back as version 1.
 - Version 1.0 has one side, no `SIDE:` and no `END-CARD`; the card's badges come
   from `Banks:`, which is optional. These cards stay version 1 when written, as
-  do cards read from the binary layouts. A write reduces the oldest 984-byte
-  layout to one bank.
+  do cards read from the binary layouts: the 13-byte `Calc-U-59-CRD` header +
+  246 bytes, and headerless 246- or 984-byte files. A write reduces the oldest
+  984-byte layout to one bank.
 
 ### Feeding cards: ArmCard and InsertCard
 

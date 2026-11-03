@@ -126,7 +126,7 @@ block, and loads the buffer from ROM row 16 + k instead of RAM. For 008 the
 row starts with 04 65. Ins at 008 then gives:
 
 - step 008: 23 − 04 = 1F (units 3 − 4 = F with a borrow, tens 2 − 0 − 1 = 1);
-- step 009: 53 − 65 − 1 + 04 = 92, the RTN.
+- step 009: 53 − 65 + 04 = 92, the RTN.
 
 **Setting the source to 8.** The article's sequence gets there through a
 failed module call (`Pgm 12 SBR 444`), whose cleanup is incomplete. R/S then

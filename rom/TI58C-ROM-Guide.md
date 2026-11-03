@@ -363,7 +363,8 @@ every code lands in the same slot. The nine cold-start codes and the
 Trace-mode fold are also the same. The differences come from the code that
 was moved and from constant memory:
 
-- **Cold start** keeps the partition, which the TI-59 resets to 479.59.
+- **Cold start** keeps the program, the data registers and the partition. The
+  TI-59 clears its RAM and resets the partition to 479.59.
 - **1E (Acosta's h24)** lands at the scanner's `0EE1` on both machines.
   On the TI-58C that address leads into the step-buffer code (`0C0B`
   PRGREG_CACHE) and back to `STEP_DISPATCH` (`082B`), so the next steps are

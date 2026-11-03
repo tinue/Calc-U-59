@@ -33,7 +33,8 @@ digit is tested in two different ways:
 - The step fetch tests single bits. Bit 0 means fetch from the module,
   bit 3 means fetch from ROM, and anything else means fetch from RAM.
 
-The values 2, 4 and 6 are never set by TI's code. They pass the first test
+TI's code never leaves 2, 4 or 6 there while a program runs: 2 appears only for
+a few instructions inside a RTN back into a module. They pass the first test
 but match neither bit of the second. With one of them in place, a user
 program in RAM runs on the fast path. No normal key writes this digit, so
 getting such a value there takes a firmware bug. TI-59 users' clubs found
@@ -118,7 +119,7 @@ part is an inference.
 
 ## Ways in
 
-All methods put X = 1.000000000002 (or …04, …06) on the display first;
+All methods except the LRN entry put X = 1.000000000002 (or …04, …06) on the display first;
 `1 + 2 EE 12 +/- =` produces it exactly.
 
 - **SST** (shortest; `examples/fastmode-sst.ti59`). Put a St flg step at step

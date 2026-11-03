@@ -2,7 +2,7 @@
 Unsorted collection of ideas, bugs, observations etc.
 
 ## Core emulation
-- **Keep memory on model switch** - This requires separate memory per model (currently shared)
+- **Keep memory on model switch** - A switch starts a new machine, so the RAM is lost (except the TI-58C's constant memory). Needs memory kept per model.
 - **Emulation speed control** — a multiplier to run the emulator faster or slower than real time.
 - **Rework display scanning** - Simple scanning on DIGIT 0 vs. scan per digit; Still open issues with the latter
     - **Split TMC 0501 and SCOM** - Take this to the extreme, and support out of phase DIGIT / KEY shenanigans
@@ -17,7 +17,7 @@ Unsorted collection of ideas, bugs, observations etc.
 
 ## Debugger
 ### CPU Debugger
-- **Break points** The core has PC breakpoints (`TI59Machine::addBreakpoint`, `reference/DebugAPI.md` § "Breakpoints"), used only by the headless tools; the unwired Swift UI and the view model's breakpoint API were removed in 2.0.0. Remaining: a UI in both apps (through `Shared/`), then conditional triggers (register content, IDLE-RUN change, and more).
+- **Break points** The core has PC breakpoints (`TI59Machine::addBreakpoint`, `reference/DebugAPI.md` § "Breakpoints"), used only by the headless tools; the unwired Swift UI and the view model's breakpoint API were removed in 2.0.0. Remaining: a UI in the GUIs (through `Shared/`), then conditional triggers (register content, IDLE-RUN change, and more).
 - **Latch keyboard entries** Support catching a keypress in single step mode — see `ideas/KeypressLatch.md` for the existing design proposal.
 
 ### Calculator Debugger

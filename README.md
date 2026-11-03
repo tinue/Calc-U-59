@@ -37,7 +37,7 @@ Pre-built macOS DMGs, Windows installers (x64, ARM64) and Linux AppImages (x86_6
 
 **Printer:** The PC-100C thermal printer is simulated functionally: the emulator intercepts the ROM's print commands, keeps the printer busy for a line's print time (enough for the [printer interrupt](rom/printerinterrupt.md)), and renders characters with a dot-matrix font calibrated against physical hardware. For a line cut short, the head's column-by-column firing and each dot's heating time are modeled, measured on a real PC-100A; the paper mechanics are not.
 
-**Debugger:** Live view and inspection, and stepping both calculator-level and CPU-level instructions work. The core has a breakpoint API used by the headless tools (`reference/DebugAPI.md` § "Breakpoints"), but neither app has a UI to set one. Also missing: keypress latch while single-stepping (`ideas/KeypressLatch.md`) and conditional freezes (e.g. on a register change). The API surface will change as it matures.
+**Debugger:** Live view and inspection, and stepping both calculator-level and CPU-level instructions work. The core has a breakpoint API used by the headless tools (`reference/DebugAPI.md` § "Breakpoints"), but no GUI has a UI to set one. Also missing: keypress latch while single-stepping (`ideas/KeypressLatch.md`) and conditional freezes (e.g. on a register change). The API surface will change as it matures.
 
 ## Building
 
@@ -118,6 +118,7 @@ isn't duplicated in this repository.
 | [`ideas/KeypressLatch.md`](ideas/KeypressLatch.md) | Unimplemented design proposal for latching keypresses while the debugger is frozen. |
 | [`ideas/Pico.md`](ideas/Pico.md) | Feasibility analysis for running the core on a Raspberry Pi Pico wired to a real TI-59's keyboard, display, and card reader. |
 | [`ideas/PresetConvergence.md`](ideas/PresetConvergence.md) | Comparison of Calc-U-59 and Calc-U-1600 presets: where the syntax could converge, and which features each could take from the other. |
+| [`ideas/CardSound.md`](ideas/CardSound.md) | Plan and measurements for playing a real card pass's sound, with the emulator's pass timed to match |
 | [`ideas/CardRecovery.md`](ideas/CardRecovery.md) | Signal-chain analysis and breadboard circuit design for a standalone Pico-based magnetic-card reader, aimed at recovering cards a stock TI-59 fails to read. |
 | [`LICENSE`](LICENSE) | GNU General Public License, version 3 (GPLv3). |
 | [`NOTICE`](NOTICE) | Copyright notice for the GPLv3 license. |

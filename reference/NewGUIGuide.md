@@ -27,7 +27,7 @@ portrait layout).
 ## If your GUI can call C++
 
 Build on `Shared/` (`SharedArchitecture.md`). The Qt app is the worked
-example: `Qt6/app/EmulatorController` is the whole adapter, about 270 lines
+example: `Qt6/app/EmulatorController` is the whole adapter, about 300 lines
 (header and source).
 
 1. **Own one `cu59::SessionController`** on your UI thread. Give it a
@@ -61,7 +61,7 @@ packaging.
 
 Compile `Core/` and `Shared/` to something it can call, as the web build
 does with Emscripten (`Web/build.sh`), and write the adapter in C++
-on that side (`Web/bindings.cpp`, about 950 lines with the embind
+on that side (`Web/bindings.cpp`, about 1050 lines with the embind
 surface):
 
 - **No threads?** Construct the `SessionController` with

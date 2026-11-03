@@ -79,11 +79,11 @@ rules are documented.
 
 ## `SessionController`
 
-Each app owns one `SessionController` on its UI thread and is otherwise a
+Each GUI owns one `SessionController` on its UI thread and is otherwise a
 renderer: the Qt app through `EmulatorController`, the Swift app through
 `EmulatorViewModel` and `Bridge/TISessionController`. The controller owns the
 `EmulatorSession` (rebuilt on a model switch) and the `DebugModel`, and runs
-the flows both apps share: starting and switching machines, presets, the
+the flows all GUIs share: starting and switching machines, presets, the
 TI-58C memory file, the card reader, the printer strip, the cue card shown,
 freeze and step, traces, the ASM overlay and the LOG tab.
 
@@ -161,8 +161,8 @@ Core locking: `CoreArchitecture.md` § "Threading Model".
 `EmulationRunner` runs `Pacing::runBatch` in a loop:
 
 1. Call `step()` and add up the returned cycle weights until they reach the
-   batch target: the model's instruction rate × 20 ms (14,218.75 Hz → 284 on
-   the TI-59; 12,000 Hz → 240 on the TI-58; 12,312.5 Hz → 246 on the TI-58C).
+   batch target: the model's instruction rate (`CoreArchitecture.md`) × 20 ms:
+   284 on the TI-59, 240 on the TI-58, 246 on the TI-58C.
    The overshoot carries into
    the next batch, so the long-term rate stays exact. Each batch ends at a
    random offset of 0 to half a batch past its grid point (`BatchJitter`:
@@ -203,8 +203,8 @@ bit 4 is the card-detect line. Scanning: `CoreArchitecture.md`
 ## Physical Keyboard Mapping
 
 Computer keyboards drive the calculator in the macOS Swift app, the Qt6 app
-and the web client (`Web/`, with its `keyboard` prop). iOS/iPadOS and the
-web client's standalone app (`Web/app/`) have no keyboard input. The debugger and printer panels take no calculator
+and the web client (`Web/`, with its `keyboard` prop). iOS/iPadOS have no
+keyboard input. The debugger and printer panels take no calculator
 keys: Space (R/S vs. STEP) and Cmd/Ctrl+C (printer tape vs. selected text)
 would have no single owner.
 
@@ -326,8 +326,7 @@ card (`isCardFileName`) is fitted on the TI-59 and ignored on the TI-58/58C.
 in the reader. On the Mac, the file's security scope stays open while it is
 fitted, because a write goes back to it.
 
-Card file formats: `StateFileFormat.md` § "Card files". Still read: the 13-byte
-`Calc-U-59-CRD` header + 246 bytes, and headerless 246- or 984-byte files.
+Card file formats: `StateFileFormat.md` § "Card files".
 
 ## State File Loading
 
@@ -373,14 +372,14 @@ into the keystroke events (`shared_ptr`). This is the order of operations:
      directive names. A file card stays fitted afterwards; a `mem:` card takes
      a fitted card out and is never fitted itself.
 
-   It inserts the card as the card picker would. On eject, a written bank
+   It inserts the card as a press on the card's corner would. On eject, a written bank
    goes to the memory card or to the file, and an `InsertCard` calls
    `hostDone()`.
 7. `playbackFinished` clears the pending count. Queued cards stay until the
    next load, reset or model switch.
 
 **Controls** (`PrinterTrace:`, `CutPaper:`, `DebugPanel:`, `Freeze:`,
-`FreezeOnStart:`, `Step:`, `Resume:`; `KeystrokeEvent::isControl`) take the
+`FreezeOnStart:`, `Step:`, `Resume:`) take the
 same host-pending path. `Host::control` hops to the UI thread
 (`Listener::controlRequested`), where `SessionController::applyControl` calls
 what the GUI's button calls (`freeze`, `armPcChange`, `stepKeycode`, …), or
@@ -424,7 +423,7 @@ The TI-59 image is checked against two sentinels: word 0 = `0x0A01`
 
 ## Drawing Rules
 
-Both apps draw with the same shapes and numbers; only the painting calls
+All three GUIs draw with the same shapes and numbers; only the painting calls
 differ.
 
 ### LED Display Rendering

@@ -1182,8 +1182,8 @@
 ; ── Memory-size autodetection (TI-58 vs TI-59) ─────────────────────────────
 ; The TI-58 and TI-59 run the SAME ROM (card code included), and the hardware
 ; exposes no model ID. So the firmware infers RAM size by PROBING a high
-; register: it writes a test value to register 90, reads it back, and clears
-; it. Register 90 is in the >=60 range that exists only on the 120-register
+; register: it writes a test value to register 90, reads it back, and then
+; clears the RAM. Register 90 is in the >=60 range that exists only on the 120-register
 ; TI-59 — on a 60-register TI-58 the write lands out of range and the read-back
 ; comes back as 0. The outcome selects the partition layout, diverging at the
 ; branch at 0393 below (confirmed by diffing the TI-58 and TI-59 reset traces).

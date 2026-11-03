@@ -21,7 +21,7 @@ CalcU59App                    (Calc-U-59App.swift: scene, background/active, mac
     │   ├─ LEDDisplayView
     │   └─ CueCardView
     ├─ PrinterView            (paper strip, PRINT / T / ADV, copy, cut)
-    ├─ CardPickerView         (card load / save sheet)
+    ├─ CardPickerView         (fit card / fit fresh card sheet)
     ├─ DebugView              (CALCULATOR / CPU / LOG tabs)
     │   ├─ LiveDebugView      (CALCULATOR)
     │   ├─ CPUInspectorView   (CPU, with the ROM heatmap) + ASMDebugContent
@@ -140,7 +140,7 @@ pasteboard (macOS: `NSImage`; iOS: PNG). Cut copies, then clears the strip;
 `printerClearID` resets the text view's identity to drop a selection.
 
 **Storage.** Cards and `ti58c.mem` live in the `CardStorage` folder (iCloud
-Documents when available); reading `ti58c.mem` and writing cards go through
-`NSFileCoordinator`. Traces go to the trace location from Settings: Local
+Documents when available); reading `ti58c.mem`, and reading and writing cards,
+go through `NSFileCoordinator`. Traces go to the trace location from Settings: Local
 (`~/Library/Application Support/Calc-U-59`), iCloud (the card folder) or a
 custom folder (macOS, security-scoped bookmark).

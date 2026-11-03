@@ -40,8 +40,7 @@ Never edit the calculator there — that copy is generated.
    into one closure; a new file goes into `SOURCES` in `build.js`, in load
    order. Its props (`WebClient.md` § "Mounting it") and the stable hooks
    are the contract — changing them is a change for the website too.
-6. **The client brings its own styling.** Tokens live in `calc.css` on
-   `.calcu-client`, never `:root`; don't depend on the host's CSS. Fonts and
+6. **The client brings its own styling** (`reference/WebClient.md`). Fonts and
    React are self-hosted in `Web/` (no CDN).
 7. **Assets have one source:** ROMs from `roms/`, artwork from
    `App/Assets.xcassets`, presets from `examples/` (listed in
@@ -70,5 +69,4 @@ on the real calculator — press CLR first. `tests/prerender.spec.js` renders `c
 in Node. Ports 8059 and 8060 (`CALCU_WEB_PORT` moves both).
 
 CI: job `web` in `.github/workflows/build.yml` (emsdk pinned to the local
-`emcc --version`; bump both together) builds, tests and uploads
-`Calc-U-59-web-<version>.zip`; `release` attaches it as `Calc-U-59-web.zip`.
+`emcc --version`; bump both together). Artifacts: `reference/WebClient.md`.

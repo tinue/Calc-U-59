@@ -665,7 +665,7 @@ and does not name the model.
 
 | Claim | Code | Where it lands, and the result |
 |---|---|---|
-| Acosta: h04 h32 h33 h45 h53 h64 h71 h72 h83 clear everything, go to step 000 and stop; Ristanovic: h53, h64 all clear | the ✱ codes | cold start, as above. The scan prints h45 as "nes". Acosta expected h04 might clear the program on a TI-58/59; on the TI-59 it keeps the program and resets the partition. |
+| Acosta: h04 h32 h33 h45 h53 h64 h71 h72 h83 clear everything, go to step 000 and stop; Ristanovic: h53, h64 all clear | the ✱ codes | cold start, as above. The scan prints h45 as "nes". Acosta expected h04 might clear the program on a TI-58/59; on the TI-59 it clears the program as well and resets the partition. |
 | Acosta: h31 h41 h51 act as sin | 2B 3B 4B | `00B2–00B4`, the trig run after its INV test |
 | Acosta: h54 copies t into the display right after x⇄t, pending operations kept | 4E | `00E4`, Prd's store-back. At step 8k only; `2 + 7 x⇄t h54 =` gives 9 on the TI-58C, 2 on the TI-59 |
 | Acosta: h24 reads the next seven steps one digit out of step, so 8 steps hold 15 | 1E | TI-58C only: the scanner's `0EE1` leads into the step-buffer code there (TI-58C `0C0B`), and `1E 10 20 30 10 09 91` enters the digits 123. On the TI-59, `0EE1` runs other code. |

@@ -85,5 +85,5 @@ the named one still to do (the Notes say why); `Swift only` / `Qt only` /
 | iOS layouts (portrait pages, iPhone; side by side, iPad and iPhone Duo), haptics, click sound | `CalculatorView`, `KeyboardView` | — | `PlayCalculator` (portrait layout, keyboard feedback) | `DebugText` (`mobileLayout`) | Swift only / Web only | Swift: iOS only: pages when tall or folded; side by side when wide: calculator and printer, plus the debugger on iPad and iPhone Duo; web: click via WebAudio only (no haptics in a browser) |
 | UI test automation hooks | `CalculatorView` | — | — | — | Swift only | |
 | `--grab <png>` offscreen screenshot | — | `main.cpp` | — | — | Qt only | developer check |
-| Installable PWA, offline | — | — | `app/` | — | Web only | portrait layout; all three models offline |
+| Installable PWA, offline | — | — | `app/` | — | Web only | portrait layout; all three models, every module and preset offline |
 | Pause while hidden / in the background | `Calc-U-59App` (`scenePhase`), `EmulatorViewModel` | — | `engine.js` (`visibilitychange`) | `SessionController::suspend` / `resumeAfterSuspend` | Swift only / Web only | Qt keeps running, as a desktop app does |
