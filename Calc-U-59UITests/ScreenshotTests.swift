@@ -24,6 +24,22 @@ final class ScreenshotTests: XCTestCase {
 
     // MARK: - Helpers
 
+    /// The app settings the screenshots show, as launch arguments, so a new
+    /// simulator needs no setup by hand. They take effect for this launch only
+    /// and aren't saved on the simulator. Numbers need the plist form: plain
+    /// "1" arrives as a string, which the app's `as? Int` lookups don't accept.
+    private static let settingsArguments = [
+        "-portraitDebugPage", "YES",
+        "-ledFontStyle", "<integer>1</integer>",   // classic
+        "-solidStateModuleID", "LE",
+        "-lastUsedModel", "<integer>0</integer>",  // TI-59
+    ]
+
+    @discardableResult
+    private func launchForScreenshot(orientation: UIDeviceOrientation) -> XCUIApplication {
+        launchApp(orientation: orientation, arguments: Self.settingsArguments)
+    }
+
     private var screenshotDir: String {
         if let dir = try? String(contentsOfFile: "/tmp/calc-u-59-screenshot-dir", encoding: .utf8)
                 .trimmingCharacters(in: .whitespacesAndNewlines), !dir.isEmpty {
@@ -78,7 +94,7 @@ final class ScreenshotTests: XCTestCase {
     func testScreenshotLoadDiagPreset() throws {
         let orientation: UIDeviceOrientation = UIDevice.current.userInterfaceIdiom == .pad
             ? .landscapeLeft : .portrait
-        let app = launchApp(orientation: orientation)
+        let app = launchForScreenshot(orientation: orientation)
 
         let presetButton = app.buttons["btn-preset"]
         XCTAssertTrue(presetButton.waitForExistence(timeout: 5), "Preset button not found")
@@ -119,7 +135,7 @@ final class ScreenshotTests: XCTestCase {
     ///   6. Tap R/S to stop the stopwatch
     ///   7. Capture screenshot showing elapsed time
     func testScreenshotAssembly() throws {
-        let app = launchApp(orientation: .landscapeLeft)
+        let app = launchForScreenshot(orientation: .landscapeLeft)
 
         // Step 1: switch to CPU tab
         let cpuTab = app.buttons["btn-tab-cpu"]
@@ -173,7 +189,7 @@ final class ScreenshotTests: XCTestCase {
 
     /// Settings screenshot — iPhone 16e portrait.
     func testScreenshotSettings() throws {
-        let app = launchApp(orientation: .portrait)
+        let app = launchForScreenshot(orientation: .portrait)
 
         let settingsButton = app.buttons["btn-settings"]
         XCTAssertTrue(settingsButton.waitForExistence(timeout: 5), "btn-settings not found")
@@ -189,7 +205,7 @@ final class ScreenshotTests: XCTestCase {
     /// Plain calculator screenshot — TI-58C with -1.2345678e-90 on the display.
     func testScreenshotPlainCalculator() throws {
         let isPad = UIDevice.current.userInterfaceIdiom == .pad
-        let app = launchApp(orientation: isPad ? .landscapeLeft : .portrait)
+        let app = launchForScreenshot(orientation: isPad ? .landscapeLeft : .portrait)
 
         let presetButton = app.buttons["btn-preset"]
         XCTAssertTrue(presetButton.waitForExistence(timeout: 5), "Preset button not found")
@@ -226,7 +242,7 @@ final class ScreenshotTests: XCTestCase {
     ///   7. Single-step 5 times
     ///   8. Capture screenshot
     func testScreenshotCPUInspector() throws {
-        let app = launchApp(orientation: .portrait)
+        let app = launchForScreenshot(orientation: .portrait)
 
         let left  = app.buttons["btn-page-left"]
         let right = app.buttons["btn-page-right"]
@@ -286,12 +302,12 @@ final class ScreenshotTests: XCTestCase {
     func testScreenshotCalcDebugger() throws {
         // Try landscape; a plain iPhone stays in portrait (page arrows), so
         // relaunch it upright for the paged flow and an unrotated screenshot.
-        var app = launchApp(orientation: .landscapeLeft)
+        var app = launchForScreenshot(orientation: .landscapeLeft)
         XCTAssertTrue(app.buttons["btn-preset"].waitForExistence(timeout: 5), "Preset button not found")
         let isPad = !app.buttons["btn-page-right"].exists  // side by side
         if !isPad {
             app.terminate()
-            app = launchApp(orientation: .portrait)
+            app = launchForScreenshot(orientation: .portrait)
         }
 
         let presetButton = app.buttons["btn-preset"]
@@ -330,7 +346,7 @@ final class ScreenshotTests: XCTestCase {
     ///
     /// Loads test_texas.ti59, waits for keystroke playback to complete, captures a screenshot.
     func testScreenshotTexas() throws {
-        let app = launchApp(orientation: .landscapeLeft)
+        let app = launchForScreenshot(orientation: .landscapeLeft)
 
         let presetButton = app.buttons["btn-preset"]
         XCTAssertTrue(presetButton.waitForExistence(timeout: 5), "Preset button not found")
@@ -358,6 +374,9 @@ final class ScreenshotTests: XCTestCase {
     // MARK: - Helpers
 
     private func navigateToOnMyIPhone(_ app: XCUIApplication, targetFile: String) {
+        // The picker's first opening on a fresh simulator takes many seconds.
+        _ = app.searchFields.firstMatch.waitForExistence(timeout: 30)
+
         if app.cells.containing(.staticText, identifier: targetFile).firstMatch.waitForExistence(timeout: 2) { return }
 
         for label in ["Durchsuchen", "Browse"] {

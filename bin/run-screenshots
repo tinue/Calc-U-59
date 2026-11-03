@@ -65,7 +65,8 @@ echo ""
 mkdir -p "$SCREENSHOT_DIR"
 
 # The Duo is shot opened flat; simctl cannot unfold it, so check that the
-# inner (larger) display is the active one. Device Hub: hold Option for the
+# inner (larger) display is lit. Its `active` flag won't do: since iOS 27.2 it
+# stays on the outer display of an open Duo. Device Hub: hold Option for the
 # hinge slider.
 duo_is_open() {
     xcrun simctl bootstatus "$DUO_UDID" -b >/dev/null
@@ -73,7 +74,7 @@ duo_is_open() {
 import json, sys
 displays = json.load(sys.stdin)["result"]["displays"]
 inner = max(displays, key=lambda d: d["nativeSize"][0] * d["nativeSize"][1])
-sys.exit(0 if inner.get("active") else 1)'
+sys.exit(0 if inner.get("backlightState") != "off" else 1)'
 }
 
 # ── Run tests ──────────────────────────────────────────────────────────────────

@@ -28,10 +28,10 @@ extension XCTestCase {
     /// keystroke-playback accessibility element in CalculatorView) that must
     /// never be reachable in a real user's build — see CalculatorView.isUITesting.
     @discardableResult
-    func launchApp(orientation: UIDeviceOrientation) -> XCUIApplication {
+    func launchApp(orientation: UIDeviceOrientation, arguments: [String] = []) -> XCUIApplication {
         XCUIDevice.shared.orientation = orientation
         let app = XCUIApplication()
-        app.launchArguments += ["--UITesting"]
+        app.launchArguments += ["--UITesting"] + arguments
         app.launch()
         return app
     }
