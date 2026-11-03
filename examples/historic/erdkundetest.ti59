@@ -1,0 +1,565 @@
+# Michael Hartstang, "Erdkundetest", CHIP 1/1980, Programm-Service, S. 44.
+# Für TI-59 mit Drucker PC 100C.
+#
+# Fragesatz 1 aus dem Artikel: Tananarivo und die ältesten Bäume der USA.
+# Fragesatz 2 aus demselben Listing: erdkundetest-2.ti59.
+#
+# So wird gespielt (die Antwortzahl eintippen, dann R/S):
+#   A                 Frage 1
+#   Zahl R/S          "RICHTIG !" oder "NICHT RICHTIG !" mit der richtigen Zahl
+#   B                 Frage 2
+#   Zahl R/S
+#   C                 Punktestand
+#   RST R/S           neues Spiel
+#
+# Mogeln: Eine Zahl außerhalb von 0 bis 3 gibt "NICHT MOGELN !!" und eine neue
+# Chance, beim zweiten Mal "AUS!!" ohne Punkt; es geht mit der nächsten Frage
+# weiter. Die 0 zählt als falsche Antwort, nicht als Mogeln.
+# Wer nach "NICHT MOGELN !!" statt einer Zahl A oder B drückt, schickt das
+# Programm auf Schritt 900, hinter die Partition: Der Rechner hält mit blinkender
+# Anzeige an. RST R/S beginnt ein neues Spiel.
+#
+# Eigene Fragen (laut Artikel): Fragen in R20-R23 und R43-R46, Antworten in
+# R24-R35 und R47-R50, als Druckcodes (StateFileFormat.md). Die richtigen
+# Antworten stehen im Programm: 1 in den Schritten 100-101, 3 in Schritt 230.
+#
+# Die Texte stehen wie im Heft da, auch die Abkürzungen:
+# "AELT. BAEUME USA  ?". Der Artikel nennt als Start RST R/S; das Preset
+# drückt beides selbst.
+
+MODEL: TI-59
+PRINTER: on
+PARTITION: 479.59
+
+CUECARD:
+Template: MagnetCard
+Title: Erdkundetest (CHIP 1/1980)
+A: Frage 1
+B: Frage 2
+C: Punkte
+
+PROGRAM:
+# Start (RST R/S): Punkte löschen, Begrüßung, "DRUECKEN SIE A"
+000 25 CLR
+001 42 STO
+002 40
+003 43 RCL
+004 01
+005 69 Op
+006 01
+007 43 RCL
+008 02
+009 69 Op
+010 02
+011 43 RCL
+012 03
+013 69 Op
+014 03
+015 43 RCL
+016 04
+017 69 Op
+018 04
+019 69 Op
+020 05
+021 43 RCL
+022 05
+023 69 Op
+024 01
+025 43 RCL
+026 06
+027 69 Op
+028 02
+029 43 RCL
+030 07
+031 69 Op
+032 03
+033 43 RCL
+034 08
+035 69 Op
+036 04
+037 69 Op
+038 05
+039 43 RCL
+040 09
+041 69 Op
+042 01
+043 43 RCL
+044 10
+045 69 Op
+046 02
+047 43 RCL
+048 11
+049 69 Op
+050 03
+051 43 RCL
+052 12
+053 69 Op
+054 04
+055 69 Op
+056 05
+057 43 RCL
+058 13
+059 69 Op
+060 01
+061 43 RCL
+062 14
+063 69 Op
+064 02
+065 43 RCL
+066 15
+067 69 Op
+068 03
+069 43 RCL
+070 16
+071 69 Op
+072 04
+073 69 Op
+074 05
+075 98 Adv
+076 69 Op
+077 00
+078 43 RCL
+079 17
+080 69 Op
+081 01
+082 43 RCL
+083 18
+084 69 Op
+085 02
+086 43 RCL
+087 19
+088 69 Op
+089 03
+090 69 Op
+091 05
+092 98 Adv
+093 91 R/S
+# A: Frage 1, richtige Antwort 1 (Schritte 100-101)
+094 76 Lbl
+095 11 A
+096 87 IfFlg
+097 00
+098 09
+099 00
+100 00 0
+101 01 1
+102 42 STO
+103 39
+104 32 x<>t
+105 43 RCL
+106 20
+107 69 Op
+108 01
+109 43 RCL
+110 21
+111 69 Op
+112 02
+113 43 RCL
+114 22
+115 69 Op
+116 03
+117 43 RCL
+118 23
+119 69 Op
+120 04
+121 69 Op
+122 05
+123 98 Adv
+124 43 RCL
+125 24
+126 69 Op
+127 01
+128 43 RCL
+129 25
+130 69 Op
+131 02
+132 43 RCL
+133 26
+134 69 Op
+135 03
+136 43 RCL
+137 27
+138 69 Op
+139 04
+140 69 Op
+141 05
+142 43 RCL
+143 28
+144 69 Op
+145 01
+146 43 RCL
+147 29
+148 69 Op
+149 02
+150 43 RCL
+151 30
+152 69 Op
+153 03
+154 43 RCL
+155 31
+156 69 Op
+157 04
+158 69 Op
+159 05
+160 43 RCL
+161 32
+162 69 Op
+163 01
+164 43 RCL
+165 33
+166 69 Op
+167 02
+168 43 RCL
+169 34
+170 69 Op
+171 03
+172 43 RCL
+173 35
+174 69 Op
+175 04
+176 69 Op
+177 05
+178 98 Adv
+179 69 Op
+180 00
+181 43 RCL
+182 36
+183 69 Op
+184 01
+185 43 RCL
+186 37
+187 69 Op
+188 02
+189 43 RCL
+190 38
+191 69 Op
+192 03
+193 69 Op
+194 05
+195 98 Adv
+196 91 R/S
+# Antwort lesen und prüfen, "DRUECKEN SIE B"
+197 59 Int
+198 42 STO
+199 41
+200 99 Prt
+201 71 SBR
+202 16 A'
+203 69 Op
+204 00
+205 43 RCL
+206 17
+207 69 Op
+208 01
+209 43 RCL
+210 18
+211 69 Op
+212 02
+213 43 RCL
+214 42
+215 69 Op
+216 03
+217 69 Op
+218 05
+219 98 Adv
+220 22 INV
+221 86 StFlg
+222 00
+223 91 R/S
+# B: Frage 2, richtige Antwort 3 (Schritt 230)
+224 76 Lbl
+225 12 B
+226 87 IfFlg
+227 00
+228 09
+229 00
+230 03 3
+231 42 STO
+232 39
+233 32 x<>t
+234 43 RCL
+235 43
+236 69 Op
+237 01
+238 43 RCL
+239 44
+240 69 Op
+241 02
+242 43 RCL
+243 45
+244 69 Op
+245 03
+246 43 RCL
+247 46
+248 69 Op
+249 04
+250 69 Op
+251 05
+252 98 Adv
+253 43 RCL
+254 47
+255 69 Op
+256 01
+257 43 RCL
+258 48
+259 69 Op
+260 02
+261 43 RCL
+262 49
+263 69 Op
+264 03
+265 43 RCL
+266 50
+267 69 Op
+268 04
+269 69 Op
+270 05
+271 98 Adv
+272 69 Op
+273 00
+274 43 RCL
+275 36
+276 69 Op
+277 01
+278 43 RCL
+279 37
+280 69 Op
+281 02
+282 43 RCL
+283 38
+284 69 Op
+285 03
+286 69 Op
+287 05
+288 98 Adv
+289 91 R/S
+# Antwort lesen und prüfen, "DRUECKEN SIE C"
+290 59 Int
+291 99 Prt
+292 42 STO
+293 41
+294 71 SBR
+295 16 A'
+296 22 INV
+297 86 StFlg
+298 00
+299 69 Op
+300 00
+301 43 RCL
+302 17
+303 69 Op
+304 01
+305 43 RCL
+306 18
+307 69 Op
+308 02
+309 43 RCL
+310 51
+311 69 Op
+312 03
+313 69 Op
+314 05
+315 98 Adv
+316 91 R/S
+# C: Punktestand
+317 76 Lbl
+318 13 C
+319 98 Adv
+320 43 RCL
+321 52
+322 69 Op
+323 04
+324 43 RCL
+325 40
+326 69 Op
+327 06
+328 98 Adv
+329 91 R/S
+# A': Antwort prüfen; außerhalb von 0-3 zu lnx
+330 76 Lbl
+331 16 A'
+332 43 RCL
+333 39
+334 32 x<>t
+335 43 RCL
+336 41
+337 67 x=t
+338 22 INV
+339 29 CP
+340 22 INV
+341 77 x>=t
+342 23 lnx
+343 04 4
+344 32 x<>t
+345 43 RCL
+346 41
+347 77 x>=t
+348 23 lnx
+# falsch: "NICHT RICHTIG !" und die richtige Zahl
+349 69 Op
+350 00
+351 43 RCL
+352 53
+353 69 Op
+354 01
+355 43 RCL
+356 54
+357 69 Op
+358 02
+359 43 RCL
+360 55
+361 69 Op
+362 03
+363 69 Op
+364 05
+365 43 RCL
+366 59
+367 69 Op
+368 04
+369 43 RCL
+370 39
+371 69 Op
+372 06
+373 92 RTN
+# INV: richtig, ein Punkt in R40
+374 76 Lbl
+375 22 INV
+376 69 Op
+377 00
+378 43 RCL
+379 54
+380 69 Op
+381 01
+382 43 RCL
+383 55
+384 69 Op
+385 02
+386 69 Op
+387 05
+388 01 1
+389 44 SUM
+390 40
+391 92 RTN
+# lnx: beim zweiten Mal "AUS!!", sonst weiter bei x²
+392 76 Lbl
+393 23 lnx
+394 22 INV
+395 87 IfFlg
+396 00
+397 33
+398 69
+399 00 0
+400 43 RCL
+401 58
+402 69 Op
+403 01
+404 69 Op
+405 05
+406 92 RTN
+# x²: Flag 0, "NICHT MOGELN !!", neue Antwort
+407 76 Lbl
+408 33 x2
+409 86 StFlg
+410 00
+411 69 Op
+412 00
+413 43 RCL
+414 53
+415 69 Op
+416 01
+417 43 RCL
+418 56
+419 69 Op
+420 02
+421 43 RCL
+422 57
+423 69 Op
+424 03
+425 43 RCL
+426 36
+427 69 Op
+428 04
+429 69 Op
+430 05
+431 69 Op
+432 00
+433 43 RCL
+434 37
+435 69 Op
+436 01
+437 43 RCL
+438 38
+439 69 Op
+440 02
+441 69 Op
+442 05
+443 98 Adv
+444 91 R/S
+445 59 Int
+446 99 Prt
+447 42 STO
+448 41
+449 71 SBR
+450 16 A'
+451 92 RTN
+
+REGISTERS:
+01 = 2415230014 # |ICH B|
+02 = 1722354117 # |EGRUE|
+03 = 3636170036 # |SSE S|
+04 = 2417000000 # |IE   |
+05 = 4641300017 # |ZUM E|
+06 = 3516264131 # |RDKUN|
+07 = 1617371736 # |DETES|
+08 = 3720333532 # |T-PRO|
+09 = 2235133030 # |GRAMM|
+10 = 41311600   # | UND |
+11 = 4341173136 # |WUENS|
+12 = 1523170000 # |CHE  |
+13 = 2423311731 # |IHNEN|
+14 = 42241727   # | VIEL|
+15 = 17352132   # | ERFO|
+16 = 2722737373 # |LG!!!|
+17 = 1635411715 # |DRUEC|
+18 = 2617310036 # |KEN S|
+19 = 2417001300 # |IE A |
+20 = 4313360024 # |WAS I|
+21 = 3637003713 # |ST TA|
+22 = 3113311335 # |NANAR|
+23 = 2442320071 # |IVO ?|
+24 = 2127413636 # |FLUSS|
+25 = 24310037   # | IN T|
+26 = 4131173624 # |UNESI|
+27 = 1731000004 # |EN  3|
+28 = 2241371731 # |GUTEN|
+29 = 37132200   # | TAG |
+30 = 2624364113 # |KISUA|
+31 = 2317272403 # |HELI2|
+32 = 2333363700 # |HPST |
+33 = 3013161322 # |MADAG|
+34 = 1336261335 # |ASKAR|
+35 = 6536000002 # |'S  1|
+36 = 1331374340 # |ANTW.|
+37 = 4613232700 # |ZAHL |
+38 = 35633600   # | R/S |
+42 = 2417001400 # |IE B |
+43 = 1317273740 # |AELT.|
+44 = 14131741   # | BAEU|
+45 = 3017004136 # |ME US|
+46 = 1300007100 # |A  ? |
+47 = 1101010002 # |800 1|
+48 = 3010101    # | 2000|
+49 = 3000501    # | 2 40|
+50 = 101000400  # |00 3 |
+51 = 2417000015 # |IE  C|
+52 = 33263740   # | PKT.|
+53 = 3124152337 # |NICHT|
+54 = 35241523   # | RICH|
+55 = 3724220073 # |TIG !|
+56 = 30322217   # | MOGE|
+57 = 2731007373 # |LN !!|
+58 = 1341367373 # |AUS!!|
+59 = 35241523   # | RICH|
+
+KEYSTROKES:
+81 91       # RST R/S: die Begrüßung
