@@ -17,6 +17,7 @@ const CORE_ASSETS = [
   "index.html",
   "app.css",
   "app.js",
+  "engine-worker.js",
   "manifest.json",
   "icon.png",
 

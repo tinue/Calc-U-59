@@ -177,6 +177,7 @@ function PlayCalculator({
   model,
   module,
   preset,
+  workerUrl,
 }) {
   const [engine, setEngine] = React.useState(null);
   const [dialog, setDialog] = React.useState(null);
@@ -187,7 +188,7 @@ function PlayCalculator({
   const portrait = auto ? !rules || rules.paged : layout !== "wide";
 
   React.useEffect(() => {
-    const e = createEngine({ model, module });
+    const e = createEngine({ model, module, workerUrl });
     setEngine(e);
     if (preset) {
       fetchBesideCalc(`presets/${preset}`).then((text) => e.loadState(text))

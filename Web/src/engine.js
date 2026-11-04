@@ -70,7 +70,7 @@ const INITIAL_STATE = {
   geometry: null,
 };
 
-function createEngine({ model, module }) {
+function createEngine({ model, module, workerUrl }) {
   let state = INITIAL_STATE;
   const listeners = new Set();
   const frames = { cells: null, onFrame: null };
@@ -84,7 +84,7 @@ function createEngine({ model, module }) {
     listeners.forEach((l) => l());
   };
 
-  const worker = new Worker(`${CALC_BASE}calc-engine-worker.js`);
+  const worker = new Worker(workerUrl || `${CALC_BASE}calc-engine-worker.js`);
   const post = (msg) => worker.postMessage(msg);
 
   worker.onmessage = (e) => {

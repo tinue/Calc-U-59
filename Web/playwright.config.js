@@ -10,7 +10,11 @@ module.exports = defineConfig({
   timeout: 10000,
   use: { headless: true },
   projects: [
-    { name: 'root', use: { ...devices['Desktop Chrome'], baseURL: `http://localhost:${PORT}/` } },
-    { name: 'subpath', use: { ...devices['Desktop Chrome'], baseURL: `http://localhost:${PORT + 1}/anything/calc/` } },
+    { name: 'root', testIgnore: 'offline.spec.js', use: { ...devices['Desktop Chrome'], baseURL: `http://localhost:${PORT}/` } },
+    { name: 'subpath', testIgnore: 'offline.spec.js', use: { ...devices['Desktop Chrome'], baseURL: `http://localhost:${PORT + 1}/anything/calc/` } },
+    // The offline start brings its own server, and runs in both engines: the
+    // iPhone's installed app is WebKit.
+    { name: 'offline-chromium', testMatch: 'offline.spec.js', use: { ...devices['Desktop Chrome'] } },
+    { name: 'offline-webkit', testMatch: 'offline.spec.js', use: { ...devices['Desktop Safari'] } },
   ],
 });

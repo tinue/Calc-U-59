@@ -58,7 +58,7 @@ cp "$WEB/index.html" "$WEB/calc.css" "$WEB/calc-engine-worker.js" "$DIST/"
 cp "$WEB"/fonts/* "$DIST/fonts/"
 # React 18 for the PWA and the demo page; a host page brings its own.
 cp "$WEB/vendor/react.production.min.js" "$WEB/vendor/react-dom.production.min.js" "$DIST/vendor/"
-cp "$WEB/app/index.html" "$WEB/app/app.css" "$WEB/app/sw.js" "$WEB/app/manifest.json" "$DIST/app/"
+cp "$WEB/app/index.html" "$WEB/app/app.css" "$WEB/app/sw.js" "$WEB/app/engine-worker.js" "$WEB/app/manifest.json" "$DIST/app/"
 # The app icon, derived from App/AppIcon.icon by tools/gen_qt_icons.sh.
 cp "$REPO_ROOT/Qt6/resources/linux/calc-u-59.png" "$DIST/app/icon.png"
 

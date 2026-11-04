@@ -50,5 +50,5 @@ sleep 1
 
 cd "$WEB"
 npm install --no-audit --no-fund
-npx playwright install chromium
+npx playwright install chromium webkit
 npx playwright test "$@"

@@ -4,6 +4,9 @@
 
 const { useState: useAppState, useEffect: useAppEffect, useRef: useAppRef } = React;
 
+// In the service worker's scope, so the engine starts offline (engine-worker.js).
+const ENGINE_WORKER_URL = new URL("engine-worker.js", document.currentScript.src).href;
+
 // The calculator's size: #root's content box, the viewport less the
 // safe-area padding (app.css).
 function rootSize(root) {
@@ -135,7 +138,7 @@ function StandaloneApp() {
 
   return (
     <>
-      <PlayCalculator layout="auto" width={size.width} height={size.height} keyboard={true} />
+      <PlayCalculator layout="auto" width={size.width} height={size.height} keyboard={true} workerUrl={ENGINE_WORKER_URL} />
       {!dismissed && (
         <InstallBanner mode={installMode} onInstall={install} onDismiss={() => setDismissed(true)} />
       )}
