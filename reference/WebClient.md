@@ -230,7 +230,10 @@ and an install banner. It follows the window as the iOS app does (Shared
 printer and debugger from 820 × 560 px; calculator and printer below that
 (a phone in landscape). The manifest's orientation is `any`: Safari can't lock
 one, so the layout adapts instead. A browser can't see a fold, so a half-open
-foldable counts as its whole window. `#root` is fixed to the viewport and a
+foldable counts as its whole window. WebKit in a Home Screen app returns from landscape
+with the document scrolled by the status bar's height but drawn unscrolled, so
+touches land too low; `app.jsx` resets the scroll. Only an installed app in the
+iOS simulator or on a device shows it, not Playwright. `#root` is fixed to the viewport and a
 `ResizeObserver` sizes the calculator to its content box (inside the safe
 area), which also catches insets arriving late; the status bar is opaque,
 because with black-translucent WebKit's standalone viewport left it in or

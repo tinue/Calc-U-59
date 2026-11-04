@@ -117,6 +117,22 @@ function StandaloneApp() {
     };
   }, []);
 
+  // Nothing scrolls this page, yet WebKit in a Home Screen app comes back from
+  // landscape (no status bar) with the document scrolled by the status bar's
+  // height, still drawn as if it weren't: every touch lands that far too low.
+  useAppEffect(() => {
+    const unscroll = () => { if (window.scrollX || window.scrollY) window.scrollTo(0, 0); };
+    const viewport = window.visualViewport;
+    window.addEventListener("scroll", unscroll);
+    window.addEventListener("resize", unscroll);
+    if (viewport) viewport.addEventListener("scroll", unscroll);
+    return () => {
+      window.removeEventListener("scroll", unscroll);
+      window.removeEventListener("resize", unscroll);
+      if (viewport) viewport.removeEventListener("scroll", unscroll);
+    };
+  }, []);
+
   return (
     <>
       <PlayCalculator layout="auto" width={size.width} height={size.height} keyboard={true} />
