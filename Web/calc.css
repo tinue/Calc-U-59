@@ -50,7 +50,7 @@
   -webkit-tap-highlight-color: transparent;
 }
 .calcu-device:focus { outline: none; }
-.calcu-device:focus-visible { outline: 2px solid var(--calcu-blue); outline-offset: 2px; }
+.calcu-device:focus-visible:not([data-pointer-focus]) { outline: 2px solid var(--calcu-blue); outline-offset: 2px; }
 .calcu-device button, .calcu-device select, .calcu-device input, .calcu-device textarea {
   font: inherit; color: inherit;
 }

@@ -353,6 +353,28 @@ test('the printer prints, shows text, and cuts', async ({ page }) => {
   await expect(printer.getByRole('button', { name: 'Cut' })).toBeDisabled();
 });
 
+test('the focus outline shows for the keyboard only, not after a tap', async ({ page }) => {
+  await gotoReady(page, 'layout=portrait');
+  const device = page.locator('.calcu-device');
+  const outline = () => device.evaluate((e) => getComputedStyle(e).outlineStyle);
+
+  // Reached by the keyboard (the demo page's links come first): outlined.
+  for (let i = 0; i < 4; i++) await page.keyboard.press('Tab');
+  await expect(device).toBeFocused();
+  expect(await outline()).toBe('solid');
+  await device.evaluate((e) => e.blur());
+
+  // A tap after a key press focuses it from script, which WebKit (and Chromium,
+  // after a key press) count as focus-visible: not outlined. A synthetic event
+  // keeps the browser's input modality at "keyboard".
+  await page.keyboard.press('Shift');
+  await page.locator('.calcu-face').evaluate((e) => {
+    e.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1, pointerType: 'touch' }));
+  });
+  await expect(device).toBeFocused();
+  expect(await outline()).toBe('none');
+});
+
 test('portrait: the chevron switches to the printer page and back', async ({ page }) => {
   await gotoReady(page, 'layout=portrait');
   await expect(page.locator('[data-panel=printer]')).toHaveCount(0);

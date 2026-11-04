@@ -245,10 +245,15 @@ function PlayCalculator({
     engine.call("keyUp", k.key, k.produced, k.isLetter, k.shift, k.command);
   };
   const onBlur = (e) => {
+    if (e.target === rootRef.current) delete rootRef.current.dataset.pointerFocus;
     if (engine && !rootRef.current.contains(e.relatedTarget)) engine.call("blur");
   };
+  // Marked, as this focus is for the keys and no reason to outline the client:
+  // WebKit counts any focus from script as focus-visible.
   const focusForKeys = (e) => {
-    if (keyboard && e.target.closest && e.target.closest(".calcu-face")) rootRef.current.focus({ preventScroll: true });
+    if (!keyboard || !e.target.closest || !e.target.closest(".calcu-face")) return;
+    rootRef.current.dataset.pointerFocus = "";
+    rootRef.current.focus({ preventScroll: true });
   };
 
   // ── Drag and drop a preset or a card ─────────────────────────────────
