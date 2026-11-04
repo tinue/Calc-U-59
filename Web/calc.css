@@ -57,7 +57,7 @@
 .calcu-device [hidden] { display: none !important; }
 
 /* ---------- Layouts ------------------------------------------------------ */
-.calcu-wide { display: flex; align-items: stretch; }
+.calcu-wide { display: flex; align-items: stretch; justify-content: center; }
 .calcu-wide > .calcu-calc { flex: none; }
 .calcu-vline { width: 1px; background: #000; flex: none; }
 .calcu-splitter { width: 5px; flex: none; cursor: col-resize; background: #000; border-left: 2px solid var(--calcu-panel);
@@ -79,7 +79,7 @@
 
 /* ---------- Calculator column ------------------------------------------- */
 .calcu-calc { display: flex; flex-direction: column; }
-.calcu-face-pad { padding: 8px; }
+.calcu-face-pad { padding: 8px; align-self: center; }
 .calcu-face { position: relative; touch-action: none; cursor: default; }
 .calcu-face canvas { display: block; }
 .calcu-overlay { position: absolute; pointer-events: none; }
@@ -137,6 +137,8 @@
   white-space: pre; user-select: text; -webkit-user-select: text;
 }
 .calcu-printer-bar { height: 50px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 10px; background: var(--calcu-bar); }
+.calcu-printer-bar-compact { gap: 4px; padding: 0 6px; }
+.calcu-printer-bar-compact .calcu-pill { padding: 4px 7px; }
 .calcu-toast {
   position: absolute; left: 50%; bottom: 60px; transform: translateX(-50%);
   background: rgba(0,0,0,0.75); color: #fff; font-weight: 700; padding: 7px 14px; border-radius: 10px; white-space: nowrap;

@@ -243,7 +243,7 @@ struct CalculatorView: View {
         // (Shared mobileLayout decides by the window's size and fold)
         GeometryReader { geo in
             // Hide button labels when the calculator is too narrow to fit them comfortably.
-            let showLabels = geo.size.width >= 1300
+            let showLabels = TIViewRules.mobileBarLabels(geo.size.width)
             let layout = TIViewRules.mobileLayoutWidth(geo.size.width, height: geo.size.height,
                                                        horizontalFold: Self.hasHorizontalFold(geo))
             if layout != .paged {

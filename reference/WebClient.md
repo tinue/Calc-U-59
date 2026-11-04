@@ -14,8 +14,9 @@ apps' features (`FrontendParity.md`, the Web column) in two layouts:
 - **wide** — calculator | printer | debugger, as the macOS window and the
   Qt `MainWindow`;
 - **portrait** — one page at a time, calculator or printer, switched with
-  corner chevrons, as the iPhone layout; no debugger, no traces. The
-  installable PWA (`app/`) uses it.
+  corner chevrons, as the iPhone layout; no debugger, no traces.
+
+The installable PWA (`app/`) picks between them by the window's size.
 
 Deliberately different from the apps: the LED is Classic only; magnetic
 cards live in an in-memory folder for the page session (upload one to fit
@@ -144,7 +145,7 @@ the file names under `wasm/`, `img/` and `presets/` may change with any build.
 
 | Prop | Default | Meaning |
 |---|---|---|
-| `layout` | `"portrait"` | `"wide"` (calculator, printer, debugger side by side) or `"portrait"` (calculator and printer pages) |
+| `layout` | `"portrait"` | `"wide"` (calculator, printer, debugger side by side), `"portrait"` (calculator and printer pages) or `"auto"` (by the window's size, the PWA's choice: needs `width` and `height`) |
 | `width` | the parent's width | CSS px the client may take. Wide: the calculator artwork takes 40 % (at most 420 px without `height`, never below 400 px), the printer 220–320 px, the debugger the rest (at least 220 px) |
 | `height` | from the width | CSS px. Without it the height follows the artwork's aspect plus the 50 px bar; with it the artwork fits inside (the PWA passes `#root`'s content box) |
 | `keyboard` | `false` | The calculator is focusable and takes the physical keyboard while focused (`SharedArchitecture.md` § "Physical Keyboard Mapping") |
@@ -222,8 +223,14 @@ styles; the host styles only its own layout around the client.
 
 ### The PWA (`app/`)
 
-`app/index.html` mounts `PlayCalculator` in the portrait layout, with the
-keyboard and an install banner. `#root` is fixed to the viewport and a
+`app/index.html` mounts `PlayCalculator` with `layout="auto"`, the keyboard
+and an install banner. It follows the window as the iOS app does (Shared
+`mobileLayout`, `mobilePrinterWidth`, `mobileBarLabels`, through
+`WebController::mobileRules`): pages when taller than wide; calculator,
+printer and debugger from 820 × 560 px; calculator and printer below that
+(a phone in landscape). The manifest's orientation is `any`: Safari can't lock
+one, so the layout adapts instead. A browser can't see a fold, so a half-open
+foldable counts as its whole window. `#root` is fixed to the viewport and a
 `ResizeObserver` sizes the calculator to its content box (inside the safe
 area), which also catches insets arriving late; the status bar is opaque,
 because with black-translucent WebKit's standalone viewport left it in or

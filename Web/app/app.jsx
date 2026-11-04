@@ -1,6 +1,6 @@
-// Standalone Calc-U 59 app — mounts PlayCalculator (../calc.js) in the
-// portrait layout, sized to the viewport (minus the safe-area padding), as
-// the iPhone app: calculator and printer pages, the control bar, Settings.
+// Standalone Calc-U 59 app — mounts PlayCalculator (../calc.js), sized to the
+// viewport (minus the safe-area padding), with the layout following that size
+// as in the iOS app: pages when tall, side by side when wide (it rotates).
 
 const { useState: useAppState, useEffect: useAppEffect, useRef: useAppRef } = React;
 
@@ -119,7 +119,7 @@ function StandaloneApp() {
 
   return (
     <>
-      <PlayCalculator layout="portrait" width={size.width} height={size.height} keyboard={true} />
+      <PlayCalculator layout="auto" width={size.width} height={size.height} keyboard={true} />
       {!dismissed && (
         <InstallBanner mode={installMode} onInstall={install} onDismiss={() => setDismissed(true)} />
       )}

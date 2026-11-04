@@ -389,10 +389,48 @@ test('a manual trace is downloaded when switched off', async ({ page }) => {
 
 // ── The standalone app (app/) ────────────────────────────────────────────
 
-test('the standalone app is portrait and precaches all three models', async ({ page }) => {
+test('the standalone app follows the window as it rotates', async ({ page }) => {
+  // iPhone: portrait pages; in landscape calculator and printer.
+  await page.setViewportSize({ width: 440, height: 956 });
   await page.goto('app/');
   await expect(page.locator('.calcu-key')).toHaveCount(45, { timeout: 15000 });
   await expect(page.locator('[data-layout=portrait]')).toBeVisible();
+
+  await page.setViewportSize({ width: 832, height: 419 });
+  await expect(page.locator('[data-layout=wide] [data-panel=printer]')).toBeVisible();
+  // Fits the window without clipping.
+  expect((await page.locator('.calcu-device').boundingBox()).width).toBeLessThanOrEqual(832);
+  await expect(page.locator('[data-panel=debug]')).toHaveCount(0);
+  await expect(page.locator('.calcu-key')).toHaveCount(45);
+  // Everything stays inside the short window, the bar without its labels.
+  const bar = await page.locator('.calcu-bar').boundingBox();
+  expect(bar.y + bar.height).toBeLessThanOrEqual(419);
+  await expect(page.locator('.calcu-bar').getByText('Preset')).toHaveCount(0);
+
+  // iPhone Duo open: the narrow tape's button bar fits it.
+  await page.setViewportSize({ width: 880, height: 645 });
+  await expect(page.locator('[data-panel=debug]')).toBeVisible();
+  await expect(page.locator('.calcu-printer-bar').getByText('PRN')).toBeVisible();
+  const printerBar = page.locator('.calcu-printer-bar');
+  expect(await printerBar.evaluate((e) => e.scrollWidth <= e.clientWidth)).toBe(true);
+
+  // iPad mini: all three panels, icons only; iPad Pro: with labels.
+  await page.setViewportSize({ width: 1133, height: 744 });
+  await expect(page.locator('[data-panel=debug]')).toBeVisible();
+  await expect(page.locator('.calcu-bar').getByText('Preset')).toHaveCount(0);
+  await page.setViewportSize({ width: 1366, height: 1000 });
+  await expect(page.locator('[data-panel=debug]')).toBeVisible();
+  await expect(page.locator('.calcu-bar').getByText('Preset')).toBeVisible();
+
+  // Back to portrait: pages again.
+  await page.setViewportSize({ width: 744, height: 1133 });
+  await expect(page.locator('[data-layout=portrait]')).toBeVisible();
+  await expect(page.locator('[data-panel=debug]')).toHaveCount(0);
+});
+
+test('the standalone app precaches all three models', async ({ page }) => {
+  await page.goto('app/');
+  await expect(page.locator('.calcu-key')).toHaveCount(45, { timeout: 15000 });
 
   // cache.addAll() rejects if any precached path is wrong, and the worker
   // then never activates — so an active worker plus a full cache means every

@@ -145,7 +145,7 @@ function PresetPicker({ engine, onClose }) {
 
 // ── Settings ────────────────────────────────────────────────────────────────
 
-function Settings({ engine, portrait, onClose, onAbout }) {
+function Settings({ engine, feedbackSetting, traceSetting, onClose, onAbout }) {
   const data = useEngine(engine, (s) => s.data);
   const model = useEngine(engine, (s) => s.model);
   const settings = useEngine(engine, (s) => s.settings);
@@ -156,7 +156,7 @@ function Settings({ engine, portrait, onClose, onAbout }) {
   const close = () => {
     if (model && moduleID !== model.moduleID) engine.call("changeModule", moduleID);
     const mb = Number(traceMB);
-    if (!portrait && mb > 0 && mb !== settings.traceMaxMB) engine.call("setTraceMaxMB", mb);
+    if (traceSetting && mb > 0 && mb !== settings.traceMaxMB) engine.call("setTraceMaxMB", mb);
     onClose();
   };
   return (
@@ -174,7 +174,7 @@ function Settings({ engine, portrait, onClose, onAbout }) {
             {(data ? data.modules : []).map((m) => <option key={m.id} value={m.id}>{m.menuTitle}</option>)}
           </select>
         </label>
-        {portrait && (
+        {feedbackSetting && (
           <label>Keyboard Feedback
             <select value={settings.keyboardFeedback === 2 ? 2 : 0} onChange={(e) => engine.call("setKeyboardFeedback", Number(e.target.value))}>  {/* 0 off, 2 click; no haptics in a browser */}
               <option value={0}>Off</option>
@@ -182,7 +182,7 @@ function Settings({ engine, portrait, onClose, onAbout }) {
             </select>
           </label>
         )}
-        {!portrait && (
+        {traceSetting && (
           <label>Maximum Trace File Size (MB)
             <input type="number" min="1" max="1000" value={traceMB} onChange={(e) => setTraceMB(e.target.value)} />
           </label>
@@ -209,13 +209,13 @@ function About({ onClose }) {
 }
 
 // Which dialog is open, and the element that draws it.
-function DialogHost({ engine, dialog, setDialog, portrait }) {
+function DialogHost({ engine, dialog, setDialog, feedbackSetting, traceSetting }) {
   const close = () => setDialog(null);
   switch (dialog) {
     case "readCard": return <CardPicker engine={engine} mode="load" onClose={close} />;
     case "writeCard": return <CardPicker engine={engine} mode="save" onClose={close} />;
     case "preset": return <PresetPicker engine={engine} onClose={close} />;
-    case "settings": return <Settings engine={engine} portrait={portrait} onClose={close} onAbout={() => setDialog("about")} />;
+    case "settings": return <Settings engine={engine} feedbackSetting={feedbackSetting} traceSetting={traceSetting} onClose={close} onAbout={() => setDialog("about")} />;
     case "about": return <About onClose={close} />;
     default: return null;
   }
