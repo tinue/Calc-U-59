@@ -104,9 +104,10 @@ has a generation) or the controller is gone.
 One `tick(now)`:
 
 1. **Frame** (`FrameSampler`): each position's glyph and brightness
-   (`DisplayPov`), the C indicator's smoothed opacity, printer text and dot
-   lines, core log lines, and card auto-eject (the core executed `CRD_OFF`;
-   written data is saved).
+   (`DisplayPov`), the C indicator's opacity (it follows the core's drive at
+   once, holding only a single dark frame), printer text and dot lines, core
+   log lines, and card auto-eject (the core executed `CRD_OFF`; written data
+   is saved).
 2. **Debugger** (`DebugModel::tick`): the CALCULATOR snapshot while its panel
    shows; the CPU history and heatmap while the CPU panel shows.
 3. **Traces**: the core's trace ring drained into the open writers.
