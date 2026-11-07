@@ -62,6 +62,38 @@ TEST(two_plus_three_equals_five) {
     }
 }
 
+// Reading the keycode ROM (PRG SOURCE 8), then Del: the ROM leaves other data
+// in B, the display's control register, and blinks. The five pictures of a real
+// TI-59 after 9 Op 17 STO 00 Pgm 01 A CLR D.MS LRN SST and one to five Dels,
+// without the dark positions, with o for the degree sign. They fix the rules for
+// nibbles 2, 4 and 5, which depend on the zero suppression, and for a leftmost
+// zero (the fourth picture, nibble 9).
+TEST(del_in_keycode_rom_shows_control_nibble_glyphs) {
+    const Model model = Model::TI59;
+    auto m = testroms::makeMachine(model);
+    testroms::runToScanLoop(*m, model);
+    // The picture once two polls agree: the first after a key still holds what
+    // was driven before it.
+    auto settledText = [&] {
+        std::string text, previous;
+        for (int i = 0; i < 100 && (text.empty() || text != previous); ++i) {
+            previous = text;
+            m->stepN(static_cast<uint32_t>(cu59::info(model).instructionHz * 0.05), false);
+            text = testroms::displayText(*m);
+        }
+        return text;
+    };
+    for (int k : {64, 21, 64, 82, 62, 42, 92, 92, 21, 31, 92, 82, 11, 25, 21, 83, 31})
+        testroms::tap(*m, model, k);
+    CHECK_EQ(settledText(), std::string("00082"));  // 000 82, the first step of the keycode ROM
+    testroms::tap(*m, model, 41);                   // SST
+    for (const char* picture : {"----00", "0", "-0-\"0000'o0", "0000000\"0", "-00oo'o0"}) {
+        testroms::tap(*m, model, 21);
+        testroms::tap(*m, model, 51);               // Del
+        CHECK_EQ(settledText(), std::string(picture));
+    }
+}
+
 // Error-blink period (0 1/x) of the TI-59 ROM in seconds: 0x0655 SET.IDLE
 // re-lights the display once per lit pass; a lit phase starts at the first one
 // after a dark phase (≥ 2000 ticks without it).

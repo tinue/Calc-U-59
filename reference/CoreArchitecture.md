@@ -492,8 +492,13 @@ one program byte per call, as SST.
 
 In IDLE, each instruction strobes one position: the position the digit
 counter is about to reach, 13 → 2 (`postOperation()`). `A` gives the digit,
-`B` the control nibble (digit, minus, degree, blank). The leading-zero
-suppression circuit is modelled per strobe (`suppressedMask`). A strobe that
+`B` the control nibble (digit, minus, degree, double quote, apostrophe, blank;
+glyphs in `Shared/SevenSegment.hpp`). The leading-zero
+suppression circuit is modelled per strobe (`suppressedMask`). While it is
+active and the digit is 0, nibbles 2 and 4 stay dark and nibble 5 shows a minus
+instead of the degree sign; a leftmost 0 stays dark with any nibble. Normal
+displays use neither: these rules come from the pictures of a real TI-59 in
+`del_in_keycode_rom_shows_control_nibble_glyphs` (`tests/core_tests.cpp`). A strobe that
 shows a glyph latches it and adds the instruction's weight to the position's
 driven time; the decimal point of the position `R5` names is driven the same
 way. Nothing is driven in RUN mode, so the display goes dark while the
@@ -508,13 +513,22 @@ snapshot again. Each call restarts the window, so a core has one display
 consumer (`FrameSampler`). The core makes no visibility decision: brightness and
 persistence of vision are `Shared/DisplayPov`.
 
-The **C indicator** (`calcIndicator`) is the fraction of the interval in
-which it was driven: any `fA ≠ 0` in RUN mode, `fA` bit 14 in IDLE (Sladký).
+The **C indicator** (`calcIndicator`) is its mean drive over the interval: the
+number of set `fA` bits in RUN mode, `fA` bit 14 in IDLE (Sladký). That RUN
+counts bits rather than "any `fA ≠ 0`" comes from a film of a real TI-59 running
+`Pgm 01 SBR =`; the serial output of the flags is the likely cause.
 
 **Limitation:** the CPU's digit and the display strobe share one counter, so
 they are always in phase. A program that shifts `SET IDLE` out of phase on
 purpose (`examples/assembly/Decoder.asm`) shows other positions on real
 hardware but normal digits on the emulator.
+
+**Limitation:** on a real TI-59 the C comes from the main processor and the other
+segments of the leftmost position from the serial ROM chip, so a weak C and a lit
+minus show there at the same time. The emulator draws one glyph per position at
+one brightness, the brighter of the two (`ledCell`, `Shared/SevenSegment.hpp`):
+the minus without the C. Only the leftmost position's rare states, such as
+`LRN SST Del…` in PRG SOURCE 8, show the difference.
 
 ---
 

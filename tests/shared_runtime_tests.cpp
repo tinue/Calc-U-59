@@ -137,13 +137,22 @@ TEST(freeze_on_pc_change_and_mutual_exclusion) {
 
 TEST(calc_indicator_smoothing) {
     FrameSampler s;
-    CHECK(std::fabs(s.updateCalcIndicator(1.0f) - 0.65) < 1e-9);  // instant rise to 0.65 × duty
+    CHECK(std::fabs(s.updateCalcIndicator(1.0f) - 0.65) < 1e-9);  // one bit: 0.65
     CHECK(std::fabs(s.updateCalcIndicator(0.0f) - 0.65) < 1e-9);  // one zero frame: hold
     CHECK(std::fabs(s.updateCalcIndicator(0.0f) - 0.30) < 1e-9);  // then decay 0.35
     CHECK(std::fabs(s.updateCalcIndicator(0.0f) - 0.0) < 1e-9);   // 0.70 → clamped at 0
-    s.updateCalcIndicator(1.0f);
-    double v = s.updateCalcIndicator(0.5f);  // proportional fall: alpha = min(0.5, 0.325/0.65)
-    CHECK(std::fabs(v - (0.65 + 0.5 * (0.325 - 0.65))) < 1e-9);
+    CHECK_EQ(s.updateCalcIndicator(4.0f), 1.0);                   // several bits: full brightness
+}
+
+// A real TI-59's C during an error blink with the C lit: normal in the dark phase,
+// very weak in the lit phase, changing abruptly. The core's drive there: 1, then 0.09.
+TEST(calc_indicator_blink_changes_abruptly) {
+    FrameSampler s;
+    CHECK(std::fabs(s.updateCalcIndicator(1.0f) - 0.65) < 1e-9);
+    const double weak = s.updateCalcIndicator(0.09f);  // at once
+    CHECK(std::fabs(weak - std::pow(0.09, 1.0 / 2.2) * 0.65) < 1e-6);
+    CHECK(weak > 0.15 && weak < 0.3);                  // very weak, but visible
+    CHECK(std::fabs(s.updateCalcIndicator(1.0f) - 0.65) < 1e-9);  // and back at once
 }
 
 // ── Display: persistence of vision (Shared/DisplayPov) ──

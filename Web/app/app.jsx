@@ -1,8 +1,11 @@
-// Standalone Calc-U 59 app — mounts PlayCalculator (../calc.js) in the
-// portrait layout, sized to the viewport (minus the safe-area padding), as
-// the iPhone app: calculator and printer pages, the control bar, Settings.
+// Standalone Calc-U 59 app — mounts PlayCalculator (../calc.js), sized to the
+// viewport (minus the safe-area padding), with the layout following that size
+// as in the iOS app: pages when tall, side by side when wide (it rotates).
 
 const { useState: useAppState, useEffect: useAppEffect, useRef: useAppRef } = React;
+
+// In the service worker's scope, so the engine starts offline (engine-worker.js).
+const ENGINE_WORKER_URL = new URL("engine-worker.js", document.currentScript.src).href;
 
 // The calculator's size: #root's content box, the viewport less the
 // safe-area padding (app.css).
@@ -117,9 +120,25 @@ function StandaloneApp() {
     };
   }, []);
 
+  // Nothing scrolls this page, yet WebKit in a Home Screen app comes back from
+  // landscape (no status bar) with the document scrolled by the status bar's
+  // height, still drawn as if it weren't: every touch lands that far too low.
+  useAppEffect(() => {
+    const unscroll = () => { if (window.scrollX || window.scrollY) window.scrollTo(0, 0); };
+    const viewport = window.visualViewport;
+    window.addEventListener("scroll", unscroll);
+    window.addEventListener("resize", unscroll);
+    if (viewport) viewport.addEventListener("scroll", unscroll);
+    return () => {
+      window.removeEventListener("scroll", unscroll);
+      window.removeEventListener("resize", unscroll);
+      if (viewport) viewport.removeEventListener("scroll", unscroll);
+    };
+  }, []);
+
   return (
     <>
-      <PlayCalculator layout="portrait" width={size.width} height={size.height} keyboard={true} />
+      <PlayCalculator layout="auto" width={size.width} height={size.height} keyboard={true} workerUrl={ENGINE_WORKER_URL} />
       {!dismissed && (
         <InstallBanner mode={installMode} onInstall={install} onDismiss={() => setDismissed(true)} />
       )}

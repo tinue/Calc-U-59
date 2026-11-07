@@ -318,6 +318,8 @@ TEST(mobile_layout) {
     CHECK_EQ(mobilePrinterWidth(MobileLayout::CalcPrinterDebugger, 880).max, 220.0); // Duo: narrow tape
     CHECK_EQ(mobilePrinterWidth(MobileLayout::CalcPrinterDebugger, 1133).max, 360.0); // iPad
     CHECK_EQ(mobilePrinterWidth(MobileLayout::CalcPrinter, 832).min, 290.0);
+    CHECK(!mobileBarLabels(1133)); // iPad mini landscape: icons
+    CHECK(mobileBarLabels(1366));  // iPad Pro 13" landscape: labels
     CHECK_EQ(mobileTopMargin(0), 32.0);  // iPhone Duo open
     CHECK_EQ(mobileTopMargin(24), 0.0);  // iPad: status bar inset
     CHECK_EQ(partitionLine(60, 60), std::string("Steps: 480, Registers: 60 (479.59)"));

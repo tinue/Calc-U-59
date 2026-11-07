@@ -25,6 +25,8 @@ WidthRange mobilePrinterWidth(MobileLayout layout, double width) {
     return {290, 360};
 }
 
+bool mobileBarLabels(double width) { return width >= 1300; }
+
 bool compactPrinterBar(double printerWidth) { return printerWidth < 280; }
 
 std::string partitionLine(int programRegCount, int dataRegCount) {

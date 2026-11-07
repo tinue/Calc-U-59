@@ -105,29 +105,8 @@ final class ScreenshotTests: XCTestCase {
             ? .landscapeLeft : .portrait
         let app = launchForScreenshot(orientation: orientation)
 
-        let presetButton = app.buttons["btn-preset"]
-        XCTAssertTrue(presetButton.waitForExistence(timeout: 5), "Preset button not found")
-        presetButton.tap()
-
-        navigateToOnMyIPhone(app, targetFile: "test_diag.ti59")
-
-        let diagCell = app.cells.containing(.staticText, identifier: "test_diag.ti59").firstMatch
-        XCTAssertTrue(diagCell.waitForExistence(timeout: 5), "diag.ti59 cell not found in file picker")
-
-        let statusEl = app.otherElements["keystroke-playback-status"]
-        let playing = NSPredicate(format: "value == 'playing'")
-        let playbackStarted = XCTNSPredicateExpectation(predicate: playing, object: statusEl)
-
-        diagCell.tap()
-
-        XCTAssertEqual(XCTWaiter.wait(for: [playbackStarted], timeout: 8), .completed,
-                       "Keystroke playback never started — diag.ti59 may not have loaded")
-
         // Wait for the diagnostic to finish before capturing.
-        let idle = NSPredicate(format: "value == 'idle'")
-        let playbackDone = XCTNSPredicateExpectation(predicate: idle, object: statusEl)
-        XCTAssertEqual(XCTWaiter.wait(for: [playbackDone], timeout: 10), .completed,
-                       "Keystroke playback did not complete")
+        loadPreset(app, file: "test_diag.ti59", idleTimeout: 10)
 
         try saveScreenshot(fallbackName: "Diagnostic")
         attachScreenshot(app, name: "diag.ti59 — diagnostic complete")
@@ -216,27 +195,23 @@ final class ScreenshotTests: XCTestCase {
         let isPad = UIDevice.current.userInterfaceIdiom == .pad
         let app = launchForScreenshot(orientation: isPad ? .landscapeLeft : .portrait)
 
-        let presetButton = app.buttons["btn-preset"]
-        XCTAssertTrue(presetButton.waitForExistence(timeout: 5), "Preset button not found")
-        presetButton.tap()
-
-        navigateToOnMyIPhone(app, targetFile: "test_58c_display.ti58c")
-        let cell = app.cells.containing(.staticText, identifier: "test_58c_display.ti58c").firstMatch
-        XCTAssertTrue(cell.waitForExistence(timeout: 5), "test_58c_display.ti58c not found")
-
-        let statusEl = app.otherElements["keystroke-playback-status"]
-        let idle = NSPredicate(format: "value == 'idle'")
-        let playbackStarted = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "value == 'playing'"), object: statusEl)
-        cell.tap()
-        XCTAssertEqual(XCTWaiter.wait(for: [playbackStarted], timeout: 8), .completed,
-                       "test_58c_display.ti58c did not load")
-        let playbackDone = XCTNSPredicateExpectation(predicate: idle, object: statusEl)
-        XCTAssertEqual(XCTWaiter.wait(for: [playbackDone], timeout: 15), .completed,
-                       "test_58c_display.ti58c keystrokes did not complete")
+        loadPreset(app, file: "test_58c_display.ti58c", idleTimeout: 15)
 
         try saveScreenshot(fallbackName: "PlainCalculator")
         attachScreenshot(app, name: "Plain Calculator — TI-58C display")
+    }
+
+    /// Display glyphs screenshot — a TI-58 frozen in the lit phase of an error
+    /// blink that shows the double quote, apostrophe and degree sign. The
+    /// preset freezes the CPU itself (see test_58_glyphs.ti58); a frozen
+    /// display keeps its last frame.
+    func testScreenshotGlyphs() throws {
+        let app = launchForScreenshot(orientation: .portrait)
+
+        loadPreset(app, file: "test_58_glyphs.ti58", idleTimeout: 20)
+
+        try saveScreenshot(fallbackName: "Glyphs")
+        attachScreenshot(app, name: "Display glyphs — TI-58 blink, lit phase")
     }
 
     /// CPU Inspector screenshot — iPhone 17 Pro Max portrait only.
@@ -319,25 +294,8 @@ final class ScreenshotTests: XCTestCase {
             app = launchForScreenshot(orientation: .portrait)
         }
 
-        let presetButton = app.buttons["btn-preset"]
-        XCTAssertTrue(presetButton.waitForExistence(timeout: 5), "Preset button not found")
-
-        let statusEl = app.otherElements["keystroke-playback-status"]
-        let playing = NSPredicate(format: "value == 'playing'")
-        let idle    = NSPredicate(format: "value == 'idle'")
-
         // Step 1: load test_cdebug.ti59
-        presetButton.tap()
-        navigateToOnMyIPhone(app, targetFile: "test_cdebug.ti59")
-        let cell = app.cells.containing(.staticText, identifier: "test_cdebug.ti59").firstMatch
-        XCTAssertTrue(cell.waitForExistence(timeout: 5), "test_cdebug.ti59 not found")
-        let started = XCTNSPredicateExpectation(predicate: playing, object: statusEl)
-        cell.tap()
-        XCTAssertEqual(XCTWaiter.wait(for: [started], timeout: 8), .completed,
-                       "test_cdebug.ti59 did not load")
-        let finished = XCTNSPredicateExpectation(predicate: idle, object: statusEl)
-        XCTAssertEqual(XCTWaiter.wait(for: [finished], timeout: 40), .completed,
-                       "test_cdebug.ti59 keystrokes did not complete")
+        loadPreset(app, file: "test_cdebug.ti59", idleTimeout: 40)
 
         // Step 2 (iPhone): navigate left to debug panel for screenshot
         if !isPad {
@@ -357,52 +315,10 @@ final class ScreenshotTests: XCTestCase {
     func testScreenshotTexas() throws {
         let app = launchForScreenshot(orientation: .landscapeLeft)
 
-        let presetButton = app.buttons["btn-preset"]
-        XCTAssertTrue(presetButton.waitForExistence(timeout: 5), "Preset button not found")
-        presetButton.tap()
-
-        navigateToOnMyIPhone(app, targetFile: "test_texas.ti59")
-        let cell = app.cells.containing(.staticText, identifier: "test_texas.ti59").firstMatch
-        XCTAssertTrue(cell.waitForExistence(timeout: 5), "test_texas.ti59 not found")
-
-        let statusEl = app.otherElements["keystroke-playback-status"]
-        let playing = NSPredicate(format: "value == 'playing'")
-        let idle = NSPredicate(format: "value == 'idle'")
-        let playbackStarted = XCTNSPredicateExpectation(predicate: playing, object: statusEl)
-        cell.tap()
-        XCTAssertEqual(XCTWaiter.wait(for: [playbackStarted], timeout: 8), .completed,
-                       "test_texas.ti59 did not load")
-        let playbackDone = XCTNSPredicateExpectation(predicate: idle, object: statusEl)
-        XCTAssertEqual(XCTWaiter.wait(for: [playbackDone], timeout: 45), .completed,
-                       "test_texas.ti59 keystrokes did not complete")
+        loadPreset(app, file: "test_texas.ti59", idleTimeout: 45)
 
         try saveScreenshot(fallbackName: "Texas")
         attachScreenshot(app, name: "Texas — test_texas.ti59 complete")
-    }
-
-    // MARK: - Helpers
-
-    private func navigateToOnMyIPhone(_ app: XCUIApplication, targetFile: String) {
-        // The picker's first opening on a fresh simulator takes many seconds.
-        _ = app.searchFields.firstMatch.waitForExistence(timeout: 30)
-
-        if app.cells.containing(.staticText, identifier: targetFile).firstMatch.waitForExistence(timeout: 2) { return }
-
-        for label in ["Durchsuchen", "Browse"] {
-            let tab = app.tabBars.buttons[label]
-            if tab.waitForExistence(timeout: 2) {
-                if !tab.isSelected { tab.tap() }
-                break
-            }
-        }
-
-        for label in ["Auf meinem iPhone", "Auf meinem iPad", "On My iPhone", "On My iPad"] {
-            let item = app.cells.containing(.staticText, identifier: label).firstMatch
-            if item.waitForExistence(timeout: 2) { item.tap(); break }
-        }
-
-        let folder = app.cells.containing(.staticText, identifier: "1-Testfiles").firstMatch
-        if folder.waitForExistence(timeout: 2) { folder.tap() }
     }
 }
 #endif

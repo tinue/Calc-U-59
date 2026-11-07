@@ -52,7 +52,7 @@ jobs:
         working-directory: Web
         run: |
           npm ci --no-audit --no-fund
-          npx playwright install --with-deps chromium
+          npx playwright install --with-deps chromium webkit
       - name: Test
         run: Web/run-tests.sh
       - name: Zip dist/

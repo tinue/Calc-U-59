@@ -37,6 +37,9 @@ struct WidthRange {
     double min, max;
 };
 WidthRange mobilePrinterWidth(MobileLayout layout, double width);
+/// Whether the calculator's control bar keeps its labels in an iOS window this
+/// wide (or the PWA's): below it, icons only (iPad mini, iPad Pro in portrait).
+bool mobileBarLabels(double width);
 /// The printer's button bar goes compact (short labels, tighter buttons) on a
 /// tape narrower than the wide range above: the one beside the debugger.
 bool compactPrinterBar(double printerWidth);

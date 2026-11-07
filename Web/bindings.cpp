@@ -305,6 +305,22 @@ public:
         post("debugFont", "size", val(cu59::debugPanelFontSize(w)));
     }
 
+    /// What the PWA shows in a window of this size (layout="auto"), as the iOS
+    /// app does. A browser can't see a fold, so a half-open foldable counts as
+    /// its whole window.
+    val mobileRules(double w, double h) const {
+        const auto layout = cu59::mobileLayout(w, h, false);
+        const auto printer = cu59::mobilePrinterWidth(layout, w);
+        val rules = val::object();
+        rules.set("paged", layout == cu59::MobileLayout::Paged);
+        rules.set("debugger", layout == cu59::MobileLayout::CalcPrinterDebugger);
+        rules.set("printerMin", printer.min);
+        rules.set("printerMax", printer.max);
+        rules.set("compactPrinterBar", cu59::compactPrinterBar(printer.max));
+        rules.set("barLabels", cu59::mobileBarLabels(w));
+        return rules;
+    }
+
 private:
     /// Run `f`, returning the errors it reports instead of posting them.
     template <typename F>
@@ -996,6 +1012,7 @@ EMSCRIPTEN_BINDINGS(ti59_web) {
         .function("fitBlankCard", &WebController::fitBlankCard)
         .function("feedSide", &WebController::feedSide)
         .function("freshCardFileName", &WebController::freshCardFileName)
+        .function("mobileRules", &WebController::mobileRules)
         .function("ejectCard", &WebController::ejectCard)
         .function("cardBytes", &WebController::cardBytes)
         .function("togglePrinterConnection", &WebController::togglePrinterConnection)

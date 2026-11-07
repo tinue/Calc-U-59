@@ -124,6 +124,8 @@ typedef struct {
 + (TIMobileLayout)mobileLayoutWidth:(CGFloat)width height:(CGFloat)height horizontalFold:(BOOL)fold;
 /// cu59::mobilePrinterWidth — the printer column's width range in a side-by-side layout.
 + (TIWidthRange)mobilePrinterWidth:(TIMobileLayout)layout width:(CGFloat)width;
+/// cu59::mobileBarLabels — the control bar keeps its labels in a window this wide.
++ (BOOL)mobileBarLabels:(CGFloat)width;
 /// cu59::compactPrinterBar — short printer button labels for this tape width.
 + (BOOL)compactPrinterBar:(CGFloat)printerWidth;
 /// cu59::mobileTopMargin — space above a side-by-side layout for a window's top inset.

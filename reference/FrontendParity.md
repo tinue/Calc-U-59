@@ -27,7 +27,7 @@ the named one still to do (the Notes say why); `Swift only` / `Qt only` /
 | Hold display for full speed | `KeyboardView` | `KeyboardWidget` | `CalculatorFace`, `WebController` | `Pacing`, `KeyboardLayout` (`PointerTracker`) | All | |
 | Physical keyboard (26 keys, Shift = 2nd, min. hold) | `KeyboardView` | `KeyboardWidget` | `PlayCalculator` (`keyboard` prop), `WebController` | `KeyboardMap`, `KeySequencer` | All | macOS only in the Swift app; web: only while the calculator has focus |
 | LED display, Modernized / Classic styles | `LEDDisplayView` | `LedRenderer` | `painters.js` | `SevenSegment`, `LedGeometry` | All | Glow: SwiftUI blur / box-blur layers / Canvas 2D blur; web: Classic only |
-| Digit and decimal-point brightness (persistence of vision), "C" indicator fade | `LEDDisplayView` | `LedRenderer` | `painters.js`, `WebController` | `FrameSampler`, `DisplayPov` | All | |
+| Digit and decimal-point brightness (persistence of vision), "C" indicator brightness | `LEDDisplayView` | `LedRenderer` | `painters.js`, `WebController` | `FrameSampler`, `DisplayPov` | All | |
 | Cue card: 3 templates, `\blank` spans, shrink-to-fit, inks | `CueCardView` | `CueCardRenderer` | `painters.js`, `WebController` (draw list) | `CueCard` (layout, geometry, inks) | All | |
 | Module program cards (SCOM[9]), user cards | `EmulatorViewModel` | `EmulatorController` | `WebController` | `SessionController`, `CueCard` resolveCueCard | All | |
 | Solid State module selection | `SettingsView` | `SettingsDialog` | `Dialogs` (Settings) | `ModuleCatalog` | All | soft reset on change |
@@ -80,10 +80,10 @@ the named one still to do (the Notes say why); `Swift only` / `Qt only` /
 | Feature | Swift | Qt | Web | Shared | Status | Notes |
 |---|---|---|---|---|---|---|
 | About (version, links) | `AppInfo` | `AboutDialog` | `Dialogs` (About) | — | All | |
-| Settings | `SettingsView` | `SettingsDialog` | `Dialogs` (Settings) | `SettingsKeys` | All | Qt: preset, card and trace folders instead of the trace location; Swift: Keyboard Feedback and Debug Page in Portrait on iOS only; web: no folders, no segment style, Keyboard Feedback in portrait only, Maximum Trace File Size in wide only |
+| Settings | `SettingsView` | `SettingsDialog` | `Dialogs` (Settings) | `SettingsKeys` | All | Qt: preset, card and trace folders instead of the trace location; Swift: Keyboard Feedback and Debug Page in Portrait on iOS only; web: no folders, no segment style, Keyboard Feedback in portrait and the PWA only, Maximum Trace File Size whenever the pages sit side by side (the wide layout, the PWA in landscape) |
 | Help (user guide link) | — | Help menu | `Dialogs` (Settings, About) | — | Pending (Swift) | opens `https://calc-u.org/59/`; the Swift app has no Help command yet |
-| iOS layouts (portrait pages, iPhone; side by side, iPad and iPhone Duo), haptics, click sound | `CalculatorView`, `KeyboardView` | — | `PlayCalculator` (portrait layout, keyboard feedback) | `DebugText` (`mobileLayout`) | Swift only / Web only | Swift: iOS only: pages when tall or folded; side by side when wide: calculator and printer, plus the debugger on iPad and iPhone Duo; web: click via WebAudio only (no haptics in a browser) |
+| iOS layouts (portrait pages, iPhone; side by side, iPad and iPhone Duo), haptics, click sound | `CalculatorView`, `KeyboardView` | — | `PlayCalculator` (portrait layout; the PWA's `auto` layout, keyboard feedback) | `DebugText` (`mobileLayout`) | Swift only / Web only | Swift: iOS only: pages when tall or folded; side by side when wide: calculator and printer, plus the debugger on iPad and iPhone Duo; web: the PWA picks the same layouts by the window's size (no fold), click via WebAudio only (no haptics in a browser) |
 | UI test automation hooks | `CalculatorView` | — | — | — | Swift only | |
 | `--grab <png>` offscreen screenshot | — | `main.cpp` | — | — | Qt only | developer check |
-| Installable PWA, offline | — | — | `app/` | — | Web only | portrait layout; all three models, every module and preset offline |
+| Installable PWA, offline | — | — | `app/` | — | Web only | layout follows the window as on iOS (rotates; pages, or side by side); all three models, every module and preset offline |
 | Pause while hidden / in the background | `Calc-U-59App` (`scenePhase`), `EmulatorViewModel` | — | `engine.js` (`visibilitychange`) | `SessionController::suspend` / `resumeAfterSuspend` | Swift only / Web only | Qt keeps running, as a desktop app does |

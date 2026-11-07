@@ -100,7 +100,7 @@ function HoldButton({ onHold, children, ...rest }) {
   );
 }
 
-function Printer({ engine }) {
+function Printer({ engine, compactBar }) {
   const data = useEngine(engine, (s) => s.data);
   const printer = useEngine(engine, (s) => s.printer);
   const [textView, setTextView] = React.useState(false);
@@ -134,8 +134,8 @@ function Printer({ engine }) {
       </div>
       {data && !textView && <PaperDots geo={data.printer} printer={printer} />}
       {data && textView && <PaperText printer={printer} />}
-      <div className="calcu-printer-bar">
-        <HoldButton className="calcu-pill" onHold={(p) => engine.call("pressPrinterPrint", p)}>{narrow ? "PRN" : "PRINT"}</HoldButton>
+      <div className={`calcu-printer-bar${compactBar ? " calcu-printer-bar-compact" : ""}`}>
+        <HoldButton className="calcu-pill" onHold={(p) => engine.call("pressPrinterPrint", p)}>{narrow || compactBar ? "PRN" : "PRINT"}</HoldButton>
         <button type="button" className="calcu-pill" aria-pressed={printer.trace} title="TRACE"
           onClick={() => engine.call("togglePrinterTrace")}>T {dot(printer.trace)}</button>
         <HoldButton className="calcu-pill" onHold={(p) => engine.call("pressPrinterAdv", p)}>ADV</HoldButton>

@@ -223,6 +223,7 @@ static std::vector<cu59::LabelSpan> spansFrom(NSArray<TILabelSpan*>* spans) {
     return static_cast<TIMobileLayout>(cu59::mobileLayout(width, height, fold));
 }
 + (CGFloat)mobileTopMargin:(CGFloat)topInset { return cu59::mobileTopMargin(topInset); }
++ (BOOL)mobileBarLabels:(CGFloat)width { return cu59::mobileBarLabels(width); }
 + (BOOL)compactPrinterBar:(CGFloat)printerWidth { return cu59::compactPrinterBar(printerWidth); }
 + (TIWidthRange)mobilePrinterWidth:(TIMobileLayout)layout width:(CGFloat)width {
     auto r = cu59::mobilePrinterWidth(static_cast<cu59::MobileLayout>(layout), width);

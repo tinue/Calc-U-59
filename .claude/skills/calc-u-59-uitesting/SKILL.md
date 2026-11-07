@@ -14,7 +14,7 @@ This skill covers all work inside `Calc-U-59UITests/`.
 
 | File | Purpose |
 |------|---------|
-| `AppHelpers.swift` | Shared helpers: `launchApp()`, `launchApp(orientation:)`, `attachScreenshot()` |
+| `AppHelpers.swift` | Shared helpers: `launchApp()`, `launchApp(orientation:)`, `navigateToOnMyIPhone(_:targetFile:)`, `loadPreset(_:file:idleTimeout:)` (Preset button → picker → wait for KEYSTROKES to finish), `attachScreenshot()` |
 | `LayoutTests.swift` | Button visibility, label-wrapping, portrait/landscape screenshots |
 | `FilePickerTests.swift` | File picker opens; reopens after cancel (regression for iPad popover dismiss bug) |
 | `PresetLoadTests.swift` | End-to-end load of `test_diag.ti59` via the file picker; verifies keystroke playback starts |
@@ -179,7 +179,7 @@ Never use bare `app.buttons[label]` or `app.staticTexts[label]` for these — bo
 
 All files in `1-Testfiles/` (sourced from `examples/screentest/`) are prefixed with `test_` (e.g. `test_diag.ti59`). This prefix is never used for files in the root, so a fast-path check is unambiguous: if the file is already visible, we are already inside `1-Testfiles`.
 
-`navigateToOnMyIPhone(_:targetFile:)` in `PresetLoadTests.swift` does this: return at once if the file is visible, else Browse tab → "On My iPhone/iPad" → `1-Testfiles`.
+`navigateToOnMyIPhone(_:targetFile:)` in `AppHelpers.swift` does this: return at once if the file is visible, else Browse tab → "On My iPhone/iPad" → `1-Testfiles`.
 
 ### 4. Locale-dependent labels
 

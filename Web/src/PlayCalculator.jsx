@@ -1,5 +1,6 @@
 // PlayCalculator — the web client, and the one global calc.js exposes
-// (reference/WebClient.md has the props). Two layouts:
+// (reference/WebClient.md has the props). Two layouts, and layout="auto" (the
+// PWA) picks between them by the window's size, with Shared's iOS rules:
 //   wide     — calculator | printer | debugger, as the macOS window and the
 //              Qt MainWindow (resizable dividers between the columns);
 //   portrait — one page at a time, calculator or printer, switched with the
@@ -14,6 +15,7 @@ const PRINTER_MIN = 220, PRINTER_MAX = 320, DEBUG_MIN = 220;
 // in portrait). Below it the client keeps its size and the page scrolls, as
 // the apps' windows have a minimum size.
 const FACE_MIN = { wide: 400, portrait: 264 };
+const FACE_MIN_AUTO = 120;  // layout="auto": whatever a landscape phone's height leaves
 const SPLITTERS = 1 + 5;  // the line after the calculator, the divider before the debugger
 
 /// The artwork's width that `height` leaves room for, and the column height for an artwork width.
@@ -87,9 +89,9 @@ function StatusLine({ engine }) {
   );
 }
 
-function CalculatorColumn({ engine, faceWidth, compact, showSettings, onDialog, feedback }) {
+function CalculatorColumn({ engine, faceWidth, compact, showSettings, onDialog, feedback, width }) {
   return (
-    <div className="calcu-calc" style={{ width: faceWidth + 2 * FACE_PADDING }}>
+    <div className="calcu-calc" style={{ width: width || faceWidth + 2 * FACE_PADDING }}>
       <div className="calcu-face-pad"><CalculatorFace engine={engine} width={faceWidth} /></div>
       <ControlBar engine={engine} compact={compact} showSettings={showSettings} onDialog={onDialog} feedback={feedback} />
     </div>
@@ -111,19 +113,36 @@ function Divider({ onDrag }) {
   );
 }
 
-function WideLayout({ engine, width, height, showSettings, onDialog, feedback }) {
-  const faceWidth = Math.max(FACE_MIN.wide, Math.min(height ? faceWidthFor(height) : 420, width * 0.4));
+/// The rules of the embedded layout="wide": the artwork's size follows the
+/// window, within limits, and the debugger is always there.
+const EMBEDDED_WIDE = {
+  embedded: true, printerMin: PRINTER_MIN, printerMax: PRINTER_MAX, printerStart: 260,
+  debugger: true, barLabels: true, compactPrinterBar: false,
+};
+
+/// `rules` is EMBEDDED_WIDE or (layout="auto") bindings.cpp mobileRules: the
+/// artwork fills the height, whatever its size, the bar and the printer follow
+/// the iOS app, and the debugger may be left out. A bar wider than the artwork
+/// widens the column.
+function WideLayout({ engine, width, height, showSettings, onDialog, feedback, rules }) {
+  const faceWidth = rules.embedded
+    ? Math.max(FACE_MIN.wide, Math.min(height ? faceWidthFor(height) : 420, width * 0.4))
+    : Math.max(FACE_MIN_AUTO, faceWidthFor(height));
+  const compact = !rules.barLabels || faceWidth < FACE_MIN.wide;
+  const columnWidth = Math.max(faceWidth + 2 * FACE_PADDING, compact ? minimumWidth(true) : 0);
   const total = columnHeight(faceWidth, height);
-  const [printerWidth, setPrinterWidth] = React.useState(260);
-  const room = width - faceWidth - 2 * FACE_PADDING - 2;
-  const pw = Math.max(PRINTER_MIN, Math.min(PRINTER_MAX, printerWidth, room - DEBUG_MIN));
+  const { printerMin, printerMax, debugger: hasDebugger } = rules;
+  const [printerWidth, setPrinterWidth] = React.useState(rules.printerStart ?? printerMax);
+  const room = width - columnWidth - 2;
+  const pw = Math.max(printerMin, Math.min(printerMax, printerWidth, room - (hasDebugger ? DEBUG_MIN : 0)));
   return (
     <div className="calcu-wide" style={{ height: total }}>
-      <CalculatorColumn engine={engine} faceWidth={faceWidth} showSettings={showSettings} onDialog={onDialog} feedback={feedback} />
+      <CalculatorColumn engine={engine} faceWidth={faceWidth} width={columnWidth} compact={compact}
+        showSettings={showSettings} onDialog={onDialog} feedback={feedback} />
       <div className="calcu-vline" />
-      <div style={{ width: pw, flex: "none", display: "flex" }}><Printer engine={engine} /></div>
-      <Divider onDrag={(dx) => setPrinterWidth(Math.max(PRINTER_MIN, Math.min(PRINTER_MAX, pw + dx)))} />
-      <Debugger engine={engine} />
+      <div style={{ width: pw, flex: "none", display: "flex" }}><Printer engine={engine} compactBar={rules.compactPrinterBar} /></div>
+      {hasDebugger && <Divider onDrag={(dx) => setPrinterWidth(Math.max(printerMin, Math.min(printerMax, pw + dx)))} />}
+      {hasDebugger && <Debugger engine={engine} />}
     </div>
   );
 }
@@ -166,15 +185,18 @@ function PlayCalculator({
   model,
   module,
   preset,
+  workerUrl,
 }) {
   const [engine, setEngine] = React.useState(null);
   const [dialog, setDialog] = React.useState(null);
   const rootRef = React.useRef(null);
   const [measured, setMeasured] = React.useState(0);
-  const portrait = layout !== "wide";
+  const auto = layout === "auto";
+  const [rules, setRules] = React.useState(null);
+  const portrait = auto ? !rules || rules.paged : layout !== "wide";
 
   React.useEffect(() => {
-    const e = createEngine({ model, module });
+    const e = createEngine({ model, module, workerUrl });
     setEngine(e);
     if (preset) {
       fetchBesideCalc(`presets/${preset}`).then((text) => e.loadState(text))
@@ -182,6 +204,14 @@ function PlayCalculator({
     }
     return () => e.destroy();
   }, []);
+
+  // layout="auto": the rules for this size come from the worker.
+  React.useEffect(() => {
+    if (!auto || !engine) return undefined;
+    let current = true;
+    engine.request("mobileRules", width, height).then((r) => { if (current) setRules(r); });
+    return () => { current = false; };
+  }, [auto, engine, width, height]);
 
   // Without a width the client fills its container.
   React.useEffect(() => {
@@ -191,9 +221,11 @@ function PlayCalculator({
     ro.observe(el);
     return () => ro.disconnect();
   }, [width]);
-  const w = Math.max(minimumWidth(portrait), width || measured || (portrait ? 360 : 1100));
+  const w = Math.max(minimumWidth(auto || portrait), width || measured || (portrait ? 360 : 1100));
 
-  const feedback = React.useMemo(() => makeFeedback(engine, portrait), [engine, portrait]);
+  // Keyboard feedback is for touch screens: portrait, and the PWA in any layout.
+  const touch = layout !== "wide";
+  const feedback = React.useMemo(() => makeFeedback(engine, touch), [engine, touch]);
 
   // ── Physical keyboard ────────────────────────────────────────────────
   // Only with keyboard={true}, and only while the calculator itself has
@@ -222,10 +254,15 @@ function PlayCalculator({
     engine.call("keyUp", k.key, k.produced, k.isLetter, k.shift, k.command);
   };
   const onBlur = (e) => {
+    if (e.target === rootRef.current) delete rootRef.current.dataset.pointerFocus;
     if (engine && !rootRef.current.contains(e.relatedTarget)) engine.call("blur");
   };
+  // Marked, as this focus is for the keys and no reason to outline the client:
+  // WebKit counts any focus from script as focus-visible.
   const focusForKeys = (e) => {
-    if (keyboard && e.target.closest && e.target.closest(".calcu-face")) rootRef.current.focus({ preventScroll: true });
+    if (!keyboard || !e.target.closest || !e.target.closest(".calcu-face")) return;
+    rootRef.current.dataset.pointerFocus = "";
+    rootRef.current.focus({ preventScroll: true });
   };
 
   // ── Drag and drop a preset or a card ─────────────────────────────────
@@ -253,10 +290,13 @@ function PlayCalculator({
       onDragOver={onDragOver}
       onDrop={onDrop}
     >
-      <Layout engine={engine} width={w} height={height} showSettings={settings} onDialog={setDialog} feedback={feedback} />
+      {(!auto || rules) && (
+        <Layout engine={engine} width={w} height={height} showSettings={settings} onDialog={setDialog} feedback={feedback}
+          rules={rules || EMBEDDED_WIDE} />
+      )}
       <StatusLine engine={engine} />
       <KeyFeedback engine={engine} feedback={feedback} />
-      {engine && <DialogHost engine={engine} dialog={dialog} setDialog={setDialog} portrait={portrait} />}
+      {engine && <DialogHost engine={engine} dialog={dialog} setDialog={setDialog} feedbackSetting={touch} traceSetting={!portrait} />}
     </div>
   );
 }

@@ -14,8 +14,9 @@ apps' features (`FrontendParity.md`, the Web column) in two layouts:
 - **wide** — calculator | printer | debugger, as the macOS window and the
   Qt `MainWindow`;
 - **portrait** — one page at a time, calculator or printer, switched with
-  corner chevrons, as the iPhone layout; no debugger, no traces. The
-  installable PWA (`app/`) uses it.
+  corner chevrons, as the iPhone layout; no debugger, no traces.
+
+The installable PWA (`app/`) picks between them by the window's size.
 
 Deliberately different from the apps: the LED is Classic only; magnetic
 cards live in an in-memory folder for the page session (upload one to fit
@@ -53,7 +54,7 @@ Web/calc-engine-worker.js ── wasm/ti59-core.{js,wasm} ◀── Web/bindings
 | `bindings.cpp` | The adapter to `Shared/` (`WebController`, embind) — the web's `Qt6/app/EmulatorController` |
 | `calc.css` | Tokens, fonts and every rule the client needs |
 | `fonts/` | Archivo (WOFF2, SIL OFL 1.1), for the cue card |
-| `app/` | The installable PWA: `index.html`, `app.jsx`, `app.css`, `sw.js`, `manifest.json` |
+| `app/` | The installable PWA: `index.html`, `app.jsx`, `app.css`, `sw.js`, `engine-worker.js`, `manifest.json` |
 | `index.html` | Demo and test page, sized to the window: `?layout=wide|portrait`, also `width`, `height`, `model`, `module`, `preset` |
 | `presets.json` | The presets the preset picker offers (file name, title): every file directly in `examples/`, none from its subdirectories. A new example there needs a line here. `build.js` copies them at build time to `dist/presets/` |
 | `vendor/` | React 18 and ReactDOM (shipped), Babel (build only), ReactDOMServer (tests only) |
@@ -144,7 +145,7 @@ the file names under `wasm/`, `img/` and `presets/` may change with any build.
 
 | Prop | Default | Meaning |
 |---|---|---|
-| `layout` | `"portrait"` | `"wide"` (calculator, printer, debugger side by side) or `"portrait"` (calculator and printer pages) |
+| `layout` | `"portrait"` | `"wide"` (calculator, printer, debugger side by side), `"portrait"` (calculator and printer pages) or `"auto"` (by the window's size, the PWA's choice: needs `width` and `height`) |
 | `width` | the parent's width | CSS px the client may take. Wide: the calculator artwork takes 40 % (at most 420 px without `height`, never below 400 px), the printer 220–320 px, the debugger the rest (at least 220 px) |
 | `height` | from the width | CSS px. Without it the height follows the artwork's aspect plus the 50 px bar; with it the artwork fits inside (the PWA passes `#root`'s content box) |
 | `keyboard` | `false` | The calculator is focusable and takes the physical keyboard while focused (`SharedArchitecture.md` § "Physical Keyboard Mapping") |
@@ -152,6 +153,7 @@ the file names under `wasm/`, `img/` and `presets/` may change with any build.
 | `model` | stored setting | Start with this model: `"TI-59"`, `"TI-58"` or `"TI-58C"` |
 | `module` | stored setting | Start with this Solid State module id (e.g. `"ML"`) |
 | `preset` | none | Load this file from `presets/` once started |
+| `workerUrl` | `calc-engine-worker.js` beside `calc.js` | Start the engine through this script. The PWA's, for its service worker; a host leaves it out |
 
 The client has a minimum size, as the apps' windows do: the narrowest
 artwork whose control bar still fits (400 px wide, 264 px portrait), plus
@@ -191,8 +193,9 @@ and the `Calculator model` select.
 - `calc.js` captures `document.currentScript.src` while it runs and resolves
   the worker, the artwork and the presets against that directory
   (`CALC_BASE` in `src/engine.js`).
-- The worker resolves `wasm/…` against its own URL; the engine's `.wasm` is
-  pointed back there with `locateFile`.
+- The worker resolves `wasm/…` against its own URL, or `CALC_ROOT` when
+  started through `app/engine-worker.js`; the engine's `.wasm` is pointed back
+  there with `locateFile`.
 - `app/` refers to `../calc.js`, `../calc.css`, `../vendor/…` relatively; its
   manifest's `start_url` and `scope` are `./`; the service worker is
   registered relative to `app/app.js` and its precache list is relative to
@@ -222,15 +225,31 @@ styles; the host styles only its own layout around the client.
 
 ### The PWA (`app/`)
 
-`app/index.html` mounts `PlayCalculator` in the portrait layout, with the
-keyboard and an install banner. `#root` is fixed to the viewport and a
+`app/index.html` mounts `PlayCalculator` with `layout="auto"`, the keyboard
+and an install banner. It follows the window as the iOS app does (Shared
+`mobileLayout`, `mobilePrinterWidth`, `mobileBarLabels`, through
+`WebController::mobileRules`): pages when taller than wide; calculator,
+printer and debugger from 820 × 560 px; calculator and printer below that
+(a phone in landscape). The manifest's orientation is `any`: Safari can't lock
+one, so the layout adapts instead. A browser can't see a fold, so a half-open
+foldable counts as its whole window. WebKit in a Home Screen app returns from landscape
+with the document scrolled by the status bar's height but drawn unscrolled, so
+touches land too low; `app.jsx` resets the scroll. Only an installed app in the
+iOS simulator or on a device shows it, not Playwright. `#root` is fixed to the viewport and a
 `ResizeObserver` sizes the calculator to its content box (inside the safe
 area), which also catches insets arriving late; the status bar is opaque,
 because with black-translucent WebKit's standalone viewport left it in or
 out from one launch to the next. Its service worker's scope is `app/`. It precaches the shell,
 `calc.js`, `calc.css`, the worker, the engine, the artwork, every model's
 ROM files, every Solid State module and every preset, so the installed app
-does all of it offline after the first launch. `build.js` adds everything in
+does all of it offline after the first launch. A browser asks a service worker
+for a worker's script only if that URL is in its scope, so the app starts the
+engine through `app/engine-worker.js`, which loads `../calc-engine-worker.js`;
+an embedded client starts that file directly, and stays outside this service
+worker even on an origin where the app is installed, so it never gets a cached
+engine older than its `calc.js`. `tests/offline.spec.js` starts the app with the
+server gone, in Chromium and WebKit: `context.setOffline()` isn't enough, as the
+browser's HTTP cache then answers. `build.js` adds everything in
 `wasm/roms/` and the presets (from `presets.json`) to the list. A
 model switch reads its ROM with a synchronous request from the worker, which the
 service worker answers from the cache. The cache is named

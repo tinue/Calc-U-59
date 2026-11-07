@@ -4,8 +4,7 @@
 # Output follows the naming convention required by `release ios --release`:
 #   iphone-NN-<name>.png   (APP_IPHONE_67,         1320 × 2868 px)
 #   ipad-NN-<name>.png     (APP_IPAD_PRO_3GEN_129, 2752 × 2064 px)
-#   iphoneduo-NN-<name>.png (iPhone Duo opened flat, 2853 × 2007 px; not yet
-#                           uploaded by `release`, whose iphone-* skips it)
+#   iphoneduo-NN-<name>.png (APP_IPHONE_DUO, iPhone Duo opened flat, 2853 × 2007 px)
 #
 # The target simulators are the ones marked `screenshots: iphone`, `ipad` and
 # `duo` in bin/simulators.yaml; bin/simulators resolves them to
@@ -33,7 +32,9 @@ stop_capture_watcher() {
     kill "$CAPTURE_WATCHER" 2>/dev/null || true
     CAPTURE_WATCHER=""
 }
-trap 'stop_capture_watcher; rm -f /tmp/calc-u-59-screenshot-dir /tmp/calc-u-59-screenshot-name "$CAPTURE_REQUEST"' EXIT
+REMOVE_ALPHA=/tmp/calc-u-59-remove-alpha
+rm -f "$REMOVE_ALPHA"   # a leftover from an older run may be stale
+trap 'stop_capture_watcher; rm -f /tmp/calc-u-59-screenshot-dir /tmp/calc-u-59-screenshot-name "$CAPTURE_REQUEST" "$REMOVE_ALPHA" "$REMOVE_ALPHA.swift"' EXIT
 
 # ── Test runner ────────────────────────────────────────────────────────────────
 
@@ -61,8 +62,10 @@ print(inner["displayId"], inner.get("backlightState"))'
 }
 
 # App Store Connect accepts no alpha channel; simctl's PNGs have one.
+# Compiled on first use, so each shot doesn't compile the script again.
 remove_alpha() {
-    xcrun swift - "$1" <<'SWIFT'
+    if [[ ! -x "$REMOVE_ALPHA" ]]; then
+        cat > "$REMOVE_ALPHA.swift" <<'SWIFT'
 import CoreGraphics
 import Foundation
 import ImageIO
@@ -78,6 +81,9 @@ let destination = CGImageDestinationCreateWithURL(url, "public.png" as CFString,
 CGImageDestinationAddImage(destination, context.makeImage()!, nil)
 exit(CGImageDestinationFinalize(destination) ? 0 : 1)
 SWIFT
+        xcrun swiftc -O -o "$REMOVE_ALPHA" "$REMOVE_ALPHA.swift" || return 1
+    fi
+    "$REMOVE_ALPHA" "$1"
 }
 
 # A landscape test asks for its shot by creating $CAPTURE_REQUEST and holds the
@@ -120,9 +126,9 @@ echo ""
 mkdir -p "$SCREENSHOT_DIR"
 
 # The Duo is shot opened flat; simctl cannot unfold it, so check that the
-# inner (larger) display is lit. Its `active` flag won't do: since iOS 27.2 it
-# stays on the outer display of an open Duo. Device Hub: hold Option for the
-# hinge slider.
+# inner (larger) display is lit. Its `active` flag won't do: on iOS 27.2 an open
+# Duo has reported it on either display. Device Hub: hold Option for the hinge
+# slider.
 duo_is_open() {
     xcrun simctl bootstatus "$DUO_UDID" -b >/dev/null
     local -a display
@@ -140,6 +146,7 @@ run_named_test "iphone-02-cpu-inspector"    "$IPHONE_UDID" CPUInspector
 run_named_test "iphone-03-calc-debugger"    "$IPHONE_UDID" CalcDebugger
 run_named_test "iphone-04-diagnostics"      "$IPHONE_UDID" LoadDiagPreset
 run_named_test "iphone-05-settings"         "$IPHONE_UDID" Settings
+run_named_test "iphone-06-display-glyphs"   "$IPHONE_UDID" Glyphs
 run_named_test "ipad-01-assembly"           "$IPAD_UDID"   Assembly
 run_named_test "ipad-02-calc-debugger"      "$IPAD_UDID"   CalcDebugger
 run_named_test "ipad-03-texas"              "$IPAD_UDID"   Texas

@@ -2,8 +2,9 @@
 // WASM WebController (Web/bindings.cpp) — the real cu59::SessionController
 // from Shared/, run single-threaded — and calls its 60 Hz tick. Everything
 // that isn't drawing happens in there; this file only fetches files and
-// passes messages. Every URL here is relative to this script, so the client
-// works wherever it is hosted.
+// passes messages. Every URL here is relative to dist/, so the client works
+// wherever it is hosted: to this script, or to CALC_ROOT when started through
+// app/engine-worker.js.
 //
 // Protocol (postMessage), main thread -> worker:
 //   {type: "init", settings, model, module}   -- first message: stored settings
@@ -31,7 +32,9 @@
 //   model, display, cueCard, runState, printer, card, live, cpu, heatmap,
 //   log, asm, traces, traceReady, settings, store, debugFont, debugPanel, error.
 
-importScripts("wasm/ti59-core.js");
+const WASM_DIR = `${self.CALC_ROOT || ""}wasm/`;
+
+importScripts(`${WASM_DIR}ti59-core.js`);
 
 const FRAME_MS = 1000 / 60;
 
@@ -48,7 +51,7 @@ const pending = [];
 self.readRomFile = (name) => {
   try {
     const xhr = new XMLHttpRequest();
-    xhr.open("GET", `wasm/roms/${name}`, false);
+    xhr.open("GET", `${WASM_DIR}roms/${name}`, false);
     xhr.send();
     return xhr.status === 200 ? xhr.responseText : null;
   } catch (e) {
@@ -57,7 +60,7 @@ self.readRomFile = (name) => {
 };
 
 function fetchText(name) {
-  return fetch(`wasm/roms/${name}`).then((r) => {
+  return fetch(`${WASM_DIR}roms/${name}`).then((r) => {
     if (!r.ok) throw new Error(`${name}: ${r.status}`);
     return r.text();
   });
@@ -122,7 +125,7 @@ async function init({ settings, model, module }) {
   // ti59-core.js resolves its .wasm next to this worker, not next to itself
   // (wasm/): locateFile points it back.
   const [mod, cuecards] = await Promise.all([
-    createTI59CoreModule({ locateFile: (path) => `wasm/${path}` }),
+    createTI59CoreModule({ locateFile: (path) => `${WASM_DIR}${path}` }),
     fetchText("cuecards.txt"),
   ]);
   Module = mod;

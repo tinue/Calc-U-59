@@ -104,9 +104,10 @@ has a generation) or the controller is gone.
 One `tick(now)`:
 
 1. **Frame** (`FrameSampler`): each position's glyph and brightness
-   (`DisplayPov`), the C indicator's smoothed opacity, printer text and dot
-   lines, core log lines, and card auto-eject (the core executed `CRD_OFF`;
-   written data is saved).
+   (`DisplayPov`), the C indicator's opacity (it follows the core's drive at
+   once, holding only a single dark frame), printer text and dot lines, core
+   log lines, and card auto-eject (the core executed `CRD_OFF`; written data
+   is saved).
 2. **Debugger** (`DebugModel::tick`): the CALCULATOR snapshot while its panel
    shows; the CPU history and heatmap while the CPU panel shows.
 3. **Traces**: the core's trace ring drained into the open writers.
@@ -429,7 +430,8 @@ differ.
 ### LED Display Rendering
 
 - Glyphs: `SevenSegment` (`ledCell(i, digit, ctrl, level, calcOpacity)`:
-  segments and opacity per cell, the "C" annunciator in cell 11), never a
+  segments and opacity per cell, in cell 11 the "C" annunciator when it is
+  brighter than the glyph there), never a
   font. Zero suppression happens in the core (`TMC0501`), which reports
   suppressed positions as not driven; `ledCell` blanks a position at
   level 0. All three renderers call it.
