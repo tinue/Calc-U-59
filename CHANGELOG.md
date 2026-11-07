@@ -1,6 +1,6 @@
 # Changelog
 
-## [2.3.0] - work in progress
+## [2.3.0] - 2026-11-07
 - **Web calculator** The installed web app now follows the device's rotation, like the iOS app. Held upright it shows the calculator and printer pages. In landscape, tablets, an opened iPhone Duo and large desktop windows show the calculator, the printer and the debugger side by side, and a phone shows the calculator and the printer. Settings then also offers the Maximum Trace File Size. <!-- appstore: skip -->
 
 ### Fixes
