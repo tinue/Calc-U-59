@@ -7,7 +7,7 @@
 - **Display** The rare display states that the ROM leaves in undocumented conditions now look as on a real TI-59: the double quote and apostrophe appear, a degree sign no longer shows as a minus, and the "C" indicator no longer hides a lit leftmost position while the display is on. In such a blink the "C" now switches abruptly between normal and very weak, instead of fading away.
 - **Display** While a program runs, the "C" indicator now changes its brightness as on a real TI-59, with visible jumps up to full brightness.
 - **Web calculator** The installed web app now starts without a connection. It used to stop at "Starting the emulator…" when opened offline. Open it once online to get the update. <!-- appstore: skip -->
-- **Web calculator** The installed web app on iOS no longer draws a blue line around the calculator after the first tap. <!-- appstore: skip -->
+- **Web calculator** On iPhone and iPad, the web calculator, in the browser and installed, no longer draws a blue line around itself after the first tap. <!-- appstore: skip -->
 
 ## [2.2.0] - 2026-11-03
 - **State Files** One preset can now run a whole session. A `PROGRAM:` or `REGISTERS:` after `KEYSTROKES:` changes just the steps and registers it lists once the program has stopped, as if you had keyed the changes in, on any model. For larger changes, a preset feeds magnetic cards the way a TI-59 user fed a prepared stack: `InsertCard:` pushes a card into the stopped calculator, `ArmCard:` lays one ready for the program's own `Write` or `INV Write`, and a `CARD:` block defines a card's registers and steps in the preset itself, without a file. `fast-grafik-3d-plot.ti59` is now one file instead of two.
