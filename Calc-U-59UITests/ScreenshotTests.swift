@@ -239,6 +239,36 @@ final class ScreenshotTests: XCTestCase {
         attachScreenshot(app, name: "Plain Calculator — TI-58C display")
     }
 
+    /// Display glyphs screenshot — a TI-58 frozen in the lit phase of an error
+    /// blink that shows the double quote, apostrophe and degree sign. The
+    /// preset freezes the CPU itself (see test_58_glyphs.ti58); a frozen
+    /// display keeps its last frame.
+    func testScreenshotGlyphs() throws {
+        let app = launchForScreenshot(orientation: .portrait)
+
+        let presetButton = app.buttons["btn-preset"]
+        XCTAssertTrue(presetButton.waitForExistence(timeout: 5), "Preset button not found")
+        presetButton.tap()
+
+        navigateToOnMyIPhone(app, targetFile: "test_58_glyphs.ti58")
+        let cell = app.cells.containing(.staticText, identifier: "test_58_glyphs.ti58").firstMatch
+        XCTAssertTrue(cell.waitForExistence(timeout: 5), "test_58_glyphs.ti58 not found")
+
+        let statusEl = app.otherElements["keystroke-playback-status"]
+        let playbackStarted = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value == 'playing'"), object: statusEl)
+        cell.tap()
+        XCTAssertEqual(XCTWaiter.wait(for: [playbackStarted], timeout: 8), .completed,
+                       "test_58_glyphs.ti58 did not load")
+        let playbackDone = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value == 'idle'"), object: statusEl)
+        XCTAssertEqual(XCTWaiter.wait(for: [playbackDone], timeout: 20), .completed,
+                       "test_58_glyphs.ti58 keystrokes did not complete")
+
+        try saveScreenshot(fallbackName: "Glyphs")
+        attachScreenshot(app, name: "Display glyphs — TI-58 blink, lit phase")
+    }
+
     /// CPU Inspector screenshot — iPhone 17 Pro Max portrait only.
     ///
     /// Sequence:

@@ -1,0 +1,39 @@
+# test_58_glyphs.ti58
+#
+# Screenshot automation: the display glyphs a real TI-58/59 shows only in
+# undocumented states (Calc-U-59UITests/ScreenshotTests.swift,
+# testScreenshotGlyphs). After the key sequence below, the display blinks
+#
+#     -0-"0000'°0
+#
+# with the double quote, apostrophe and degree sign that the control nibbles
+# 2, 4 and 5 light (reference/CoreArchitecture.md).
+#
+# Only the lit phase of the blink shows them, so the script freezes the CPU
+# in it: a frozen display keeps its last frame. Measured with the headless
+# harness (tools/headless/), the blink starts in the scan loop right after the
+# last Del with the dark phase: dark 0-270 ms, lit 270-530 ms, period 529 ms.
+# The Wait lands in the middle of the first lit phase (margin about ±125 ms).
+# The printer stays off: on the PC-100 the blink is slower.
+
+MODEL: TI-58
+SOLID-STATE-MODULE: ML
+PRINTER: off
+
+KEYSTROKES:
+21 64   # 2nd Op
+82 74   # 1 6     → partition 239.29
+42      # STO
+92 92   # 0 0
+21 31   # 2nd Pgm
+92 82   # 0 1
+11      # A
+25      # CLR
+21 83   # 2nd D.MS
+31      # LRN
+41      # SST
+21 51   # 2nd Del
+21 51   # 2nd Del
+21 51   # 2nd Del → the blink starts, dark first
+Wait: 400ms
+Freeze: CPU
