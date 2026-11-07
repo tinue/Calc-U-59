@@ -4,8 +4,7 @@
 # Output follows the naming convention required by `release ios --release`:
 #   iphone-NN-<name>.png   (APP_IPHONE_67,         1320 × 2868 px)
 #   ipad-NN-<name>.png     (APP_IPAD_PRO_3GEN_129, 2752 × 2064 px)
-#   iphoneduo-NN-<name>.png (iPhone Duo opened flat, 2853 × 2007 px; not yet
-#                           uploaded by `release`, whose iphone-* skips it)
+#   iphoneduo-NN-<name>.png (APP_IPHONE_DUO, iPhone Duo opened flat, 2853 × 2007 px)
 #
 # The target simulators are the ones marked `screenshots: iphone`, `ipad` and
 # `duo` in bin/simulators.yaml; bin/simulators resolves them to
