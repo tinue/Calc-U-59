@@ -27,7 +27,7 @@ the named one still to do (the Notes say why); `Swift only` / `Qt only` /
 | Hold display for full speed | `KeyboardView` | `KeyboardWidget` | `CalculatorFace`, `WebController` | `Pacing`, `KeyboardLayout` (`PointerTracker`) | All | |
 | Physical keyboard (26 keys, Shift = 2nd, min. hold) | `KeyboardView` | `KeyboardWidget` | `PlayCalculator` (`keyboard` prop), `WebController` | `KeyboardMap`, `KeySequencer` | All | macOS only in the Swift app; web: only while the calculator has focus |
 | LED display, Modernized / Classic styles | `LEDDisplayView` | `LedRenderer` | `painters.js` | `SevenSegment`, `LedGeometry` | All | Glow: SwiftUI blur / box-blur layers / Canvas 2D blur; web: Classic only |
-| Digit and decimal-point brightness (persistence of vision), "C" indicator fade | `LEDDisplayView` | `LedRenderer` | `painters.js`, `WebController` | `FrameSampler`, `DisplayPov` | All | |
+| Digit and decimal-point brightness (persistence of vision), "C" indicator brightness | `LEDDisplayView` | `LedRenderer` | `painters.js`, `WebController` | `FrameSampler`, `DisplayPov` | All | |
 | Cue card: 3 templates, `\blank` spans, shrink-to-fit, inks | `CueCardView` | `CueCardRenderer` | `painters.js`, `WebController` (draw list) | `CueCard` (layout, geometry, inks) | All | |
 | Module program cards (SCOM[9]), user cards | `EmulatorViewModel` | `EmulatorController` | `WebController` | `SessionController`, `CueCard` resolveCueCard | All | |
 | Solid State module selection | `SettingsView` | `SettingsDialog` | `Dialogs` (Settings) | `ModuleCatalog` | All | soft reset on change |
