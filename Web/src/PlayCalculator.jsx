@@ -113,18 +113,26 @@ function Divider({ onDrag }) {
   );
 }
 
-/// `rules` (layout="auto", bindings.cpp mobileRules): the artwork fills the
-/// height, whatever its size, the bar and the printer follow the iOS app, and
-/// the debugger may be left out. A bar wider than the artwork widens the column.
+/// The rules of the embedded layout="wide": the artwork's size follows the
+/// window, within limits, and the debugger is always there.
+const EMBEDDED_WIDE = {
+  embedded: true, printerMin: PRINTER_MIN, printerMax: PRINTER_MAX, printerStart: 260,
+  debugger: true, barLabels: true, compactPrinterBar: false,
+};
+
+/// `rules` is EMBEDDED_WIDE or (layout="auto") bindings.cpp mobileRules: the
+/// artwork fills the height, whatever its size, the bar and the printer follow
+/// the iOS app, and the debugger may be left out. A bar wider than the artwork
+/// widens the column.
 function WideLayout({ engine, width, height, showSettings, onDialog, feedback, rules }) {
-  const faceWidth = rules ? Math.max(FACE_MIN_AUTO, faceWidthFor(height))
-    : Math.max(FACE_MIN.wide, Math.min(height ? faceWidthFor(height) : 420, width * 0.4));
-  const compact = !!rules && (!rules.barLabels || faceWidth < FACE_MIN.wide);
+  const faceWidth = rules.embedded
+    ? Math.max(FACE_MIN.wide, Math.min(height ? faceWidthFor(height) : 420, width * 0.4))
+    : Math.max(FACE_MIN_AUTO, faceWidthFor(height));
+  const compact = !rules.barLabels || faceWidth < FACE_MIN.wide;
   const columnWidth = Math.max(faceWidth + 2 * FACE_PADDING, compact ? minimumWidth(true) : 0);
   const total = columnHeight(faceWidth, height);
-  const printerMin = rules ? rules.printerMin : PRINTER_MIN, printerMax = rules ? rules.printerMax : PRINTER_MAX;
-  const hasDebugger = !rules || rules.debugger;
-  const [printerWidth, setPrinterWidth] = React.useState(rules ? printerMax : 260);
+  const { printerMin, printerMax, debugger: hasDebugger } = rules;
+  const [printerWidth, setPrinterWidth] = React.useState(rules.printerStart ?? printerMax);
   const room = width - columnWidth - 2;
   const pw = Math.max(printerMin, Math.min(printerMax, printerWidth, room - (hasDebugger ? DEBUG_MIN : 0)));
   return (
@@ -132,7 +140,7 @@ function WideLayout({ engine, width, height, showSettings, onDialog, feedback, r
       <CalculatorColumn engine={engine} faceWidth={faceWidth} width={columnWidth} compact={compact}
         showSettings={showSettings} onDialog={onDialog} feedback={feedback} />
       <div className="calcu-vline" />
-      <div style={{ width: pw, flex: "none", display: "flex" }}><Printer engine={engine} compactBar={!!rules && rules.compactPrinterBar} /></div>
+      <div style={{ width: pw, flex: "none", display: "flex" }}><Printer engine={engine} compactBar={rules.compactPrinterBar} /></div>
       {hasDebugger && <Divider onDrag={(dx) => setPrinterWidth(Math.max(printerMin, Math.min(printerMax, pw + dx)))} />}
       {hasDebugger && <Debugger engine={engine} />}
     </div>
@@ -284,7 +292,7 @@ function PlayCalculator({
     >
       {(!auto || rules) && (
         <Layout engine={engine} width={w} height={height} showSettings={settings} onDialog={setDialog} feedback={feedback}
-          rules={rules} />
+          rules={rules || EMBEDDED_WIDE} />
       )}
       <StatusLine engine={engine} />
       <KeyFeedback engine={engine} feedback={feedback} />

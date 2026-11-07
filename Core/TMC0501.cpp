@@ -291,10 +291,13 @@ int TMC0501::getStepWeight() const {
 // A position that was not driven reads as dark; persistence of vision is the
 // frontend's job (Shared/DisplayPov).
 
-// How much this step drives the C indicator. In RUN, one unit per set fA bit:
-// a film of a real TI-59 running Pgm 01 SBR = follows the number of set bits
-// (correlation 0.80), much less whether any is set (0.46), which fits the flags
-// being shifted out one bit at a time. In IDLE, fA bit 14 only.
+// How much this step drives the C indicator (the SH output at digit 12). In
+// RUN, one unit per set fA bit: a film of a real TI-59 running Pgm 01 SBR =
+// follows the number of set bits (correlation 0.80), much less whether any is
+// set (0.46), which fits the flags being shifted out one bit at a time. In
+// IDLE, fA bit 14 (0x4000) only (Sladký 2014): the other bits hold display
+// state (bits 1–4 the decimal-point position from MOV fA[1..4],R5) and must
+// not light the C.
 static uint32_t calcIndicatorDrive(uint32_t flags, uint16_t fA) {
     if (flags & FLG_IDLE) return (fA & 0x4000u) ? 1u : 0u;
     return static_cast<uint32_t>(std::bitset<16>(fA).count());
@@ -302,16 +305,10 @@ static uint32_t calcIndicatorDrive(uint32_t flags, uint16_t fA) {
 
 DisplaySnapshot TMC0501::takeDisplay() {
     std::lock_guard<std::mutex> lock(m_displayMutex);
-    // Integrate the SH-pin (C indicator) signal over the polling interval rather
-    // than sampling a boolean at one instant.
+    // Integrate the C indicator's drive over the polling interval rather than
+    // sampling a boolean at one instant.
     //
-    // Per the TI-58/59 hardware guide (Sladký 2014), the SH output at digit 12:
-    //   • IDLE mode  — driven by fA bit 14 (0x4000) only.  The other fA bits
-    //     are used for display state (e.g. bits 1–4 hold the decimal-point
-    //     position loaded by MOV fA[1..4],R5) and must NOT light the C LED.
-    //   • RUN mode   — driven by all fA bits (calcIndicatorDrive).
-    //
-    // m_cSteps sums that drive over the step() calls.
+    // m_cSteps sums calcIndicatorDrive over the step() calls.
     // m_pollSteps counts all steps weighted by cycle cost (non-IDLE=1, IDLE=4).
     // The ratio is the mean drive over real time, averaged down to the 60 Hz UI
     // poll: 1 with one bit set throughout, above 1 with more.
@@ -535,7 +532,7 @@ int TMC0501::step() {
         // TI-58C runs at constant speed; TI-59/58 slow to 1/4 speed during IDLE
         int w = getStepWeight();
         if (tf != TRACE_NONE) tracePostStep(w);
-        m_cSteps.fetch_add(calcIndicatorDrive(flags, fA), std::memory_order_relaxed);
+        if (uint32_t d = calcIndicatorDrive(flags, fA)) m_cSteps.fetch_add(d, std::memory_order_relaxed);
         m_pollSteps.fetch_add(static_cast<uint32_t>(w), std::memory_order_relaxed);
         m_elapsedTicksLocal += static_cast<uint64_t>(w);
         m_elapsedTicks.store(m_elapsedTicksLocal, std::memory_order_relaxed);
@@ -977,7 +974,7 @@ int TMC0501::step() {
     // TI-58C runs at constant speed; TI-59/58 slow to 1/4 speed during IDLE
     int w = getStepWeight();
     if (tf != TRACE_NONE) tracePostStep(w);
-    m_cSteps.fetch_add(calcIndicatorDrive(flags, fA), std::memory_order_relaxed);
+    if (uint32_t d = calcIndicatorDrive(flags, fA)) m_cSteps.fetch_add(d, std::memory_order_relaxed);
     m_pollSteps.fetch_add(static_cast<uint32_t>(w), std::memory_order_relaxed);
     m_elapsedTicksLocal += static_cast<uint64_t>(w);
     m_elapsedTicks.store(m_elapsedTicksLocal, std::memory_order_relaxed);
@@ -1461,8 +1458,7 @@ void TMC0501::postOperation() {
         // position's driven time (takeDisplay turns it into a duty cycle). A
         // suppressed or blank strobe drives nothing; the glyph stays latched.
         const uint32_t w = static_cast<uint32_t>(getStepWeight());
-        const bool emitsGlyph = (b <= 2 || b == 4 || b == 5 || b == 6 || b == 8 || b == 9);
-        if (!suppressed && emitsGlyph) {
+        if (!suppressed && b <= 9) {
             m_digitSegmentsA[idx] = a;
             // Nibble 5 under suppression loses the degree sign's upper segments:
             // only the middle one stays, the glyph of nibble 6.

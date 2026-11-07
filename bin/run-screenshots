@@ -32,7 +32,9 @@ stop_capture_watcher() {
     kill "$CAPTURE_WATCHER" 2>/dev/null || true
     CAPTURE_WATCHER=""
 }
-trap 'stop_capture_watcher; rm -f /tmp/calc-u-59-screenshot-dir /tmp/calc-u-59-screenshot-name "$CAPTURE_REQUEST"' EXIT
+REMOVE_ALPHA=/tmp/calc-u-59-remove-alpha
+rm -f "$REMOVE_ALPHA"   # a leftover from an older run may be stale
+trap 'stop_capture_watcher; rm -f /tmp/calc-u-59-screenshot-dir /tmp/calc-u-59-screenshot-name "$CAPTURE_REQUEST" "$REMOVE_ALPHA" "$REMOVE_ALPHA.swift"' EXIT
 
 # ── Test runner ────────────────────────────────────────────────────────────────
 
@@ -60,8 +62,10 @@ print(inner["displayId"], inner.get("backlightState"))'
 }
 
 # App Store Connect accepts no alpha channel; simctl's PNGs have one.
+# Compiled on first use, so each shot doesn't compile the script again.
 remove_alpha() {
-    xcrun swift - "$1" <<'SWIFT'
+    if [[ ! -x "$REMOVE_ALPHA" ]]; then
+        cat > "$REMOVE_ALPHA.swift" <<'SWIFT'
 import CoreGraphics
 import Foundation
 import ImageIO
@@ -77,6 +81,9 @@ let destination = CGImageDestinationCreateWithURL(url, "public.png" as CFString,
 CGImageDestinationAddImage(destination, context.makeImage()!, nil)
 exit(CGImageDestinationFinalize(destination) ? 0 : 1)
 SWIFT
+        xcrun swiftc -O -o "$REMOVE_ALPHA" "$REMOVE_ALPHA.swift" || return 1
+    fi
+    "$REMOVE_ALPHA" "$1"
 }
 
 # A landscape test asks for its shot by creating $CAPTURE_REQUEST and holds the

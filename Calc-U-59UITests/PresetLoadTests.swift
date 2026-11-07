@@ -58,30 +58,5 @@ final class PresetLoadTests: XCTestCase {
 
         attachScreenshot(app, name: "After loading diag.ti59 — playback running")
     }
-
-    // MARK: - Helpers
-
-    private func navigateToOnMyIPhone(_ app: XCUIApplication, targetFile: String) {
-        // The picker's first opening on a fresh simulator takes many seconds.
-        _ = app.searchFields.firstMatch.waitForExistence(timeout: 30)
-
-        if app.cells.containing(.staticText, identifier: targetFile).firstMatch.waitForExistence(timeout: 2) { return }
-
-        for label in ["Durchsuchen", "Browse"] {
-            let tab = app.tabBars.buttons[label]
-            if tab.waitForExistence(timeout: 2) {
-                if !tab.isSelected { tab.tap() }
-                break
-            }
-        }
-
-        for label in ["Auf meinem iPhone", "Auf meinem iPad", "On My iPhone", "On My iPad"] {
-            let item = app.cells.containing(.staticText, identifier: label).firstMatch
-            if item.waitForExistence(timeout: 2) { item.tap(); break }
-        }
-
-        let folder = app.cells.containing(.staticText, identifier: "1-Testfiles").firstMatch
-        if folder.waitForExistence(timeout: 2) { folder.tap() }
-    }
 }
 #endif
